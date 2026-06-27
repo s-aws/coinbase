@@ -31,6 +31,9 @@ import pytest
 from database.database import PostgresDB
 
 
+pytestmark = [pytest.mark.regression, pytest.mark.serial]
+
+
 _TABLE_PARENT = "_thread_safety_parent"
 _TABLE_CHILD = "_thread_safety_child"
 

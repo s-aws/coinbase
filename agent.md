@@ -134,11 +134,57 @@ When extending UI behavior, update both dashboard handler logic and the correspo
 
 ## Testing Commands (PowerShell)
 
-`pytest tests/regression/ -v --tb=short` must pass before any non-agent-file change is done.
+Use focused tests and validators for ordinary phases. The full regression gate
+is reserved for durable milestone closeout, public/release-candidate handoff,
+deployment approval/closeout, release-hardening closeout, Admin API/backend
+association closeout, or explicit user request. The canonical closeout command
+is the process-parallel helper. The durable policy lives in
+`docs/REGRESSION_PROCESS.md`; use the sequential pytest command only as an
+intentional fallback when `pytest-xdist` is unavailable.
+The helper validates serial-lane classification before running pytest. Mark
+regression files `pytest.mark.serial` when they touch shared DB cursors, fixed
+service ports, process-global state, full FastAPI app imports, or other
+process-shared/memory-heavy resources. If the static classifier reports a false
+positive, add a `parallel-regression: serial-safe` comment with the reason.
+The helper fails before pytest when oversized repo-local runtime artifacts under
+`runtime_state/` exceed 1 GiB. If it emits
+`runtime_artifact_preflight_failed`, treat the full regression gate as failed:
+run `python tools/check_runtime_artifacts.py`, preserve the evidence, and clean
+or archive artifacts only after explicit operator cleanup approval. Use
+`--disable-runtime-artifact-preflight` only for a scoped diagnostic run after
+preserving artifact evidence.
+The helper uses short tracebacks and a Windows memory-pressure guard by default.
+It samples every 5 seconds and aborts on high absolute commit pressure, high
+commit percentage, high physical-memory pressure, or low available physical
+memory. Preserve the summary JSON because it includes per-lane peak memory
+samples and top-process `process_memory_snapshots` captured at each lane's
+observed peak when the guard is active. Use those snapshots as host attribution
+evidence so pytest workers can be distinguished from Codex, VS Code, browsers,
+WSL, Docker, or unrelated host processes.
+If it emits `memory_guard_aborted`, treat the full regression gate as failed:
+run the stale process checker, run the runtime artifact checker, record the
+memory evidence, and split or reduce the offending regression surface before
+retrying. Do not pass
+`--disable-memory-watch` for normal milestone closeout.
+Before full closeout gates and after any interrupted or timed-out backend or
+frontend test command, run the stale process checker:
+`python tools/check_stale_test_processes.py --include-sibling-frontend`.
+The checker is report-only by default; use `--kill` only when the matched
+repo-owned test worker is stale, or over the default high-memory threshold,
+and not part of active validation.
 Exception: if changes are limited to agent/context files only (`AGENTS.md`, `agent.md`, `ai-context.md`, `.agents/ownership.yaml`, `docs/agents/*.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
 
 ```powershell
-# Regression - required for non-agent-file changes
+# Full regression closeout gate - durable milestone closeout only unless explicitly requested
+python tools/run_parallel_regression.py --workers 4
+
+# Stale test-process hygiene - before closeout gates and after interruptions
+python tools/check_stale_test_processes.py --include-sibling-frontend
+
+# Runtime artifact attribution - after memory guard aborts or unexpected spikes
+python tools/check_runtime_artifacts.py
+
+# Sequential fallback only when pytest-xdist is unavailable
 pytest tests/regression/ -v --tb=short
 
 # Full suite - recommended for major or cross-module changes

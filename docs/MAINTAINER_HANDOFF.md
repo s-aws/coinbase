@@ -26,6 +26,18 @@ perpetuals, stealth orders, movement/repricing, or future modules.
    active phase must map to an approved durable milestone and an explicit
    architecture or planning gap.
 
+## Subagent Hygiene
+
+Phase-end cleanup is the canonical timing. Close subagents spawned for the
+completed phase after their findings have been consumed, remediated, or
+explicitly deferred, and close stale or previously unused subagents from
+earlier phases or milestones discovered during that sweep. Durable milestone
+closeout is a final audit sweep, not the first cleanup point. Do not close a
+subagent that is still running required validation, producing required
+evidence, or awaiting a user decision. Any intentionally open handoff agent
+must have recorded owner, purpose, and expected next action. Record the
+phase-end or milestone-closeout sweep result before advancing.
+
 ## Backend Authority Rules
 
 - Use one code path per behavior.
@@ -72,21 +84,32 @@ Passing answer requirements:
   `docs/ADMIN_MODULE_CAPABILITY_MATRIX.md`
 - keeps backend authority over trading behavior and live execution
 - sends frontend work through OpenAPI generation and canonical wrappers
-- lists backend regression, frontend release gate, autonomous validation, and
-  blind/contextless review
+- lists focused backend/frontend checks, autonomous validation, and
+  blind/contextless review for ordinary phases
+- reserves full backend regression and frontend release gate for durable
+  milestone closeout, public/release-candidate handoff, deployment
+  approval/closeout, release-hardening closeout, Admin API/backend association
+  closeout, or explicit request
 - reports live Coinbase execution as not run unless an explicit live phase is
   approved
 
 ## Required Gates
 
-Backend changes must pass:
+Backend changes must pass focused tests and validators for the changed
+behavior. Full regression is a durable milestone-closeout, public/release-
+candidate handoff, deployment approval/closeout, release-hardening closeout,
+Admin API/backend association closeout, or explicit-request gate:
 
 ```powershell
-pytest tests\regression\ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 python tools\run_autonomous_work_queue_check.py --summary-only
 ```
 
-Frontend/API association changes must also pass in `C:\coinbase-frontend`:
+Frontend/API association changes must pass focused frontend checks for the
+changed behavior. Full release gate is a durable milestone-closeout,
+public/release-candidate handoff, deployment approval/closeout,
+release-hardening closeout, Admin API/backend association closeout, or
+explicit-request gate:
 
 ```powershell
 npm run release:gate
@@ -100,503 +123,484 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `3361-3380` under M55.
-- Active autonomous range: `3381-3400` under M55.
-- M49 approval lifecycle, M50 cap/guard records, M51 admission audits, and
-  M52 reconciliation plan records are complete. M53 closed with a single
-  dry-run pilot adapter for `POST /api/v1/orders` through
-  `AdminApiCommandService.place_manual_order`. M54 completed the first
-  read-only Spot command-suite slice, backend-owned proof-route linkage, and
-  backend-owned readiness preconditions at
-  `GET /api/v1/spot/command-suite` for manual order, cancel by
-  `client_order_id`, and campaign execution readiness, then bound those rows
-  into website command workflow draft evidence. M54 then added typed
-  `coverage_gaps` for spot sweep automation, recovery workflow, and
-  reconciliation workflow so missing spot admin families are explicit before
-  new command routes or live controls exist. M54 then linked those gap rows to
-  typed `current_read_evidence` rows derived from route inventory and added
-  durable Spot P/L checkpoint records at `/api/v1/spot/pnl/checkpoints`. M54
-  then extended that same checkpoint path with average-cost review evidence,
-  verified append-only Admin API audit-link readback, read-only recovery-link
-  evidence to backend-owned recovery gate and fill-ledger-health reads, and
-  read-only reconciliation-plan link evidence to backend-owned reconciliation
-  plan reads. P/L tracking is no longer a current command-suite coverage gap.
-  M54 then added the read-only Spot recovery-preview route, and the 1821-1840
-  range extended that foundation with read-only recovery apply-review,
-  rollback-plan, and reconciliation-proof routes. The completed 1841-1860 range added
-  disabled/no-live POST contracts for recovery apply execution, rollback
-  execution, exchange-state proof recording, and reconciliation-proof
-  recording. The completed 1861-1880 range added durable proof persistence,
-  proof readback, and the `spot_recovery:record` permission for proof
-  recording. The completed 1881-1900 range added no-live recovery
-  apply/rollback execution journal plumbing and post-apply reconciliation
-  boundaries. The completed 1901-1920 range added guarded local repair-result
-  evidence and clarified that recovery-state evidence is not order/exchange
-  mutation, Coinbase activity, or browser authority. The completed 1921-1940 range adds
-  backend-owned post-apply reconciliation completion evidence: reconciliation
-  proof recording can append a guarded local completion record only after
-  matching proof, apply journal, repair-result, approval, admission audit,
-  cap/guard, reconciliation-plan, idempotency, operator-intent, and
-  payload-hash evidence. Recovery apply/rollback journal acceptance, guarded
-  repair-result evidence, and completion records are durable after exact
-  backend prerequisites match. The completed 1941-1960 range added the
-  route-bound fail-closed reconciliation execution boundary at
-  `POST /api/v1/spot/recovery/reconciliation-executions`; that route is
-  audited, idempotent, RBAC/proof-gated, and rejected until backend executor
-  and live Coinbase read authority exist. The completed 1961-1980 range adds
-  backend-owned no-live snapshot records; those records do not read Coinbase
-  or prove live exchange truth. The completed 1981-2000 range started M55 by
-  adding read-only stealth command-suite readiness evidence for create,
-  cancel, reveal, move, reprice, recovery, and reconciliation workflows and
-  linked existing live-disabled stealth cancel and movement/reprice route
-  evidence without enabling them. The completed 2001-2020 range added a
-  route-bound, live-disabled `POST /api/v1/stealth/orders` create command draft
-  keyed by `stealth_order_id`, with backend-owned identity derivation, route
-  inventory, command-suite linkage, frontend generated types, BFF forwarding,
-  and dry-submit evidence. The completed 2021-2040 range added a
-  route-bound, live-disabled
-  `POST /api/v1/stealth/orders/{stealth_order_id}/reveal` command draft keyed
-  by `stealth_order_id` without invoking `reveal_order_slice`, calling
-  `StealthOrderManager`, submitting Coinbase orders, mutating local lifecycle
-  state, or executing reconciliation. The completed 2041-2060 range continues M55
-  by adding a route-bound, live-disabled
-  `POST /api/v1/stealth/orders/{stealth_order_id}/move` command draft keyed by
-  `stealth_order_id`. Move is `live_exchange_cancel` shaped, but it must not
-  invoke `build_stealth_move_plan`, call `execute_stealth_move`, call
-  `StealthOrderManager`, submit or cancel Coinbase orders, perform
-  cancel/replace, create or mutate local stealth/order/exchange state, execute
-  reconciliation, read Coinbase, or grant browser/BFF stealth command
-  authority. This foundation must not add
-  a parallel writer,
-  browser P/L authority, sell authority, tax accounting, browser audit
-  authority, browser recovery authority, browser reconciliation authority,
-  recovery execution, repair apply, rollback execution, reconciliation
-  execution, order/exchange-state mutation, or Coinbase execution. Live
-  Coinbase execution
-  remains disabled unless a later phase explicitly runs under the carried cap
-  policy.
-  Browser approval, BFF forwarding, linked snapshots, cap/guard records, audit
-  records, reconciliation plans, command-suite proof routes, command draft
-  evidence, or pilot adapter evidence are not sufficient live execution
-  authority by themselves.
-  The completed 2061-2080 range added a read-only exchange-truth prerequisite
-  ledger to `GET /api/v1/stealth/command-suite`. The ledger must keep
-  `stealth_order_id` as the only accepted command identity, list active
-  placement client ids and exchange order ids as evidence-only rejected command
-  keys, and show required/missing active-placement, mutation-claim,
-  cancel/replace, lifecycle-write, trigger/submission, and reconciliation
-  contracts without granting browser, BFF, Coinbase, or local mutation
-  authority. The completed 2081-2100 range added a no-live active-placement audit
-  block to the existing `GET /api/v1/stealth/orders/{stealth_order_id}` detail
-  response. The audit may show local active-placement evidence and required
-  contracts for cancel, move, and movement/reprice, but it must not read
-  Coinbase, cancel or replace active placements, mutate lifecycle state,
-  execute reconciliation, add a new endpoint, or grant browser/BFF
-  exchange-truth authority. The completed 2101-2120 range added no-live
-  mutation-claim audit evidence to that same existing detail route. The audit
-  may reuse existing runtime mutation-claim snapshots for move/reprice
-  readiness, but it must not acquire claims, release claims, bypass manager
-  locks, execute cancel/replace, mutate lifecycle state, execute
-  reconciliation, call Coinbase, add a new endpoint, or grant browser/BFF
-  claim authority. The completed 2121-2140 range added no-live reveal-trigger
-  audit evidence to that same existing detail route. The audit may show local
-  reveal-condition evidence and missing trigger-guard contracts for reveal
-  readiness, but it must not evaluate triggers, call `should_trigger_reveal`,
-  call `reveal_order_slice`, submit Coinbase orders, mutate lifecycle state,
-  execute reconciliation, add a new endpoint, or grant browser/BFF trigger or
-  reveal authority. The completed 2141-2160 range added no-live reveal
-  submission-adapter audit evidence to that same existing detail route. The
-  audit may show the future backend reveal route, shared service method,
-  manager method, local active-placement blockers, missing
-  submission/reconciliation contracts, and no-live flags, but it must not call
-  `reveal_order_slice`, create active placements, submit or cancel Coinbase
-  orders, read Coinbase, mutate lifecycle state, execute reconciliation, add a
-  new endpoint, or grant browser/BFF reveal authority. The completed 2161-2180
-  range added no-live reveal reconciliation audit evidence to that same detail
-  route. The audit may show required reconciliation plan/proof posture, local
-  active-placement evidence, missing proof contracts, read-evidence routes,
-  and no-live flags, but it must not read Coinbase, resolve or write proof
-  records, execute reconciliation, mutate order or lifecycle state, add a new
-  endpoint, or grant browser/BFF reveal authority. The completed 2181-2200 range
-  added read-only stealth create lifecycle-write audit evidence to the existing
-  `GET /api/v1/stealth/command-suite` route. That audit may show the
-  live-disabled create route, shared service method, existing manager method,
-  accepted/rejected identity keys, required lifecycle-write/admission/
-  reconciliation contracts, blockers, and no-live/no-write flags, but it must
-  not invoke `StealthOrderManager`, write stealth rows, write `order_parent`
-  rows, dispatch lifecycle events, submit Coinbase orders, read Coinbase,
-  execute reconciliation, mutate lifecycle state, add a new endpoint, or grant
-  browser/BFF lifecycle-write authority. The completed 2201-2220 range added
-  proof-route and gate-chain linkage to that same audit. It may show backend
-  proof routes, required permissions, shared methods, and missing gates, but it
-  must not create proof records, mutate proof stores, evaluate guards, execute
-  reconciliation, invoke the manager, write lifecycle state, call Coinbase, add
-  a new endpoint, or grant browser/BFF proof or lifecycle-write authority. The
-  completed 2221-2240 range linked the remaining stealth command-suite coverage
-  gaps, especially recovery and reconciliation, to typed backend-owned read
-  evidence routes. It may show route, method, permission, shared method,
-  documentation refs, and display/read-only authority, but it must not create
-  recovery/reconciliation commands, write proof records, mutate stealth/order/
-  exchange state, execute reconciliation, call Coinbase, trust browser
-  exchange evidence, or grant browser/BFF execution authority. The completed
-  2241-2260 range linked the stealth command-suite `exchange_truth_checks` to
-  typed backend-owned read evidence rows. It may show route, method,
-  permission, shared method, documentation refs, and display/read-only
-  authority, but it must not claim Coinbase reads ran, prove active-placement
-  exchange truth, cancel/replace placements, reveal orders, execute
-  reconciliation, mutate stealth/order/exchange state, create proof records,
-  or grant browser/BFF execution authority. The completed 2261-2280 range
-  added route-bound, live-disabled stealth recovery and reconciliation command
-  contracts keyed by `stealth_order_id`. It added request/command models,
-  FastAPI adapters, shared service fail-closed responses, route inventory,
-  OpenAPI, command-suite metadata, frontend schema, mocks, and dry-submit
-  display evidence, but it did not execute recovery repair, rollback,
-  reconciliation, proof writers, Coinbase reads, Coinbase orders,
-  `StealthOrderManager` mutations, local stealth/order lifecycle mutations,
-  exchange-state mutations, or browser/BFF command authority. The completed
-  2281-2300 range added backend-owned append-only active-placement
-  exchange-truth snapshot/proof evidence and readback keyed by
-  `stealth_order_id`. It may persist local evidence records and link them to
-  command-suite blockers, but it must not run Coinbase reads, cancel/replace
-  active placements, execute reconciliation, mark exchange truth verified,
-  mutate stealth/order/exchange state, or grant browser/BFF command authority.
-  The completed 2301-2320 range added a backend-owned
-  `admission_readiness` ledger to the existing
-  `GET /api/v1/stealth/command-suite` response. It binds each stealth command
-  route to required approval, admission-audit, cap/guard, reconciliation,
-  active-placement exchange-truth or lifecycle-write, disabled live adapter,
-  and post-live reconciliation evidence. It must not approve, execute,
-  reconcile, read Coinbase, call `StealthOrderManager`, cancel/replace active
-  placements, mutate lifecycle/order/exchange state, or grant browser/BFF
-  command authority. The completed 2321-2340 range added command-envelope
-  context requirements to those admission-readiness rows. The completed
-  2341-2360 range added command-response context echo evidence for
-  live-disabled stealth dry-submit responses. Command-suite reads still show
-  missing exact context, while a concrete command response may show exact
-  route, identity, actor, idempotency, operator-intent, and payload-hash
-  context as backend evidence. It must not approve admission, execute
-  commands, reconcile, read Coinbase, call `StealthOrderManager`,
-  cancel/replace active placements, mutate lifecycle/order/exchange state, or
-  grant browser/BFF authority. The completed 2361-2380 range added
-  backend-owned stealth create lifecycle-write guard proof records, readback,
-  command-suite proof-route linkage, OpenAPI/frontend sync, tests, and blind
-  review. The completed 2381-2400 range added stealth create lifecycle-write
-  execution-contract boundary evidence as no-live readiness. The completed
-  2401-2420 range advanced the missing stealth create
-  execution-prerequisite resolver boundary as exact-context read evidence
-  only. It must not invoke `StealthOrderManager`, write `stealth_orders` or
-  `order_parent` rows, dispatch lifecycle events, submit/read/cancel
-  Coinbase, replace active placements, execute reconciliation, mutate
-  stealth/order/exchange state, approve live admission, use proof lookup as
-  execution authority, or grant browser/BFF execution authority. The completed
-  2421-2440 range added typed backend-owned non-create stealth command
-  execution posture on reveal, cancel, move, recovery, reconciliation, and
-  movement/reprice responses without invoking managers, canceling/replacing
-  active placements, calling Coinbase, executing reconciliation, mutating
-  lifecycle/order/exchange state, or granting browser/BFF execution authority.
-  The completed 2441-2460 range added resolver-backed active-placement
-  exchange-truth proof evidence to those command responses using only the
-  existing append-only backend proof store. It resolves only
-  `active_placement_exchange_truth` for the latest safe
-  same-`stealth_order_id` proof record, fails closed on latest unsafe proof
-  records, and must not verify Coinbase, resolve reveal-trigger/
-  mutation-claim/recovery/reconciliation proof, execute commands, or grant
-  browser/BFF authority.
-  The completed 2461-2480 range added backend-owned mutation-claim snapshot
-  proof records, readback, command-suite proof-route linkage, and exact-context
-  resolver evidence for move and movement/reprice posture. It may resolve only
-  `mutation_claim_snapshot` from the latest safe same-`stealth_order_id`
-  proof record and must not acquire or release runtime claims, invoke
-  `StealthOrderManager`, cancel/replace placements, call Coinbase, execute
-  reconciliation, mutate state, or grant browser/BFF authority. The completed
-  2481-2500 range added backend-owned recovery proof records, readback,
-  command-suite proof-route linkage, and exact-context resolver evidence for
-  stealth recovery posture only. It may resolve only `recovery_proof` from the
-  latest safe same-`stealth_order_id` proof record and must not repair state,
-  roll back state, invoke managers, call Coinbase, cancel/replace placements,
-  execute reconciliation, mutate state, or grant browser/BFF authority. The
-  completed 2501-2520 range added backend-owned reveal-trigger proof records,
-  readback, command-suite proof-route linkage, and exact-context resolver
-  evidence for stealth reveal posture only. It may resolve only
-  `reveal_trigger_evidence` from the latest safe same-`stealth_order_id`
-  proof record and must not evaluate triggers, call `should_trigger_reveal`,
-  call `reveal_order_slice`, invoke managers, call Coinbase, execute
-  reconciliation, mutate state, or grant browser/BFF authority. The completed
-  2521-2540 range added backend-owned reconciliation proof records, readback,
-  proof-route linkage, and exact-context resolver evidence for stealth
-  reconciliation posture only. It may resolve only `reconciliation_proof`
-  from the latest safe same-`stealth_order_id` proof record and must not run
-  reconciliation, build reconciliation plans, invoke managers, call Coinbase,
-  cancel/replace active placements, mutate state, or grant browser/BFF
-  authority. The completed 2541-2560 range closed reconciliation-proof current
-  read-evidence parity and planned active-placement cancel/replace proof
-  boundaries for cancel, move, and reprice without adding execution authority.
-  The completed 2561-2580 range added append-only cancel/replace proof records
-  and readback for stealth cancel, stealth move, and movement reprice while
-  keeping manager invocation, Coinbase cancel/replace, reconciliation
-  execution, and state mutation disabled. The completed 2581-2600 range added
-  exact-context resolver linkage for those proof records. The completed
-  2601-2620 range made disabled `live_execution_service`,
-  `live_execution_adapter`, `post_write_reconciliation`, and canonical backend
-  execution-path evidence route-specific and contextless for non-create
-  stealth command posture. The completed 2621-2640 range brought stealth create
-  lifecycle execution contracts and command-suite admission evidence into
-  parity with the same disabled boundary fields. The completed 2641-2660 range
-  added nested `post_write_reconciliation_boundary` evidence. The completed
-  2661-2680 range added nested `live_execution_adapter_contract` evidence from
-  the shared backend adapter builder. The completed 2681-2700 range added
-  nested `live_execution_service_contract` evidence projected from the
-  disabled backend live execution service state. The completed 2701-2720 range
-  added nested `live_execution_intent_contract` evidence from the existing
-  admission-decision intent when exact command context exists. The completed
-  2721-2740 range added nested `active_placement_cancel_replace_contract`
-  evidence for exact stealth cancel, stealth move, and movement/reprice
-  command responses by reusing the command-suite cancel/replace boundary
-  builder. The completed 2741-2760 range added nested
-  `active_placement_exchange_truth_contract` evidence for exact stealth
-  cancel, stealth move, recovery, reconciliation, and movement/reprice command
-  responses by reusing the command-suite exchange-truth boundary builder. It
-  must not read Coinbase, prove live exchange truth, execute cancel/replace,
-  construct executable adapters, record reconciliation plans, execute
-  recovery or reconciliation, invoke managers, call Coinbase, mutate state, or
-  grant browser/BFF authority. The completed 2761-2780 range added
-  `command_specific_proof_contracts` evidence for exact stealth reveal, move,
-  reprice, recovery, and reconciliation command responses by reusing the
-  command-suite proof-route shape. The completed 2781-2800 range added
-  ordered `execution_readiness_stages` evidence derived from the existing
-  non-create prerequisite resolver output. The completed 2801-2820 range added
-  the same ordered stage parity to stealth create lifecycle-write execution
-  contracts. The completed 2821-2840 range added append-only post-write
-  reconciliation proof evidence and readback. The completed 2841-2860 range
-  made create and non-create execution prerequisite resolvers aware of
-  exact-context post-write proof records while keeping
-  `post_write_reconciliation` missing. The completed 2861-2880 range added an
-  explicit post-write completion verifier. The completed 2881-2900 range added
-  backend-owned post-write execution-journal acceptance evidence that can
-  satisfy only the journal-acceptance part of the verifier. The completed
-  2901-2920 range added backend-owned post-write reconciliation verification
-  records that can satisfy only the verifier's
-  `verified_post_write_reconciliation` display gate when they match the same
-  safe proof and accepted journal. The completed 2921-2940 range made create
-  and non-create post-write prerequisite resolvers consume the exact safe
-  proof, accepted journal, and verification chain. That chain may resolve
-  only `post_write_reconciliation`; live service/adapter execution, Coinbase
-  calls, manager invocation, active-placement cancel/replace, reconciliation
-  execution, lifecycle/order/exchange mutation, and browser/BFF authority
-  remain disabled. The completed 2941-2960 range added typed remaining
-  execution blocker-chain evidence so contextless readers can see those live
-  and state-mutating blockers after post-write evidence resolves. The
-  completed 2961-2980 range names the backend execution candidate that would
-  run only after every blocker resolves, while keeping the candidate blocked,
-  no-live, backend-owned, and display-only. The completed 2981-3000 range
-  binds read-only pre-execution preflight checks to that candidate. The
-  completed 3001-3020 range adds an explicit execution-transition barrier
-  derived from preflight without enabling live service, adapters, managers,
-  Coinbase, reconciliation, state mutation, browser authority, or BFF
-  execution authority. The completed 3021-3040 range added blocked
-  live-readiness closure evidence after that barrier, naming required backend
-  decisions, handoff blockers, and forbidden execution claims while keeping
-  live execution disabled. The completed 3041-3060 range added a typed backend
-  decision ledger derived from that live-readiness evidence so required
-  decisions name their owner, required artifact, missing reason, and blocked
-  no-live/no-write proof without adding execution authority. The completed
-  3061-3080 range added explicit resolution artifacts, backend contract
-  references, evidence references, and disabled resolver/writer flags to each
-  backend decision row; these criteria are display evidence only and do not
-  resolve decisions or enable live execution. The completed 3081-3100 range
-  added ordered backend planning steps, dependency refs, verification gates,
-  and disabled plan-execution flags to those rows; sequencing is planning
-  evidence only and does not resolve decisions or enable live execution. The
-  completed 3101-3120 range expanded those strings into structured blocked
-  readiness rows with source, order, missing reason, authority, and
-  no-execution evidence. The completed 3121-3140 range added backend-derived
-  readiness summaries over those rows while preserving blocked/no-live
-  display-only authority. The completed 3141-3160 range added backend-owned
-  decision-resolution handoff classification over those summaries. The
-  completed 3161-3180 range added blocked backend-owned clearance action
-  contracts for each handoff ref. The completed 3181-3200 range bound those
-  clearance actions to source readiness items and predecessor/successor
-  dependency evidence. The completed 3201-3220 range added backend-derived
-  clearance dependency summaries while preserving blocked/no-live display-only
-  authority. The completed 3221-3240 range added a backend-derived decision
-  resolution summary over the full backend decision ledger without granting
-  resolver, writer, completion, execution, browser, or BFF authority. The
-  completed 3241-3260 range added backend-derived decision resolution work
-  queue rows over each unresolved decision's first blocked clearance action.
-  The completed 3261-3280 range added backend-derived forbidden execution
-  claim traceability that maps each forbidden claim to the backend decision and
-  clearance action that keeps it blocked without granting resolver, writer,
-  execution, browser, or BFF authority. The completed 3281-3300 range added
-  backend-owned manager-invocation policy proof/readback evidence without
-  granting manager invocation, Coinbase, reconciliation, browser, or BFF
-  authority. The completed 3301-3320 range consumes that proof surface as
-  exact-command prerequisite resolver evidence for stealth create and
-  non-create command execution contracts while keeping manager invocation,
-  Coinbase, reconciliation, browser, and BFF authority disabled. The completed
-  3321-3340 range adds backend-owned Coinbase exchange submission-policy
-  proof/readback evidence for guarded stealth commands while keeping Coinbase
-  submit, cancel, read, manager invocation, reconciliation, state mutation,
-  browser, and BFF authority disabled. The completed 3341-3360 range adds
-  backend-owned post-write reconciliation execution-policy proof/readback
-  evidence while keeping reconciliation execution, Coinbase activity, manager
-  invocation, active-placement cancel/replace, state mutation, browser, and
-  BFF authority disabled. The completed 3361-3380 range consumes the Coinbase
-  exchange submission-policy and post-write reconciliation execution-policy
-  proof/readback records as exact-command prerequisite resolver evidence only,
-  while keeping Coinbase activity, manager invocation, reconciliation
-  execution, active-placement cancel/replace, state mutation, browser, and BFF
-  authority disabled. Resolver lookups use the newest exact-command policy
-  proof row, ignore newer rows for other guarded command contexts, and block
-  on a newer unsafe exact-command row.
-  The active 3381-3400 range consumes those resolver rows inside
-  `execution_live_readiness` decision artifact evidence. Resolved artifacts,
-  evidence ids, and sources are backend/display evidence only; backend
-  decisions remain blocked and live execution, Coinbase, manager,
-  reconciliation, state mutation, browser, and BFF authority remain disabled.
-- M48 mutation taxonomy and authority map is complete for phases `1461-1480`.
-  The existing `GET /api/v1/admin/enterprise-readiness` route reports
-  backend-owned `mutation_taxonomy` rows that map every current command route,
-  approval lifecycle local-state mutation route, and legacy command surface to
-  exactly one mutation family.
-- M47 backend functionality inventory and gap ledger is complete for phases
-  `1441-1460`. The existing `GET /api/v1/admin/enterprise-readiness` route
-  reports backend-owned workflow inventory rows for read, command, live,
-  recovery, repair, automation, and legacy compatibility surfaces.
-- M46 live readiness precondition evidence is complete for phases
-  `1421-1440`.
-  `GET /api/v1/admin/live-enablement` may report a normalized backend-owned
-  checklist for approval store, approval snapshot, admission audit, cap/guard,
-  reconciliation, live execution adapter, execution intent envelope,
-  browser/BFF boundary, and disabled live execution service prerequisites.
-  The checklist is read-only evidence. Do not call command admission with
-  synthetic values, create a new preflight endpoint, remove command blockers,
-  mark paths live eligible, add browser approval, broaden BFF execution
-  authority, or call Coinbase from this evidence.
-- M45 live execution intent envelope evidence is complete for phases
-  `1401-1420`. Existing command
-  admission decisions may report a backend-owned execution intent that binds
-  route, identity, payload hash, idempotency key, actor, operator intent, and
-  shared `AdminApiCommandService` method, but the intent remains disabled, not
-  prepared, non-executable, and display only. Do not add route-local
-  execution, browser approval, BFF execution authority, or Coinbase calls.
-- M44 live execution adapter contract evidence is complete for phases
-  `1381-1400`. Existing
-  live-enablement path rows may report a backend-owned adapter contract that
-  maps a live-shaped route to its shared `AdminApiCommandService` method, but
-  the adapter remains disabled, unconfigured, non-executable, and display
-  only. Do not add route-local execution, browser approval, BFF execution
-  authority, or Coinbase calls.
-- M43 disabled live execution service foundation is complete for phases
-  `1361-1380`. Existing Admin API command admission evidence consumes a
-  backend-owned disabled service descriptor reporting the service as present
-  but `live_disabled` with source `disabled_backend_service`. The descriptor
-  must not expose create, cancel, submit, execute, Coinbase, route-local
-  execution, browser approval, or BFF execution authority methods.
-- M42 command admission live execution service boundary evidence is complete
-  for phases `1341-1360`. Existing Admin API command admission evidence may
-  report that the
-  backend live execution service is required but disabled/unconfigured. It
-  must not remove `live_execution_disabled`, add a live switch, authorize
-  browser evidence, broaden BFF mutation authority, call Coinbase, or create
-  a second command path.
-- M41 command admission reconciliation plan proof wiring is complete for
-  phases `1321-1340`. Existing Admin API command admission evidence may
-  consult backend-owned append-only reconciliation plan proof after exact
-  approval snapshot, admission-audit, and cap/guard proof resolution. A
-  resolved reconciliation proof may remove only
-  `reconciliation_plan_missing`; live-disabled and browser-authority blockers
-  remain. It must not add reconciliation execution, a reconciliation mutation
-  endpoint, browser approval, BFF reconciliation authority, live admission
-  endpoint, Coinbase calls, direct dashboard WebSocket reconciliation, browser
-  reconciliation writer, or order/exchange-state mutation.
-- M40 command admission cap/guard proof wiring is complete. Existing Admin
-  API command admission evidence may consult backend-owned append-only
-  cap/guard decision proof and expose whether an exact approval-snapshot-bound
-  and admission-audit-bound decision was found. A resolved cap/guard proof may
-  remove only `cap_guard_missing`; live-disabled, reconciliation, and
-  browser-authority blockers remain. It must not add a guard mutation
-  endpoint, browser approval, BFF guard authority, live admission endpoint,
-  guard evaluator, Coinbase call, direct dashboard WebSocket guard path,
-  browser guard writer, or reconciliation authority.
-- M39 command admission audit resolver wiring is complete. Existing Admin API
-  command admission evidence may consult backend-owned append-only audit proof
-  and expose whether an exact approval-snapshot-bound audit event was found. A
-  resolved audit proof may remove only `admission_audit_missing`;
-  live-disabled, cap/guard, reconciliation, and browser-authority blockers
-  remain. It did not add an audit mutation endpoint, browser approval, BFF
-  audit authority, live admission endpoint, guard evaluator, Coinbase call,
-  direct dashboard WebSocket audit path, browser approval workflow, browser
-  audit writer, or reconciliation authority.
-- M38 command admission snapshot resolver wiring is complete. Existing Admin
-  API command admission evidence can consult the backend-owned approval
-  snapshot resolver and expose whether an exact unexpired snapshot was found.
-  A resolved snapshot removes only `approval_snapshot_missing`; live-disabled,
-  admission-audit, cap/guard, reconciliation, and browser-authority blockers
-  remain. It did not add an approval endpoint, approval mutation, live
-  admission endpoint, guard evaluator, Coinbase call, direct dashboard
-  WebSocket approval path, BFF resolver authority, browser approval workflow,
-  browser approval writer, or reconciliation authority.
-- M37 approval snapshot resolver foundation added backend-only resolver
-  infrastructure that derives immutable approval snapshot evidence from an
-  exact unexpired approval-store record without approving or executing
-  commands.
-- Approval-store JSONL rows without M37 `requested_by_actor_id` fail closed
-  during strict reads and are ignored by resolver lookup.
-- M36 durable approval-store foundation added backend append-only
-  approval-store infrastructure and evidence only. It did not add approval
-  mutation, browser approval, live admission, or live Coinbase execution.
-- M35 command admission audit persistence writes admission decisions through
-  the existing append-only Admin API audit log and Audit Workbench read path
-  only. Persisted admission decisions can describe route, payload hash,
-  idempotency, operator intent, approval snapshot, cap/guard,
-  admission-audit, and reconciliation blockers, but they must not become
-  browser approval, browser wallet authority, audit mutation, guard execution,
-  a new command route, Coinbase execution, or reconciliation authority.
-- M34 command admission decision evidence is exposed through existing
-  live-disabled Admin API command responses. It must remain evidence-only:
-  decisions can describe route, payload hash, idempotency, operator intent,
-  approval, cap/guard, admission-audit, and reconciliation blockers, but they
-  must not become browser approval, browser wallet authority, guard execution,
-  a new command route, Coinbase execution, or reconciliation authority.
-- M32 live-admission audit trail evidence is exposed through the existing
-  `GET /api/v1/admin/live-enablement` read. It must remain evidence-only:
-  facts can describe what an append-only backend admission audit trail must
-  prove, but they must not become audit storage, approval storage, browser
-  approval, a command route, Coinbase execution, or reconciliation authority.
-- M31 approval-store contract evidence is exposed through the existing
-  `GET /api/v1/admin/live-enablement` read. It must remain evidence-only:
-  requirements can describe configured durable backend approval-store
-  infrastructure, but they must not become approval mutation, browser
-  approval, a command route, Coinbase execution, or reconciliation authority.
-- M30 route-specific approval snapshot evidence is exposed through the
-  existing `GET /api/v1/admin/live-enablement` read. It must remain
-  evidence-only: required fields can describe what a durable backend approval
-  snapshot must contain, but they must not become approval storage, browser
-  approval, a command route, Coinbase execution, or reconciliation authority.
-- M29 controlled-live preflight evidence is exposed through the existing
-  `GET /api/v1/admin/live-enablement` read. It must remain evidence-only:
-  passed and blocked checks can describe readiness, but they must not become a
-  browser preflight approval path, live switch, command route, Coinbase call,
-  or reconciliation path.
-- M28 enterprise command gap triage uses existing
-  `GET /api/v1/admin/enterprise-readiness` and
-  `GET /api/v1/admin/capabilities` evidence. It must remain a read-only
-  triage lens and must not add a parallel endpoint, command path, or browser
-  approval workflow.
-- M27 live-action governance linkage uses the existing
-  `GET /api/v1/admin/live-enablement`, `GET /api/v1/admin/capabilities`, and
-  `GET /api/v1/admin/enterprise-readiness` reads. It must remain evidence
-  only and must not add a parallel governance endpoint or live command path.
-- The frontend Enterprise Module Catalog consumes the existing readiness
-  contract. Do not add a parallel module-catalog endpoint or browser trading
-  authority.
-- The frontend Enterprise Module Traceability surface also consumes the same
-  readiness contract. Do not add a parallel traceability endpoint or use route
-  lists, command gaps, or contract refs as browser command authority.
-- The frontend Enterprise Module Capability Linkage surface consumes
-  `GET /api/v1/admin/capabilities` plus enterprise readiness. Do not add a
-  parallel capability-linkage endpoint or treat capability rows as browser
-  command authority.
-- Default live Coinbase execution: `not_run`.
-- Submitted notional: `$0`.
-- Executed notional: `$0`.
+- Latest completed autonomous range: `7941-7960` under M57.
+- Active autonomous range: `7961-7980` under M57.
+- Current active range: `7961-7980` adds futures risk-proof record validation
+  remediation summary evidence derived from existing per-command risk-proof
+  record-validation remediation rows. It remains disabled, no-live,
+  backend-owned evidence only and cannot perform remediation, create work
+  items, register record validators, run contextless reviews, configure
+  validation gates, create stores, configure append-only logs, bind
+  idempotency, register payload validation, register replay guards, link audit
+  evidence, write validation records, write proof records, accept proof
+  records, register proof routes, enable proof writers, resolve proof
+  acceptance, accept risk proofs, pass command readiness, admit commands, pass
+  approval, cap/guard, or reconciliation gates, execute reconciliation, call
+  Coinbase, mutate futures/order/exchange state, grant browser/BFF authority,
+  or import spot-only rules.
+- Completed `7941-7960` added risk-proof record validation summary evidence
+  derived from existing per-command risk-proof record-validation rows and
+  remains carried-forward disabled, no-live, backend-owned evidence only.
+- Completed `7921-7940` added risk-proof record contract summary evidence
+  derived from existing per-command risk-proof record-contract rows and
+  remains carried-forward disabled, no-live, backend-owned evidence only.
+- Completed `7901-7920` added risk-proof payload field summary evidence
+  derived from existing per-command risk-proof payload-field rows and remains
+  carried-forward disabled, no-live, backend-owned evidence only.
+- Completed `7881-7900` added risk-proof contract summary evidence derived
+  from existing per-command risk-proof proof contracts and remains
+  carried-forward disabled, no-live, backend-owned evidence only.
+- Completed `7861-7880` added risk-proof acceptance criterion summary evidence
+  derived from existing per-command risk-proof acceptance criteria and remains
+  carried-forward disabled, no-live, backend-owned evidence only.
+- Completed `7841-7860` added risk-proof acceptance blocker summary evidence
+  derived from existing per-command risk-proof requirement rows and remains
+  carried-forward disabled, no-live, backend-owned evidence only.
+- Completed `7821-7840` added risk-proof record resolver summary evidence
+  derived from existing per-command risk-proof requirement rows and remains
+  carried-forward disabled, no-live, backend-owned evidence only.
+- Completed `7801-7820` added command readiness-decision summary evidence
+  derived from existing per-command readiness decision rows and remains
+  carried-forward disabled, no-live, backend-owned evidence only.
+- Completed `7781-7800` added command risk-proof requirement summary evidence
+  derived from existing per-command risk-proof requirement rows and remains
+  carried-forward disabled, no-live, backend-owned evidence only.
+- Completed `7761-7780` added command semantic-guard summary evidence derived
+  from existing per-command semantic guards and remains carried-forward
+  disabled, no-live, backend-owned evidence only.
+- Completed `7741-7760` added command request-field summary evidence derived
+  from existing per-command request fields and validator refs. It remains
+  carried-forward disabled, no-live, backend-owned evidence only and must not
+  validate payloads, register validators, clear command enablement, or grant
+  execution authority.
+- Completed `7721-7740` added command prerequisite summary evidence derived
+  from existing per-command prerequisites. It remains carried-forward disabled,
+  no-live, backend-owned evidence only and must not resolve prerequisites or
+  clear command enablement.
+- Completed `7701-7720` added command enablement contextless-review blocker
+  summary evidence derived from the latest `7681-7700` blind-review result. It
+  remains carried-forward disabled, no-live, backend-owned evidence only and
+  must not clear command enablement or grant execution authority.
+- Completed range validation: PASS after remediation for
+  validation-record acceptance contextless-review acceptance evidence and
+  bounded command-suite materialized samples. Backend source serialization,
+  OpenAPI generation, frontend schema sync, adapter/display, and focused
+  futures read-model/mock tests are closed for `7681-7700`. Initial
+  blind/contextless review blocked on the untracked registry, stale
+  active-range docs, and missing direct frontend assertions. Remediation staged
+  the registry, updated active docs and runtime phase metadata, regenerated
+  OpenAPI, added direct tests, and reran focused backend/frontend checks. Fresh
+  backend/frontend re-review passed, and phase-end subagent cleanup closed the
+  reviewer. Full regression remains a durable milestone closeout gate, not an
+  ordinary phase gate. No live Coinbase execution was run; submitted/executed
+  notional remains `0` USDC.
+- Completed range `7661-7680` added validation-record acceptance
+  contextless-review evidence derived from the completed validation-record
+  acceptance rows. Focused backend/frontend checks passed after remediation for
+  stale docs, the staged backend registry, and direct frontend test coverage.
+- Completed range `7641-7660` added validation-record acceptance evidence
+  derived from the completed source-ref record-acceptance rows. Focused
+  backend/frontend checks passed after remediation for stale
+  `approved_phase_range` metadata and stale review-log state.
+- Prior completed range validation: completed for execution-eligibility
+  resolution-plan step review input store record-validation remediation
+  dependency work-item claim-trace clearance-step review input store
+  record-validation check output schema field-constraint source-ref acceptance
+  evidence and bounded command-suite materialized samples.
+  Focused backend contract/risk checks, frontend type/API checks, targeted
+  frontend unit tests, and autonomous validation passed. Completed `7581-7600`
+  record-validation remediation dependency work-item claim-trace clearance-step
+  review input store record-validation check output schema field-constraint
+  source-ref contextless-review evidence remains carried forward.
+  No live Coinbase execution was run; submitted/executed notional remains `0`
+  USDC.
+- Completed `7581-7600` blind/contextless review: PASS after remediation for
+  the newly added validation-check output schema field-constraint source-ref
+  contextless-review evidence. Backend reviewer
+  `019f0627-830e-77a3-9b59-838303b5b891` initially blocked on stale
+  agent-state next actions, review-log status, and example metadata placement;
+  frontend reviewer `019f0627-bc35-7f52-bda9-445dc07a7902` initially blocked
+  on pending review-log status, premature handoff validation wording, and
+  missing mock-backend assertions. Those findings were remediated and both
+  reviewers passed re-review. Required boundary: source-ref contextless-review
+  rows are backend-owned disabled evidence only; they do not pass contextless
+  review, declare source refs, declare constraints, declare field types,
+  declare field names, ready validation checks, accept records, admit
+  commands, call Coinbase, mutate futures/order/exchange state, or grant
+  browser/BFF or spot-rule authority. Live Coinbase execution was not run;
+  submitted/executed notional remains `0` USDC. Phase-end stale-subagent sweep
+  closed both reviewers after their findings were consumed; no completed,
+  failed, superseded, stale, or unused phase-scoped subagent remains
+  intentionally open for this slice.
+- Completed `7561-7580` blind/contextless review: PASS after remediation for
+  the newly added store record-validation remediation dependency work-item
+  claim-trace clearance-step review input store record-validation check output
+  schema field-constraint source-ref evidence. Backend reviewer
+  `019f05ec-6057-7092-9f6e-e863b5fb9e5e` passed the source-ref registry,
+  bounded materialization, no-live, no-browser/BFF-authority, and no-spot-rule
+  posture. Frontend review initially blocked on mock fixture authority wording,
+  missing mock source-ref assertions, and stale pending review-log status; the
+  findings were consumed by documenting the mock boundary, adding mock tests,
+  updating review evidence, and obtaining frontend re-review PASS from
+  `019f05ec-9719-7941-8008-92d2e914d6b1`. Phase-end stale-subagent sweep
+  closed both reviewers after their findings were consumed; no completed,
+  failed, superseded, stale, or unused phase-scoped subagent remains
+  intentionally open for this slice. Required boundary: source-ref rows are
+  backend-owned disabled evidence only; they do not declare source refs,
+  declare constraints, declare field types, declare field names, ready
+  validation checks, accept records, admit commands, call Coinbase, mutate
+  futures/order/exchange state, or grant browser/BFF or spot-rule authority.
+- Completed `7541-7560` blind/contextless review: PASS after remediation for
+  the newly added store record-validation remediation dependency work-item
+  claim-trace clearance-step review input store record-validation check output
+  schema field-constraint evidence. Required boundary: field-constraint rows
+  are backend-owned disabled evidence only; they do not declare constraints,
+  declare field types, declare field names, ready validation checks, accept
+  records, admit commands, call Coinbase, mutate futures/order/exchange state,
+  or grant browser/BFF or spot-rule authority.
+- Completed `7521-7540` blind/contextless review: PASS after remediation for
+  the newly added store record-validation remediation dependency work-item
+  claim-trace clearance-step review input store record-validation check output
+  schema field-type evidence. The frontend review initially blocked only
+  because review logs still led with `7501-7520`; the backend review passed after stale assertions were remediated.
+  The review-log remediation made `7521-7540` the leading entry and the
+  phase-end stale-subagent sweep closed the backend and frontend reviewers.
+  Required boundary: field-type rows are backend-owned disabled evidence only;
+  they do not declare field types, declare fields, ready validation checks,
+  accept records, admit commands, call Coinbase, mutate futures/order/exchange
+  state, or grant browser/BFF or spot-rule authority.
+- Completed `7481-7500` blind/contextless review: PASS after remediation for
+  the newly added store record-validation remediation dependency work-item
+  claim-trace clearance-step review input store record-validation check output
+  schema field evidence. The initial frontend review blocked on a missing
+  output-schema-field detail table, missing render-level assertions, stale
+  autonomous checker label/tokens, and a generated docstring mismatch. The
+  initial backend review blocked on the generated docstring mismatch and
+  requested explicit output-schema-field assertions; the backend risk-proof
+  regression already contained those assertions and the docstring was fixed.
+  Re-review passed after the frontend table, row renderer, render tests,
+  adapter assertions, checker tokens, backend docstring, OpenAPI, and generated
+  schema were aligned. Phase-end stale-subagent sweep completed after
+  validation evidence was consumed: backend reviewer
+  `019f04b4-1b26-72e3-9332-58045083024f` and frontend reviewer
+  `019f04b4-54d7-7303-9035-da9e6be446de` were closed after PASS results. The
+  required boundary is that record-validation check
+  output schema field rows are backend-owned disabled evidence only; they do
+  not declare field names, field types, constraints, source refs, acceptance
+  contracts, pass contextless review, ready validation-check output schema
+  fields, admit commands, execute Coinbase calls, execute reconciliation,
+  mutate futures/order/exchange state, grant browser authority, grant BFF
+  authority, or grant spot-rule authority.
+- Completed `7461-7480` blind/contextless review: phase-close local
+  verification completed for the newly added store record-validation
+  remediation dependency work-item claim-trace clearance-step review input
+  store record-validation check output schema evidence. The required boundary
+  is that record-validation check output schema rows are backend-owned disabled
+  evidence only; they do not declare schemas, fields, types, constraints,
+  acceptance contracts, pass contextless review, ready validation-check output
+  schemas, admit commands, execute Coinbase calls, execute reconciliation,
+  mutate futures/order/exchange state, grant browser authority, grant BFF
+  authority, or grant spot-rule authority.
+- Completed `7441-7460` blind/contextless review: phase-close local
+  verification completed for the newly added store record-validation
+  remediation dependency work-item claim-trace clearance-step review input
+  store record-validation check input schema field evidence. The required
+  boundary is that record-validation check input schema field rows are
+  backend-owned disabled evidence only; they do not declare field names, field
+  types, constraints, source refs, acceptance contracts, pass contextless
+  review, ready validation-check input schemas, admit commands, execute
+  Coinbase calls, execute reconciliation, mutate futures/order/exchange state,
+  grant browser authority, grant BFF authority, or grant spot-rule authority.
+- Completed `7421-7440` blind/contextless review: phase-close local
+  verification completed for the newly added store record-validation remediation
+  dependency work-item claim-trace clearance-step review input store
+  record-validation check input schema evidence. The required boundary is that
+  record-validation check input schema rows are backend-owned disabled evidence
+  only; they do not declare schemas, fields, types, constraints, acceptance
+  contracts, pass contextless review, ready validation-check contracts, admit
+  commands, execute Coinbase calls, execute reconciliation, mutate
+  futures/order/exchange state, grant browser authority, grant BFF authority,
+- Completed `7401-7420` blind/contextless review: phase-close local
+  verification completed for the newly added store record-validation remediation
+  dependency work-item claim-trace clearance-step review input store
+  record-validation check contract evidence. The required boundary is that
+  record-validation check contract rows are backend-owned disabled evidence
+  only; they do not declare contracts, declare schemas, declare validation or
+  replay gates, bind idempotency, pass contextless review, accept records,
+  admit commands, execute Coinbase calls, execute reconciliation, mutate
+  futures/order/exchange state, grant browser authority, grant BFF authority,
+  or grant spot-rule authority.
+- Completed `7381-7400` blind/contextless review: phase-close local
+  verification completed for the newly added store record-validation remediation
+  dependency work-item claim-trace clearance-step review input store
+  record-validation check evidence. The required boundary is that
+  record-validation check rows are backend-owned disabled evidence only; they
+  do not configure validators, execute checks, pass validation or replay gates,
+  admit commands, execute Coinbase calls, execute reconciliation, mutate
+  futures/order/exchange state, grant browser authority, grant BFF authority,
+  or grant spot-rule authority.
+- Completed `7361-7380` blind/contextless review: phase-close local
+  verification completed for the newly added store record-validation remediation
+  dependency work-item claim-trace clearance-step review input store
+  record-validation evidence. Fresh
+  blind/contextless backend and frontend re-review could not be started earlier
+  because Codex subagent usage was exhausted; the review logs record local
+  phase-close verification rather than completed fresh subagent evidence. The
+  required boundary is that record-validation remediation dependency work-item
+  claim-trace clearance-step review input store record-validation rows are
+  backend-owned disabled evidence only; they do not configure validators, pass
+  validation or replay gates, make schemas or append-only logs available, bind
+  idempotency or payload validation, accept records, validate records, admit
+  commands, call Coinbase, execute reconciliation, mutate futures/order/exchange state,
+  or grant browser/BFF or spot-rule authority.
+- Completed `7261-7280` blind/contextless review: phase-close local
+  verification completed for store record-validation remediation dependency
+  work-item claim-trace clearance-step evidence. Fresh subagent review was
+  unavailable because of Codex usage limits; local autonomous verification is
+  the recorded evidence.
+- Completed `7241-7260` blind/contextless review: phase-close local
+  verification completed for store record-validation remediation dependency
+  work-item claim-trace clearance-plan evidence. Fresh subagent review was
+  unavailable because of Codex usage limits; local autonomous verification is
+  the recorded evidence.
+- Completed `7201-7220` blind/contextless review: phase-close local
+  verification completed for store record-validation remediation dependency
+  work-item evidence. Fresh subagent review was unavailable because of Codex
+  usage limits; local autonomous verification is the recorded evidence.
+- Completed `7181-7200` blind/contextless review: phase-close local
+  verification completed for store record-validation remediation dependency
+  evidence. Fresh subagent review was unavailable because of Codex usage
+  limits; local autonomous verification is the recorded evidence.
+- Completed `7161-7180` blind/contextless review: phase-close local
+  verification completed for store record-validation remediation evidence.
+  Fresh subagent review was unavailable because of Codex usage limits; local
+  autonomous verification is the recorded evidence.
+- Completed `7141-7160` blind/contextless review: phase-close local
+  verification completed for store record-validation evidence. Fresh subagent
+  review was unavailable because of Codex usage limits; local autonomous
+  verification is the recorded evidence.
+- Completed `7121-7140` blind/contextless review: completed after remediation.
+  The phase added backend-owned disabled store record-contract evidence and
+  frontend display, preserved no-live/no-authority posture, and recorded that
+  record-contract presence is not blocker resolution.
+- Completed `7101-7120` blind/contextless review: completed after remediation.
+  Arendt found only stale backend review-log/handoff evidence after verifying
+  the store-requirement implementation as fail-closed; Hilbert found only
+  stale frontend/backend review-log, frontend testing, and ignored local
+  artifact evidence after verifying the frontend implementation as
+  display-only. Bernoulli then found the backend read-service still emitted
+  `approved_phase_range=7081-7100`; that finding was consumed by updating the
+  read-service constant, backend contract assertions, OpenAPI, and generated
+  frontend schema so runtime evidence now emits `7101-7120`. Parfit then found
+  stale current-scope text in `docs/ADMIN_MODULE_CAPABILITY_MATRIX.md`; that
+  finding was consumed by moving the matrix to `7101-7120` store-requirement
+  evidence and adding the matrix to the autonomous checker. Noether performed
+  the final blind/backend re-review and passed after verifying runtime
+  `7101-7120` command-suite evidence, zero available/writer store requirement
+  counts, and preserved no-live/no-authority posture. The findings were
+  consumed by updating both review logs, frontend testing docs, and regenerated
+  local release artifact evidence.
+- Completed `7081-7100` blind/contextless review: completed after remediation.
+  Carver initially found stale review logs plus public/raw command-suite
+  payload size regression; the payload regression was remediated by bounded
+  materialized detail samples. Ampere re-reviewed the remediated backend and
+  found only stale review-log leadership, with no live-execution,
+  reconciliation, futures-state-mutation, browser/BFF-authority, or spot-rule
+  blocker. Socrates and Euler found only stale review-log leadership on the
+  frontend side and no code-level authority leak.
+- Completed `7081-7100` validation: focused backend/frontend checks passed for
+  execution-eligibility resolution-plan step review input evidence and bounded
+  command-suite materialized samples. Backend and frontend autonomous log
+  validation passed after review-log and handoff updates. No live Coinbase
+  execution was run; submitted/executed notional remains `0` USDC.
+- Completed `7061-7080` validation: backend/frontend focused validation,
+  OpenAPI and generated schema freshness, autonomous queue, ownership,
+  stale-process, runtime-artifact report-only, and diff checks passed for
+  execution-eligibility resolution-plan step review evidence. Full regression
+  remains a durable milestone closeout gate. No live Coinbase execution was
+  run; submitted/executed notional remains `0` USDC.
+- Completed `7061-7080` blind/contextless review: backend and frontend fresh
+  reviewers passed after remediation and confirmed resolution-plan step review
+  evidence remained backend-owned, read-only, fail-closed, no-live, and
+  display-only.
+- Completed `7041-7060` blind/contextless review: Ohm initially failed on
+  missing carried-forward resolution-plan terms in `genai_data/agent_state.md`
+  and stale review-log leadership, and Plato initially failed on stale
+  frontend/backend review-log leadership plus frontend quality gates still
+  expecting `7021-7040`. The findings were consumed and remediated by adding
+  current `7041-7060` review-log entries, moving active quality gates to
+  `7041-7060`, and preserving `7021-7040` as completed history. Ohm and
+  Plato re-reviewed and passed after remediation, then phase-end cleanup
+  closed both agents.
+- Completed `7041-7060` validation: backend focused validation, OpenAPI
+  freshness, autonomous queue, ownership, stale-process, runtime-artifact
+  report-only, and diff checks passed for execution-eligibility resolution-plan
+  step evidence. Full regression remains a durable milestone closeout gate. No
+  live Coinbase execution was run; submitted/executed notional remains `0`
+  USDC.
+- Completed `7021-7040` validation: backend focused validation, OpenAPI
+  freshness, autonomous queue, ownership, stale-process, runtime-artifact
+  report-only, and diff checks passed for execution-eligibility resolution-plan
+  evidence. Full regression remains a durable milestone closeout gate. No live
+  Coinbase execution was run; submitted/executed notional remains `0` USDC.
+- Completed `7021-7040` blind/contextless review: Hubble initially failed on
+  stale backend active-range docs, Hilbert initially failed on stale frontend
+  active-range/current-phase docs, both sets of findings were remediated, both
+  re-reviews passed, and phase-end subagent cleanup closed Hubble and Hilbert.
+- Completed `7001-7020` validation: backend focused validation, OpenAPI
+  freshness, autonomous queue, ownership, stale-process, runtime-artifact
+  report-only, and diff checks passed for execution-eligibility semantic
+  closure evidence. Full regression remains a durable milestone closeout gate.
+  No live Coinbase execution was run; submitted/executed notional remains `0`
+  USDC.
+- Completed `7001-7020` blind/contextless review: the final fresh backend and
+  frontend reviews passed after remediation and confirmed semantic closure
+  evidence remained backend-owned disabled/read-only evidence. The frontend
+  only displayed backend contracts without browser/BFF/live execution
+  authority, no spot-only wallet/cost-basis/sell-guard rule was imported into
+  futures/perpetuals, and phase-end subagent cleanup was completed.
+- Current enterprise manual Spot order path is dry-submit/review only:
+  `POST /api/v1/orders` remains live-disabled, may derive backend-owned
+  `client_order_id`, and exits before Spot wallet, no-short sell authority,
+  product capability, event-stream audit, or REST submission checks unless a
+  future HTTP live-execution gate explicitly passes
+  `allow_live_execution=true`. Backend `trader` or `admin` RBAC authority is
+  required for order-create command tests; a frontend human "operator" label is
+  not enough backend authority.
+- Active range adds futures request payload validation record
+  execution-eligibility resolution-plan step evidence through
+  `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`.
+  The current fields include `execution_eligibility_resolution_plan_ref`,
+  `execution_eligibility_resolution_plan_contract_ref`,
+  `execution_eligibility_resolution_plan_step_ref`,
+  `execution_eligibility_resolution_plan_step_contract_ref`,
+  `resolution_plan_step_kind`, `resolution_plan_step_ready=false`,
+  `resolution_plan_step_accepted=false`, `ordered_resolution_step_ref`,
+  `ordered_resolution_step_refs`, `ordered_resolution_step_count`,
+  `resolution_plan_present=true`, `resolution_plan_ready=false`,
+  `resolution_plan_accepted=false`,
+  `runtime_evidence_satisfies_semantic_contract=false`,
+  `validation_record_admission_link_ready=false`, and
+  `blocker_resolved=false`. Resolution plan step presence is not blocker
+  resolution, runtime acceptance, command admission, Coinbase execution,
+  reconciliation execution, futures/order/exchange mutation, browser/BFF
+  execution authority, or spot-rule authority.
+- Completed `7021-7040` carries forward futures request payload validation
+  record execution-eligibility resolution-plan evidence through
+  `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`.
+- Completed `7001-7020` carries forward futures request payload validation
+  record execution-eligibility semantic closure evidence through
+  `application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`
+  and
+  `application/admin_api/futures_request_payload_validation_record_execution_eligibility_blockers.py`.
+- Completed `6981-7000` carries forward disabled futures request payload
+  validation record reconciliation semantics through
+  `application/admin_api/futures_request_payload_validation_record_reconciliation_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_RECONCILIATION_SEMANTIC_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_reconciliation_semantics`.
+- Completed `6961-6980` carries forward disabled futures request payload
+  validation record cancel semantics through
+  `application/admin_api/futures_request_payload_validation_record_cancel_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS`, and
+  `iter_futures_request_payload_validation_record_cancel_semantics`.
+- Completed `6941-6960` carries forward disabled futures request payload validation record
+  order semantics through
+  `application/admin_api/futures_request_payload_validation_record_order_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ORDER_SEMANTIC_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_order_semantics`,
+  including `request_payload_validation_record_order_semantic_count`,
+  `blocking_request_payload_validation_record_order_semantic_count`,
+  `ready_request_payload_validation_record_order_semantic_count`,
+  `runtime_observed_request_payload_validation_record_order_semantic_count`,
+  `request_payload_validation_record_order_semantics`,
+  `order_semantics_ref`, `order_semantics_contract_ref`,
+  `evidence_routes`, `order_semantics_contract_available=false`,
+  `order_semantics_contract_ready=false`, `order_identity_bound=false`,
+  `order_side_bound=false`, `order_size_bound=false`,
+  `order_price_bound=false`, `order_type_bound=false`,
+  `runtime_order_evidence_observed=false`,
+  `runtime_evidence_satisfies_order_semantics=false`, and
+  `validation_record_order_semantics_ready=false`.
+  Completed `6921-6940` carries forward disabled futures request payload
+  validation record funding semantics through
+  `application/admin_api/futures_request_payload_validation_record_funding_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_FUNDING_SEMANTIC_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_funding_semantics`,
+  including `request_payload_validation_record_funding_semantic_count`,
+  `blocking_request_payload_validation_record_funding_semantic_count`,
+  `ready_request_payload_validation_record_funding_semantic_count`,
+  `runtime_observed_request_payload_validation_record_funding_semantic_count`,
+  `request_payload_validation_record_funding_semantics`,
+  `funding_semantics_ref`, `funding_semantics_contract_ref`,
+  `evidence_routes`, `funding_semantics_contract_available=false`,
+  `funding_semantics_contract_ready=false`, `funding_rate_bound=false`,
+  `funding_fee_bound=false`, `funding_interval_bound=false`,
+  `funding_cost_bound=false`, `runtime_funding_evidence_observed=false`,
+  `runtime_evidence_satisfies_funding_semantics=false`, and
+  `validation_record_funding_semantics_ready=false`.
+  Completed `6901-6920` carries forward disabled futures request payload
+  validation record close-only semantics through
+  `application/admin_api/futures_request_payload_validation_record_close_only_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CLOSE_ONLY_SEMANTIC_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_close_only_semantics`.
+  Completed `6881-6900` carries forward disabled futures request payload
+  validation record reduce-only semantics through
+  `application/admin_api/futures_request_payload_validation_record_reduce_only_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REDUCE_ONLY_SEMANTIC_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_reduce_only_semantics`.
+  Completed `6861-6880` carries forward disabled futures request payload
+  validation record liquidation semantics through
+  `application/admin_api/futures_request_payload_validation_record_liquidation_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_LIQUIDATION_SEMANTIC_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_liquidation_semantics`.
+  Completed `6841-6860` carries forward disabled futures request payload
+  validation record collateral semantics through
+  `application/admin_api/futures_request_payload_validation_record_collateral_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_COLLATERAL_SEMANTIC_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_collateral_semantics`.
+  Completed `6821-6840` carries forward disabled futures request payload
+  validation record margin semantics through
+  `application/admin_api/futures_request_payload_validation_record_margin_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_MARGIN_SEMANTIC_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_margin_semantics`.
+  Completed `6801-6820` carries forward disabled futures request payload
+  validation record position semantics through
+  `application/admin_api/futures_request_payload_validation_record_position_semantics.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_POSITION_SEMANTIC_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_position_semantics`,
+  including `request_payload_validation_record_position_semantic_count`,
+  `blocking_request_payload_validation_record_position_semantic_count`,
+  `ready_request_payload_validation_record_position_semantic_count`,
+  `runtime_observed_request_payload_validation_record_position_semantic_count`,
+  `request_payload_validation_record_position_semantics`,
+  `position_semantics_ref`, `position_semantics_contract_ref`,
+  `evidence_routes`, `position_semantics_contract_available=false`,
+  `position_semantics_contract_ready=false`, `position_identity_bound=false`,
+  `position_scope_bound=false`, `position_side_derivation_bound=false`,
+  `position_size_bound=false`, `position_notional_bound=false`,
+  `runtime_position_evidence_observed=false`,
+  `runtime_evidence_satisfies_position_semantics=false`, and
+  `validation_record_position_semantics_ready=false`.
+  Completed `6781-6800` carries forward disabled futures request payload
+  validation record semantic artifact runtime evidence acceptance through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`.
+  Completed `6761-6780` carries forward disabled futures request payload
+  validation record semantic artifact runtime evidence binding.
+  Completed `6701-6720` carries forward disabled futures request payload
+  validation record semantic artifact definition review input evidence through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_review_inputs.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_INPUT_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_semantic_artifact_definition_review_inputs`.
+  Completed `6661-6680`
+  carries forward disabled futures request payload validation record semantic
+  artifact definition evidence through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definitions.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_CONTRACTS`,
+  and `iter_futures_request_payload_validation_record_semantic_artifact_definitions`.
+  Completed `6641-6660` carries forward disabled futures request payload
+  validation record semantic artifact evidence.

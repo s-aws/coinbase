@@ -118,14 +118,59 @@ class _OperationLock:
         self.fd: int | None = None
         self.status = SpotOperationLockStatus.BUSY.value
 
+    @staticmethod
+    def _process_exists(pid: int) -> bool:
+        if pid <= 0:
+            return False
+        if os.name == "nt":
+            import ctypes
+
+            process_query_limited_information = 0x1000
+            handle = ctypes.windll.kernel32.OpenProcess(
+                process_query_limited_information,
+                False,
+                pid,
+            )
+            if handle:
+                ctypes.windll.kernel32.CloseHandle(handle)
+                return True
+            return False
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        return True
+
+    def _lock_owner_pid(self) -> int | None:
+        try:
+            payload = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        pid = payload.get("pid")
+        if isinstance(pid, int):
+            return pid
+        if isinstance(pid, str) and pid.isdigit():
+            return int(pid)
+        return None
+
+    def _remove_stale_lock_if_needed(self, *, now: float) -> None:
+        if not self.path.exists():
+            return
+        owner_pid = self._lock_owner_pid()
+        if owner_pid is not None and not self._process_exists(owner_pid):
+            self.path.unlink(missing_ok=True)
+            self.status = SpotOperationLockStatus.STALE_REMOVED.value
+            return
+        age_seconds = now - self.path.stat().st_mtime
+        if age_seconds > self.stale_after_seconds:
+            self.path.unlink(missing_ok=True)
+            self.status = SpotOperationLockStatus.STALE_REMOVED.value
+
     def acquire(self) -> "_OperationLock":
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        now = time.time()
-        if self.path.exists():
-            age_seconds = now - self.path.stat().st_mtime
-            if age_seconds > self.stale_after_seconds:
-                self.path.unlink(missing_ok=True)
-                self.status = SpotOperationLockStatus.STALE_REMOVED.value
+        self._remove_stale_lock_if_needed(now=time.time())
         try:
             self.fd = os.open(
                 str(self.path),

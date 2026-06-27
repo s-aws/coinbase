@@ -20,6 +20,109 @@ The list/detail routes read local stealth lifecycle rows and report active
 placement evidence, mutation-claim evidence, and reveal-trigger evidence when
 present. The command-suite route reports M55 readiness for stealth create,
 cancel, reveal, move, reprice, recovery, and reconciliation workflows.
+For phases 4581-4600, the M55 blocker-closure ledger also reports partial
+proof/readback evidence for all concrete blocker rows. Partial evidence is
+readback only: it does not change blocker status, missing backend contracts,
+live-service or live-adapter flags, Coinbase/manager authority,
+repair/rollback authority, reconciliation execution, or state-mutation
+authority. For phases 4601-4620, the same rows also report closure-readiness
+criteria, missing criteria, verification gates, blockers, and readiness
+counts. For phases 4621-4640, those criteria include criterion-level source
+refs and missing dependency refs. For phases 4641-4660, those trace
+dependencies are classified as backend contract, proof route, or gate-chain
+dependencies with matching missing-dependency classifications and explicit
+resolution-required/no-resolution-allowed evidence. For phases 4661-4680, each
+classified dependency also has a backend-owned clearance plan row with owner,
+required artifact, clearance order, blocked status, and no-resolution/no-live
+authority evidence. For phases 4681-4700, each clearance plan also has blocked
+backend clearance-step rows. For phases 4701-4720, each clearance step also has
+blocked backend review rows. For phases 4721-4740, each clearance-step review
+also has blocked backend review-input rows. For phases 4741-4760, each review
+input also has a blocked backend review-input store-requirement row. For
+phases 4761-4780, each store requirement also has a blocked backend
+review-input store record-contract row. For phases 4781-4800, each record
+contract also has a blocked backend review-input store record-validation row.
+For phases 4801-4820, each record validation also has a blocked backend
+review-input store record-validation remediation row. For phases 4821-4840,
+each remediation also has a blocked backend review-input store
+record-validation remediation dependency row. For phases 4841-4860, each
+remediation dependency also has a blocked backend review-input store
+record-validation remediation dependency work-item row. For phases 4861-4880,
+each remediation dependency work item also has a blocked backend claim-trace
+row. For phases 4881-4900, each remediation dependency work-item claim-trace
+row also has a blocked backend claim-trace clearance-plan row. For phases
+4901-4920, each claim-trace clearance-plan row also has blocked backend
+claim-trace clearance-step rows for the required plan steps. For phases
+4921-4940, each claim-trace clearance-step row also has blocked backend
+claim-trace clearance-step review rows for the required step reviews. For
+phases 4941-4960, each claim-trace clearance-step review row also has blocked
+backend claim-trace clearance-step review-input rows for the required review
+inputs. For phases 4961-4980, each claim-trace clearance-step review-input
+row also has blocked backend claim-trace clearance-step review-input
+store-requirement rows for the required evidence store, writer, record key,
+validation gate, and replay gate. For phases 4981-5000, each claim-trace
+clearance-step review-input store requirement also has blocked backend
+record-contract rows. For phases 5001-5020, each claim-trace clearance-step
+review-input store record contract also has blocked backend record-validation
+rows. For phases 5021-5040, each claim-trace clearance-step review-input
+store record validation also has blocked backend record-validation remediation
+rows. For completed phases 5041-5060, each claim-trace clearance-step
+review-input store record-validation remediation also has blocked backend
+remediation dependency rows. For completed phases 5061-5080, each remediation
+dependency row also has blocked backend remediation dependency work-item rows.
+For completed phases 5081-5100, each remediation dependency work-item row also
+has a blocked backend remediation dependency work-item claim-trace row.
+For completed phases 5101-5120, the M55 work is route-level enablement
+candidate review over existing stealth command routes and command-suite
+admission evidence. It does not add another recursive evidence layer or make
+any command executable. The command-suite response exposes
+`enablement_candidate_reviews` and `enablement_candidate_review_summary` for
+that review. Rows are ranked by exchange-facing blocker count, blocker-closure
+count, blocked admission evidence, missing gates, and route. The current first
+review target is `stealth_create` at `/api/v1/stealth/orders`; it remains
+`blocked`, `candidate_executable=false`, and
+`candidate_execution_allowed=false`.
+For completed phases 5121-5140, the selected `stealth_create` candidate is the
+only planning target. The work is pre-execution contract evidence for the
+create route and still cannot invoke managers, write lifecycle/order rows,
+execute reconciliation, call Coinbase, or grant browser/BFF authority.
+`GET /api/v1/stealth/command-suite` exposes this as
+`selected_create_pre_execution_contract`. That object is scoped only to
+`POST /api/v1/stealth/orders`; it lists the selected route identity, payload
+contract fields, approval/admission requirements, lifecycle-write boundary,
+manager path, idempotency/audit boundary, action-condition guard and account
+cap references, reconciliation requirements, and Coinbase non-interaction
+proof. The object remains blocked evidence: it does not create a stealth
+order, call `StealthOrderManager`, write `stealth_orders` or `order_parent`,
+submit/cancel/read Coinbase orders, execute reconciliation, mutate state, or
+grant browser/BFF authority.
+For active phases 5141-5160, the same selected-create pre-execution contract is
+also attached to the exact dry `POST /api/v1/stealth/orders` command response
+with command-envelope and payload-present fields. That response evidence
+distinguishes exact command context from read/planning context, but it remains
+blocked, no-live, no-write, display-only, and BFF forward-only.
+Readiness criteria, traces, clearance rows, steps, step reviews, review
+inputs, review-input store requirements, review-input store record contracts,
+review-input store record validations, and review-input store
+record-validation remediations, remediation dependencies, remediation
+dependency work items, dependency work-item claim traces, work-item claim
+traces, claim-trace clearance plans, and claim-trace clearance steps are
+planning
+evidence only: they do not close blockers, satisfy missing contracts, resolve
+dependency order, execute plans, execute plan steps, clear claim traces, claim
+work items, perform work items, perform remediation, resolve claims, allow
+claim resolution,
+make record contracts available, make validations ready, make schemas
+available, make append-only logs available, bind idempotency, validate
+payloads, protect replay, make stores available, allow writers, write or
+validate records, accept or validate inputs, make steps ready, complete
+reviews, enable live execution, call Coinbase, invoke managers, execute
+reconciliation, or mutate state.
+Route-level enablement candidate reviews are also planning evidence only:
+they do not execute the selected route, run proof resolvers, invoke managers,
+construct adapters, enable live service, submit/cancel/read Coinbase orders,
+run active-placement cancel/replace, execute reconciliation, mutate
+lifecycle/order/exchange state, or grant browser/BFF authority.
 
 ## Identity Rules
 
@@ -212,6 +315,9 @@ methods while reporting `executable=false`, `browser_authority=display_only`,
 and `bff_authority=forward_only_no_execution`. It is not an adapter
 implementation, manager invocation path, Coinbase caller, or command-enablement
 signal.
+Exact command responses keep that object compact for API/idempotency replay:
+they may expose construction availability and the construction-contract ref, but
+they do not inline the full construction-contract graph.
 It may also resolve `reconciliation_proof` for reconciliation from the
 backend reconciliation proof store when the latest safe same-`stealth_order_id`
 proof exactly matches route, method, service method, actor, operator intent,
@@ -353,8 +459,14 @@ Focused backend coverage:
 python -m pytest tests\regression\test_admin_api_contract.py -v --tb=short
 ```
 
-Full backend regression is still required for non-agent changes:
+Full backend regression is a durable milestone closeout gate, not an ordinary
+phase gate. Run it before marking a milestone complete, before
+public/release-candidate handoff, or when explicitly requested. See
+[Regression Process](REGRESSION_PROCESS.md) for the canonical policy:
 
 ```powershell
-python -m pytest tests\regression\ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 ```
+
+Use `python -m pytest tests\regression\ -v --tb=short` only as an intentional
+sequential fallback when `pytest-xdist` is unavailable.

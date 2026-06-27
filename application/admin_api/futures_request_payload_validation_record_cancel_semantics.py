@@ -1,0 +1,287 @@
+"""Disabled futures/perpetual validation-record cancel semantics registry.
+
+These rows consume the existing semantic artifact runtime-evidence acceptance
+chain and expose the next futures-specific semantic contract gap: cancel
+semantics. They are evidence only and do not validate payloads, admit commands,
+call Coinbase, execute reconciliation, or mutate futures/order/exchange state.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterator
+from dataclasses import dataclass
+
+from core.enums import (
+    AdminApiGateStatus,
+    AdminFuturesCommandAction,
+    AdminFuturesCommandEvidenceRoute,
+    AdminFuturesCommandExecutionEligibilityBlocker,
+    AdminFuturesCommandRequestField,
+    AdminFuturesCommandSemanticArtifact,
+    AdminFuturesEvidenceSource,
+)
+
+from .futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances import (
+    FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS,
+    FuturesRequestPayloadValidationRecordSemanticArtifactRuntimeEvidenceAcceptanceContract,
+)
+
+
+@dataclass(frozen=True)
+class FuturesRequestPayloadValidationRecordCancelSemanticContract:
+    """One disabled cancel-semantics row for a futures validation record."""
+
+    semantic_artifact_runtime_evidence_acceptance_contract: (
+        FuturesRequestPayloadValidationRecordSemanticArtifactRuntimeEvidenceAcceptanceContract
+    )
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source: AdminFuturesEvidenceSource = AdminFuturesEvidenceSource.BACKEND_CONTRACT
+    required: bool = True
+    blocking: bool = True
+    backend_owned: bool = True
+    read_only: bool = True
+    contextless_review_required: bool = True
+    spot_rule_authority: bool = False
+    cancel_semantics_contract_available: bool = False
+    cancel_semantics_contract_ready: bool = False
+    cancel_identity_bound: bool = False
+    cancel_client_order_id_bound: bool = False
+    cancel_order_wrapper_bound: bool = False
+    cancel_active_placement_bound: bool = False
+    cancel_audit_bound: bool = False
+    runtime_cancel_evidence_observed: bool = False
+    runtime_evidence_satisfies_cancel_semantics: bool = False
+    semantic_artifact_runtime_evidence_acceptance_available: bool = False
+    semantic_artifact_runtime_evidence_acceptance_accepted: bool = False
+    validation_record_cancel_semantics_ready: bool = False
+    validation_record_execution_eligible: bool = False
+    execution_allowed: bool = False
+    live_coinbase_orders_ran: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+
+    @property
+    def command(self) -> AdminFuturesCommandAction:
+        return self.semantic_artifact_runtime_evidence_acceptance_contract.command
+
+    @property
+    def field(self) -> AdminFuturesCommandRequestField:
+        return self.semantic_artifact_runtime_evidence_acceptance_contract.field
+
+    @property
+    def blocker(self) -> AdminFuturesCommandExecutionEligibilityBlocker:
+        return self.semantic_artifact_runtime_evidence_acceptance_contract.blocker
+
+    @property
+    def semantic_artifact(self) -> AdminFuturesCommandSemanticArtifact:
+        return (
+            self.semantic_artifact_runtime_evidence_acceptance_contract
+            .semantic_artifact
+        )
+
+    @property
+    def validation_record_execution_eligibility_contract_ref(self) -> str:
+        return (
+            self.semantic_artifact_runtime_evidence_acceptance_contract
+            .validation_record_execution_eligibility_contract_ref
+        )
+
+    @property
+    def validation_record_execution_eligibility_blocker_ref(self) -> str:
+        return (
+            self.semantic_artifact_runtime_evidence_acceptance_contract
+            .validation_record_execution_eligibility_blocker_ref
+        )
+
+    @property
+    def semantic_ref(self) -> str:
+        return self.semantic_artifact_runtime_evidence_acceptance_contract.semantic_ref
+
+    @property
+    def semantic_artifact_ref(self) -> str:
+        return (
+            self.semantic_artifact_runtime_evidence_acceptance_contract
+            .semantic_artifact_ref
+        )
+
+    @property
+    def semantic_artifact_contract_ref(self) -> str:
+        return (
+            self.semantic_artifact_runtime_evidence_acceptance_contract
+            .semantic_artifact_contract_ref
+        )
+
+    @property
+    def semantic_artifact_definition_ref(self) -> str:
+        return (
+            self.semantic_artifact_runtime_evidence_acceptance_contract
+            .semantic_artifact_definition_ref
+        )
+
+    @property
+    def semantic_artifact_definition_contract_ref(self) -> str:
+        return (
+            self.semantic_artifact_runtime_evidence_acceptance_contract
+            .semantic_artifact_definition_contract_ref
+        )
+
+    @property
+    def semantic_artifact_definition_review_ref(self) -> str:
+        return (
+            self.semantic_artifact_runtime_evidence_acceptance_contract
+            .semantic_artifact_definition_review_ref
+        )
+
+    @property
+    def semantic_artifact_definition_review_contract_ref(self) -> str:
+        return (
+            self.semantic_artifact_runtime_evidence_acceptance_contract
+            .semantic_artifact_definition_review_contract_ref
+        )
+
+    @property
+    def semantic_artifact_runtime_evidence_ref(self) -> str:
+        return (
+            self.semantic_artifact_runtime_evidence_acceptance_contract
+            .semantic_artifact_runtime_evidence_ref
+        )
+
+    @property
+    def semantic_artifact_runtime_evidence_contract_ref(self) -> str:
+        return (
+            self.semantic_artifact_runtime_evidence_acceptance_contract
+            .semantic_artifact_runtime_evidence_contract_ref
+        )
+
+    @property
+    def semantic_artifact_runtime_evidence_acceptance_ref(self) -> str:
+        return (
+            self.semantic_artifact_runtime_evidence_acceptance_contract
+            .semantic_artifact_runtime_evidence_acceptance_ref
+        )
+
+    @property
+    def semantic_artifact_runtime_evidence_acceptance_contract_ref(self) -> str:
+        return (
+            self.semantic_artifact_runtime_evidence_acceptance_contract
+            .semantic_artifact_runtime_evidence_acceptance_contract_ref
+        )
+
+    @property
+    def cancel_semantics_ref(self) -> str:
+        return self.semantic_ref
+
+    @property
+    def cancel_semantics_contract_ref(self) -> str:
+        return (
+            "application/admin_api/"
+            "futures_request_payload_validation_record_cancel_semantics.py::"
+            f"{self.command.value}_{self.field.value}_cancel_semantics_contract"
+        )
+
+    @property
+    def evidence_routes(self) -> tuple[AdminFuturesCommandEvidenceRoute, ...]:
+        return (
+            AdminFuturesCommandEvidenceRoute.ADMIN_ADMISSION_AUDITS,
+            AdminFuturesCommandEvidenceRoute.ADMIN_RECONCILIATION_PLANS,
+        )
+
+    @property
+    def required_backend_contract(self) -> str:
+        return self.cancel_semantics_contract_ref
+
+    @property
+    def missing_backend_contract(self) -> str:
+        return self.cancel_semantics_ref
+
+    @property
+    def missing_reason(self) -> str:
+        return (
+            "backend-owned futures/perpetual cancel semantics contract is "
+            "missing or unavailable"
+        )
+
+    @property
+    def forbidden_execution_claims(self) -> tuple[str, ...]:
+        return (
+            "cancel_semantics_contract_available",
+            "cancel_semantics_contract_ready",
+            "cancel_identity_bound",
+            "cancel_client_order_id_bound",
+            "cancel_order_wrapper_bound",
+            "cancel_active_placement_bound",
+            "cancel_audit_bound",
+            "runtime_cancel_evidence_observed",
+            "runtime_evidence_satisfies_cancel_semantics",
+            "semantic_artifact_runtime_evidence_acceptance_available",
+            "semantic_artifact_runtime_evidence_acceptance_accepted",
+            "validation_record_cancel_semantics_ready",
+            "validation_record_execution_eligible",
+            "command_execution_allowed",
+            "live_coinbase_orders_ran",
+            "browser_execution_authority",
+            "bff_execution_authority",
+            "spot_rule_authority",
+        )
+
+    @property
+    def required_evidence_refs(self) -> tuple[str, ...]:
+        return tuple(
+            dict.fromkeys(
+                (
+                    *self.semantic_artifact_runtime_evidence_acceptance_contract.required_evidence_refs,
+                    self.cancel_semantics_ref,
+                    self.cancel_semantics_contract_ref,
+                    f"{self.cancel_semantics_contract_ref}.cancel_identity",
+                    f"{self.cancel_semantics_contract_ref}.client_order_id",
+                    f"{self.cancel_semantics_contract_ref}.cancel_order_client_order_id_wrapper",
+                    f"{self.cancel_semantics_contract_ref}.active_placement",
+                    f"{self.cancel_semantics_contract_ref}.audit_correlation",
+                    "/api/v1/futures/orders/{client_order_id}/cancel",
+                    AdminFuturesCommandEvidenceRoute.ADMIN_ADMISSION_AUDITS.value,
+                    AdminFuturesCommandEvidenceRoute.ADMIN_RECONCILIATION_PLANS.value,
+                    f"{self.cancel_semantics_contract_ref}_contextless_review",
+                )
+            )
+        )
+
+    @property
+    def missing_evidence_refs(self) -> tuple[str, ...]:
+        return self.required_evidence_refs
+
+    @property
+    def detail(self) -> str:
+        return (
+            f"{self.command.value}.{self.field.value}: missing backend-owned "
+            "cancel semantics for futures/perpetual validation records. "
+            "The contract must bind cancellation identity to client_order_id, "
+            "the project cancel_order(client_order_id) wrapper, active "
+            "placement evidence, and audit evidence before cancel semantics "
+            "can satisfy execution eligibility. This row is not a validator, "
+            "command admission, Coinbase call, reconciliation execution, "
+            "state mutation, browser authority, or BFF execution authority."
+        )
+
+
+FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS: tuple[
+    FuturesRequestPayloadValidationRecordCancelSemanticContract,
+    ...,
+] = tuple(
+    FuturesRequestPayloadValidationRecordCancelSemanticContract(
+        semantic_artifact_runtime_evidence_acceptance_contract=contract,
+    )
+    for contract in (
+        FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS
+    )
+    if contract.semantic_artifact == AdminFuturesCommandSemanticArtifact.CANCEL_SEMANTICS
+)
+
+
+def iter_futures_request_payload_validation_record_cancel_semantics(
+    command: AdminFuturesCommandAction,
+) -> Iterator[FuturesRequestPayloadValidationRecordCancelSemanticContract]:
+    """Yield disabled cancel-semantics contracts for one futures command."""
+
+    for contract in FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS:
+        if contract.command == command:
+            yield contract

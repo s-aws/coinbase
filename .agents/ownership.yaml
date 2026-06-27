@@ -2,6 +2,14 @@
 #
 # This file is intentionally model-agnostic. Private repos may map these owner
 # ids to model names, prompts, budgets, and routing rules.
+#
+# `requires_regression: true` means the owner participates in the full
+# regression gate at durable milestone closeout, public/release-candidate
+# handoff, deployment approval/closeout, release-hardening closeout, Admin
+# API/backend association closeout, or explicit full-gate request. It does not
+# mean ordinary phase work must always run the full regression suite; ordinary
+# phase work runs the focused tests listed under the owner plus relevant
+# validators.
 
 version: 1
 
@@ -23,6 +31,7 @@ owners:
       - docs/ADMIN_PLATFORM_ARCHITECTURE.md
       - docs/ADMIN_MODULE_CAPABILITY_MATRIX.md
       - docs/PUBLIC_ROADMAP.md
+      - docs/REGRESSION_PROCESS.md
       - docs/SPOT_READINESS_ROADMAP.md
       - docs/SPOT_READINESS_TEST_GATE.md
       - docs/SPOT_CAMPAIGN_PUBLIC_RUNBOOK.md
@@ -50,9 +59,14 @@ owners:
       - tools/run_spot_direct_order_audit.py
       - tools/run_spot_readiness_regression.py
       - tools/run_spot_release_gate.py
+      - tools/run_parallel_regression.py
+      - tools/check_stale_test_processes.py
+      - tools/check_runtime_artifacts.py
+      - tools/run_admin_oidc_readiness_smoke.py
       - tools/run_autonomous_work_queue_check.py
       - ai-context.md
       - AGENTS.md
+      - CLAUDE.md
       - agent.md
       - README.md
       - README.action-condition-guards.md
@@ -85,11 +99,17 @@ owners:
       - genai_data/ARCHITECTURE.md
       - genai_data/API_REFERENCE.md
       - genai_data/CONFIGURATION.md
+      - genai_data/COMPREHENSIVE_TEST_SUITE.md
+      - genai_data/DEBUGGING_STRATEGY.md
+      - genai_data/TESTING_STRATEGY.md
       - genai_data/ORDER_ID_HANDLING.md
       - genai_data/agent_state.md
     test_owns:
       - tests/regression/test_codebase_intelligence.py
       - tests/regression/test_live_spot_usdc_smoke_runner.py
+      - tests/regression/test_parallel_regression_runner.py
+      - tests/regression/test_stale_test_process_checker.py
+      - tests/regression/test_runtime_artifact_checker.py
       - tests/regression/test_spot_contextless_agent_checklist.py
       - tests/regression/test_spot_readiness_gate.py
     tests:
@@ -372,6 +392,8 @@ owners:
       - tests/SETUP_SUMMARY.md
       - tests/DEPLOYMENT_CHECKLIST.md
       - tests/requirements.txt
+      - tests/regression/__init__.py
+      - tests/regression/test_core_functionality.py
     tests:
       - pytest tests/regression/test_db_prod_guard.py -v --tb=short
     requires_regression: true
@@ -408,6 +430,8 @@ owners:
       - DEADLOCK_EXECUTIVE_SUMMARY.md
       - RACE_CONDITIONS_ANALYSIS_COMPLETE.md
       - COMPREHENSIVE_TEST_SUITE_CREATED.md
+    test_owns:
+      - tests/regression/test_diagnostics_safety.py
     tests:
       - python tools/check_ownership.py --owner ops_diagnostics
     requires_regression: false

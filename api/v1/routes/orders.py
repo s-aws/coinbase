@@ -42,6 +42,9 @@ from application.admin_api.stealth_coinbase_exchange_policy import (
 from application.admin_api.stealth_post_write_reconciliation_policy import (
     FileStealthPostWriteReconciliationExecutionPolicyProofStore,
 )
+from application.admin_api.stealth_state_mutation_policy import (
+    FileStealthStateMutationPolicyProofStore,
+)
 from application.admin_api.stealth_recovery_proof import (
     FileStealthRecoveryProofStore,
 )
@@ -453,6 +456,9 @@ def _attach_stealth_execution_posture(
     stealth_post_write_reconciliation_policy_proof_store: (
         FileStealthPostWriteReconciliationExecutionPolicyProofStore | None
     ) = None,
+    stealth_state_mutation_policy_proof_store: (
+        FileStealthStateMutationPolicyProofStore | None
+    ) = None,
     stealth_recovery_proof_store: FileStealthRecoveryProofStore | None = None,
     stealth_reveal_trigger_proof_store: (
         FileStealthRevealTriggerProofStore | None
@@ -485,6 +491,9 @@ def _attach_stealth_execution_posture(
         ),
         stealth_post_write_reconciliation_policy_proof_store=(
             stealth_post_write_reconciliation_policy_proof_store
+        ),
+        stealth_state_mutation_policy_proof_store=(
+            stealth_state_mutation_policy_proof_store
         ),
         stealth_recovery_proof_store=stealth_recovery_proof_store,
         stealth_reveal_trigger_proof_store=stealth_reveal_trigger_proof_store,
@@ -631,6 +640,9 @@ def _execute_idempotent_command(
     stealth_post_write_reconciliation_policy_proof_store: (
         FileStealthPostWriteReconciliationExecutionPolicyProofStore | None
     ) = None,
+    stealth_state_mutation_policy_proof_store: (
+        FileStealthStateMutationPolicyProofStore | None
+    ) = None,
     stealth_recovery_proof_store: FileStealthRecoveryProofStore | None = None,
     stealth_reveal_trigger_proof_store: (
         FileStealthRevealTriggerProofStore | None
@@ -715,6 +727,9 @@ def _execute_idempotent_command(
             stealth_post_write_reconciliation_policy_proof_store=(
                 stealth_post_write_reconciliation_policy_proof_store
             ),
+            stealth_state_mutation_policy_proof_store=(
+                stealth_state_mutation_policy_proof_store
+            ),
             stealth_recovery_proof_store=stealth_recovery_proof_store,
             stealth_reveal_trigger_proof_store=stealth_reveal_trigger_proof_store,
             stealth_reconciliation_proof_store=stealth_reconciliation_proof_store,
@@ -760,6 +775,9 @@ def _execute_idempotent_command(
         ),
         stealth_post_write_reconciliation_policy_proof_store=(
             stealth_post_write_reconciliation_policy_proof_store
+        ),
+        stealth_state_mutation_policy_proof_store=(
+            stealth_state_mutation_policy_proof_store
         ),
         stealth_recovery_proof_store=stealth_recovery_proof_store,
         stealth_reveal_trigger_proof_store=stealth_reveal_trigger_proof_store,

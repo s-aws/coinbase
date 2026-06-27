@@ -210,6 +210,22 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="stealth_orders",
+        surface="GET /api/v1/stealth/orders/{stealth_order_id}/state-mutation-policy",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="build_stealth_state_mutation_policy",
+        parity_test=(
+            "read-only state-mutation policy evidence; no lifecycle/order/"
+            "exchange-state mutation, manager invocation, Coinbase call, "
+            "active-placement cancel/replace, or reconciliation execution"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
         surface="GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.AUDIT_READ,
@@ -597,6 +613,26 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="stealth_orders",
+        surface=(
+            "POST /api/v1/stealth/orders/{stealth_order_id}/"
+            "state-mutation-policy-proofs"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.STEALTH_STATE_MUTATION_POLICY_RECORD,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for state-mutation policy proof admission",
+        audit="required",
+        shared_method="record_stealth_state_mutation_policy_proof",
+        parity_test=(
+            "stealth_order_id identity; policy proof evidence remains no-live "
+            "and does not authorize or perform lifecycle/order/exchange-state "
+            "mutation, invoke managers, submit/read/cancel Coinbase, "
+            "cancel/replace active placements, or execute reconciliation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
         surface="POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proofs",
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
         permission=AdminApiPermission.STEALTH_RECONCILIATION_RECORD,
@@ -722,6 +758,88 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="futures_perpetuals",
+        surface="GET /api/v1/futures/command-suite",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="build_futures_command_suite",
+        parity_test=(
+            "read-only futures command contract matrix; exposes route-bound "
+            "no-live command draft evidence, request payload contract refs, "
+            "semantic guard summaries, and blocked request fields while "
+            "execution remains false; no spot rules or live routes"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="POST /api/v1/futures/orders",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        permission=AdminApiPermission.ORDER_CREATE,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for futures placement admission and margin/risk controls",
+        audit="required",
+        shared_method="place_futures_order",
+        parity_test=(
+            "product_id identity; route-bound draft only with no live adapter, "
+            "Coinbase submission, reconciliation execution, state mutation, "
+            "browser authority, BFF authority, or spot-rule authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="POST /api/v1/futures/positions/{position_key}/close-reduce",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for futures close/reduce admission and position controls",
+        audit="required",
+        shared_method="close_or_reduce_futures_position",
+        parity_test=(
+            "position_key identity; route-bound draft only with no live adapter, "
+            "Coinbase submission, reconciliation execution, state mutation, "
+            "browser authority, BFF authority, or spot-rule authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="POST /api/v1/futures/orders/{client_order_id}/cancel",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for futures cancel admission and exchange-reality controls",
+        audit="required",
+        shared_method="cancel_futures_order",
+        parity_test=(
+            "client_order_id identity; route-bound draft only with no live "
+            "adapter, Coinbase cancellation, reconciliation execution, state "
+            "mutation, browser authority, BFF authority, or spot-rule authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="POST /api/v1/futures/positions/{position_key}/reconciliation",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.RECONCILIATION_RECORD,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for futures reconciliation admission controls",
+        audit="required",
+        shared_method="reconcile_futures_position",
+        parity_test=(
+            "position_key identity; route-bound draft only with no "
+            "reconciliation execution, futures/order/exchange mutation, "
+            "live adapter, Coinbase call, browser authority, BFF authority, "
+            "or spot-rule authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
         surface="GET /api/v1/futures/account",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -755,6 +873,52 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         audit="optional read audit",
         shared_method="build_futures_position_detail",
         parity_test="backend-defined position identity with no order placement or cancellation",
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="GET /api/v1/futures/risk-proofs",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="list_futures_risk_proofs",
+        parity_test=(
+            "read-only futures risk-proof record readback; no proof acceptance, "
+            "command draft, reconciliation execution, or Coinbase call"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="GET /api/v1/futures/risk-proofs/{futures_risk_proof_id}",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="get_futures_risk_proof",
+        parity_test=(
+            "read-only futures risk-proof detail by proof id; no proof "
+            "acceptance, command draft, reconciliation execution, or Coinbase call"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
+        surface="POST /api/v1/futures/risk-proofs",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.FUTURES_RISK_PROOF_RECORD,
+        idempotency="required",
+        approval="required by current HTTP live-disabled gate",
+        caps="required for futures risk proof record admission",
+        audit="required",
+        shared_method="record_futures_risk_proof",
+        parity_test=(
+            "command/proof_kind identity; proof evidence remains no-live and "
+            "does not register command routes, create drafts, execute "
+            "reconciliation, mutate futures state, or call Coinbase"
+        ),
     ),
     AdminApiRouteInventoryItem(
         module_id="guard_risk_policy",
@@ -1179,6 +1343,84 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test=(
             "records are backend-owned and append-only; no reconciliation "
             "execution or order/exchange mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
+        surface="GET /api/v1/admin/live-execution/service-decisions",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not applicable",
+        caps="not applicable",
+        audit="read-only live-service decision evidence",
+        shared_method="list_live_service_decisions",
+        parity_test="read-only live-service decisions; no Coinbase execution",
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
+        surface="GET /api/v1/admin/live-execution/service-decisions/{decision_id}",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not applicable",
+        caps="not applicable",
+        audit="read-only live-service decision evidence",
+        shared_method="get_live_service_decision",
+        parity_test="decision_id identity only; no live-service enablement",
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
+        surface="POST /api/v1/admin/live-execution/service-decisions",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.CONFIG_UPDATE,
+        idempotency="required",
+        approval="records disabled backend decision; not sufficient for live execution",
+        caps="not applicable",
+        audit="required",
+        shared_method="record_live_service_decision",
+        parity_test=(
+            "records are backend-owned and append-only; no live-service "
+            "enablement, adapter construction, or Coinbase execution"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
+        surface="GET /api/v1/admin/live-execution/adapter-decisions",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not applicable",
+        caps="not applicable",
+        audit="read-only live-adapter decision evidence",
+        shared_method="list_live_adapter_decisions",
+        parity_test="read-only live-adapter decisions; no adapter construction",
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
+        surface="GET /api/v1/admin/live-execution/adapter-decisions/{decision_id}",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not applicable",
+        caps="not applicable",
+        audit="read-only live-adapter decision evidence",
+        shared_method="get_live_adapter_decision",
+        parity_test="decision_id identity only; no live-adapter construction",
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
+        surface="POST /api/v1/admin/live-execution/adapter-decisions",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.CONFIG_UPDATE,
+        idempotency="required",
+        approval="records disabled backend adapter decision; not sufficient for live execution",
+        caps="not applicable",
+        audit="required",
+        shared_method="record_live_adapter_decision",
+        parity_test=(
+            "records are backend-owned and append-only; no live-adapter "
+            "construction, live-service enablement, or Coinbase execution"
         ),
     ),
     AdminApiRouteInventoryItem(

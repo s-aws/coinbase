@@ -87,11 +87,21 @@ authoritative enough for fresh public clones.
 
 ## Tests
 
-- Non-agent-file changes require:
+- Ordinary phase work requires focused tests and validators for the changed
+  behavior.
+- Full regression follows [Regression Process](../REGRESSION_PROCESS.md) and is
+  reserved for durable milestone closeout,
+  public/release-candidate handoff, deployment approval/closeout,
+  release-hardening closeout, Admin API/backend association closeout, or
+  explicit user request:
 
 ```powershell
-pytest tests/regression/ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 ```
 
-- Focused tests in `.agents/ownership.yaml` are development checks only. They
-  do not replace the regression gate.
+  Use `pytest tests/regression/ -v --tb=short` only as an intentional
+  sequential fallback when `pytest-xdist` is unavailable.
+
+- Focused tests in `.agents/ownership.yaml` are the normal phase-level checks.
+  They do not replace full regression when a milestone is being marked
+  complete.

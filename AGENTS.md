@@ -41,13 +41,39 @@ If a recommendation would land softer than the evidence warrants, the recommenda
 
 - Documentation, roadmap, prompt catalog metadata, or agent-instruction-only changes: validate formatting/links or targeted validators as applicable; regression may be skipped.
 - Leaf validation scripts, isolated acceptance policies, or narrow tests: run the focused unit/regression tests and validator commands that cover the changed file.
-- Workflow-local controller changes: run focused controller/regression tests, live prompt proof when runtime-facing, and full regression once at phase close.
-- Shared controller, router, formatter, tool-selection, model-routing, mutation, fixture, or approval behavior: run focused tests first, then full Bash regression before completion.
-- Runtime-facing behavior: run focused tests, live Bash validation through the relevant localhost ports, AnythingLLM proof when applicable, both frozen fixture checks, and full Bash regression before completion.
-- Cross-cutting, release-candidate, model-portability, skill-library-scale, or unbounded-blast-radius changes: always end with full Bash regression.
+- Workflow-local controller changes: run focused controller/regression tests and live prompt proof when runtime-facing.
+- Shared controller, router, formatter, tool-selection, model-routing, mutation, fixture, or approval behavior: run focused tests that cover the changed behavior before completion.
+- Runtime-facing behavior: run focused tests, live validation through the relevant localhost ports, AnythingLLM proof when applicable, and both frozen fixture checks when those surfaces are affected.
+- Cross-cutting, release-candidate, model-portability, skill-library-scale, or unbounded-blast-radius changes: run the focused checks that cover the changed behavior before ordinary phase completion.
+- Full `tests/regression/` is a durable milestone closeout gate, not an ordinary phase gate. The canonical policy is [docs/REGRESSION_PROCESS.md](docs/REGRESSION_PROCESS.md): run it before durable milestone closeout, public/release-candidate handoff, deployment approval/closeout, release-hardening closeout, Admin API/backend association closeout, or explicit user request. The canonical runner validates the regression serial-lane classification before running pytest; regression files that touch shared DB cursors, fixed service ports, process-global state, full FastAPI app imports, or other process-shared/memory-heavy resources must use `pytest.mark.serial`, while false positives require a `parallel-regression: serial-safe` comment with the reason.
+- The canonical regression runner first fails before pytest when oversized repo-local runtime artifacts under `runtime_state/` exceed 1 GiB. A `runtime_artifact_preflight_failed` summary is a failed closeout gate; run `python tools/check_runtime_artifacts.py`, preserve evidence, and clean or archive artifacts only after explicit operator cleanup approval. Use `--disable-runtime-artifact-preflight` only for a scoped diagnostic run after preserving artifact evidence.
+- The canonical regression runner uses quiet pytest output, short tracebacks, and a Windows memory-pressure guard. Keep quiet output enabled for normal closeout runs so terminal renderers and agent UIs do not retain thousands of test-result lines during long suites. It samples every 5 seconds and aborts on high absolute commit pressure, high commit percentage, high physical-memory pressure, or low available physical memory. Preserve the summary JSON because it includes per-lane peak memory samples and top-process `process_memory_snapshots` captured at each lane's observed peak when the guard is active. A `memory_guard_aborted` summary is a failed closeout gate; run the stale-process checker and the runtime artifact checker, preserve evidence, and split or reduce the offending regression surface before retrying. Do not use `--disable-memory-watch` for normal closeout.
+- Use `process_memory_snapshots` from the summary as host attribution evidence. They distinguish pytest workers from Codex, VS Code, browsers, WSL, Docker, or unrelated host processes instead of guessing after terminated processes have disappeared.
+- Before full closeout gates and after interrupted or timed-out backend/frontend test commands, run the stale test-process checker. It is report-only unless `--kill` is explicitly provided and must only target matched repo-owned test command lines that are stale or above the default high-memory threshold: `python tools/check_stale_test_processes.py --include-sibling-frontend`.
+- After memory-guard aborts or unexpected regression memory spikes, run the report-only runtime artifact checker before retrying: `python tools/check_runtime_artifacts.py`. It identifies oversized `runtime_state/` test payloads such as stale Admin API idempotency response blobs; do not delete artifacts without explicit cleanup approval.
 
-Default full Bash regression command:
+Canonical full regression closeout command:
 
 ```bash
-python3 -m pytest tests/regression/ -v
+python tools/run_parallel_regression.py --workers 4
 ```
+
+Use the sequential fallback only when `pytest-xdist` is unavailable and the
+fallback is intentional:
+
+```bash
+pytest tests/regression/ -v --tb=short
+```
+
+## Subagent Hygiene
+
+- Phase-end cleanup is the canonical timing: close subagents that were spawned
+  for that phase, plus any stale or previously unused subagents from earlier
+  phases or milestones discovered during the sweep, after their findings have
+  been consumed, remediated, or explicitly deferred.
+- Durable milestone closeout is a final audit sweep, not the first cleanup
+  point. Leave no completed, failed, superseded, stale, or unused subagents
+  open unless they are part of an active handoff with recorded owner, purpose,
+  and expected next action.
+- Do not close a subagent that is still running required validation, producing required evidence, or awaiting a user decision.
+- Record the phase-end or milestone-closeout sweep result in the phase evidence, handoff, or closeout summary before advancing.

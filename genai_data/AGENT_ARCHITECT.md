@@ -561,19 +561,28 @@ Hard boundary:
 
 ### Required Gate
 
-Run this before considering any non-agent-file change complete:
+Run focused tests and validators that cover the changed behavior before
+ordinary phase completion. Run the full regression gate before durable
+milestone closeout, public/release-candidate handoff, deployment
+approval/closeout, release-hardening closeout, Admin API/backend association
+closeout, or explicit full-gate request:
 
 ```powershell
-pytest tests/regression/ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 ```
 
-Regression tests may be skipped only when the change set is limited to agent
-instruction/context files:
+Use `pytest tests/regression/ -v --tb=short` only as an intentional sequential
+fallback when `pytest-xdist` is unavailable.
+
+Regression may be skipped when the change set is limited to agent
+instruction/context files and no runtime behavior changed:
 
 ```text
 AGENTS.md
 agent.md
 ai-context.md
+.agents/ownership.yaml
+docs/agents/*.md
 genai_data/AGENT_*.md
 genai_data/agent_state.md
 ```
@@ -588,8 +597,11 @@ pytest tests/ -v --tb=short --cov=.
 
 ### Focused Commands By Area
 
-Focused commands are for development feedback only. They do not replace the
-required regression gate.
+Focused commands are the normal validation path for ordinary phase work. They
+do not replace full regression when marking a durable milestone complete,
+preparing public/release-candidate handoff, deployment approval/closeout,
+release-hardening closeout, Admin API/backend association closeout, or handling
+an explicit full-gate request.
 
 | Area | Useful focused command |
 | --- | --- |

@@ -1,4 +1,4 @@
-# Admin API
+﻿# Admin API
 
 This repository exposes the professional backend API for the separate
 enterprise admin platform at `C:\coinbase-frontend`.
@@ -18,12 +18,25 @@ read-only admin diagnostics, order read routes, read-only stealth lifecycle
 routes, read-only stealth command-suite readiness evidence, live-disabled
 stealth create, reveal, move, cancel, recovery, and reconciliation command contracts, movement/repricing evidence routes, a
 live-disabled movement reprice command contract, read-only futures/perpetual
-account and position routes, read-only guard/risk policy evidence, read-only
+account, position, command-suite contract, and risk-proof record read routes,
+a no-live append-only futures/perpetual risk-proof record route, read-only guard/risk policy evidence, read-only
 cross-module audit workbench evidence, backend-owned approval, cap/guard,
-admission audit, and reconciliation plan record routes, and read-only spot
+admission audit, reconciliation plan, and live-service decision evidence
+routes, and read-only spot
 operator routes. Live-shaped trading command HTTP routes still return
 `not_implemented` after auth, permission, idempotency, and audit handling;
 they do not submit orders, cancel orders, or call Coinbase.
+
+`POST /api/v1/orders` is the enterprise manual Spot order command contract, but
+today it is a dry-submit/review path only. The route requires backend auth,
+RBAC, idempotency, correlation, and operator-intent headers, may derive a
+backend-owned `client_order_id` before admission when the request omits one,
+and then returns live-disabled evidence. It does not reach the live branch that
+checks Spot wallet inventory, no-short sell authority, product capability,
+event-stream audit, or REST submission unless a future HTTP live-execution gate
+explicitly passes `allow_live_execution=true`. The UI label "operator" names a
+human workflow role; backend order creation still requires `trader` or `admin`
+RBAC authority.
 
 The generated OpenAPI contract documents the eventual `200` accepted/replayed
 command response shape and the current `501` live-disabled response shape.
@@ -71,6 +84,1141 @@ requirement, and notional caps. Only `allowed=true` with `status=passed` is
 resolver-eligible. The routes do not execute reconciliation, mutate order or
 exchange state, submit Coinbase orders, or create browser/BFF reconciliation
 authority.
+M55 adds backend-owned live-service decision evidence routes at
+`/api/v1/admin/live-execution/service-decisions`. The `POST` route records an
+append-only disabled-service decision only: it rejects enabled service,
+live Coinbase approval, `passed` status, and nonzero submitted or executed
+notional. List/detail routes are read-only evidence. These routes do not
+enable live service, construct adapters, call Coinbase, invoke managers,
+execute reconciliation, mutate state, clear execution blockers, or create
+browser/BFF execution authority.
+The existing disabled `live_execution_service_contract` may also show the
+latest disabled live-service decision record as local readback evidence. That
+readback keeps `enablement_precondition_resolved=false`,
+`latest_service_decision_resolves_enablement=false`, all enablement artifacts
+missing, and all live execution authority disabled. The readback also
+separates recorded decision artifacts from satisfied enablement artifacts:
+`latest_service_decision_recorded_artifacts_satisfy_enablement=false`,
+`latest_service_decision_satisfied_enablement_artifacts=[]`, and
+`latest_service_decision_unsatisfied_enablement_artifacts` still names the
+required enablement artifacts when a disabled decision is present.
+M55 also adds backend-owned live-adapter decision evidence routes at
+`/api/v1/admin/live-execution/adapter-decisions`. The `POST` route records an
+append-only disabled adapter-construction decision only: it rejects
+constructed adapters, enabled adapters, live Coinbase approval, `passed`
+status, nonzero submitted or executed notional, and route bindings that do
+not match the route inventory. The reviewed target must be a `POST`
+non-read-only command surface whose `shared_method` exists on
+`AdminApiCommandService`; read-only routes and unrelated local-state services
+are rejected. List/detail routes are read-only evidence. These routes do not
+construct adapters, enable live service, call Coinbase, invoke managers,
+execute reconciliation, mutate state, clear execution blockers, or create
+browser/BFF execution authority. When projected into the disabled
+`live_execution_adapter_contract`, the latest adapter decision is
+readback-only evidence: it keeps
+`latest_adapter_decision_recorded_artifacts_satisfy_construction=false`,
+`latest_adapter_decision_satisfied_construction_artifacts=[]`, and required
+construction artifacts unsatisfied. It also reports
+`latest_adapter_decision_resolution_status`,
+`latest_adapter_decision_non_resolution_reason`,
+`latest_adapter_decision_required_resolution_artifacts`,
+`latest_adapter_decision_missing_resolution_artifacts`,
+`latest_adapter_decision_forbidden_resolution_claims`, and
+`latest_adapter_decision_next_required_contract` so a decision record cannot
+be confused with adapter construction authority.
+The current `latest_adapter_decision_next_required_contract` is
+`backend_live_adapter_construction_contract`. M55 phases 3621-3640 expose that
+contract as typed read-only evidence under `live_execution_adapter_contract`.
+M55 phases 3641-3660 add per-artifact acceptance requirements to the same
+contract: required evidence ids, source refs, checks, negative checks,
+evidence presence, and satisfaction blockers. These fields do not construct
+adapters, satisfy construction artifacts, enable live service, call Coinbase,
+invoke managers, execute reconciliation, mutate state, or grant browser/BFF
+authority.
+M55 phases 3661-3680 add blocked per-artifact acceptance evidence readback rows
+for those requirements. M55 phases 3681-3700 add a blocked contract-level
+aggregate over those rows with total, missing, and accepted counts, blockers,
+next evidence ids, false construction satisfaction, and no-live authority.
+M55 phases 3701-3720 add a blocked producer contract over those missing
+acceptance evidence ids so future backend work knows which contract must
+create or record each evidence id. M55 phases 3721-3740 add blocked
+producer-readiness rows for the missing route, append-only store, and
+validation/replay gate. M55 phases 3741-3760 add a blocked contract-level
+aggregate over those producer-readiness rows with total, missing, and
+satisfied readiness counts, category lists, producer contract ids, next
+required readiness item ids, blockers, first blocker, disabled route/store/
+validation/replay/writer/acceptance flags, false satisfaction, and no-live
+authority. M55 phases 3761-3780 add blocked clearance-action rows for each
+missing producer-readiness item so future backend work can see the exact
+required ref, route/method, verification gate, source blocker, and disabled
+writer/acceptance/construction flags. M55 phases 3781-3800 add a blocked
+dependency summary over those clearance actions with action counts,
+dependency-blocked refs, clearable refs, terminal refs, first blocked action,
+and disabled route/store/validation/replay/writer/acceptance/construction/
+clearance/execution flags. M55 phases 3801-3820 add blocked producer-
+clearance work items and a queue summary derived from each producer
+contract's first blocked clearance action. M55 phases 3821-3840 add blocked
+producer-clearance claim traces and a summary mapping forbidden producer-route
+availability claims back to those work items. M55 phases 3841-3860 add
+blocked producer-route requirements and a summary mapping those claim traces
+to the missing backend route contract evidence. M55 phases 3861-3880 add
+blocked producer-route contract proposals and a summary mapping those
+requirements to missing route contract, route inventory, and shared
+command-service evidence. Completed phases 3881-3900 add blocked producer-route
+contract validation rows and a summary mapping those proposals to missing
+route contract, route registration, route inventory, shared service, handler,
+store, validation/replay, writer, and acceptance prerequisites. Completed
+phases 3901-3920 add blocked remediation rows and a summary mapping failed
+validation rows to missing backend work without performing that work. Completed
+phases 3921-3940 add blocked remediation-dependency rows and a summary that
+order those remediation items by route contract without performing that work.
+Completed phases 3941-3960 add blocked remediation work-item rows and a
+work-queue summary that name required backend work, required backend refs, and
+handoff blockers without performing that work. Completed phases 3961-3980 add
+blocked remediation work-item claim traces and a claim-trace summary that map
+those work items back to unresolved producer-route contract availability
+claims without resolving those claims. Completed phases 3981-4000 add blocked
+producer-route contract clearance plans and a clearance-plan summary that turn
+those unresolved claim traces into backend-owned sequencing evidence for the
+route, inventory, shared-service, handler, store, validation/replay, writer,
+and acceptance-path work required before the claim could ever resolve. Completed
+phases 4001-4020 expand those clearance plans into blocked ordered clearance
+steps and a step summary without performing any of the named backend work.
+Completed phases 4021-4040 add blocked clearance-step review rows and a
+review summary that list the backend-owned review inputs and gates required
+before those steps could ever become ready. Completed phases 4041-4060 add
+blocked clearance-step review-input rows and a review-input summary derived
+from those review rows without creating, accepting, validating, or completing
+any input. Completed phases 4061-4080 add blocked clearance-step review-input
+store requirement rows and a store-requirement summary derived from those
+review-input rows without creating stores, writing evidence, accepting
+records, validating records, completing inputs, completing reviews, resolving
+claims, satisfying construction, constructing adapters, or executing live
+paths. Completed phases 4081-4100 add blocked clearance-step review-input store
+record-contract rows and a record-contract summary derived from those store
+requirements without creating records, binding idempotency, validating
+payloads, accepting evidence, completing inputs, resolving claims,
+constructing adapters, or executing live paths. Completed phases 4101-4120
+add blocked clearance-step review-input store record-validation rows and a
+record-validation summary derived from those record contracts without creating
+validators, binding idempotency, validating payloads, protecting replay,
+accepting records, completing reviews, resolving claims, constructing
+adapters, or executing live paths. Completed phases 4121-4140 add blocked
+record-validation remediation rows and a remediation summary derived from
+those validation rows without performing remediation, creating validators,
+writing evidence, accepting records, completing reviews, resolving claims,
+constructing adapters, or executing live paths. Completed phases 4141-4160 add
+blocked record-validation remediation dependency rows and a dependency summary
+derived from those remediation rows with immediate predecessor/successor links
+only, without resolving dependencies, performing remediation, creating
+validators, writing evidence, accepting records, completing reviews, resolving
+claims, constructing adapters, or executing live paths. Completed phases
+4161-4180 add blocked dependency work items and a work-queue summary derived
+from those dependency rows, without performing remediation, accepting records,
+resolving claims, constructing adapters, or executing live paths. Completed
+phases 4181-4200 add blocked dependency work-item claim traces and a
+claim-trace summary derived from those work items, without resolving claims,
+clearing work items or dependencies, performing remediation, accepting
+records, constructing adapters, or executing live paths. Completed phases
+4201-4220 add blocked dependency work-item claim-trace clearance plans and a
+clearance-plan summary derived from those claim traces, without resolving
+claims, clearing claim traces, clearing work items or dependencies, performing
+remediation, accepting records, constructing adapters, or executing live
+paths. Completed phases 4221-4240 add blocked dependency work-item claim-trace
+clearance steps and a clearance-step summary derived from those plans, without
+completing steps, resolving claims, clearing claim traces, clearing work items
+or dependencies, performing remediation, accepting records, constructing
+adapters, or executing live paths. Completed phases 4241-4260 add blocked
+dependency work-item claim-trace clearance-step reviews and a clearance-step
+review summary derived from those steps, without completing reviews, accepting
+review inputs, passing review gates, completing steps, resolving claims,
+clearing claim traces, clearing work items or dependencies, performing
+remediation, accepting records, constructing adapters, or executing live
+paths. Completed phases 4261-4280 add blocked dependency work-item claim-trace
+clearance-step review inputs and a review-input summary derived from those
+reviews, without making inputs present, accepting inputs, validating inputs,
+completing reviews, completing steps, resolving claims, clearing claim traces,
+clearing work items or dependencies, performing remediation, accepting
+records, constructing adapters, or executing live paths. Completed phases
+4281-4300 add blocked dependency work-item claim-trace clearance-step
+review-input store requirements and a store-requirement summary derived from
+those review inputs, without creating stores, allowing writers, writing or
+accepting records, validating records, accepting inputs, validating inputs,
+completing reviews, completing steps, resolving claims, clearing claim traces,
+clearing work items or dependencies, performing remediation, constructing
+adapters, or executing live paths. Completed phases 4301-4320 add blocked
+dependency work-item claim-trace clearance-step review-input store record
+contracts and a record-contract summary derived from those store requirements,
+without making record contracts available, making schemas available, making
+append-only logs available, binding idempotency, validating payloads,
+protecting replay, creating stores, allowing writers, writing or accepting
+records, validating records, accepting inputs, validating inputs, completing
+reviews, completing steps, resolving claims, clearing claim traces, clearing
+work items or dependencies, performing remediation, constructing adapters, or
+executing live paths. Completed phases 4321-4340 add blocked dependency
+work-item claim-trace clearance-step review-input store record validations and
+a record-validation summary derived from those record contracts, without
+making validations ready or enabling live paths. Completed phases 4341-4360 add
+blocked dependency work-item claim-trace clearance-step review-input store
+record-validation remediation items and a remediation summary derived from
+those validation rows, without making remediation ready, performing
+remediation, recording remediation, making validations ready, writing or
+accepting records, constructing adapters, or executing live paths. Completed
+phases 4361-4380 add blocked dependency work-item claim-trace clearance-step
+review-input store record-validation remediation dependency rows and a
+dependency summary derived from those remediation rows, without making
+dependency graphs ready, making predecessors ready, making remediation ready,
+writing or accepting records, constructing adapters, or executing live paths.
+Completed phases 4381-4400 add blocked dependency work items and a work-queue
+summary derived from those dependency rows, without making work items ready,
+handoffs ready, dependency graphs ready, predecessors ready, remediation
+ready, writing or accepting records, constructing adapters, or executing live
+paths. Completed phases 4401-4420 add blocked dependency work-item claim
+traces and a claim-trace summary derived from those dependency work items,
+without making claim traces ready, resolving claims, clearing work items or
+dependencies, writing or accepting records, constructing adapters, or
+executing live paths. Completed phases 4421-4440 add blocked dependency
+work-item claim-trace clearance plans and a clearance-plan summary derived
+from those claim traces, without making plans ready, making sequences ready,
+resolving claims, clearing claim traces or work items, writing or accepting
+records, constructing adapters, or executing live paths. Completed phases
+4441-4460 add blocked dependency work-item claim-trace clearance steps and a
+clearance-step summary derived from those clearance plans, without making
+steps ready, completing steps, allowing next steps, completing prior steps,
+making plans ready, resolving claims, clearing claim traces or work items,
+writing or accepting records, constructing adapters, or executing live paths.
+Completed phases 4461-4480 add blocked dependency work-item claim-trace
+clearance-step reviews and a review summary derived from those clearance
+steps, without making reviews ready, completing reviews, accepting inputs,
+passing review gates, completing steps, resolving claims, clearing work
+items, constructing adapters, or executing live paths. Completed phases
+4481-4500 add blocked dependency work-item claim-trace clearance-step review
+inputs and a review-input summary derived from those reviews, without making
+inputs present, accepting inputs, validating inputs, completing reviews,
+passing gates, completing steps, resolving claims, clearing work items,
+constructing adapters, or executing live paths. Completed phases 4501-4520 add
+a concrete M55 blocker-closure ledger naming live-service, live-adapter,
+active-placement cancel/replace, reveal submission, recovery repair/rollback,
+and post-write reconciliation blockers without enabling Coinbase, managers,
+repair, rollback, reconciliation, state mutation, browser, or BFF authority.
+Completed phases 4521-4540 added one route-bound, non-executable dry-run
+adapter for stealth reveal. Completed phases 4541-4560 added route-bound,
+non-executable dry-run live-service evidence for the same reveal route.
+Completed phases 4561-4580 classify those reveal dry-run service and adapter
+surfaces as partial blocker evidence while keeping exact proof, manager,
+Coinbase, reconciliation, browser, and BFF execution authority blocked.
+Completed phases 4581-4600 expand partial evidence to the remaining concrete M55
+blocker rows for active-placement cancel/replace, reveal exchange submission,
+recovery repair/rollback, and post-write reconciliation execution while
+keeping every blocker unresolved and no-live. Completed phases 4601-4620 add
+structured closure-readiness criteria, missing criteria, verification gates,
+and readiness blockers to the same six rows while keeping every blocker
+unresolved and every live/manager/Coinbase/reconciliation/state-mutation flag
+false. Completed phases 4621-4640 add criterion-level source/dependency
+traceability for those readiness criteria while keeping every dependency
+unresolved and every execution authority flag false. Completed phases 4641-4660
+classify those trace dependencies as backend contract, proof route, or
+gate-chain dependencies while keeping every dependency unresolved and every
+execution authority flag false. Completed phases 4661-4680 assign each
+classified dependency to a backend-owned clearance plan row with an owner,
+required artifact, clearance order, blocked status, and no-execution authority
+flags. Completed phases 4681-4700 derive blocked backend clearance-step rows
+from those plans without clearing dependencies or changing execution authority.
+Completed phases 4701-4720 derive blocked backend clearance-step review rows
+from those steps without completing reviews, making steps ready, clearing
+dependencies, or changing execution authority. Completed phases 4721-4740
+derive blocked backend review-input rows from those reviews without accepting
+inputs, validating inputs, completing reviews, making steps ready, clearing
+dependencies, or changing execution authority. Completed phases 4741-4760
+derive blocked backend review-input store-requirement rows from those inputs
+without making stores available, allowing writers, writing records, validating
+records, accepting inputs, completing reviews, making steps ready, clearing
+dependencies, or changing execution authority. Completed phases 4761-4780 derive
+blocked backend review-input store record-contract rows from those store
+requirements without creating record contracts, schemas, logs, idempotency
+bindings, payload validation, replay protection, records, stores, accepted
+inputs, completed reviews, ready steps, cleared dependencies, or execution
+authority. Completed phases 4781-4800 derive blocked backend review-input
+store record-validation rows from those record contracts without validating
+records or changing execution authority. Completed phases 4801-4820 derive
+blocked backend review-input store record-validation remediation rows from
+those validations without remediating records, readying validations, clearing
+dependencies, or changing execution authority. Completed phases 4821-4840 derive
+blocked backend review-input store record-validation remediation dependency
+rows from those remediations without resolving dependency order, performing
+remediation, readying validations, clearing dependencies, or changing
+execution authority. Completed phases 4841-4860 derive blocked backend
+review-input store record-validation remediation dependency work-item rows from
+those dependencies without claiming work items, performing work items,
+resolving dependency order, performing remediation, readying validations,
+clearing dependencies, or changing execution authority. Completed phases
+4861-4880 derive blocked backend claim-trace rows from those work items without
+resolving claims, allowing claim resolution, clearing dependencies, performing
+remediation, validating records, or changing execution authority. Completed
+phases 4881-4900 derive blocked backend claim-trace clearance-plan rows from
+those claim traces without executing plans, resolving claims, clearing claim
+traces, clearing work items or dependencies, writing evidence, reconciling,
+calling Coinbase, invoking managers, or changing execution authority.
+Completed phases 4901-4920 derive blocked backend claim-trace clearance-step
+rows from those clearance plans without executing plan steps, resolving
+claims, clearing claim traces, clearing work items or dependencies, writing
+evidence, reconciling, calling Coinbase, invoking managers, or changing
+execution authority. Completed phases 4921-4940 derive blocked backend
+claim-trace clearance-step review rows from those clearance steps without
+completing reviews, executing plan steps, resolving claims, clearing claim
+traces, clearing work items or dependencies, writing evidence, reconciling,
+calling Coinbase, invoking managers, or changing execution authority.
+Completed phases 4961-4980 derive blocked backend claim-trace clearance-step
+review-input store-requirement rows from those review inputs without creating
+stores, allowing writers, writing records, accepting inputs, validating inputs,
+completing reviews, executing plan steps, resolving claims, clearing claim
+traces, clearing work items or dependencies, writing evidence, reconciling,
+calling Coinbase, invoking managers, or changing execution authority. Completed
+phases 4981-5000 derive blocked backend claim-trace clearance-step
+review-input store record-contract rows from those store requirements without
+creating contracts, schemas, logs, binding idempotency, validating payloads,
+protecting replay, writing records, accepting inputs, completing reviews,
+executing steps, resolving claims, reconciling, calling Coinbase, invoking
+managers, or changing execution authority. Completed phases 5001-5020 derive
+blocked backend claim-trace clearance-step review-input store record-validation
+rows from those record contracts without validating records or changing
+execution authority. Completed phases 5021-5040 derive blocked backend
+claim-trace clearance-step review-input store record-validation remediation
+rows from those validations without performing remediation, validating records,
+writing evidence, reconciling, calling Coinbase, invoking managers, or changing
+execution authority. Completed phases 5041-5060 derive blocked backend
+claim-trace clearance-step review-input store record-validation remediation
+dependency rows from those remediations without resolving dependency order,
+performing remediation, validating records, writing evidence, reconciling,
+calling Coinbase, invoking managers, or changing execution authority. Completed
+phases 5061-5080 derive blocked backend claim-trace clearance-step
+review-input store record-validation remediation dependency work-item rows
+from those dependency rows without claiming work items, performing work items,
+resolving dependencies, validating records, writing evidence, reconciling,
+calling Coinbase, invoking managers, or changing execution authority.
+Completed phases 5081-5100 derive blocked backend claim-trace clearance-step
+review-input store record-validation remediation dependency work-item claim
+traces from those dependency work-item rows without resolving claims, claiming
+or performing work items, clearing dependencies, performing remediation,
+validating records, writing evidence, reconciling, calling Coinbase, invoking
+managers, or changing execution authority.
+Completed phases 5101-5120 reconcile M55 route-level stealth command
+enablement candidates across existing create, reveal, move, cancel, recovery,
+reconciliation, and movement reprice routes without enabling any command,
+calling managers, reconciling, mutating state, calling Coinbase, or granting
+browser/BFF execution authority. The command-suite response now includes
+`enablement_candidate_reviews` and `enablement_candidate_review_summary`.
+Every row is blocked and non-executable; the current first review target is
+`stealth_create` at `/api/v1/stealth/orders` because it has zero
+exchange-facing blockers, not because create is executable.
+Completed phases 5121-5140 turn that selected `stealth_create` planning target
+into backend-owned pre-execution contract evidence on the command-suite read
+route while keeping manager invocation, lifecycle writes, reconciliation
+execution, Coinbase interaction, and browser/BFF authority blocked.
+The command-suite response exposes that work as
+`selected_create_pre_execution_contract`. It is a read-only contract object
+for the selected create route only; it lists route identity, payload,
+approval/admission, guard, lifecycle-write, manager, idempotency/audit,
+reconciliation, and Coinbase non-interaction boundaries, but it does not call
+`StealthOrderManager`, write `stealth_orders` or `order_parent`, execute
+reconciliation, call Coinbase, or allow browser/BFF execution.
+Completed phases 5141-5160 bind that same selected-create pre-execution contract
+to the exact dry `POST /api/v1/stealth/orders` command response, including
+correlation id, idempotency key, actor id, operator intent, request identity,
+and payload-present fields. The command still returns live-disabled evidence
+and remains no-manager, no-write, no-reconciliation, no-Coinbase, display-only,
+and BFF forward-only.
+Completed phases 5161-5180 started M57 by exposing read-only futures/perpetual
+command-suite contract evidence for placement, close/reduce, cancel, and
+reconciliation. The route registers no futures command routes, permits no
+command drafts, executes no reconciliation, calls no Coinbase reads or writes,
+mutates no state, and explicitly rejects spot wallet, no-shorting, USDC quote,
+cost-basis, and inventory-lot assumptions as futures/perpetual authority.
+The long claim-trace review-input, review-input store-requirement, store
+record-contract, store record-validation, and store record-validation
+remediation detail arrays are bounded representative readbacks. Their
+summaries keep full logical totals in `total_input_count`,
+`total_requirement_count`, `total_record_contract_count`,
+`total_record_validation_count`, remediation totals, `missing_input_count`,
+`missing_store_count`, `missing_record_contract_count`, and
+`missing_record_validation_count`, while
+`materialized_input_count`, `materialized_requirement_count`,
+`materialized_record_contract_count`, `materialized_record_validation_count`,
+remediation materialized counts, `detail_row_limit`, and `detail_rows_limited`
+describe the capped detail rows.
+These layers
+do not accept or validate review inputs, complete reviews, make steps ready, register routes, bind route
+inventory, bind shared command services, register handlers, create stores,
+configure validation/replay, create writers, construct adapters, write or
+accept evidence, satisfy construction artifacts, enable live service, call
+Coinbase, invoke managers, execute reconciliation, mutate state, or grant
+browser/BFF authority.
+M57 phases 5781-5800 add `/api/v1/futures/risk-proofs` list/detail readbacks
+and a `POST` append-only local proof-record route. The record route is bound to
+`AdminApiCommandService.record_futures_risk_proof`, route inventory, RBAC,
+idempotency, approval, cap/guard, and audit evidence, but it does not accept
+proof requirements, register futures command routes, create command drafts,
+call Coinbase, execute reconciliation, mutate futures/order/exchange state, or
+grant browser/BFF authority.
+M57 phases 5801-5820 consume those persisted proof records as read-only
+command-suite resolver evidence. Exact safe latest records may be displayed as
+resolver evidence, while missing or stale/invalid records fail closed. Resolver
+evidence does not satisfy risk proof requirements, register futures command
+routes, create command drafts, call Coinbase, execute reconciliation, mutate
+state, or grant browser/BFF authority.
+M57 phases 5821-5840 add explicit proof-acceptance blocker evidence to the
+same futures/perpetual command-suite rows. A safe resolved proof record can be
+shown as display evidence, but `proof_record_resolves_acceptance` remains
+false and blocker fields explain the missing futures semantic contracts,
+blocking acceptance criteria, missing command route, disabled command draft,
+and disabled live execution posture.
+M57 phases 5841-5860 add semantic contract requirement rows below each
+futures/perpetual risk-proof requirement. These rows enumerate the exact
+missing contract refs derived from existing futures semantic guards, expose
+runtime-observed evidence as display-only, and keep semantic contract
+registration, proof acceptance, command route registration, command drafting,
+Coinbase activity, reconciliation execution, state mutation, browser
+authority, and BFF execution authority disabled.
+M57 phases 5861-5880 add semantic contract definition rows for those refs.
+Each row names the missing backend definition contract, validation gate,
+acceptance gate, required/missing evidence refs, definition readiness false,
+validation readiness false, and runtime-evidence-satisfies-definition false.
+These rows remain backend-owned display evidence and do not register semantic
+contracts, satisfy proof acceptance, enable command routes, create drafts, call
+Coinbase, execute reconciliation, mutate state, or grant browser/BFF authority.
+M57 phases 5881-5900 add semantic contract validation gate rows for those
+definitions. Each row names the missing backend validator contract,
+validation input refs, required/missing evidence refs, validation readiness
+false, validator registered false, and runtime-evidence-satisfies-validation
+false. These rows remain backend-owned display evidence and do not register
+validators, make definitions ready, satisfy proof acceptance, enable command
+routes, create drafts, call Coinbase, execute reconciliation, mutate state, or
+grant browser/BFF authority.
+M57 phases 5901-5920 add semantic validator contract rows for those validation
+gates. Each row names the missing backend validator contract, input schema ref,
+output schema ref, registration ref, required/missing evidence refs, validator
+contract registered false, validator registered false, validation readiness
+false, and runtime-evidence-satisfies-validator-contract false. These rows
+remain backend-owned display evidence and do not register validator contracts,
+register schemas, register validators, satisfy proof acceptance, enable command
+routes, create drafts, call Coinbase, execute reconciliation, mutate state, or
+grant browser/BFF authority.
+M57 phases 5921-5940 add semantic validator input schema rows for those
+validator contracts. Each row names the missing backend input schema contract,
+input schema field refs, schema registration evidence, required/missing
+evidence refs, input-schema registered false, validator-contract registered
+false, validator registered false, validation readiness false, and
+runtime-evidence-satisfies-input-schema false. These rows remain backend-owned
+display evidence and do not satisfy input schemas, register schemas, register
+validator contracts, register validators, satisfy proof acceptance, enable
+command routes, create drafts, call Coinbase, execute reconciliation, mutate
+state, or grant browser/BFF authority.
+M57 phases 5941-5960 add semantic validator output schema rows for those
+validator contracts. Each row names the missing backend output schema contract,
+output schema field refs, schema registration evidence, required/missing
+evidence refs, output-schema registered false, validator-contract registered
+false, validator registered false, validation readiness false, and
+runtime-evidence-satisfies-output-schema false. These rows remain backend-owned
+display evidence and do not satisfy output schemas, register schemas, register
+validator contracts, register validators, satisfy proof acceptance, enable
+command routes, create drafts, call Coinbase, execute reconciliation, mutate
+state, or grant browser/BFF authority.
+M57 phases 5961-5980 add semantic validator registration rows for those
+validator contracts. Each row names the missing backend registration contract,
+registry record, validator contract ref, input schema ref, output schema ref,
+registration field refs, required/missing evidence refs, validator registration
+ready false, validator registered false, validation readiness false, and
+runtime-evidence-satisfies-validator-registration false. These rows remain
+backend-owned display evidence and do not satisfy validator registration,
+register validators, satisfy proof acceptance, enable command routes, create
+drafts, call Coinbase, execute reconciliation, mutate state, or grant
+browser/BFF authority.
+M57 phases 5981-6000 add disabled futures/perpetual command-service contract
+evidence. `place_futures_order`, `close_or_reduce_futures_position`, and
+`cancel_futures_order` now exist as disabled backend service methods and the
+command-suite marks the backend command-service prerequisite resolved for those
+commands. This is not execution authority: futures risk guard, reconciliation,
+command routes, command drafts, live adapters, Coinbase calls, reconciliation
+execution, state mutation, browser authority, BFF authority, and spot-rule
+authority remain blocked. The command-suite keeps the service contracts in
+`required_backend_contracts` while removing them from
+`missing_backend_contracts`; the next missing backend contracts are the futures
+risk guard and reconciliation plan contracts.
+M57 phases 6001-6020 add disabled futures/perpetual risk-guard contract
+evidence. `evaluate_futures_margin_collateral_liquidation` now exists as a
+disabled backend risk-guard method and the command-suite keeps the risk-guard
+contract required but no longer reports it missing. This is not proof
+acceptance or execution authority: reconciliation, command routes, command
+drafts, live adapters, Coinbase calls, reconciliation execution, state
+mutation, browser authority, BFF authority, and spot-rule authority remain
+blocked. The next missing backend contract is
+`application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan`.
+M57 phases 6021-6040 completed that reconciliation gap by adding disabled
+backend-owned `record_futures_reconciliation_plan` contract evidence only.
+Reconciliation remains required and is no longer the missing backend contract.
+M57 phases 6041-6060 completed disabled futures route-registration contract
+metadata only. Route refs are required/present disabled evidence, but no futures
+command route is registered. M57 phases 6061-6080 add disabled futures
+live-adapter contract metadata only. Adapter contract refs are
+required/present disabled evidence, but no adapter is configured, constructed,
+or invokable. M57 phases 6081-6100 add disabled futures adapter-construction
+contract metadata only. Adapter-construction refs are required/present disabled
+evidence, but no adapter is constructed or invokable. M57 phases 6101-6120 add
+disabled futures adapter-decision contract metadata only. Adapter-decision refs
+are required/present disabled evidence. M57 phases 6121-6140 add disabled
+futures adapter-decision-record contract metadata only. Adapter decision-record
+refs are required/present disabled evidence. M57 phases 6141-6160 add disabled
+futures adapter-invocation contract metadata only. Adapter invocation refs are
+required/present disabled evidence. M57 phases 6161-6180 add disabled futures
+adapter-execution contract metadata only. Adapter execution refs are
+required/present disabled evidence. M57 phases 6181-6200 add disabled futures
+Coinbase exchange-submission contract metadata only. Coinbase
+exchange-submission refs are required/present disabled evidence. M57 phases
+6201-6220 add disabled futures post-exchange-submission reconciliation contract
+metadata only. Post-exchange-submission reconciliation refs are
+required/present disabled evidence and no live reconciliation or trading
+authority is created. M57 phases 6221-6240 add aggregate command enablement
+blocker summaries to the read-only futures command suite so operators can see
+why unresolved prerequisites, request payload contracts, semantic guard
+evidence, risk proof acceptance, admin command routes, live service adapters,
+and contextless review still block command authority. M57 phases 6241-6260 add
+backend-owned command enablement sequence steps to the same read-only command
+suite. The sequence is derived from existing readiness closure steps and does
+not register command routes, create drafts, configure adapters, call Coinbase,
+execute reconciliation, mutate futures/order/exchange state, or grant browser
+or BFF authority. M57 phases 6261-6280 add backend-owned
+`command_enablement_sequence_command_traces` derived from the same readiness
+closure steps so each aggregate sequence step can be traced to exact
+per-command evidence without creating route, draft, Coinbase, reconciliation,
+state-mutation, browser, BFF, or spot-rule authority. M57 phases 6281-6300 add
+disabled reconciliation command-service parity evidence through
+`reconcile_futures_position` while preserving
+`record_futures_reconciliation_plan` as the separate required reconciliation
+contract. M57 phases 6301-6320 add disabled futures/perpetual proof
+route/writer contract registry evidence through `FUTURES_PROOF_ROUTE_CONTRACTS`
+and `FUTURES_PROOF_WRITER_CONTRACTS`; those registries do not register proof
+routes, create proof writers, accept proof records, or grant execution
+authority. M57 phases 6321-6340 add disabled futures/perpetual proof
+payload-field contract registry evidence through
+`FUTURES_PROOF_PAYLOAD_FIELD_CONTRACTS` and
+`iter_futures_proof_payload_field_contracts`; those registry rows do not
+validate submitted proof payloads, register validators, accept proof records,
+create proof writers, create command drafts, call Coinbase, execute
+reconciliation, mutate futures/order/exchange state, or grant browser/BFF
+authority. M57 phases 6341-6360 added route-bound no-live futures/perpetual
+command drafts for placement, close/reduce, cancel by `client_order_id`, and
+reconciliation through the shared Admin API command service. These routes
+return disabled command responses and do not bind live adapters, submit or
+cancel Coinbase orders, acknowledge exchange orders, execute reconciliation,
+mutate futures/order/exchange state, accept proof records as command
+readiness, or grant browser/BFF authority. Completed M57 phases 6361-6380 added
+disabled futures/perpetual request payload contract registry evidence through
+`FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS` and
+`iter_futures_request_payload_contracts`; command-suite `request_field_count`,
+`blocking_request_field_count`, and request-field `required_backend_contracts`
+derive from that backend-owned registry. Route/draft flags remain true while
+execution remains false. Completed M57 phases 6381-6400 added explicit
+disabled validation gate refs, validator refs, and false readiness flags to
+those request fields. Completed M57 phases 6401-6420 added disabled
+futures request payload validator contract registry evidence through
+`application/admin_api/futures_request_payload_validators.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`, and
+`iter_futures_request_payload_validator_contracts`; command-suite
+`request_payload_validator_contract_count`,
+`blocking_request_payload_validator_contract_count`, and
+`request_payload_validator_contracts` expose validator input/output schema refs
+and false schema/validator registration flags. Completed M57 phases 6421-6440 add
+disabled futures request payload validator input-schema evidence through
+`application/admin_api/futures_request_payload_validator_input_schemas.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`, and
+`iter_futures_request_payload_validator_input_schemas`; command-suite
+`request_payload_validator_input_schema_count`,
+`blocking_request_payload_validator_input_schema_count`,
+`request_payload_validator_input_schemas`, `input_schema_field_refs`,
+`input_schema_field_count`, and `input_schema_registered=false` remain
+backend-owned display evidence while preserving no validation, no validator
+registration, no Coinbase calls, no reconciliation execution, no
+futures/order/exchange state mutation, and no browser/BFF or spot-rule
+authority. Completed M57 phases 6441-6460 add disabled futures request
+payload validator output-schema evidence through
+`application/admin_api/futures_request_payload_validator_output_schemas.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`, and
+`iter_futures_request_payload_validator_output_schemas`; command-suite
+`request_payload_validator_output_schema_count`,
+`blocking_request_payload_validator_output_schema_count`,
+`request_payload_validator_output_schemas`, `output_schema_field_refs`,
+`output_schema_field_count`, and `output_schema_registered=false` remain
+backend-owned display evidence. Completed M57 phases 6461-6480 add disabled
+futures request payload validator registration evidence through
+`application/admin_api/futures_request_payload_validator_registrations.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`, and
+`iter_futures_request_payload_validator_registrations`; command-suite
+`request_payload_validator_registration_count`,
+`blocking_request_payload_validator_registration_count`,
+`request_payload_validator_registrations`,
+`validator_registration_field_refs`, `validator_registration_field_count`,
+`validator_registration_ready=false`, and
+`runtime_evidence_satisfies_validator_registration=false` remain backend-owned
+display evidence while preserving no validator registration, no payload
+validation, no Coinbase calls, no reconciliation execution, no futures/order/
+exchange state mutation, and no browser/BFF or spot-rule authority.
+Completed M57 phases 6481-6500 add disabled futures request payload validation
+evidence through
+`application/admin_api/futures_request_payload_validation_evidence.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`, and
+`iter_futures_request_payload_validation_evidence`; command-suite
+`request_payload_validation_evidence_count`,
+`blocking_request_payload_validation_evidence_count`,
+`ready_request_payload_validation_evidence_count`,
+`recorded_request_payload_validation_evidence_count`,
+`runtime_observed_request_payload_validation_evidence_count`, and
+`request_payload_validation_evidence` remain backend-owned display evidence.
+Rows expose `validation_evidence_contract_ref`,
+`validation_evidence_field_refs`, `validation_evidence_field_count`,
+`runtime_evidence_satisfies_validation_evidence=false`,
+`validation_evidence_ready=false`, and
+`validation_evidence_recorded=false` while preserving no validation evidence
+recording, no payload validation, no Coinbase calls, no reconciliation
+execution, no futures/order/exchange state mutation, and no browser/BFF or
+spot-rule authority.
+Completed M57 phases 6501-6520 add disabled futures request payload validation
+evidence record contract evidence through
+`application/admin_api/futures_request_payload_validation_evidence_records.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`, and
+`iter_futures_request_payload_validation_evidence_records`; command-suite
+`request_payload_validation_evidence_record_count`,
+`blocking_request_payload_validation_evidence_record_count`,
+`ready_request_payload_validation_evidence_record_count`,
+`stored_request_payload_validation_evidence_record_count`,
+`runtime_observed_request_payload_validation_evidence_record_count`, and
+`request_payload_validation_evidence_records` remain backend-owned display
+evidence. Rows expose `validation_record_contract_ref`,
+`validation_record_store_ref`, `validation_record_writer_ref`,
+`validation_record_replay_guard_ref`, `validation_record_field_refs`,
+`validation_record_field_count`,
+`runtime_evidence_satisfies_validation_record=false`,
+`validation_record_contract_ready=false`,
+`validation_record_store_ready=false`,
+`validation_record_writer_enabled=false`,
+`validation_record_replay_guard_ready=false`, `validation_recorded=false`,
+`append_only_validation_record=false`,
+`validation_record_idempotency_bound=false`, and
+`request_payload_validated=false` while preserving no validation record
+writing, no payload validation, no Coinbase calls, no reconciliation execution,
+no futures/order/exchange state mutation, and no browser/BFF or spot-rule
+authority.
+Completed M57 phases 6541-6560 add disabled futures request payload validation
+record replay guard evidence through
+`application/admin_api/futures_request_payload_validation_record_replay_guards.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_replay_guards`; command-suite
+`request_payload_validation_record_replay_guard_count`,
+`blocking_request_payload_validation_record_replay_guard_count`,
+`ready_request_payload_validation_record_replay_guard_count`,
+`idempotency_bound_request_payload_validation_record_count`,
+`runtime_observed_request_payload_validation_record_replay_guard_count`, and
+`request_payload_validation_record_replay_guards` remain backend-owned display
+evidence. Rows expose `validation_record_replay_guard_contract_ref`,
+`validation_record_idempotency_contract_ref`,
+`validation_record_replay_window_ref`,
+`validation_record_duplicate_policy_ref`,
+`validation_record_replay_guard_field_refs`,
+`validation_record_replay_guard_field_count`,
+`runtime_evidence_satisfies_validation_record_replay_guard=false`,
+`validation_record_replay_guard_contract_ready=false`,
+`validation_record_idempotency_contract_ready=false`,
+`validation_record_replay_protected=false`, and
+`validation_record_idempotency_bound=false` while preserving no idempotency
+binding, no replay protection, no payload validation, no Coinbase calls, no
+reconciliation execution, no futures/order/exchange state mutation, and no
+browser/BFF or spot-rule authority. Carried-forward schema/log evidence from
+6521-6540 remains exposed through
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
+`iter_futures_request_payload_validation_record_schemas`.
+Current M57 phases 7321-7340 add futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+requirement evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend
+schema, and frontend display. These rows are disabled evidence only: they do
+not make stores available, configure writers, bind record keys, pass validation
+or replay gates, accept or validate inputs, pass review gates, complete
+clearance-step reviews, complete clearance steps, clear claim traces, admit
+commands, execute reconciliation, call Coinbase, mutate futures/order/exchange
+state, or grant browser/BFF or spot-rule authority. Completed M57 phases
+7301-7320 carry forward futures request payload validation record
+execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input evidence.
+
+Completed M57 phases 7301-7320 add futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input
+evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend schema,
+and frontend display. Completed M57 phases 7281-7300 carry forward futures
+request payload validation record
+execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review evidence.
+
+Completed M57 phases 7281-7300 add futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_reviews.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend schema,
+and frontend display. Command-suite rows expose
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_contract_ref`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_gate`,
+`required_clearance_step_contract`,
+`required_clearance_step_review_input_ref`,
+`clearance_step_review_claim`,
+`clearance_step_review_target_ref`,
+`clearance_step_review_source_ref`,
+`predecessor_clearance_step_review_refs`,
+`successor_clearance_step_review_refs`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_required=true`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_ready=false`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_completed=false`,
+`clearance_step_review_input_present=false`,
+`clearance_step_review_input_accepted=false`,
+`clearance_step_review_input_validated=false`,
+`clearance_step_review_gate_passed=false`,
+`clearance_step_ready=false`,
+`clearance_step_completed=false` while carrying forward completed M57 phases
+7261-7280 futures request payload validation record execution-eligibility
+resolution-plan step review input store record-validation remediation
+dependency work-item claim-trace clearance step evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend schema,
+and frontend display. Command-suite rows expose
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_contract_ref`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_step_gate`,
+`required_clearance_plan_contract`,
+`required_clearance_step_review_ref`,
+`clearance_step_name`, `clearance_step_index`,
+`clearance_step_review_ready=false`, `clearance_step_review_complete=false`,
+`clearance_step_review_inputs_present=false`,
+`clearance_step_review_gates_passed=false`,
+`prior_clearance_step_complete=false`, and
+`next_clearance_step_enabled=false` while carrying forward completed M57 phases
+7241-7260 futures request payload validation record execution-eligibility
+resolution-plan step review input store record-validation remediation
+dependency work-item claim-trace clearance plan evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend schema,
+and frontend display. Command-suite rows expose
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_contract_ref`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_gate`,
+`required_claim_trace_contract`,
+`required_clearance_plan_store_ref`,
+`clearance_plan_claim`, `clearance_plan_target_ref`,
+`clearance_plan_source_ref`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ready=false`,
+`record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_created=false`,
+`claim_trace_ready=false`, `claim_allowed=false`, `claim_resolved=false`,
+`claim_review_accepted=false`, `contextless_review_passed=false`,
+`execution_allowed=false`, and `live_order_submitted=false` while carrying
+forward completed M57 phases 7221-7240 futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim trace evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces.py`
+and completed M57 phases 7201-7220 futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_items.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend schema,
+and frontend display. Carried-forward command-suite rows expose
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_contract_ref`,
+`review_input_store_record_validation_remediation_dependency_work_item_kind`,
+`record_validation_remediation_dependency_work_item_gate`,
+`record_validation_remediation_dependency_work_item_action_refs`,
+`record_validation_remediation_dependency_work_item_blockers`,
+`record_validation_remediation_dependency_work_item_required=true`,
+`record_validation_remediation_dependency_work_item_ready=false`,
+`record_validation_remediation_dependency_work_item_created=false`,
+`record_validation_remediation_dependency_work_item_claimed=false`,
+`claim_ledger_registered=false`, `owner_review_accepted=false`,
+`contextless_review_passed=false`, `accepts_evidence=false`, and
+`writes_evidence=false` while carrying forward completed M57 phases 7181-7200
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency evidence
+through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependencies.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend schema,
+and frontend display. Command-suite rows expose
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_contract_ref`,
+`review_input_store_record_validation_remediation_dependency_kind`,
+`record_validation_remediation_dependency_gate`,
+`record_validation_remediation_dependency_action_refs`,
+`record_validation_remediation_dependency_blockers`,
+`record_validation_remediation_dependency_required=true`,
+`record_validation_remediation_dependency_ready=false`,
+`record_validation_remediation_dependency_resolved=false`,
+`record_validation_remediation_dependency_performed=false`,
+`record_validation_remediation_dependency_graph_ready=false`,
+`record_validation_remediation_dependency_work_item_created=false`,
+`record_validation_remediation_dependency_work_item_claimed=false`, and
+`record_validation_remediation_dependency_claim_trace_created=false` while
+carrying forward completed M57 phases 7161-7180 futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend schema,
+and frontend display. Parent remediation rows expose
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_contract_ref`,
+`review_input_store_record_validation_remediation_kind`,
+`record_validation_remediation_required=true`,
+`record_validation_remediation_ready=false`,
+`record_validation_remediation_configured=false`,
+`record_validation_remediation_performed=false`,
+`record_validation_remediation_recorded=false`,
+`record_validation_remediation_accepted=false`,
+`record_validation_remediation_work_item_created=false`, and
+`record_validation_remediation_dependency_ready=false` while carrying forward
+completed M57 phases 7141-7160 futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations.py`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_contract_ref`,
+`review_input_store_record_validation_kind`,
+`record_validation_required=true`, `record_validation_ready=false`,
+`record_validation_configured=false`, `record_validation_registered=false`,
+`record_validation_gate_ready=false`, `record_validation_gate_passed=false`,
+`record_validation_replay_guard_ready=false`,
+`record_validation_schema_ready=false`,
+`record_validation_append_only_log_ready=false`,
+`record_validation_idempotency_bound=false`,
+`record_validation_payload_bound=false`,
+`record_validation_contextless_review_passed=false`,
+`record_validation_performed=false`, `record_validation_accepted=false`, and
+`record_validation_recorded=false` while carrying forward
+`execution_eligibility_resolution_plan_step_review_input_store_record_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_contract_contract_ref`,
+`review_input_store_record_contract_kind`,
+`record_contract_required=true`, `record_contract_available=false`,
+`record_schema_available=false`, `append_only_log_available=false`,
+`idempotency_key_bound=false`, `payload_schema_validated=false`,
+`replay_protected=false`, `store_available=false`,
+`writer_available=false`, `writer_allowed=false`, `write_allowed=false`,
+`record_present=false`, `record_accepted=false`, `record_validated=false`,
+`validation_configured=false`, and `replay_protection_configured=false`.
+Resolution plan step review input store record-validation remediation
+dependency presence is disabled evidence only; it does not create dependency
+graphs, create work items, claim work, create claim traces, perform
+remediation, resolve blockers, create a store, configure a writer, allow
+writes, accept records, validate records, accept runtime evidence, admit
+commands, call Coinbase, execute reconciliation, mutate futures/order/exchange
+state, or grant browser/BFF or spot-rule authority. Resolution plan step review
+input store record-validation remediation presence
+is disabled evidence only; it does not perform remediation, resolve blockers,
+create a store, configure a writer, allow writes, accept records, validate
+records, accept runtime evidence, admit commands, call Coinbase, execute
+reconciliation, mutate futures/order/exchange state, or grant browser/BFF or
+spot-rule authority. Resolution plan step review input store record-validation
+presence is disabled
+evidence only; it does not resolve blockers, create a store, configure a
+writer, allow writes, accept records, validate records, accept runtime evidence,
+admit commands, call Coinbase, execute reconciliation, mutate
+futures/order/exchange state, or grant browser/BFF or spot-rule authority.
+Active M57 `7381-7400` evidence adds futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+record-validation check evidence while completed M57 `7361-7380` carries
+forward futures request payload validation record execution-eligibility
+resolution-plan step review input store record-validation remediation
+dependency work-item claim-trace clearance-step review input store
+record-validation evidence.
+Completed M57 `7361-7380` evidence adds futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation evidence while completed M57 `7341-7360`
+carries forward futures request payload validation record execution-eligibility
+resolution-plan step review input store record-validation remediation
+dependency work-item claim-trace clearance-step review input store
+record-contract evidence.
+Completed M57 `7341-7360` evidence adds futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+record-contract evidence while completed M57 `7321-7340` carries forward futures
+request payload validation record execution-eligibility resolution-plan step
+review input store record-validation remediation dependency work-item
+claim-trace clearance-step review input store requirement evidence.
+Completed M57 `7321-7340` evidence adds futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+requirement evidence while completed M57 `7301-7320` carries forward futures
+request payload validation record execution-eligibility resolution-plan step
+review input store record-validation remediation dependency work-item
+claim-trace clearance-step review input evidence.
+Completed M57 `7301-7320` evidence adds futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input evidence while completed M57 `7281-7300` carries forward futures
+request payload validation record execution-eligibility resolution-plan step
+review input store record-validation remediation dependency work-item
+claim-trace clearance-step review evidence.
+Completed M57 `7281-7300` evidence adds futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review evidence while
+completed M57 `7261-7280` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance step
+evidence and completed M57 `7241-7260` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance plan
+evidence and completed M57 `7221-7240` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim trace evidence,
+completed M57 `7201-7220` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item evidence, and completed M57
+`7181-7200` carries forward futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency evidence.
+Completed M57 phases 7161-7180 add futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations.py`.
+Completed M57 phases 7141-7160 add futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations.py`.
+Completed M57 phases 7121-7140 add futures request payload validation record
+execution-eligibility resolution-plan step review input store record-contract
+evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts.py`.
+Completed M57 phases 7101-7120 add futures request payload validation record
+execution-eligibility resolution-plan step review input store requirement
+evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_reviews.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_inputs.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirements.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend schema,
+and frontend display. Command-suite rows expose
+`execution_eligibility_resolution_plan_ref`,
+`execution_eligibility_resolution_plan_contract_ref`,
+`execution_eligibility_resolution_plan_step_ref`,
+`execution_eligibility_resolution_plan_step_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_ref`,
+`execution_eligibility_resolution_plan_step_review_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_ref`,
+`execution_eligibility_resolution_plan_step_review_input_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_requirement_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_requirement_contract_ref`,
+`resolution_plan_step_kind`, `resolution_plan_step_ready=false`,
+`resolution_plan_step_accepted=false`,
+`resolution_plan_step_review_required=true`,
+`resolution_plan_step_review_ready=false`,
+`resolution_plan_step_reviewed=false`,
+`resolution_plan_step_review_accepted=false`, `review_input_kind`,
+`review_input_index`, `input_evidence_store`,
+`resolution_plan_step_review_input_required=true`,
+`resolution_plan_step_review_input_present=false`,
+`resolution_plan_step_review_input_accepted=false`,
+`resolution_plan_step_review_input_validated=false`,
+`resolution_plan_step_review_input_store_requirement_required=true`,
+`resolution_plan_step_review_input_store_available=false`,
+`resolution_plan_step_review_input_writer_available=false`,
+`resolution_plan_step_review_input_record_key_available=false`,
+`resolution_plan_step_review_input_validation_gate_ready=false`,
+`resolution_plan_step_review_input_replay_gate_ready=false`,
+`ordered_resolution_step_ref`,
+`ordered_resolution_step_refs`, `ordered_resolution_step_count`,
+`resolution_plan_present=true`, `resolution_plan_ready=false`,
+`resolution_plan_accepted=false`,
+`runtime_evidence_satisfies_semantic_contract=false`,
+`validation_record_admission_link_ready=false`, and
+`blocker_resolved=false`. Resolution plan step review input store requirement
+presence is disabled evidence only; it does not resolve blockers, create a
+store, configure a writer, create a record key, enable validation or replay
+gates, accept runtime evidence, admit commands, call Coinbase, execute
+reconciliation, mutate futures/order/exchange state, or grant browser/BFF or
+spot-rule authority. Resolution plan step review input presence is not blocker
+resolution. Resolution plan step review presence is not blocker resolution.
+Completed M57 phases 7081-7100 add futures request payload validation record
+execution-eligibility resolution-plan step review input evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_inputs.py`.
+Completed M57 phases 7061-7080 add futures request payload validation record
+execution-eligibility resolution-plan step review evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_reviews.py`.
+Completed M57 phases 7041-7060 add futures request payload validation record
+execution-eligibility resolution-plan step evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`.
+Completed M57 phases 7021-7040 add futures request payload validation record
+execution-eligibility resolution-plan evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`.
+Completed M57 phases 7001-7020 add futures request payload validation record
+execution-eligibility semantic closure evidence through
+`application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`,
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_blockers.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend schema,
+and frontend display. Command-suite execution-eligibility rows expose the ten
+`validation_record_*_semantics_contract_ref` fields,
+`validation_record_semantic_contract_refs`,
+`validation_record_semantic_contract_ref_count`,
+`validation_record_semantic_contracts_present=true`, and
+`validation_record_semantic_contracts_ready=false`. Blocker rows expose
+`semantic_contract_ref`, `semantic_contract_present=true`, and
+`semantic_contract_ready=false` while preserving the existing
+`required_backend_artifact_ref` shape for downstream semantic-artifact evidence.
+Semantic contract presence is disabled evidence only; it does not accept runtime
+evidence, admit commands, call Coinbase, execute reconciliation, mutate
+futures/order/exchange state, or grant browser/BFF or spot-rule authority.
+Completed M57 `6981-7000` carries forward disabled futures request payload
+validation record reconciliation semantics through
+`application/admin_api/futures_request_payload_validation_record_reconciliation_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_RECONCILIATION_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_reconciliation_semantics`.
+Completed M57 `6961-6980` carries forward disabled futures request payload
+validation record cancel semantics through
+`application/admin_api/futures_request_payload_validation_record_cancel_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_cancel_semantics`.
+Completed M57 `6941-6960` carries forward disabled futures request payload
+validation record order semantics through
+`application/admin_api/futures_request_payload_validation_record_order_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ORDER_SEMANTIC_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_order_semantics`.
+Completed M57 phases 6921-6940 carry forward disabled futures request payload
+validation record funding semantics through
+`application/admin_api/futures_request_payload_validation_record_funding_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_FUNDING_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_funding_semantics`.
+Command-suite
+`request_payload_validation_record_funding_semantic_count`,
+`blocking_request_payload_validation_record_funding_semantic_count`,
+`ready_request_payload_validation_record_funding_semantic_count`,
+`runtime_observed_request_payload_validation_record_funding_semantic_count`,
+and `request_payload_validation_record_funding_semantics` remain
+backend-owned display evidence. Rows expose `funding_semantics_ref`,
+`funding_semantics_contract_ref`, `evidence_routes`,
+`funding_semantics_contract_available=false`,
+`funding_semantics_contract_ready=false`, `funding_rate_bound=false`,
+`funding_fee_bound=false`, `funding_interval_bound=false`,
+`funding_cost_bound=false`, `runtime_funding_evidence_observed=false`,
+`runtime_evidence_satisfies_funding_semantics=false`, and
+`validation_record_funding_semantics_ready=false` while preserving no payload
+validation, no funding semantics acceptance, no live account/risk evidence
+binding, no contextless review authority, no command admission, no Coinbase
+calls, no reconciliation execution, no futures/order/exchange state mutation,
+and no browser/BFF or spot-rule authority.
+Completed M57 phases 6901-6920 carry forward disabled futures request payload
+validation record close-only semantics through
+`application/admin_api/futures_request_payload_validation_record_close_only_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CLOSE_ONLY_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_close_only_semantics`.
+Completed M57 phases 6881-6900 carry forward disabled futures request payload
+validation record reduce-only semantics through
+`application/admin_api/futures_request_payload_validation_record_reduce_only_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REDUCE_ONLY_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_reduce_only_semantics`.
+Completed M57 phases 6861-6880 carry forward disabled futures request payload
+validation record liquidation semantics through
+`application/admin_api/futures_request_payload_validation_record_liquidation_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_LIQUIDATION_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_liquidation_semantics`.
+Completed M57 phases 6841-6860 carry forward disabled futures request payload
+validation record collateral semantics through
+`application/admin_api/futures_request_payload_validation_record_collateral_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_COLLATERAL_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_collateral_semantics`.
+Completed M57 phases 6821-6840 carry forward disabled futures request payload
+validation record margin semantics through
+`application/admin_api/futures_request_payload_validation_record_margin_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_MARGIN_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_margin_semantics`.
+Completed M57 phases 6801-6820 carry forward disabled futures request payload
+validation record position semantics through
+`application/admin_api/futures_request_payload_validation_record_position_semantics.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_POSITION_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_position_semantics`.
+Command-suite
+`request_payload_validation_record_position_semantic_count`,
+`blocking_request_payload_validation_record_position_semantic_count`,
+`ready_request_payload_validation_record_position_semantic_count`,
+`runtime_observed_request_payload_validation_record_position_semantic_count`,
+and `request_payload_validation_record_position_semantics` remain
+backend-owned display evidence. Rows expose `position_semantics_ref`,
+`position_semantics_contract_ref`, `evidence_routes`,
+`position_semantics_contract_available=false`,
+`position_semantics_contract_ready=false`, `position_identity_bound=false`,
+`position_scope_bound=false`, `position_side_derivation_bound=false`,
+`position_size_bound=false`, `position_notional_bound=false`,
+`runtime_position_evidence_observed=false`,
+`runtime_evidence_satisfies_position_semantics=false`, and
+`validation_record_position_semantics_ready=false` while preserving no payload
+validation, no position semantics acceptance, no live position evidence
+binding, no command admission, no Coinbase calls, no reconciliation execution,
+no futures/order/exchange state mutation, and no browser/BFF or spot-rule
+authority.
+Completed M57 phases 6781-6800 carry forward disabled futures request payload validation
+record semantic artifact runtime evidence acceptance through
+`application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS`,
+and
+`iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`.
+Completed M57 phases 6761-6780 carry forward disabled futures request payload validation
+record semantic artifact runtime evidence binding through
+`application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidences.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS`,
+and
+`iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences`;
+command-suite
+`request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`ready_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+and
+`request_payload_validation_record_semantic_artifact_runtime_evidences`
+remain backend-owned display evidence. Rows expose
+`semantic_artifact_runtime_evidence_ref`,
+`semantic_artifact_runtime_evidence_contract_ref`,
+`semantic_artifact_runtime_evidence_available=false`,
+`semantic_artifact_runtime_evidence_bound=false`, and
+`semantic_artifact_runtime_evidence_accepted=false` while preserving no
+payload validation, no review input/output acceptance, no runtime evidence
+binding or acceptance, no contextless review pass, no command admission, no
+Coinbase calls, no reconciliation execution, no futures/order/exchange state
+mutation, and no browser/BFF or spot-rule authority. Completed 6741-6760
+output-acceptance evidence remains available through
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS`
+and
+`iter_futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`.
+Completed output-acceptance command-suite fields include
+`request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+`blocking_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+`ready_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+and
+`request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`
+as backend-owned display evidence. Rows expose
+`semantic_artifact_definition_review_output_acceptance_ref`,
+`semantic_artifact_definition_review_output_acceptance_contract_ref`,
+`semantic_artifact_definition_review_output_ref`,
+`semantic_artifact_definition_review_output_contract_ref`,
+`semantic_artifact_definition_review_ref`,
+`semantic_artifact_definition_review_contract_ref`,
+`semantic_artifact_definition_ref`,
+`semantic_artifact_definition_contract_ref`,
+`contextless_review_required=true`,
+`semantic_artifact_definition_review_output_acceptance_available=false`,
+and `semantic_artifact_definition_review_output_acceptance_accepted=false`.
+Completed 6721-6740 review-output evidence remains available through
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_CONTRACTS`
+and
+`iter_futures_request_payload_validation_record_semantic_artifact_definition_review_outputs`.
 M53 adds one route-bound dry-run pilot adapter for `POST /api/v1/orders`
 through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot
@@ -193,6 +1341,20 @@ local proof evidence only after exact backend admission prerequisites match.
 It does not execute reconciliation, invoke managers, call Coinbase,
 submit/cancel/read Coinbase orders, cancel/replace active placements, mutate
 order/lifecycle/exchange state, or grant browser/BFF authority.
+Stealth state-mutation policy evidence is exposed through
+`GET /api/v1/stealth/orders/{stealth_order_id}/state-mutation-policy` and
+persisted through
+`POST /api/v1/stealth/orders/{stealth_order_id}/state-mutation-policy-proofs`.
+The writer route requires `stealth_state_mutation_policy:record`, uses path
+`stealth_order_id` as the command identity, and persists append-only local
+proof evidence only after exact backend admission prerequisites match. It
+does not authorize or perform lifecycle, order, or exchange-state mutation,
+invoke managers, call Coinbase, submit/cancel/read Coinbase orders,
+cancel/replace active placements, execute reconciliation, or grant browser/BFF
+authority. Create and non-create execution prerequisite resolvers may consume the
+newest exact safe proof row as `state_mutation_policy` prerequisite evidence.
+That still does not clear live-readiness decisions or authorize execution by
+itself.
 The per-order stealth detail route
 `GET /api/v1/stealth/orders/{stealth_order_id}` also exposes
 `active_placement_audit` as local evidence for whether the current stealth row
@@ -347,7 +1509,17 @@ route-bound projection of the disabled backend live execution service state.
 It is produced through the shared backend live-execution helper, reports
 `present=true` only as disabled service evidence, and keeps `enabled=false`,
 `executable=false`, no live exchange submission, forbidden execution methods,
-and display/forward-only browser/BFF authority. It is not a service
+and display/forward-only browser/BFF authority. It also reports unresolved
+backend-only enablement preconditions: the explicit live-enablement decision,
+configured Admin API live execution service, runtime live-service
+configuration, deployment enablement record, verification gates, and blockers.
+If an append-only disabled live-service decision has been recorded, the
+contract may show it as latest decision readback with `resolves=false`; this
+does not remove any missing artifact or clear the live-service blocker. The
+contract must show recorded decision artifacts separately from satisfied
+enablement artifacts so a reader cannot treat readback as service
+enablement.
+Those fields are blockers, not authority. They are not a service
 implementation, live switch, Coinbase caller, manager path, or BFF execution
 grant.
 Exact stealth command responses may also expose
@@ -483,8 +1655,17 @@ route-bound adapter evidence object produced by the shared backend
 `build_live_execution_adapter_contract` helper. It names the
 `AdminApiCommandService.*` method, route, module id, action class, forbidden
 execution methods, and display-only browser/BFF authority while remaining
-disabled and non-executable. It is not an adapter implementation, live switch,
-Coinbase caller, manager invocation path, or BFF execution grant.
+disabled and non-executable. It also reports backend-only construction
+preconditions, required/missing construction artifacts, verification gates, and
+blockers while keeping `construction_precondition_resolved` false until a
+future approved backend phase binds the adapter through the shared command
+service. It also separates route-mapping/configuration evidence from satisfied
+construction artifacts: `route_mapping_satisfies_construction=false`,
+`adapter_configuration_satisfies_construction=false`,
+`satisfied_construction_artifacts=[]`, and
+`unsatisfied_construction_artifacts` still names the required construction
+artifacts. It is not an adapter implementation, live switch, Coinbase caller,
+manager invocation path, or BFF execution grant.
 For commands that require active-placement exchange truth, the contract may
 resolve that single prerequisite from the existing append-only backend proof
 store when a safe same-`stealth_order_id` proof record exists. That resolver
@@ -537,6 +1718,14 @@ and clearance order from preflight. All three are backend-owned display
 evidence only; they do not invoke managers, call Coinbase, cancel/replace
 active placements, execute reconciliation, mutate state, or authorize
 browser/BFF execution.
+The `remaining_execution_blockers` rows inside those contracts also carry
+trace fields for live-service and live-adapter blockers. Trace fields identify
+the blocker authority, backend contract refs, evidence refs, required and
+missing artifacts, verification gates, and contract blockers that keep live
+service enablement and adapter construction unresolved. They are diagnostic
+evidence only; they do not resolve live readiness, construct adapters, call
+Coinbase, invoke managers, execute reconciliation, mutate state, or grant
+browser/BFF execution authority.
 For stealth reconciliation, the same contract may resolve
 `reconciliation_proof` from
 `GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof` and
@@ -563,8 +1752,8 @@ responses may resolve only the `cancel_replace_proof` prerequisite from the
 latest safe same-`stealth_order_id` proof record when it exactly matches
 route, method, service method, actor, operator intent, idempotency key,
 payload hash, and mutation family. A resolved proof does not resolve
-active-placement exchange truth, mutation claims, live service, live adapter,
-or post-write reconciliation. Unsafe latest proof evidence remains
+active-placement exchange truth, mutation claims, state-mutation policy, live
+service, live adapter, or post-write reconciliation. Unsafe latest proof evidence remains
 missing/stale and does not fall back to older records.
 Those exact command responses also expose
 `active_placement_cancel_replace_contract`, a nested projection of the same
@@ -637,6 +1826,7 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/movement-repricing/orders/{client_order_id}`
 - `GET /api/v1/movement-repricing/stealth/{stealth_order_id}`
 - `GET /api/v1/futures/account`
+- `GET /api/v1/futures/command-suite`
 - `GET /api/v1/futures/positions`
 - `GET /api/v1/futures/positions/{position_key}`
 - `GET /api/v1/spot/readiness`
@@ -775,8 +1965,14 @@ repository at
 `artifacts/synthetic-probes.json`, and the public release checklist is written
 to `artifacts/public-release-checklist.json`. Runtime/UI evidence is written
 to `artifacts/runtime-evidence.json`. They are uploaded by frontend CI; they
-are not backend approval to trade. These checks do not replace this
-repository's required backend regression gate when backend files change.
+are not backend approval to trade. These checks do not replace focused backend
+checks for ordinary backend changes or the full backend regression gate when a
+durable milestone, release/deployment handoff, release-hardening closeout,
+Admin API/backend association closeout, or explicit user request requires it.
+When that full backend gate is required, use
+`python tools/run_parallel_regression.py --workers 4`; sequential
+`pytest tests/regression/ -v --tb=short` is fallback-only when the parallel
+runner cannot be used.
 In short: runtime evidence is saved, and these artifacts are not approval for
 live Coinbase execution.
 No-live release artifacts are not approval for live Coinbase execution.
@@ -875,6 +2071,12 @@ The platform/module split is documented in
   return backend evidence. It does not mean Coinbase live execution, and it may
   still produce audit/idempotency records before the live-disabled or
   prerequisite-rejected response is returned.
+- Idempotency replay stores normal command responses inline in JSONL. If a
+  response is large enough to make the JSONL store unsafe, the same store
+  writes the response body to a sibling gzip blob, records the blob hash and
+  relative path, and hydrates that response only for a same-hash replay. The
+  replay behavior stays on the same idempotency path; the gzip blob is storage
+  compaction, not a second command or audit implementation.
 - Movement repricing command draft:
   `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
   is live-disabled and keyed by `stealth_order_id`. It does not clear
@@ -1107,3 +2309,57 @@ and rotation policy without disclosing a token value.
 - [API Reference](genai_data/API_REFERENCE.md)
 - [Order ID Handling](genai_data/ORDER_ID_HANDLING.md)
 - [Documentation Index](docs/README.md)
+
+## Completed M57 Validation Record Schema Evidence
+
+Completed phases `6501-6520` add disabled futures request payload validation
+evidence record contract evidence through
+`application/admin_api/futures_request_payload_validation_evidence_records.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`, and
+`iter_futures_request_payload_validation_evidence_records`. The command suite
+continues to expose validation-evidence, input-schema, output-schema, and
+registration evidence and now also exposes
+`request_payload_validation_evidence_record_count`,
+`blocking_request_payload_validation_evidence_record_count`,
+`ready_request_payload_validation_evidence_record_count`,
+`stored_request_payload_validation_evidence_record_count`,
+`runtime_observed_request_payload_validation_evidence_record_count`,
+`request_payload_validation_evidence_records`,
+`validation_record_contract_ref`, `validation_record_store_ref`,
+`validation_record_writer_ref`, `validation_record_replay_guard_ref`,
+`validation_record_field_refs`, `validation_record_field_count`,
+`required_evidence_refs`, `missing_evidence_refs`,
+`runtime_evidence_satisfies_validation_record=false`,
+`validation_record_contract_ready=false`,
+`validation_record_store_ready=false`,
+`validation_record_writer_enabled=false`,
+`validation_record_replay_guard_ready=false`, `validation_recorded=false`,
+`append_only_validation_record=false`, and
+`validation_record_idempotency_bound=false`. These rows are backend-owned
+display evidence only; they do not validate command request payloads, write
+validation records, register record stores, call Coinbase, execute
+reconciliation, mutate futures/order/exchange state, or grant browser/BFF
+authority.
+
+Completed phases `6521-6540` add disabled futures request payload validation
+record schema and append-only log evidence through
+`application/admin_api/futures_request_payload_validation_record_schemas.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_schemas`. The command suite
+continues to expose validation-evidence record rows and now also exposes
+`request_payload_validation_record_schema_count`,
+`blocking_request_payload_validation_record_schema_count`,
+`ready_request_payload_validation_record_schema_count`,
+`registered_request_payload_validation_record_schema_count`,
+`runtime_observed_request_payload_validation_record_schema_count`,
+`request_payload_validation_record_schemas`,
+`validation_record_schema_ref`, `validation_record_append_only_log_ref`,
+`validation_record_schema_field_refs`, `validation_record_schema_field_count`,
+`runtime_evidence_satisfies_validation_record_schema=false`,
+`validation_record_schema_ready=false`,
+`validation_record_schema_registered=false`, and
+`validation_record_append_only_log_ready=false`. These rows are backend-owned
+display evidence only; they do not register schemas, write append-only
+validation logs, validate command request payloads, write validation records,
+call Coinbase, execute reconciliation, mutate futures/order/exchange state, or
+grant browser/BFF authority.

@@ -22,6 +22,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Stealth Mutation-Claim Snapshot Proofs](../README.stealth-mutation-claim-proofs.md)
 - [Stealth Manager-Invocation Policy](../README.stealth-manager-invocation-policy.md)
 - [Stealth Coinbase Exchange Policy](../README.stealth-coinbase-exchange-policy.md)
+- [Stealth State-Mutation Policy](../README.stealth-state-mutation-policy.md)
 - [Stealth Post-Write Reconciliation Execution Policy](../README.stealth-post-write-reconciliation-execution-policy.md)
 - [Stealth Recovery Proofs](../README.stealth-recovery-proofs.md)
 - [Stealth Reveal-Trigger Proofs](../README.stealth-reveal-trigger-proofs.md)
@@ -64,6 +65,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Admin API Contract Agent](agents/AGENT_ADMIN_API_CONTRACT.md)
 - [Public Release Readiness](PUBLIC_RELEASE_READINESS.md)
 - [External Testing Runbook](EXTERNAL_TESTING_RUNBOOK.md)
+- [Regression Process](REGRESSION_PROCESS.md)
 - [Testing Strategy](../genai_data/TESTING_STRATEGY.md)
 - [Spot Readiness Test Gate](SPOT_READINESS_TEST_GATE.md)
 - [Spot Contextless Agent Testing](SPOT_CONTEXTLESS_AGENT_TESTING.md)
@@ -78,10 +80,16 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
   and `python tools\run_spot_campaign.py --pnl-delta-report --summary-only`
 - Local Admin API runner:
   `python tools\run_admin_api.py --dev-token local-admin-token`
+- Process-parallel regression closeout:
+  `python tools\run_parallel_regression.py --workers 4`
+- Stale test-process check before closeout and after interrupted tests:
+  `python tools\check_stale_test_processes.py --include-sibling-frontend`
+- Runtime artifact check after regression memory spikes:
+  `python tools\check_runtime_artifacts.py`
 - Admin API OIDC readiness smoke:
   `python tools\run_admin_oidc_readiness_smoke.py --summary-only`
 - Admin API route inventory export:
-  `python tools\export_admin_api_route_inventory.py`
+  `python -m tools.export_admin_api_route_inventory`
 - Autonomous work queue check:
   `python tools\run_autonomous_work_queue_check.py --summary-only`
 
@@ -99,6 +107,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Stealth Mutation-Claim Snapshot Proof Examples](examples/stealth-mutation-claim-proofs.md)
 - [Stealth Manager-Invocation Policy Examples](examples/stealth-manager-invocation-policy.md)
 - [Stealth Coinbase Exchange Policy Examples](examples/stealth-coinbase-exchange-policy.md)
+- [Stealth State-Mutation Policy Examples](examples/stealth-state-mutation-policy.md)
 - [Stealth Post-Write Reconciliation Execution Policy Examples](examples/stealth-post-write-reconciliation-execution-policy.md)
 - [Stealth Recovery Proof Examples](examples/stealth-recovery-proofs.md)
 - [Stealth Reveal-Trigger Proof Examples](examples/stealth-reveal-trigger-proofs.md)

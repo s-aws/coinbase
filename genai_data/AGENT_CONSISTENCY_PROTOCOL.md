@@ -40,8 +40,27 @@ If a recommendation would land softer than the evidence warrants, the recommenda
 4. Prune context every 20-30 minutes or after each milestone.
 5. Do not carry unresolved assumptions forward. Convert them to explicit risks in `agent_state.md`.
 6. Use one code path per behavior. Do not implement parallel logic.
-7. Run `pytest tests/regression/ -v` before marking work complete for non-agent-file changes.
-   Exception: if the change set is limited to agent-instruction/context files only (`AGENTS.md`, `agent.md`, `ai-context.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
+7. Run focused tests and validators for the changed behavior before marking
+   ordinary phase work complete. Reserve the full regression gate
+   `python tools/run_parallel_regression.py --workers 4` for durable milestone
+   closeout, public/release-candidate handoff, deployment approval/closeout,
+   release-hardening closeout, Admin API/backend association closeout, or
+   explicit user request. Use `pytest tests/regression/ -v --tb=short` only as
+   an intentional sequential fallback when `pytest-xdist` is unavailable. If
+   the change set is limited to agent-instruction/context files only
+   (`AGENTS.md`, `agent.md`, `ai-context.md`, `docs/agents/*.md`,
+   `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may
+   be skipped.
+8. At phase end, close subagents spawned for that phase and any stale or
+   previously unused subagents from earlier phases or milestones found during
+   the sweep, after their findings have been consumed, remediated, or
+   explicitly deferred. At durable milestone closeout, perform a final
+   stale-subagent sweep; this is an audit sweep, not the first cleanup point.
+   Do not close a subagent that is still running required validation, producing
+   required evidence, or awaiting a user decision. Any intentionally open
+   handoff agent must have recorded owner, purpose, and expected next action.
+   Record the phase-end or milestone-closeout sweep result in the phase
+   evidence, handoff, or closeout summary before advancing.
 
 ## Session Start Checklist
 
@@ -67,6 +86,8 @@ If a recommendation would land softer than the evidence warrants, the recommenda
 ## Handoff Standard
 
 At pause or completion, write a handoff using `genai_data/AGENT_HANDOFF_TEMPLATE.md` and copy durable facts into `genai_data/agent_state.md`.
+Record whether the phase-end or milestone-closeout subagent sweep was
+performed, including any intentionally open handoff agents.
 
 ## Forced Reset Triggers
 
@@ -81,5 +102,6 @@ Start a new session when any of these happens:
 
 1. Do not rely on raw chat history as the source of truth.
 2. Do not store long reasoning dumps in the state file.
-3. Do not skip the regression suite for "small" changes.
+3. Do not skip focused validation for "small" behavior changes; choose the
+   narrowest test or validator that proves the changed path.
 4. Do not leave assumptions undocumented.

@@ -212,8 +212,11 @@ These gates apply to every future spot phase that changes order creation,
 planning, admission, live execution, campaign automation, inventory authority,
 or reconciliation:
 
-- Required regression:
-  `pytest tests/regression/ -v --tb=short`.
+- Required full regression closeout gate:
+  `python tools/run_parallel_regression.py --workers 4`.
+- Sequential fallback:
+  `pytest tests/regression/ -v --tb=short` only when `pytest-xdist` is
+  unavailable and the fallback is intentional.
 - Focused spot readiness where relevant:
   `python tools/run_spot_readiness_regression.py`.
 - Read-only release/campaign gates before live order approval.
@@ -417,7 +420,8 @@ Optional external checks:
 
 Acceptance:
 
-- `pytest tests/regression/ -v --tb=short` passes.
+- The full regression closeout gate
+  `python tools/run_parallel_regression.py --workers 4` passes.
 - Focused spot readiness tests can be run independently.
 - Browser smoke can be run independently when `pytest-playwright` and Chromium
   are installed.
@@ -3276,8 +3280,9 @@ Status:
 
 Result:
 
-- Full regression passed: `pytest tests\regression\ -v --tb=short` reported
-  `698` passed and `1` warning.
+- Historical fallback-era full regression passed:
+  `pytest tests\regression\ -v --tb=short` reported `698` passed and `1`
+  warning.
 - Browser smoke passed:
   `python tools\run_spot_readiness_browser_smoke.py` reported `1` passed and
   `1` warning.
@@ -3912,7 +3917,8 @@ Status: prepared, not executed.
   `PERP-USDC`, maximum submitted notional `1` USDC.
 - No live Coinbase orders were submitted in Phases 173-184. Submitted
   notional: `0` USDC. Executed notional: `0` USDC.
-- Validation passed after this batch:
+- Validation passed after this batch with the historical fallback-era full
+  regression command:
   `pytest tests\regression\ -v --tb=short` (`716` tests),
   `python tools\run_spot_readiness_regression.py` (`212` tests),
   browser smoke for direct-order and spot-readiness UI, ownership check, and

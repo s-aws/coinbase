@@ -203,15 +203,23 @@ Coinbase posture.
 
 ## Required Tests
 
-```powershell
-pytest tests/regression/ -v --tb=short
-```
-
-Focused Admin API tests live in:
+Run focused Admin API coverage for ordinary Admin API changes:
 
 ```powershell
 pytest tests/regression/test_admin_api_contract.py -v --tb=short
 ```
+
+Run the full backend regression gate before durable milestone closeout,
+public/release-candidate handoff, deployment approval/closeout,
+release-hardening closeout, Admin API/backend association closeout, or explicit
+user request:
+
+```powershell
+python tools/run_parallel_regression.py --workers 4
+```
+
+Use `pytest tests/regression/ -v --tb=short` only as an intentional sequential
+fallback when `pytest-xdist` is unavailable.
 
 Focused tests must cover auth denial, RBAC denial, idempotent retry,
 idempotency conflict, approval/live-disabled gate evidence, no live REST call

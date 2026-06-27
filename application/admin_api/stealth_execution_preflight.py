@@ -76,6 +76,14 @@ _PREREQUISITE_DECISION_ARTIFACTS = {
         AdminApiStealthLiveReadinessDecision.POST_WRITE_RECONCILIATION_EXECUTION_POLICY,
         "post_write_reconciliation_execution_policy",
     ),
+    StealthCreateLifecycleExecutionPrerequisite.STATE_MUTATION_POLICY.value: (
+        AdminApiStealthLiveReadinessDecision.STATE_MUTATION_POLICY,
+        "stealth_state_mutation_policy",
+    ),
+    StealthCommandExecutionPrerequisite.STATE_MUTATION_POLICY.value: (
+        AdminApiStealthLiveReadinessDecision.STATE_MUTATION_POLICY,
+        "stealth_state_mutation_policy",
+    ),
 }
 
 _FORBIDDEN_EXECUTION_CLAIMS = [

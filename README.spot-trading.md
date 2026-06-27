@@ -309,7 +309,9 @@ Not disabled:
 - Do not resolve dashboard `cancel_order` to exchange `order_id`. The dashboard
   contract is `client_order_id` in, `REST_CLIENT.cancel_order(client_order_id)`
   out.
-- Run `pytest tests/regression/ -v --tb=short` after non-agent-file changes.
+- Run focused tests for ordinary spot changes. Run full `tests/regression/`
+  only before durable milestone closeout, public/release-candidate handoff, or
+  explicit request; prefer `python tools/run_parallel_regression.py --workers 4`.
 
 ## Examples
 
@@ -353,8 +355,9 @@ order behavior as ready. The prompt and pass/fail rubric are in
 fresh agent cannot explain the canonical spot order path from repo context
 alone, fix the docs or code organization and rerun the same blind prompt.
 
-This does not replace the required full regression command:
-`pytest tests/regression/ -v --tb=short`.
+This does not replace the required full regression closeout gate when a durable
+milestone, public/release candidate, or deployment approval is being marked
+complete: `python tools/run_parallel_regression.py --workers 4`.
 
 Run the read-only spot release wrapper with:
 

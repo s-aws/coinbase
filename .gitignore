@@ -183,6 +183,7 @@ cython_debug/
 # Public agent contracts live in docs/agents/ and .agents/.
 # Local expanded context stays local-only.
 # genai_data/
+genai_data/usdc_min_quote_buy_snapshot.json
 genai_tools/
 # ID_USAGE_ANALYSIS.md
 

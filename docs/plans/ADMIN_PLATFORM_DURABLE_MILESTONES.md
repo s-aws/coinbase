@@ -25,6 +25,19 @@ A milestone is complete only when all of these are true:
 Do not mark a milestone complete because the docs exist. Completion requires
 working contract, test, gate, and review evidence for the claimed scope.
 
+## Subagent Hygiene
+
+Phase-end cleanup is mandatory. Close subagents spawned for the completed phase
+after their findings have been consumed, remediated, or explicitly deferred,
+and close any stale or previously unused subagents from earlier phases or
+milestones found during that sweep. Do not close subagents that are still
+running required validation, producing required evidence, or awaiting a user
+decision. Durable milestone closeout requires a final stale-subagent sweep
+before the milestone can be marked complete; any intentionally open handoff
+agent must have recorded owner, purpose, and expected next action. Record the
+phase-end or milestone-closeout sweep result in the phase evidence, handoff, or
+closeout summary before advancing.
+
 ## End-State Functionality Commitment
 
 The enterprise admin platform is not complete at read-only visibility. The
@@ -167,7 +180,7 @@ not independent roadmaps.
 | M54 - Spot Full Admin Command Suite | Complete; reconciliation executor remains future live-enablement work | Complete spot manual orders, cancels, campaigns, sweeps, P/L, recovery, and reconciliation through the approved backend gate chain. |
 | M55 - Stealth Full Admin Command Suite | In Progress | Complete stealth create/cancel/reveal/move/reprice/recovery workflows while preserving exchange-reality invariants and mutation locks. |
 | M56 - Movement/Repricing Full Admin Command Suite | Approved; not started | Complete move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows through existing mutation claims and exchange handling. |
-| M57 - Futures/Perpetuals Contract Foundation And Commands | Approved; not started | Add futures/perpetual command contracts only after backend-owned position, margin, liquidation, reduce-only, close-only, funding, and collateral semantics exist. |
+| M57 - Futures/Perpetuals Contract Foundation And Commands | In Progress; active range 7961-7980; latest completed range 7941-7960 | Add futures/perpetual command contracts only after backend-owned position, margin, liquidation, reduce-only, close-only, funding, and collateral semantics exist. |
 | M58 - Automation, Campaign, Scheduler, And Retry Suite | Approved; not started | Complete durable scheduling, run limits, pause/resume, retries, operator status, and recovery for automation without browser schedulers or parallel live paths. |
 | M59 - Recovery, Repair, Policy, And Operations Admin | Approved; not started | Add backend-owned repair, policy/configuration, role, deployment, observability, and operator runbook administration without exposing secrets or browser-held authority. |
 | M60 - Full Functionality Release Candidate | Approved; not started | Prove all supported backend functionality through security review, regression, release gates, live-cap evidence, contextless reviews, and public maintainer handoff. |
@@ -189,7 +202,7 @@ broaden the milestone's authority.
 | M52 - Reconciliation Plan And Proof Records | M51 audit linkage. | Add backend reconciliation plan record and proof contracts for admitted commands before execution adapters can run. | Tests cover plan recording, proof persistence, failure handling, and readback from admin record surfaces. | Browser cannot execute reconciliation, create proof authority, or mark exchange/order state reconciled. |
 | M53 - Controlled Execution Adapter Pilot | M49-M52 all complete and fail-closed. | Enable one tightly capped backend live adapter through the shared command service and existing exchange/domain path. | Live-cap evidence, dry-run proof, focused tests, backend regression, frontend release gate, blind review, and explicit Coinbase notional report if live is run. | No browser live switch, no BFF execution authority, no second trading path, no multi-module rollout. |
 | M54 - Spot Full Admin Command Suite | M53 pilot plus spot inventory, cost-basis, no-shorting, campaign, sweep, P/L, and recovery contracts. | Complete spot manual order, cancel, campaign, sweep, P/L, recovery, reconciliation, and live execution admin workflows through the gate chain. | Spot-focused regression, live-cap tests, campaign/recovery tests, frontend release gate, blind review, Coinbase notional report for live tests. | Spot rules must not become platform defaults or futures/stealth authority. |
-| M55 - Stealth Full Admin Command Suite | M53 pilot plus stealth lifecycle locks, exchange-truth invariants, and cancel/move/reveal contracts. | Complete stealth create, cancel, reveal, move, reprice, recovery, and reconciliation admin workflows through existing stealth manager and bridge paths. | Stealth regression, exchange-truth tests, active-placement audit evidence, frontend release gate, blind review. | No hide-again shortcut, no local state mutation without live cancel/move/reconcile proof, no `order_id` internal tracking. |
+| M55 - Stealth Full Admin Command Suite | M53 pilot plus stealth lifecycle locks, exchange-truth invariants, and cancel/move/reveal contracts. | Complete stealth create, cancel, reveal, move, reprice, recovery, and reconciliation admin workflows through backend-owned gates; executable slices may use existing stealth manager and bridge paths only after the required live-service, adapter, exchange-truth, reconciliation, and mutation proofs are resolved. Current dry-run adapter slices are evidence only and non-executable. | Stealth regression, exchange-truth tests, active-placement audit evidence, frontend release gate, blind review. | No hide-again shortcut, no local state mutation without live cancel/move/reconcile proof, no `order_id` internal tracking. |
 | M56 - Movement/Repricing Full Admin Command Suite | M53 pilot plus movement claim, replacement-slot, cooldown, cancel/replace, and audit contracts. | Complete move, premark, reprice, cooldown, claim, cancel/replace, audit, recovery, and reconciliation workflows through existing mutation claims. | Movement/repricing regression, claim-lock tests, replacement-slot tests, frontend release gate, blind review. | No bypass of locks, no direct dashboard WebSocket mutation, no browser cooldown clearing. |
 | M57 - Futures/Perpetuals Contract Foundation And Commands | M48 taxonomy plus futures-specific risk semantics. | Add futures/perpetual position, margin, collateral, liquidation, reduce-only, close-only, funding, order, cancel, and reconciliation contracts before UI command enablement. | Futures contract tests, risk/cap tests, no-spot-rule review, OpenAPI, examples, frontend generated schema and release gate. | No spot wallet/no-shorting/cost-basis assumptions; no command drafts copied from spot without futures semantics. |
 | M58 - Automation, Campaign, Scheduler, And Retry Suite | M54 spot commands and the generic approval/cap/audit/reconciliation chain. | Add durable scheduling, run limits, pause/resume, retry, operator status, recovery, and reconciliation contracts for automations. | Scheduler persistence tests, retry/idempotency tests, run-limit tests, recovery tests, frontend release gate, blind review. | No browser scheduler, no unbounded loops, no live run without explicit cap and audit evidence. |
@@ -2322,7 +2335,7 @@ creating browser/BFF execution authority or a second trading path.
 
 Completed scope:
 
-- Active phases 1501-1520 advance the unattended range while preserving the
+- Completed phases 1501-1520 advanced the unattended range while preserving the
   no-live default and carried Coinbase cap policy.
 - The selected pilot route is `POST /api/v1/orders`, mapped to the existing
   `AdminApiCommandService.place_manual_order` shared command method.
@@ -2791,12 +2804,510 @@ Current backend evidence:
   active-placement cancel/replace, state mutation, browser, or BFF authority.
   Resolver lookups use the newest exact-command policy proof row, ignore newer
   rows for other guarded command contexts, and block on a newer unsafe
-  exact-command row. Active phases 3381-3400 consume those resolver rows
-  inside `execution_live_readiness` decision artifact evidence. Resolved
-  artifacts, evidence ids, and sources are display/backend evidence only;
-  backend decisions remain blocked and live execution, Coinbase, manager,
-  reconciliation, active-placement, state mutation, browser, and BFF authority
-  remain disabled.
+  exact-command row. Completed phases 3381-3400 consume those resolver rows
+  inside `execution_live_readiness` decision artifact evidence. Completed
+  phases 3401-3420 added backend-owned stealth state-mutation policy
+  proof/readback; completed phases 3421-3440 consume it as resolver-only
+  prerequisite evidence for exact-command resolver work. Completed phases
+  3441-3460 add backend-only enablement precondition evidence to the existing
+  disabled `live_execution_service_contract`. Completed phases 3461-3480 add
+  backend-only construction precondition evidence to the existing disabled
+  `live_execution_adapter_contract`. Completed phases 3481-3500 add
+  backend-owned blocker-chain traceability that points remaining live-service
+  and live-adapter blockers back to those disabled contracts and their
+  required/missing artifacts. Completed phases 3501-3520 add append-only
+  backend-owned live-service decision evidence while deliberately keeping the
+  service disabled, non-executable, and no-live. Completed phases 3521-3540
+  add latest disabled-decision readback to the existing service contract while
+  keeping service enablement unresolved. Completed phases 3541-3560 split
+  recorded decision artifacts from satisfied enablement artifacts so
+  contextless maintainers cannot treat readback as enablement. Completed
+  phases 3561-3580 split route mapping and pilot configuration from satisfied
+  adapter construction artifacts so contextless maintainers cannot treat
+  adapter evidence as construction. Completed phases 3581-3600 add
+  append-only disabled live-adapter decision evidence while keeping
+  construction artifacts unsatisfied. Completed phases 3601-3620 add explicit
+  non-resolution readback fields so latest adapter decisions cannot be
+  mistaken for construction authority. Completed phases 3621-3640 add the
+  typed backend live-adapter construction contract as read-only evidence so
+  the next required contract is inspectable without constructing adapters.
+  Completed phases 3641-3660 add per-artifact acceptance requirements to that
+  contract while keeping every artifact unsatisfied. Completed phases
+  3661-3680 add blocked acceptance evidence readback rows for those
+  requirements while keeping every artifact unsatisfied. Completed phases
+  3681-3700 add a contract-level aggregate over those acceptance evidence rows
+  while preserving missing evidence, false satisfaction, and no-live authority.
+  Completed phases 3701-3720 add a blocked backend-owned producer contract
+  over those missing acceptance evidence ids while preserving no-route,
+  no-writer, no-acceptance, false satisfaction, and no-live authority.
+  Completed phases 3721-3740 add blocked producer-readiness rows for the missing route,
+  append-only store, and validation/replay gate while preserving no-route,
+  no-store, no-validation, no-replay, no-writer, no-acceptance, false
+  satisfaction, and no-live authority. Completed phases 3741-3760 add a
+  blocked contract-level aggregate over those producer-readiness rows while
+  preserving missing criteria, disabled route/store/validation/replay/writer/
+  acceptance flags, false satisfaction, and no-live authority. Completed phases
+  3761-3780 add blocked producer-readiness clearance action rows while
+  preserving missing route/store/validation/replay criteria, disabled writer/
+  acceptance/construction flags, false satisfaction, and no-live authority.
+  Completed phases 3781-3800 add a blocked dependency summary over those
+  clearance actions while preserving no-clearance, no-writer, no-acceptance,
+  no-execution, false satisfaction, and no-live authority. Completed phases
+  3801-3820 add blocked producer-clearance work items and a work-queue summary
+  derived from each producer contract's first blocked clearance action while
+  preserving no-route, no-store, no-validation, no-replay, no-writer,
+  no-acceptance, no-construction, no-clearance, no-execution, false
+  satisfaction, and no-live authority. Completed phases 3821-3840 add
+  producer-clearance claim traces and a summary mapping forbidden
+  producer-route availability claims back to those work items while preserving
+  no-route, no-store, no-validation, no-replay, no-writer, no-acceptance,
+  no-construction, no-clearance, no-execution, false satisfaction, and no-live
+  authority. Completed phases 3841-3860 add producer-route requirements and a
+  summary mapping those claim traces to missing backend route contract
+  evidence while preserving no route registration, no route inventory binding,
+  no-writer, no-acceptance, no-construction, no-execution, false satisfaction,
+  and no-live authority. Completed phases 3861-3880 add producer-route
+  contract proposals and a summary mapping those requirements to missing route
+  contract, route inventory, and shared command-service evidence while
+  preserving no route registration, no route inventory binding, no shared
+  service binding, no-writer, no-acceptance, no-construction, no-execution,
+  false satisfaction, and no-live authority. Completed phases 3881-3900 add
+  producer-route contract validation rows and a summary mapping those proposals
+  to missing route contract, registration, route inventory, shared command
+  service, handler, store, validation/replay, writer, and acceptance
+  prerequisites while preserving no route registration, no route inventory
+  binding, no shared service binding, no-handler, no-writer, no-acceptance,
+  no-construction, no-execution, false satisfaction, and no-live authority.
+  Completed phases 3901-3920 add producer-route contract remediation rows and a
+  summary mapping those failed validation rows to missing backend work while
+  preserving no remediation, no route registration, no route inventory binding,
+  no shared service binding, no-handler, no-store, no-validation, no-replay,
+  no-writer, no-acceptance, no-construction, no-execution, false satisfaction,
+  and no-live authority. Completed phases 3921-3940 add remediation-dependency
+  rows and a summary that order those blocked remediation items per route
+  contract while preserving no remediation, no route registration, no route
+  inventory binding, no shared service binding, no-handler, no-store,
+  no-validation, no-replay, no-writer, no-acceptance, no-construction,
+  no-execution, false satisfaction, and no-live authority. Completed phases
+  3941-3960 add remediation work-item rows and a work-queue summary that name
+  required backend work, required backend refs, and handoff blockers while
+  preserving the same no-remediation/no-construction/no-execution/no-live
+  authority. Completed phases 3961-3980 add remediation work-item claim traces
+  and a claim-trace summary that map those work items back to unresolved
+  producer-route contract availability claims while preserving no-claim-
+  resolution, no-remediation, no-construction, no-execution, and no-live
+  authority. Completed phases 3981-4000 add producer-route contract clearance
+  plans and a clearance-plan summary that turn those unresolved claim traces
+  into backend-owned sequencing evidence for the route contract, route
+  inventory, shared command service, route handler, acceptance-evidence store,
+  validation/replay gate, writer, and acceptance path required before the
+  claim could ever resolve. Those rows preserve no-remediation,
+  no-claim-resolution, no-route-registration, no-binding, no-writing,
+  no-acceptance, no-construction, no-execution, and no-live authority. Completed
+  phases 4001-4020 add producer-route contract clearance steps and a
+  clearance-step summary that expand each clearance plan into ordered backend
+  prerequisites while preserving no-step-completion, no-claim-resolution,
+  no-work-item-clearance, no-route-registration, no-binding, no-writing,
+  no-acceptance, no-construction, no-execution, and no-live authority.
+  Completed phases 4041-4060 add clearance-step review-input rows and a
+  review-input summary derived from the completed 4021-4040 review rows while
+  preserving no-input-creation, no-input-acceptance, no-input-validation,
+  no-review-completion, no-step-readiness, no-claim-resolution,
+  no-construction, no-execution, and no-live authority. Completed phases
+  4061-4080 add clearance-step review-input store requirement rows and a
+  store-requirement summary derived from the completed 4041-4060 review-input
+  rows while preserving no-store-creation, no-record-creation,
+  no-record-acceptance, no-record-validation, no-writer-availability,
+  no-input-completion, no-review-completion, no-step-readiness,
+  no-claim-resolution, no-construction, no-execution, and no-live authority.
+  Completed phases 4081-4100 add clearance-step review-input store
+  record-contract rows and a record-contract summary derived from the
+  completed 4061-4080 store requirements while preserving no-record-contract
+  availability, no-schema availability, no-append-only-log availability,
+  no-idempotency binding, no-payload validation, no-replay protection,
+  no-record-creation, no-record-acceptance, no-input-completion,
+  no-review-completion, no-step-readiness, no-claim-resolution,
+  no-construction, no-execution, and no-live authority. Completed phases
+  4101-4120 add clearance-step review-input store record-validation rows and
+  a record-validation summary derived from the completed 4081-4100 record
+  contracts while preserving no-validation-readiness, no-record-contract
+  availability, no-schema availability, no-append-only-log availability,
+  no-idempotency binding, no-payload validation, no-replay protection,
+  no-record-creation, no-record-acceptance, no-input-completion,
+  no-review-completion, no-step-readiness, no-claim-resolution,
+  no-construction, no-execution, and no-live authority. Completed phases
+  4121-4140 add record-validation remediation rows and a remediation summary
+  derived from the completed 4101-4120 validation rows while preserving
+  no-remediation-execution, no-validation-readiness, no-record-acceptance,
+  no-input-completion, no-review-completion, no-step-readiness,
+  no-claim-resolution, no-construction, no-execution, and no-live authority.
+  Completed phases 4141-4160 add record-validation remediation dependency rows
+  and a dependency summary derived from the completed 4121-4140 remediation
+  rows with immediate predecessor/successor links only while preserving
+  no-dependency-resolution, no-remediation-execution, no-validation-readiness,
+  no-record-acceptance, no-input-completion, no-review-completion,
+  no-step-readiness, no-claim-resolution, no-construction, no-execution, and
+  no-live authority. Completed phases 4161-4180 add record-validation
+  remediation dependency work items and a work-queue summary derived from
+  those dependency rows while preserving no-work-item-readiness, no-handoff,
+  no-remediation-execution, no-record-acceptance, no-claim-resolution,
+  no-construction, no-execution, and no-live authority. Completed phases
+  4181-4200 add record-validation remediation dependency work-item claim
+  traces and a claim-trace summary derived from those work items while
+  preserving no-claim-resolution, no-work-item-clearance,
+  no-dependency-clearance, no-remediation-execution, no-record-acceptance,
+  no-construction, no-execution, and no-live authority. Completed phases
+  4201-4220 add claim-trace clearance plans and a clearance-plan summary
+  derived from those blocked claim traces while preserving no-plan-readiness,
+  no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
+  no-remediation-execution, no-record-acceptance, no-construction,
+  no-execution, and no-live authority. Completed phases 4221-4240 add ordered
+  claim-trace clearance steps and a clearance-step summary derived from those
+  blocked clearance plans while preserving no-step-completion,
+  no-step-allowance, no-claim-resolution, no-claim-trace-clearance,
+  no-work-item-clearance, no-dependency-clearance, no-remediation-execution,
+  no-record-acceptance, no-construction, no-execution, and no-live authority.
+  Completed phases 4241-4260 add claim-trace clearance-step reviews and a
+  clearance-step review summary derived from those blocked steps while
+  preserving no-review-completion, no-review-input-presence, no-gate-passage,
+  no-step-completion, no-step-allowance, no-claim-resolution,
+  no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
+  no-remediation-execution, no-record-acceptance, no-construction,
+  no-execution, and no-live authority. Completed phases 4261-4280 add
+  claim-trace clearance-step review inputs and a review-input summary derived
+  from those blocked reviews while preserving no-input-presence,
+  no-input-acceptance, no-input-validation, no-review-completion,
+  no-step-completion, no-step-allowance, no-claim-resolution,
+  no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
+  no-remediation-execution, no-record-acceptance, no-construction,
+  no-execution, and no-live authority. Completed phases 4281-4300 add
+  claim-trace clearance-step review-input store requirements and a
+  store-requirement summary derived from those blocked review inputs while
+  preserving no-store-creation, no-writer, no-write, no-record-presence,
+  no-record-acceptance, no-record-validation, no-input-presence,
+  no-input-acceptance, no-input-validation, no-review-completion,
+  no-step-completion, no-step-allowance, no-claim-resolution,
+  no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
+  no-remediation-execution, no-construction, no-execution, and no-live
+  authority. Completed phases 4301-4320 add claim-trace clearance-step
+  review-input store record contracts and a record-contract summary derived
+  from those blocked store requirements while preserving no-record-contract,
+  no-schema, no-log, no-idempotency-binding, no-payload-validation,
+  no-replay-protection, no-store, no-writer, no-write, no-record-presence,
+  no-record-acceptance, no-record-validation, no-input-presence,
+  no-input-acceptance, no-input-validation, no-review-completion,
+  no-step-completion, no-step-allowance, no-claim-resolution,
+  no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
+  no-remediation-execution, no-construction, no-execution, and no-live
+  authority. Completed phases 4321-4340 add claim-trace clearance-step
+  review-input store record validations and a record-validation summary
+  derived from those blocked record contracts while preserving
+  no-validation-readiness and no-live authority. Completed phases 4341-4360 add
+  claim-trace clearance-step review-input store record-validation remediation
+  items and a remediation summary derived from those blocked validations while
+  preserving no-remediation-readiness, no-remediation-performance,
+  no-remediation-recording, no-validation-readiness, no-record-contract,
+  no-schema, no-log, no-idempotency-binding, no-payload-validation,
+  no-replay-protection, no-store, no-writer, no-write, no-record-presence,
+  no-record-acceptance, no-record-validation, no-input-presence,
+  no-input-acceptance, no-input-validation, no-review-completion,
+  no-step-completion, no-step-allowance, no-claim-resolution,
+  no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
+  no-construction, no-execution, and no-live authority. Completed phases
+  4361-4380 add claim-trace clearance-step review-input store
+  record-validation remediation dependency rows and a dependency summary
+  derived from those blocked remediation rows while preserving
+  no-dependency-readiness, no-graph-readiness, no-predecessor-readiness,
+  no-action-readiness, no-remediation-readiness, no-remediation-performance,
+  no-remediation-recording, no-validation-readiness, no-record-contract,
+  no-schema, no-log, no-idempotency-binding, no-payload-validation,
+  no-replay-protection, no-store, no-writer, no-write, no-record-presence,
+  no-record-acceptance, no-record-validation, no-input-presence,
+  no-input-acceptance, no-input-validation, no-review-completion,
+  no-step-completion, no-step-allowance, no-claim-resolution,
+  no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
+  no-construction, no-execution, and no-live authority. Completed phases
+  4381-4400 add dependency work-item rows and a work-queue summary derived
+  from those blocked dependency rows while preserving no-work-item-readiness,
+  no-queue-readiness, no-handoff-readiness, no-dependency-readiness,
+  no-graph-readiness, no-predecessor-readiness, no-action-readiness,
+  no-remediation-readiness, no-validation-readiness, no-record-contract,
+  no-schema, no-log, no-idempotency-binding, no-payload-validation,
+  no-replay-protection, no-store, no-writer, no-write, no-record-presence,
+  no-record-acceptance, no-record-validation, no-input-presence,
+  no-input-acceptance, no-input-validation, no-review-completion,
+  no-step-completion, no-step-allowance, no-claim-resolution,
+  no-claim-trace-clearance, no-work-item-clearance, no-dependency-clearance,
+  no-construction, no-execution, and no-live authority. Completed phases
+  4401-4420 add dependency work-item claim-trace rows and a claim-trace
+  summary derived from those blocked dependency work items while preserving
+  no-claim-trace-readiness, no-claim-resolution, no-work-item-clearance,
+  no-queue-readiness, no-handoff-readiness, no-dependency-readiness,
+  no-graph-readiness, no-predecessor-readiness, no-action-readiness,
+  no-remediation-readiness, no-validation-readiness, no-record-contract,
+  no-schema, no-log, no-idempotency-binding, no-payload-validation,
+  no-replay-protection, no-store, no-writer, no-write, no-record-presence,
+  no-record-acceptance, no-record-validation, no-input-presence,
+  no-input-acceptance, no-input-validation, no-review-completion,
+  no-step-completion, no-step-allowance, no-construction, no-execution, and
+  no-live authority. Completed phases 4421-4440 add dependency work-item
+  claim-trace clearance-plan rows and a clearance-plan summary derived from
+  those blocked claim traces while preserving no-plan-readiness,
+  no-sequence-readiness, no-claim-trace-readiness, no-claim-resolution,
+  no-work-item-clearance, no-queue-readiness, no-handoff-readiness,
+  no-dependency-readiness, no-remediation-readiness, no-validation-readiness,
+  no-record-contract, no-store, no-writer, no-write, no-construction,
+  no-execution, and no-live authority. Completed phases 4441-4460 add
+  dependency work-item claim-trace clearance-step rows and a clearance-step
+  summary derived from those blocked clearance plans while preserving
+  no-step-readiness, no-step-completion, no-next-step-allowance,
+  no-prior-step-completion, no-plan-readiness, no-sequence-readiness,
+  no-claim-trace-readiness, no-claim-resolution, no-work-item-clearance,
+  no-queue-readiness, no-handoff-readiness, no-dependency-readiness,
+  no-remediation-readiness, no-validation-readiness, no-record-contract,
+  no-store, no-writer, no-write, no-construction, no-execution, and no-live
+  authority. Completed phases 4461-4480 add dependency work-item claim-trace
+  clearance-step review rows and a review summary derived from those blocked
+  clearance steps while preserving no-review-readiness, no-review-completion,
+  no-review-allowance, no-input-presence, no-gate-passing, no-step-readiness,
+  no-step-completion, no-claim-resolution, no-work-item-clearance,
+  no-construction, no-execution, and no-live authority. Completed phases
+  4481-4500 add dependency work-item claim-trace clearance-step review input
+  rows and a review-input summary derived from those blocked reviews while
+  preserving no-input-presence, no-input-acceptance, no-input-validation,
+  no-review-readiness, no-review-completion, no-gate-passing,
+  no-step-readiness, no-step-completion, no-claim-resolution,
+  no-work-item-clearance, no-construction, no-execution, and no-live
+  authority. Completed phases 4501-4520 add a concrete M55 blocker-closure
+  ledger naming live-service, live-adapter, active-placement cancel/replace,
+  reveal submission, recovery repair/rollback, and post-write reconciliation
+  blockers without enabling Coinbase, managers, repair, rollback,
+  reconciliation, state mutation, browser, or BFF authority. Completed phases
+  4521-4540 add one backend-owned, route-bound, non-executable stealth reveal
+  dry-run adapter. Completed phases 4541-4560 add one backend-owned,
+  route-bound, non-executable stealth reveal dry-run live-service contract.
+  Completed phases 4561-4580 classify those dry-run surfaces as partial
+  blocker evidence. Completed phases 4581-4600 expand partial evidence to the
+  remaining concrete M55 blocker rows while keeping exact proof, manager,
+  Coinbase, reconciliation, repair/rollback, state mutation, browser, and BFF
+  execution authority blocked. Completed phases 4601-4620 add structured
+  closure-readiness criteria, missing criteria, verification gates, readiness
+  blockers, and summary counts to those same rows without closing blockers or
+  granting live authority. Completed phases 4621-4640 add criterion-level
+  source/dependency traceability for those readiness criteria while keeping
+  every dependency unresolved and every execution authority flag false.
+  Completed phases 4641-4660 classify those trace dependencies as backend
+  contract, proof route, or gate-chain dependencies while keeping every
+  dependency unresolved and every execution authority flag false. Completed
+  phases 4661-4680 assign each classified dependency to a backend-owned
+  clearance plan row with owner, required artifact, clearance order, blocked
+  status, and no-live authority evidence. Completed phases 4681-4700 derive
+  blocked backend clearance-step rows from those plans without clearing
+  dependencies or changing execution authority. Completed phases 4701-4720
+  derive blocked backend clearance-step review rows from those steps without
+  completing reviews, making steps ready, clearing dependencies, or changing
+  execution authority. Completed phases 4721-4740 derive blocked backend
+  clearance-step review input rows from those reviews without accepting inputs,
+  validating inputs, completing reviews, making steps ready, clearing
+  dependencies, or changing execution authority. Completed phases 4741-4760
+  derive blocked backend clearance-step review-input store-requirement rows
+  from those inputs without making stores available, allowing writers, writing
+  records, validating records, accepting inputs, completing reviews, making
+  steps ready, clearing dependencies, or changing execution authority.
+  Completed phases 4761-4780 derive blocked backend clearance-step
+  review-input store record-contract rows from those store requirements
+  without creating record contracts, schemas, logs, idempotency bindings,
+  payload validation, replay protection, records, stores, accepted inputs,
+  completed reviews, ready steps, cleared dependencies, or execution
+  authority. Completed phases 4781-4800 derive blocked backend clearance-step
+  review-input store record-validation rows from those record contracts
+  without validating records, making schemas/logs/idempotency/payload/replay
+  ready, accepting inputs, completing reviews, readying steps, clearing
+  dependencies, or changing execution authority. Completed phases 4801-4820
+  derive blocked backend clearance-step review-input store record-validation
+  remediation rows from those validations without remediating records, making
+  validation/contract/schema/log/idempotency/payload/replay ready, accepting
+  inputs, completing reviews, readying steps, clearing dependencies, or
+  changing execution authority. Completed phases 4821-4840 derive blocked backend
+  clearance-step review-input store record-validation remediation dependency
+  rows from those remediations without resolving dependency order, performing
+  remediation, readying validations, clearing dependencies, or changing
+  execution authority. Completed phases 4841-4860 derive blocked backend
+  clearance-step review-input store record-validation remediation dependency
+  work-item rows from those dependencies without claiming work items,
+  performing work items, resolving dependency order, performing remediation,
+  readying validations, clearing dependencies, or changing execution
+  authority. Completed phases 4861-4880 derive blocked backend claim-trace
+  rows from those work items without resolving claims, allowing claim
+  resolution, claiming or performing work items, clearing dependencies,
+  performing remediation, validating records, or changing execution authority.
+  Completed phases 4881-4900 derive blocked backend claim-trace clearance-plan
+  rows from those claim traces without executing plans, resolving claims,
+  clearing claim traces, clearing work items or dependencies, writing
+  evidence, reconciling, invoking managers, calling Coinbase, or changing
+  execution authority. Completed phases 4901-4920 derive blocked backend
+  claim-trace clearance-step rows from those clearance plans without executing
+  plan steps, resolving claims, clearing claim traces, clearing work items or
+  dependencies, writing evidence, reconciling, invoking managers, calling
+  Coinbase, or changing execution authority. Completed phases 4921-4940
+  derive blocked backend claim-trace clearance-step review rows from those
+  clearance steps without completing reviews, executing plan steps, resolving
+  claims, clearing claim traces, clearing work items or dependencies, writing
+  evidence, reconciling, invoking managers, calling Coinbase, or changing
+  execution authority. Completed phases 4941-4960 derive blocked backend
+  claim-trace clearance-step review-input rows from those reviews without
+  accepting inputs, validating inputs, completing reviews, executing plan
+  steps, resolving claims, clearing claim traces, clearing work items or
+  dependencies, writing evidence, reconciling, invoking managers, calling
+  Coinbase, or changing execution authority. Completed phases 4961-4980 derive
+  blocked backend claim-trace clearance-step review-input store-requirement
+  rows from those review inputs without creating stores, allowing writers,
+  writing records, accepting inputs, validating inputs, completing reviews,
+  executing plan steps, resolving claims, clearing claim traces, clearing work
+  items or dependencies, writing evidence, reconciling, invoking managers,
+  calling Coinbase, or changing execution authority. Completed phases
+  4981-5000 derive blocked backend claim-trace clearance-step review-input store
+  record-contract rows from those store requirements without creating
+  contracts, schemas, logs, binding idempotency, validating payloads,
+  protecting replay, writing records, accepting inputs, completing reviews,
+  executing steps, resolving claims, reconciling, invoking managers, calling
+  Coinbase, or changing execution authority. Completed phases 5101-5120
+  reconcile route-level stealth command enablement candidates from the
+  completed blocked evidence chain. The first ranked candidate is planning
+  evidence only; it does not invoke managers, mutate lifecycle/order/exchange
+  state, reconcile, call Coinbase, or grant browser/BFF execution authority.
+  Completed phases 5121-5140 turn the selected `stealth_create` planning
+  target into backend-owned pre-execution contract evidence. Completed phases
+  5141-5160 bind that contract to the exact dry `POST /api/v1/stealth/orders`
+  command response while manager invocation, lifecycle/order writes,
+  reconciliation execution, Coinbase interaction, and browser/BFF authority
+  remain blocked. Completed phases 5161-5180 start M57 by adding read-only
+  futures/perpetual command-suite contract evidence for placement,
+  close/reduce, cancel, and reconciliation without adding command routes,
+  command drafts, live execution, Coinbase calls, or spot-rule authority.
+  Completed phases 5181-5200 extend that same futures/perpetual command-suite
+  route with backend-owned request-field metadata while keeping every field
+  blocked, read-only, no-live, and non-authoritative for browser/BFF command
+  execution. Completed phases 5201-5220 add semantic guard metadata for
+  identity, risk, audit, reconciliation, and live-boundary blockers.
+  Completed phases 5221-5240 link those semantic guards to backend evidence
+  routes, missing proof refs, and disabled proof-writer posture while
+  preserving blocked/no-live/no-command-route authority. Completed phases
+  5241-5260 add backend-owned command readiness decisions derived from the
+  existing prerequisite, request-field, semantic-guard, evidence-route, and
+  missing-contract rows without adding command routes, drafts, live adapters,
+  Coinbase calls, browser authority, BFF execution authority, or spot-rule
+  authority. Completed phases 5261-5280 add ordered backend-owned readiness
+  closure plans for each blocked futures/perpetual command so the remaining
+  route, service, adapter, evidence, and review work is explicit before any
+  later command-enable slice. Completed phases 5281-5300 add backend-owned
+  risk proof requirements for product scope, position scope, margin,
+  collateral, liquidation buffer, funding fee, reduce-only, close-only, cap
+  guard, and reconciliation-plan semantics before any later command-enable
+  slice. Completed phases 5301-5320 add blocked backend-owned risk proof
+  acceptance criteria for required evidence, proof route registration,
+  proof-writer review, spot-rule boundary review, and browser/BFF authority
+  review so later command-enable work can see exactly why every proof still
+  fails closed. Completed phases 5321-5340 add blocked proof route/writer
+  contract rows, completed phases 5341-5360 add blocked proof payload field
+  rows, completed phases 5361-5380 add blocked proof record/store contract
+  rows, and completed phases 5381-5400 add blocked proof record-validation
+  rows. Completed phases 5401-5420 add blocked proof record-validation
+  remediation rows so later validator-readiness work names required backend
+  remediation actions, evidence refs, owner, and disabled work-item/remediate
+  posture before any command-route or proof-writer enablement can be reviewed.
+  Completed phases 5421-5440 add blocked remediation dependency rows so later
+  work-item, validator-ready, proof-writer, acceptance, or command-route
+  enablement work can see the ordered predecessor/successor dependency chain
+  that must remain unresolved until backend-owned evidence exists. Completed
+  phases 5441-5460 add blocked remediation dependency work-item evidence so
+  later claim-ledger, validator-ready, proof-writer, acceptance, or
+  command-route enablement work can see the backend-owned work-item store,
+  claim, owner-review, and contextless-review blockers that must remain
+  unresolved until backend-owned evidence exists. Completed phases 5461-5480 add
+  blocked remediation dependency work-item claim-trace evidence so later
+  claim-ledger, validator-ready, proof-writer, acceptance, or command-route
+  enablement work can see the backend-owned claim-trace store, claim target,
+  claim-review, claim-ledger, predecessor/successor claim-trace, and
+  contextless-review blockers that must remain unresolved until backend-owned
+  evidence exists.
+  Completed phases 5481-5980 continue that M57 futures/perpetual blocked
+  evidence chain through claim-trace clearance planning, clearance steps,
+  reviews, review inputs, store requirements, record contracts, record
+  validations, remediation dependencies, work-item claim traces, and route
+  enablement planning without resolving claims, registering executable routes,
+  invoking managers, calling Coinbase, executing reconciliation, mutating
+  futures/order/exchange state, or granting browser/BFF authority.
+  Completed phases 5981-6360 add disabled shared command-service, risk-guard,
+  reconciliation-plan, route-registration, live-adapter, proof-route/writer,
+  proof-payload-field, and route-bound no-live draft evidence for futures
+  placement, close/reduce, cancel, and reconciliation. Those rows prove
+  backend-owned contract targets only; they do not validate payloads, accept
+  proofs, construct adapters, submit/cancel Coinbase orders, execute
+  reconciliation, or import spot rules.
+  Completed phases 6361-6560 add disabled request-payload field contract,
+  validation-gate, validator contract/input/output schema, validator
+  registration, validation evidence, validation-record contract/schema, and
+  replay-guard evidence. These rows keep validation, append-only storage,
+  replay protection, idempotency binding, and request acceptance false.
+  Completed phases 6561-7080 add disabled validation-record audit/admission
+  links, execution-eligibility blockers, semantic artifacts, semantic review
+  inputs/outputs/acceptances, runtime-evidence binding, futures-specific
+  position, margin, collateral, liquidation, reduce-only, close-only, funding,
+  order, cancel, and reconciliation semantic rows, plus execution-eligibility
+  semantic-closure evidence. These rows explicitly avoid spot wallet,
+  no-shorting, cost-basis, or USDC-only assumptions.
+  Completed phases 7081-7700 add disabled execution-eligibility resolution
+  plan steps, reviews, review inputs, store requirements, record contracts,
+  record validations, remediations, dependencies, work items, claim traces,
+  clearance plans/steps/reviews/inputs/stores, validation-check contracts,
+  input/output schema field evidence, output schema field constraint source
+  refs, source-ref contextless reviews, source-ref acceptances,
+  record-acceptances, validation-record acceptances, validation-record
+  acceptance contextless reviews, and validation-record acceptance
+  contextless-review acceptance evidence.
+  Completed phases 7701-7720 add read-only command enablement
+  contextless-review blocker summary evidence carrying the latest blind-review
+  result without clearing command enablement.
+  Completed phases 7721-7740 add read-only futures command prerequisite
+  summary evidence derived from existing per-command prerequisites. Completed
+  phases 7741-7760 add read-only futures command request-field summary
+  evidence derived from existing per-command request fields and validator refs.
+  Completed phases 7761-7780 add read-only futures command semantic-guard
+  summary evidence derived from existing per-command semantic guard rows.
+  Completed phases 7781-7800 add read-only futures command risk-proof
+  requirement summary evidence derived from existing per-command risk-proof
+  requirement rows. Completed phases 7801-7820 add read-only futures command
+  readiness-decision summary evidence derived from existing per-command
+  readiness decisions. Completed phases 7821-7840 add read-only futures
+  risk-proof record resolver summary evidence derived from existing
+  per-command risk-proof requirement rows. Completed phases 7841-7860 add
+  read-only futures risk-proof acceptance blocker summary evidence derived
+  from existing per-command risk-proof requirement rows. Completed phases
+  7861-7880 add read-only futures risk-proof acceptance criterion summary
+  evidence derived from existing per-command risk-proof acceptance criteria.
+  Completed phases 7881-7900 add read-only futures risk-proof contract summary
+  evidence derived from existing per-command risk-proof proof contracts.
+  Completed phases 7901-7920 add read-only futures risk-proof payload field
+  summary evidence derived from existing per-command risk-proof payload-field
+  rows. Completed phases 7921-7940 add read-only futures risk-proof record
+  contract summary evidence derived from existing per-command risk-proof
+  record-contract rows. Active phases 7941-7960 add read-only futures
+  risk-proof record validation summary evidence derived from existing
+  per-command risk-proof record-validation rows. The latest completed
+  API/frontend range is 7921-7940; the active API/frontend range is
+  7941-7960. None of this
+  evidence is semantic guard evaluation, proof acceptance resolution,
+  proof-route registration, proof-writer enablement, acceptance criteria
+  acceptance, store creation, append-only log configuration, idempotency
+  binding, validator registration, validation execution, replay-passage,
+  proof-record writes, proof-record acceptance, risk-proof acceptance,
+  readiness-decision clearance, command enablement clearance, command
+  admission, Coinbase execution, reconciliation execution, browser/BFF
+  authority, or spot-rule authority.
+  Contracts and decision evidence remain
+  blocked: Coinbase, manager, reconciliation, active-placement, state
+  mutation, browser, and BFF authority remain disabled.
 
 Remaining blockers before M55 can claim full stealth command-suite completion:
 

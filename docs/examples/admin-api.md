@@ -10,6 +10,876 @@ Spot is the first complete product module. Do not use spot wallet, USDC,
 cost-basis, or no-shorting rules as generic admin behavior for
 futures/perpetuals, stealth orders, repricing, or risk policy modules.
 
+## Current Futures/Perpetuals M57 Evidence
+
+`GET /api/v1/futures/command-suite` currently reports
+`"approved_phase_range": "7961-7980"`. Futures/perpetual command-suite reads
+now expose backend-owned
+`risk_proof_record_validation_remediation_summary_count`,
+`risk_proof_record_validation_remediation_summary_blocking_count`, and
+`risk_proof_record_validation_remediation_summaries` evidence for current M57
+`7961-7980` while completed `7941-7960` risk-proof record validation summary
+evidence remains carried-forward history. The current rows are disabled,
+no-live evidence only and must not perform remediation, create work items,
+register record validators, run contextless reviews, configure validation
+gates, create stores, configure append-only logs, bind idempotency, register
+payload validation, register replay guards, link audit evidence, write
+validation records, write proof records, accept proof records, resolve proof
+acceptance, accept risk proofs, pass command readiness, admit commands, pass
+approval/cap/guard/reconciliation gates, call Coinbase, execute
+reconciliation, mutate state, or grant browser/BFF or spot-rule authority.
+
+Completed `"approved_phase_range": "7941-7960"`. Futures/perpetual
+command-suite reads expose backend-owned risk-proof record validation summary
+evidence while carrying forward risk-proof record contract summary evidence.
+
+Completed `"approved_phase_range": "7921-7940"`. Futures/perpetual
+command-suite reads expose backend-owned risk-proof record contract summary
+evidence while carrying forward risk-proof payload field summary evidence.
+
+Completed `"approved_phase_range": "7901-7920"`. Futures/perpetual
+command-suite reads expose backend-owned risk-proof payload field summary
+evidence while carrying forward risk-proof contract summary evidence.
+
+Completed `"approved_phase_range": "7881-7900"`. Futures/perpetual
+command-suite reads expose backend-owned risk-proof contract summary evidence
+while carrying forward risk-proof acceptance criterion summary evidence.
+
+Completed `"approved_phase_range": "7861-7880"`. Futures/perpetual
+command-suite reads expose backend-owned risk-proof acceptance criterion
+summary evidence while carrying forward risk-proof acceptance blocker summary
+evidence.
+
+Completed `"approved_phase_range": "7841-7860"`. Futures/perpetual
+command-suite reads expose backend-owned risk-proof acceptance blocker summary
+evidence while carrying forward risk-proof record resolver summary evidence.
+
+Completed `"approved_phase_range": "7821-7840"`. Futures/perpetual
+command-suite reads expose backend-owned risk-proof record resolver summary
+evidence while carrying forward command readiness-decision summary evidence.
+
+Completed `"approved_phase_range": "7801-7820"`. Futures/perpetual
+command-suite reads expose backend-owned readiness-decision summary evidence
+while carrying forward command risk-proof requirement summary evidence.
+
+Completed `"approved_phase_range": "7301-7320"`. Futures/perpetual command-suite reads
+expose backend-owned execution-eligibility resolution-plan step review input
+store record-validation remediation dependency work-item claim-trace clearance
+step review input evidence while carrying forward execution-eligibility
+resolution-plan step review input store record-validation remediation
+dependency work-item claim-trace clearance step review evidence.
+
+Completed `"approved_phase_range": "7281-7300"`. Futures/perpetual command-suite reads
+expose backend-owned execution-eligibility resolution-plan step review input
+store record-validation remediation dependency work-item claim-trace clearance
+step review evidence while carrying forward execution-eligibility resolution-plan step
+review input store record-validation remediation dependency work-item
+claim-trace clearance step evidence,
+carrying forward execution-eligibility resolution-plan step
+review input store record-validation remediation dependency work-item
+claim-trace clearance plan evidence,
+carrying forward execution-eligibility resolution-plan step
+review input store record-validation remediation dependency work-item
+claim-trace evidence,
+carrying forward execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item evidence,
+carrying forward execution-eligibility resolution-plan step review input store
+record-validation remediation dependency evidence,
+execution-eligibility resolution-plan step review input store record-validation
+remediation evidence,
+execution-eligibility resolution-plan step review input store record-validation
+evidence, execution-eligibility resolution-plan step review input store
+record-contract evidence,
+execution-eligibility resolution-plan step review input store requirement evidence,
+execution-eligibility resolution-plan step review input evidence,
+execution-eligibility resolution-plan step review evidence,
+execution-eligibility resolution-plan step evidence, execution-eligibility
+resolution-plan evidence, execution-eligibility semantic closure evidence,
+disabled reconciliation semantics, cancel semantics, order semantics, and
+earlier evidence. Completed M57 `7681-7700` evidence adds futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint source-ref validation-record acceptance contextless-review acceptance evidence while
+completed M57 `7661-7680` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint source-ref validation-record acceptance contextless-review evidence.
+Completed M57 `7661-7680` evidence adds futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint source-ref validation-record acceptance contextless-review evidence while
+completed M57 `7641-7660` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint source-ref validation-record acceptance evidence.
+Completed M57 `7641-7660` evidence adds futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint source-ref validation-record acceptance evidence while
+completed M57 `7621-7640` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint source-ref record-acceptance evidence.
+Completed M57 `7621-7640` evidence adds futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint source-ref record-acceptance evidence while
+completed M57 `7601-7620` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint source-ref acceptance evidence.
+Completed M57 `7601-7620` evidence adds futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint source-ref acceptance evidence while
+completed M57 `7581-7600` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint source-ref contextless-review evidence.
+Completed M57 `7581-7600` evidence adds futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint source-ref contextless-review evidence while
+completed M57 `7561-7580` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint source-ref evidence.
+Completed M57 `7561-7580` evidence adds futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint source-ref evidence while
+completed M57 `7541-7560` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint evidence.
+Completed M57 `7541-7560` evidence adds futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-constraint evidence while
+completed M57 `7521-7540` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-type evidence.
+Completed M57 `7521-7540` evidence adds futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-type evidence while
+completed M57 `7501-7520` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-name evidence.
+Completed M57 `7501-7520` evidence adds futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field-name evidence while
+completed M57 `7481-7500` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field evidence.
+Completed M57 `7481-7500` evidence adds futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema field evidence while
+completed M57 `7461-7480` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema evidence. Completed
+M57 `7461-7480` evidence adds futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check output schema evidence while
+completed M57 `7441-7460` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check input schema field evidence. Completed
+M57 `7441-7460` evidence adds futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check input schema field evidence while
+completed M57 `7421-7440` carries forward futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check input schema evidence. Completed
+M57 `7421-7440` evidence adds futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check input schema evidence while completed
+M57 `7401-7420` carries forward futures request payload validation record
+execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check contract evidence. Completed M57
+`7401-7420` evidence adds futures request payload validation record
+execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check contract evidence while completed
+M57 `7381-7400` carries forward futures request payload validation record
+execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check evidence. Completed M57
+`7381-7400` evidence adds futures request payload validation record
+execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-validation check evidence. Completed M57 `7361-7380`
+evidence adds futures request payload validation record execution-eligibility
+resolution-plan step review input store record-validation remediation
+dependency work-item claim-trace clearance-step review input store
+record-validation evidence while completed M57 `7341-7360` carries forward
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency work-item
+claim-trace clearance-step review input store record-contract evidence.
+Completed M57 `7341-7360` evidence adds futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store record-contract evidence while completed M57 `7321-7340`
+carries forward futures request payload validation record execution-eligibility
+resolution-plan step review input store record-validation remediation
+dependency work-item claim-trace clearance-step review input store requirement
+evidence. Completed M57 `7321-7340` evidence adds futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store requirement evidence while completed M57 `7301-7320` carries
+forward futures request payload validation record execution-eligibility
+resolution-plan step review input store record-validation remediation
+dependency work-item claim-trace clearance-step review input evidence. Completed
+M57 `7301-7320` evidence adds futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input
+evidence while completed M57 `7281-7300` carries forward futures
+request payload validation record execution-eligibility resolution-plan step
+review input store record-validation remediation dependency work-item
+claim-trace clearance-step review evidence. Completed M57 `7281-7300` evidence adds futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review evidence while completed M57 `7261-7280` carries forward futures request
+payload validation record execution-eligibility resolution-plan step review
+input store record-validation remediation dependency work-item claim-trace
+clearance step evidence, completed M57 `7241-7260` carries forward futures request
+payload validation record execution-eligibility resolution-plan step review
+input store record-validation remediation dependency work-item claim-trace
+clearance plan evidence, completed M57 `7221-7240` carries forward futures request
+payload validation record execution-eligibility resolution-plan step review
+input store record-validation remediation dependency work-item claim trace
+evidence, completed M57 `7201-7220` carries forward futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item evidence, and completed M57
+`7181-7200` carries forward futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency evidence.
+
+Active claim-trace rows expose `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_contract_ref`,
+`record_validation_remediation_dependency_work_item_claim_trace_required=true`,
+`record_validation_remediation_dependency_work_item_claim_trace_ready=false`,
+`record_validation_remediation_dependency_work_item_claim_trace_created=false`,
+`claim_trace_created=false`, `claim_trace_ready=false`,
+`claim_allowed=false`, `claim_resolved=false`,
+`claim_review_accepted=false`, `contextless_review_passed=false`,
+`accepts_evidence=false`, and `writes_evidence=false`.
+
+Active work-item rows expose `execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_contract_ref`,
+`record_validation_remediation_dependency_work_item_required=true`,
+`record_validation_remediation_dependency_work_item_ready=false`,
+`record_validation_remediation_dependency_work_item_created=false`,
+`record_validation_remediation_dependency_work_item_claimed=false`,
+`claim_ledger_registered=false`, `owner_review_accepted=false`,
+`contextless_review_passed=false`, `accepts_evidence=false`, and
+`writes_evidence=false`.
+
+Completed M57 `7181-7200` futures/perpetual command-suite reads expose
+backend-owned execution-eligibility resolution-plan step review input store
+record-validation remediation dependency evidence while carrying forward
+execution-eligibility resolution-plan step review input store
+record-validation remediation evidence.
+
+Completed M57 `7161-7180` futures/perpetual command-suite reads expose
+backend-owned execution-eligibility resolution-plan step review input store
+record-validation remediation evidence while carrying forward execution-
+eligibility resolution-plan step review input store record-validation evidence.
+
+Completed M57 `7141-7160` futures/perpetual command-suite reads expose
+backend-owned execution-eligibility resolution-plan step review input store
+record-validation evidence while carrying forward execution-eligibility
+resolution-plan step review input store record-contract evidence.
+
+Completed M57 `7121-7140` futures/perpetual command-suite reads
+expose backend-owned execution-eligibility resolution-plan step review input
+store record-contract evidence while carrying forward
+futures request payload validation record execution-eligibility resolution-plan
+step review input store requirement evidence.
+
+Completed M57 `7101-7120` futures/perpetual command-suite reads
+expose backend-owned execution-eligibility resolution-plan step review input
+store requirement evidence while carrying forward execution-eligibility
+resolution-plan step review input evidence, execution-eligibility
+resolution-plan step review evidence, execution-eligibility resolution-plan
+step evidence, execution-eligibility resolution-plan evidence,
+execution-eligibility semantic closure evidence, disabled reconciliation semantics,
+cancel semantics, order semantics, and
+carrying forward earlier semantic artifact runtime evidence binding,
+semantic artifact definition review output acceptance,
+semantic artifact definition review output, semantic artifact definition
+review input, semantic artifact definition review,
+semantic artifact definition, semantic artifact, execution-eligibility blocker,
+execution-eligibility, and admission-link evidence:
+`FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`,
+`iter_futures_request_payload_contracts`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`,
+`iter_futures_request_payload_validator_contracts`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`,
+`iter_futures_request_payload_validator_input_schemas`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`,
+`iter_futures_request_payload_validator_output_schemas`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`,
+`iter_futures_request_payload_validator_registrations`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`,
+`iter_futures_request_payload_validation_evidence`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`,
+`iter_futures_request_payload_validation_evidence_records`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`,
+`iter_futures_request_payload_validation_record_schemas`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS`,
+`iter_futures_request_payload_validation_record_replay_guards`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS`,
+`iter_futures_request_payload_validation_record_audit_links`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ADMISSION_LINK_CONTRACTS`,
+`iter_futures_request_payload_validation_record_admission_links`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS`,
+`iter_futures_request_payload_validation_record_execution_eligibilities`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_BLOCKER_CONTRACTS`,
+`iter_futures_request_payload_validation_record_execution_eligibility_blockers`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifacts`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifact_definitions`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifact_definition_reviews`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_INPUT_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifact_definition_review_inputs`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifact_definition_review_outputs`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_POSITION_SEMANTIC_CONTRACTS`,
+`iter_futures_request_payload_validation_record_position_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_MARGIN_SEMANTIC_CONTRACTS`,
+`iter_futures_request_payload_validation_record_margin_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_COLLATERAL_SEMANTIC_CONTRACTS`,
+`iter_futures_request_payload_validation_record_collateral_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_LIQUIDATION_SEMANTIC_CONTRACTS`,
+`iter_futures_request_payload_validation_record_liquidation_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REDUCE_ONLY_SEMANTIC_CONTRACTS`,
+`iter_futures_request_payload_validation_record_reduce_only_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CLOSE_ONLY_SEMANTIC_CONTRACTS`,
+`iter_futures_request_payload_validation_record_close_only_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_FUNDING_SEMANTIC_CONTRACTS`,
+`iter_futures_request_payload_validation_record_funding_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ORDER_SEMANTIC_CONTRACTS`,
+`iter_futures_request_payload_validation_record_order_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS`,
+`iter_futures_request_payload_validation_record_cancel_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_RECONCILIATION_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_reconciliation_semantics`.
+
+Active execution-eligibility resolution-plan step rows expose
+`execution_eligibility_resolution_plan_ref`,
+`execution_eligibility_resolution_plan_contract_ref`,
+`execution_eligibility_resolution_plan_step_ref`,
+`execution_eligibility_resolution_plan_step_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_ref`,
+`execution_eligibility_resolution_plan_step_review_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_ref`,
+`execution_eligibility_resolution_plan_step_review_input_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_requirement_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_requirement_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_contract_contract_ref`,
+`resolution_plan_step_kind`, `resolution_plan_step_ready=false`,
+`resolution_plan_step_accepted=false`,
+`resolution_plan_step_review_required=true`,
+`resolution_plan_step_review_ready=false`,
+`resolution_plan_step_reviewed=false`,
+`resolution_plan_step_review_accepted=false`, `review_input_kind`,
+`review_input_index`, `input_evidence_store`,
+`resolution_plan_step_review_input_required=true`,
+`resolution_plan_step_review_input_present=false`,
+`resolution_plan_step_review_input_accepted=false`,
+`resolution_plan_step_review_input_validated=false`,
+`resolution_plan_step_review_input_store_requirement_required=true`,
+`resolution_plan_step_review_input_store_available=false`,
+`resolution_plan_step_review_input_writer_available=false`,
+`resolution_plan_step_review_input_record_key_available=false`,
+`resolution_plan_step_review_input_validation_gate_ready=false`,
+`resolution_plan_step_review_input_replay_gate_ready=false`,
+`record_contract_required=true`,
+`record_contract_available=false`,
+`record_schema_available=false`,
+`append_only_log_available=false`,
+`idempotency_key_bound=false`,
+`payload_schema_validated=false`,
+`replay_protected=false`,
+`store_available=false`,
+`writer_available=false`,
+`writer_allowed=false`,
+`write_allowed=false`,
+`record_present=false`,
+`record_accepted=false`,
+`record_validated=false`,
+`validation_configured=false`,
+`replay_protection_configured=false`,
+`ordered_resolution_step_ref`,
+`ordered_resolution_step_refs`, `ordered_resolution_step_count`,
+`resolution_plan_present=true`, `resolution_plan_ready=false`,
+`resolution_plan_accepted=false`,
+`runtime_evidence_satisfies_semantic_contract=false`,
+`validation_record_admission_link_ready=false`, and
+`blocker_resolved=false`. Resolution plan step review input store
+record-contract presence is not blocker resolution. Resolution plan step review
+input store requirement presence is not blocker resolution.
+
+Completed execution-eligibility semantic-closure rows expose
+`validation_record_position_semantics_contract_ref`,
+`validation_record_margin_semantics_contract_ref`,
+`validation_record_collateral_semantics_contract_ref`,
+`validation_record_liquidation_semantics_contract_ref`,
+`validation_record_reduce_only_semantics_contract_ref`,
+`validation_record_close_only_semantics_contract_ref`,
+`validation_record_funding_semantics_contract_ref`,
+`validation_record_order_semantics_contract_ref`,
+`validation_record_cancel_semantics_contract_ref`,
+`validation_record_reconciliation_semantics_contract_ref`,
+`validation_record_semantic_contract_refs`,
+`validation_record_semantic_contract_ref_count`,
+`validation_record_semantic_contracts_present=true`,
+`validation_record_semantic_contracts_ready=false`,
+`semantic_contract_ref`, `semantic_contract_present=true`, and
+`semantic_contract_ready=false`.
+
+Completed reconciliation-semantics rows expose
+`request_payload_validation_record_reconciliation_semantic_count`,
+`blocking_request_payload_validation_record_reconciliation_semantic_count`,
+`ready_request_payload_validation_record_reconciliation_semantic_count`,
+`runtime_observed_request_payload_validation_record_reconciliation_semantic_count`,
+`request_payload_validation_record_reconciliation_semantics`,
+`reconciliation_semantics_ref`, `reconciliation_semantics_contract_ref`,
+`evidence_routes`, `reconciliation_semantics_contract_available=false`,
+`reconciliation_semantics_contract_ready=false`,
+`reconciliation_identity_bound=false`,
+`reconciliation_position_key_bound=false`,
+`reconciliation_plan_bound=false`, `reconciliation_reason_bound=false`,
+`post_exchange_reconciliation_bound=false`,
+`reconciliation_audit_bound=false`,
+`runtime_reconciliation_evidence_observed=false`,
+`runtime_evidence_satisfies_reconciliation_semantics=false`, and
+`validation_record_reconciliation_semantics_ready=false`.
+
+Completed cancel-semantics rows expose
+`request_payload_validation_record_cancel_semantic_count`,
+`blocking_request_payload_validation_record_cancel_semantic_count`,
+`ready_request_payload_validation_record_cancel_semantic_count`,
+`runtime_observed_request_payload_validation_record_cancel_semantic_count`,
+`request_payload_validation_record_cancel_semantics`,
+`cancel_semantics_ref`, `cancel_semantics_contract_ref`,
+`evidence_routes`, `cancel_semantics_contract_available=false`,
+`cancel_semantics_contract_ready=false`, `cancel_identity_bound=false`,
+`cancel_client_order_id_bound=false`,
+`cancel_order_wrapper_bound=false`,
+`cancel_active_placement_bound=false`, `cancel_audit_bound=false`,
+`runtime_cancel_evidence_observed=false`,
+`runtime_evidence_satisfies_cancel_semantics=false`, and
+`validation_record_cancel_semantics_ready=false`.
+
+Completed order-semantics rows expose
+`request_payload_validation_record_order_semantic_count`,
+`blocking_request_payload_validation_record_order_semantic_count`,
+`ready_request_payload_validation_record_order_semantic_count`,
+`runtime_observed_request_payload_validation_record_order_semantic_count`,
+`request_payload_validation_record_order_semantics`,
+`order_semantics_ref`, `order_semantics_contract_ref`,
+`evidence_routes`, `order_semantics_contract_available=false`,
+`order_semantics_contract_ready=false`, `order_identity_bound=false`,
+`order_side_bound=false`, `order_size_bound=false`,
+`order_price_bound=false`, `order_type_bound=false`,
+`runtime_order_evidence_observed=false`,
+`runtime_evidence_satisfies_order_semantics=false`, and
+`validation_record_order_semantics_ready=false`. Completed
+funding-semantics rows expose
+`request_payload_validation_record_funding_semantic_count`,
+`blocking_request_payload_validation_record_funding_semantic_count`,
+`ready_request_payload_validation_record_funding_semantic_count`,
+`runtime_observed_request_payload_validation_record_funding_semantic_count`,
+`request_payload_validation_record_funding_semantics`,
+`funding_semantics_ref`, `funding_semantics_contract_ref`,
+`evidence_routes`, `funding_semantics_contract_available=false`,
+`funding_semantics_contract_ready=false`, `funding_rate_bound=false`,
+`funding_fee_bound=false`, `funding_interval_bound=false`,
+`funding_cost_bound=false`, `runtime_funding_evidence_observed=false`,
+`runtime_evidence_satisfies_funding_semantics=false`, and
+`validation_record_funding_semantics_ready=false`. Completed
+close-only-semantics rows expose
+`request_payload_validation_record_close_only_semantic_count`,
+`blocking_request_payload_validation_record_close_only_semantic_count`,
+`ready_request_payload_validation_record_close_only_semantic_count`,
+`runtime_observed_request_payload_validation_record_close_only_semantic_count`,
+`request_payload_validation_record_close_only_semantics`,
+`close_only_semantics_ref`, `close_only_semantics_contract_ref`,
+`evidence_routes`, `close_only_semantics_contract_available=false`,
+`close_only_semantics_contract_ready=false`,
+`close_only_flag_bound=false`, `close_only_position_side_bound=false`,
+`close_only_position_size_bound=false`, `close_only_order_side_bound=false`,
+`runtime_close_only_evidence_observed=false`,
+`runtime_evidence_satisfies_close_only_semantics=false`, and
+`validation_record_close_only_semantics_ready=false`. Completed
+reduce-only-semantics rows expose
+`request_payload_validation_record_reduce_only_semantic_count`,
+`blocking_request_payload_validation_record_reduce_only_semantic_count`,
+`ready_request_payload_validation_record_reduce_only_semantic_count`,
+`runtime_observed_request_payload_validation_record_reduce_only_semantic_count`,
+`request_payload_validation_record_reduce_only_semantics`,
+`reduce_only_semantics_ref`, `reduce_only_semantics_contract_ref`,
+`evidence_routes`, `reduce_only_semantics_contract_available=false`,
+`reduce_only_semantics_contract_ready=false`,
+`reduce_only_flag_bound=false`, `reduce_only_position_side_bound=false`,
+`reduce_only_position_size_bound=false`, `reduce_only_order_side_bound=false`,
+`runtime_reduce_only_evidence_observed=false`,
+`runtime_evidence_satisfies_reduce_only_semantics=false`, and
+`validation_record_reduce_only_semantics_ready=false`. Completed
+liquidation-semantics rows expose
+`request_payload_validation_record_liquidation_semantic_count`,
+`blocking_request_payload_validation_record_liquidation_semantic_count`,
+`ready_request_payload_validation_record_liquidation_semantic_count`,
+`runtime_observed_request_payload_validation_record_liquidation_semantic_count`,
+`request_payload_validation_record_liquidation_semantics`,
+`liquidation_semantics_ref`, `liquidation_semantics_contract_ref`,
+`evidence_routes`, `liquidation_semantics_contract_available=false`,
+`liquidation_semantics_contract_ready=false`,
+`liquidation_buffer_bound=false`, `liquidation_price_bound=false`,
+`liquidation_distance_bound=false`, `liquidation_threshold_bound=false`,
+`runtime_liquidation_evidence_observed=false`,
+`runtime_evidence_satisfies_liquidation_semantics=false`, and
+`validation_record_liquidation_semantics_ready=false`. Completed
+collateral-semantics rows expose
+`request_payload_validation_record_collateral_semantic_count`,
+`blocking_request_payload_validation_record_collateral_semantic_count`,
+`ready_request_payload_validation_record_collateral_semantic_count`,
+`runtime_observed_request_payload_validation_record_collateral_semantic_count`,
+`request_payload_validation_record_collateral_semantics`,
+`collateral_semantics_ref`, `collateral_semantics_contract_ref`,
+`evidence_routes`, `collateral_semantics_contract_available=false`,
+`collateral_semantics_contract_ready=false`,
+`collateral_balance_bound=false`, `collateral_currency_bound=false`,
+`collateral_requirement_bound=false`, `collateral_source_bound=false`,
+`runtime_collateral_evidence_observed=false`,
+`runtime_evidence_satisfies_collateral_semantics=false`, and
+`validation_record_collateral_semantics_ready=false`. Completed margin-semantics
+rows expose
+`request_payload_validation_record_margin_semantic_count`,
+`blocking_request_payload_validation_record_margin_semantic_count`,
+`ready_request_payload_validation_record_margin_semantic_count`,
+`runtime_observed_request_payload_validation_record_margin_semantic_count`,
+`request_payload_validation_record_margin_semantics`,
+`margin_semantics_ref`, `margin_semantics_contract_ref`,
+`evidence_routes`, `margin_semantics_contract_available=false`,
+`margin_semantics_contract_ready=false`, `margin_account_bound=false`,
+`margin_requirement_bound=false`, `margin_mode_bound=false`,
+`margin_buffer_bound=false`, `runtime_margin_evidence_observed=false`,
+`runtime_evidence_satisfies_margin_semantics=false`, and
+`validation_record_margin_semantics_ready=false`. Completed position-semantics
+rows expose
+`request_payload_validation_record_position_semantic_count`,
+`blocking_request_payload_validation_record_position_semantic_count`,
+`ready_request_payload_validation_record_position_semantic_count`,
+`runtime_observed_request_payload_validation_record_position_semantic_count`,
+`request_payload_validation_record_position_semantics`,
+`position_semantics_ref`, `position_semantics_contract_ref`,
+`evidence_routes`, `position_semantics_contract_available=false`,
+`position_semantics_contract_ready=false`, `position_identity_bound=false`,
+`position_scope_bound=false`, `position_side_derivation_bound=false`,
+`position_size_bound=false`, `position_notional_bound=false`,
+`runtime_position_evidence_observed=false`,
+`runtime_evidence_satisfies_position_semantics=false`, and
+`validation_record_position_semantics_ready=false`. Completed semantic
+artifact runtime evidence acceptance rows expose
+`request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
+`blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
+`ready_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
+`request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`,
+`semantic_artifact_runtime_evidence_acceptance_ref`,
+`semantic_artifact_runtime_evidence_acceptance_contract_ref`,
+`semantic_artifact_runtime_evidence_acceptance_available=false`, and
+`semantic_artifact_runtime_evidence_acceptance_accepted=false`. Completed
+semantic artifact runtime evidence rows expose
+`request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`ready_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`request_payload_validation_record_semantic_artifact_runtime_evidences`,
+`semantic_artifact_runtime_evidence_ref`,
+`semantic_artifact_runtime_evidence_contract_ref`,
+`semantic_artifact_runtime_evidence_available=false`,
+`semantic_artifact_runtime_evidence_bound=false`, and
+`semantic_artifact_runtime_evidence_accepted=false`. Completed semantic
+artifact definition review output acceptance rows expose
+`request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+`blocking_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+`ready_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+`request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`,
+`semantic_artifact_definition_review_output_acceptance_ref`,
+`semantic_artifact_definition_review_output_acceptance_contract_ref`,
+`semantic_artifact_definition_review_output_acceptance_available=false`, and
+`semantic_artifact_definition_review_output_acceptance_accepted=false`.
+Completed semantic artifact definition review output rows expose
+`request_payload_validation_record_semantic_artifact_definition_review_output_count`,
+`blocking_request_payload_validation_record_semantic_artifact_definition_review_output_count`,
+`ready_request_payload_validation_record_semantic_artifact_definition_review_output_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_output_count`,
+`request_payload_validation_record_semantic_artifact_definition_review_outputs`,
+`semantic_artifact_definition_review_output_ref`,
+`semantic_artifact_definition_review_output_contract_ref`,
+`semantic_artifact_definition_review_output_available=false`, and
+`semantic_artifact_definition_review_output_accepted=false`. Completed semantic
+artifact definition review input rows expose
+`request_payload_validation_record_semantic_artifact_definition_review_input_count`,
+`blocking_request_payload_validation_record_semantic_artifact_definition_review_input_count`,
+`ready_request_payload_validation_record_semantic_artifact_definition_review_input_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_input_count`,
+`request_payload_validation_record_semantic_artifact_definition_review_inputs`,
+`semantic_artifact_definition_review_input_ref`,
+`semantic_artifact_definition_review_input_contract_ref`,
+`semantic_artifact_definition_review_input_available=false`, and
+`semantic_artifact_definition_review_input_accepted=false`. Completed semantic
+artifact definition review rows expose
+`request_payload_validation_record_semantic_artifact_definition_review_count`,
+`blocking_request_payload_validation_record_semantic_artifact_definition_review_count`,
+`ready_request_payload_validation_record_semantic_artifact_definition_review_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_count`,
+`request_payload_validation_record_semantic_artifact_definition_reviews`,
+`semantic_artifact_definition_review_ref`,
+`semantic_artifact_definition_review_contract_ref`,
+`semantic_artifact_definition_review_input_ref`,
+`semantic_artifact_definition_review_output_ref`,
+`contextless_review_required=true`,
+`semantic_artifact_definition_available=false`,
+`semantic_artifact_definition_review_available=false`,
+`semantic_artifact_definition_reviewed=false`,
+`semantic_artifact_definition_review_passed=false`, and
+`semantic_artifact_runtime_evidence_bound=false`. Completed semantic artifact
+definition rows expose
+`request_payload_validation_record_semantic_artifact_definition_count`,
+`blocking_request_payload_validation_record_semantic_artifact_definition_count`,
+`ready_request_payload_validation_record_semantic_artifact_definition_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_definition_count`,
+`request_payload_validation_record_semantic_artifact_definitions`,
+`semantic_artifact_definition_ref`, and
+`semantic_artifact_definition_contract_ref`. Completed semantic artifact rows expose
+`request_payload_validation_record_semantic_artifact_count`,
+`blocking_request_payload_validation_record_semantic_artifact_count`,
+`ready_request_payload_validation_record_semantic_artifact_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_count`,
+`request_payload_validation_record_semantic_artifacts`,
+`semantic_artifact_ref`, and `semantic_artifact_contract_ref`. These rows are
+blocked evidence only; they do not define futures semantics, resolve execution
+eligibility blockers, validate request payloads, accept liquidation semantics,
+bind live account/risk evidence, accept collateral semantics, bind live
+account/collateral evidence, accept margin semantics, accept position
+semantics, bind live position evidence, accept or bind runtime evidence,
+accept runtime-evidence acceptances, admit commands, call Coinbase, execute
+reconciliation, mutate futures state, or grant browser/BFF authority.
+Exact autonomous phrase: Active M57 `6861-6880` evidence adds disabled futures request payload validation record liquidation semantics while completed M57 `6841-6860` carries forward disabled futures request payload validation record collateral semantics.
+
+Representative no-live response keys include
+`"request_field_count"`, `"blocking_request_field_count"`,
+`"request_payload_validator_contract_count"`,
+`"blocking_request_payload_validator_contract_count"`,
+`"ready_request_payload_validator_contract_count"`,
+`"registered_request_payload_validator_contract_count"`,
+`"request_payload_validator_contracts"`,
+`"request_payload_validator_input_schema_count"`,
+`"blocking_request_payload_validator_input_schema_count"`,
+`"ready_request_payload_validator_input_schema_count"`,
+`"registered_request_payload_validator_input_schema_count"`,
+`"request_payload_validator_input_schemas"`,
+`"request_payload_validator_output_schema_count"`,
+`"blocking_request_payload_validator_output_schema_count"`,
+`"ready_request_payload_validator_output_schema_count"`,
+`"registered_request_payload_validator_output_schema_count"`,
+`"request_payload_validator_output_schemas"`,
+`"request_payload_validator_registration_count"`,
+`"blocking_request_payload_validator_registration_count"`,
+`"ready_request_payload_validator_registration_count"`,
+`"registered_request_payload_validator_registration_count"`,
+`"runtime_observed_request_payload_validator_registration_count"`,
+`"request_payload_validator_registrations"`,
+`"request_payload_validation_evidence_count"`,
+`"blocking_request_payload_validation_evidence_count"`,
+`"ready_request_payload_validation_evidence_count"`,
+`"recorded_request_payload_validation_evidence_count"`,
+`"runtime_observed_request_payload_validation_evidence_count"`,
+`"request_payload_validation_evidence"`,
+`"request_payload_validation_evidence_record_count"`,
+`"blocking_request_payload_validation_evidence_record_count"`,
+`"request_payload_validation_record_admission_link_count"`,
+`"blocking_request_payload_validation_record_admission_link_count"`,
+`"ready_request_payload_validation_record_admission_link_count"`,
+`"admission_bound_request_payload_validation_record_count"`,
+`"runtime_observed_request_payload_validation_record_admission_link_count"`,
+`"request_payload_validation_record_admission_links"`,
+`"request_payload_validation_record_execution_eligibility_count"`,
+`"blocking_request_payload_validation_record_execution_eligibility_count"`,
+`"ready_request_payload_validation_record_execution_eligibility_count"`,
+`"execution_eligible_request_payload_validation_record_count"`,
+`"runtime_observed_request_payload_validation_record_execution_eligibility_count"`,
+`"request_payload_validation_record_execution_eligibilities"`,
+`"request_payload_validation_record_audit_link_count"`,
+`"blocking_request_payload_validation_record_audit_link_count"`,
+`"ready_request_payload_validation_record_audit_link_count"`,
+`"audit_bound_request_payload_validation_record_count"`,
+`"runtime_observed_request_payload_validation_record_audit_link_count"`,
+`"request_payload_validation_record_audit_links"`,
+`"ready_request_payload_validation_evidence_record_count"`,
+`"stored_request_payload_validation_evidence_record_count"`,
+`"runtime_observed_request_payload_validation_evidence_record_count"`,
+`"request_payload_validation_evidence_records"`,
+`"request_payload_validation_record_schema_count"`,
+`"blocking_request_payload_validation_record_schema_count"`,
+`"ready_request_payload_validation_record_schema_count"`,
+`"registered_request_payload_validation_record_schema_count"`,
+`"runtime_observed_request_payload_validation_record_schema_count"`,
+`"request_payload_validation_record_schemas"`,
+`"request_payload_validation_record_replay_guard_count"`,
+`"blocking_request_payload_validation_record_replay_guard_count"`,
+`"ready_request_payload_validation_record_replay_guard_count"`,
+`"idempotency_bound_request_payload_validation_record_count"`,
+`"runtime_observed_request_payload_validation_record_replay_guard_count"`,
+`"request_payload_validation_record_replay_guards"`,
+`"request_payload_validation_record_audit_link_count"`,
+`"blocking_request_payload_validation_record_audit_link_count"`,
+`"ready_request_payload_validation_record_audit_link_count"`,
+`"audit_bound_request_payload_validation_record_count"`,
+`"runtime_observed_request_payload_validation_record_audit_link_count"`, and
+`"request_payload_validation_record_audit_links"`.
+
+Machine-check replay guard count keys:
+`request_payload_validation_record_replay_guard_count`,
+`blocking_request_payload_validation_record_replay_guard_count`,
+`ready_request_payload_validation_record_replay_guard_count`,
+`idempotency_bound_request_payload_validation_record_count`,
+`runtime_observed_request_payload_validation_record_replay_guard_count`,
+`request_payload_validation_record_replay_guards`,
+`request_payload_validation_record_admission_link_count`,
+`blocking_request_payload_validation_record_admission_link_count`,
+`ready_request_payload_validation_record_admission_link_count`,
+`admission_bound_request_payload_validation_record_count`,
+`runtime_observed_request_payload_validation_record_admission_link_count`,
+`request_payload_validation_record_admission_links`,
+`request_payload_validation_record_execution_eligibility_count`,
+`blocking_request_payload_validation_record_execution_eligibility_count`,
+`ready_request_payload_validation_record_execution_eligibility_count`,
+`execution_eligible_request_payload_validation_record_count`,
+`runtime_observed_request_payload_validation_record_execution_eligibility_count`,
+`request_payload_validation_record_execution_eligibilities`,
+`request_payload_validation_record_audit_link_count`,
+`blocking_request_payload_validation_record_audit_link_count`,
+`ready_request_payload_validation_record_audit_link_count`,
+`audit_bound_request_payload_validation_record_count`,
+`runtime_observed_request_payload_validation_record_audit_link_count`,
+`request_payload_validation_record_audit_links`.
+
+Row evidence includes `"validation_gate_ref"`, `"validation_evidence_ref"`,
+`"validator_contract_ref"`, `"validator_input_schema_ref"`,
+`"validator_output_schema_ref"`, `"output_schema_field_refs"`,
+`"output_schema_field_count"`, `"validator_registration_ref"`,
+`"validator_registration_field_refs"`, `"validator_registration_field_count"`,
+`"validation_evidence_contract_ref"`, `"validation_evidence_field_refs"`,
+`"validation_evidence_field_count"`, `"validation_record_contract_ref"`,
+`"validation_record_store_ref"`, `"validation_record_writer_ref"`,
+`"validation_record_replay_guard_ref"`, `"validation_record_field_refs"`,
+`"validation_record_field_count"`, `"validation_record_schema_ref"`,
+`"validation_record_append_only_log_ref"`,
+`"validation_record_replay_guard_contract_ref"`,
+`"validation_record_idempotency_contract_ref"`,
+`"validation_record_replay_window_ref"`,
+`"validation_record_duplicate_policy_ref"`,
+`"validation_record_schema_field_refs"`,
+`"validation_record_schema_field_count"`,
+`"validation_record_replay_guard_field_refs"`,
+`"validation_record_replay_guard_field_count"`,
+`"validation_record_audit_link_contract_ref"`,
+`"validation_record_actor_ref"`,
+`"validation_record_operator_intent_ref"`,
+`"validation_record_correlation_ref"`,
+`"validation_record_admission_audit_ref"`,
+`"validation_record_audit_record_ref"`,
+`"validation_record_audit_link_field_refs"`,
+`"validation_record_audit_link_field_count"`,
+`"validation_record_execution_eligibility_contract_ref"`,
+`"validation_record_position_semantics_ref"`,
+`"validation_record_margin_semantics_ref"`,
+`"validation_record_collateral_semantics_ref"`,
+`"validation_record_liquidation_semantics_ref"`,
+`"validation_record_reduce_only_semantics_ref"`,
+`"validation_record_close_only_semantics_ref"`,
+`"validation_record_funding_semantics_ref"`,
+`"validation_record_order_semantics_ref"`,
+`"validation_record_cancel_semantics_ref"`,
+`"validation_record_reconciliation_semantics_ref"`, and
+`"validation_record_execution_eligibility_field_refs"`.
+
+False authority flags remain `"validation_gate_ready": false`,
+`"validation_gate_passed": false`, `"validator_contract_registered": false`,
+`"validator_input_schema_registered": false`,
+`"validator_output_schema_registered": false`,
+`"output_schema_registered": false`, `"validator_registration_ready": false`,
+`"runtime_evidence_satisfies_validator_registration": false`,
+`"runtime_evidence_satisfies_validation_evidence": false`,
+`"validation_evidence_ready": false`, `"validation_evidence_recorded": false`,
+`"validation_record_contract_ready": false`,
+`"validation_record_store_ready": false`,
+`"validation_record_writer_enabled": false`,
+`"validation_record_replay_guard_ready": false`,
+`"validation_record_schema_ready": false`,
+`"validation_record_schema_registered": false`,
+`"validation_record_append_only_log_ready": false`,
+`"runtime_evidence_satisfies_validation_record_schema": false`,
+`"runtime_evidence_satisfies_validation_record_replay_guard": false`,
+`"runtime_evidence_satisfies_validation_record_audit_link": false`,
+`"validation_record_replay_guard_contract_ready": false`,
+`"validation_record_idempotency_contract_ready": false`,
+`"validation_record_replay_protected": false`,
+`"validation_record_audit_link_contract_ready": false`,
+`"validation_record_audit_link_ready": false`,
+`"validation_record_actor_bound": false`,
+`"validation_record_operator_intent_bound": false`,
+`"validation_record_correlation_bound": false`,
+`"validation_record_admission_audit_bound": false`,
+`"validation_record_audit_recorded": false`,
+`"runtime_evidence_satisfies_validation_record_execution_eligibility": false`,
+`"validation_record_execution_eligibility_contract_ready": false`,
+`"validation_record_execution_eligible": false`,
+append_only_validation_record=false,
+validation_record_idempotency_bound=false, request_payload_validated=false.
+Machine-check evidence: futures request payload contract registry evidence;
+futures request payload validation gate evidence; futures request payload
+validator contract registry evidence; futures request payload validator
+input-schema evidence; futures request payload validator output-schema evidence;
+futures request payload validator registration evidence; futures request
+payload validation evidence; futures request payload validation evidence record
+contract evidence; futures request payload validation record schema evidence;
+futures request payload validation record replay guard evidence; futures
+request payload validation record audit-link evidence; futures request payload
+validation record admission-link evidence; futures request payload validation
+record execution-eligibility evidence. The rows keep
+route/draft true and execution false flags; they do not validate command
+request payloads, register payload validators, register proof routes, create
+proof writers, call Coinbase, execute reconciliation, mutate
+futures/order/exchange state, or grant spot-rule authority.
+
 ## Bootstrap And Session
 
 Start the local backend target for frontend development:
@@ -166,7 +1036,7 @@ Expected current live-enablement posture:
 {
   "type": "admin_live_enablement",
   "status": "live_disabled",
-  "approved_phase_range": "3301-3320",
+  "approved_phase_range": "6541-6560",
   "default_live_coinbase_execution": "not_run",
   "submitted_notional_usdc": "0",
   "executed_notional_usdc": "0",
@@ -178,35 +1048,35 @@ Expected current live-enablement posture:
   "reconciliation_required": true,
   "live_enabled_path_count": 0,
   "live_eligible_path_count": 0,
-  "preflight_check_count": 64,
-  "blocking_preflight_check_count": 32,
-  "passed_preflight_check_count": 32,
-  "approval_snapshot_required_count": 5,
+  "preflight_check_count": 88,
+  "blocking_preflight_check_count": 44,
+  "passed_preflight_check_count": 44,
+  "approval_snapshot_required_count": 11,
   "approval_snapshot_present_count": 0,
-  "approval_snapshot_missing_count": 5,
-  "approval_snapshot_required_field_count": 75,
-  "approval_snapshot_missing_field_count": 75,
-  "approval_store_required_count": 5,
-  "approval_store_configured_count": 5,
+  "approval_snapshot_missing_count": 11,
+  "approval_snapshot_required_field_count": 165,
+  "approval_snapshot_missing_field_count": 165,
+  "approval_store_required_count": 11,
+  "approval_store_configured_count": 11,
   "approval_store_missing_count": 0,
-  "approval_store_requirement_count": 60,
+  "approval_store_requirement_count": 132,
   "approval_store_missing_requirement_count": 0,
-  "admission_audit_required_count": 5,
+  "admission_audit_required_count": 11,
   "admission_audit_configured_count": 0,
-  "admission_audit_missing_count": 5,
-  "admission_audit_fact_count": 50,
-  "admission_audit_missing_fact_count": 45,
-  "cap_guard_required_count": 5,
+  "admission_audit_missing_count": 11,
+  "admission_audit_fact_count": 110,
+  "admission_audit_missing_fact_count": 99,
+  "cap_guard_required_count": 11,
   "cap_guard_configured_count": 0,
-  "cap_guard_missing_count": 5,
-  "cap_guard_requirement_count": 70,
-  "cap_guard_missing_requirement_count": 70,
-  "live_execution_adapter_required_count": 5,
-  "live_execution_adapter_configured_count": 1,
-  "live_execution_adapter_missing_count": 4,
-  "readiness_precondition_count": 72,
-  "blocking_readiness_precondition_count": 47,
-  "passed_readiness_precondition_count": 25,
+  "cap_guard_missing_count": 11,
+  "cap_guard_requirement_count": 154,
+  "cap_guard_missing_requirement_count": 154,
+  "live_execution_adapter_required_count": 11,
+  "live_execution_adapter_configured_count": 2,
+  "live_execution_adapter_missing_count": 9,
+  "readiness_precondition_count": 99,
+  "blocking_readiness_precondition_count": 63,
+  "passed_readiness_precondition_count": 36,
   "paths": [
     {
       "path_id": "post.api.v1.orders",
@@ -860,25 +1730,25 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "3301-3320",
+  "approved_phase_range": "6541-6560",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
   "command_gap_count": 17,
   "module_registry_count": 8,
   "module_action_posture_count": 8,
-  "functionality_inventory_count": 23,
-  "backend_supported_workflow_count": 22,
-  "admin_exposed_workflow_count": 20,
-  "command_workflow_count": 15,
-  "live_designated_workflow_count": 7,
+  "functionality_inventory_count": 25,
+  "backend_supported_workflow_count": 25,
+  "admin_exposed_workflow_count": 23,
+  "command_workflow_count": 17,
+  "live_designated_workflow_count": 8,
   "recovery_workflow_count": 1,
   "automation_workflow_count": 1,
   "repair_workflow_count": 1,
-  "mutation_taxonomy_count": 29,
-  "route_bound_mutation_taxonomy_count": 27,
-  "live_disabled_mutation_count": 19,
-  "backend_contract_required_mutation_count": 2,
+  "mutation_taxonomy_count": 44,
+  "route_bound_mutation_taxonomy_count": 43,
+  "live_disabled_mutation_count": 33,
+  "backend_contract_required_mutation_count": 1,
   "compatibility_mutation_count": 3,
   "functionality_inventory": [
     {
@@ -910,6 +1780,42 @@ Expected current enterprise readiness posture:
       ],
       "frontend_boundary": "Keep buttons dry-submit/live-disabled unless backend capability and live-enablement evidence explicitly admit execution.",
       "spot_rule_boundary": "Spot commands must preserve no-shorting and inventory authority.",
+      "live_coinbase_execution": "not_run",
+      "notional_usdc": "0"
+    },
+    {
+      "workflow_id": "admin.live_service_decisions",
+      "module_id": "admin_system_health",
+      "module": "Admin / System Health",
+      "workflow_type": "command_draft",
+      "exposure_status": "admin_exposed",
+      "support_status": "platform_ready",
+      "backend_supported": true,
+      "admin_api_exposed": true,
+      "frontend_exposed": true,
+      "command_capable": true,
+      "live_designated": false,
+      "live_enabled": false,
+      "identity_keys": [
+        "decision_id",
+        "deployment_ref",
+        "runtime_configuration_ref"
+      ],
+      "read_routes": [
+        "GET /api/v1/admin/live-execution/service-decisions",
+        "GET /api/v1/admin/live-execution/service-decisions/{decision_id}"
+      ],
+      "command_routes": [
+        "POST /api/v1/admin/live-execution/service-decisions"
+      ],
+      "required_next_contract": "Controlled live adapter admission must still pass live service, live adapter, verification, and browser-boundary gates.",
+      "blockers": [
+        "live_execution_disabled",
+        "live_service_enablement_missing",
+        "live_adapter_construction_missing"
+      ],
+      "frontend_boundary": "The browser may display and forward disabled live-service decision evidence only; it must not enable service or clear live-readiness blockers.",
+      "spot_rule_boundary": "Live-service decision records are platform evidence. Spot wallet, USDC, cost-basis, and no-shorting rules stay in route-specific guard inputs.",
       "live_coinbase_execution": "not_run",
       "notional_usdc": "0"
     },
@@ -975,6 +1881,46 @@ Expected current enterprise readiness posture:
         "cancel reconciliation proof missing"
       ],
       "frontend_boundary": "Do not accept exchange order_id as the internal cancel identity; frontend cancel evidence must stay client_order_id-scoped.",
+      "live_coinbase_execution": "not_run",
+      "notional_usdc": "0"
+    },
+    {
+      "mutation_id": "admin.live_service_decisions",
+      "mutation_family": "admin_live_service_decision",
+      "workflow_id": "admin.live_service_decisions",
+      "module_id": "admin_system_health",
+      "module": "Admin / System Health",
+      "exposure_status": "admin_exposed",
+      "support_status": "platform_ready",
+      "command_surfaces": [
+        "POST /api/v1/admin/live-execution/service-decisions"
+      ],
+      "action_classes": ["local_state_mutation"],
+      "required_permissions": ["config:update"],
+      "identity_keys": [
+        "decision_id",
+        "deployment_ref",
+        "runtime_configuration_ref"
+      ],
+      "idempotency_required": true,
+      "operator_intent_required": true,
+      "rbac_required": true,
+      "approval_required": true,
+      "cap_guard_required": true,
+      "admission_audit_required": true,
+      "reconciliation_required": true,
+      "live_adapter_required": false,
+      "owning_backend_service": "application/admin_api/live_service_decision_service.py",
+      "shared_command_service_method": "record_live_service_decision",
+      "browser_authority": "display_only",
+      "bff_execution_authority": "forward_only_no_execution",
+      "route_local_execution_allowed": false,
+      "blockers": [
+        "live_execution_disabled",
+        "live_service_enablement_missing",
+        "live_adapter_construction_missing"
+      ],
+      "frontend_boundary": "The frontend may record and display disabled live-service decision evidence through generated contracts only; it must not enable service, approve Coinbase execution, or clear live-readiness blockers.",
       "live_coinbase_execution": "not_run",
       "notional_usdc": "0"
     },
@@ -1098,7 +2044,7 @@ Expected current enterprise readiness posture:
         "unsupported_action_count": 3,
         "command_gap_count": 3,
         "route_module_id_status": "passed",
-        "route_module_id_detail": "3 route inventory rows are bound to module_id=futures_perpetuals; enterprise readiness route lists are derived from module_id, not path prefixes.",
+        "route_module_id_detail": "4 route inventory rows are bound to module_id=futures_perpetuals; enterprise readiness route lists are derived from module_id, not path prefixes.",
         "frontend_authority": "backend_contract_only",
         "live_coinbase_execution": "not_run",
         "notional_usdc": "0"
@@ -1185,6 +2131,316 @@ Expected current enterprise readiness posture:
 This route is module and release-candidate evidence only. Warning release
 checks mean the external gate still has to be run; they are not browser-side
 approval or live execution authority.
+
+`GET /api/v1/admin/live-enablement` returns compact adapter evidence for
+operator reads. In that read summary, `construction_contract` may be `null`
+while `construction_contract_ref` still points at
+`backend_live_adapter_construction_contract`; this keeps the live-enablement
+read usable without hiding that full construction evidence is still required.
+
+Dedicated adapter-construction evidence may include active M55
+record-validation remediation dependency readback. Command responses and
+idempotency replays keep `construction_contract` null and expose only the
+construction-contract ref. The following JSON is a full construction-contract
+excerpt, not the compact command response or live-enablement read shape. The
+dependency rows derive from the remediation rows shown here, expose immediate
+predecessor/successor links only, and do not perform remediation.
+
+```json
+{
+  "live_execution_adapter_contract": {
+    "construction_contract": {
+      "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_items": [
+        {
+          "source_ref": "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validations",
+          "status": "blocked",
+          "remediation_id": "define_backend_route_contract_step_review_step_implementation_evidence_store_requirement_record_contract_record_validation_remediation",
+          "record_validation_id": "define_backend_route_contract_step_review_step_implementation_evidence_store_requirement_record_contract_record_validation",
+          "record_contract_id": "define_backend_route_contract_step_review_step_implementation_evidence_store_requirement_record_contract",
+          "input_id": "define_backend_route_contract_step_review_step_implementation_evidence",
+          "missing_backend_work": [
+            "record_contract_available",
+            "record_schema_available",
+            "append_only_log_available",
+            "idempotency_key_bound",
+            "payload_schema_validated",
+            "replay_protected",
+            "store_available",
+            "writer_allowed",
+            "write_allowed",
+            "record_present",
+            "record_accepted",
+            "record_validated"
+          ],
+          "remediation_gate": "define_backend_route_contract_step_review_step_implementation_evidence_store_requirement_record_contract_record_validation_remediation_gate",
+          "blocker": "define_backend_route_contract_step_review_step_implementation_evidence_store_requirement_record_contract_record_validation_remediation_missing_record_validation_remediation",
+          "validation_blocker": "define_backend_route_contract_step_review_step_implementation_evidence_store_requirement_record_contract_record_validation_missing_record_validation_readiness",
+          "remediation_ready": false,
+          "remediation_performed": false,
+          "record_validation_ready": false,
+          "write_allowed": false,
+          "adapter_constructed": false,
+          "live_execution_allowed": false,
+          "executed": false,
+          "no_live_execution": true,
+          "browser_authority": "display_only",
+          "bff_authority": "forward_only_no_execution"
+        }
+      ],
+      "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_summary": {
+        "status": "blocked",
+        "total_remediation_item_count": 1152,
+        "missing_remediation_item_count": 1152,
+        "ready_remediation_item_count": 0,
+        "record_validation_count": 1152,
+        "all_remediations_ready": false,
+        "remediation_performed": false,
+        "construction_allowed": false,
+        "adapter_constructed": false,
+        "live_execution_allowed": false,
+        "execution_allowed": false,
+        "executed": false,
+        "no_live_execution": true,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution"
+      },
+      "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependencies": [
+        {
+          "source_ref": "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_items",
+          "status": "blocked",
+          "dependency_id": "define_backend_route_contract_step_review_step_implementation_evidence_store_requirement_record_contract_record_validation_remediation_dependency",
+          "remediation_id": "define_backend_route_contract_step_review_step_implementation_evidence_store_requirement_record_contract_record_validation_remediation",
+          "record_validation_id": "define_backend_route_contract_step_review_step_implementation_evidence_store_requirement_record_contract_record_validation",
+          "dependency_stage": "record_validation_remediation",
+          "dependency_order": 1,
+          "predecessor_remediation_ids": [],
+          "successor_remediation_ids": [
+            "define_backend_route_contract_step_review_backend_owner_review_evidence_store_requirement_record_contract_record_validation_remediation"
+          ],
+          "dependency_ready": false,
+          "all_predecessors_ready": false,
+          "dependency_graph_ready": false,
+          "remediation_ready": false,
+          "remediation_performed": false,
+          "record_validation_ready": false,
+          "construction_allowed": false,
+          "adapter_constructed": false,
+          "live_execution_allowed": false,
+          "executed": false,
+          "no_live_execution": true,
+          "browser_authority": "display_only",
+          "bff_authority": "forward_only_no_execution"
+        }
+      ],
+      "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_summary": {
+        "status": "blocked",
+        "total_dependency_count": 1152,
+        "blocked_dependency_count": 1152,
+        "ready_dependency_count": 0,
+        "remediation_item_count": 1152,
+        "record_validation_count": 1152,
+        "dependency_graph_ready": false,
+        "all_dependencies_ready": false,
+        "all_predecessors_ready": false,
+        "any_action_ready": false,
+        "all_remediations_ready": false,
+        "remediation_performed": false,
+        "record_validation_ready": false,
+        "construction_allowed": false,
+        "adapter_constructed": false,
+        "live_execution_allowed": false,
+        "execution_allowed": false,
+        "executed": false,
+        "no_live_execution": true,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution"
+      },
+      "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_items": [
+        {
+          "source_ref": "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependencies",
+          "status": "blocked",
+          "work_item_id": "define_backend_route_contract_step_review_step_implementation_evidence_store_requirement_record_contract_record_validation_remediation_dependency_work_item",
+          "dependency_id": "define_backend_route_contract_step_review_step_implementation_evidence_store_requirement_record_contract_record_validation_remediation_dependency",
+          "remediation_id": "define_backend_route_contract_step_review_step_implementation_evidence_store_requirement_record_contract_record_validation_remediation",
+          "record_validation_id": "define_backend_route_contract_step_review_step_implementation_evidence_store_requirement_record_contract_record_validation",
+          "work_stage": "record_validation_remediation_dependency",
+          "work_queue_order": 1,
+          "predecessor_dependency_ids": [],
+          "successor_dependency_ids": [
+            "define_backend_route_contract_step_review_backend_owner_review_evidence_store_requirement_record_contract_record_validation_remediation_dependency"
+          ],
+          "required_backend_work": [
+            "record_contract_available",
+            "record_schema_available",
+            "append_only_log_available",
+            "idempotency_key_bound",
+            "payload_schema_validated",
+            "replay_protected",
+            "store_available",
+            "writer_allowed",
+            "write_allowed",
+            "record_present",
+            "record_accepted",
+            "record_validated"
+          ],
+          "work_item_ready": false,
+          "work_queue_ready": false,
+          "handoff_ready": false,
+          "dependency_ready": false,
+          "remediation_performed": false,
+          "record_validation_ready": false,
+          "construction_allowed": false,
+          "adapter_constructed": false,
+          "live_execution_allowed": false,
+          "executed": false,
+          "no_live_execution": true,
+          "browser_authority": "display_only",
+          "bff_authority": "forward_only_no_execution"
+        }
+      ],
+      "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_queue_summary": {
+        "status": "blocked",
+        "total_work_item_count": 1152,
+        "blocked_work_item_count": 1152,
+        "ready_work_item_count": 0,
+        "dependency_count": 1152,
+        "remediation_item_count": 1152,
+        "record_validation_count": 1152,
+        "work_queue_ready": false,
+        "all_work_items_ready": false,
+        "handoff_ready": false,
+        "dependency_graph_ready": false,
+        "all_dependencies_ready": false,
+        "remediation_performed": false,
+        "all_record_validations_ready": false,
+        "construction_allowed": false,
+        "adapter_constructed": false,
+        "live_execution_allowed": false,
+        "execution_allowed": false,
+        "executed": false,
+        "no_live_execution": true,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution"
+      }
+    }
+  }
+}
+```
+
+The same construction contract also exposes blocked claim-trace clearance
+plans and ordered clearance steps:
+
+```json
+{
+  "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps": [
+    {
+      "status": "blocked",
+      "step_order": 1,
+      "step_name": "inspect_dependency_work_item_claim_trace",
+      "required_ref_kind": "claim_trace_id",
+      "depends_on_prior_step_ids": [],
+      "blocks_next_step_ids": [
+        "claim-trace-001_clearance_plan_define_record_validation_remediation_plan_step"
+      ],
+      "step_ready": false,
+      "step_completed": false,
+      "claim_resolved": false,
+      "construction_allowed": false,
+      "live_execution_allowed": false,
+      "execution_allowed": false,
+      "executed": false,
+      "no_live_execution": true,
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution"
+    }
+  ],
+  "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_summary": {
+    "status": "blocked",
+    "total_step_count": 9216,
+    "blocked_step_count": 9216,
+    "ready_step_count": 0,
+    "completed_step_count": 0,
+    "plan_count": 1152,
+    "prerequisite_edge_count": 32256,
+    "successor_edge_count": 8064,
+    "all_steps_ready": false,
+    "all_steps_completed": false,
+    "execution_allowed": false,
+    "executed": false,
+    "no_live_execution": true,
+    "browser_authority": "display_only",
+    "bff_authority": "forward_only_no_execution"
+  }
+}
+```
+
+The same construction contract also exposes blocked claim-trace clearance-step
+review-input store record validations derived from the blocked store record
+contracts:
+
+```json
+{
+  "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations": [
+    {
+      "status": "blocked",
+      "record_validation_id": "claim-trace-review-input-store-record-contract-001_record_validation",
+      "record_contract_id": "claim-trace-review-input-store-record-contract-001",
+      "requirement_id": "claim-trace-review-input-store-requirement-001",
+      "input_id": "claim-trace-review-input-001",
+      "validation_checks": [
+        "record_contract_available",
+        "record_schema_available",
+        "append_only_log_available",
+        "idempotency_key_bound",
+        "payload_schema_validated",
+        "replay_protected",
+        "store_available",
+        "writer_allowed",
+        "write_allowed",
+        "record_present",
+        "record_accepted",
+        "record_validated"
+      ],
+      "record_validation_ready": false,
+      "record_contract_available": false,
+      "payload_schema_validated": false,
+      "replay_protected": false,
+      "record_accepted": false,
+      "record_validated": false,
+      "construction_allowed": false,
+      "live_execution_allowed": false,
+      "execution_allowed": false,
+      "executed": false,
+      "no_live_execution": true,
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution"
+    }
+  ],
+  "acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_summary": {
+    "status": "blocked",
+    "total_record_validation_count": 36864,
+    "materialized_record_validation_count": 768,
+    "missing_record_validation_count": 36864,
+    "ready_record_validation_count": 0,
+    "all_record_validations_ready": false,
+    "all_record_contracts_available": false,
+    "all_payload_schemas_validated": false,
+    "all_replay_protected": false,
+    "live_execution_allowed": false,
+    "execution_allowed": false,
+    "executed": false,
+    "no_live_execution": true
+  }
+}
+```
+
+These remediation, dependency, dependency work-queue, clearance-plan, and
+clearance-step fields, plus the store record-validation fields above, are
+diagnostic readback only. They name and order missing backend work; they do not
+complete steps, resolve claims, clear work items or dependencies, perform
+remediation, create validators, bind idempotency, validate payloads, protect
+replay, write or accept evidence, construct adapters, call Coinbase, or grant
+browser/BFF execution authority.
 
 ## Cancel By Client Order ID
 
@@ -1476,6 +2732,724 @@ cancel placements, or call Coinbase.
 Futures/perpetual reads expose backend-owned account, risk, and position
 evidence. They are not command routes. They do not place, close, reduce,
 cancel, or liquidate positions.
+
+Futures/perpetual command-suite reads expose backend-owned M57 contract
+evidence for route-bound placement, close/reduce, cancel, and reconciliation
+command drafts, including blocked request-field rows, semantic guard rows,
+evidence routes, command-level readiness decisions, ordered closure steps, risk
+proof requirements, and risk proof acceptance criteria. The route-bound drafts
+register Admin API routes, but route/draft flags are true while execution
+remains false. Cancel route evidence is keyed by `client_order_id`. The
+response does not enable proof writers, accept proof records as readiness,
+execute reconciliation, call Coinbase reads or writes, mutate
+futures/order/exchange state, or grant browser/BFF execution authority.
+
+```http
+GET /api/v1/futures/command-suite
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: auditor-001
+X-Admin-Roles: auditor
+```
+
+Expected command-suite posture:
+
+```json
+{
+  "type": "admin_futures_command_suite",
+  "module_id": "futures_perpetuals",
+  "approved_phase_range": "6541-6560",
+  "status": "blocked",
+  "command_count": 4,
+  "blocked_command_count": 4,
+  "executable_command_count": 0,
+  "command_route_count": 4,
+  "command_draft_allowed_count": 4,
+  "command_enablement_blocker_summary_count": 6,
+  "command_enablement_blocker_summary_blocking_count": 6,
+  "command_enablement_blocker_summaries": [
+    {"blocker": "unresolved_prerequisites", "status": "blocked"},
+    {"blocker": "request_payload_contracts", "status": "blocked"},
+    {"blocker": "semantic_guard_evidence", "status": "blocked"},
+    {"blocker": "risk_proof_acceptance", "status": "blocked"},
+    {"blocker": "live_service_adapter", "status": "blocked"},
+    {"blocker": "contextless_review_gate", "status": "blocked"}
+  ],
+  "request_field_count": 22,
+  "required_request_field_count": 22,
+  "blocking_request_field_count": 22,
+  "request_payload_validator_contract_count": 22,
+  "blocking_request_payload_validator_contract_count": 22,
+  "ready_request_payload_validator_contract_count": 0,
+  "registered_request_payload_validator_contract_count": 0,
+  "request_payload_validator_input_schema_count": 22,
+  "blocking_request_payload_validator_input_schema_count": 22,
+  "ready_request_payload_validator_input_schema_count": 0,
+  "registered_request_payload_validator_input_schema_count": 0,
+  "request_payload_validator_output_schema_count": 22,
+  "blocking_request_payload_validator_output_schema_count": 22,
+  "ready_request_payload_validator_output_schema_count": 0,
+  "registered_request_payload_validator_output_schema_count": 0,
+  "request_payload_validator_registration_count": 22,
+  "blocking_request_payload_validator_registration_count": 22,
+  "ready_request_payload_validator_registration_count": 0,
+  "registered_request_payload_validator_registration_count": 0,
+  "runtime_observed_request_payload_validator_registration_count": 0,
+  "request_payload_validation_evidence_count": 22,
+  "blocking_request_payload_validation_evidence_count": 22,
+  "ready_request_payload_validation_evidence_count": 0,
+  "recorded_request_payload_validation_evidence_count": 0,
+  "runtime_observed_request_payload_validation_evidence_count": 0,
+  "request_payload_validation_evidence_record_count": 22,
+  "blocking_request_payload_validation_evidence_record_count": 22,
+  "ready_request_payload_validation_evidence_record_count": 0,
+  "stored_request_payload_validation_evidence_record_count": 0,
+  "runtime_observed_request_payload_validation_evidence_record_count": 0,
+  "request_fields": [
+    {
+      "field": "client_order_id",
+      "request_payload_contract_ref": "application/admin_api/futures_request_payload_contracts.py::futures_cancel_client_order_id_request_payload_contract",
+      "validation_gate_ref": "application/admin_api/futures_request_payload_contracts.py::futures_cancel_client_order_id_request_payload_validation_gate",
+      "validation_evidence_ref": "futures_cancel_client_order_id_request_payload_validated",
+      "validator_contract_ref": "application/admin_api/futures_request_payload_validators.py::futures_cancel_client_order_id_request_payload_validator_contract",
+      "validator_registration_ref": "application/admin_api/futures_request_payload_validators.py::futures_cancel_client_order_id_request_payload_validator_registration",
+      "validation_gate_ready": false,
+      "validation_gate_passed": false,
+      "validator_contract_registered": false,
+      "validator_registered": false,
+      "request_payload_validated": false
+    }
+  ],
+  "request_payload_validation_evidence": [
+    {
+      "field": "client_order_id",
+      "validation_evidence_contract_ref": "application/admin_api/futures_request_payload_validation_evidence.py::futures_cancel_client_order_id_request_payload_validation_evidence",
+      "validation_evidence_field_refs": [
+        "application/admin_api/futures_request_payload_validation_evidence.py::futures_cancel_client_order_id_request_payload_validation_evidence.status",
+        "application/admin_api/futures_request_payload_validation_evidence.py::futures_cancel_client_order_id_request_payload_validation_evidence.source"
+      ],
+      "validation_evidence_field_count": 6,
+      "runtime_evidence_satisfies_validation_evidence": false,
+      "validation_evidence_ready": false,
+      "validation_evidence_recorded": false,
+      "request_payload_validated": false
+    }
+  ],
+  "request_payload_validation_evidence_records": [
+    {
+      "field": "client_order_id",
+      "validation_record_contract_ref": "application/admin_api/futures_request_payload_validation_evidence_records.py::futures_cancel_client_order_id_request_payload_validation_evidence_record",
+      "validation_record_store_ref": "application/admin_api/futures_request_payload_validation_evidence_records.py::futures_cancel_client_order_id_request_payload_validation_evidence_record_store",
+      "validation_record_writer_ref": "application/admin_api/futures_request_payload_validation_evidence_records.py::futures_cancel_client_order_id_request_payload_validation_evidence_record_writer",
+      "validation_record_replay_guard_ref": "application/admin_api/futures_request_payload_validation_evidence_records.py::futures_cancel_client_order_id_request_payload_validation_evidence_record_replay_guard",
+      "validation_record_field_refs": [
+        "application/admin_api/futures_request_payload_validation_evidence_records.py::futures_cancel_client_order_id_request_payload_validation_evidence_record.validation_evidence_contract_ref",
+        "application/admin_api/futures_request_payload_validation_evidence_records.py::futures_cancel_client_order_id_request_payload_validation_evidence_record.validation_record_store_ref"
+      ],
+      "validation_record_field_count": 8,
+      "validation_record_contract_ready": false,
+      "validation_record_store_ready": false,
+      "validation_record_writer_enabled": false,
+      "validation_record_replay_guard_ready": false,
+      "validation_recorded": false,
+      "append_only_validation_record": false,
+      "validation_record_idempotency_bound": false,
+      "request_payload_validated": false
+    }
+  ],
+  "semantic_guard_count": 33,
+  "blocking_semantic_guard_count": 33,
+  "risk_semantic_guard_count": 12,
+  "readiness_decision_count": 4,
+  "blocked_readiness_decision_count": 4,
+  "ready_readiness_decision_count": 0,
+  "readiness_closure_step_count": 24,
+  "blocking_readiness_closure_step_count": 24,
+  "risk_proof_requirement_count": 20,
+  "blocking_risk_proof_requirement_count": 20,
+  "risk_proof_contract_count": 40,
+  "blocking_risk_proof_contract_count": 40,
+  "registered_risk_proof_route_count": 0,
+  "enabled_risk_proof_writer_count": 0,
+  "risk_proof_payload_field_count": 200,
+  "blocking_risk_proof_payload_field_count": 200,
+  "present_risk_proof_payload_field_count": 0,
+  "registered_risk_proof_payload_validation_count": 0,
+  "risk_proof_record_contract_count": 120,
+  "blocking_risk_proof_record_contract_count": 120,
+  "registered_risk_proof_record_store_count": 0,
+  "registered_risk_proof_record_validation_count": 0,
+  "accepted_risk_proof_record_contract_count": 0,
+  "risk_proof_record_validation_count": 120,
+  "blocking_risk_proof_record_validation_count": 120,
+  "ready_risk_proof_record_validation_count": 0,
+  "risk_proof_record_validation_remediation_count": 120,
+  "blocking_risk_proof_record_validation_remediation_count": 120,
+  "ready_risk_proof_record_validation_remediation_count": 0,
+  "risk_proof_record_validation_remediation_dependency_count": 120,
+  "blocking_risk_proof_record_validation_remediation_dependency_count": 120,
+  "ready_risk_proof_record_validation_remediation_dependency_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_count": 120,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_count": 120,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count": 120,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count": 120,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count": 120,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count": 120,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count": 720,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count": 720,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count": 0,
+  "completed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count": 720,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count": 720,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count": 0,
+  "completed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 1440,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 1440,
+  "present_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 0,
+  "accepted_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count": 1440,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count": 1440,
+  "available_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count": 0,
+  "writer_available_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count": 1440,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count": 1440,
+  "available_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count": 0,
+  "accepted_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count": 1440,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count": 1440,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count": 0,
+  "configured_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_count": 1440,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_count": 1440,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_count": 0,
+  "recorded_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_count": 1440,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_count": 1440,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_count": 0,
+  "performed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count": 1440,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count": 1440,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count": 0,
+  "claimed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count": 0,
+  "risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count": 8640,
+  "blocking_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count": 8640,
+  "ready_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count": 0,
+  "completed_risk_proof_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count": 0,
+  "risk_proof_acceptance_criterion_count": 100,
+  "blocking_risk_proof_acceptance_criterion_count": 100,
+  "accepted_risk_proof_acceptance_criterion_count": 0,
+  "risk_proof_acceptance_blocker_count": 120,
+  "proof_record_resolved_but_acceptance_blocked_count": 0,
+  "risk_proof_semantic_contract_requirement_count": 34,
+  "blocking_risk_proof_semantic_contract_requirement_count": 34,
+  "registered_risk_proof_semantic_contract_count": 0,
+  "runtime_observed_risk_proof_semantic_contract_requirement_count": 8,
+  "risk_proof_semantic_contract_definition_count": 34,
+  "blocking_risk_proof_semantic_contract_definition_count": 34,
+  "ready_risk_proof_semantic_contract_definition_count": 0,
+  "registered_risk_proof_semantic_contract_definition_count": 0,
+  "runtime_observed_risk_proof_semantic_contract_definition_count": 8,
+  "risk_proof_semantic_contract_validation_gate_count": 34,
+  "blocking_risk_proof_semantic_contract_validation_gate_count": 34,
+  "ready_risk_proof_semantic_contract_validation_gate_count": 0,
+  "registered_risk_proof_semantic_contract_validator_count": 0,
+  "runtime_observed_risk_proof_semantic_contract_validation_gate_count": 8,
+  "risk_proof_semantic_contract_validator_contract_count": 34,
+  "blocking_risk_proof_semantic_contract_validator_contract_count": 34,
+  "ready_risk_proof_semantic_contract_validator_contract_count": 0,
+  "registered_risk_proof_semantic_contract_validator_contract_count": 0,
+  "runtime_observed_risk_proof_semantic_contract_validator_contract_count": 8,
+  "risk_proof_semantic_validator_input_schema_count": 34,
+  "blocking_risk_proof_semantic_validator_input_schema_count": 34,
+  "ready_risk_proof_semantic_validator_input_schema_count": 0,
+  "registered_risk_proof_semantic_validator_input_schema_count": 0,
+  "runtime_observed_risk_proof_semantic_validator_input_schema_count": 8,
+  "risk_proof_semantic_validator_output_schema_count": 34,
+  "blocking_risk_proof_semantic_validator_output_schema_count": 34,
+  "ready_risk_proof_semantic_validator_output_schema_count": 0,
+  "registered_risk_proof_semantic_validator_output_schema_count": 0,
+  "runtime_observed_risk_proof_semantic_validator_output_schema_count": 8,
+  "risk_proof_semantic_validator_registration_count": 34,
+  "blocking_risk_proof_semantic_validator_registration_count": 34,
+  "ready_risk_proof_semantic_validator_registration_count": 0,
+  "registered_risk_proof_semantic_validator_registration_count": 0,
+  "runtime_observed_risk_proof_semantic_validator_registration_count": 8,
+  "forbidden_spot_assumptions": [
+    "spot_wallet_available",
+    "spot_no_shorting",
+    "spot_usdc_quote_required",
+    "spot_average_cost_basis",
+    "spot_inventory_lot_authority"
+  ],
+  "spot_rule_authority": false,
+  "browser_authority": "display_only",
+  "bff_authority": "forward_only_no_execution",
+  "live_coinbase_orders_ran": false,
+  "submitted_notional_usdc": "0",
+  "executed_notional_usdc": "0"
+}
+```
+
+Command rows include `"readiness_closure_steps"`, an ordered backend-owned plan
+for the remaining prerequisite, payload, semantic-guard, command-service,
+route, live-adapter, and contextless-review work. They also include
+`"risk_proof_requirements"` for product scope, position scope, margin,
+collateral, liquidation buffer, funding fee, reduce-only, close-only,
+cap-guard, and reconciliation-plan semantics. Each risk proof includes
+`"proof_contracts"` for the future backend-owned proof route and proof writer
+artifacts that must exist before proof evidence can be accepted. Each proof
+also includes
+`"payload_fields"` for the future backend-owned proof record payload fields,
+payload paths, validation evidence refs, idempotency, correlation, and audit
+bindings. Payload rows remain blocked with `payload_field_present=false` and
+`validation_registered=false`. Each proof also includes `"record_contracts"`
+for the future backend-owned proof record schema, append-only log,
+idempotency binding, payload validation gate, replay guard, and audit-link
+contracts. Record/store rows remain blocked with `store_registered=false`,
+`payload_validation_registered=false`, and `proof_record_accepted=false`.
+Each proof also includes `"record_validations"` for the future backend-owned
+record contract, schema/log, idempotency, payload-validation, replay, and
+audit-link checks. Validation rows remain blocked with
+`record_validation_registered=false` and `record_validation_ready=false`.
+Each proof also includes `"record_validation_remediations"` for the blocked
+backend-owned work needed before a record validator could become ready:
+record-contract registration, store-schema creation, append-only log
+configuration, idempotency binding, payload validation, replay guard, audit
+linking, record-validator registration, and contextless review. Remediation
+rows remain blocked with `remediation_work_item_created=false`,
+`remediation_ready=false`, and `remediation_performed=false`.
+Each store record-validation remediation row also includes
+`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependencies"`
+for blocked backend-owned dependency order, dependency graph,
+predecessor/successor dependency refs, dependency gate, required dependency
+work, inherited validation/remediation blockers, and missing evidence required
+before validation-remediation work could be safely sequenced. Those dependency
+rows remain blocked with
+`record_validation_remediation_dependency_required=true`,
+`record_validation_remediation_dependency_ready=false`,
+`record_validation_remediation_dependency_resolved=false`,
+`record_validation_remediation_dependency_performed=false`,
+`dependency_ready=false`, `dependency_resolved=false`, and
+`dependency_performed=false`. The matching aggregate field is
+`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_count"`.
+Each nested record-validation remediation dependency work item also exposes
+blocked nested dependency work-item claim-trace clearance-step rows through
+`"remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps"`.
+The matching aggregate field is
+`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count"`.
+Those rows remain blocked with `prior_clearance_step_complete=false`,
+`next_clearance_step_enabled=false`, `clearance_step_ready=false`,
+`clearance_step_complete=false`, `accepts_evidence=false`,
+`writes_evidence=false`, and `execution_allowed=false`.
+Each proof also includes
+`"record_validation_remediation_dependencies"` for the blocked backend-owned
+dependency work that orders each remediation row against its immediate
+predecessor and successor remediation rows. Dependency rows name dependency
+gates, required backend contracts, required evidence refs, dependency
+actions, and dependency blockers. They remain blocked with
+`dependency_work_item_created=false`, `dependency_ready=false`,
+`dependency_resolved=false`, and `dependency_performed=false`.
+Each proof also includes
+`"record_validation_remediation_dependency_work_items"` for the blocked
+backend-owned work-item contract that would be required before a remediation
+dependency could be queued or claimed. Work-item rows name work-item store
+refs, claim-ledger blockers, predecessor/successor work-item refs, required
+backend contracts, actions, and blockers. They remain blocked with
+`work_item_created=false`, `work_item_claimed=false`,
+`claim_ledger_registered=false`, and `dependency_ready=false`.
+Each proof also includes
+`"record_validation_remediation_dependency_work_item_claim_traces"` for the
+blocked backend-owned claim-trace contract that would be required before a
+dependency work item could be claimed or used as dependency-clearance
+evidence. Claim-trace rows name claim-trace store refs, claim-ledger blockers,
+claim-review blockers, predecessor/successor claim-trace refs, required
+backend contracts, claim targets, and blockers. They remain blocked with
+`claim_trace_created=false`, `claim_allowed=false`,
+`claim_resolved=false`, and `work_item_claimed=false`.
+Each proof also includes
+`"record_validation_remediation_dependency_work_item_claim_trace_clearance_plans"`
+for the blocked backend-owned clearance-plan contract that would be required
+before a claim trace could ever be cleared. Clearance-plan rows name
+clearance-plan store refs, upstream claim-trace refs, predecessor/successor
+claim-trace refs, predecessor/successor clearance-plan refs, claim targets,
+required backend contracts, required plan steps, and blockers. They remain
+blocked with `clearance_plan_created=false`,
+`clearance_plan_ready=false`, `clearance_sequence_ready=false`,
+`claim_trace_ready=false`, and `claim_resolved=false`.
+Each clearance plan also includes
+`"record_validation_remediation_dependency_work_item_claim_trace_clearance_steps"`
+for the blocked backend-owned clearance-step rows that would be required
+before the plan could ever be reviewed or executed. Clearance-step rows name
+step refs, predecessor/successor step refs, missing backend step contracts,
+missing step-review refs, missing contextless-review refs, and blockers. They
+remain blocked with `clearance_step_ready=false`,
+`clearance_step_complete=false`, `clearance_plan_ready=false`,
+`claim_trace_ready=false`, and `claim_resolved=false`.
+Each clearance step also includes
+`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_reviews"`
+for the blocked backend-owned clearance-step review rows that would be required
+before the step could ever be accepted as reviewed. Clearance-step review rows
+name review refs, source step refs, predecessor/successor review refs,
+required owner/contextless review inputs, missing backend review contracts,
+missing review-gate refs, and blockers. They remain blocked with
+`clearance_step_review_ready=false`,
+`clearance_step_review_complete=false`,
+`clearance_step_review_inputs_present=false`,
+`clearance_step_review_gates_passed=false`, `accepts_evidence=false`,
+`writes_evidence=false`, `clearance_step_ready=false`, and
+`claim_resolved=false`.
+Each clearance-step review also includes
+`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs"`
+for the blocked backend-owned owner/contextless input rows that would be
+required before a review could ever accept evidence. Clearance-step review
+input rows name input refs, source review refs, required input store refs,
+input gates, inherited review/step blockers, and missing evidence refs. They
+remain blocked with `clearance_step_review_input_present=false`,
+`clearance_step_review_input_accepted=false`,
+`clearance_step_review_input_validated=false`,
+`clearance_step_review_input_gate_passed=false`,
+`clearance_step_review_inputs_present=false`, `claim_trace_created=false`,
+`claim_allowed=false`, `claim_resolved=false`, `accepts_evidence=false`,
+`writes_evidence=false`, and `execution_allowed=false`.
+Each clearance-step review input also includes
+`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements"`
+for the blocked backend-owned input store, writer, record-key, validation-gate,
+and replay-gate requirements that would be required before input evidence
+could ever be accepted. Those rows remain blocked with `store_required=true`,
+`store_available=false`, `writer_available=false`,
+`record_key_registered=false`, `validation_gate_passed=false`,
+`replay_gate_passed=false`, `accepts_evidence=false`,
+`writes_evidence=false`, and `execution_allowed=false`.
+Each clearance-step review input store requirement also includes
+`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts"`
+for the blocked backend-owned record contract, schema, append-only log,
+idempotency key, payload fields, validation gate, and replay protection that
+would be required before input evidence could ever be recorded. Those rows
+remain blocked with `record_contract_required=true`,
+`record_contract_available=false`, `record_schema_available=false`,
+`append_only_log_available=false`, `idempotency_key_bound=false`,
+`payload_schema_validated=false`, `replay_protected=false`,
+`record_present=false`, `record_accepted=false`,
+`record_validated=false`, `accepts_evidence=false`,
+`writes_evidence=false`, and `execution_allowed=false`.
+Each store record contract also includes
+`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations"`
+for the blocked backend-owned validation checks and record-validation gate
+that would be required before input evidence could ever be accepted. Those
+rows remain blocked with `record_validation_required=true`,
+`record_validation_ready=false`, `validation_checks_passed=false`,
+`validation_configured=false`, `record_present=false`,
+`record_accepted=false`, `record_validated=false`,
+`accepts_evidence=false`, `writes_evidence=false`, and
+`execution_allowed=false`.
+Each store record-validation row also includes
+`"record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_remediations"`
+for the blocked backend-owned remediation work and evidence attachment that
+would be required before a validation row could ever be remediated or
+recorded:
+
+```json
+{
+  "record_validation_remediation_required": true,
+  "record_validation_remediation_ready": false,
+  "record_validation_remediation_performed": false,
+  "record_validation_remediation_recorded": false,
+  "accepts_evidence": false,
+  "writes_evidence": false,
+  "execution_allowed": false
+}
+```
+
+Each proof also includes
+`"acceptance_criteria"` for required evidence, proof route registration,
+proof-writer review, spot-rule boundary review, and browser/BFF authority
+review. Completed 5821-5840 rows also expose `"proof_acceptance_blockers"` and
+`"proof_record_resolves_acceptance"` so a resolved safe proof record remains
+display evidence only. Completed 5841-5860 rows add
+`"semantic_contract_requirements"` plus semantic-contract aggregate counters
+so the exact missing futures semantic contract refs are visible. Completed
+5861-5880 rows add `"semantic_contract_definitions"`,
+`"risk_proof_semantic_contract_definition_count"`,
+`"semantic_contract_definition_ref"`, `"definition_ready": false`,
+`"validation_ready": false`, and
+`"runtime_evidence_satisfies_definition": false` so the missing backend
+definition contract, validation gate, and acceptance gate are explicit.
+Completed 5881-5900 rows add `"semantic_contract_validation_gates"`,
+`"risk_proof_semantic_contract_validation_gate_count"`,
+`"validation_contract_ref"`, `"validator_registered": false`, and
+`"runtime_evidence_satisfies_validation": false` so the missing backend
+validator contract, validation input refs, and required validation evidence
+are explicit. Completed 5901-5920 rows add
+`"semantic_contract_validator_contracts"`,
+`"risk_proof_semantic_contract_validator_contract_count"`,
+`"validator_contract_ref"`, `"validator_input_schema_ref"`,
+`"validator_output_schema_ref"`, `"validator_registration_ref"`,
+`"validator_contract_registered": false`, and
+`"runtime_evidence_satisfies_validator_contract": false` so the missing backend
+validator contract, input schema, output schema, registration, and
+contextless-review evidence are explicit. Completed 5921-5940 rows add
+`"semantic_validator_input_schemas"`,
+`"risk_proof_semantic_validator_input_schema_count"`,
+`"input_schema_field_refs"`, `"input_schema_registered": false`, and
+`"runtime_evidence_satisfies_input_schema": false` so the missing backend input
+schema contract, input fields, schema registration, and contextless-review
+evidence are explicit. Completed 5941-5960 rows add
+`"semantic_validator_output_schemas"`,
+`"risk_proof_semantic_validator_output_schema_count"`,
+`"output_schema_field_refs"`, `"output_schema_registered": false`, and
+`"runtime_evidence_satisfies_output_schema": false` so the missing backend
+output schema contract, output fields, schema registration, and
+contextless-review evidence are explicit. Completed 5961-5980 rows add
+`"semantic_validator_registrations"`,
+`"risk_proof_semantic_validator_registration_count"`,
+`"validator_registration_field_refs"`,
+`"validator_registration_ready": false`, and
+`"runtime_evidence_satisfies_validator_registration": false` so the missing
+backend validator registration contract, registry record, input/output schema
+bindings, and contextless-review evidence are explicit. These rows are blocked
+evidence only. Completed 5981-6000 rows add disabled futures command-service
+contract evidence: `place_futures_order`,
+`close_or_reduce_futures_position`, and `cancel_futures_order` are named
+disabled backend service methods. Their service contracts remain required, but
+the command-suite no longer reports them as missing. Completed 6001-6020 rows
+add disabled futures risk-guard contract evidence:
+`evaluate_futures_margin_collateral_liquidation` is a named disabled backend
+risk-guard method. The risk-guard contract remains required, but the
+command-suite no longer reports it as missing. Completed 6021-6040 rows add
+disabled futures reconciliation evidence:
+`record_futures_reconciliation_plan` is required/present disabled backend
+evidence and is no longer missing. Completed 6041-6060 rows add disabled
+futures route-registration contract metadata only:
+`api/v1/routes/futures.py::*_route_contract` refs are required/present disabled
+evidence and are no longer missing. Completed 6061-6080 rows add disabled
+futures live-adapter contract metadata only:
+`application/admin_api/live_execution.py::*_adapter_contract` refs are
+required/present disabled evidence and are no longer missing. Completed
+6081-6100 work adds disabled adapter-construction metadata only:
+`application/admin_api/live_execution.py::*_adapter_construction_contract`
+refs are required/present disabled evidence and are no longer missing.
+Completed 6101-6120 work adds disabled adapter-decision metadata only:
+`application/admin_api/live_execution.py::*_adapter_decision_contract` refs
+are required/present disabled evidence and are no longer missing. Completed
+6121-6140 work adds disabled adapter-decision-record metadata only:
+`application/admin_api/live_execution.py::*_adapter_decision_record_contract`
+refs are required/present disabled evidence and are no longer missing. Completed
+6141-6160 work adds disabled adapter-invocation metadata only:
+`application/admin_api/live_execution.py::*_adapter_invocation_contract`
+refs are required/present disabled evidence and are no longer missing. Completed
+6161-6180 work adds disabled adapter-execution metadata only:
+`application/admin_api/live_execution.py::*_adapter_execution_contract`
+refs are required/present disabled evidence and are no longer missing. Completed
+6181-6200 work adds disabled Coinbase exchange-submission metadata only:
+`application/admin_api/live_execution.py::*_coinbase_exchange_submission_contract`
+refs are required/present disabled evidence, while
+`application/admin_api/live_execution.py::*_post_exchange_submission_reconciliation_contract`
+refs remained missing backend contract gaps. Completed 6201-6220 work adds
+disabled post-exchange-submission reconciliation metadata only:
+`application/admin_api/live_execution.py::*_post_exchange_submission_reconciliation_contract`
+refs are required/present disabled evidence and are no longer listed in
+`missing_backend_contracts`. Completed 6221-6240 work adds aggregate command
+enablement blocker summaries for unresolved prerequisites, request payload
+contracts, semantic guard evidence, risk proof acceptance, live service
+adapters, and contextless review. Completed 6241-6260 work adds
+backend-owned `command_enablement_sequence_steps`,
+`command_enablement_sequence_step_count`, and
+`command_enablement_sequence_step_blocking_count` derived from
+`readiness_closure_steps` for `resolve_prerequisite_contracts`,
+`define_request_payload_contract`, `bind_semantic_guard_evidence`,
+`bind_live_service_adapter`, and `run_contextless_review_gate`. These rows do
+not configure or construct adapters, invoke adapters, execute adapters, submit
+Coinbase orders, validate
+payloads, write proofs, enable writers, resolve dependencies, create
+remediation or dependency work items, claim work items, create or resolve claim
+traces, create or execute clearance plans, execute clearance steps, complete
+clearance-step reviews, clear claim traces, accept review inputs, register
+claim ledgers, perform remediation, execute post-exchange reconciliation, or
+grant browser/BFF authority.
+
+Current sequence field examples: `"command_enablement_sequence_steps"`,
+`"command_enablement_sequence_step_count"`, and
+`"command_enablement_sequence_step_blocking_count"`.
+Completed 6261-6280 work added backend-owned
+`"command_enablement_sequence_command_traces"`,
+`"command_enablement_sequence_command_trace_count"`, and
+`"command_enablement_sequence_command_trace_blocking_count"` so each aggregate
+sequence step traces to exact per-command closure evidence. Trace rows include
+`"trace_id"`, `"command_step_sequence"`,
+`"reconciliation_execution_allowed": false`, and
+`"futures_state_mutation_allowed": false`; they do not register routes, create
+drafts, call Coinbase, execute reconciliation, mutate futures state, or grant
+browser/BFF authority.
+
+Completed 6281-6300 work reports `"service_method": "reconcile_futures_position"`
+for the `futures_reconcile` row and includes
+`"application/admin_api/futures_command_service.py::reconcile_futures_position"`
+alongside
+`"application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan"`
+in `required_backend_contracts`. This is a disabled command-service bridge
+plus a separate required reconciliation-plan contract; it does not register
+routes, create drafts, call Coinbase, execute reconciliation, mutate futures
+state, or grant browser/BFF authority.
+
+Completed 6301-6320 work reports futures proof route/writer contract registry
+evidence in `risk_proof_requirements[*].proof_contracts`, including
+`"application/admin_api/futures_proof_routes.py::post_futures_place_margin_collateral_proof"`
+and
+`"application/admin_api/futures_proof_writer.py::write_futures_place_margin_collateral_proof"`.
+The current response keeps `"registered_proof_route_count": 0` and
+`"enabled_proof_writer_count": 0`; these rows do not register proof routes,
+create proof writers, accept proof records, satisfy risk proofs, call
+Coinbase, execute reconciliation, mutate futures state, or grant browser/BFF
+authority.
+
+Completed 6321-6340 work reports futures proof payload-field contract registry
+evidence in `risk_proof_requirements[*].payload_fields`, including
+`"proof_payload.command"`, `"proof_payload.validation.status"`,
+`"futures_place_margin_collateral_payload_command_validated"`,
+`"payload_field_present": false`, and `"validation_registered": false`.
+These rows do not validate submitted proof payloads, register validators,
+accept proof records, create proof writers, make route-bound command drafts
+executable, call Coinbase, execute reconciliation, mutate futures state, or
+grant browser/BFF authority.
+
+Completed 6341-6360 work reports futures route-bound command draft evidence
+for `POST /api/v1/futures/orders`,
+`POST /api/v1/futures/positions/{position_key}/close-reduce`,
+`POST /api/v1/futures/orders/{client_order_id}/cancel`, and
+`POST /api/v1/futures/positions/{position_key}/reconciliation`.
+Machine-check evidence: route/draft flags remain true while execution remains
+false; cancel uses
+`client_order_id`.
+
+Completed 6361-6380 work reports futures request payload contract registry
+evidence through `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS` and
+`iter_futures_request_payload_contracts`. The command-suite response exposes
+`"request_field_count"`, `"blocking_request_field_count"`, and request-field
+`required_backend_contracts`, including
+`"application/admin_api/futures_request_payload_contracts.py::futures_cancel_client_order_id_request_payload_contract"`.
+Completed 6381-6400 work reports futures request payload validation gate
+evidence on those same request-field rows: `"validation_gate_ref"`,
+`"validation_evidence_ref"`, `"validator_contract_ref"`,
+`"validator_registration_ref"`, `"validation_gate_ready": false`,
+`"validation_gate_passed": false`, and `"request_payload_validated": false`.
+Completed 6401-6420 work reports futures request payload validator contract
+registry evidence through `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS` and
+`iter_futures_request_payload_validator_contracts`, with
+`"request_payload_validator_contract_count"`,
+`"blocking_request_payload_validator_contract_count"`,
+`"ready_request_payload_validator_contract_count"`,
+`"registered_request_payload_validator_contract_count"`,
+`"request_payload_validator_contracts"`, `"validator_input_schema_ref"`,
+`"validator_output_schema_ref"`,
+`"validator_input_schema_registered": false`, and
+`"validator_output_schema_registered": false`.
+Completed 6421-6440 work reports futures request payload validator input-schema
+evidence through `FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`
+and `iter_futures_request_payload_validator_input_schemas`, with
+`"request_payload_validator_input_schema_count": 22`,
+`"blocking_request_payload_validator_input_schema_count": 22`,
+`"ready_request_payload_validator_input_schema_count": 0`,
+`"registered_request_payload_validator_input_schema_count": 0`,
+`"request_payload_validator_input_schemas"`, `"input_schema_field_refs"`,
+`"input_schema_field_count": 5`, and `"input_schema_registered": false`.
+Machine-check evidence: futures request payload validator input-schema evidence.
+Completed 6441-6460 work reports futures request payload validator
+output-schema evidence through
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS` and
+`iter_futures_request_payload_validator_output_schemas`, with
+`"request_payload_validator_output_schema_count": 22`,
+`"blocking_request_payload_validator_output_schema_count": 22`,
+`"request_payload_validator_output_schemas"`, `"output_schema_field_refs"`,
+`"output_schema_field_count": 5`, and `"output_schema_registered": false`.
+Machine-check evidence: futures request payload validator output-schema evidence.
+Completed 6461-6480 work reports futures request payload validator
+registration evidence through
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS` and
+`iter_futures_request_payload_validator_registrations`, with
+`"request_payload_validator_registration_count": 22`,
+`"blocking_request_payload_validator_registration_count": 22`,
+`"request_payload_validator_registrations"`,
+`"validator_registration_field_refs"`,
+`"validator_registration_field_count": 6`,
+`"validator_registration_ready": false`, and
+`"runtime_evidence_satisfies_validator_registration": false`.
+Machine-check evidence: futures request payload validator registration evidence.
+Completed 6481-6500 work reports futures request payload validation evidence
+through `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS` and
+`iter_futures_request_payload_validation_evidence`, with
+`"request_payload_validation_evidence_count": 22`,
+`"blocking_request_payload_validation_evidence_count": 22`,
+`"ready_request_payload_validation_evidence_count": 0`,
+`"recorded_request_payload_validation_evidence_count": 0`,
+`"runtime_observed_request_payload_validation_evidence_count": 0`,
+`"request_payload_validation_evidence"`,
+`"validation_evidence_contract_ref"`,
+`"validation_evidence_field_refs"`,
+`"validation_evidence_field_count": 6`,
+`"runtime_evidence_satisfies_validation_evidence": false`,
+`"validation_evidence_ready": false`, and
+`"validation_evidence_recorded": false`.
+Machine-check evidence: futures request payload validation evidence.
+The completed 6521-6540 range reports futures request payload validation evidence
+record contract evidence through
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS` and
+`iter_futures_request_payload_validation_evidence_records`, with
+`"approved_phase_range": "6541-6560"`,
+`"request_payload_validation_evidence_record_count": 22`,
+`"blocking_request_payload_validation_evidence_record_count": 22`,
+`"ready_request_payload_validation_evidence_record_count": 0`,
+`"stored_request_payload_validation_evidence_record_count": 0`,
+`"runtime_observed_request_payload_validation_evidence_record_count": 0`,
+`"request_payload_validation_evidence_records"`,
+`"validation_record_contract_ref"`, `"validation_record_store_ref"`,
+`"validation_record_writer_ref"`,
+`"validation_record_replay_guard_ref"`,
+`"validation_record_field_refs"`, `"validation_record_field_count"`,
+`"validation_record_contract_ready": false`,
+`"validation_record_store_ready": false`,
+`"validation_record_writer_enabled": false`,
+`"validation_record_replay_guard_ready": false`,
+`"validation_recorded": false`,
+`"append_only_validation_record": false`, and
+`"validation_record_idempotency_bound": false`.
+Machine-check evidence: futures request payload validation evidence record contract evidence.
+The completed 6521-6540 range also reports futures request payload validation
+record schema evidence through
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS` and
+`iter_futures_request_payload_validation_record_schemas`, with
+`"approved_phase_range": "6541-6560"`,
+`"request_payload_validation_record_schema_count": 22`,
+`"blocking_request_payload_validation_record_schema_count": 22`,
+`"ready_request_payload_validation_record_schema_count": 0`,
+`"registered_request_payload_validation_record_schema_count": 0`,
+`"runtime_observed_request_payload_validation_record_schema_count": 0`,
+`"request_payload_validation_record_schemas"`,
+`request_payload_validation_record_schema_count`,
+`blocking_request_payload_validation_record_schema_count`,
+`ready_request_payload_validation_record_schema_count`,
+`registered_request_payload_validation_record_schema_count`,
+`runtime_observed_request_payload_validation_record_schema_count`,
+`request_payload_validation_record_schemas`,
+`"validation_record_schema_ref"`,
+`"validation_record_append_only_log_ref"`,
+`"validation_record_schema_field_refs"`,
+`"validation_record_schema_field_count"`,
+`"runtime_evidence_satisfies_validation_record_schema": false`,
+`"validation_record_schema_ready": false`,
+`"validation_record_schema_registered": false`, and
+`"validation_record_append_only_log_ready": false`.
+Machine-check evidence: futures request payload validation record schema evidence.
+The registry and disabled gate evidence do not validate command request
+payloads, record validation evidence, write append-only validation records,
+satisfy validator registrations, register payload validators, bind live
+adapters, call Coinbase, execute reconciliation, mutate futures/order/exchange
+state, or grant browser/BFF authority.
+Machine-check evidence: futures request payload contract registry evidence.
+Machine-check evidence: futures request payload validation gate evidence.
+Machine-check evidence: futures request payload validator contract registry evidence.
+Machine-check evidence: route/draft flags remain true while execution remains false.
 
 ```http
 GET /api/v1/futures/account
@@ -1863,6 +3837,10 @@ that are not command-complete. Gap rows are read-only planning evidence, not
 mutation routes or browser authority. Each gap row may include typed
 `current_read_evidence` rows for existing read-only evidence routes derived
 from backend route inventory.
+
+The payload below is a historical spot command-suite example for the M54
+`3301-3320` slice. It is not the current autonomous phase range. Current
+active phase metadata lives in `docs/plans/AUTONOMOUS_WORK_QUEUE.md`.
 
 ```http
 GET /api/v1/spot/command-suite
@@ -2701,6 +4679,126 @@ blocked status, warning status, read-only route target, local-state route
 target, permission mismatch, or duplicate plan id fails closed as evidence
 only.
 
+## Live-Service Decision Evidence
+
+Live-service decision routes persist backend-owned disabled-service evidence
+only. They do not enable live service, construct adapters, call Coinbase,
+invoke managers, execute reconciliation, mutate state, clear M55 blockers, or
+let the browser/BFF create execution authority.
+
+List recorded decisions:
+
+```http
+GET /api/v1/admin/live-execution/service-decisions?decision_status=blocked&limit=10
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+Read one decision:
+
+```http
+GET /api/v1/admin/live-execution/service-decisions/live-service-decision-001
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: auditor-001
+X-Admin-Roles: auditor
+```
+
+Record one disabled backend live-service decision:
+
+```http
+POST /api/v1/admin/live-execution/service-decisions
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: admin-001
+X-Admin-Roles: admin
+Idempotency-Key: live-service-decision-record-001
+X-Correlation-Id: corr-live-service-decision-001
+X-Operator-Intent: record_disabled_live_service_decision
+Content-Type: application/json
+
+{
+  "decision_id": "live-service-decision-001",
+  "status": "blocked",
+  "requested_service_status": "live_disabled",
+  "service_enabled": false,
+  "deployment_ref": "deployment-live-service-disabled",
+  "runtime_configuration_ref": "runtime-live-service-disabled",
+  "decision_reason": "Record explicit disabled service decision evidence.",
+  "live_coinbase_execution_approved": false,
+  "max_submitted_notional_usdc": "0",
+  "max_executed_notional_usdc": "0"
+}
+```
+
+The writer rejects enabled service decisions, live Coinbase approval,
+`passed` status, any requested service status other than `live_disabled`, and
+nonzero submitted or executed notional. Recorded rows remain
+`resolver_eligible=false`.
+
+## Live-Adapter Decision Evidence
+
+Live-adapter decision routes persist backend-owned disabled adapter
+construction evidence only. They do not construct adapters, enable live
+service, call Coinbase, invoke managers, execute reconciliation, mutate state,
+clear M55 blockers, or let the browser/BFF create execution authority.
+
+List recorded decisions:
+
+```http
+GET /api/v1/admin/live-execution/adapter-decisions?decision_status=blocked&limit=10
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+Read one decision:
+
+```http
+GET /api/v1/admin/live-execution/adapter-decisions/live-adapter-decision-001
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: auditor-001
+X-Admin-Roles: auditor
+```
+
+Record one disabled backend live-adapter decision:
+
+```http
+POST /api/v1/admin/live-execution/adapter-decisions
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: admin-001
+X-Admin-Roles: admin
+Idempotency-Key: live-adapter-decision-record-001
+X-Correlation-Id: corr-live-adapter-decision-001
+X-Operator-Intent: record_disabled_live_adapter_decision
+Content-Type: application/json
+
+{
+  "decision_id": "live-adapter-decision-001",
+  "status": "blocked",
+  "requested_adapter_status": "live_disabled",
+  "target_route": "/api/v1/orders",
+  "target_method": "POST",
+  "target_module_id": "spot_operations",
+  "target_service_method": "place_manual_order",
+  "adapter_reference": "AdminApiCommandService.place_manual_order",
+  "adapter_constructed": false,
+  "adapter_enabled": false,
+  "construction_review_ref": "construction-review-001",
+  "decision_reason": "Record explicit disabled adapter decision evidence.",
+  "live_coinbase_execution_approved": false,
+  "max_submitted_notional_usdc": "0",
+  "max_executed_notional_usdc": "0"
+}
+```
+
+The writer rejects constructed or enabled adapter decisions, live Coinbase
+approval, `passed` status, requested adapter status other than
+`live_disabled`, nonzero submitted or executed notional, and target route
+bindings that do not match route inventory. The target route must also be a
+`POST` non-read-only command surface whose `shared_method` exists on
+`AdminApiCommandService`; read-only routes and unrelated local-state services
+are rejected. Recorded rows remain `resolver_eligible=false`.
+
 ## Structured Errors
 
 Auth, RBAC, and validation errors return JSON bodies shaped for frontend
@@ -2788,3 +4886,55 @@ The frontend deployment package manifest and observability drill are no-live
 evidence artifacts. `server_env_static` BFF authority is local/staging evidence
 only; production readiness is conditional on frontend `backend_oidc_jwt` BFF
 mode and backend `oidc_jwt` verifier configuration.
+
+## Current Futures Validation Record Evidence
+
+Example active `6501-6520` range responses include futures request payload
+validation evidence record contract evidence. This carries forward completed
+futures request payload validation evidence and adds disabled validation-record
+contract rows.
+One-line evidence phrase: futures request payload validation evidence record contract evidence.
+`"approved_phase_range": "6541-6560"`,
+`"request_payload_validation_evidence_count": 22`,
+`"blocking_request_payload_validation_evidence_count": 22`,
+`"ready_request_payload_validation_evidence_count": 0`,
+`"recorded_request_payload_validation_evidence_count": 0`,
+`"runtime_observed_request_payload_validation_evidence_count": 0`,
+`"request_payload_validation_evidence"`,
+`"validation_evidence_contract_ref"`,
+`"validation_evidence_field_refs"`,
+`"validation_evidence_field_count"`,
+`"runtime_evidence_satisfies_validation_evidence": false`,
+`"validation_evidence_ready": false`,
+`"validation_evidence_recorded": false`,
+`"request_payload_validation_evidence_record_count": 22`,
+`"blocking_request_payload_validation_evidence_record_count": 22`,
+`"ready_request_payload_validation_evidence_record_count": 0`,
+`"stored_request_payload_validation_evidence_record_count": 0`,
+`"runtime_observed_request_payload_validation_evidence_record_count": 0`,
+`"request_payload_validation_evidence_records"`,
+`"validation_record_contract_ref"`, `"validation_record_store_ref"`,
+`"validation_record_writer_ref"`, `"validation_record_replay_guard_ref"`,
+`"validation_record_field_refs"`, `"validation_record_field_count"`,
+`"validation_record_contract_ready": false`,
+`"validation_record_store_ready": false`,
+`"validation_record_writer_enabled": false`,
+`"validation_record_replay_guard_ready": false`,
+`"validation_recorded": false`,
+`"append_only_validation_record": false`,
+`"validation_record_idempotency_bound": false`,
+`"validator_input_schema_ref"`, `"validator_output_schema_ref"`,
+`"validator_registration_ref"`, and `"request_payload_validated": false`.
+The validation evidence rows come from
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS` and
+`iter_futures_request_payload_validation_evidence`; validation-record rows come
+from `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS` and
+`iter_futures_request_payload_validation_evidence_records`. They are no-live
+display evidence and do not validate command request payloads, record
+validation evidence, write append-only validation records, or register payload
+validators. Completed registration evidence remains available through
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS` and
+`iter_futures_request_payload_validator_registrations`, while completed
+output-schema evidence remains available through
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS` and
+`iter_futures_request_payload_validator_output_schemas`.

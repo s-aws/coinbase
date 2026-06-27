@@ -8,7 +8,6 @@ This repository contains the Coinbase Advanced Trading engine, which provides fu
 - Spot and Coinbase Derivatives product support through one shared order path.
 - Stealth order lifecycle, reveal, repricing, cancel/re-entry, and fill reconciliation.
 - Browser and terminal dashboard surfaces.
-- A self-contained portfolio site: [Netflix AI Engineer Workbench](README.netflix-ai-engineer-site.md).
 
 The checked-in `products.json` is a minimal local catalog, not the full
 Coinbase spot universe. Direct dashboard and stealth order entry use configured
@@ -58,7 +57,18 @@ This project is tested on:
 - Python 3.13
 - Coinbase Advanced Trade API (REST + WebSocket)
 
-To run tests:
+Run focused tests and validators for ordinary changes. Full regression is a
+durable milestone closeout, public/release-candidate handoff, deployment
+approval/closeout, release-hardening closeout, Admin API/backend association
+closeout, or explicit user request gate. See
+[Regression Process](docs/REGRESSION_PROCESS.md) for the durable policy.
+
+Use the process-parallel runner for that closeout gate:
+```powershell
+python tools\run_parallel_regression.py --workers 4
+```
+
+Sequential pytest is a fallback only when the runner cannot be used:
 ```powershell
 pytest tests/regression/ -v --tb=short
 ```

@@ -30,11 +30,18 @@ The browser smoke gate uses `pytest-playwright` with Chromium. It opens
 sends `request_spot_readiness`, and verifies a server-shaped spot readiness
 payload renders into the operator panel.
 
-This focused gate does not replace the repository requirement:
+This focused gate is the ordinary phase-level check for spot behavior. It does
+not replace the full repository regression gate when closing a durable
+milestone, preparing public/release-candidate handoff, deployment
+approval/closeout, release-hardening closeout, Admin API/backend association
+closeout, or handling an explicit full-gate request:
 
 ```powershell
-pytest tests/regression/ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 ```
+
+Use `pytest tests/regression/ -v --tb=short` only as an intentional sequential
+fallback when `pytest-xdist` is unavailable.
 
 External Coinbase sandbox, wallet smoke, metadata refresh, and paper-mode
 scenario replay checks remain opt-in. They must not become default regression

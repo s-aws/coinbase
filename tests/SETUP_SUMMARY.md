@@ -33,7 +33,7 @@ tests/
 │   ├── conftest.py              # Coinbase-specific configuration
 │   └── test_coinbase_api.py     # Example: API and WebSocket tests
 │
-├── regression/                   # Critical path tests (must always pass)
+├── regression/                   # Critical path tests (milestone/release gate)
 │   ├── __init__.py
 │   └── test_core_functionality.py  # Example: 7 critical regression tests
 │
@@ -47,7 +47,7 @@ tests/
 - **Integration tests** - Multiple components, no external APIs
 - **E2E tests** - Full system, realistic workflows
 - **External tests** - Coinbase API (isolated, requires credentials)
-- **Regression tests** - Critical paths (must pass before deployment)
+- **Regression tests** - Critical paths for milestone/release closeout
 
 ### 2. **Coinbase Tests Isolated**
 - External tests in separate directory
@@ -57,7 +57,9 @@ tests/
 
 ### 3. **Regression Testing**
 - 7 critical tests that verify core functionality
-- Must pass 100% before any deployment
+- Ordinary phase work uses focused tests that cover the changed behavior
+- Must pass 100% before durable milestone closeout, public/release-candidate
+  handoff, or deployment approval
 - Marked with `@pytest.mark.regression`
 - Fast execution (< 1 second each)
 
@@ -85,19 +87,24 @@ pytest tests/ --cov=. --cov-report=html
 
 ### 3. Make your architectural changes
 
-### 4. Run regression tests immediately
+### 4. Run focused tests immediately
 ```bash
-pytest tests/regression/ -v --tb=short
-# Must pass 100% or roll back!
+pytest tests/regression/<focused_test_file>.py -v --tb=short
+# Must pass for the changed behavior
 ```
 
-### 5. Run full test suite
+### 5. Run full regression at milestone/release closeout
+```bash
+python tools/run_parallel_regression.py --workers 4
+```
+
+### 6. Run full test suite when change breadth requires it
 ```bash
 pytest tests/ -v --tb=short --cov=.
 # Compare to baseline
 ```
 
-### 6. Deploy only if tests pass
+### 7. Deploy only if required gates pass
 
 ## Test Examples Provided
 
@@ -140,20 +147,20 @@ pytest tests/ -v --tb=short --cov=.
 
 ### Before Refactoring Architecture
 
-1. Run: `pytest tests/regression/ -v`
-2. Note the exit code (must be 0)
-3. Keep this exit code for comparison after changes
+1. Run focused tests for the behavior being changed.
+2. Keep the exit code and output for comparison after changes.
+3. Run full regression only when closing a milestone or preparing release/deploy.
 
 ### While Refactoring
 
-1. Run regression tests frequently
+1. Run focused tests frequently
 2. If any fail → revert, debug, try again
 3. Add new tests for new functionality
 
 ### Before Deploying
 
 1. Check `DEPLOYMENT_CHECKLIST.md`
-2. Run all 6 test phases
+2. Run focused tests plus full regression closeout
 3. Confirm all tests pass
 4. Only then deploy to production
 
@@ -163,8 +170,11 @@ pytest tests/ -v --tb=short --cov=.
 # Run all tests
 pytest tests/ -v
 
-# Run only regression tests
-pytest tests/regression/ -v
+# Run process-parallel full regression closeout gate
+python tools/run_parallel_regression.py --workers 4
+
+# Sequential fallback only when pytest-xdist is unavailable
+pytest tests/regression/ -v --tb=short
 
 # Run without external tests (faster)
 pytest tests/ -v -m "not external"

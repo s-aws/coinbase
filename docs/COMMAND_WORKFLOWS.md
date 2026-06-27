@@ -116,6 +116,16 @@ lookup posture. The echo is not a guard result or approval source; command
 workflow surfaces may display it only and must not use it to execute, call
 Coinbase, cancel/replace placements, reconcile, mutate state, or broaden BFF
 authority.
+The read-only stealth command-suite may also expose
+`selected_create_pre_execution_contract` from completed phases 5121-5140 as a
+selected-create planning/read review aid. For active phases 5141-5160, the dry
+`POST /api/v1/stealth/orders` command response may expose the same contract
+with exact command-envelope and payload-present fields. It names the backend route,
+payload, approval/admission, lifecycle-write, manager, idempotency/audit,
+guard/account-condition, reconciliation, and Coinbase non-interaction
+boundaries required before future create execution. It must not become a
+browser create control, BFF executor, proof input writer, manager invocation,
+Coinbase call, reconciliation executor, or lifecycle/order state mutation.
 
 `POST /api/v1/spot/sweep/automation-runs` is the route-bound sweep automation
 command contract. It is keyed by `sweep_config_id`, requires
@@ -211,6 +221,14 @@ cancel, recovery, reconciliation, and movement/repricing reprice by
 cancel exchange-handling, move revealed, reprice completion, recovery, and
 reconciliation contracts. Gap rows identify current read evidence, missing
 backend contracts, required gate chains, and browser/BFF boundaries.
+The M55 concrete blocker-closure ledger may also report partial dry-run or
+proof/readback evidence for all concrete blocker rows, including live-service,
+live-adapter, active-placement cancel/replace, reveal exchange submission,
+recovery repair/rollback, and post-write reconciliation execution. Those
+fields separate existing non-executable readback evidence from still-missing
+backend contracts; they do not close blockers, enable live execution, call
+Coinbase, invoke managers, execute reveal, repair, rollback, reconciliation, or
+mutate local/exchange state.
 
 Stealth command rows require command-specific proof evidence in addition to
 the normal approval, cap/guard, admission audit, reconciliation, idempotency,
@@ -233,7 +251,14 @@ live service implementation. Workflows may display its disabled status,
 service reference, forbidden methods, enabled false, executable false, and
 browser/BFF authority only. It does not enable the service, construct
 adapters, call Coinbase, invoke managers, execute reconciliation, mutate
-state, or make the command executable.
+state, or make the command executable. If it includes
+`latest_service_decision_id`, that is local disabled-decision readback only;
+`latest_service_decision_resolves_enablement` remains false and missing
+enablement artifacts remain blockers. The contract also exposes
+`latest_service_decision_recorded_artifacts_satisfy_enablement=false`,
+empty `latest_service_decision_satisfied_enablement_artifacts`, and
+unsatisfied enablement artifact names so recorded readback cannot be confused
+with satisfied live-service enablement.
 Exact create and non-create command responses may include
 `live_execution_intent_contract`. It is the existing backend admission
 decision's disabled intent envelope and is bound to route, identity, actor,
@@ -266,6 +291,19 @@ verification, and safe-chain references only. The records do not execute
 reconciliation, call Coinbase, invoke managers, submit/cancel/read orders,
 cancel/replace active placements, mutate lifecycle/order/exchange state, or
 grant browser/BFF authority.
+The backend can now persist state-mutation policy evidence through
+`POST /api/v1/stealth/orders/{stealth_order_id}/state-mutation-policy-proofs`
+and read it through
+`GET /api/v1/stealth/orders/{stealth_order_id}/state-mutation-policy`.
+Workflows may display route-bound state, lifecycle, order, exchange, and
+post-write policy references only. The records do not authorize or perform
+lifecycle/order/exchange-state mutation, call Coinbase, invoke managers,
+submit/cancel/read orders, cancel/replace active placements, execute
+reconciliation, or grant browser/BFF authority. Create and non-create
+execution prerequisite resolvers may now consume the newest exact safe proof
+row as `state_mutation_policy` prerequisite evidence. The corresponding
+live-readiness backend decision remains unresolved and fail-closed; the proof
+does not grant mutation or execution authority.
 Create and non-create execution prerequisite resolvers may now read the
 post-write proof, execution-journal, and verification stores for exact
 command-context records. A safe proof without a matching accepted journal is
@@ -316,7 +354,101 @@ the shared live-execution adapter evidence builder. Workflows may display its
 route, `AdminApiCommandService.*` reference, forbidden methods, disabled
 status, and browser/BFF authority only. It does not construct an adapter,
 invoke managers, call Coinbase, cancel/replace active placements, execute
-reconciliation, mutate state, or make the command executable.
+reconciliation, mutate state, or make the command executable. Route mapping
+and M53 pilot configuration remain separate from construction satisfaction:
+`route_mapping_satisfies_construction=false`,
+`adapter_configuration_satisfies_construction=false`, and satisfied
+construction artifacts stay empty while required construction artifacts remain
+unsatisfied.
+Command and idempotency-replay payloads must keep this adapter evidence compact:
+`construction_contract_available` and `construction_contract_ref` may point to
+the required construction contract, but `construction_contract` remains `null`
+on those responses. Dedicated construction-contract evidence may expose
+`acceptance_evidence_producer_clearance_dependency_summary`, a blocked
+backend-derived aggregate over producer-readiness clearance action rows.
+Workflows may display counts, dependency-blocked refs, clearable refs,
+terminal refs, first blocker, graph readiness, clearance allowance, and
+disabled route/store/validation/replay/writer/acceptance/construction flags
+only, plus `execution_allowed=false` and `executed=false`. The summary does
+not clear readiness, write or accept evidence, satisfy
+producer contracts, construct adapters, invoke managers, call Coinbase, mutate
+state, or grant browser/BFF execution authority.
+The nested construction contract may also expose
+`acceptance_evidence_producer_clearance_work_items` and
+`acceptance_evidence_producer_clearance_work_queue_summary`, backend-derived
+queue evidence over each producer contract's first blocked clearance action.
+It may also expose `acceptance_evidence_producer_clearance_claim_traces` and
+`acceptance_evidence_producer_clearance_claim_trace_summary`, backend-derived
+traceability evidence mapping the forbidden
+`producer_route_contract_available` claim to each blocked work item. Workflows
+may display the claim ids, work item refs, producer contract ids, evidence
+ids, required refs/routes/methods, blockers, false claim resolution, false
+work-item clearance, false producer satisfaction, disabled route/store/
+validation/replay/writer/acceptance/construction/clearance/execution flags,
+and display/forward-only authority only. These rows do not resolve claims,
+clear work items, write or accept evidence, satisfy producer contracts,
+construct adapters, invoke managers, call Coinbase, mutate state, or grant
+browser/BFF execution authority.
+The nested construction contract may also expose
+`acceptance_evidence_producer_route_requirements` and
+`acceptance_evidence_producer_route_requirement_summary`, backend-derived
+route requirement evidence over those unresolved claim traces. Workflows may
+display route requirement ids, route contract refs, claim ids, work item refs,
+producer contract ids, evidence ids, required refs/routes/methods, blockers,
+false route-contract availability, false route registration, false route
+inventory binding, false shared service binding, false claim resolution, false
+work-item clearance, false producer satisfaction, disabled store/validation/
+replay/writer/acceptance/construction/clearance/execution flags, and
+display/forward-only authority only. These rows do not register routes, bind
+route inventory, bind shared command services, resolve claims, clear work
+items, write or accept evidence, satisfy producer contracts, construct
+adapters, invoke managers, call Coinbase, mutate state, or grant browser/BFF
+execution authority.
+The nested construction contract may also expose
+`acceptance_evidence_producer_route_contract_proposals` and
+`acceptance_evidence_producer_route_contract_proposal_summary`, backend-
+derived proposal evidence over those unresolved route requirements. Workflows
+may display route contract ids, route requirement ids, route contract refs,
+route inventory refs, shared command-service refs, claim ids, work item refs,
+producer contract ids, evidence ids, required refs/routes/methods, blockers,
+false route-contract availability, false route registration, false route
+inventory binding, false shared service binding, false route-handler
+presence, false requirement resolution, false claim resolution, false
+work-item clearance, false producer satisfaction, disabled store/validation/
+replay/writer/acceptance/construction/clearance/execution flags, and
+display/forward-only authority only. These rows do not register routes, bind
+route inventory, bind shared command services, resolve requirements or
+claims, clear work items, write or accept evidence, satisfy producer
+contracts, construct adapters, invoke managers, call Coinbase, mutate state,
+or grant browser/BFF execution authority.
+The same nested construction contract may also expose
+`acceptance_evidence_producer_route_contract_validation_items` and
+`acceptance_evidence_producer_route_contract_validation_summary`, backend-
+derived validation evidence over those unresolved route-contract proposals.
+Workflows may display validation ids, route contract ids, route requirement
+ids, check keys, blockers, route inventory refs, shared command-service refs,
+handler/store/validation/replay/writer/acceptance readiness flags, false
+observed state, false pass state, false requirement and claim resolution, and
+display/forward-only authority only. These rows do not register routes, bind
+route inventory, bind shared command services, register handlers, resolve
+requirements or claims, clear work items, write or accept evidence, satisfy
+producer contracts, construct adapters, invoke managers, call Coinbase, mutate
+state, or grant browser/BFF execution authority.
+The same nested construction contract may also expose
+`acceptance_evidence_producer_route_contract_remediation_items` and
+`acceptance_evidence_producer_route_contract_remediation_summary`, backend-
+derived remediation evidence over failed route-contract validation rows.
+Workflows may display remediation ids, validation ids, route contract ids,
+route requirement ids, check keys, required/observed state, remediation
+actions, validation blockers, false readiness, false route registration,
+false route-inventory binding, false shared-service binding, false handler/
+store/validation/replay/writer/evidence-acceptance state, false requirement
+and claim resolution, and display/forward-only authority only. These rows do
+not perform remediation, register routes, bind route inventory, bind shared
+command services, register handlers, resolve requirements or claims, clear
+work items, write or accept evidence, satisfy producer contracts, construct
+adapters, invoke managers, call Coinbase, execute reconciliation, mutate state,
+or grant browser/BFF execution authority.
 Exact command responses that require active-placement exchange truth also
 include a nested `active_placement_exchange_truth_contract`. It is the same
 backend-owned evidence shape used by command-suite `exchange_truth_checks`.

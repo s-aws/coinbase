@@ -40,7 +40,9 @@ Tests for complete user journeys through the full system.
 **Total E2E Tests: 15+**
 
 ### Regression Tests (`tests/regression/`)
-Critical path tests that MUST PASS before deployment.
+Critical path tests that must pass before durable milestone closeout,
+public/release-candidate handoff, explicit user request, or deployment
+approval.
 
 | Test File | Criticality | Coverage |
 |-----------|-------------|----------|
@@ -126,18 +128,18 @@ pytest tests/ -v
 # Run specific category
 pytest tests/unit/ -v
 pytest tests/integration/ -v
-pytest tests/regression/ -v
+python tools/run_parallel_regression.py --workers 4
 
 # Run with coverage
 pytest tests/ --cov=. --cov-report=html
 ```
 
-### Pre-Deployment
+### Milestone/Release Closeout
 ```bash
-# Regression tests (must pass)
-pytest tests/regression/ -v --tb=short
+# Process-parallel full regression gate
+python tools/run_parallel_regression.py --workers 4
 
-# Full test suite
+# Full test suite when change breadth requires it
 pytest tests/ -v --tb=short --cov=.
 ```
 

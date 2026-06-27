@@ -1,36 +1,38 @@
-"""Example script demonstrating limit order placement for various products.
+"""Fail-closed placeholder for historical order-placement diagnostics.
 
-Creates sample limit orders for derivatives and spot trading pairs.
-Includes configurable parameters for order sizing, pricing, and delays.
-
-Example:
-    >>> python tools/diagnostics/main_place_order.py
-    # Output: JSON array of order responses with success/error details
-
-See order.py create_limit_order_span() docstring for more examples.
+This file used to be a quick manual placement helper. Keeping an executable
+diagnostic that can enter a futures placement path makes contextless review
+unsafe, so the tracked version is now documentation-by-output only.
 """
+
+from __future__ import annotations
+
 import json
 
-from _bootstrap import ensure_repo_root
 
-ensure_repo_root()
+EXIT_CODE = 2
 
-from order import create_limit_order_span
+
+def build_disabled_diagnostic() -> dict[str, object]:
+    """Return explicit evidence that this diagnostic cannot place orders."""
+
+    return {
+        "status": "disabled",
+        "reason": "tracked diagnostics must not place, cancel, or modify exchange orders",
+        "live_coinbase_execution": False,
+        "submitted_notional_usdc": "0",
+        "executed_notional_usdc": "0",
+        "next_step": (
+            "Use approved Admin API dry-run/readback surfaces or a quarantined "
+            "local-only script outside the repository for operator experiments."
+        ),
+    }
+
+
+def main() -> int:
+    print(json.dumps(build_disabled_diagnostic(), indent=2, sort_keys=True))
+    return EXIT_CODE
+
 
 if __name__ == "__main__":
-
-    ##################### PERP - BTC #####################
-
-    orders = create_limit_order_span(
-        delay_in_secs=0,
-        product_id="BIP-20DEC30-CDE",
-        side="SELL",
-        order_base_size_range={"start": 1, "stop": 1},
-        order_price_difference=250,
-        start_price=77000,
-        max_order_count=1,
-        post_only=True
-    )
-    print(json.dumps(orders))
-    print(f"Count: {len(orders)}")
-
+    raise SystemExit(main())

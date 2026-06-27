@@ -5,14 +5,16 @@ from __future__ import annotations
 from pathlib import Path
 import sys
 
-import yaml
-
 
 ROOT = Path(__file__).resolve().parents[1]
 OPENAPI_PATH = ROOT / "openapi" / "coinbase-admin-api.yaml"
 
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+ROOT_STR = str(ROOT)
+if ROOT_STR in sys.path:
+    sys.path.remove(ROOT_STR)
+sys.path.insert(0, ROOT_STR)
+
+import yaml
 
 from api.v1.app import create_app
 

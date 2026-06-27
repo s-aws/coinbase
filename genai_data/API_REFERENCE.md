@@ -16,6 +16,701 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
+Current M57 `7961-7980` futures/perpetual risk-proof record validation
+remediation summary evidence for `GET /api/v1/futures/command-suite` is the
+active slice. It adds read-only
+`risk_proof_record_validation_remediation_summary_count`,
+`risk_proof_record_validation_remediation_summary_blocking_count`, and
+`risk_proof_record_validation_remediation_summaries` fields derived from
+existing per-command risk-proof record-validation remediation rows and carries
+forward completed `7941-7960` risk-proof record validation summary evidence.
+The fields are read-only/no-live evidence and must not perform remediation,
+create work items, register record validators, run contextless reviews,
+configure validation gates, create stores, configure append-only logs, bind
+idempotency, register payload validation, register replay guards, link audit
+evidence, write validation records, write proof records, accept proof records,
+resolve proof acceptance, accept risk proofs, pass command readiness, clear
+command readiness, admit commands, pass approval, cap/guard, or reconciliation
+gates, execute reconciliation, call Coinbase, mutate futures/order/exchange
+state, or grant browser/BFF or spot-rule authority.
+Exact boundary phrase: risk-proof record validation remediation summaries cannot perform remediation.
+Exact validator phrase: risk-proof record validation remediation summaries cannot perform remediation; they are not work item creation, not record validator registration, not contextless review execution, not validation gate configuration, not store creation, not append-only log configuration, not idempotency binding, not payload validation registration, not replay-guard registration, not audit linkage, not validation record writes, not proof record writes, not proof record acceptance, do not resolve proof acceptance, accept risk proofs, clear command readiness, grant admission, Coinbase execution, call Coinbase, execute reconciliation, mutate futures/order state, grant browser/BFF authority, or import spot-rule authority.
+
+Completed M57 `7941-7960` futures/perpetual risk-proof record validation
+summary evidence for `GET /api/v1/futures/command-suite` is carried forward
+history. It added read-only record-validation summary fields derived from
+existing per-command risk-proof record-validation rows.
+
+Completed M57 `7921-7940` futures/perpetual risk-proof record contract summary
+evidence for `GET /api/v1/futures/command-suite` is carried forward history.
+It added read-only record-contract summary fields derived from existing
+per-command risk-proof record-contract rows.
+
+Completed M57 `7901-7920` futures/perpetual risk-proof payload field summary
+evidence for `GET /api/v1/futures/command-suite` is carried forward history.
+It added read-only payload-field summary fields derived from existing
+per-command risk-proof payload-field rows.
+
+Completed M57 `7881-7900` futures/perpetual risk-proof contract summary
+evidence for `GET /api/v1/futures/command-suite` is carried forward history.
+It added read-only proof contract summary fields derived from existing
+per-command risk-proof proof contracts.
+
+Completed M57 `7861-7880` futures/perpetual risk-proof acceptance criterion
+summary evidence for `GET /api/v1/futures/command-suite` is carried forward
+history. It added read-only acceptance criterion summary fields derived from
+existing per-command risk-proof acceptance criteria.
+
+Completed M57 `7841-7860` futures/perpetual risk-proof acceptance blocker
+summary evidence for `GET /api/v1/futures/command-suite` is carried forward
+history. It added read-only acceptance blocker summary fields derived from
+existing per-command risk-proof requirement rows.
+
+Completed M57 `7821-7840` futures/perpetual risk-proof record resolver
+summary evidence for `GET /api/v1/futures/command-suite` is carried forward
+history. It added read-only resolver summary fields derived from existing
+per-command risk-proof requirement rows.
+
+Completed M57 `7801-7820` futures/perpetual command readiness-decision
+summary evidence for `GET /api/v1/futures/command-suite` is carried forward
+history. It added read-only readiness-decision summary fields derived from
+existing per-command readiness decision rows.
+
+Completed M57 `7781-7800` futures/perpetual command risk-proof requirement
+summary evidence for `GET /api/v1/futures/command-suite` is carried forward
+history. It added read-only risk-proof requirement summary fields derived from
+existing per-command risk-proof requirement rows.
+
+Completed M57 `7761-7780` futures/perpetual command semantic-guard summary
+evidence for `GET /api/v1/futures/command-suite` is carried forward history.
+It added read-only semantic-guard summary fields derived from existing
+per-command semantic guard rows.
+
+Completed M57 `7741-7760` futures/perpetual command request-field summary
+evidence for `GET /api/v1/futures/command-suite` is carried forward history.
+It added read-only request-field summary fields derived from existing
+per-command request-field rows.
+
+Completed M57 `7721-7740` futures/perpetual command prerequisite summary
+evidence for `GET /api/v1/futures/command-suite` is carried forward history.
+It added read-only prerequisite summary fields derived from existing
+per-command prerequisite rows.
+
+Completed M57 `7701-7720` futures/perpetual command enablement
+contextless-review blocker summary evidence for
+`GET /api/v1/futures/command-suite` is carried forward history. It added
+read-only review evidence fields to the existing command enablement blocker
+summary and carried the latest completed `7681-7700` blind-review result.
+
+Completed M57 `7681-7700` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+record-validation check output schema field-constraint source-ref
+validation-record acceptance contextless-review acceptance evidence for
+`GET /api/v1/futures/command-suite` is carried forward history. It added
+disabled clearance-step review input store record-validation check output
+schema field-constraint source-ref validation-record acceptance
+contextless-review acceptance rows through a registry derived from
+`application/admin_api/futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_reviews.py`.
+
+Completed M57 `7661-7680` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+record-validation check output schema field-constraint source-ref
+validation-record acceptance contextless-review evidence for
+`GET /api/v1/futures/command-suite` adds disabled rows through
+`application/admin_api/futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_reviews.py`.
+Completed M57 `7641-7660` clearance-step review input store
+record-validation check output schema field-constraint source-ref
+validation-record acceptance evidence is now carried forward history.
+
+Completed M57 `7541-7560` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+record-validation check output schema field-constraint evidence for
+`GET /api/v1/futures/command-suite` adds disabled clearance-step review input
+store record-validation check output schema field-constraint rows through
+`application/admin_api/futures_request_payload_validation_record_validation_check_output_schema_field_constraints.py`.
+Completed M57 `7521-7540` clearance-step review input store
+record-validation check output schema field-type evidence is now carried
+forward history.
+
+Completed M57 `7501-7520` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+record-validation check output schema field-name evidence for
+`GET /api/v1/futures/command-suite` adds disabled clearance-step review input
+store record-validation check output schema field-name rows through
+`application/admin_api/futures_request_payload_validation_record_validation_check_output_schema_field_names.py`.
+Completed M57 `7481-7500` clearance-step review input store
+record-validation check output schema field evidence is now carried forward
+history.
+Those rows are read-only/no-live evidence and do not declare field names,
+source refs, fields, schemas, acceptance contracts, or contextless review; they
+also do not ready validation-check output schema field names, accept or validate
+records, admit commands, execute reconciliation, call Coinbase, mutate
+futures/order/exchange state, or grant browser/BFF or spot-rule authority.
+
+Completed M57 `7481-7500` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+record-validation check output schema field evidence for
+`GET /api/v1/futures/command-suite` adds disabled clearance-step review input
+store record-validation check output schema field rows through
+`application/admin_api/futures_request_payload_validation_record_validation_check_output_schema_fields.py`.
+Completed M57 `7461-7480` clearance-step review input store
+record-validation check output schema evidence is now carried forward history.
+Those rows are read-only/no-live evidence and do not declare field names,
+field types, constraints, source refs, acceptance contracts, or contextless
+review; they also do not ready validation-check output schema fields, accept or
+validate records, admit commands, execute reconciliation, call Coinbase, mutate
+futures/order/exchange state, or grant browser/BFF or spot-rule authority.
+
+Completed M57 `7461-7480` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+record-validation check output schema evidence for
+`GET /api/v1/futures/command-suite` adds disabled clearance-step review input
+store record-validation check output schema rows through
+`application/admin_api/futures_request_payload_validation_record_validation_check_output_schemas.py`.
+Completed M57 `7441-7460` clearance-step review input store
+record-validation check input schema field evidence is now carried forward
+history.
+
+Completed M57 `7421-7440` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+record-validation check input schema evidence for `GET /api/v1/futures/command-suite`:
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency work-item
+claim-trace clearance-step review input store record-validation check input
+schema evidence; futures request payload validation record execution-eligibility
+resolution-plan step review input store record-validation remediation
+dependency work-item claim-trace clearance-step review input store
+record-validation check input schema display.
+
+Completed M57 `7401-7420` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+record-validation check contract evidence for `GET /api/v1/futures/command-suite`:
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency work-item
+claim-trace clearance-step review input store record-validation check contract
+evidence; futures request payload validation record execution-eligibility
+resolution-plan step review input store record-validation remediation
+dependency work-item claim-trace clearance-step review input store
+record-validation check contract display.
+
+Completed M57 `7381-7400` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+record-validation check evidence for `GET /api/v1/futures/command-suite`:
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency work-item
+claim-trace clearance-step review input store record-validation check evidence;
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency work-item
+claim-trace clearance-step review input store record-validation check display.
+
+Completed M57 `7361-7380` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+record-validation evidence for `GET /api/v1/futures/command-suite`: futures
+request payload validation record execution-eligibility resolution-plan step
+review input store record-validation remediation dependency work-item
+claim-trace clearance-step review input store record-validation evidence;
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency work-item
+claim-trace clearance-step review input store record-validation display.
+
+Completed M57 `7341-7360` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+record-contract evidence for `GET /api/v1/futures/command-suite`: futures
+request payload validation record execution-eligibility resolution-plan step
+review input store record-validation remediation dependency work-item
+claim-trace clearance-step review input store record-contract evidence;
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency work-item
+claim-trace clearance-step review input store record-contract display.
+
+Completed M57 `7321-7340` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input store
+requirement evidence for `GET /api/v1/futures/command-suite`: futures request
+payload validation record execution-eligibility resolution-plan step review
+input store record-validation remediation dependency work-item claim-trace
+clearance-step review input store requirement evidence; futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input store requirement display.
+
+Completed M57 `7301-7320` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review input
+evidence for `GET /api/v1/futures/command-suite`:
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency work-item
+claim-trace clearance-step review input evidence; futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review input display.
+
+Completed M57 `7281-7300` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation dependency work-item claim-trace clearance-step review evidence for
+`GET /api/v1/futures/command-suite`:
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency work-item
+claim-trace clearance-step review evidence; futures request payload validation
+record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance-step
+review display; carried-forward completed `7261-7280` futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance step
+evidence; futures request payload validation record execution-eligibility
+resolution-plan step review input store record-validation remediation
+dependency work-item claim-trace clearance step display; carried-forward
+completed `7241-7260` futures request payload validation record
+execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item
+claim-trace clearance plan evidence; futures request payload validation record
+execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim-trace clearance plan
+display; carried-forward completed `7221-7240` futures request payload
+validation record execution-eligibility resolution-plan step review input store
+record-validation remediation dependency work-item claim trace evidence;
+carried-forward completed `7201-7220`
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency work-item
+evidence; futures request payload validation record execution-eligibility
+resolution-plan step review input store record-validation remediation
+dependency work-item display; carried-forward completed `7181-7200`
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency evidence;
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation remediation dependency display;
+carried-forward completed `7161-7180` futures request payload validation record
+execution-eligibility resolution-plan step review input store record-validation
+remediation evidence and display; carried-forward completed `7141-7160`
+futures request payload validation record execution-eligibility resolution-plan
+step review input store record-validation evidence and display; carried-forward
+completed `7121-7140` futures request payload validation record
+execution-eligibility resolution-plan step review input store record-contract
+evidence and display; and earlier carried-forward store requirement, review
+input, review, step, and resolution-plan evidence. The
+current source registries are
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plans.py`
+and
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`
+and
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_reviews.py`
+and
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_inputs.py`
+and
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_requirements.py`
+and
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_contracts.py`
+and
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validations.py`
+and
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediations.py`
+and
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependencies.py`
+and
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_items.py`
+and
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces.py`
+with store record-validation remediation dependency work-item claim-trace rows
+derived from each store record-validation remediation dependency work-item row.
+Representative command-suite keys:
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_contract_ref`,
+`review_input_store_record_validation_remediation_dependency_work_item_claim_trace_kind`,
+`record_validation_remediation_dependency_work_item_claim_trace_gate`,
+`claim_trace_claim`,
+`claim_trace_target_ref`,
+`claim_trace_source_ref`,
+`record_validation_remediation_dependency_work_item_claim_trace_required=true`,
+`record_validation_remediation_dependency_work_item_claim_trace_ready=false`,
+`record_validation_remediation_dependency_work_item_claim_trace_created=false`,
+`claim_trace_created=false`,
+`claim_trace_ready=false`,
+`claim_allowed=false`,
+`claim_resolved=false`,
+`claim_review_accepted=false`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_contract_ref`,
+`review_input_store_record_validation_remediation_dependency_work_item_kind`,
+`record_validation_remediation_dependency_work_item_gate`,
+`record_validation_remediation_dependency_work_item_required=true`,
+`record_validation_remediation_dependency_work_item_ready=false`,
+`record_validation_remediation_dependency_work_item_created=false`,
+`record_validation_remediation_dependency_work_item_claimed=false`,
+`claim_ledger_registered=false`,
+`owner_review_accepted=false`,
+`contextless_review_passed=false`,
+`accepts_evidence=false`,
+`writes_evidence=false`,
+`execution_eligibility_resolution_plan_ref`,
+`execution_eligibility_resolution_plan_contract_ref`,
+`execution_eligibility_resolution_plan_step_ref`,
+`execution_eligibility_resolution_plan_step_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_ref`,
+`execution_eligibility_resolution_plan_step_review_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_ref`,
+`execution_eligibility_resolution_plan_step_review_input_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_requirement_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_requirement_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_contract_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_contract_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_ref`,
+`execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_contract_ref`,
+`review_input_store_record_validation_remediation_dependency_kind`,
+`record_validation_remediation_dependency_gate`,
+`record_validation_remediation_dependency_action_refs`,
+`record_validation_remediation_dependency_blockers`,
+`record_validation_remediation_dependency_required=true`,
+`record_validation_remediation_dependency_ready=false`,
+`record_validation_remediation_dependency_resolved=false`,
+`record_validation_remediation_dependency_performed=false`,
+`record_validation_remediation_dependency_graph_ready=false`,
+`record_validation_remediation_dependency_work_item_created=false`,
+`record_validation_remediation_dependency_work_item_claimed=false`,
+`record_validation_remediation_dependency_claim_trace_created=false`,
+`resolution_plan_step_kind`, `resolution_plan_step_ready=false`,
+`resolution_plan_step_accepted=false`,
+`resolution_plan_step_review_required=true`,
+`resolution_plan_step_review_ready=false`,
+`resolution_plan_step_reviewed=false`,
+`resolution_plan_step_review_accepted=false`, `review_input_kind`,
+`review_input_index`, `input_evidence_store`,
+`resolution_plan_step_review_input_required=true`,
+`resolution_plan_step_review_input_present=false`,
+`resolution_plan_step_review_input_accepted=false`,
+`resolution_plan_step_review_input_validated=false`,
+`resolution_plan_step_review_input_store_requirement_required=true`,
+`resolution_plan_step_review_input_store_available=false`,
+`resolution_plan_step_review_input_writer_available=false`,
+`resolution_plan_step_review_input_record_key_available=false`,
+`resolution_plan_step_review_input_validation_gate_ready=false`,
+`resolution_plan_step_review_input_replay_gate_ready=false`,
+`record_contract_required=true`,
+`record_contract_available=false`,
+`record_schema_available=false`,
+`append_only_log_available=false`,
+`idempotency_key_bound=false`,
+`payload_schema_validated=false`,
+`replay_protected=false`,
+`store_available=false`,
+`writer_available=false`,
+`writer_allowed=false`,
+`write_allowed=false`,
+`record_present=false`,
+`record_accepted=false`,
+`record_validated=false`,
+`validation_configured=false`,
+`replay_protection_configured=false`,
+`record_validation_required=true`,
+`record_validation_ready=false`,
+`record_validation_configured=false`,
+`record_validation_registered=false`,
+`record_validation_gate_ready=false`,
+`record_validation_gate_passed=false`,
+`record_validation_replay_guard_ready=false`,
+`record_validation_schema_ready=false`,
+`record_validation_append_only_log_ready=false`,
+`record_validation_idempotency_bound=false`,
+`record_validation_payload_bound=false`,
+`record_validation_contextless_review_passed=false`,
+`record_validation_performed=false`,
+`record_validation_accepted=false`,
+`record_validation_recorded=false`,
+`record_validation_remediation_required=true`,
+`record_validation_remediation_ready=false`,
+`record_validation_remediation_configured=false`,
+`record_validation_remediation_performed=false`,
+`record_validation_remediation_recorded=false`,
+`record_validation_remediation_accepted=false`,
+`record_validation_remediation_work_item_created=false`,
+`record_validation_remediation_dependency_ready=false`,
+`ordered_resolution_step_ref`,
+`ordered_resolution_step_refs`, `ordered_resolution_step_count`,
+`resolution_plan_present=true`, `resolution_plan_ready=false`,
+`resolution_plan_accepted=false`,
+`runtime_evidence_satisfies_semantic_contract=false`,
+`validation_record_admission_link_ready=false`, and
+`blocker_resolved=false`. Resolution plan step review input store
+record-validation remediation dependency presence is not blocker resolution,
+runtime acceptance, dependency graph creation, work item creation, claim trace
+creation, command admission, Coinbase execution, reconciliation execution,
+futures/order/exchange mutation, browser/BFF execution authority, remediation
+dependency authority, remediation authority, validation authority, or
+spot-rule authority. Resolution plan step review input store record-validation
+remediation presence is not blocker resolution, runtime acceptance, command
+admission, Coinbase execution, reconciliation execution, futures/order/exchange
+mutation, browser/BFF execution authority, remediation authority, validation
+authority, or spot-rule authority. Resolution plan step review input store
+record-validation presence is not blocker resolution,
+runtime acceptance,
+command admission, Coinbase execution, reconciliation execution,
+futures/order/exchange mutation, browser/BFF execution authority, validation
+authority, or spot-rule authority. Resolution plan step review input store
+record-contract presence is not blocker resolution. Resolution plan step review
+input store requirement presence is not blocker resolution. Resolution plan step
+review input presence is not blocker resolution. Resolution plan step review
+presence is not blocker resolution.
+
+Completed M57 `7041-7060` futures/perpetual request payload validation record
+execution-eligibility resolution-plan step evidence for
+`GET /api/v1/futures/command-suite` exposed
+`execution_eligibility_resolution_plan_step_ref`,
+`execution_eligibility_resolution_plan_step_contract_ref`,
+`resolution_plan_step_kind`, `resolution_plan_step_ready=false`,
+`resolution_plan_step_accepted=false`, and `blocker_resolved=false`.
+
+Completed M57 `7021-7040` futures/perpetual request payload validation record
+execution-eligibility resolution-plan evidence for
+`GET /api/v1/futures/command-suite` exposed
+`execution_eligibility_resolution_plan_ref`,
+`execution_eligibility_resolution_plan_contract_ref`,
+`ordered_resolution_step_refs`, `ordered_resolution_step_count`,
+`resolution_plan_present=true`, `resolution_plan_ready=false`,
+`resolution_plan_accepted=false`, and `blocker_resolved=false`.
+
+Completed M57 `7001-7020` futures/perpetual request payload validation record
+execution-eligibility semantic closure for
+`GET /api/v1/futures/command-suite`: futures request payload validation record
+execution-eligibility semantic closure evidence; futures request payload
+validation record execution-eligibility evidence; futures request payload
+validation record execution-eligibility blocker evidence; carried-forward
+futures request payload contract registry evidence; futures request payload validator contract
+registry evidence; futures request payload validator input-schema evidence;
+futures request payload validator output-schema evidence; futures request
+payload validator registration evidence; futures request payload validation
+evidence; futures request payload validation evidence record contract evidence;
+futures request payload validation record schema evidence; futures request
+payload validation record replay guard evidence; futures request payload
+validation record audit-link evidence; futures request payload validation
+record admission-link evidence; futures request payload validation record
+semantic artifact definition review evidence; futures request payload
+validation record semantic artifact definition review input evidence; futures
+request payload validation record semantic artifact definition review output
+evidence; futures request payload validation record semantic artifact
+definition review output acceptance evidence; futures request payload
+validation record semantic artifact runtime evidence binding; futures request
+payload validation record semantic artifact runtime evidence acceptance
+evidence; futures request payload validation record position semantics;
+futures request payload validation record margin semantics; futures request
+payload validation record collateral semantics; futures request payload
+validation record liquidation semantics; futures request payload validation
+record reduce-only semantics; futures request payload validation record
+close-only semantics; futures request payload validation record funding
+semantics; futures request payload validation record order semantics; futures
+request payload validation record cancel semantics; and completed
+`6981-7000` futures request payload validation record reconciliation
+semantics. Source registries include
+`FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`,
+`iter_futures_request_payload_contracts`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`,
+`iter_futures_request_payload_validator_contracts`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`,
+`iter_futures_request_payload_validator_input_schemas`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`,
+`iter_futures_request_payload_validator_output_schemas`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`,
+`iter_futures_request_payload_validator_registrations`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`,
+`iter_futures_request_payload_validation_evidence`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`,
+`iter_futures_request_payload_validation_evidence_records`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`,
+`iter_futures_request_payload_validation_record_schemas`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS`,
+`iter_futures_request_payload_validation_record_replay_guards`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS`,
+`iter_futures_request_payload_validation_record_audit_links`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ADMISSION_LINK_CONTRACTS`,
+`iter_futures_request_payload_validation_record_admission_links`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifact_definition_reviews`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_INPUT_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifact_definition_review_inputs`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifact_definition_review_outputs`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS`,
+`iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_POSITION_SEMANTIC_CONTRACTS`,
+`iter_futures_request_payload_validation_record_position_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_MARGIN_SEMANTIC_CONTRACTS`,
+`iter_futures_request_payload_validation_record_margin_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_COLLATERAL_SEMANTIC_CONTRACTS`,
+`iter_futures_request_payload_validation_record_collateral_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_LIQUIDATION_SEMANTIC_CONTRACTS`,
+`iter_futures_request_payload_validation_record_liquidation_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REDUCE_ONLY_SEMANTIC_CONTRACTS`,
+`iter_futures_request_payload_validation_record_reduce_only_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CLOSE_ONLY_SEMANTIC_CONTRACTS`,
+`iter_futures_request_payload_validation_record_close_only_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_FUNDING_SEMANTIC_CONTRACTS`,
+`iter_futures_request_payload_validation_record_funding_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ORDER_SEMANTIC_CONTRACTS`,
+`iter_futures_request_payload_validation_record_order_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_CANCEL_SEMANTIC_CONTRACTS`,
+`iter_futures_request_payload_validation_record_cancel_semantics`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_RECONCILIATION_SEMANTIC_CONTRACTS`,
+and `iter_futures_request_payload_validation_record_reconciliation_semantics`.
+
+Completed semantic closure source files are
+`application/admin_api/futures_request_payload_validation_record_execution_eligibilities.py`
+and
+`application/admin_api/futures_request_payload_validation_record_execution_eligibility_blockers.py`.
+They expose present disabled contract evidence, not readiness or runtime
+acceptance. Semantic contract presence is not runtime acceptance, command
+admission, Coinbase execution, reconciliation execution,
+futures/order/exchange mutation, browser/BFF execution authority, or
+spot-rule authority.
+
+Representative command-suite keys:
+`validation_record_position_semantics_contract_ref`,
+`validation_record_margin_semantics_contract_ref`,
+`validation_record_collateral_semantics_contract_ref`,
+`validation_record_liquidation_semantics_contract_ref`,
+`validation_record_reduce_only_semantics_contract_ref`,
+`validation_record_close_only_semantics_contract_ref`,
+`validation_record_funding_semantics_contract_ref`,
+`validation_record_order_semantics_contract_ref`,
+`validation_record_cancel_semantics_contract_ref`,
+`validation_record_reconciliation_semantics_contract_ref`,
+`validation_record_semantic_contract_refs`,
+`validation_record_semantic_contract_ref_count`,
+`validation_record_semantic_contracts_present=true`,
+`validation_record_semantic_contracts_ready=false`,
+`semantic_contract_ref`, `semantic_contract_present=true`,
+`semantic_contract_ready=false`,
+`request_payload_validator_contract_count`,
+`blocking_request_payload_validator_contract_count`,
+`request_payload_validator_input_schema_count`,
+`blocking_request_payload_validator_input_schema_count`,
+`request_payload_validator_output_schema_count`,
+`blocking_request_payload_validator_output_schema_count`,
+`request_payload_validator_registration_count`,
+`blocking_request_payload_validator_registration_count`,
+`request_payload_validation_evidence_count`,
+`blocking_request_payload_validation_evidence_count`,
+`request_payload_validation_evidence_record_count`,
+`blocking_request_payload_validation_evidence_record_count`,
+`request_payload_validation_record_schema_count`,
+`blocking_request_payload_validation_record_schema_count`,
+`request_payload_validation_record_replay_guard_count`,
+`blocking_request_payload_validation_record_replay_guard_count`,
+`request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`ready_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+`request_payload_validation_record_semantic_artifact_runtime_evidences`,
+`request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+`blocking_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+`ready_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+`runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+`request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`,
+`request_payload_validation_record_reconciliation_semantic_count`,
+`blocking_request_payload_validation_record_reconciliation_semantic_count`,
+`ready_request_payload_validation_record_reconciliation_semantic_count`,
+`runtime_observed_request_payload_validation_record_reconciliation_semantic_count`,
+`request_payload_validation_record_reconciliation_semantics`,
+`validation_gate_ref`, `validation_evidence_ref`, `validator_contract_ref`,
+`validator_input_schema_ref`, `validator_output_schema_ref`,
+`output_schema_field_refs`, `output_schema_field_count`,
+`validator_registration_ref`, `validator_registration_field_refs`,
+`validator_registration_field_count`, `validation_evidence_contract_ref`,
+`validation_evidence_field_refs`, `validation_evidence_field_count`,
+`validation_record_contract_ref`, `validation_record_store_ref`,
+`validation_record_writer_ref`, `validation_record_replay_guard_ref`,
+`validation_record_field_refs`, `validation_record_field_count`,
+`validation_record_schema_ref`, `validation_record_append_only_log_ref`,
+`validation_record_replay_guard_contract_ref`,
+`validation_record_idempotency_contract_ref`,
+`validation_record_replay_window_ref`,
+`validation_record_duplicate_policy_ref`,
+`validation_record_schema_field_refs`,
+`validation_record_schema_field_count`,
+`validation_record_replay_guard_field_refs`,
+`validation_record_replay_guard_field_count`,
+`semantic_artifact_definition_review_output_acceptance_ref`,
+`semantic_artifact_definition_review_output_acceptance_contract_ref`,
+`semantic_artifact_runtime_evidence_ref`,
+`semantic_artifact_runtime_evidence_contract_ref`,
+`reconciliation_semantics_ref`, `reconciliation_semantics_contract_ref`,
+reconciliation_identity_bound=false,
+reconciliation_position_key_bound=false, reconciliation_plan_bound=false,
+reconciliation_reason_bound=false, post_exchange_reconciliation_bound=false,
+reconciliation_audit_bound=false,
+runtime_reconciliation_evidence_observed=false,
+runtime_evidence_satisfies_reconciliation_semantics=false, and
+validation_record_reconciliation_semantics_ready=false.
+
+Completed execution-eligibility semantic closure refs are authoritative
+display-only evidence:
+`validation_record_execution_eligibility_contract_ref`,
+`validation_record_position_semantics_ref`,
+`validation_record_margin_semantics_ref`,
+`validation_record_collateral_semantics_ref`,
+`validation_record_liquidation_semantics_ref`,
+`validation_record_reduce_only_semantics_ref`,
+`validation_record_close_only_semantics_ref`,
+`validation_record_funding_semantics_ref`,
+`validation_record_order_semantics_ref`,
+`validation_record_cancel_semantics_ref`,
+`validation_record_reconciliation_semantics_ref`,
+`validation_record_position_semantics_contract_ref`,
+`validation_record_margin_semantics_contract_ref`,
+`validation_record_collateral_semantics_contract_ref`,
+`validation_record_liquidation_semantics_contract_ref`,
+`validation_record_reduce_only_semantics_contract_ref`,
+`validation_record_close_only_semantics_contract_ref`,
+`validation_record_funding_semantics_contract_ref`,
+`validation_record_order_semantics_contract_ref`,
+`validation_record_cancel_semantics_contract_ref`,
+`validation_record_reconciliation_semantics_contract_ref`,
+`validation_record_semantic_contract_refs`,
+`validation_record_semantic_contract_ref_count`,
+`validation_record_execution_eligibility_field_refs`,
+`validation_record_semantic_contracts_present=true`,
+`validation_record_semantic_contracts_ready=false`,
+`semantic_contract_ref`, `semantic_contract_present=true`,
+`semantic_contract_ready=false`,
+runtime_evidence_satisfies_validation_record_execution_eligibility=false, and
+validation_record_execution_eligibility_contract_ready=false. Present
+semantic contract rows are not validators, not runtime-accepted contracts, and
+not command execution authority.
+
+False flags remain validation_gate_ready=false,
+validation_gate_passed=false, output_schema_registered=false,
+validator_registration_ready=false,
+runtime_evidence_satisfies_validator_registration=false,
+runtime_evidence_satisfies_validation_evidence=false,
+validation_evidence_ready=false, validation_evidence_recorded=false,
+validation_record_contract_ready=false, validation_record_store_ready=false,
+validation_record_writer_enabled=false,
+validation_record_replay_guard_ready=false,
+runtime_evidence_satisfies_validation_record_schema=false,
+runtime_evidence_satisfies_validation_record_replay_guard=false,
+validation_record_schema_ready=false, validation_record_schema_registered=false,
+validation_record_replay_guard_contract_ready=false,
+validation_record_idempotency_contract_ready=false,
+validation_record_replay_protected=false,
+append_only_validation_record=false,
+validation_record_idempotency_bound=false, and request_payload_validated=false.
+
 Current route adapters:
 - `POST /api/v1/orders`
 - `GET /api/v1/orders`
@@ -60,6 +755,7 @@ Current route adapters:
 - `GET /api/v1/movement-repricing/orders/{client_order_id}`
 - `GET /api/v1/movement-repricing/stealth/{stealth_order_id}`
 - `POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice`
+- `GET /api/v1/futures/command-suite`
 - `GET /api/v1/futures/account`
 - `GET /api/v1/futures/positions`
 - `GET /api/v1/futures/positions/{position_key}`
@@ -114,6 +810,104 @@ Current behavior:
   and summary rows mapping each forbidden claim to the backend decision,
   clearance/work-queue refs, backend contract evidence, and disabled
   claim-cleared/resolver/writer/execution flags that keep it blocked.
+  Exact command contracts also expose
+  `live_execution_adapter_contract.construction_contract.acceptance_evidence_producer_clearance_dependency_summary`
+  when backend construction evidence is present. That summary is blocked
+  aggregate evidence over producer-readiness clearance action rows. It does
+  not clear readiness, write or accept evidence, satisfy producer contracts,
+  construct adapters, invoke managers, call Coinbase, mutate state, or grant
+  browser/BFF execution authority.
+  The same construction contract may expose
+  `acceptance_evidence_producer_clearance_work_items` and
+  `acceptance_evidence_producer_clearance_work_queue_summary` as backend-
+  derived queue evidence over each producer contract's first blocked
+  clearance action. It may also expose
+  `acceptance_evidence_producer_clearance_claim_traces` and
+  `acceptance_evidence_producer_clearance_claim_trace_summary` mapping the
+  forbidden `producer_route_contract_available` claim back to each blocked
+  work item. These fields do not resolve claims, clear work items, write or
+  accept evidence, satisfy producer contracts, construct adapters, invoke
+  managers, call Coinbase, mutate state, or grant browser/BFF execution
+  authority.
+  The same construction contract may expose
+  `acceptance_evidence_producer_route_requirements` and
+  `acceptance_evidence_producer_route_requirement_summary` as backend-derived
+  route requirement evidence over those unresolved claim traces. These fields
+  name the missing route contract refs, route requirement ids, claim ids, work
+  item refs, gates, blockers, and disabled authority flags. They do not
+  register routes, bind route inventory, bind a shared command service, resolve
+  claims, clear work items, write or accept evidence, satisfy producer
+  contracts, construct adapters, invoke managers, call Coinbase, mutate state,
+  or grant browser/BFF execution authority.
+  The same construction contract may expose
+  `acceptance_evidence_producer_route_contract_proposals` and
+  `acceptance_evidence_producer_route_contract_proposal_summary` as backend-
+  derived proposal evidence over those unresolved route requirements. These
+  fields name the missing route contract refs, route inventory refs, shared
+  command-service refs, proposal ids, requirement ids, claim ids, gates,
+  blockers, and disabled authority flags. They do not register routes, bind
+  route inventory, bind shared command services, resolve requirements or
+  claims, clear work items, write or accept evidence, satisfy producer
+  contracts, construct adapters, invoke managers, call Coinbase, mutate state,
+  or grant browser/BFF execution authority.
+  The same construction contract may expose
+  `acceptance_evidence_producer_route_contract_validation_items` and
+  `acceptance_evidence_producer_route_contract_validation_summary` as backend-
+  derived validation evidence over those unresolved route-contract proposals.
+  These fields name validation ids, check keys, blockers, route contract ids,
+  route inventory refs, shared command-service refs, false observed state,
+  false pass state, and disabled handler/store/validation/replay/writer/
+  acceptance/construction/execution authority. They do not register routes,
+  bind route inventory, bind shared command services, register handlers,
+  resolve requirements or claims, clear work items, write or accept evidence,
+  satisfy producer contracts, construct adapters, invoke managers, call
+  Coinbase, mutate state, or grant browser/BFF execution authority.
+  The same construction contract may expose
+  `acceptance_evidence_producer_route_contract_remediation_items` and
+  `acceptance_evidence_producer_route_contract_remediation_summary` as
+  backend-derived remediation evidence over failed validation rows. These
+  fields name remediation ids, validation ids, remediation actions, validation
+  blockers, check keys, route contract ids, false readiness, and disabled
+  route/store/validation/replay/writer/acceptance/construction/execution
+  authority. They do not perform remediation, register routes, bind route
+  inventory, bind shared command services, register handlers, resolve
+  requirements or claims, clear work items, write or accept evidence, satisfy
+  producer contracts, construct adapters, invoke managers, call Coinbase,
+  mutate state, or grant browser/BFF execution authority.
+  The same construction contract may expose
+  `acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_items`
+  and
+  `acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_summary`
+  as backend-derived remediation evidence over failed review-input store
+  record-validation rows. These fields name remediation ids, record
+  validation ids, record contract ids, missing backend work, work refs,
+  validation gates, replay gates, remediation gates, validation blockers,
+  false remediation readiness, false remediation execution, and disabled
+  record/store/review/step/claim/acceptance/construction/execution
+  authority. They do not perform remediation, create validators, bind
+  idempotency, validate payloads, protect replay, create or accept records,
+  validate records, complete inputs or reviews, make steps ready, resolve
+  claims, clear work items, write or accept evidence, satisfy producer
+  contracts, construct adapters, invoke managers, call Coinbase, mutate
+  state, or grant browser/BFF execution authority.
+  The same construction contract may expose
+  `acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependencies`
+  and
+  `acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_summary`
+  as backend-derived dependency evidence over blocked review-input store
+  record-validation remediation rows. These fields name dependency ids,
+  remediation ids, record validation ids, immediate predecessor/successor
+  remediation ids, immediate predecessor/successor record-validation ids,
+  dependency blockers, edge counts, missing backend work, gates, false
+  dependency readiness, false remediation execution, false validation
+  readiness, and disabled record/store/review/step/claim/acceptance/
+  construction/execution authority. The dependency rows intentionally carry
+  immediate-neighbor links only, not an all-pairs graph. They do not resolve
+  dependencies, perform remediation, create validators, bind idempotency,
+  validate payloads, protect replay, create or accept records, validate records, complete inputs or
+  reviews, make steps ready, resolve claims, clear work items, write or accept
+  evidence, satisfy producer contracts, construct adapters, invoke managers,
+  call Coinbase, mutate state, or grant browser/BFF execution authority.
 - `GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof`
   exposes read-only persisted active-placement exchange-truth evidence keyed
   by `stealth_order_id`; it does not read Coinbase, verify exchange truth,
@@ -276,6 +1070,14 @@ Current behavior:
   They are display-only backend evidence and must not be treated as a
   resolver, writer, live switch, Coinbase path, reconciliation executor,
   browser authority, or BFF execution path.
+  Live-adapter construction evidence also exposes
+  `acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_items`
+  and
+  `acceptance_evidence_producer_route_contract_clearance_step_review_input_store_record_validation_remediation_dependency_work_queue_summary`
+  as display-only work-queue readback over blocked record-validation
+  remediation dependency rows. They may name missing backend work and refs but
+  must not perform remediation, accept records, resolve claims, construct
+  adapters, call Coinbase, or grant browser/BFF execution authority.
 - `POST /api/v1/stealth/orders/{stealth_order_id}/move` is a live-disabled
   cancel/replace-shaped command draft keyed by `stealth_order_id`; it returns
   `501`, writes command audit evidence, never calls `build_stealth_move_plan`
@@ -302,12 +1104,334 @@ Current behavior:
   live-disabled command draft keyed by `stealth_order_id`; it returns `501`,
   writes command audit evidence, never calls Coinbase, and does not clear
   cooldowns or invoke the live dashboard repricer
+- `GET /api/v1/futures/command-suite` exposes read-only futures/perpetual
+  command readiness evidence for placement, close/reduce, cancel, and
+  reconciliation. Completed M57 `6281-6300` evidence reports
+  `service_method="reconcile_futures_position"` for `futures_reconcile` while
+  preserving
+  `application/admin_api/futures_reconciliation.py::record_futures_reconciliation_plan`
+  as the separate required reconciliation-plan contract. Completed M57
+  `6301-6320` evidence reports futures proof route/writer contract registry
+  evidence through `FUTURES_PROOF_ROUTE_CONTRACTS` and
+  `FUTURES_PROOF_WRITER_CONTRACTS`, including
+  `application/admin_api/futures_proof_routes.py::post_futures_place_margin_collateral_proof`
+  and
+  `application/admin_api/futures_proof_writer.py::write_futures_place_margin_collateral_proof`.
+  The command-suite response keeps `registered_proof_route_count=0` and
+  `enabled_proof_writer_count=0`. These rows do not register futures command
+  routes, register proof routes, create proof writers, accept proof records,
+  make route-bound command drafts executable, call Coinbase, execute
+  reconciliation, mutate futures/order/exchange state, or grant browser, BFF,
+  or spot-rule authority
+  Completed M57 `6321-6340` evidence reports futures proof payload-field
+  contract registry evidence through `FUTURES_PROOF_PAYLOAD_FIELD_CONTRACTS`
+  and `iter_futures_proof_payload_field_contracts`, including
+  `proof_payload.command`, `proof_payload.validation.status`, and
+  `futures_place_margin_collateral_payload_command_validated`. The
+  command-suite response keeps `payload_field_present=false` and
+  `validation_registered=false`. These rows do not validate submitted proof
+  payloads, register validators, accept proof records, create proof writers,
+  make route-bound command drafts executable, call Coinbase, execute
+  reconciliation, mutate futures/order/exchange state, or grant browser, BFF,
+  or spot-rule authority
+  Completed M57 `6341-6360` evidence reports futures route-bound command draft
+  evidence for `POST /api/v1/futures/orders`,
+  `POST /api/v1/futures/positions/{position_key}/close-reduce`,
+  `POST /api/v1/futures/orders/{client_order_id}/cancel`, and
+  `POST /api/v1/futures/positions/{position_key}/reconciliation`. The
+  command-suite response keeps route/draft flags true while execution remains
+  false. Cancel route evidence uses `client_order_id`. These drafts do not bind
+  live adapters, submit or cancel Coinbase orders, acknowledge exchange orders,
+  execute reconciliation, mutate futures/order/exchange state, accept proof
+  records as readiness, or grant browser/BFF authority.
+  Completed M57 `6361-6380` evidence reports futures request payload contract
+  registry evidence through `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS` and
+  `iter_futures_request_payload_contracts`. The command-suite response keeps
+  `request_field_count=22`, `blocking_request_field_count=22`, and
+  route/draft flags true while execution remains false; request-field
+  `required_backend_contracts` include refs such as
+  `application/admin_api/futures_request_payload_contracts.py::futures_cancel_client_order_id_request_payload_contract`.
+  Completed M57 `6381-6400` evidence adds disabled `validation_gate_ref`,
+  `validation_evidence_ref`, `validator_contract_ref`,
+  `validator_registration_ref`, validation_gate_ready=false,
+  validation_gate_passed=false, and request_payload_validated=false to those
+  request-field rows. Completed M57 `6401-6420` evidence adds disabled futures
+  request payload validator contract registry evidence through
+  `application/admin_api/futures_request_payload_validators.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`, and
+  `iter_futures_request_payload_validator_contracts`. The command-suite
+  response exposes `request_payload_validator_contract_count`,
+  `blocking_request_payload_validator_contract_count`,
+  `request_payload_validator_contracts`, `validator_input_schema_ref`,
+  `validator_output_schema_ref`, validator_input_schema_registered=false, and
+  validator_output_schema_registered=false. These rows do not validate command
+  request payloads, register payload validators, bind live adapters, submit or
+  cancel Coinbase orders, execute reconciliation, mutate futures/order/exchange
+  state, or grant browser, BFF, or spot-rule authority.
+  Completed M57 `6421-6440` evidence adds disabled futures request payload
+  validator input-schema evidence through
+  `application/admin_api/futures_request_payload_validator_input_schemas.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`, and
+  `iter_futures_request_payload_validator_input_schemas`. The command-suite
+  response exposes `request_payload_validator_input_schema_count`,
+  `blocking_request_payload_validator_input_schema_count`,
+  `ready_request_payload_validator_input_schema_count`,
+  `registered_request_payload_validator_input_schema_count`,
+  `request_payload_validator_input_schemas`, `input_schema_field_refs`,
+  `input_schema_field_count`, and input_schema_registered=false. These rows do
+  not validate command request payloads, register payload validators, bind live
+  adapters, submit or cancel Coinbase orders, execute reconciliation, mutate
+  futures/order/exchange state, or grant browser, BFF, or spot-rule authority.
+  Completed M57 `6441-6460` evidence adds disabled futures request payload
+  validator output-schema evidence through
+  `application/admin_api/futures_request_payload_validator_output_schemas.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`, and
+  `iter_futures_request_payload_validator_output_schemas`. The command-suite
+  response exposes `request_payload_validator_output_schema_count`,
+  `blocking_request_payload_validator_output_schema_count`,
+  `ready_request_payload_validator_output_schema_count`,
+  `registered_request_payload_validator_output_schema_count`,
+  `request_payload_validator_output_schemas`, `output_schema_field_refs`,
+  `output_schema_field_count`, and output_schema_registered=false.
+  Completed M57 `6461-6480` evidence adds disabled futures request payload
+  validator registration evidence through
+  `application/admin_api/futures_request_payload_validator_registrations.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`, and
+  `iter_futures_request_payload_validator_registrations`. The command-suite
+  response exposes `request_payload_validator_registration_count`,
+  `blocking_request_payload_validator_registration_count`,
+  `request_payload_validator_registrations`,
+  `validator_registration_field_refs`,
+  `validator_registration_field_count`,
+  validator_registration_ready=false, and
+  runtime_evidence_satisfies_validator_registration=false.
+  Completed M57 `6481-6500` evidence adds disabled futures request payload
+  validation evidence through
+  `application/admin_api/futures_request_payload_validation_evidence.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`, and
+  `iter_futures_request_payload_validation_evidence`. The command-suite
+  response exposes `request_payload_validation_evidence_count`,
+  `blocking_request_payload_validation_evidence_count`,
+  `ready_request_payload_validation_evidence_count`,
+  `recorded_request_payload_validation_evidence_count`,
+  `runtime_observed_request_payload_validation_evidence_count`,
+  `request_payload_validation_evidence`, `validation_evidence_contract_ref`,
+  `validation_evidence_field_refs`, `validation_evidence_field_count`,
+  runtime_evidence_satisfies_validation_evidence=false,
+  validation_evidence_ready=false, and validation_evidence_recorded=false.
+  Completed M57 `6501-6520` evidence adds disabled futures request payload
+  validation evidence record contract evidence through
+  `application/admin_api/futures_request_payload_validation_evidence_records.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`, and
+  `iter_futures_request_payload_validation_evidence_records`. The command-suite
+  response exposes `request_payload_validation_evidence_record_count`,
+  `blocking_request_payload_validation_evidence_record_count`,
+  `ready_request_payload_validation_evidence_record_count`,
+  `stored_request_payload_validation_evidence_record_count`,
+  `runtime_observed_request_payload_validation_evidence_record_count`,
+  `request_payload_validation_evidence_records`,
+  `validation_record_contract_ref`, `validation_record_store_ref`,
+  `validation_record_writer_ref`, `validation_record_replay_guard_ref`,
+  `validation_record_field_refs`, `validation_record_field_count`,
+  validation_record_contract_ready=false,
+  validation_record_store_ready=false,
+  validation_record_writer_enabled=false,
+  validation_record_replay_guard_ready=false,
+  validation_recorded=false, append_only_validation_record=false, and
+  validation_record_idempotency_bound=false.
+  Completed M57 `6521-6540` evidence added disabled futures request payload
+  validation record schema and append-only log evidence through
+  `application/admin_api/futures_request_payload_validation_record_schemas.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`, and
+  `iter_futures_request_payload_validation_record_schemas`. The command-suite
+  response exposes `request_payload_validation_record_schema_count`,
+  `blocking_request_payload_validation_record_schema_count`,
+  `ready_request_payload_validation_record_schema_count`,
+  `registered_request_payload_validation_record_schema_count`,
+  `runtime_observed_request_payload_validation_record_schema_count`,
+  `request_payload_validation_record_schemas`,
+  `validation_record_schema_ref`,
+  `validation_record_append_only_log_ref`,
+  `validation_record_schema_field_refs`,
+  `validation_record_schema_field_count`,
+  runtime_evidence_satisfies_validation_record_schema=false,
+  validation_record_schema_ready=false,
+  validation_record_schema_registered=false, and
+  validation_record_append_only_log_ready=false.
+- Completed M57 `6541-6560` evidence added disabled futures request payload
+  validation record replay guard evidence through
+  `application/admin_api/futures_request_payload_validation_record_replay_guards.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_REPLAY_GUARD_CONTRACTS`, and
+  `iter_futures_request_payload_validation_record_replay_guards`. The
+  command-suite response exposes
+  `request_payload_validation_record_replay_guard_count`,
+  `blocking_request_payload_validation_record_replay_guard_count`,
+  `ready_request_payload_validation_record_replay_guard_count`,
+  `idempotency_bound_request_payload_validation_record_count`,
+  `runtime_observed_request_payload_validation_record_replay_guard_count`,
+  `request_payload_validation_record_replay_guards`,
+  `validation_record_replay_guard_contract_ref`,
+  `validation_record_idempotency_contract_ref`,
+  `validation_record_replay_window_ref`,
+  `validation_record_duplicate_policy_ref`,
+  `validation_record_replay_guard_field_refs`,
+  `validation_record_replay_guard_field_count`,
+  runtime_evidence_satisfies_validation_record_replay_guard=false,
+  validation_record_replay_guard_contract_ready=false,
+  validation_record_idempotency_contract_ready=false, and
+  validation_record_replay_protected=false.
+- Completed M57 `6781-6800` evidence carries forward disabled futures request payload
+  validation record semantic artifact runtime evidence acceptance through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`.
+  The command-suite response exposes
+  `request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
+  `blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
+  `ready_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
+  `runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptance_count`,
+  `request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances`,
+  `semantic_artifact_runtime_evidence_acceptance_ref`,
+  `semantic_artifact_runtime_evidence_acceptance_contract_ref`,
+  semantic_artifact_runtime_evidence_acceptance_available=false, and
+  semantic_artifact_runtime_evidence_acceptance_accepted=false.
+  Completed `6761-6780` evidence carries forward disabled futures request
+  payload validation record semantic artifact runtime evidence binding through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_runtime_evidences.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_semantic_artifact_runtime_evidences`.
+  The carried-forward response exposes
+  `request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+  `blocking_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+  `ready_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+  `runtime_observed_request_payload_validation_record_semantic_artifact_runtime_evidence_count`,
+  `request_payload_validation_record_semantic_artifact_runtime_evidences`,
+  `semantic_artifact_runtime_evidence_ref`,
+  `semantic_artifact_runtime_evidence_contract_ref`,
+  semantic_artifact_runtime_evidence_available=false,
+  semantic_artifact_runtime_evidence_bound=false, and
+  semantic_artifact_runtime_evidence_accepted=false.
+  Completed `6741-6760` evidence carries forward disabled futures request
+  payload validation record semantic artifact definition review output
+  acceptance evidence through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_ACCEPTANCE_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`.
+  The carried-forward response exposes
+  `request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+  `blocking_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+  `ready_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+  `runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_output_acceptance_count`,
+  `request_payload_validation_record_semantic_artifact_definition_review_output_acceptances`,
+  `semantic_artifact_definition_review_output_acceptance_ref`,
+  `semantic_artifact_definition_review_output_acceptance_contract_ref`,
+  `semantic_artifact_definition_review_output_ref`,
+  `semantic_artifact_definition_review_output_contract_ref`,
+  `semantic_artifact_definition_review_ref`,
+  `semantic_artifact_definition_review_contract_ref`,
+  `semantic_artifact_definition_ref`,
+  `semantic_artifact_definition_contract_ref`,
+  contextless_review_required=true,
+  semantic_artifact_definition_review_output_acceptance_available=false, and
+  semantic_artifact_definition_review_output_acceptance_accepted=false.
+  Completed `6721-6740` evidence carries forward disabled futures request
+  payload validation record semantic artifact definition review output
+  evidence through
+  `application/admin_api/futures_request_payload_validation_record_semantic_artifact_definition_review_outputs.py`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SEMANTIC_ARTIFACT_DEFINITION_REVIEW_OUTPUT_CONTRACTS`,
+  and
+  `iter_futures_request_payload_validation_record_semantic_artifact_definition_review_outputs`.
+  The carried-forward response exposes
+  `request_payload_validation_record_semantic_artifact_definition_review_output_count`,
+  `blocking_request_payload_validation_record_semantic_artifact_definition_review_output_count`,
+  `ready_request_payload_validation_record_semantic_artifact_definition_review_output_count`,
+  `runtime_observed_request_payload_validation_record_semantic_artifact_definition_review_output_count`,
+  and
+  `request_payload_validation_record_semantic_artifact_definition_review_outputs`.
+  The older execution-eligibility and admission-link rows remain present as
+  backend-owned blockers through
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_EXECUTION_ELIGIBILITY_CONTRACTS`,
+  `iter_futures_request_payload_validation_record_execution_eligibilities`,
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_ADMISSION_LINK_CONTRACTS`, and
+  `iter_futures_request_payload_validation_record_admission_links`. These
+  rows preserve validation_record_execution_eligible=false,
+  validation_record_admitted=false,
+  validation_record_admission_link_contract_ready=false,
+  validation_record_admission_link_ready=false,
+  validation_record_approval_snapshot_bound=false,
+  validation_record_cap_guard_decision_bound=false,
+  validation_record_reconciliation_plan_bound=false,
+  validation_record_live_intent_bound=false,
+  validation_record_command_admission_bound=false, and
+  validation_record_admitted=false. Completed `6561-6580` audit-link evidence
+  remains available through
+  `FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_AUDIT_LINK_CONTRACTS`.
+- Machine-check evidence: futures request payload contract registry evidence.
+- Machine-check evidence: futures request payload validation gate evidence.
+- Machine-check evidence: futures request payload validator contract registry evidence.
+- Machine-check evidence: futures request payload validator input-schema evidence.
+- Machine-check evidence: futures request payload validator output-schema evidence.
+- Machine-check evidence: futures request payload validator registration evidence.
+- Machine-check evidence: futures request payload validation evidence.
+- Machine-check evidence: futures request payload validation record execution-eligibility evidence.
+- Machine-check evidence:
+  `application/admin_api/futures_request_payload_contracts.py`.
+- Machine-check evidence:
+  `application/admin_api/futures_request_payload_validators.py`.
+- Machine-check evidence:
+  `application/admin_api/futures_request_payload_validator_input_schemas.py`.
+- Machine-check evidence: `FUTURES_REQUEST_PAYLOAD_FIELD_CONTRACTS`.
+- Machine-check evidence: `iter_futures_request_payload_contracts`.
+- Machine-check evidence: `FUTURES_REQUEST_PAYLOAD_VALIDATOR_CONTRACTS`.
+- Machine-check evidence:
+  `iter_futures_request_payload_validator_contracts`.
+- Machine-check evidence: `FUTURES_REQUEST_PAYLOAD_VALIDATOR_INPUT_SCHEMA_CONTRACTS`.
+- Machine-check evidence:
+  `iter_futures_request_payload_validator_input_schemas`.
+- Machine-check evidence: `FUTURES_REQUEST_PAYLOAD_VALIDATOR_OUTPUT_SCHEMA_CONTRACTS`.
+- Machine-check evidence:
+  `iter_futures_request_payload_validator_output_schemas`.
+- Machine-check evidence: `FUTURES_REQUEST_PAYLOAD_VALIDATOR_REGISTRATION_CONTRACTS`.
+- Machine-check evidence:
+  `iter_futures_request_payload_validator_registrations`.
+- Machine-check evidence: request_field_count.
+- Machine-check evidence: blocking_request_field_count.
+- Machine-check evidence: `request_payload_validator_contract_count`.
+- Machine-check evidence: `blocking_request_payload_validator_contract_count`.
+- Machine-check evidence: `request_payload_validator_input_schema_count`.
+- Machine-check evidence: `blocking_request_payload_validator_input_schema_count`.
+- Machine-check evidence: `request_payload_validator_output_schema_count`.
+- Machine-check evidence: `blocking_request_payload_validator_output_schema_count`.
+- Machine-check evidence: `request_payload_validator_registration_count`.
+- Machine-check evidence: `blocking_request_payload_validator_registration_count`.
+- Machine-check evidence: `validation_gate_ref`.
+- Machine-check evidence: `validation_evidence_ref`.
+- Machine-check evidence: `validator_contract_ref`.
+- Machine-check evidence: `validator_input_schema_ref`.
+- Machine-check evidence: `validator_output_schema_ref`.
+- Machine-check evidence: `validator_registration_ref`.
+- Machine-check evidence: validator_input_schema_registered=false.
+- Machine-check evidence: validator_output_schema_registered=false.
+- Machine-check evidence: validation_gate_ready=false.
+- Machine-check evidence: validation_gate_passed=false.
+- Machine-check evidence: request_payload_validated=false.
+- Machine-check evidence: validate command request payloads remains forbidden.
+- Machine-check evidence: register payload validators remains forbidden.
+- Machine-check evidence: route/draft flags are true while execution remains
+  false.
+- Machine-check evidence: route/draft flags true while execution remains.
+- Historical machine-check evidence: proof payload-field contract registry evidence.
+- Historical machine-check evidence: validate submitted proof payloads remains
+  forbidden for the completed disabled payload-field registry.
 - `GET /api/v1/futures/account`, `GET /api/v1/futures/positions`, and
   `GET /api/v1/futures/positions/{position_key}` expose read-only
   futures/perpetual account, risk, and position evidence; `position_key` is
   the read identity, configured product scope is separate from observed
   position scope, close/reduce sides are backend-derived from observed
-  position side, and no futures/perpetual command route is modeled yet
+  position side, and futures/perpetual command draft routes remain no-live
 - `GET /api/v1/admin/guard-risk-policy` exposes backend-owned guard/risk
   policy evidence: action-condition policy, configured cap rules, live gate
   posture, product capability policy, profitability-validator posture,
@@ -1133,4 +2257,74 @@ Inflight categories used by callers include:
 
 ---
 
-Last updated: 2026-06-10
+Last updated: 2026-06-24
+
+## Completed M57 Futures Request Payload Validation Record Schema Evidence
+
+`GET /api/v1/futures/command-suite` completed `6501-6520` evidence includes
+futures request payload validation evidence record contract evidence through
+disabled rows from
+`application/admin_api/futures_request_payload_validation_evidence_records.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_RECORD_CONTRACTS`, and
+`iter_futures_request_payload_validation_evidence_records`. Completed
+futures request payload validation evidence remains available through
+`application/admin_api/futures_request_payload_validation_evidence.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_EVIDENCE_CONTRACTS`, and
+`iter_futures_request_payload_validation_evidence`. The response includes
+`request_payload_validation_evidence_count`,
+`blocking_request_payload_validation_evidence_count`,
+`ready_request_payload_validation_evidence_count`,
+`recorded_request_payload_validation_evidence_count`,
+`runtime_observed_request_payload_validation_evidence_count`,
+`request_payload_validation_evidence`, `validation_evidence_contract_ref`,
+`validation_evidence_field_refs`, `validation_evidence_field_count`,
+`required_evidence_refs`, `missing_evidence_refs`,
+`request_payload_validation_evidence_record_count`,
+`blocking_request_payload_validation_evidence_record_count`,
+`ready_request_payload_validation_evidence_record_count`,
+`stored_request_payload_validation_evidence_record_count`,
+`runtime_observed_request_payload_validation_evidence_record_count`,
+`request_payload_validation_evidence_records`,
+`validation_record_contract_ref`, `validation_record_store_ref`,
+`validation_record_writer_ref`, `validation_record_replay_guard_ref`,
+`validation_record_field_refs`, `validation_record_field_count`,
+`runtime_evidence_satisfies_validation_evidence=false`,
+`validation_evidence_ready=false`, `validation_evidence_recorded=false`,
+`validation_record_contract_ready=false`,
+`validation_record_store_ready=false`,
+`validation_record_writer_enabled=false`,
+`validation_record_replay_guard_ready=false`,
+`validation_recorded=false`, `append_only_validation_record=false`,
+`validation_record_idempotency_bound=false`,
+`validator_input_schema_ref`, `validator_output_schema_ref`,
+`validator_registration_ref`, and `request_payload_validated=false`. These
+rows are evidence only; they do not validate command request payloads, record
+validation evidence, write append-only validation records, register payload
+validators, call Coinbase, execute reconciliation, mutate futures/order or
+exchange state, or grant browser/BFF/spot-rule authority. Route/draft flags
+true while execution remains false. Carried-forward validator-registration
+rows still expose `validator_registration_ready=false` and
+`runtime_evidence_satisfies_validator_registration=false`; carried-forward
+output-schema rows still expose `output_schema_registered=false`.
+
+Completed `6521-6540` evidence added futures request payload validation record
+schema and append-only log evidence through disabled rows from
+`application/admin_api/futures_request_payload_validation_record_schemas.py`,
+`FUTURES_REQUEST_PAYLOAD_VALIDATION_RECORD_SCHEMA_CONTRACTS`, and
+`iter_futures_request_payload_validation_record_schemas`. The response now
+also includes `request_payload_validation_record_schema_count`,
+`blocking_request_payload_validation_record_schema_count`,
+`ready_request_payload_validation_record_schema_count`,
+`registered_request_payload_validation_record_schema_count`,
+`runtime_observed_request_payload_validation_record_schema_count`,
+`request_payload_validation_record_schemas`,
+`validation_record_schema_ref`, `validation_record_append_only_log_ref`,
+`validation_record_schema_field_refs`, `validation_record_schema_field_count`,
+`runtime_evidence_satisfies_validation_record_schema=false`,
+`validation_record_schema_ready=false`,
+`validation_record_schema_registered=false`, and
+`validation_record_append_only_log_ready=false`. These rows are evidence only;
+they do not register schemas, write append-only validation logs, validate
+command request payloads, write validation records, call Coinbase, execute
+reconciliation, mutate futures/order or exchange state, or grant browser/BFF/
+spot-rule authority.

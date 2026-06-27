@@ -20,18 +20,35 @@ Before deploying any changes to the platform (architectural changes, new feature
 - [ ] Add inline code comments for complex logic
 - [ ] Update documentation in genai_data/
 
-## Phase 3: Immediate Regression Testing
+## Phase 3: Focused Post-Change Testing
 
-- [ ] Run regression tests immediately after changes
+- [ ] Run focused tests and validators that cover the changed behavior
   ```bash
-  pytest tests/regression/ -v --tb=short
+  pytest tests/regression/<focused_test_file>.py -v --tb=short
   ```
-  - **Must pass 100%** or roll back changes
-  - If failures: revert, debug, try again
+  - If failures: debug, fix, and rerun the focused gate
+  - Do not run the full regression suite for ordinary phase work unless explicitly requested
 
-## Phase 4: Full Test Suite
+## Phase 4: Full Regression Closeout
 
-- [ ] Run complete test suite
+- [ ] Run full regression before durable milestone closeout, public/release-candidate handoff, deployment approval/closeout, release-hardening closeout, Admin API/backend association closeout, or explicit user request
+  ```bash
+  python tools/run_parallel_regression.py --workers 4
+  ```
+  - Requires pytest-xdist for the process-parallel lane; if pytest-xdist is
+    unavailable, install the test dependencies or deliberately run the
+    sequential closeout fallback: `pytest tests/regression/ -v --tb=short`
+  - The runner validates serial-lane classification before pytest. Regression
+    files touching shared DB cursors, fixed service ports, process-global
+    state, full FastAPI app imports, or process-shared/memory-heavy resources
+    must use `pytest.mark.serial`; false positives require a documented
+    `parallel-regression: serial-safe` comment.
+  - Optional fast preflight: `python tools/run_parallel_regression.py --check-serial-classification-only`
+  - Must pass before the milestone/release/deployment is considered complete
+
+## Phase 5: Full Test Suite
+
+- [ ] Run complete test suite when the change is broad enough to require it
   ```bash
   pytest tests/ -v --tb=short --cov=. > full_test_results.txt
   ```
@@ -39,7 +56,7 @@ Before deploying any changes to the platform (architectural changes, new feature
   - Investigate any new failures
   - Update tests if behavior intentionally changed
 
-## Phase 5: External API Testing
+## Phase 6: External API Testing
 
 - [ ] Run external Coinbase tests (if API integration changed)
   ```bash
@@ -49,16 +66,16 @@ Before deploying any changes to the platform (architectural changes, new feature
   pytest tests/external/ -v -m external
   ```
 
-## Phase 6: Code Review
+## Phase 7: Code Review
 
 - [ ] Architecture changes approved by team
 - [ ] Code follows project patterns
 - [ ] Test coverage adequate (> 80%)
 - [ ] Documentation updated
 
-## Phase 7: Deployment
+## Phase 8: Deployment
 
-- [ ] All regression tests pass ✓
+- [ ] Full regression closeout gate passed when this is a durable milestone, release, or deployment closeout: `python tools/run_parallel_regression.py --workers 4`
 - [ ] All unit tests pass ✓
 - [ ] All integration tests pass ✓
 - [ ] External tests pass (if applicable) ✓
@@ -67,7 +84,7 @@ Before deploying any changes to the platform (architectural changes, new feature
 - [ ] Commit message references test results
 - [ ] Tag release with test results
 
-## Phase 8: Post-Deployment Monitoring
+## Phase 9: Post-Deployment Monitoring
 
 - [ ] Monitor error logs for new issues
 - [ ] Verify order creation/reveal in production
@@ -85,9 +102,14 @@ pytest tests/ -v --tb=short > baseline.log
 pytest tests/ --cov=. --cov-report=term-missing > baseline_coverage.log
 ```
 
-### Check regression tests (immediate)
+### Check focused tests after ordinary changes
 ```bash
-pytest tests/regression/ -v --tb=short
+pytest tests/regression/<focused_test_file>.py -v --tb=short
+```
+
+### Check full regression at closeout/release
+```bash
+python tools/run_parallel_regression.py --workers 4
 ```
 
 ### Full test suite after changes
@@ -120,8 +142,8 @@ pytest tests/ -v -m "not external"
 Use these to validate test status in CI/CD:
 
 ```bash
-# Run regression tests
-pytest tests/regression/ -v
+# Run full regression closeout gate
+python tools/run_parallel_regression.py --workers 4
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then
@@ -129,7 +151,7 @@ if [ $EXIT_CODE -ne 0 ]; then
     exit 1
 fi
 
-echo "All regression tests passed - safe to deploy"
+echo "Full regression closeout gate passed - safe to deploy"
 exit 0
 ```
 

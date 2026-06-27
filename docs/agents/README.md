@@ -60,9 +60,68 @@ Use the cleanup classifier before moving or archiving files:
 python tools/classify_repo_files.py --format markdown
 ```
 
-Focused checks do not replace the required regression gate for non-agent-file
-changes:
+Focused checks are the normal validation path for ordinary phase work. The
+canonical regression policy lives in [Regression Process](../REGRESSION_PROCESS.md).
+Full regression is reserved for durable milestone closeout,
+public/release-candidate handoff, deployment approval/closeout,
+release-hardening closeout, Admin API/backend association closeout, or explicit
+user request:
 
 ```powershell
-pytest tests/regression/ -v --tb=short
+python tools/run_parallel_regression.py --workers 4
 ```
+
+Use `pytest tests/regression/ -v --tb=short` only as an intentional sequential
+fallback when `pytest-xdist` is unavailable.
+
+The parallel runner validates serial-lane classification before running pytest.
+Shared DB cursor, fixed service port, process-global state, and other
+process-shared regression tests must be marked `pytest.mark.serial`; regression
+files importing the full FastAPI app factory are also serial-lane-only to avoid
+multiplying the route-model memory footprint across workers. Documented false
+positives use `parallel-regression: serial-safe`.
+
+The runner also records per-lane peak memory samples in its summary JSON when
+the Windows memory guard is active. Before pytest starts, it also fails fast
+when oversized repo-local runtime artifacts under `runtime_state/` exceed
+`1 GiB`. Preserve the summary line for closeout evidence.
+`runtime_artifact_preflight_failed` means the gate failed before pytest; run
+the runtime artifact checker, preserve evidence, and clean or archive artifacts
+only after explicit operator cleanup approval. `memory_guard_aborted` means the
+gate failed during pytest. Run the stale process checker, run the runtime
+artifact checker, then split or reduce the offending regression surface before
+retrying.
+
+Before full closeout gates and after interrupted or timed-out backend/frontend
+test commands, run:
+
+```powershell
+python tools/check_stale_test_processes.py --include-sibling-frontend
+```
+
+Use `--kill` only for matched repo-owned test command lines that are stale or
+above the default high-memory threshold and not part of active validation. Do
+not terminate generic `node.exe`,
+`python.exe`, Codex, VS Code, or browser processes by name alone.
+
+After a memory-guard abort or unexplained memory spike, also run:
+
+```powershell
+python tools/check_runtime_artifacts.py
+```
+
+It is report-only and identifies oversized `runtime_state/` test artifacts; do
+not delete artifacts without an explicit cleanup decision.
+
+## Subagent Hygiene
+
+Phase-end cleanup is the canonical timing: close subagents spawned for that
+phase and any stale or previously unused subagents from earlier phases or
+milestones found during the sweep after their findings have been consumed,
+remediated, or explicitly deferred. Durable milestone closeout is a final audit
+sweep, not the first cleanup point. Do not leave completed, failed, superseded,
+stale, or unused subagents open unless they are part of an active handoff with
+recorded owner, purpose, and expected next action. Do not close a subagent that
+is still running required validation, producing required evidence, or awaiting
+a user decision. Record the phase-end or milestone-closeout sweep result in the
+phase evidence, handoff, or closeout summary before advancing.

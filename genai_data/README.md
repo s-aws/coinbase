@@ -52,7 +52,13 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
 - Stealth local state must match live exchange reality: hidden/pending/triggered orders have no active Coinbase placement; revealed orders may have one until cancellation, fill, move/reprice, or reconciliation accounts for it.
 - Use enums from `core/enums.py`, not ad hoc strings.
 - Respect thread-safety boundaries and existing lock ownership.
-- For non-agent-file changes, `pytest tests/regression/ -v --tb=short` must pass.
+- For ordinary non-agent-file changes, run focused tests and validators that
+  cover the changed behavior. Full `tests/regression/` is reserved for durable
+  milestone closeout, public/release-candidate handoff, deployment
+  approval/closeout, release-hardening closeout, Admin API/backend association
+  closeout, or explicit user request. Prefer
+  `python tools/run_parallel_regression.py --workers 4` for the full closeout
+  gate.
 
 ## Main Runtime Entry Points
 

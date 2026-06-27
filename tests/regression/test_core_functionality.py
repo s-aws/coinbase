@@ -1,10 +1,11 @@
 """
-Regression tests - Critical path tests that must always pass before deployment.
+Regression tests - Critical path tests for milestone/release closeout.
 
 These tests verify core functionality hasn't broken due to refactoring.
-Run these tests with: pytest tests/regression/ -v
+Run this focused file with: pytest tests/regression/test_core_functionality.py -v
 
-All tests in this file MUST pass before deploying any changes.
+All tests in this file must pass before durable milestone closeout,
+public/release-candidate handoff, explicit request, or deployment approval.
 """
 
 import pytest
@@ -127,6 +128,6 @@ class TestErrorConditions:
         assert sample_stealth_order["revealed_size"] <= sample_stealth_order["total_size"] + 1.0
 
 
-# Run before any deployment with:
+# Run before milestone/release closeout with:
 # pytest tests/regression/ -v --tb=short
-# Exit code must be 0 to proceed with deployment
+# Exit code must be 0 to proceed with closeout or deployment

@@ -152,6 +152,9 @@ class AdminApiPermission(str, Enum):
     STEALTH_COINBASE_EXCHANGE_POLICY_RECORD = (
         "stealth_coinbase_exchange_policy:record"
     )
+    STEALTH_STATE_MUTATION_POLICY_RECORD = (
+        "stealth_state_mutation_policy:record"
+    )
     STEALTH_POST_WRITE_RECONCILIATION_POLICY_RECORD = (
         "stealth_post_write_reconciliation_policy:record"
     )
@@ -159,6 +162,7 @@ class AdminApiPermission(str, Enum):
     STEALTH_RECOVERY_RECORD = "stealth_recovery:record"
     STEALTH_RECONCILIATION_RECORD = "stealth_reconciliation:record"
     STEALTH_CANCEL_REPLACE_RECORD = "stealth_cancel_replace:record"
+    FUTURES_RISK_PROOF_RECORD = "futures_risk_proof:record"
     STEALTH_RECOVERY_EXECUTE = "stealth_recovery:execute"
     STEALTH_RECONCILIATION_EXECUTE = "stealth_reconciliation:execute"
     CONFIG_UPDATE = "config:update"
@@ -259,6 +263,8 @@ class AdminApiMutationFamilyType(str, Enum):
     ADMIN_ADMISSION_AUDIT = "admin_admission_audit"
     ADMIN_CAP_GUARD_DECISION = "admin_cap_guard_decision"
     ADMIN_RECONCILIATION_PLAN = "admin_reconciliation_plan"
+    ADMIN_LIVE_SERVICE_DECISION = "admin_live_service_decision"
+    ADMIN_LIVE_ADAPTER_DECISION = "admin_live_adapter_decision"
     SPOT_MANUAL_ORDER = "spot_manual_order"
     SPOT_ORDER_CANCEL = "spot_order_cancel"
     SPOT_CAMPAIGN_EXECUTION = "spot_campaign_execution"
@@ -295,6 +301,9 @@ class AdminApiMutationFamilyType(str, Enum):
     STEALTH_COINBASE_EXCHANGE_SUBMISSION_POLICY_PROOF = (
         "stealth_coinbase_exchange_submission_policy_proof"
     )
+    STEALTH_STATE_MUTATION_POLICY_PROOF = (
+        "stealth_state_mutation_policy_proof"
+    )
     STEALTH_POST_WRITE_RECONCILIATION_EXECUTION_POLICY_PROOF = (
         "stealth_post_write_reconciliation_execution_policy_proof"
     )
@@ -313,6 +322,7 @@ class AdminApiMutationFamilyType(str, Enum):
     )
     MOVEMENT_REPRICE = "movement_reprice"
     FUTURES_CONTRACT_REQUIRED = "futures_contract_required"
+    FUTURES_RISK_PROOF = "futures_risk_proof"
     FILL_LEDGER_REPAIR_CONTRACT_REQUIRED = "fill_ledger_repair_contract_required"
     LEGACY_DASHBOARD_PLACE = "legacy_dashboard_place"
     LEGACY_DASHBOARD_HOTPOINT = "legacy_dashboard_hotpoint"
@@ -332,6 +342,7 @@ class AdminApiStealthAdmissionEvidence(str, Enum):
     POST_WRITE_RECONCILIATION_EXECUTION_POLICY = (
         "post_write_reconciliation_execution_policy"
     )
+    STATE_MUTATION_POLICY = "state_mutation_policy"
     LIFECYCLE_WRITE_GUARD = "lifecycle_write_guard"
     MUTATION_CLAIM_SNAPSHOT = "mutation_claim_snapshot"
     MANAGER_INVOCATION_POLICY = "manager_invocation_policy"
@@ -371,6 +382,7 @@ class StealthCreateLifecycleExecutionPrerequisite(str, Enum):
     POST_WRITE_RECONCILIATION_EXECUTION_POLICY = (
         "post_write_reconciliation_execution_policy"
     )
+    STATE_MUTATION_POLICY = "state_mutation_policy"
     LIFECYCLE_WRITE_GUARD_PROOF = "lifecycle_write_guard_proof"
     LIVE_EXECUTION_SERVICE = "live_execution_service"
     LIVE_EXECUTION_ADAPTER = "live_execution_adapter"
@@ -423,6 +435,7 @@ class StealthCommandExecutionPrerequisite(str, Enum):
     POST_WRITE_RECONCILIATION_EXECUTION_POLICY = (
         "post_write_reconciliation_execution_policy"
     )
+    STATE_MUTATION_POLICY = "state_mutation_policy"
     ACTIVE_PLACEMENT_EXCHANGE_TRUTH = "active_placement_exchange_truth"
     REVEAL_TRIGGER_EVIDENCE = "reveal_trigger_evidence"
     MUTATION_CLAIM_SNAPSHOT = "mutation_claim_snapshot"
@@ -487,6 +500,96 @@ class AdminApiStealthCommandSuiteGapFamily(str, Enum):
     STEALTH_RECONCILIATION_WORKFLOW = "stealth_reconciliation_workflow"
 
 
+class AdminApiStealthCommandSuiteBlockerClosure(str, Enum):
+    """Concrete M55 blocker closures required before stealth live execution."""
+
+    LIVE_SERVICE_ENABLEMENT_MISSING = "live_service_enablement_missing"
+    LIVE_ADAPTER_CONSTRUCTION_MISSING = "live_adapter_construction_missing"
+    ACTIVE_PLACEMENT_CANCEL_REPLACE_EXECUTION_DISABLED = (
+        "active_placement_cancel_replace_execution_disabled"
+    )
+    LIVE_REVEAL_EXCHANGE_SUBMISSION_DISABLED = (
+        "live_reveal_exchange_submission_disabled"
+    )
+    LIVE_REPAIR_ROLLBACK_EXECUTION_DISABLED = (
+        "live_repair_rollback_execution_disabled"
+    )
+    POST_WRITE_RECONCILIATION_EXECUTION_DISABLED = (
+        "post_write_reconciliation_execution_disabled"
+    )
+
+
+class AdminApiStealthClosureDependencyClass(str, Enum):
+    """M55 closure-readiness dependency class for backend-owned clearance."""
+
+    BACKEND_CONTRACT = "backend_contract"
+    PROOF_ROUTE = "proof_route"
+    GATE_CHAIN = "gate_chain"
+
+
+class AdminApiStealthClosureClearanceOwner(str, Enum):
+    """Backend owner class responsible for clearing an M55 dependency."""
+
+    ADMIN_API_CONTRACT = "admin_api_contract"
+    BACKEND_GATE_CHAIN = "backend_gate_chain"
+
+
+class AdminApiStealthClosureClearanceStepName(str, Enum):
+    """Backend step required before an M55 dependency can be cleared."""
+
+    IMPLEMENT_BACKEND_CONTRACT = "implement_backend_contract"
+    ADD_PROOF_ROUTE = "add_proof_route"
+    VERIFY_GATE_CHAIN = "verify_gate_chain"
+
+
+class AdminApiStealthClosureClearanceStepReviewName(str, Enum):
+    """Backend review required before an M55 clearance step can complete."""
+
+    REVIEW_BACKEND_CONTRACT = "review_backend_contract"
+    REVIEW_PROOF_ROUTE = "review_proof_route"
+    REVIEW_GATE_CHAIN = "review_gate_chain"
+
+
+class AdminApiStealthClosureClearanceStepReviewInputName(str, Enum):
+    """Backend input required before an M55 clearance-step review can pass."""
+
+    BACKEND_CONTRACT_ARTIFACT = "backend_contract_artifact"
+    PROOF_ROUTE_ARTIFACT = "proof_route_artifact"
+    GATE_CHAIN_EVIDENCE = "gate_chain_evidence"
+
+
+class AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName(str, Enum):
+    """Backend store requirement for one M55 clearance-step review input."""
+
+    INPUT_EVIDENCE_STORE = "input_evidence_store"
+
+
+class AdminApiStealthClosureClearanceStepReviewInputStoreRecordContractName(
+    str, Enum
+):
+    """Backend record contract required by one M55 review-input store."""
+
+    INPUT_EVIDENCE_RECORD_CONTRACT = "input_evidence_record_contract"
+
+
+class AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationName(
+    str, Enum
+):
+    """Backend record validation required by one M55 review-input store."""
+
+    INPUT_EVIDENCE_RECORD_VALIDATION = "input_evidence_record_validation"
+
+
+class AdminApiStealthClosureClearanceStepReviewInputStoreRecordValidationRemediationName(
+    str, Enum
+):
+    """Backend remediation required by one M55 review-input record validation."""
+
+    INPUT_EVIDENCE_RECORD_VALIDATION_REMEDIATION = (
+        "input_evidence_record_validation_remediation"
+    )
+
+
 class SpotRecoveryExchangeStateSnapshotSource(str, Enum):
     """Source posture for backend-owned Spot recovery exchange-state snapshots."""
 
@@ -535,6 +638,14 @@ class StealthCoinbaseExchangePolicyEvidenceSource(str, Enum):
     EXCHANGE_POLICY_REVIEW = "exchange_policy_review"
 
 
+class StealthStateMutationPolicyEvidenceSource(str, Enum):
+    """Source posture for stealth state-mutation policy evidence."""
+
+    MANUAL_REVIEW = "manual_review"
+    TEST_EVIDENCE = "test_evidence"
+    STATE_MUTATION_POLICY_REVIEW = "state_mutation_policy_review"
+
+
 class StealthRevealTriggerEvidenceSource(str, Enum):
     """Source posture for stealth reveal-trigger proof evidence."""
 
@@ -581,6 +692,14 @@ class StealthPostWriteReconciliationExecutionPolicyEvidenceSource(str, Enum):
     MANUAL_REVIEW = "manual_review"
     TEST_EVIDENCE = "test_evidence"
     EXECUTION_POLICY_REVIEW = "execution_policy_review"
+
+
+class AdminFuturesRiskProofEvidenceSource(str, Enum):
+    """Source posture for futures/perpetual risk proof evidence."""
+
+    MANUAL_REVIEW = "manual_review"
+    TEST_EVIDENCE = "test_evidence"
+    RUNTIME_RISK_REVIEW = "runtime_risk_review"
 
 
 class AdminApiApprovalLifecycleStatus(str, Enum):
@@ -645,6 +764,23 @@ class AdminApiGateStatus(str, Enum):
     NOT_APPLICABLE = "not_applicable"
 
 
+class AdminApiLiveAdapterDecisionResolutionStatus(str, Enum):
+    """Resolution posture for live-adapter decision readback evidence."""
+
+    NOT_AVAILABLE = "not_available"
+    READBACK_ONLY = "readback_only"
+
+
+class AdminApiLiveAdapterConstructionArtifact(str, Enum):
+    """Backend artifacts required before a live adapter can be constructed."""
+
+    ROUTE_BOUND_STEALTH_LIVE_EXECUTION_ADAPTER = (
+        "route_bound_stealth_live_execution_adapter"
+    )
+    SHARED_COMMAND_SERVICE_ADAPTER = "shared_command_service_adapter"
+    ROUTE_INVENTORY_EXECUTION_BINDING = "route_inventory_execution_binding"
+
+
 class AdminApiLivePreflightCategory(str, Enum):
     """Controlled-live preflight evidence categories for Admin API routes."""
 
@@ -670,6 +806,22 @@ class AdminApiLivePreflightCategory(str, Enum):
     STATE_MUTATION = "state_mutation"
     LIVE_EXECUTION_SERVICE = "live_execution_service"
     BROWSER_AUTHORITY = "browser_authority"
+
+
+class StealthCreatePreExecutionContractSection(str, Enum):
+    """Selected stealth-create pre-execution contract sections."""
+
+    SELECTED_CANDIDATE_SCOPE = "selected_candidate_scope"
+    ROUTE_IDENTITY_CONTRACT = "route_identity_contract"
+    PAYLOAD_CONTRACT = "payload_contract"
+    APPROVAL_ADMISSION_PRECONDITIONS = "approval_admission_preconditions"
+    LIFECYCLE_WRITE_BOUNDARY = "lifecycle_write_boundary"
+    MANAGER_INVOCATION_BOUNDARY = "manager_invocation_boundary"
+    IDEMPOTENCY_AUDIT_BOUNDARY = "idempotency_audit_boundary"
+    GUARD_ACCOUNT_CONDITION_BOUNDARY = "guard_account_condition_boundary"
+    RECONCILIATION_PLANNING_BOUNDARY = "reconciliation_planning_boundary"
+    COINBASE_NON_INTERACTION_PROOF = "coinbase_non_interaction_proof"
+    FRONTEND_BFF_AUTHORITY_BOUNDARY = "frontend_bff_authority_boundary"
 
 
 class AdminApiStealthLiveReadinessDecision(str, Enum):
@@ -799,6 +951,13 @@ class AdminApiIdempotencyDecision(str, Enum):
     CONFLICT = "conflict"
 
 
+class AdminApiIdempotencyResponseStorage(str, Enum):
+    """Storage mode for durable Admin API idempotency response evidence."""
+
+    INLINE = "inline"
+    GZIP_FILE = "gzip_file"
+
+
 class AdminApiCompatibilityMode(str, Enum):
     """How legacy dashboard live messages relate to enterprise API gates."""
 
@@ -904,6 +1063,1319 @@ class AdminFuturesPositionSide(str, Enum):
     SHORT = "SHORT"
     FLAT = "FLAT"
     UNKNOWN = "UNKNOWN"
+
+
+class AdminFuturesCommandAction(str, Enum):
+    """Planned futures/perpetual command contract actions."""
+
+    PLACE = "futures_place"
+    CLOSE_REDUCE = "futures_close_reduce"
+    CANCEL = "futures_cancel"
+    RECONCILE = "futures_reconcile"
+
+
+class AdminFuturesCommandPrerequisite(str, Enum):
+    """Backend-owned prerequisites before futures/perpetual commands exist."""
+
+    POSITION_SCOPE = "position_scope"
+    MARGIN = "margin"
+    COLLATERAL = "collateral"
+    LIQUIDATION = "liquidation"
+    FUNDING = "funding"
+    REDUCE_ONLY_CLOSE_ONLY = "reduce_only_close_only"
+    APPROVAL_SNAPSHOT = "approval_snapshot"
+    CAP_GUARD = "cap_guard"
+    ADMISSION_AUDIT = "admission_audit"
+    RECONCILIATION_PLAN = "reconciliation_plan"
+    LIVE_EXECUTION_SERVICE = "live_execution_service"
+    LIVE_EXECUTION_ADAPTER = "live_execution_adapter"
+    BACKEND_COMMAND_SERVICE = "backend_command_service"
+
+
+class AdminFuturesCommandRequestField(str, Enum):
+    """Planned futures/perpetual command request fields."""
+
+    PRODUCT_ID = "product_id"
+    POSITION_KEY = "position_key"
+    CLIENT_ORDER_ID = "client_order_id"
+    ORDER_SIDE = "order_side"
+    ORDER_TYPE = "order_type"
+    SIZE = "size"
+    LIMIT_PRICE = "limit_price"
+    TIME_IN_FORCE = "time_in_force"
+    REDUCE_ONLY = "reduce_only"
+    CLOSE_ONLY = "close_only"
+    RECONCILIATION_REASON = "reconciliation_reason"
+    EXPECTED_POSITION_STATE = "expected_position_state"
+    OPERATOR_NOTES = "operator_notes"
+
+
+class AdminFuturesCommandSemanticGuard(str, Enum):
+    """Backend-owned futures/perpetual command semantic guard categories."""
+
+    PRODUCT_SCOPE = "product_scope"
+    POSITION_SCOPE = "position_scope"
+    MARGIN_COLLATERAL = "margin_collateral"
+    LIQUIDATION_BUFFER = "liquidation_buffer"
+    FUNDING_FEE = "funding_fee"
+    REDUCE_ONLY = "reduce_only"
+    CLOSE_ONLY = "close_only"
+    IDEMPOTENCY = "idempotency"
+    APPROVAL_SNAPSHOT = "approval_snapshot"
+    CAP_GUARD = "cap_guard"
+    ADMISSION_AUDIT = "admission_audit"
+    RECONCILIATION_PLAN = "reconciliation_plan"
+    LIVE_EXECUTION_BOUNDARY = "live_execution_boundary"
+
+
+class AdminFuturesCommandEvidenceRoute(str, Enum):
+    """Backend evidence routes that support futures/perpetual command guards."""
+
+    FUTURES_ACCOUNT = "/api/v1/futures/account"
+    FUTURES_POSITIONS = "/api/v1/futures/positions"
+    FUTURES_POSITION_DETAIL = "/api/v1/futures/positions/{position_key}"
+    FUTURES_RISK_PROOFS = "/api/v1/futures/risk-proofs"
+    ADMIN_APPROVALS = "/api/v1/admin/approvals"
+    ADMIN_APPROVAL_REQUEST = "/api/v1/admin/approvals/requests/{approval_request_id}"
+    ADMIN_ADMISSION_AUDITS = "/api/v1/admin/admission-audits"
+    ADMIN_CAP_GUARD_DECISIONS = "/api/v1/admin/cap-guard/decisions"
+    ADMIN_RECONCILIATION_PLANS = "/api/v1/admin/reconciliation/plans"
+    ADMIN_LIVE_ENABLEMENT = "/api/v1/admin/live-enablement"
+    ADMIN_LIVE_SERVICE_DECISIONS = "/api/v1/admin/live-execution/service-decisions"
+    ADMIN_LIVE_ADAPTER_DECISIONS = "/api/v1/admin/live-execution/adapter-decisions"
+
+
+class AdminFuturesCommandReadinessDecision(str, Enum):
+    """Backend-owned futures/perpetual command readiness decision states."""
+
+    BLOCKED_BACKEND_CONTRACTS_REQUIRED = "blocked_backend_contracts_required"
+    READY_FOR_BACKEND_COMMAND_ROUTE = "ready_for_backend_command_route"
+
+
+class AdminFuturesCommandReadinessClosureStep(str, Enum):
+    """Ordered backend-owned closure steps for futures command readiness."""
+
+    RESOLVE_PREREQUISITE_CONTRACTS = "resolve_prerequisite_contracts"
+    DEFINE_REQUEST_PAYLOAD_CONTRACT = "define_request_payload_contract"
+    BIND_SEMANTIC_GUARD_EVIDENCE = "bind_semantic_guard_evidence"
+    DEFINE_BACKEND_COMMAND_SERVICE = "define_backend_command_service"
+    REGISTER_ADMIN_COMMAND_ROUTE = "register_admin_command_route"
+    BIND_LIVE_SERVICE_ADAPTER = "bind_live_service_adapter"
+    RUN_CONTEXTLESS_REVIEW_GATE = "run_contextless_review_gate"
+
+
+class AdminFuturesCommandEnablementBlocker(str, Enum):
+    """Aggregate blockers that keep futures/perpetual commands read-only."""
+
+    UNRESOLVED_PREREQUISITES = "unresolved_prerequisites"
+    REQUEST_PAYLOAD_CONTRACTS = "request_payload_contracts"
+    SEMANTIC_GUARD_EVIDENCE = "semantic_guard_evidence"
+    RISK_PROOF_ACCEPTANCE = "risk_proof_acceptance"
+    ADMIN_COMMAND_ROUTE = "admin_command_route"
+    LIVE_SERVICE_ADAPTER = "live_service_adapter"
+    CONTEXTLESS_REVIEW_GATE = "contextless_review_gate"
+
+
+class AdminFuturesCommandExecutionEligibilityBlocker(str, Enum):
+    """Missing futures semantics that block validation-record execution."""
+
+    POSITION_SEMANTICS_MISSING = "position_semantics_missing"
+    MARGIN_SEMANTICS_MISSING = "margin_semantics_missing"
+    COLLATERAL_SEMANTICS_MISSING = "collateral_semantics_missing"
+    LIQUIDATION_SEMANTICS_MISSING = "liquidation_semantics_missing"
+    REDUCE_ONLY_SEMANTICS_MISSING = "reduce_only_semantics_missing"
+    CLOSE_ONLY_SEMANTICS_MISSING = "close_only_semantics_missing"
+    FUNDING_SEMANTICS_MISSING = "funding_semantics_missing"
+    ORDER_SEMANTICS_MISSING = "order_semantics_missing"
+    CANCEL_SEMANTICS_MISSING = "cancel_semantics_missing"
+    RECONCILIATION_SEMANTICS_MISSING = "reconciliation_semantics_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStep(str, Enum):
+    """Ordered backend evidence steps required to clear a futures blocker."""
+
+    SEMANTIC_ARTIFACT_CONTRACT = "semantic_artifact_contract"
+    SEMANTIC_ARTIFACT_DEFINITION_CONTRACT = "semantic_artifact_definition_contract"
+    SEMANTIC_ARTIFACT_DEFINITION_REVIEW = "semantic_artifact_definition_review"
+    SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_CONTRACT = (
+        "semantic_artifact_runtime_evidence_contract"
+    )
+    SEMANTIC_ARTIFACT_RUNTIME_EVIDENCE_ACCEPTANCE_CONTRACT = (
+        "semantic_artifact_runtime_evidence_acceptance_contract"
+    )
+    RUNTIME_READBACK = "runtime_readback"
+    ADMISSION_LINK = "admission_link"
+    CONTEXTLESS_REVIEW = "contextless_review"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInput(
+    str, Enum
+):
+    """Inputs required before a futures resolution-plan step review can pass."""
+
+    OWNER_REVIEW_EVIDENCE = "owner_review_evidence"
+    CONTEXTLESS_REVIEW_EVIDENCE = "contextless_review_evidence"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRequirement(
+    str,
+    Enum,
+):
+    """Store requirements before futures resolution-plan review inputs can exist."""
+
+    INPUT_EVIDENCE_STORE = "input_evidence_store"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordContract(
+    str,
+    Enum,
+):
+    """Record contracts required by futures resolution-plan review-input stores."""
+
+    INPUT_EVIDENCE_RECORD_CONTRACT = "input_evidence_record_contract"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidation(
+    str,
+    Enum,
+):
+    """Record validation gates required by futures resolution-plan review-input stores."""
+
+    INPUT_EVIDENCE_RECORD_VALIDATION = "input_evidence_record_validation"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediation(
+    str,
+    Enum,
+):
+    """Remediation required by futures resolution-plan review-input store record validations."""
+
+    INPUT_EVIDENCE_RECORD_VALIDATION_REMEDIATION = (
+        "input_evidence_record_validation_remediation"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependency(
+    str,
+    Enum,
+):
+    """Dependency required before futures review-input store validation remediation can proceed."""
+
+    INPUT_EVIDENCE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY = (
+        "input_evidence_record_validation_remediation_dependency"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyBlocker(
+    str,
+    Enum,
+):
+    """Blocked dependency reasons for futures review-input store validation remediation."""
+
+    RECORD_VALIDATION_REMEDIATION_NOT_READY = (
+        "record_validation_remediation_not_ready"
+    )
+    DEPENDENCY_GRAPH_MISSING = "dependency_graph_missing"
+    DEPENDENCY_WORK_ITEM_MISSING = "dependency_work_item_missing"
+    DEPENDENCY_CLAIM_TRACE_MISSING = "dependency_claim_trace_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItem(
+    str,
+    Enum,
+):
+    """Work item required before futures review-input store validation remediation dependency can proceed."""
+
+    INPUT_EVIDENCE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM = (
+        "input_evidence_record_validation_remediation_dependency_work_item"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemBlocker(
+    str,
+    Enum,
+):
+    """Blocked work-item reasons for futures review-input store validation remediation dependency."""
+
+    REMEDIATION_DEPENDENCY_NOT_READY = "remediation_dependency_not_ready"
+    DEPENDENCY_WORK_ITEM_STORE_MISSING = "dependency_work_item_store_missing"
+    CLAIM_LEDGER_MISSING = "claim_ledger_missing"
+    OWNER_REVIEW_MISSING = "owner_review_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTrace(
+    str,
+    Enum,
+):
+    """Claim trace required before futures review-input store dependency work can be claimed."""
+
+    INPUT_EVIDENCE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE = (
+        "input_evidence_record_validation_remediation_dependency_work_item_claim_trace"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceBlocker(
+    str,
+    Enum,
+):
+    """Blocked claim-trace reasons for futures review-input store dependency work items."""
+
+    WORK_ITEM_NOT_READY = "work_item_not_ready"
+    WORK_ITEM_NOT_CLAIMED = "work_item_not_claimed"
+    CLAIM_LEDGER_MISSING = "claim_ledger_missing"
+    CLAIM_TRACE_STORE_MISSING = "claim_trace_store_missing"
+    CLAIM_REVIEW_MISSING = "claim_review_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlan(
+    str,
+    Enum,
+):
+    """Clearance plan required before futures dependency work-item claim traces can clear."""
+
+    INPUT_EVIDENCE_RECORD_VALIDATION_REMEDIATION_DEPENDENCY_WORK_ITEM_CLAIM_TRACE_CLEARANCE_PLAN = (
+        "input_evidence_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanBlocker(
+    str,
+    Enum,
+):
+    """Blocked clearance-plan reasons for futures dependency work-item claim traces."""
+
+    CLAIM_TRACE_NOT_READY = "claim_trace_not_ready"
+    CLAIM_NOT_ALLOWED = "claim_not_allowed"
+    CLEARANCE_PLAN_STORE_MISSING = "clearance_plan_store_missing"
+    CLEARANCE_PLAN_SEQUENCE_MISSING = "clearance_plan_sequence_missing"
+    CLAIM_REVIEW_MISSING = "claim_review_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep(
+    str,
+    Enum,
+):
+    """Backend clearance-plan steps before futures dependency claim traces can clear."""
+
+    INSPECT_CLAIM_TRACE = "inspect_claim_trace"
+    VERIFY_CLAIM_LEDGER = "verify_claim_ledger"
+    VERIFY_CLAIM_TRACE_STORE = "verify_claim_trace_store"
+    VERIFY_PREDECESSOR_SUCCESSOR_SEQUENCE = "verify_predecessor_successor_sequence"
+    RUN_CONTEXTLESS_REVIEW = "run_contextless_review"
+    RECORD_CLEARANCE_PLAN_EVIDENCE = "record_clearance_plan_evidence"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepBlocker(
+    str,
+    Enum,
+):
+    """Blocked clearance-step reasons for futures dependency work-item claim traces."""
+
+    CLEARANCE_PLAN_NOT_CREATED = "clearance_plan_not_created"
+    CLEARANCE_PLAN_NOT_READY = "clearance_plan_not_ready"
+    CLEARANCE_SEQUENCE_MISSING = "clearance_sequence_missing"
+    PRIOR_CLEARANCE_STEP_INCOMPLETE = "prior_clearance_step_incomplete"
+    REQUIRED_STEP_REVIEW_MISSING = "required_step_review_missing"
+    CLAIM_TRACE_NOT_READY = "claim_trace_not_ready"
+    CLAIM_UNRESOLVED = "claim_unresolved"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewKind(
+    str,
+    Enum,
+):
+    """Backend review required before futures dependency claim-trace clearance steps can pass."""
+
+    REVIEW_CLEARANCE_STEP_CONTRACT = "review_clearance_step_contract"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewBlocker(
+    str,
+    Enum,
+):
+    """Blocked review reasons for futures dependency work-item claim-trace clearance steps."""
+
+    CLEARANCE_STEP_NOT_READY = "clearance_step_not_ready"
+    CLEARANCE_STEP_INCOMPLETE = "clearance_step_incomplete"
+    REQUIRED_REVIEW_INPUT_MISSING = "required_review_input_missing"
+    REVIEW_GATE_MISSING = "review_gate_missing"
+    CLEARANCE_PLAN_NOT_READY = "clearance_plan_not_ready"
+    CLAIM_TRACE_NOT_READY = "claim_trace_not_ready"
+    CLAIM_UNRESOLVED = "claim_unresolved"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputKind(
+    str,
+    Enum,
+):
+    """Backend input required before futures dependency claim-trace clearance-step reviews can pass."""
+
+    PROVIDE_CLEARANCE_STEP_REVIEW_INPUT = "provide_clearance_step_review_input"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputBlocker(
+    str,
+    Enum,
+):
+    """Blocked input reasons for futures dependency claim-trace clearance-step reviews."""
+
+    CLEARANCE_STEP_REVIEW_NOT_READY = "clearance_step_review_not_ready"
+    CLEARANCE_STEP_REVIEW_INCOMPLETE = "clearance_step_review_incomplete"
+    REQUIRED_REVIEW_INPUT_MISSING = "required_review_input_missing"
+    REVIEW_INPUT_STORE_MISSING = "review_input_store_missing"
+    REVIEW_INPUT_GATE_MISSING = "review_input_gate_missing"
+    CLEARANCE_STEP_NOT_READY = "clearance_step_not_ready"
+    CLAIM_TRACE_NOT_READY = "claim_trace_not_ready"
+    CLAIM_UNRESOLVED = "claim_unresolved"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRequirementBlocker(
+    str,
+    Enum,
+):
+    """Blocked store reasons before futures clearance-step review input evidence can exist."""
+
+    CLEARANCE_STEP_REVIEW_INPUT_NOT_PRESENT = (
+        "clearance_step_review_input_not_present"
+    )
+    CLEARANCE_STEP_REVIEW_INPUT_NOT_ACCEPTED = (
+        "clearance_step_review_input_not_accepted"
+    )
+    REVIEW_INPUT_STORE_MISSING = "review_input_store_missing"
+    REVIEW_INPUT_WRITER_MISSING = "review_input_writer_missing"
+    REVIEW_INPUT_RECORD_KEY_MISSING = "review_input_record_key_missing"
+    REVIEW_INPUT_VALIDATION_GATE_MISSING = "review_input_validation_gate_missing"
+    REVIEW_INPUT_REPLAY_GATE_MISSING = "review_input_replay_gate_missing"
+    CLEARANCE_STEP_REVIEW_NOT_READY = "clearance_step_review_not_ready"
+    CLAIM_TRACE_NOT_READY = "claim_trace_not_ready"
+    CLAIM_UNRESOLVED = "claim_unresolved"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordContractBlocker(
+    str,
+    Enum,
+):
+    """Blocked contract reasons before futures clearance-step review input records can exist."""
+
+    STORE_REQUIREMENT_NOT_READY = "store_requirement_not_ready"
+    RECORD_CONTRACT_MISSING = "record_contract_missing"
+    RECORD_SCHEMA_MISSING = "record_schema_missing"
+    APPEND_ONLY_LOG_MISSING = "append_only_log_missing"
+    IDEMPOTENCY_KEY_MISSING = "idempotency_key_missing"
+    PAYLOAD_SCHEMA_VALIDATION_MISSING = "payload_schema_validation_missing"
+    REPLAY_PROTECTION_MISSING = "replay_protection_missing"
+    REVIEW_INPUT_STORE_MISSING = "review_input_store_missing"
+    REVIEW_INPUT_WRITER_MISSING = "review_input_writer_missing"
+    REVIEW_INPUT_RECORD_KEY_MISSING = "review_input_record_key_missing"
+    CLEARANCE_STEP_REVIEW_INPUT_NOT_ACCEPTED = (
+        "clearance_step_review_input_not_accepted"
+    )
+    CLAIM_TRACE_NOT_READY = "claim_trace_not_ready"
+    CLAIM_UNRESOLVED = "claim_unresolved"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationBlocker(
+    str,
+    Enum,
+):
+    """Blocked validation reasons before futures clearance-step review input records can be accepted."""
+
+    STORE_RECORD_CONTRACT_NOT_READY = "store_record_contract_not_ready"
+    RECORD_CONTRACT_MISSING = "record_contract_missing"
+    RECORD_SCHEMA_MISSING = "record_schema_missing"
+    APPEND_ONLY_LOG_MISSING = "append_only_log_missing"
+    IDEMPOTENCY_KEY_MISSING = "idempotency_key_missing"
+    PAYLOAD_SCHEMA_VALIDATION_MISSING = "payload_schema_validation_missing"
+    REPLAY_PROTECTION_MISSING = "replay_protection_missing"
+    RECORD_VALIDATION_MISSING = "record_validation_missing"
+    VALIDATION_CHECKS_MISSING = "validation_checks_missing"
+    VALIDATION_GATE_NOT_PASSED = "validation_gate_not_passed"
+    REPLAY_GATE_NOT_PASSED = "replay_gate_not_passed"
+    RECORD_NOT_PRESENT = "record_not_present"
+    RECORD_NOT_ACCEPTED = "record_not_accepted"
+    RECORD_NOT_VALIDATED = "record_not_validated"
+    CLEARANCE_STEP_REVIEW_INPUT_RECORD_CONTRACT_NOT_ACCEPTED = (
+        "clearance_step_review_input_record_contract_not_accepted"
+    )
+    CLAIM_UNRESOLVED = "claim_unresolved"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheck(
+    str,
+    Enum,
+):
+    """Backend-owned futures clearance-step review input store record-validation checks."""
+
+    RECORD_CONTRACT_AVAILABLE = "record_contract_available"
+    RECORD_SCHEMA_AVAILABLE = "record_schema_available"
+    APPEND_ONLY_LOG_AVAILABLE = "append_only_log_available"
+    IDEMPOTENCY_KEY_BOUND = "idempotency_key_bound"
+    PAYLOAD_SCHEMA_VALIDATED = "payload_schema_validated"
+    REPLAY_PROTECTED = "replay_protected"
+    RECORD_VALIDATION_CONFIGURED = "record_validation_configured"
+    CLEARANCE_STEP_REVIEW_INPUT_ACCEPTED = (
+        "clearance_step_review_input_accepted"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckBlocker(
+    str,
+    Enum,
+):
+    """Blocked check reasons before futures clearance-step review input records can be validated."""
+
+    STORE_RECORD_VALIDATION_NOT_READY = "store_record_validation_not_ready"
+    VALIDATION_CHECK_MISSING = "validation_check_missing"
+    VALIDATION_CHECK_NOT_CONFIGURED = "validation_check_not_configured"
+    VALIDATION_CHECK_NOT_PASSED = "validation_check_not_passed"
+    VALIDATION_GATE_NOT_PASSED = "validation_gate_not_passed"
+    REPLAY_GATE_NOT_PASSED = "replay_gate_not_passed"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckContract(
+    str,
+    Enum,
+):
+    """Backend-owned futures contracts required before validation checks can run."""
+
+    CHECK_CONTRACT_DECLARED = "check_contract_declared"
+    CHECK_INPUT_SCHEMA_DECLARED = "check_input_schema_declared"
+    CHECK_OUTPUT_SCHEMA_DECLARED = "check_output_schema_declared"
+    CHECK_GATE_DECLARED = "check_gate_declared"
+    CHECK_REPLAY_GUARD_DECLARED = "check_replay_guard_declared"
+    CHECK_EVIDENCE_RECORD_DECLARED = "check_evidence_record_declared"
+    CHECK_IDEMPOTENCY_BINDING_DECLARED = "check_idempotency_binding_declared"
+    CHECK_CONTEXTLESS_REVIEW_DECLARED = "check_contextless_review_declared"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckContractBlocker(
+    str,
+    Enum,
+):
+    """Blocked contract reasons before futures validation checks can be configured."""
+
+    VALIDATION_CHECK_NOT_READY = "validation_check_not_ready"
+    CHECK_CONTRACT_MISSING = "check_contract_missing"
+    CHECK_INPUT_SCHEMA_MISSING = "check_input_schema_missing"
+    CHECK_OUTPUT_SCHEMA_MISSING = "check_output_schema_missing"
+    CHECK_GATE_MISSING = "check_gate_missing"
+    CHECK_REPLAY_GUARD_MISSING = "check_replay_guard_missing"
+    CHECK_EVIDENCE_RECORD_MISSING = "check_evidence_record_missing"
+    CHECK_IDEMPOTENCY_BINDING_MISSING = "check_idempotency_binding_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckInputSchema(
+    str,
+    Enum,
+):
+    """Backend-owned futures input-schema dependencies for validation checks."""
+
+    INPUT_SCHEMA_DECLARED = "input_schema_declared"
+    INPUT_SCHEMA_FIELDS_DECLARED = "input_schema_fields_declared"
+    INPUT_SCHEMA_TYPES_DECLARED = "input_schema_types_declared"
+    INPUT_SCHEMA_CONSTRAINTS_DECLARED = "input_schema_constraints_declared"
+    INPUT_SCHEMA_ACCEPTANCE_DECLARED = "input_schema_acceptance_declared"
+    INPUT_SCHEMA_CONTEXTLESS_REVIEW_DECLARED = (
+        "input_schema_contextless_review_declared"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckInputSchemaBlocker(
+    str,
+    Enum,
+):
+    """Blocked input-schema reasons before futures validation checks can run."""
+
+    VALIDATION_CHECK_CONTRACT_NOT_READY = "validation_check_contract_not_ready"
+    INPUT_SCHEMA_MISSING = "input_schema_missing"
+    INPUT_SCHEMA_FIELDS_MISSING = "input_schema_fields_missing"
+    INPUT_SCHEMA_TYPES_MISSING = "input_schema_types_missing"
+    INPUT_SCHEMA_CONSTRAINTS_MISSING = "input_schema_constraints_missing"
+    INPUT_SCHEMA_ACCEPTANCE_MISSING = "input_schema_acceptance_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchema(
+    str,
+    Enum,
+):
+    """Backend-owned futures output-schema dependencies for validation checks."""
+
+    OUTPUT_SCHEMA_DECLARED = "output_schema_declared"
+    OUTPUT_SCHEMA_FIELDS_DECLARED = "output_schema_fields_declared"
+    OUTPUT_SCHEMA_TYPES_DECLARED = "output_schema_types_declared"
+    OUTPUT_SCHEMA_CONSTRAINTS_DECLARED = "output_schema_constraints_declared"
+    OUTPUT_SCHEMA_ACCEPTANCE_DECLARED = "output_schema_acceptance_declared"
+    OUTPUT_SCHEMA_CONTEXTLESS_REVIEW_DECLARED = (
+        "output_schema_contextless_review_declared"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaBlocker(
+    str,
+    Enum,
+):
+    """Blocked output-schema reasons before futures validation checks can run."""
+
+    VALIDATION_CHECK_CONTRACT_NOT_READY = "validation_check_contract_not_ready"
+    OUTPUT_SCHEMA_MISSING = "output_schema_missing"
+    OUTPUT_SCHEMA_FIELDS_MISSING = "output_schema_fields_missing"
+    OUTPUT_SCHEMA_TYPES_MISSING = "output_schema_types_missing"
+    OUTPUT_SCHEMA_CONSTRAINTS_MISSING = "output_schema_constraints_missing"
+    OUTPUT_SCHEMA_ACCEPTANCE_MISSING = "output_schema_acceptance_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaField(
+    str,
+    Enum,
+):
+    """Backend-owned futures field dependencies for validation-check output schemas."""
+
+    OUTPUT_SCHEMA_FIELD_NAME_DECLARED = "output_schema_field_name_declared"
+    OUTPUT_SCHEMA_FIELD_TYPE_DECLARED = "output_schema_field_type_declared"
+    OUTPUT_SCHEMA_FIELD_CONSTRAINTS_DECLARED = (
+        "output_schema_field_constraints_declared"
+    )
+    OUTPUT_SCHEMA_FIELD_SOURCE_REF_DECLARED = "output_schema_field_source_ref_declared"
+    OUTPUT_SCHEMA_FIELD_ACCEPTANCE_DECLARED = "output_schema_field_acceptance_declared"
+    OUTPUT_SCHEMA_FIELD_CONTEXTLESS_REVIEW_DECLARED = (
+        "output_schema_field_contextless_review_declared"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldBlocker(
+    str,
+    Enum,
+):
+    """Blocked field reasons before futures validation-check output schemas can run."""
+
+    OUTPUT_SCHEMA_NOT_READY = "output_schema_not_ready"
+    OUTPUT_SCHEMA_FIELD_MISSING = "output_schema_field_missing"
+    OUTPUT_SCHEMA_FIELD_NAME_MISSING = "output_schema_field_name_missing"
+    OUTPUT_SCHEMA_FIELD_TYPE_MISSING = "output_schema_field_type_missing"
+    OUTPUT_SCHEMA_FIELD_CONSTRAINTS_MISSING = "output_schema_field_constraints_missing"
+    OUTPUT_SCHEMA_FIELD_SOURCE_REF_MISSING = "output_schema_field_source_ref_missing"
+    OUTPUT_SCHEMA_FIELD_ACCEPTANCE_MISSING = "output_schema_field_acceptance_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldName(
+    str,
+    Enum,
+):
+    """Backend-owned futures field-name dependencies for validation-check output schemas."""
+
+    OUTPUT_SCHEMA_FIELD_NAME_DECLARATION = "output_schema_field_name_declaration"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldNameBlocker(
+    str,
+    Enum,
+):
+    """Blocked field-name reasons before futures validation-check output schemas can run."""
+
+    OUTPUT_SCHEMA_FIELD_NOT_READY = "output_schema_field_not_ready"
+    OUTPUT_SCHEMA_FIELD_NAME_MISSING = "output_schema_field_name_missing"
+    OUTPUT_SCHEMA_FIELD_NAME_SOURCE_REF_MISSING = (
+        "output_schema_field_name_source_ref_missing"
+    )
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldType(
+    str,
+    Enum,
+):
+    """Backend-owned futures field-type dependencies for validation-check output schemas."""
+
+    OUTPUT_SCHEMA_FIELD_TYPE_DECLARATION = "output_schema_field_type_declaration"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldTypeBlocker(
+    str,
+    Enum,
+):
+    """Blocked field-type reasons before futures validation-check output schemas can run."""
+
+    OUTPUT_SCHEMA_FIELD_NOT_READY = "output_schema_field_not_ready"
+    OUTPUT_SCHEMA_FIELD_TYPE_MISSING = "output_schema_field_type_missing"
+    OUTPUT_SCHEMA_FIELD_TYPE_SOURCE_REF_MISSING = (
+        "output_schema_field_type_source_ref_missing"
+    )
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraint(
+    str,
+    Enum,
+):
+    """Backend-owned futures field-constraint dependencies for validation-check output schemas."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINTS_DECLARATION = (
+        "output_schema_field_constraints_declaration"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintBlocker(
+    str,
+    Enum,
+):
+    """Blocked field-constraint reasons before futures validation-check output schemas can run."""
+
+    OUTPUT_SCHEMA_FIELD_NOT_READY = "output_schema_field_not_ready"
+    OUTPUT_SCHEMA_FIELD_TYPE_NOT_READY = "output_schema_field_type_not_ready"
+    OUTPUT_SCHEMA_FIELD_CONSTRAINTS_MISSING = (
+        "output_schema_field_constraints_missing"
+    )
+    OUTPUT_SCHEMA_FIELD_CONSTRAINTS_SOURCE_REF_MISSING = (
+        "output_schema_field_constraints_source_ref_missing"
+    )
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRef(
+    str,
+    Enum,
+):
+    """Backend-owned futures source-ref dependencies for validation-check output schema field constraints."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_DECLARATION = (
+        "output_schema_field_constraint_source_ref_declaration"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefBlocker(
+    str,
+    Enum,
+):
+    """Blocked source-ref reasons before futures validation-check output schema field constraints can run."""
+
+    OUTPUT_SCHEMA_FIELD_NOT_READY = "output_schema_field_not_ready"
+    OUTPUT_SCHEMA_FIELD_TYPE_NOT_READY = "output_schema_field_type_not_ready"
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_NOT_READY = "output_schema_field_constraint_not_ready"
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_MISSING = (
+        "output_schema_field_constraint_source_ref_missing"
+    )
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefContextlessReview(
+    str,
+    Enum,
+):
+    """Backend-owned contextless-review evidence for validation-check output schema field constraint source refs."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_CONTEXTLESS_REVIEW = (
+        "output_schema_field_constraint_source_ref_contextless_review"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefContextlessReviewBlocker(
+    str,
+    Enum,
+):
+    """Blocked review reasons before futures validation-check output schema field constraint source refs can be accepted."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_NOT_READY = (
+        "output_schema_field_constraint_source_ref_not_ready"
+    )
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_CONTEXTLESS_REVIEW_MISSING = (
+        "output_schema_field_constraint_source_ref_contextless_review_missing"
+    )
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefAcceptance(
+    str,
+    Enum,
+):
+    """Backend-owned acceptance evidence for validation-check output schema field constraint source refs."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_ACCEPTANCE = (
+        "output_schema_field_constraint_source_ref_acceptance"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefAcceptanceBlocker(
+    str,
+    Enum,
+):
+    """Blocked acceptance reasons before futures validation-check output schema field constraint source refs can be accepted."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_NOT_READY = (
+        "output_schema_field_constraint_source_ref_not_ready"
+    )
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_CONTEXTLESS_REVIEW_NOT_PASSED = (
+        "output_schema_field_constraint_source_ref_contextless_review_not_passed"
+    )
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_ACCEPTANCE_MISSING = (
+        "output_schema_field_constraint_source_ref_acceptance_missing"
+    )
+    ACCEPTANCE_MISSING = "acceptance_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefRecordAcceptance(
+    str,
+    Enum,
+):
+    """Backend-owned record-acceptance evidence for validation-check output schema field constraint source refs."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_RECORD_ACCEPTANCE = (
+        "output_schema_field_constraint_source_ref_record_acceptance"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefRecordAcceptanceBlocker(
+    str,
+    Enum,
+):
+    """Blocked record-acceptance reasons before futures validation-check output schema field constraint source-ref records can be accepted."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_NOT_READY = (
+        "output_schema_field_constraint_source_ref_not_ready"
+    )
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_ACCEPTANCE_NOT_PASSED = (
+        "output_schema_field_constraint_source_ref_acceptance_not_passed"
+    )
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_RECORD_ACCEPTANCE_MISSING = (
+        "output_schema_field_constraint_source_ref_record_acceptance_missing"
+    )
+    RECORD_ACCEPTANCE_MISSING = "record_acceptance_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptance(
+    str,
+    Enum,
+):
+    """Backend-owned validation-record acceptance evidence for validation-check output schema field constraint source refs."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_VALIDATION_RECORD_ACCEPTANCE = (
+        "output_schema_field_constraint_source_ref_validation_record_acceptance"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceBlocker(
+    str,
+    Enum,
+):
+    """Blocked validation-record acceptance reasons before futures validation-check output schema field constraint source-ref records can be accepted."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_RECORD_ACCEPTANCE_NOT_READY = (
+        "output_schema_field_constraint_source_ref_record_acceptance_not_ready"
+    )
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_RECORD_ACCEPTANCE_NOT_PASSED = (
+        "output_schema_field_constraint_source_ref_record_acceptance_not_passed"
+    )
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_VALIDATION_RECORD_ACCEPTANCE_MISSING = (
+        "output_schema_field_constraint_source_ref_validation_record_acceptance_missing"
+    )
+    VALIDATION_RECORD_ACCEPTANCE_MISSING = "validation_record_acceptance_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceContextlessReview(
+    str,
+    Enum,
+):
+    """Backend-owned contextless-review evidence for validation-record acceptance rows."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_VALIDATION_RECORD_ACCEPTANCE_CONTEXTLESS_REVIEW = (
+        "output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_review"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceContextlessReviewBlocker(
+    str,
+    Enum,
+):
+    """Blocked review reasons before validation-record acceptance rows can pass contextless review."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_VALIDATION_RECORD_ACCEPTANCE_NOT_READY = (
+        "output_schema_field_constraint_source_ref_validation_record_acceptance_not_ready"
+    )
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_VALIDATION_RECORD_ACCEPTANCE_NOT_PASSED = (
+        "output_schema_field_constraint_source_ref_validation_record_acceptance_not_passed"
+    )
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_VALIDATION_RECORD_ACCEPTANCE_CONTEXTLESS_REVIEW_MISSING = (
+        "output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_review_missing"
+    )
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceContextlessReviewAcceptance(
+    str,
+    Enum,
+):
+    """Backend-owned acceptance evidence for validation-record acceptance contextless-review rows."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_VALIDATION_RECORD_ACCEPTANCE_CONTEXTLESS_REVIEW_ACCEPTANCE = (
+        "output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_review_acceptance"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceContextlessReviewAcceptanceBlocker(
+    str,
+    Enum,
+):
+    """Blocked acceptance reasons before validation-record acceptance contextless-review rows can be accepted."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_VALIDATION_RECORD_ACCEPTANCE_CONTEXTLESS_REVIEW_NOT_READY = (
+        "output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_review_not_ready"
+    )
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_VALIDATION_RECORD_ACCEPTANCE_CONTEXTLESS_REVIEW_NOT_PASSED = (
+        "output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_review_not_passed"
+    )
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_VALIDATION_RECORD_ACCEPTANCE_CONTEXTLESS_REVIEW_ACCEPTANCE_MISSING = (
+        "output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_review_acceptance_missing"
+    )
+    CONTEXTLESS_REVIEW_ACCEPTANCE_MISSING = "contextless_review_acceptance_missing"
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckInputSchemaField(
+    str,
+    Enum,
+):
+    """Backend-owned futures field dependencies for validation-check input schemas."""
+
+    INPUT_SCHEMA_FIELD_NAME_DECLARED = "input_schema_field_name_declared"
+    INPUT_SCHEMA_FIELD_TYPE_DECLARED = "input_schema_field_type_declared"
+    INPUT_SCHEMA_FIELD_CONSTRAINTS_DECLARED = (
+        "input_schema_field_constraints_declared"
+    )
+    INPUT_SCHEMA_FIELD_SOURCE_REF_DECLARED = "input_schema_field_source_ref_declared"
+    INPUT_SCHEMA_FIELD_ACCEPTANCE_DECLARED = "input_schema_field_acceptance_declared"
+    INPUT_SCHEMA_FIELD_CONTEXTLESS_REVIEW_DECLARED = (
+        "input_schema_field_contextless_review_declared"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckInputSchemaFieldBlocker(
+    str,
+    Enum,
+):
+    """Blocked field reasons before futures validation-check input schemas can run."""
+
+    INPUT_SCHEMA_NOT_READY = "input_schema_not_ready"
+    INPUT_SCHEMA_FIELD_MISSING = "input_schema_field_missing"
+    INPUT_SCHEMA_FIELD_NAME_MISSING = "input_schema_field_name_missing"
+    INPUT_SCHEMA_FIELD_TYPE_MISSING = "input_schema_field_type_missing"
+    INPUT_SCHEMA_FIELD_CONSTRAINTS_MISSING = "input_schema_field_constraints_missing"
+    INPUT_SCHEMA_FIELD_SOURCE_REF_MISSING = "input_schema_field_source_ref_missing"
+    INPUT_SCHEMA_FIELD_ACCEPTANCE_MISSING = "input_schema_field_acceptance_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandSemanticArtifact(str, Enum):
+    """Backend-owned futures semantic artifacts required before execution."""
+
+    POSITION_SEMANTICS = "position_semantics"
+    MARGIN_SEMANTICS = "margin_semantics"
+    COLLATERAL_SEMANTICS = "collateral_semantics"
+    LIQUIDATION_SEMANTICS = "liquidation_semantics"
+    REDUCE_ONLY_SEMANTICS = "reduce_only_semantics"
+    CLOSE_ONLY_SEMANTICS = "close_only_semantics"
+    FUNDING_SEMANTICS = "funding_semantics"
+    ORDER_SEMANTICS = "order_semantics"
+    CANCEL_SEMANTICS = "cancel_semantics"
+    RECONCILIATION_SEMANTICS = "reconciliation_semantics"
+
+
+class AdminFuturesCommandRiskProofKind(str, Enum):
+    """Futures/perpetual proof requirement categories before command enablement."""
+
+    PRODUCT_SCOPE = "product_scope"
+    POSITION_SCOPE = "position_scope"
+    MARGIN_COLLATERAL = "margin_collateral"
+    LIQUIDATION_BUFFER = "liquidation_buffer"
+    FUNDING_FEE = "funding_fee"
+    REDUCE_ONLY = "reduce_only"
+    CLOSE_ONLY = "close_only"
+    CAP_GUARD = "cap_guard"
+    RECONCILIATION_PLAN = "reconciliation_plan"
+
+
+class AdminFuturesCommandRiskProofRecordLookupStatus(str, Enum):
+    """Read-only lookup status for futures risk proof record evidence."""
+
+    NOT_CHECKED = "not_checked"
+    RESOLVED = "resolved"
+    MISSING = "missing"
+    STALE_OR_INVALID = "stale_or_invalid"
+    UNAVAILABLE = "unavailable"
+
+
+class AdminFuturesCommandRiskProofAcceptanceCheck(str, Enum):
+    """Acceptance checks required before a futures risk proof can satisfy readiness."""
+
+    REQUIRED_EVIDENCE_PRESENT = "required_evidence_present"
+    PROOF_ROUTE_REGISTERED = "proof_route_registered"
+    PROOF_WRITER_REVIEWED = "proof_writer_reviewed"
+    SPOT_RULE_BOUNDARY_REVIEWED = "spot_rule_boundary_reviewed"
+    BROWSER_BFF_AUTHORITY_REVIEWED = "browser_bff_authority_reviewed"
+
+
+class AdminFuturesCommandRiskProofAcceptanceBlocker(str, Enum):
+    """Reasons a futures risk proof record cannot yet satisfy command readiness."""
+
+    FUTURES_SEMANTIC_CONTRACTS_MISSING = "futures_semantic_contracts_missing"
+    PROOF_RECORD_NOT_ACCEPTED = "proof_record_not_accepted"
+    ACCEPTANCE_CRITERIA_BLOCKING = "acceptance_criteria_blocking"
+    COMMAND_ROUTE_MISSING = "command_route_missing"
+    COMMAND_DRAFT_DISABLED = "command_draft_disabled"
+    LIVE_EXECUTION_DISABLED = "live_execution_disabled"
+
+
+class AdminFuturesCommandRiskProofContractKind(str, Enum):
+    """Backend contracts required before a futures risk proof can be accepted."""
+
+    PROOF_ROUTE = "proof_route"
+    PROOF_WRITER = "proof_writer"
+
+
+class AdminFuturesCommandRiskProofPayloadField(str, Enum):
+    """Required payload fields for future futures risk proof records."""
+
+    COMMAND = "command"
+    PROOF_KIND = "proof_kind"
+    IDENTITY_KEY = "identity_key"
+    IDENTITY_VALUE = "identity_value"
+    REQUIRED_EVIDENCE_REFS = "required_evidence_refs"
+    SOURCE_SNAPSHOT_REF = "source_snapshot_ref"
+    VALIDATION_STATUS = "validation_status"
+    IDEMPOTENCY_KEY = "idempotency_key"
+    CORRELATION_ID = "correlation_id"
+    AUDIT_ID = "audit_id"
+
+
+class AdminFuturesCommandRiskProofRecordContractKind(str, Enum):
+    """Backend record/store contracts required before futures proofs can persist."""
+
+    STORE_SCHEMA = "store_schema"
+    APPEND_ONLY_LOG = "append_only_log"
+    IDEMPOTENCY_BINDING = "idempotency_binding"
+    PAYLOAD_VALIDATION_GATE = "payload_validation_gate"
+    REPLAY_GUARD = "replay_guard"
+    AUDIT_LINK = "audit_link"
+
+
+class AdminFuturesCommandRiskProofRecordValidationRemediationAction(str, Enum):
+    """Backend remediation actions before futures proof record validation can be ready."""
+
+    REGISTER_RECORD_CONTRACT = "register_record_contract"
+    CREATE_STORE_SCHEMA = "create_store_schema"
+    CONFIGURE_APPEND_ONLY_LOG = "configure_append_only_log"
+    BIND_IDEMPOTENCY = "bind_idempotency"
+    REGISTER_PAYLOAD_VALIDATION = "register_payload_validation"
+    REGISTER_REPLAY_GUARD = "register_replay_guard"
+    LINK_AUDIT_EVIDENCE = "link_audit_evidence"
+    REGISTER_RECORD_VALIDATOR = "register_record_validator"
+    RUN_CONTEXTLESS_REVIEW = "run_contextless_review"
+
+
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyBlocker(
+    str,
+    Enum,
+):
+    """Blocked dependency reasons before futures proof remediation can proceed."""
+
+    RECORD_CONTRACT_MISSING = "record_contract_missing"
+    STORE_SCHEMA_MISSING = "store_schema_missing"
+    APPEND_ONLY_LOG_MISSING = "append_only_log_missing"
+    IDEMPOTENCY_BINDING_MISSING = "idempotency_binding_missing"
+    PAYLOAD_VALIDATION_MISSING = "payload_validation_missing"
+    REPLAY_GUARD_MISSING = "replay_guard_missing"
+    AUDIT_LINK_MISSING = "audit_link_missing"
+    RECORD_VALIDATOR_MISSING = "record_validator_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemBlocker(
+    str,
+    Enum,
+):
+    """Blocked work-item reasons before futures proof remediation can be queued."""
+
+    DEPENDENCY_NOT_READY = "dependency_not_ready"
+    DEPENDENCY_UNRESOLVED = "dependency_unresolved"
+    WORK_ITEM_STORE_MISSING = "work_item_store_missing"
+    CLAIM_LEDGER_MISSING = "claim_ledger_missing"
+    OWNER_REVIEW_MISSING = "owner_review_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceBlocker(
+    str,
+    Enum,
+):
+    """Blocked claim-trace reasons before futures proof work items can be claimed."""
+
+    WORK_ITEM_NOT_CREATED = "work_item_not_created"
+    WORK_ITEM_NOT_CLAIMED = "work_item_not_claimed"
+    CLAIM_LEDGER_MISSING = "claim_ledger_missing"
+    CLAIM_TRACE_STORE_MISSING = "claim_trace_store_missing"
+    DEPENDENCY_NOT_READY = "dependency_not_ready"
+    DEPENDENCY_UNRESOLVED = "dependency_unresolved"
+    CLAIM_REVIEW_MISSING = "claim_review_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep(
+    str,
+    Enum,
+):
+    """Backend clearance-plan steps before futures proof claim traces can clear."""
+
+    INSPECT_CLAIM_TRACE = "inspect_claim_trace"
+    VERIFY_CLAIM_LEDGER = "verify_claim_ledger"
+    VERIFY_CLAIM_TRACE_STORE = "verify_claim_trace_store"
+    VERIFY_PREDECESSOR_SUCCESSOR_SEQUENCE = "verify_predecessor_successor_sequence"
+    RUN_CONTEXTLESS_REVIEW = "run_contextless_review"
+    RECORD_CLEARANCE_PLAN_EVIDENCE = "record_clearance_plan_evidence"
+
+
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanBlocker(
+    str,
+    Enum,
+):
+    """Blocked plan reasons before futures proof claim traces can clear."""
+
+    CLAIM_TRACE_NOT_CREATED = "claim_trace_not_created"
+    CLAIM_TRACE_NOT_READY = "claim_trace_not_ready"
+    CLAIM_UNRESOLVED = "claim_unresolved"
+    CLEARANCE_PLAN_STORE_MISSING = "clearance_plan_store_missing"
+    CLEARANCE_SEQUENCE_MISSING = "clearance_sequence_missing"
+    CLAIM_REVIEW_MISSING = "claim_review_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepBlocker(
+    str,
+    Enum,
+):
+    """Blocked step reasons before futures proof claim-trace clearance can run."""
+
+    CLEARANCE_PLAN_NOT_CREATED = "clearance_plan_not_created"
+    CLEARANCE_PLAN_NOT_READY = "clearance_plan_not_ready"
+    CLEARANCE_SEQUENCE_MISSING = "clearance_sequence_missing"
+    PRIOR_CLEARANCE_STEP_INCOMPLETE = "prior_clearance_step_incomplete"
+    REQUIRED_STEP_REVIEW_MISSING = "required_step_review_missing"
+    CLAIM_TRACE_NOT_READY = "claim_trace_not_ready"
+    CLAIM_UNRESOLVED = "claim_unresolved"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewBlocker(
+    str,
+    Enum,
+):
+    """Blocked review reasons before futures proof clearance steps can pass."""
+
+    CLEARANCE_STEP_NOT_READY = "clearance_step_not_ready"
+    CLEARANCE_STEP_INCOMPLETE = "clearance_step_incomplete"
+    REQUIRED_REVIEW_INPUT_MISSING = "required_review_input_missing"
+    REVIEW_GATE_MISSING = "review_gate_missing"
+    CLEARANCE_PLAN_NOT_READY = "clearance_plan_not_ready"
+    CLAIM_TRACE_NOT_READY = "claim_trace_not_ready"
+    CLAIM_UNRESOLVED = "claim_unresolved"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputBlocker(
+    str,
+    Enum,
+):
+    """Blocked input reasons before futures proof clearance-step reviews can pass."""
+
+    CLEARANCE_STEP_REVIEW_NOT_READY = "clearance_step_review_not_ready"
+    CLEARANCE_STEP_REVIEW_INCOMPLETE = "clearance_step_review_incomplete"
+    REQUIRED_REVIEW_INPUT_MISSING = "required_review_input_missing"
+    REVIEW_INPUT_STORE_MISSING = "review_input_store_missing"
+    REVIEW_INPUT_GATE_MISSING = "review_input_gate_missing"
+    CLEARANCE_STEP_NOT_READY = "clearance_step_not_ready"
+    CLAIM_TRACE_NOT_READY = "claim_trace_not_ready"
+    CLAIM_UNRESOLVED = "claim_unresolved"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRequirementBlocker(
+    str,
+    Enum,
+):
+    """Blocked store reasons before futures proof review-input evidence can exist."""
+
+    CLEARANCE_STEP_REVIEW_INPUT_NOT_PRESENT = (
+        "clearance_step_review_input_not_present"
+    )
+    CLEARANCE_STEP_REVIEW_INPUT_NOT_ACCEPTED = (
+        "clearance_step_review_input_not_accepted"
+    )
+    REVIEW_INPUT_STORE_MISSING = "review_input_store_missing"
+    REVIEW_INPUT_WRITER_MISSING = "review_input_writer_missing"
+    REVIEW_INPUT_RECORD_KEY_MISSING = "review_input_record_key_missing"
+    REVIEW_INPUT_VALIDATION_GATE_MISSING = "review_input_validation_gate_missing"
+    REVIEW_INPUT_REPLAY_GATE_MISSING = "review_input_replay_gate_missing"
+    CLEARANCE_STEP_REVIEW_NOT_READY = "clearance_step_review_not_ready"
+    CLAIM_TRACE_NOT_READY = "claim_trace_not_ready"
+    CLAIM_UNRESOLVED = "claim_unresolved"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordContractBlocker(
+    str,
+    Enum,
+):
+    """Blocked contract reasons before futures proof review-input records can exist."""
+
+    STORE_REQUIREMENT_NOT_READY = "store_requirement_not_ready"
+    RECORD_CONTRACT_MISSING = "record_contract_missing"
+    RECORD_SCHEMA_MISSING = "record_schema_missing"
+    APPEND_ONLY_LOG_MISSING = "append_only_log_missing"
+    IDEMPOTENCY_KEY_MISSING = "idempotency_key_missing"
+    PAYLOAD_SCHEMA_VALIDATION_MISSING = "payload_schema_validation_missing"
+    REPLAY_PROTECTION_MISSING = "replay_protection_missing"
+    REVIEW_INPUT_STORE_MISSING = "review_input_store_missing"
+    REVIEW_INPUT_WRITER_MISSING = "review_input_writer_missing"
+    REVIEW_INPUT_RECORD_KEY_MISSING = "review_input_record_key_missing"
+    CLEARANCE_STEP_REVIEW_INPUT_NOT_ACCEPTED = (
+        "clearance_step_review_input_not_accepted"
+    )
+    CLAIM_TRACE_NOT_READY = "claim_trace_not_ready"
+    CLAIM_UNRESOLVED = "claim_unresolved"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationBlocker(
+    str,
+    Enum,
+):
+    """Blocked validation reasons before futures proof review-input records can be accepted."""
+
+    STORE_RECORD_CONTRACT_NOT_READY = "store_record_contract_not_ready"
+    RECORD_CONTRACT_MISSING = "record_contract_missing"
+    RECORD_SCHEMA_MISSING = "record_schema_missing"
+    APPEND_ONLY_LOG_MISSING = "append_only_log_missing"
+    IDEMPOTENCY_KEY_MISSING = "idempotency_key_missing"
+    PAYLOAD_SCHEMA_VALIDATION_MISSING = "payload_schema_validation_missing"
+    REPLAY_PROTECTION_MISSING = "replay_protection_missing"
+    RECORD_VALIDATION_MISSING = "record_validation_missing"
+    VALIDATION_CHECKS_MISSING = "validation_checks_missing"
+    VALIDATION_GATE_NOT_PASSED = "validation_gate_not_passed"
+    REPLAY_GATE_NOT_PASSED = "replay_gate_not_passed"
+    RECORD_NOT_PRESENT = "record_not_present"
+    RECORD_NOT_ACCEPTED = "record_not_accepted"
+    RECORD_NOT_VALIDATED = "record_not_validated"
+    CLEARANCE_STEP_REVIEW_INPUT_RECORD_CONTRACT_NOT_ACCEPTED = (
+        "clearance_step_review_input_record_contract_not_accepted"
+    )
+    CLAIM_UNRESOLVED = "claim_unresolved"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationBlocker(
+    str,
+    Enum,
+):
+    """Blocked remediation reasons for futures proof review-input record validation."""
+
+    STORE_RECORD_VALIDATION_NOT_READY = "store_record_validation_not_ready"
+    RECORD_VALIDATION_MISSING = "record_validation_missing"
+    RECORD_VALIDATION_REMEDIATION_MISSING = "record_validation_remediation_missing"
+    VALIDATION_REMEDIATION_WORK_MISSING = "validation_remediation_work_missing"
+    VALIDATION_REMEDIATION_EVIDENCE_MISSING = (
+        "validation_remediation_evidence_missing"
+    )
+    VALIDATION_CHECKS_MISSING = "validation_checks_missing"
+    VALIDATION_GATE_NOT_PASSED = "validation_gate_not_passed"
+    REPLAY_GATE_NOT_PASSED = "replay_gate_not_passed"
+    RECORD_CONTRACT_MISSING = "record_contract_missing"
+    RECORD_SCHEMA_MISSING = "record_schema_missing"
+    APPEND_ONLY_LOG_MISSING = "append_only_log_missing"
+    IDEMPOTENCY_KEY_MISSING = "idempotency_key_missing"
+    PAYLOAD_SCHEMA_VALIDATION_MISSING = "payload_schema_validation_missing"
+    REPLAY_PROTECTION_MISSING = "replay_protection_missing"
+    RECORD_NOT_PRESENT = "record_not_present"
+    RECORD_NOT_ACCEPTED = "record_not_accepted"
+    RECORD_NOT_VALIDATED = "record_not_validated"
+    CLEARANCE_STEP_REVIEW_INPUT_RECORD_VALIDATION_NOT_ACCEPTED = (
+        "clearance_step_review_input_record_validation_not_accepted"
+    )
+    CLAIM_UNRESOLVED = "claim_unresolved"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyBlocker(
+    str,
+    Enum,
+):
+    """Blocked dependency reasons for futures proof review-input record-validation remediation."""
+
+    STORE_RECORD_VALIDATION_REMEDIATION_NOT_READY = (
+        "store_record_validation_remediation_not_ready"
+    )
+    RECORD_VALIDATION_REMEDIATION_MISSING = "record_validation_remediation_missing"
+    REMEDIATION_DEPENDENCY_MISSING = "remediation_dependency_missing"
+    DEPENDENCY_ORDER_MISSING = "dependency_order_missing"
+    DEPENDENCY_GRAPH_MISSING = "dependency_graph_missing"
+    PREDECESSOR_REMEDIATION_NOT_READY = "predecessor_remediation_not_ready"
+    VALIDATION_REMEDIATION_WORK_MISSING = "validation_remediation_work_missing"
+    VALIDATION_REMEDIATION_EVIDENCE_MISSING = (
+        "validation_remediation_evidence_missing"
+    )
+    VALIDATION_GATE_NOT_PASSED = "validation_gate_not_passed"
+    REPLAY_GATE_NOT_PASSED = "replay_gate_not_passed"
+    RECORD_CONTRACT_MISSING = "record_contract_missing"
+    RECORD_SCHEMA_MISSING = "record_schema_missing"
+    APPEND_ONLY_LOG_MISSING = "append_only_log_missing"
+    IDEMPOTENCY_KEY_MISSING = "idempotency_key_missing"
+    PAYLOAD_SCHEMA_VALIDATION_MISSING = "payload_schema_validation_missing"
+    REPLAY_PROTECTION_MISSING = "replay_protection_missing"
+    RECORD_NOT_PRESENT = "record_not_present"
+    RECORD_NOT_ACCEPTED = "record_not_accepted"
+    RECORD_NOT_VALIDATED = "record_not_validated"
+    CLAIM_UNRESOLVED = "claim_unresolved"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemBlocker(
+    str,
+    Enum,
+):
+    """Blocked work-item reasons for futures proof review-input record-validation remediation dependencies."""
+
+    REMEDIATION_DEPENDENCY_NOT_READY = "remediation_dependency_not_ready"
+    REMEDIATION_DEPENDENCY_UNRESOLVED = "remediation_dependency_unresolved"
+    WORK_ITEM_STORE_MISSING = "work_item_store_missing"
+    CLAIM_LEDGER_MISSING = "claim_ledger_missing"
+    OWNER_REVIEW_MISSING = "owner_review_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
+
+
+class AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceBlocker(
+    str,
+    Enum,
+):
+    """Blocked claim-trace reasons for futures proof review-input record-validation remediation dependency work items."""
+
+    WORK_ITEM_NOT_CREATED = "work_item_not_created"
+    WORK_ITEM_NOT_CLAIMED = "work_item_not_claimed"
+    CLAIM_LEDGER_MISSING = "claim_ledger_missing"
+    CLAIM_TRACE_STORE_MISSING = "claim_trace_store_missing"
+    REMEDIATION_DEPENDENCY_NOT_READY = "remediation_dependency_not_ready"
+    REMEDIATION_DEPENDENCY_UNRESOLVED = "remediation_dependency_unresolved"
+    CLAIM_REVIEW_MISSING = "claim_review_missing"
+    CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
 
 
 class ProductCapability(str, Enum):
