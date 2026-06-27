@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **7781-7800**.
+- Approved phase range: **7801-7820**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `7761-7780`.
+- Previous completed range: `7781-7800`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `7780`.
+- `current_phase`: `7800`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,132 +81,146 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 7781-7800
+## Active Phases 7801-7820
 
-Batch label: Futures/Perpetuals Command Risk-Proof Requirement Summary Evidence.
+Batch label: Futures/Perpetuals Command Readiness-Decision Summary Evidence.
 
-These phases continue M57 after completed `7761-7780` exposed futures command
-semantic-guard summary evidence. The concrete gap is that per-command
-risk-proof requirement rows already exist, but operators and contextless agents
-cannot yet see a backend-owned aggregate per proof kind across all futures
-command contracts. Active `7781-7800` must add derived read-only
-`risk_proof_requirement_summaries` to
+These phases continue M57 after completed `7781-7800` exposed futures command
+risk-proof requirement summary evidence. The concrete gap is that per-command
+readiness decision rows and suite-level readiness counts already exist, but
+operators and contextless agents cannot yet see a backend-owned aggregate by
+readiness decision across all futures command contracts. Active `7801-7820`
+must add derived read-only `readiness_decision_summaries` to
 `GET /api/v1/futures/command-suite`, sync OpenAPI and the frontend, and prove
-that the summary cannot accept risk proofs, register proof routes, enable proof
-writers, clear command enablement, admit commands, call Coinbase, execute
-reconciliation, mutate state, grant browser/BFF authority, or import
-spot-rule authority.
+that the summary cannot mark commands ready, clear readiness decisions, admit
+commands, call Coinbase, execute reconciliation, mutate state, grant
+browser/BFF authority, or import spot-rule authority.
 
-Active M57 `7781-7800` evidence adds futures command risk-proof requirement
-summary evidence while completed M57 `7761-7780` carries forward futures
-command semantic-guard summary evidence.
+Active M57 `7801-7820` evidence adds futures command readiness-decision
+summary evidence while completed M57 `7781-7800` carries forward futures
+command risk-proof requirement summary evidence.
 
-Exact autonomous phrase: Active M57 `7781-7800` evidence adds futures command risk-proof requirement summary evidence while completed M57 `7761-7780` carries forward futures command semantic-guard summary evidence.
+Exact autonomous phrase: Active M57 `7801-7820` evidence adds futures command readiness-decision summary evidence while completed M57 `7781-7800` carries forward futures command risk-proof requirement summary evidence.
 
-### Phase 7781 - Prior Range Closure
+### Phase 7801 - Prior Range Closure
 
-- Record completed/pushed `7761-7780` command semantic-guard summary evidence
-  as historical and move active metadata to `7781-7800`.
+- Record completed/pushed `7781-7800` command risk-proof requirement summary
+  evidence as historical and move active metadata to `7801-7820`.
 
-### Phase 7782 - Backend Summary Model
+### Phase 7802 - Backend Summary Model
 
-- Add typed backend-owned risk-proof requirement summary rows to the futures
-  command-suite response without adding proof acceptance or proof-route
-  authority.
+- Add typed backend-owned readiness-decision summary rows to the futures
+  command-suite response without adding command readiness clearance or command
+  admission authority.
 
-### Phase 7783 - Read-Service Derivation
+### Phase 7803 - Read-Service Derivation
 
-- Derive risk-proof requirement summaries from existing per-command risk-proof
-  requirement rows, including affected commands, semantic guards, applies-to
-  fields, evidence routes, evidence refs, proof contracts, payload fields,
-  record contracts, record validations, acceptance criteria, and authority
-  flags.
+- Derive readiness-decision summaries from existing per-command readiness
+  decision rows, including affected commands, blocker counts, evidence routes,
+  first blockers, command-route posture, draft posture, execution flags, and
+  no-live authority flags.
 
-### Phase 7784 - No-Authority Boundary
+### Phase 7804 - No-Authority Boundary
 
-- Prove summaries remain read-only evidence and cannot accept risk proofs,
-  register proof routes, enable proof writers, clear command enablement, admit
-  commands, call Coinbase, execute reconciliation, mutate state, grant
-  browser/BFF authority, or import spot-rule authority.
+- Prove summaries remain read-only evidence and cannot mark commands ready,
+  clear readiness decisions, admit commands, call Coinbase, execute
+  reconciliation, mutate futures/order state, grant browser/BFF authority, or
+  import spot-rule authority.
 
-### Phase 7785 - OpenAPI Sync
+### Phase 7805 - OpenAPI Sync
 
 - Regenerate Admin API OpenAPI from the backend-owned contract.
 
-### Phase 7786 - Frontend Schema Sync
+### Phase 7806 - Frontend Schema Sync
 
 - Regenerate the frontend generated schema from the updated Admin API OpenAPI.
 
-### Phase 7787 - Frontend Adapter Mapping
+### Phase 7807 - Frontend Adapter Mapping
 
-- Map risk-proof requirement summary rows into the futures view model with
+- Map readiness-decision summary rows into the futures view model with
   generated contract types.
 
-### Phase 7788 - Frontend Display
+### Phase 7808 - Frontend Display
 
-- Render risk-proof requirement summaries as display-only table evidence
-  without any controls or execution affordances.
+- Render readiness-decision summaries as display-only table evidence without
+  controls or execution affordances.
 
-### Phase 7789 - Mock Backend Derivation
+### Phase 7809 - Mock Backend Derivation
 
-- Update mock backend command-suite fixtures so risk-proof requirement
-  summaries are derived from fixture command risk-proof requirements instead
-  of hand-maintained rows.
+- Update mock backend command-suite fixtures so readiness-decision summaries
+  are derived from fixture command readiness decisions instead of
+  hand-maintained rows.
 
-### Phase 7790 - Backend Focused Tests
+### Phase 7810 - Backend Focused Tests
 
-- Assert summary counts, representative blocked proof kinds, authority flags,
-  evidence refs, and no-live posture.
+- Assert summary counts, representative blocked decisions, authority flags,
+  first blockers, evidence routes, and no-live posture.
 
-### Phase 7791 - Frontend Focused Tests
+### Phase 7811 - Frontend Focused Tests
 
 - Assert mock parity, adapter/render behavior, active metadata, and
   no-authority display.
 
-### Phase 7792 - API Documentation
+### Phase 7812 - API Documentation
 
-- Update API references and examples for risk-proof requirement summary fields
-  and no-live/no-authority semantics.
+- Update API references and examples for readiness-decision summary fields and
+  no-live/no-authority semantics.
 
-### Phase 7793 - Capability Matrix
+### Phase 7813 - Capability Matrix
 
-- Update the capability matrix so M57 lists risk-proof requirement summaries
-  as backend-owned read-only evidence.
+- Update the capability matrix so M57 lists readiness-decision summaries as
+  backend-owned read-only evidence.
 
-### Phase 7794 - Maintainer Handoff
+### Phase 7814 - Maintainer Handoff
 
 - Update agent state, roadmap, and maintainer handoff docs for active
-  `7781-7800` and completed `7761-7780`.
+  `7801-7820` and completed `7781-7800`.
 
-### Phase 7795 - Contextless Review Prep
+### Phase 7815 - Contextless Review Preparation
 
-- Record planned review scope, exact phase phrase, and forbidden authority
-  claims before spawning reviewers.
+- Add pending review evidence that asks blind/contextless reviewers to verify
+  whether the new summary makes command readiness understandable without
+  implying command readiness passage.
 
-### Phase 7796 - Blind/Contextless Review
+### Phase 7816 - Backend Contextless Review
 
-- Run contextless review for the backend/frontend risk-proof requirement
-  summary path and remediate any blocker.
+- Run blind/contextless backend review and remediate any ambiguity before
+  treating the phase as complete.
 
-### Phase 7797 - Autonomous Validation
+### Phase 7817 - Frontend Contextless Review
 
-- Run backend and frontend autonomous queue validators after docs and metadata
-  are synchronized.
+- Run blind/contextless frontend review and remediate any ambiguity before
+  treating the phase as complete.
 
-### Phase 7798 - Focused Validation
+### Phase 7818 - Validation Sweep
 
-- Run focused backend contract tests and frontend type/API/unit checks covering
-  the changed behavior.
+- Run focused backend/frontend validation, autonomous validators, stale-process
+  checks after any interrupted command, and no-live evidence checks.
 
-### Phase 7799 - Phase-End Hygiene
+### Phase 7819 - Commit And Push
 
-- Run final status/diff checks, stale process checks if needed, and close
-  phase-scoped or stale unused subagents after findings are consumed.
+- Commit and push synchronized backend/frontend changes after validation and
+  review pass.
 
-### Phase 7800 - Commit And Push
+### Phase 7820 - Phase Closeout Evidence
 
-- Commit and push both repos after validation passes and record live Coinbase
-  execution as not run with submitted/executed notional `0` USDC.
+- Record validation, contextless review, phase-end subagent sweep, live
+  Coinbase execution status, and notional evidence before advancing.
+
+## Completed Phases 7781-7800
+
+The `7781-7800` range completed backend-owned futures command risk-proof
+requirement summary evidence. It added derived read-only
+`risk_proof_requirement_summaries` to `GET /api/v1/futures/command-suite`,
+synced OpenAPI/frontend schema and display, preserved no-live/no-authority
+boundaries, passed focused backend/frontend validation, passed
+blind/contextless review, and was committed and pushed in both repositories.
+
+Completed M57 `7781-7800` evidence adds futures command risk-proof requirement
+summary evidence while completed M57 `7761-7780` carries forward futures
+command semantic-guard summary evidence.
+
+Exact historical phrase: Completed M57 `7781-7800` evidence adds futures command risk-proof requirement summary evidence while completed M57 `7761-7780` carries forward futures command semantic-guard summary evidence.
 
 ## Completed Phases 7761-7780
 

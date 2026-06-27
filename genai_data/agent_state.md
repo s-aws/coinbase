@@ -24,53 +24,86 @@ work. Historical milestone detail belongs in
 
 ## Current Phase
 
-- Latest completed and pushed range before this work: `7761-7780`.
-- Active approved range: `7781-7800`.
-- Scope: futures command risk-proof requirement summary evidence and frontend
-  display. This continues M57 by aggregating existing per-command risk-proof
-  requirement rows into `risk_proof_requirement_summaries` so proof-kind
-  blockers, evidence refs, proof contract posture, payload fields, record
-  contracts, validations, and acceptance criteria are visible without enabling
-  any command path.
-- Backend implementation status: complete locally.
-- Frontend implementation status: complete locally.
-- Contextless review status: PASS for `7781-7800`.
-- Commit/push status: completed for `7781-7800`.
+- Latest completed and pushed range before this work: `7781-7800`.
+- Active approved range: `7801-7820`.
+- Scope: futures command readiness-decision summary evidence and frontend
+  display. This continues M57 by aggregating existing per-command readiness
+  decision rows into `readiness_decision_summaries` so blocked decision states,
+  affected commands, blocker counts, evidence routes, first blockers,
+  command-route posture, draft posture, and no-live authority flags are visible
+  without enabling any command path.
+- Backend implementation status: implemented and focused validation passed.
+- Frontend implementation status: implemented and focused validation passed
+  after contextless-review remediation.
+- Contextless review status: PASS after frontend remediation for
+  `7801-7820`.
+- Commit/push status: completed for `7801-7820` by the commits containing
+  this state entry.
 - Prior phase-end subagent sweep: reviewers
-  `019f0894-af72-7d23-adb3-34a60a3bca66`,
-  `019f0894-e1a1-7a02-9c87-060f0955bb97`,
-  `019f089e-6201-7142-9262-87055c04fd1f`,
-  `019f08af-c5ca-77d2-9b00-13e2c2187d1a`, and
-  `019f08ba-79aa-77f2-9855-d9596aa65116` were closed after `7761-7780`
-  findings were consumed. No prior phase-scoped subagents remain
-  intentionally open.
+  `019f08f8-b75d-7260-82e8-b43fd5c9a1fa` and
+  `019f08f8-fb2f-7290-af29-507a8da21fe0` were closed after `7781-7800`
+  findings were consumed. No prior phase-scoped subagents remain intentionally
+  open.
 
 ## Phase Contract
 
-- The `7781-7800` fields are backend-owned disabled evidence on the existing
+- The `7801-7820` fields are backend-owned disabled evidence on the existing
   futures command-suite read model. They derive from existing command
-  risk-proof requirement rows and do not resolve command readiness.
-- Presence of futures command risk-proof requirement summary evidence is not
-  risk-proof acceptance, proof-route registration, proof-writer enablement,
-  command enablement clearance, command readiness passage, approval passage,
-  cap/guard passage, reconciliation passage, command admission, Coinbase
-  execution, reconciliation execution, browser/BFF authority, or spot-rule
-  authority.
-- The summary evidence can report blocked proof kinds, affected commands,
-  semantic guards, applies-to fields, evidence routes, required/missing
-  evidence refs, proof contracts, payload fields, record contracts, record
-  validations, acceptance criteria, and authority flags, but it cannot accept
-  risk proofs, register proof routes, enable proof writers, clear command
-  enablement, admit commands, call Coinbase, execute reconciliation, mutate
-  state, grant browser/BFF authority, or import spot-rule authority.
-- Exact boundary phrase: risk-proof requirement summaries cannot accept risk
-  proofs.
-- Exact validator phrase: risk-proof requirement summaries cannot accept risk proofs; they do not register proof routes, enable proof writers, clear command enablement, or grant admission, Coinbase execution, reconciliation execution, browser/BFF authority, or spot-rule authority.
+  readiness decision rows and do not resolve command readiness.
+- Presence of futures command readiness-decision summary evidence is not
+  command readiness passage, readiness-decision clearance, command enablement
+  clearance, approval passage, cap/guard passage, reconciliation passage,
+  command admission, Coinbase execution, reconciliation execution, browser/BFF
+  authority, or spot-rule authority.
+- The summary evidence can report blocked readiness decisions, affected
+  commands, blocker counts, evidence routes, first blockers,
+  next-required-backend-contract refs, route-registration posture,
+  draft-allowed posture, execution flags, and authority flags, but it cannot
+  mark commands ready, clear readiness decisions, admit commands, call
+  Coinbase, execute reconciliation, mutate futures/order state, grant
+  browser/BFF authority, or import spot-rule authority.
+- Exact boundary phrase: readiness-decision summaries cannot mark commands
+  ready.
+- Exact validator phrase: readiness-decision summaries cannot mark commands ready; they do not clear readiness decisions, grant command readiness passage, grant admission, call Coinbase, execute reconciliation, mutate futures/order state, grant browser/BFF authority, or import spot-rule authority.
 - The frontend consumes generated OpenAPI/backend contracts and remains
   display-only for this evidence surface.
 - No spot-only wallet, no-shorting, USDC quote, cost-basis, inventory-lot, or
   known-profitable-inventory rule may be imported into futures/perpetual
   readiness.
+
+## m57_7801_7820_blind_review
+
+- Result: PASS after frontend remediation.
+- Reviewer agents:
+  `019f092b-b73b-7233-820f-9b1b46466408` passed backend review and
+  `019f092b-f635-74b3-9540-f168e339a207` failed the first frontend review,
+  then passed the targeted frontend re-review after remediation.
+- Scope: active M57 `7801-7820` futures command readiness-decision summary
+  evidence and frontend display.
+- Boundary evidence for current futures command readiness-decision summary
+  evidence: `readiness_decision_summaries` must remain backend-owned,
+  read-only, no-live evidence derived from existing per-command readiness
+  decision rows. It is not command readiness passage, not
+  readiness-decision clearance, not command admission, not Coinbase execution,
+  not reconciliation execution, not futures/order/exchange state mutation, not
+  browser authority, not BFF execution authority, and not spot-rule authority.
+- Review evidence: backend reviewer verified the route remains read-only, the
+  new response fields are modelled and generated into OpenAPI, summaries are
+  derived from existing per-command readiness decisions, runtime detail denies
+  command readiness, Coinbase, reconciliation, browser/BFF, and spot-rule
+  authority, focused regression coverage exists, and active `7801-7820`
+  metadata is not stale. Frontend reviewer initially found that the table did
+  not display backend-owned/detail posture and maintainer handoff had stale
+  active-range sections. Remediation added visible backend-owned/read-only
+  detail to the readiness-decision summary table, added unit assertions, and
+  rewrote stale handoff sections; targeted re-review passed.
+- Phase-end subagent sweep: reviewers
+  `019f092b-b73b-7233-820f-9b1b46466408` and
+  `019f092b-f635-74b3-9540-f168e339a207` were closed after PASS evidence was
+  consumed. No phase-scoped subagents remain intentionally open for
+  `7801-7820`.
+- Live Coinbase execution: not run; submitted notional `0` USDC; executed
+  notional `0` USDC.
 
 ## m57_7781_7800_blind_review
 
@@ -210,8 +243,9 @@ work. Historical milestone detail belongs in
 ## Local Validation
 
 - `7761-7780` closeout validation passed before commit/push in both repos.
-- `7781-7800` validation:
-  - Backend OpenAPI and route-inventory artifacts regenerated locally.
+- `7801-7820` validation:
+  - Backend OpenAPI artifact regenerated locally; route-inventory parity tests
+    passed.
   - Backend direct read-service runtime sample passed after the interrupted
     attempt was followed by a stale-process check.
   - Backend `python -m py_compile application\admin_api\models.py application\admin_api\read_service.py tests\regression\test_admin_api_futures_risk_proofs.py tests\regression\test_admin_api_contract.py tools\run_autonomous_work_queue_check.py` passed.
@@ -223,10 +257,11 @@ work. Historical milestone detail belongs in
   - Frontend `npm run api:check` passed.
   - Frontend `npm run test -- tests/unit/mockBackend.test.ts tests/unit/FuturesPerpetualsReadModel.test.tsx tests/unit/qualityGates.test.tsx` passed with `89` tests.
   - Frontend `npm run autonomous:check` passed.
-  - Blind/contextless backend and frontend reviews passed.
+  - Blind/contextless backend review passed; frontend review passed after
+    remediation.
   - Phase-end subagent sweep closed reviewers
-    `019f08f8-b75d-7260-82e8-b43fd5c9a1fa` and
-    `019f08f8-fb2f-7290-af29-507a8da21fe0`.
+    `019f092b-b73b-7233-820f-9b1b46466408` and
+    `019f092b-f635-74b3-9540-f168e339a207`.
 - Prior `7761-7780` validation:
   - Backend `python -m py_compile application\admin_api\models.py application\admin_api\read_service.py application\admin_api\route_inventory.py tests\regression\test_admin_api_futures_risk_proofs.py tests\regression\test_admin_api_contract.py tools\run_autonomous_work_queue_check.py` passed.
   - Backend `pytest tests\regression\test_admin_api_futures_risk_proofs.py::test_futures_command_enablement_blocker_summaries_remain_read_only -q --tb=short` passed.
@@ -257,7 +292,8 @@ work. Historical milestone detail belongs in
   - Phase-end subagent sweep closed reviewers
     `019f0852-667d-7ed1-a712-23047a5ca696` and
     `019f0852-a6eb-7d42-ba8a-dc2c682d108b`.
-- Remaining before `7781-7800` phase closeout: none.
+- Remaining before `7801-7820` phase closeout: none after both repo commits
+  containing this state entry are pushed.
 
 ## Live Execution
 

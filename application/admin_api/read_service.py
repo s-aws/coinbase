@@ -135,6 +135,7 @@ from .models import (
     AdminFuturesCommandPrerequisiteSummaryItem,
     AdminFuturesCommandReadinessClosureStepItem,
     AdminFuturesCommandReadinessDecisionItem,
+    AdminFuturesCommandReadinessDecisionSummaryItem,
     AdminFuturesCommandRequestFieldItem,
     AdminFuturesCommandRequestFieldSummaryItem,
     AdminFuturesCommandRequestPayloadValidatorContractItem,
@@ -703,7 +704,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "7781-7800"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "7801-7820"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -45166,6 +45167,137 @@ class AdminApiReadService:
             commands
         )
 
+        def readiness_decision_summaries_for(
+            command_items: list[AdminFuturesCommandContractItem],
+        ) -> list[AdminFuturesCommandReadinessDecisionSummaryItem]:
+            rows: list[AdminFuturesCommandReadinessDecisionSummaryItem] = []
+            for decision_id in AdminFuturesCommandReadinessDecision:
+                decision_commands = [
+                    command_item
+                    for command_item in command_items
+                    if command_item.readiness_decision.decision == decision_id
+                ]
+                if not decision_commands:
+                    continue
+                blocked_commands = [
+                    command_item
+                    for command_item in decision_commands
+                    if not command_item.readiness_decision.ready
+                ]
+                ready_commands = [
+                    command_item
+                    for command_item in decision_commands
+                    if command_item.readiness_decision.ready
+                ]
+                evidence_routes = unique_enum_values(
+                    [
+                        route
+                        for command_item in decision_commands
+                        for semantic_guard in command_item.semantic_guards
+                        for route in semantic_guard.evidence_routes
+                    ]
+                )
+                first_blockers = unique_strings(
+                    [
+                        command_item.readiness_decision.first_blocker
+                        for command_item in decision_commands
+                    ]
+                )
+                next_required_backend_contracts = unique_strings(
+                    [
+                        command_item.readiness_decision.next_required_backend_contract
+                        for command_item in decision_commands
+                    ]
+                )
+                blocking = bool(blocked_commands)
+                rows.append(
+                    AdminFuturesCommandReadinessDecisionSummaryItem(
+                        decision=decision_id,
+                        status=(
+                            AdminApiGateStatus.BLOCKED
+                            if blocking
+                            else AdminApiGateStatus.PASSED
+                        ),
+                        blocking=blocking,
+                        command_count=len(decision_commands),
+                        affected_commands=[
+                            command_item.command
+                            for command_item in decision_commands
+                        ],
+                        ready_command_count=len(ready_commands),
+                        blocked_command_count=len(blocked_commands),
+                        blocker_count=sum(
+                            command_item.readiness_decision.blocker_count
+                            for command_item in decision_commands
+                        ),
+                        blocking_prerequisite_count=sum(
+                            command_item.readiness_decision.blocking_prerequisite_count
+                            for command_item in decision_commands
+                        ),
+                        blocking_request_field_count=sum(
+                            command_item.readiness_decision.blocking_request_field_count
+                            for command_item in decision_commands
+                        ),
+                        blocking_semantic_guard_count=sum(
+                            command_item.readiness_decision.blocking_semantic_guard_count
+                            for command_item in decision_commands
+                        ),
+                        missing_backend_contract_count=sum(
+                            command_item.readiness_decision.missing_backend_contract_count
+                            for command_item in decision_commands
+                        ),
+                        missing_evidence_ref_count=sum(
+                            command_item.readiness_decision.missing_evidence_ref_count
+                            for command_item in decision_commands
+                        ),
+                        evidence_route_count=len(evidence_routes),
+                        evidence_routes=evidence_routes,
+                        first_blocker_count=len(first_blockers),
+                        first_blockers=first_blockers,
+                        next_required_backend_contract_count=len(
+                            next_required_backend_contracts
+                        ),
+                        next_required_backend_contracts=(
+                            next_required_backend_contracts
+                        ),
+                        command_route_registered_count=sum(
+                            1
+                            for command_item in decision_commands
+                            if command_item.readiness_decision.command_route_registered
+                        ),
+                        command_draft_allowed_count=sum(
+                            1
+                            for command_item in decision_commands
+                            if command_item.readiness_decision.command_draft_allowed
+                        ),
+                        execution_allowed_count=sum(
+                            1
+                            for command_item in decision_commands
+                            if command_item.readiness_decision.execution_allowed
+                        ),
+                        live_coinbase_orders_ran_count=sum(
+                            1
+                            for command_item in decision_commands
+                            if command_item.live_coinbase_orders_ran
+                        ),
+                        detail=(
+                            f"{decision_id.value} applies to "
+                            f"{len(decision_commands)} futures/perpetual command "
+                            f"contract(s); {len(blocked_commands)} remain "
+                            "blocked by backend readiness evidence. This "
+                            "aggregate summary is backend-owned read-only "
+                            "evidence and cannot mark commands ready, clear "
+                            "readiness decisions, admit commands, call "
+                            "Coinbase, execute reconciliation, mutate "
+                            "futures/order state, grant browser/BFF authority, "
+                            "or import spot-rule authority."
+                        ),
+                    )
+                )
+            return rows
+
+        readiness_decision_summaries = readiness_decision_summaries_for(commands)
+
         def blocker_summary(
             blocker: AdminFuturesCommandEnablementBlocker,
             *,
@@ -46812,6 +46944,11 @@ class AdminApiReadService:
             ready_readiness_decision_count=sum(
                 1 for command in commands if command.readiness_decision.ready
             ),
+            readiness_decision_summary_count=len(readiness_decision_summaries),
+            readiness_decision_summary_blocking_count=sum(
+                1 for item in readiness_decision_summaries if item.blocking
+            ),
+            readiness_decision_summaries=readiness_decision_summaries,
             readiness_closure_step_count=sum(
                 command.readiness_closure_step_count for command in commands
             ),

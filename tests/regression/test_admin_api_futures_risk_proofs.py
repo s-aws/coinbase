@@ -328,6 +328,7 @@ from core.enums import (
     AdminFuturesCommandExecutionEligibilityBlocker,
     AdminFuturesCommandPrerequisite,
     AdminFuturesCommandReadinessClosureStep,
+    AdminFuturesCommandReadinessDecision,
     AdminFuturesCommandRequestField,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefRecordAcceptanceBlocker as SourceRefRecordAcceptanceBlocker,
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceBlocker as SourceRefValidationRecordAcceptanceBlocker,
@@ -11196,6 +11197,8 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     assert command_suite.blocking_risk_proof_requirement_count == 20
     assert command_suite.risk_proof_requirement_summary_count == 9
     assert command_suite.risk_proof_requirement_summary_blocking_count == 9
+    assert command_suite.readiness_decision_summary_count == 1
+    assert command_suite.readiness_decision_summary_blocking_count == 1
     assert set(summaries_by_blocker) == {
         AdminFuturesCommandEnablementBlocker.UNRESOLVED_PREREQUISITES,
         AdminFuturesCommandEnablementBlocker.REQUEST_PAYLOAD_CONTRACTS,
@@ -11284,6 +11287,48 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     assert backend_service_summary.status == AdminApiGateStatus.PASSED
     assert backend_service_summary.resolved_command_count == 4
     assert backend_service_summary.required_evidence_refs == []
+
+    readiness_summaries_by_id = {
+        item.decision: item for item in command_suite.readiness_decision_summaries
+    }
+    assert set(readiness_summaries_by_id) == {
+        AdminFuturesCommandReadinessDecision.BLOCKED_BACKEND_CONTRACTS_REQUIRED
+    }
+    readiness_summary = readiness_summaries_by_id[
+        AdminFuturesCommandReadinessDecision.BLOCKED_BACKEND_CONTRACTS_REQUIRED
+    ]
+    assert readiness_summary.status == AdminApiGateStatus.BLOCKED
+    assert readiness_summary.blocking is True
+    assert readiness_summary.command_count == 4
+    assert readiness_summary.affected_commands == affected_commands
+    assert readiness_summary.ready_command_count == 0
+    assert readiness_summary.blocked_command_count == 4
+    assert readiness_summary.blocker_count == 92
+    assert readiness_summary.blocking_prerequisite_count == 37
+    assert readiness_summary.blocking_request_field_count == 22
+    assert readiness_summary.blocking_semantic_guard_count == 33
+    assert readiness_summary.missing_backend_contract_count == 0
+    assert readiness_summary.missing_evidence_ref_count == 60
+    assert readiness_summary.evidence_route_count == 11
+    assert AdminFuturesCommandEvidenceRoute.FUTURES_ACCOUNT in (
+        readiness_summary.evidence_routes
+    )
+    assert readiness_summary.first_blockers == [
+        "prerequisite:collateral",
+        "prerequisite:position_scope",
+    ]
+    assert readiness_summary.next_required_backend_contract_count == 0
+    assert readiness_summary.next_required_backend_contracts == []
+    assert readiness_summary.command_route_registered_count == 4
+    assert readiness_summary.command_draft_allowed_count == 4
+    assert readiness_summary.execution_allowed_count == 0
+    assert readiness_summary.live_coinbase_orders_ran_count == 0
+    assert readiness_summary.backend_owned is True
+    assert readiness_summary.read_only is True
+    assert readiness_summary.spot_rule_authority is False
+    assert readiness_summary.browser_authority == "display_only"
+    assert readiness_summary.bff_authority == "forward_only_no_execution"
+    assert "cannot mark commands ready" in readiness_summary.detail
 
     request_field_summaries_by_id = {
         item.field: item for item in command_suite.request_field_summaries

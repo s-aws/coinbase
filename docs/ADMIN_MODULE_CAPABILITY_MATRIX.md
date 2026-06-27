@@ -4,9 +4,19 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current futures/perpetual M57 scope: `7781-7800`.
+Current futures/perpetual M57 scope: `7801-7820`.
 
-Current futures/perpetual M57 scope details: `7781-7800` adds futures command
+Current futures/perpetual M57 scope details: `7801-7820` adds futures command
+readiness-decision summary evidence on top of completed `7781-7800` futures
+command risk-proof requirement summary evidence. The
+`readiness_decision_summaries` fields are backend-owned, display-only,
+no-live, and do not treat readiness summary presence as command readiness
+passage, readiness-decision clearance, command enablement clearance, approval
+passage, cap/guard passage, reconciliation passage, command admission,
+Coinbase execution, reconciliation execution, browser/BFF authority, or
+spot-rule authority.
+
+Completed futures/perpetual M57 scope: `7781-7800` added futures command
 risk-proof requirement summary evidence on top of completed `7761-7780`
 futures command semantic-guard summary evidence. The
 `risk_proof_requirement_summaries` fields are backend-owned, display-only,

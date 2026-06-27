@@ -13,16 +13,20 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "7781-7800"`. Futures/perpetual command-suite reads
-now expose backend-owned `risk_proof_requirement_summary_count`,
-`risk_proof_requirement_summary_blocking_count`, and
-`risk_proof_requirement_summaries` evidence for current M57 `7781-7800` while
-completed `7761-7780` command semantic-guard summary evidence remains
+`"approved_phase_range": "7801-7820"`. Futures/perpetual command-suite reads
+now expose backend-owned `readiness_decision_summary_count`,
+`readiness_decision_summary_blocking_count`, and
+`readiness_decision_summaries` evidence for current M57 `7801-7820` while
+completed `7781-7800` command risk-proof requirement summary evidence remains
 carried-forward history. The current rows are disabled, no-live evidence only
-and must not accept risk proofs, register proof routes, enable proof writers,
-clear command enablement, pass command readiness, admit commands, pass
-approval/cap/guard/reconciliation gates, call Coinbase, execute
-reconciliation, mutate state, or grant browser/BFF or spot-rule authority.
+and must not mark commands ready, clear readiness decisions, pass command
+readiness, admit commands, pass approval/cap/guard/reconciliation gates, call
+Coinbase, execute reconciliation, mutate state, or grant browser/BFF or
+spot-rule authority.
+
+Completed `"approved_phase_range": "7781-7800"`. Futures/perpetual
+command-suite reads expose backend-owned risk-proof requirement summary
+evidence while carrying forward command semantic-guard summary evidence.
 
 Completed `"approved_phase_range": "7301-7320"`. Futures/perpetual command-suite reads
 expose backend-owned execution-eligibility resolution-plan step review input

@@ -49,11 +49,25 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7781-7800
+## Current Active Phases 7801-7820
+
+Batch label: Futures/Perpetuals Command Readiness-Decision Summary Evidence.
+
+Current M57 `7801-7820` adds backend-owned read-only
+`readiness_decision_summaries` to `GET /api/v1/futures/command-suite` after
+completed `7781-7800` risk-proof requirement summary evidence. The readiness
+decision summary rows are derived from existing per-command readiness decision
+rows. They cannot mark commands ready, clear readiness decisions, admit
+commands, call Coinbase, execute reconciliation, mutate futures/order state,
+grant browser/BFF authority, or import spot-rule authority.
+
+Exact autonomous phrase: Active M57 `7801-7820` evidence adds futures command readiness-decision summary evidence while completed M57 `7781-7800` carries forward futures command risk-proof requirement summary evidence.
+
+## Completed Phases 7781-7800
 
 Batch label: Futures/Perpetuals Command Risk-Proof Requirement Summary Evidence.
 
-Current M57 `7781-7800` adds backend-owned read-only
+Completed M57 `7781-7800` added backend-owned read-only
 `risk_proof_requirement_summaries` to
 `GET /api/v1/futures/command-suite` after completed `7761-7780`
 semantic-guard summary evidence. The risk-proof requirement summary rows are
@@ -63,7 +77,7 @@ enablement, admit commands, call Coinbase, execute reconciliation, mutate
 futures/order state, grant browser/BFF authority, or import spot-rule
 authority.
 
-Exact autonomous phrase: Active M57 `7781-7800` evidence adds futures command risk-proof requirement summary evidence while completed M57 `7761-7780` carries forward futures command semantic-guard summary evidence.
+Exact historical phrase: Completed M57 `7781-7800` evidence adds futures command risk-proof requirement summary evidence while completed M57 `7761-7780` carries forward futures command semantic-guard summary evidence.
 
 ## Completed Phases 7761-7780
 

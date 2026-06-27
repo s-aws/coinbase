@@ -1,3 +1,52 @@
+## M57 Futures/Perpetual Command Readiness-Decision Summary Evidence - Phases 7801-7820
+
+Result: PASS. Scope: phases `7801-7820`, after completed history through
+`7781-7800`, adds backend-owned read-only futures command readiness-decision
+summary evidence to `GET /api/v1/futures/command-suite`. Compact history
+phrase: completed history through `7781-7800`.
+
+Boundary evidence for current `7801-7820` review: futures command
+`readiness_decision_summaries` rows derive from existing per-command readiness
+decision rows. They may report readiness decision states, affected commands,
+ready/blocked command counts, blocker counts, evidence routes, first
+blockers, next-required-backend-contract refs, command-route posture, draft
+posture, execution flags, live-order flags, and authority flags. They must not
+mark commands ready, clear readiness decisions, pass command readiness,
+clear command enablement, pass approval, cap/guard, or reconciliation gates,
+admit commands, call Coinbase, execute reconciliation, mutate
+futures/order/exchange state, grant browser/BFF authority, or import
+spot-rule authority.
+
+Exact validation phrases: No live Coinbase execution is planned. The actual
+submitted/executed notional remains `0` USDC. Completed futures command
+risk-proof requirement summary evidence remains carried-forward history.
+Completed futures command semantic-guard summary evidence remains
+carried-forward history; current futures command readiness-decision summary
+evidence is not command readiness passage, not readiness-decision clearance,
+not command admission, not Coinbase execution, not reconciliation execution,
+not futures/order/exchange state mutation, not browser authority, not BFF
+execution authority, and not spot-rule authority.
+Compact validator phrase: actual submitted/executed notional remains `0` USDC; current readiness-decision summary evidence is not Coinbase execution, not futures/order/exchange state mutation, and not spot-rule authority.
+Exact checker phrase: futures command readiness-decision summary evidence; not command readiness passage; not readiness-decision clearance; not command admission; not BFF execution authority.
+
+Fresh blind/contextless backend review: PASS. Reviewer
+`019f092b-b73b-7233-820f-9b1b46466408` verified the futures command-suite
+route remains a read-only `GET`, the response model and OpenAPI expose
+`readiness_decision_summary_count`,
+`readiness_decision_summary_blocking_count`, and
+`readiness_decision_summaries`, summaries derive from existing per-command
+readiness decisions, runtime detail denies command readiness, Coinbase,
+reconciliation, browser/BFF, and spot-rule authority, regression coverage
+exists, and remaining `7781-7800` references are completed history only.
+
+Fresh blind/contextless frontend review: PASS after remediation. Reviewer
+`019f092b-f635-74b3-9540-f168e339a207` initially failed the frontend display
+because the readiness-decision summary table did not show backend-owned/detail
+posture and `docs/MAINTAINER_HANDOFF.md` retained stale active-range sections.
+Remediation added visible backend-owned/read-only/detail posture to the table,
+added unit assertions, rewrote stale handoff text, and the targeted re-review
+passed.
+
 ## M57 Futures/Perpetual Command Risk-Proof Requirement Summary Evidence - Phases 7781-7800
 
 Result: PASS. Scope: phases `7781-7800`, after completed history through

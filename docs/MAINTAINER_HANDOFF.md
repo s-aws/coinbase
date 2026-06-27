@@ -123,16 +123,18 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `7761-7780` under M57.
-- Active autonomous range: `7781-7800` under M57.
-- Current active range: `7781-7800` adds futures command risk-proof
-  requirement summary evidence derived from existing per-command risk-proof
-  requirement rows. It remains disabled, no-live, backend-owned evidence only
-  and cannot accept risk proofs, register proof routes, enable proof writers,
-  clear command enablement, pass command readiness, admit commands, pass
-  approval, cap/guard, or reconciliation gates, execute reconciliation, call
-  Coinbase, mutate futures/order/exchange state, grant browser/BFF authority,
-  or import spot-only rules.
+- Latest completed autonomous range: `7781-7800` under M57.
+- Active autonomous range: `7801-7820` under M57.
+- Current active range: `7801-7820` adds futures command readiness-decision
+  summary evidence derived from existing per-command readiness decision rows.
+  It remains disabled, no-live, backend-owned evidence only and cannot mark
+  commands ready, clear readiness decisions, pass command readiness, admit
+  commands, pass approval, cap/guard, or reconciliation gates, execute
+  reconciliation, call Coinbase, mutate futures/order/exchange state, grant
+  browser/BFF authority, or import spot-only rules.
+- Completed `7781-7800` added command risk-proof requirement summary evidence
+  derived from existing per-command risk-proof requirement rows and remains
+  carried-forward disabled, no-live, backend-owned evidence only.
 - Completed `7761-7780` added command semantic-guard summary evidence derived
   from existing per-command semantic guards and remains carried-forward
   disabled, no-live, backend-owned evidence only.

@@ -8044,6 +8044,44 @@ class AdminFuturesCommandReadinessDecisionItem(BaseModel):
     detail: str
 
 
+class AdminFuturesCommandReadinessDecisionSummaryItem(BaseModel):
+    """Backend-owned aggregate summary for futures command readiness decisions."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    decision: AdminFuturesCommandReadinessDecision
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    blocking: bool = True
+    command_count: int = Field(default=0, ge=0)
+    affected_commands: list[AdminFuturesCommandAction] = Field(default_factory=list)
+    ready_command_count: int = Field(default=0, ge=0)
+    blocked_command_count: int = Field(default=0, ge=0)
+    blocker_count: int = Field(default=0, ge=0)
+    blocking_prerequisite_count: int = Field(default=0, ge=0)
+    blocking_request_field_count: int = Field(default=0, ge=0)
+    blocking_semantic_guard_count: int = Field(default=0, ge=0)
+    missing_backend_contract_count: int = Field(default=0, ge=0)
+    missing_evidence_ref_count: int = Field(default=0, ge=0)
+    evidence_route_count: int = Field(default=0, ge=0)
+    evidence_routes: list[AdminFuturesCommandEvidenceRoute] = Field(
+        default_factory=list
+    )
+    first_blocker_count: int = Field(default=0, ge=0)
+    first_blockers: list[str] = Field(default_factory=list)
+    next_required_backend_contract_count: int = Field(default=0, ge=0)
+    next_required_backend_contracts: list[str] = Field(default_factory=list)
+    command_route_registered_count: int = Field(default=0, ge=0)
+    command_draft_allowed_count: int = Field(default=0, ge=0)
+    execution_allowed_count: int = Field(default=0, ge=0)
+    live_coinbase_orders_ran_count: int = Field(default=0, ge=0)
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandReadinessClosureStepItem(BaseModel):
     """One backend-owned closure step for a blocked futures command."""
 
@@ -15669,6 +15707,11 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     readiness_decision_count: int = Field(default=0, ge=0)
     blocked_readiness_decision_count: int = Field(default=0, ge=0)
     ready_readiness_decision_count: int = Field(default=0, ge=0)
+    readiness_decision_summary_count: int = Field(default=0, ge=0)
+    readiness_decision_summary_blocking_count: int = Field(default=0, ge=0)
+    readiness_decision_summaries: list[
+        AdminFuturesCommandReadinessDecisionSummaryItem
+    ] = Field(default_factory=list)
     readiness_closure_step_count: int = Field(default=0, ge=0)
     blocking_readiness_closure_step_count: int = Field(default=0, ge=0)
     risk_proof_requirement_count: int = Field(default=0, ge=0)
