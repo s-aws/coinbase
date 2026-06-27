@@ -142,12 +142,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   a durable milestone closeout gate, not an ordinary phase gate.
   No live Coinbase execution was run; submitted/executed notional remains `0`
   USDC.
-- Current active range: `7641-7660` will add validation-record acceptance
-  evidence derived from the completed source-ref record-acceptance rows. It
-  must remain disabled, no-live, backend-owned evidence only and must not
-  admit commands, accept validation records, execute reconciliation, call
-  Coinbase, mutate futures/order/exchange state, grant browser/BFF authority,
-  or import spot-only rules.
+- Current active range: `7641-7660` adds validation-record acceptance evidence
+  derived from the completed source-ref record-acceptance rows. Focused
+  backend/frontend checks passed after remediation for stale `approved_phase_range`
+  metadata and stale review-log state. It remains disabled, no-live,
+  backend-owned evidence only and does not admit commands, accept validation
+  records, execute reconciliation, call Coinbase, mutate futures/order/exchange
+  state, grant browser/BFF authority, or import spot-only rules.
 - Prior completed range validation: completed for execution-eligibility
   resolution-plan step review input store record-validation remediation
   dependency work-item claim-trace clearance-step review input store

@@ -1856,6 +1856,35 @@ class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreR
     RECORD_ACCEPTANCE_MISSING = "record_acceptance_missing"
 
 
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptance(
+    str,
+    Enum,
+):
+    """Backend-owned validation-record acceptance evidence for validation-check output schema field constraint source refs."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_VALIDATION_RECORD_ACCEPTANCE = (
+        "output_schema_field_constraint_source_ref_validation_record_acceptance"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceBlocker(
+    str,
+    Enum,
+):
+    """Blocked validation-record acceptance reasons before futures validation-check output schema field constraint source-ref records can be accepted."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_RECORD_ACCEPTANCE_NOT_READY = (
+        "output_schema_field_constraint_source_ref_record_acceptance_not_ready"
+    )
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_RECORD_ACCEPTANCE_NOT_PASSED = (
+        "output_schema_field_constraint_source_ref_record_acceptance_not_passed"
+    )
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_VALIDATION_RECORD_ACCEPTANCE_MISSING = (
+        "output_schema_field_constraint_source_ref_validation_record_acceptance_missing"
+    )
+    VALIDATION_RECORD_ACCEPTANCE_MISSING = "validation_record_acceptance_missing"
+
+
 class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckInputSchemaField(
     str,
     Enum,

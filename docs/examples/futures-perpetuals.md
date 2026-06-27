@@ -146,7 +146,7 @@ clearance-step review input evidence for `GET /api/v1/futures/command-suite`
 and the disabled command draft routes.
 
 Current representative response metadata includes
-`"approved_phase_range": "7641-7660"` and planned no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref validation-record acceptance rows such
+`"approved_phase_range": "7641-7660"` and no-live resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref validation-record acceptance rows such
 as `validation_record_acceptance_required=true`,
 `validation_record_acceptance_ready=false`,
 `validation_record_acceptance_declared=false`,

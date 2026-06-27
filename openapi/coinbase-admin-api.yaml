@@ -15569,6 +15569,94 @@ components:
             Plan Step Review Input Store Record Validation Remediation Dependency
             Work Item Claim Trace Clearance Step Review Input Store Record Validation
             Check Output Schema Field Constraint Source Ref Record Acceptances
+        ? request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_count
+        : type: integer
+          minimum: 0.0
+          title: Request Payload Validation Record Execution Eligibility Resolution
+            Plan Step Review Input Store Record Validation Remediation Dependency
+            Work Item Claim Trace Clearance Step Review Input Store Record Validation
+            Check Output Schema Field Constraint Source Ref Validation Record Acceptance
+            Count
+          default: 0
+        ? blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_count
+        : type: integer
+          minimum: 0.0
+          title: Blocking Request Payload Validation Record Execution Eligibility
+            Resolution Plan Step Review Input Store Record Validation Remediation
+            Dependency Work Item Claim Trace Clearance Step Review Input Store Record
+            Validation Check Output Schema Field Constraint Source Ref Validation
+            Record Acceptance Count
+          default: 0
+        ? ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_count
+        : type: integer
+          minimum: 0.0
+          title: Ready Request Payload Validation Record Execution Eligibility Resolution
+            Plan Step Review Input Store Record Validation Remediation Dependency
+            Work Item Claim Trace Clearance Step Review Input Store Record Validation
+            Check Output Schema Field Constraint Source Ref Validation Record Acceptance
+            Count
+          default: 0
+        ? declared_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_count
+        : type: integer
+          minimum: 0.0
+          title: Declared Request Payload Validation Record Execution Eligibility
+            Resolution Plan Step Review Input Store Record Validation Remediation
+            Dependency Work Item Claim Trace Clearance Step Review Input Store Record
+            Validation Check Output Schema Field Constraint Source Ref Validation
+            Record Acceptance Count
+          default: 0
+        ? passed_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_count
+        : type: integer
+          minimum: 0.0
+          title: Passed Request Payload Validation Record Execution Eligibility Resolution
+            Plan Step Review Input Store Record Validation Remediation Dependency
+            Work Item Claim Trace Clearance Step Review Input Store Record Validation
+            Check Output Schema Field Constraint Source Ref Validation Record Acceptance
+            Count
+          default: 0
+        ? accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_count
+        : type: integer
+          minimum: 0.0
+          title: Accepted Request Payload Validation Record Execution Eligibility
+            Resolution Plan Step Review Input Store Record Validation Remediation
+            Dependency Work Item Claim Trace Clearance Step Review Input Store Record
+            Validation Check Output Schema Field Constraint Source Ref Validation
+            Record Acceptance Count
+          default: 0
+        ? materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_count
+        : type: integer
+          minimum: 0.0
+          title: Materialized Request Payload Validation Record Execution Eligibility
+            Resolution Plan Step Review Input Store Record Validation Remediation
+            Dependency Work Item Claim Trace Clearance Step Review Input Store Record
+            Validation Check Output Schema Field Constraint Source Ref Validation
+            Record Acceptance Count
+          default: 0
+        ? request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_detail_row_limit
+        : type: integer
+          minimum: 0.0
+          title: Request Payload Validation Record Execution Eligibility Resolution
+            Plan Step Review Input Store Record Validation Remediation Dependency
+            Work Item Claim Trace Clearance Step Review Input Store Record Validation
+            Check Output Schema Field Constraint Source Ref Validation Record Acceptance
+            Detail Row Limit
+          default: 0
+        ? request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_detail_rows_limited
+        : type: boolean
+          title: Request Payload Validation Record Execution Eligibility Resolution
+            Plan Step Review Input Store Record Validation Remediation Dependency
+            Work Item Claim Trace Clearance Step Review Input Store Record Validation
+            Check Output Schema Field Constraint Source Ref Validation Record Acceptance
+            Detail Rows Limited
+          default: false
+        ? request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptances
+        : items:
+            $ref: '#/components/schemas/AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceItem'
+          type: array
+          title: Request Payload Validation Record Execution Eligibility Resolution
+            Plan Step Review Input Store Record Validation Remediation Dependency
+            Work Item Claim Trace Clearance Step Review Input Store Record Validation
+            Check Output Schema Field Constraint Source Ref Validation Record Acceptances
         request_payload_validation_record_semantic_artifact_count:
           type: integer
           minimum: 0.0
@@ -17530,6 +17618,23 @@ components:
       - record_acceptance_missing
       title: AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefRecordAcceptanceBlocker
       description: Blocked record-acceptance reasons before futures validation-check
+        output schema field constraint source-ref records can be accepted.
+    ? AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptance
+    : type: string
+      enum:
+      - output_schema_field_constraint_source_ref_validation_record_acceptance
+      title: AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptance
+      description: Backend-owned validation-record acceptance evidence for validation-check
+        output schema field constraint source refs.
+    ? AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceBlocker
+    : type: string
+      enum:
+      - output_schema_field_constraint_source_ref_record_acceptance_not_ready
+      - output_schema_field_constraint_source_ref_record_acceptance_not_passed
+      - output_schema_field_constraint_source_ref_validation_record_acceptance_missing
+      - validation_record_acceptance_missing
+      title: AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceBlocker
+      description: Blocked validation-record acceptance reasons before futures validation-check
         output schema field constraint source-ref records can be accepted.
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldName:
       type: string
@@ -48303,6 +48408,3023 @@ components:
       - validation_check_output_schema_field_constraint_source_ref_record_acceptance_source_ref
       title: AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefRecordAcceptanceItem
       description: One disabled record-acceptance dependency for a validation-check
+        output schema field constraint source ref.
+    ? AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceItem
+    : properties:
+        field:
+          $ref: '#/components/schemas/AdminFuturesCommandRequestField'
+        blocker:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityBlocker'
+        semantic_artifact:
+          $ref: '#/components/schemas/AdminFuturesCommandSemanticArtifact'
+        resolution_plan_step_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStep'
+        resolution_plan_step_index:
+          type: integer
+          minimum: 0.0
+          title: Resolution Plan Step Index
+        review_input_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInput'
+        review_input_index:
+          type: integer
+          minimum: 0.0
+          title: Review Input Index
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source:
+          $ref: '#/components/schemas/AdminFuturesEvidenceSource'
+          default: backend_contract
+        required:
+          type: boolean
+          title: Required
+          default: true
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        validation_record_execution_eligibility_contract_ref:
+          type: string
+          title: Validation Record Execution Eligibility Contract Ref
+        validation_record_execution_eligibility_blocker_ref:
+          type: string
+          title: Validation Record Execution Eligibility Blocker Ref
+        semantic_ref:
+          type: string
+          title: Semantic Ref
+        execution_eligibility_resolution_plan_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Ref
+        execution_eligibility_resolution_plan_contract_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Contract Ref
+        execution_eligibility_resolution_plan_step_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Ref
+        execution_eligibility_resolution_plan_step_contract_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Contract Ref
+        execution_eligibility_resolution_plan_step_review_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Ref
+        execution_eligibility_resolution_plan_step_review_contract_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Contract Ref
+        execution_eligibility_resolution_plan_step_review_input_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Ref
+        execution_eligibility_resolution_plan_step_review_input_contract_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Contract
+            Ref
+        ordered_resolution_step_ref:
+          type: string
+          title: Ordered Resolution Step Ref
+        ordered_resolution_step_count:
+          type: integer
+          minimum: 0.0
+          title: Ordered Resolution Step Count
+          default: 0
+        required_backend_contract:
+          type: string
+          title: Required Backend Contract
+        missing_backend_contract:
+          type: string
+          title: Missing Backend Contract
+        missing_reason:
+          type: string
+          title: Missing Reason
+        required_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Required Evidence Refs
+        required_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Required Evidence Count
+          default: 0
+        missing_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Missing Evidence Refs
+        missing_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Evidence Count
+          default: 0
+        forbidden_execution_claims:
+          items:
+            type: string
+          type: array
+          title: Forbidden Execution Claims
+        forbidden_execution_claim_count:
+          type: integer
+          minimum: 0.0
+          title: Forbidden Execution Claim Count
+          default: 0
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        contextless_review_required:
+          type: boolean
+          title: Contextless Review Required
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        resolution_plan_present:
+          type: boolean
+          title: Resolution Plan Present
+          default: true
+        resolution_plan_step_ready:
+          type: boolean
+          title: Resolution Plan Step Ready
+          default: false
+        resolution_plan_step_accepted:
+          type: boolean
+          title: Resolution Plan Step Accepted
+          default: false
+        resolution_plan_step_review_required:
+          type: boolean
+          title: Resolution Plan Step Review Required
+          default: true
+        resolution_plan_step_review_ready:
+          type: boolean
+          title: Resolution Plan Step Review Ready
+          default: false
+        resolution_plan_step_reviewed:
+          type: boolean
+          title: Resolution Plan Step Reviewed
+          default: false
+        resolution_plan_step_review_accepted:
+          type: boolean
+          title: Resolution Plan Step Review Accepted
+          default: false
+        resolution_plan_step_review_input_required:
+          type: boolean
+          title: Resolution Plan Step Review Input Required
+          default: true
+        resolution_plan_step_review_input_present:
+          type: boolean
+          title: Resolution Plan Step Review Input Present
+          default: false
+        resolution_plan_step_review_input_accepted:
+          type: boolean
+          title: Resolution Plan Step Review Input Accepted
+          default: false
+        resolution_plan_step_review_input_validated:
+          type: boolean
+          title: Resolution Plan Step Review Input Validated
+          default: false
+        runtime_evidence_observed:
+          type: boolean
+          title: Runtime Evidence Observed
+          default: false
+        runtime_evidence_satisfies_semantic_contract:
+          type: boolean
+          title: Runtime Evidence Satisfies Semantic Contract
+          default: false
+        validation_record_admission_link_ready:
+          type: boolean
+          title: Validation Record Admission Link Ready
+          default: false
+        validation_record_admitted:
+          type: boolean
+          title: Validation Record Admitted
+          default: false
+        blocker_resolved:
+          type: boolean
+          title: Blocker Resolved
+          default: false
+        validation_record_execution_eligible:
+          type: boolean
+          title: Validation Record Execution Eligible
+          default: false
+        execution_allowed:
+          type: boolean
+          title: Execution Allowed
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+        review_input_store_requirement_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRequirement'
+        review_input_store_requirement_index:
+          type: integer
+          minimum: 0.0
+          title: Review Input Store Requirement Index
+        execution_eligibility_resolution_plan_step_review_input_store_requirement_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Requirement
+            Ref
+        execution_eligibility_resolution_plan_step_review_input_store_requirement_contract_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Requirement
+            Contract Ref
+        resolution_plan_step_review_input_store_requirement_required:
+          type: boolean
+          title: Resolution Plan Step Review Input Store Requirement Required
+          default: true
+        resolution_plan_step_review_input_store_available:
+          type: boolean
+          title: Resolution Plan Step Review Input Store Available
+          default: false
+        resolution_plan_step_review_input_writer_available:
+          type: boolean
+          title: Resolution Plan Step Review Input Writer Available
+          default: false
+        resolution_plan_step_review_input_record_key_available:
+          type: boolean
+          title: Resolution Plan Step Review Input Record Key Available
+          default: false
+        resolution_plan_step_review_input_validation_gate_ready:
+          type: boolean
+          title: Resolution Plan Step Review Input Validation Gate Ready
+          default: false
+        resolution_plan_step_review_input_replay_gate_ready:
+          type: boolean
+          title: Resolution Plan Step Review Input Replay Gate Ready
+          default: false
+        review_input_store_record_contract_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordContract'
+        review_input_store_record_contract_index:
+          type: integer
+          minimum: 0.0
+          title: Review Input Store Record Contract Index
+        execution_eligibility_resolution_plan_step_review_input_store_record_contract_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Contract Ref
+        execution_eligibility_resolution_plan_step_review_input_store_record_contract_contract_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Contract Contract Ref
+        required_record_schema_ref:
+          type: string
+          title: Required Record Schema Ref
+        required_append_only_log_ref:
+          type: string
+          title: Required Append Only Log Ref
+        required_payload_fields:
+          items:
+            type: string
+          type: array
+          title: Required Payload Fields
+        required_idempotency_key:
+          type: string
+          title: Required Idempotency Key
+        record_contract_gate:
+          type: string
+          title: Record Contract Gate
+        record_contract_required:
+          type: boolean
+          title: Record Contract Required
+          default: true
+        record_contract_available:
+          type: boolean
+          title: Record Contract Available
+          default: false
+        record_schema_available:
+          type: boolean
+          title: Record Schema Available
+          default: false
+        append_only_log_available:
+          type: boolean
+          title: Append Only Log Available
+          default: false
+        idempotency_key_bound:
+          type: boolean
+          title: Idempotency Key Bound
+          default: false
+        payload_schema_validated:
+          type: boolean
+          title: Payload Schema Validated
+          default: false
+        replay_protected:
+          type: boolean
+          title: Replay Protected
+          default: false
+        store_available:
+          type: boolean
+          title: Store Available
+          default: false
+        writer_available:
+          type: boolean
+          title: Writer Available
+          default: false
+        writer_allowed:
+          type: boolean
+          title: Writer Allowed
+          default: false
+        write_allowed:
+          type: boolean
+          title: Write Allowed
+          default: false
+        record_present:
+          type: boolean
+          title: Record Present
+          default: false
+        record_accepted:
+          type: boolean
+          title: Record Accepted
+          default: false
+        record_validated:
+          type: boolean
+          title: Record Validated
+          default: false
+        validation_configured:
+          type: boolean
+          title: Validation Configured
+          default: false
+        replay_protection_configured:
+          type: boolean
+          title: Replay Protection Configured
+          default: false
+        review_input_store_record_validation_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidation'
+        review_input_store_record_validation_index:
+          type: integer
+          minimum: 0.0
+          title: Review Input Store Record Validation Index
+        execution_eligibility_resolution_plan_step_review_input_store_record_validation_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Ref
+        execution_eligibility_resolution_plan_step_review_input_store_record_validation_contract_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Contract Ref
+        record_validation_gate:
+          type: string
+          title: Record Validation Gate
+        record_validation_schema_ref:
+          type: string
+          title: Record Validation Schema Ref
+        record_validation_check_refs:
+          items:
+            type: string
+          type: array
+          title: Record Validation Check Refs
+        record_validation_check_count:
+          type: integer
+          minimum: 0.0
+          title: Record Validation Check Count
+          default: 0
+        record_validation_required:
+          type: boolean
+          title: Record Validation Required
+          default: true
+        record_validation_ready:
+          type: boolean
+          title: Record Validation Ready
+          default: false
+        record_validation_configured:
+          type: boolean
+          title: Record Validation Configured
+          default: false
+        record_validation_registered:
+          type: boolean
+          title: Record Validation Registered
+          default: false
+        record_validation_gate_ready:
+          type: boolean
+          title: Record Validation Gate Ready
+          default: false
+        record_validation_gate_passed:
+          type: boolean
+          title: Record Validation Gate Passed
+          default: false
+        record_validation_replay_guard_ready:
+          type: boolean
+          title: Record Validation Replay Guard Ready
+          default: false
+        record_validation_schema_ready:
+          type: boolean
+          title: Record Validation Schema Ready
+          default: false
+        record_validation_append_only_log_ready:
+          type: boolean
+          title: Record Validation Append Only Log Ready
+          default: false
+        record_validation_idempotency_bound:
+          type: boolean
+          title: Record Validation Idempotency Bound
+          default: false
+        record_validation_payload_bound:
+          type: boolean
+          title: Record Validation Payload Bound
+          default: false
+        record_validation_contextless_review_passed:
+          type: boolean
+          title: Record Validation Contextless Review Passed
+          default: false
+        record_validation_performed:
+          type: boolean
+          title: Record Validation Performed
+          default: false
+        record_validation_accepted:
+          type: boolean
+          title: Record Validation Accepted
+          default: false
+        record_validation_recorded:
+          type: boolean
+          title: Record Validation Recorded
+          default: false
+        review_input_store_record_validation_remediation_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediation'
+        review_input_store_record_validation_remediation_index:
+          type: integer
+          minimum: 0.0
+          title: Review Input Store Record Validation Remediation Index
+        execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Ref
+        execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_contract_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Contract Ref
+        record_validation_remediation_gate:
+          type: string
+          title: Record Validation Remediation Gate
+        record_validation_remediation_action_refs:
+          items:
+            type: string
+          type: array
+          title: Record Validation Remediation Action Refs
+        record_validation_remediation_action_count:
+          type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Action Count
+          default: 0
+        record_validation_remediation_required:
+          type: boolean
+          title: Record Validation Remediation Required
+          default: true
+        record_validation_remediation_ready:
+          type: boolean
+          title: Record Validation Remediation Ready
+          default: false
+        record_validation_remediation_configured:
+          type: boolean
+          title: Record Validation Remediation Configured
+          default: false
+        record_validation_remediation_performed:
+          type: boolean
+          title: Record Validation Remediation Performed
+          default: false
+        record_validation_remediation_recorded:
+          type: boolean
+          title: Record Validation Remediation Recorded
+          default: false
+        record_validation_remediation_accepted:
+          type: boolean
+          title: Record Validation Remediation Accepted
+          default: false
+        record_validation_remediation_work_item_created:
+          type: boolean
+          title: Record Validation Remediation Work Item Created
+          default: false
+        record_validation_remediation_dependency_ready:
+          type: boolean
+          title: Record Validation Remediation Dependency Ready
+          default: false
+        review_input_store_record_validation_remediation_dependency_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependency'
+        review_input_store_record_validation_remediation_dependency_index:
+          type: integer
+          minimum: 0.0
+          title: Review Input Store Record Validation Remediation Dependency Index
+        execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Ref
+        execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_contract_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Contract Ref
+        record_validation_remediation_dependency_gate:
+          type: string
+          title: Record Validation Remediation Dependency Gate
+        record_validation_remediation_dependency_action_refs:
+          items:
+            type: string
+          type: array
+          title: Record Validation Remediation Dependency Action Refs
+        record_validation_remediation_dependency_action_count:
+          type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Action Count
+          default: 0
+        record_validation_remediation_dependency_blockers:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Blockers
+        record_validation_remediation_dependency_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Blocker Count
+          default: 0
+        record_validation_remediation_dependency_required:
+          type: boolean
+          title: Record Validation Remediation Dependency Required
+          default: true
+        record_validation_remediation_dependency_resolved:
+          type: boolean
+          title: Record Validation Remediation Dependency Resolved
+          default: false
+        record_validation_remediation_dependency_performed:
+          type: boolean
+          title: Record Validation Remediation Dependency Performed
+          default: false
+        record_validation_remediation_dependency_graph_ready:
+          type: boolean
+          title: Record Validation Remediation Dependency Graph Ready
+          default: false
+        record_validation_remediation_dependency_work_item_created:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Created
+          default: false
+        record_validation_remediation_dependency_work_item_claimed:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claimed
+          default: false
+        record_validation_remediation_dependency_claim_trace_created:
+          type: boolean
+          title: Record Validation Remediation Dependency Claim Trace Created
+          default: false
+        review_input_store_record_validation_remediation_dependency_work_item_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItem'
+        review_input_store_record_validation_remediation_dependency_work_item_index:
+          type: integer
+          minimum: 0.0
+          title: Review Input Store Record Validation Remediation Dependency Work
+            Item Index
+        execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_ref:
+          type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Ref
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Contract Ref
+        record_validation_remediation_dependency_work_item_gate:
+          type: string
+          title: Record Validation Remediation Dependency Work Item Gate
+        record_validation_remediation_dependency_work_item_action_refs:
+          items:
+            type: string
+          type: array
+          title: Record Validation Remediation Dependency Work Item Action Refs
+        record_validation_remediation_dependency_work_item_action_count:
+          type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Action Count
+          default: 0
+        record_validation_remediation_dependency_work_item_blockers:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Blockers
+        record_validation_remediation_dependency_work_item_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Blocker Count
+          default: 0
+        record_validation_remediation_dependency_work_item_required:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Required
+          default: true
+        record_validation_remediation_dependency_work_item_ready:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Ready
+          default: false
+        work_item_created:
+          type: boolean
+          title: Work Item Created
+          default: false
+        work_item_claimed:
+          type: boolean
+          title: Work Item Claimed
+          default: false
+        claim_ledger_registered:
+          type: boolean
+          title: Claim Ledger Registered
+          default: false
+        owner_review_accepted:
+          type: boolean
+          title: Owner Review Accepted
+          default: false
+        contextless_review_passed:
+          type: boolean
+          title: Contextless Review Passed
+          default: false
+        accepts_evidence:
+          type: boolean
+          title: Accepts Evidence
+          default: false
+        writes_evidence:
+          type: boolean
+          title: Writes Evidence
+          default: false
+        review_input_store_record_validation_remediation_dependency_work_item_claim_trace_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTrace'
+        review_input_store_record_validation_remediation_dependency_work_item_claim_trace_index:
+          type: integer
+          minimum: 0.0
+          title: Review Input Store Record Validation Remediation Dependency Work
+            Item Claim Trace Index
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Ref
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Contract Ref
+        record_validation_remediation_dependency_work_item_claim_trace_gate:
+          type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Gate
+        claim_trace_claim:
+          type: string
+          title: Claim Trace Claim
+        claim_trace_target_ref:
+          type: string
+          title: Claim Trace Target Ref
+        claim_trace_source_ref:
+          type: string
+          title: Claim Trace Source Ref
+        record_validation_remediation_dependency_work_item_claim_trace_action_refs:
+          items:
+            type: string
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Action
+            Refs
+        record_validation_remediation_dependency_work_item_claim_trace_action_count:
+          type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Action
+            Count
+          default: 0
+        record_validation_remediation_dependency_work_item_claim_trace_blockers:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Blockers
+        record_validation_remediation_dependency_work_item_claim_trace_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Blocker
+            Count
+          default: 0
+        record_validation_remediation_dependency_work_item_claim_trace_required:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Required
+          default: true
+        record_validation_remediation_dependency_work_item_claim_trace_ready:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Ready
+          default: false
+        record_validation_remediation_dependency_work_item_claim_trace_created:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Created
+          default: false
+        claim_trace_created:
+          type: boolean
+          title: Claim Trace Created
+          default: false
+        claim_trace_ready:
+          type: boolean
+          title: Claim Trace Ready
+          default: false
+        claim_allowed:
+          type: boolean
+          title: Claim Allowed
+          default: false
+        claim_resolved:
+          type: boolean
+          title: Claim Resolved
+          default: false
+        claim_review_accepted:
+          type: boolean
+          title: Claim Review Accepted
+          default: false
+        review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlan'
+        review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_index:
+          type: integer
+          minimum: 0.0
+          title: Review Input Store Record Validation Remediation Dependency Work
+            Item Claim Trace Clearance Plan Index
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Plan
+            Ref
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Plan
+            Contract Ref
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_gate:
+          type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Plan Gate
+        required_claim_trace_contract:
+          type: string
+          title: Required Claim Trace Contract
+        required_clearance_plan_store_ref:
+          type: string
+          title: Required Clearance Plan Store Ref
+        clearance_plan_claim:
+          type: string
+          title: Clearance Plan Claim
+        clearance_plan_target_ref:
+          type: string
+          title: Clearance Plan Target Ref
+        clearance_plan_source_ref:
+          type: string
+          title: Clearance Plan Source Ref
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_action_refs:
+          items:
+            type: string
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Plan Action Refs
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_action_count:
+          type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Plan Action Count
+          default: 0
+        required_plan_steps:
+          items:
+            type: string
+          type: array
+          title: Required Plan Steps
+        required_plan_step_count:
+          type: integer
+          minimum: 0.0
+          title: Required Plan Step Count
+          default: 0
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_blockers:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Plan Blockers
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Plan Blocker Count
+          default: 0
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_required:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Plan Required
+          default: true
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ready:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Plan Ready
+          default: false
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_created:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Plan Created
+          default: false
+        clearance_plan_created:
+          type: boolean
+          title: Clearance Plan Created
+          default: false
+        clearance_plan_ready:
+          type: boolean
+          title: Clearance Plan Ready
+          default: false
+        clearance_plan_sequence_ready:
+          type: boolean
+          title: Clearance Plan Sequence Ready
+          default: false
+        clearance_step_name:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanStep'
+        clearance_step_index:
+          type: integer
+          minimum: 0.0
+          title: Clearance Step Index
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Ref
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Contract Ref
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_gate:
+          type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Gate
+        required_clearance_plan_contract:
+          type: string
+          title: Required Clearance Plan Contract
+        required_clearance_step_review_ref:
+          type: string
+          title: Required Clearance Step Review Ref
+        clearance_step_claim:
+          type: string
+          title: Clearance Step Claim
+        clearance_step_target_ref:
+          type: string
+          title: Clearance Step Target Ref
+        clearance_step_source_ref:
+          type: string
+          title: Clearance Step Source Ref
+        predecessor_clearance_step_refs:
+          items:
+            type: string
+          type: array
+          title: Predecessor Clearance Step Refs
+        predecessor_clearance_step_count:
+          type: integer
+          minimum: 0.0
+          title: Predecessor Clearance Step Count
+          default: 0
+        successor_clearance_step_refs:
+          items:
+            type: string
+          type: array
+          title: Successor Clearance Step Refs
+        successor_clearance_step_count:
+          type: integer
+          minimum: 0.0
+          title: Successor Clearance Step Count
+          default: 0
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_blockers:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Blockers
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Blocker Count
+          default: 0
+        inherited_clearance_plan_blockers:
+          items:
+            type: string
+          type: array
+          title: Inherited Clearance Plan Blockers
+        inherited_clearance_plan_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Inherited Clearance Plan Blocker Count
+          default: 0
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_required:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Required
+          default: true
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_ready:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Ready
+          default: false
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_completed:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Completed
+          default: false
+        clearance_step_review_ready:
+          type: boolean
+          title: Clearance Step Review Ready
+          default: false
+        clearance_step_review_complete:
+          type: boolean
+          title: Clearance Step Review Complete
+          default: false
+        clearance_step_review_inputs_present:
+          type: boolean
+          title: Clearance Step Review Inputs Present
+          default: false
+        clearance_step_review_gates_passed:
+          type: boolean
+          title: Clearance Step Review Gates Passed
+          default: false
+        prior_clearance_step_complete:
+          type: boolean
+          title: Prior Clearance Step Complete
+          default: false
+        next_clearance_step_enabled:
+          type: boolean
+          title: Next Clearance Step Enabled
+          default: false
+        clearance_step_review_name:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewKind'
+        clearance_step_review_index:
+          type: integer
+          minimum: 0.0
+          title: Clearance Step Review Index
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Ref
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Contract Ref
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_gate:
+          type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Gate
+        required_clearance_step_contract:
+          type: string
+          title: Required Clearance Step Contract
+        required_clearance_step_review_input_ref:
+          type: string
+          title: Required Clearance Step Review Input Ref
+        clearance_step_review_claim:
+          type: string
+          title: Clearance Step Review Claim
+        clearance_step_review_target_ref:
+          type: string
+          title: Clearance Step Review Target Ref
+        clearance_step_review_source_ref:
+          type: string
+          title: Clearance Step Review Source Ref
+        predecessor_clearance_step_review_refs:
+          items:
+            type: string
+          type: array
+          title: Predecessor Clearance Step Review Refs
+        predecessor_clearance_step_review_count:
+          type: integer
+          minimum: 0.0
+          title: Predecessor Clearance Step Review Count
+          default: 0
+        successor_clearance_step_review_refs:
+          items:
+            type: string
+          type: array
+          title: Successor Clearance Step Review Refs
+        successor_clearance_step_review_count:
+          type: integer
+          minimum: 0.0
+          title: Successor Clearance Step Review Count
+          default: 0
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_blockers:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Blockers
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Blocker Count
+          default: 0
+        inherited_clearance_step_blockers:
+          items:
+            type: string
+          type: array
+          title: Inherited Clearance Step Blockers
+        inherited_clearance_step_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Inherited Clearance Step Blocker Count
+          default: 0
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_required:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Required
+          default: true
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_ready:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Ready
+          default: false
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_completed:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Completed
+          default: false
+        clearance_step_review_input_present:
+          type: boolean
+          title: Clearance Step Review Input Present
+          default: false
+        clearance_step_review_input_accepted:
+          type: boolean
+          title: Clearance Step Review Input Accepted
+          default: false
+        clearance_step_review_input_validated:
+          type: boolean
+          title: Clearance Step Review Input Validated
+          default: false
+        clearance_step_review_gate_passed:
+          type: boolean
+          title: Clearance Step Review Gate Passed
+          default: false
+        clearance_step_ready:
+          type: boolean
+          title: Clearance Step Ready
+          default: false
+        clearance_step_completed:
+          type: boolean
+          title: Clearance Step Completed
+          default: false
+        clearance_step_review_input_name:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputKind'
+        clearance_step_review_input_index:
+          type: integer
+          minimum: 0.0
+          title: Clearance Step Review Input Index
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Ref
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Contract Ref
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_gate:
+          type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Gate
+        required_clearance_step_review_contract:
+          type: string
+          title: Required Clearance Step Review Contract
+        required_clearance_step_review_input_store_ref:
+          type: string
+          title: Required Clearance Step Review Input Store Ref
+        clearance_step_review_input_claim:
+          type: string
+          title: Clearance Step Review Input Claim
+        clearance_step_review_input_target_ref:
+          type: string
+          title: Clearance Step Review Input Target Ref
+        clearance_step_review_input_source_ref:
+          type: string
+          title: Clearance Step Review Input Source Ref
+        predecessor_clearance_step_review_input_refs:
+          items:
+            type: string
+          type: array
+          title: Predecessor Clearance Step Review Input Refs
+        predecessor_clearance_step_review_input_count:
+          type: integer
+          minimum: 0.0
+          title: Predecessor Clearance Step Review Input Count
+          default: 0
+        successor_clearance_step_review_input_refs:
+          items:
+            type: string
+          type: array
+          title: Successor Clearance Step Review Input Refs
+        successor_clearance_step_review_input_count:
+          type: integer
+          minimum: 0.0
+          title: Successor Clearance Step Review Input Count
+          default: 0
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_blockers:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Blockers
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Blocker Count
+          default: 0
+        inherited_clearance_step_review_blockers:
+          items:
+            type: string
+          type: array
+          title: Inherited Clearance Step Review Blockers
+        inherited_clearance_step_review_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Inherited Clearance Step Review Blocker Count
+          default: 0
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_required:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Required
+          default: true
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_ready:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Ready
+          default: false
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_present:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Present
+          default: false
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_accepted:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Accepted
+          default: false
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_validated:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Validated
+          default: false
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_gate_passed:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Gate Passed
+          default: false
+        clearance_step_review_completed:
+          type: boolean
+          title: Clearance Step Review Completed
+          default: false
+        clearance_step_review_input_store_requirement_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRequirement'
+        clearance_step_review_input_store_requirement_index:
+          type: integer
+          minimum: 0.0
+          title: Clearance Step Review Input Store Requirement Index
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Requirement Ref
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Requirement Contract Ref
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_gate:
+          type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Requirement Gate
+        required_clearance_step_review_input_contract:
+          type: string
+          title: Required Clearance Step Review Input Contract
+        clearance_step_review_input_store_requirement_claim:
+          type: string
+          title: Clearance Step Review Input Store Requirement Claim
+        clearance_step_review_input_store_requirement_target_ref:
+          type: string
+          title: Clearance Step Review Input Store Requirement Target Ref
+        clearance_step_review_input_store_requirement_source_ref:
+          type: string
+          title: Clearance Step Review Input Store Requirement Source Ref
+        predecessor_clearance_step_review_input_store_requirement_refs:
+          items:
+            type: string
+          type: array
+          title: Predecessor Clearance Step Review Input Store Requirement Refs
+        predecessor_clearance_step_review_input_store_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Predecessor Clearance Step Review Input Store Requirement Count
+          default: 0
+        successor_clearance_step_review_input_store_requirement_refs:
+          items:
+            type: string
+          type: array
+          title: Successor Clearance Step Review Input Store Requirement Refs
+        successor_clearance_step_review_input_store_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Successor Clearance Step Review Input Store Requirement Count
+          default: 0
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_blockers:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRequirementBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Requirement Blockers
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Requirement Blocker Count
+          default: 0
+        inherited_clearance_step_review_input_blockers:
+          items:
+            type: string
+          type: array
+          title: Inherited Clearance Step Review Input Blockers
+        inherited_clearance_step_review_input_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Inherited Clearance Step Review Input Blocker Count
+          default: 0
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_required:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Requirement Required
+          default: true
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_ready:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Requirement Ready
+          default: false
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_available:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Available
+          default: false
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_writer_available:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Writer Available
+          default: false
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_record_key_available:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Record Key Available
+          default: false
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_validation_gate_ready:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Validation Gate Ready
+          default: false
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_replay_gate_ready:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Replay Gate Ready
+          default: false
+        clearance_step_review_input_store_record_contract_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordContract'
+        clearance_step_review_input_store_record_contract_index:
+          type: integer
+          minimum: 0.0
+          title: Clearance Step Review Input Store Record Contract Index
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Contract Ref
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Contract Contract Ref
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_gate:
+          type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Contract Gate
+        required_clearance_step_review_input_store_requirement_contract:
+          type: string
+          title: Required Clearance Step Review Input Store Requirement Contract
+        clearance_step_review_input_store_record_contract_claim:
+          type: string
+          title: Clearance Step Review Input Store Record Contract Claim
+        clearance_step_review_input_store_record_contract_target_ref:
+          type: string
+          title: Clearance Step Review Input Store Record Contract Target Ref
+        clearance_step_review_input_store_record_contract_source_ref:
+          type: string
+          title: Clearance Step Review Input Store Record Contract Source Ref
+        predecessor_clearance_step_review_input_store_record_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Predecessor Clearance Step Review Input Store Record Contract Refs
+        predecessor_clearance_step_review_input_store_record_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Predecessor Clearance Step Review Input Store Record Contract Count
+          default: 0
+        successor_clearance_step_review_input_store_record_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Successor Clearance Step Review Input Store Record Contract Refs
+        successor_clearance_step_review_input_store_record_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Successor Clearance Step Review Input Store Record Contract Count
+          default: 0
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_blockers:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordContractBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Contract Blockers
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_blocker_count
+        : type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Contract Blocker Count
+          default: 0
+        inherited_clearance_step_review_input_store_requirement_blockers:
+          items:
+            type: string
+          type: array
+          title: Inherited Clearance Step Review Input Store Requirement Blockers
+        inherited_clearance_step_review_input_store_requirement_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Inherited Clearance Step Review Input Store Requirement Blocker Count
+          default: 0
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_required:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Contract Required
+          default: true
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_available:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Contract Available
+          default: false
+        clearance_step_review_input_store_record_validation_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidation'
+        clearance_step_review_input_store_record_validation_index:
+          type: integer
+          minimum: 0.0
+          title: Clearance Step Review Input Store Record Validation Index
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Ref
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Contract Ref
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_gate:
+          type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Gate
+        required_clearance_step_review_input_store_record_contract_contract:
+          type: string
+          title: Required Clearance Step Review Input Store Record Contract Contract
+        validation_checks:
+          items:
+            type: string
+          type: array
+          title: Validation Checks
+        validation_check_count:
+          type: integer
+          minimum: 0.0
+          title: Validation Check Count
+          default: 0
+        validation_gate:
+          type: string
+          title: Validation Gate
+        replay_gate:
+          type: string
+          title: Replay Gate
+        clearance_step_review_input_store_record_validation_claim:
+          type: string
+          title: Clearance Step Review Input Store Record Validation Claim
+        clearance_step_review_input_store_record_validation_target_ref:
+          type: string
+          title: Clearance Step Review Input Store Record Validation Target Ref
+        clearance_step_review_input_store_record_validation_source_ref:
+          type: string
+          title: Clearance Step Review Input Store Record Validation Source Ref
+        predecessor_clearance_step_review_input_store_record_validation_refs:
+          items:
+            type: string
+          type: array
+          title: Predecessor Clearance Step Review Input Store Record Validation Refs
+        predecessor_clearance_step_review_input_store_record_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Predecessor Clearance Step Review Input Store Record Validation Count
+          default: 0
+        successor_clearance_step_review_input_store_record_validation_refs:
+          items:
+            type: string
+          type: array
+          title: Successor Clearance Step Review Input Store Record Validation Refs
+        successor_clearance_step_review_input_store_record_validation_count:
+          type: integer
+          minimum: 0.0
+          title: Successor Clearance Step Review Input Store Record Validation Count
+          default: 0
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_blockers
+        : items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Blockers
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_blocker_count
+        : type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Blocker Count
+          default: 0
+        inherited_clearance_step_review_input_store_record_contract_blockers:
+          items:
+            type: string
+          type: array
+          title: Inherited Clearance Step Review Input Store Record Contract Blockers
+        inherited_clearance_step_review_input_store_record_contract_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Inherited Clearance Step Review Input Store Record Contract Blocker
+            Count
+          default: 0
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_required
+        : type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Required
+          default: true
+        record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_ready:
+          type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Ready
+          default: false
+        validation_checks_passed:
+          type: boolean
+          title: Validation Checks Passed
+          default: false
+        validation_gate_passed:
+          type: boolean
+          title: Validation Gate Passed
+          default: false
+        replay_gate_passed:
+          type: boolean
+          title: Replay Gate Passed
+          default: false
+        clearance_step_review_input_store_record_validation_check_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheck'
+        clearance_step_review_input_store_record_validation_check_index:
+          type: integer
+          minimum: 0.0
+          title: Clearance Step Review Input Store Record Validation Check Index
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Ref
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Contract Ref
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_gate
+        : type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Gate
+        required_clearance_step_review_input_store_record_validation_contract:
+          type: string
+          title: Required Clearance Step Review Input Store Record Validation Contract
+        validation_check_claim:
+          type: string
+          title: Validation Check Claim
+        validation_check_target_ref:
+          type: string
+          title: Validation Check Target Ref
+        validation_check_source_ref:
+          type: string
+          title: Validation Check Source Ref
+        predecessor_clearance_step_review_input_store_record_validation_check_refs:
+          items:
+            type: string
+          type: array
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Refs
+        predecessor_clearance_step_review_input_store_record_validation_check_count:
+          type: integer
+          minimum: 0.0
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Count
+          default: 0
+        successor_clearance_step_review_input_store_record_validation_check_refs:
+          items:
+            type: string
+          type: array
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Refs
+        successor_clearance_step_review_input_store_record_validation_check_count:
+          type: integer
+          minimum: 0.0
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Count
+          default: 0
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_blockers
+        : items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Blockers
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_blocker_count
+        : type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Blocker Count
+          default: 0
+        inherited_clearance_step_review_input_store_record_validation_blockers:
+          items:
+            type: string
+          type: array
+          title: Inherited Clearance Step Review Input Store Record Validation Blockers
+        inherited_clearance_step_review_input_store_record_validation_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Inherited Clearance Step Review Input Store Record Validation Blocker
+            Count
+          default: 0
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_required
+        : type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Required
+          default: true
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_ready
+        : type: boolean
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Ready
+          default: false
+        validation_check_required:
+          type: boolean
+          title: Validation Check Required
+          default: true
+        validation_check_ready:
+          type: boolean
+          title: Validation Check Ready
+          default: false
+        validation_check_configured:
+          type: boolean
+          title: Validation Check Configured
+          default: false
+        validation_check_passed:
+          type: boolean
+          title: Validation Check Passed
+          default: false
+        validation_check_recorded:
+          type: boolean
+          title: Validation Check Recorded
+          default: false
+        validation_gate_ready:
+          type: boolean
+          title: Validation Gate Ready
+          default: false
+        replay_gate_ready:
+          type: boolean
+          title: Replay Gate Ready
+          default: false
+        clearance_step_review_input_store_record_validation_check_contract_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckContract'
+        clearance_step_review_input_store_record_validation_check_contract_index:
+          type: integer
+          minimum: 0.0
+          title: Clearance Step Review Input Store Record Validation Check Contract
+            Index
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_contract_evidence_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Contract Evidence Ref
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_contract_evidence_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Contract Evidence Contract
+            Ref
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_contract_gate
+        : type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Contract Gate
+        required_clearance_step_review_input_store_record_validation_check_contract:
+          type: string
+          title: Required Clearance Step Review Input Store Record Validation Check
+            Contract
+        validation_check_contract_claim:
+          type: string
+          title: Validation Check Contract Claim
+        validation_check_contract_target_ref:
+          type: string
+          title: Validation Check Contract Target Ref
+        validation_check_contract_source_ref:
+          type: string
+          title: Validation Check Contract Source Ref
+        predecessor_clearance_step_review_input_store_record_validation_check_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Contract Refs
+        predecessor_clearance_step_review_input_store_record_validation_check_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Contract Count
+          default: 0
+        successor_clearance_step_review_input_store_record_validation_check_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Contract Refs
+        successor_clearance_step_review_input_store_record_validation_check_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Contract Count
+          default: 0
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_contract_blockers
+        : items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckContractBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Contract Blockers
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_contract_blocker_count
+        : type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Contract Blocker Count
+          default: 0
+        inherited_clearance_step_review_input_store_record_validation_check_blockers:
+          items:
+            type: string
+          type: array
+          title: Inherited Clearance Step Review Input Store Record Validation Check
+            Blockers
+        inherited_clearance_step_review_input_store_record_validation_check_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Inherited Clearance Step Review Input Store Record Validation Check
+            Blocker Count
+          default: 0
+        validation_check_contract_required:
+          type: boolean
+          title: Validation Check Contract Required
+          default: true
+        validation_check_contract_ready:
+          type: boolean
+          title: Validation Check Contract Ready
+          default: false
+        validation_check_contract_declared:
+          type: boolean
+          title: Validation Check Contract Declared
+          default: false
+        validation_check_input_schema_declared:
+          type: boolean
+          title: Validation Check Input Schema Declared
+          default: false
+        validation_check_output_schema_declared:
+          type: boolean
+          title: Validation Check Output Schema Declared
+          default: false
+        validation_check_gate_declared:
+          type: boolean
+          title: Validation Check Gate Declared
+          default: false
+        validation_check_replay_guard_declared:
+          type: boolean
+          title: Validation Check Replay Guard Declared
+          default: false
+        validation_check_evidence_record_declared:
+          type: boolean
+          title: Validation Check Evidence Record Declared
+          default: false
+        validation_check_idempotency_binding_declared:
+          type: boolean
+          title: Validation Check Idempotency Binding Declared
+          default: false
+        validation_check_contextless_review_passed:
+          type: boolean
+          title: Validation Check Contextless Review Passed
+          default: false
+        validation_check_contract_accepted:
+          type: boolean
+          title: Validation Check Contract Accepted
+          default: false
+        validation_check_contract_recorded:
+          type: boolean
+          title: Validation Check Contract Recorded
+          default: false
+        clearance_step_review_input_store_record_validation_check_output_schema_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchema'
+        clearance_step_review_input_store_record_validation_check_output_schema_index:
+          type: integer
+          minimum: 0.0
+          title: Clearance Step Review Input Store Record Validation Check Output
+            Schema Index
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_evidence_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Output Schema Evidence Ref
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_evidence_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Output Schema Evidence Contract
+            Ref
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_gate
+        : type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Gate
+        required_clearance_step_review_input_store_record_validation_check_output_schema:
+          type: string
+          title: Required Clearance Step Review Input Store Record Validation Check
+            Output Schema
+        validation_check_output_schema_claim:
+          type: string
+          title: Validation Check Output Schema Claim
+        validation_check_output_schema_target_ref:
+          type: string
+          title: Validation Check Output Schema Target Ref
+        validation_check_output_schema_source_ref:
+          type: string
+          title: Validation Check Output Schema Source Ref
+        predecessor_clearance_step_review_input_store_record_validation_check_output_schema_refs:
+          items:
+            type: string
+          type: array
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Output Schema Refs
+        predecessor_clearance_step_review_input_store_record_validation_check_output_schema_count:
+          type: integer
+          minimum: 0.0
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Output Schema Count
+          default: 0
+        successor_clearance_step_review_input_store_record_validation_check_output_schema_refs:
+          items:
+            type: string
+          type: array
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Output Schema Refs
+        successor_clearance_step_review_input_store_record_validation_check_output_schema_count:
+          type: integer
+          minimum: 0.0
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Output Schema Count
+          default: 0
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_blockers
+        : items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Blockers
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_blocker_count
+        : type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Blocker
+            Count
+          default: 0
+        inherited_clearance_step_review_input_store_record_validation_check_contract_blockers:
+          items:
+            type: string
+          type: array
+          title: Inherited Clearance Step Review Input Store Record Validation Check
+            Contract Blockers
+        inherited_clearance_step_review_input_store_record_validation_check_contract_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Inherited Clearance Step Review Input Store Record Validation Check
+            Contract Blocker Count
+          default: 0
+        validation_check_output_schema_required:
+          type: boolean
+          title: Validation Check Output Schema Required
+          default: true
+        validation_check_output_schema_ready:
+          type: boolean
+          title: Validation Check Output Schema Ready
+          default: false
+        validation_check_output_schema_fields_declared:
+          type: boolean
+          title: Validation Check Output Schema Fields Declared
+          default: false
+        validation_check_output_schema_types_declared:
+          type: boolean
+          title: Validation Check Output Schema Types Declared
+          default: false
+        validation_check_output_schema_constraints_declared:
+          type: boolean
+          title: Validation Check Output Schema Constraints Declared
+          default: false
+        validation_check_output_schema_acceptance_declared:
+          type: boolean
+          title: Validation Check Output Schema Acceptance Declared
+          default: false
+        validation_check_output_schema_contextless_review_passed:
+          type: boolean
+          title: Validation Check Output Schema Contextless Review Passed
+          default: false
+        validation_check_output_schema_accepted:
+          type: boolean
+          title: Validation Check Output Schema Accepted
+          default: false
+        validation_check_output_schema_recorded:
+          type: boolean
+          title: Validation Check Output Schema Recorded
+          default: false
+        clearance_step_review_input_store_record_validation_check_output_schema_field_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaField'
+        clearance_step_review_input_store_record_validation_check_output_schema_field_index:
+          type: integer
+          minimum: 0.0
+          title: Clearance Step Review Input Store Record Validation Check Output
+            Schema Field Index
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_evidence_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Output Schema Field Evidence
+            Ref
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_evidence_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Output Schema Field Evidence
+            Contract Ref
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_gate
+        : type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Gate
+        required_clearance_step_review_input_store_record_validation_check_output_schema_field:
+          type: string
+          title: Required Clearance Step Review Input Store Record Validation Check
+            Output Schema Field
+        validation_check_output_schema_field_claim:
+          type: string
+          title: Validation Check Output Schema Field Claim
+        validation_check_output_schema_field_target_ref:
+          type: string
+          title: Validation Check Output Schema Field Target Ref
+        validation_check_output_schema_field_source_ref:
+          type: string
+          title: Validation Check Output Schema Field Source Ref
+        predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_refs:
+          items:
+            type: string
+          type: array
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Refs
+        predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_count:
+          type: integer
+          minimum: 0.0
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Count
+          default: 0
+        successor_clearance_step_review_input_store_record_validation_check_output_schema_field_refs:
+          items:
+            type: string
+          type: array
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Refs
+        successor_clearance_step_review_input_store_record_validation_check_output_schema_field_count:
+          type: integer
+          minimum: 0.0
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Count
+          default: 0
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_blockers
+        : items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Blockers
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_blocker_count
+        : type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Blocker
+            Count
+          default: 0
+        inherited_clearance_step_review_input_store_record_validation_check_output_schema_blockers:
+          items:
+            type: string
+          type: array
+          title: Inherited Clearance Step Review Input Store Record Validation Check
+            Output Schema Blockers
+        inherited_clearance_step_review_input_store_record_validation_check_output_schema_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Inherited Clearance Step Review Input Store Record Validation Check
+            Output Schema Blocker Count
+          default: 0
+        validation_check_output_schema_field_required:
+          type: boolean
+          title: Validation Check Output Schema Field Required
+          default: true
+        validation_check_output_schema_field_ready:
+          type: boolean
+          title: Validation Check Output Schema Field Ready
+          default: false
+        validation_check_output_schema_field_declared:
+          type: boolean
+          title: Validation Check Output Schema Field Declared
+          default: false
+        validation_check_output_schema_field_name_declared:
+          type: boolean
+          title: Validation Check Output Schema Field Name Declared
+          default: false
+        validation_check_output_schema_field_type_declared:
+          type: boolean
+          title: Validation Check Output Schema Field Type Declared
+          default: false
+        validation_check_output_schema_field_constraints_declared:
+          type: boolean
+          title: Validation Check Output Schema Field Constraints Declared
+          default: false
+        validation_check_output_schema_field_source_ref_declared:
+          type: boolean
+          title: Validation Check Output Schema Field Source Ref Declared
+          default: false
+        validation_check_output_schema_field_acceptance_declared:
+          type: boolean
+          title: Validation Check Output Schema Field Acceptance Declared
+          default: false
+        validation_check_output_schema_field_contextless_review_passed:
+          type: boolean
+          title: Validation Check Output Schema Field Contextless Review Passed
+          default: false
+        validation_check_output_schema_field_accepted:
+          type: boolean
+          title: Validation Check Output Schema Field Accepted
+          default: false
+        validation_check_output_schema_field_recorded:
+          type: boolean
+          title: Validation Check Output Schema Field Recorded
+          default: false
+        clearance_step_review_input_store_record_validation_check_output_schema_field_type_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldType'
+        clearance_step_review_input_store_record_validation_check_output_schema_field_type_index:
+          type: integer
+          minimum: 0.0
+          title: Clearance Step Review Input Store Record Validation Check Output
+            Schema Field Type Index
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_type_evidence_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Output Schema Field Type Evidence
+            Ref
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_type_evidence_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Output Schema Field Type Evidence
+            Contract Ref
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_type_gate
+        : type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Type
+            Gate
+        required_clearance_step_review_input_store_record_validation_check_output_schema_field_type:
+          type: string
+          title: Required Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Type
+        validation_check_output_schema_field_type_claim:
+          type: string
+          title: Validation Check Output Schema Field Type Claim
+        validation_check_output_schema_field_type_target_ref:
+          type: string
+          title: Validation Check Output Schema Field Type Target Ref
+        validation_check_output_schema_field_type_source_ref:
+          type: string
+          title: Validation Check Output Schema Field Type Source Ref
+        predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_type_refs:
+          items:
+            type: string
+          type: array
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Type Refs
+        predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_type_count:
+          type: integer
+          minimum: 0.0
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Type Count
+          default: 0
+        successor_clearance_step_review_input_store_record_validation_check_output_schema_field_type_refs:
+          items:
+            type: string
+          type: array
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Type Refs
+        successor_clearance_step_review_input_store_record_validation_check_output_schema_field_type_count:
+          type: integer
+          minimum: 0.0
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Type Count
+          default: 0
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_type_blockers
+        : items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldTypeBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Type
+            Blockers
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_type_blocker_count
+        : type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Type
+            Blocker Count
+          default: 0
+        inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_blockers:
+          items:
+            type: string
+          type: array
+          title: Inherited Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Blockers
+        inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Inherited Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Blocker Count
+          default: 0
+        validation_check_output_schema_field_type_required:
+          type: boolean
+          title: Validation Check Output Schema Field Type Required
+          default: true
+        validation_check_output_schema_field_type_ready:
+          type: boolean
+          title: Validation Check Output Schema Field Type Ready
+          default: false
+        validation_check_output_schema_field_type_source_ref_declared:
+          type: boolean
+          title: Validation Check Output Schema Field Type Source Ref Declared
+          default: false
+        validation_check_output_schema_field_type_contextless_review_passed:
+          type: boolean
+          title: Validation Check Output Schema Field Type Contextless Review Passed
+          default: false
+        validation_check_output_schema_field_type_accepted:
+          type: boolean
+          title: Validation Check Output Schema Field Type Accepted
+          default: false
+        validation_check_output_schema_field_type_recorded:
+          type: boolean
+          title: Validation Check Output Schema Field Type Recorded
+          default: false
+        clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraint'
+        clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_index:
+          type: integer
+          minimum: 0.0
+          title: Clearance Step Review Input Store Record Validation Check Output
+            Schema Field Constraint Index
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_evidence_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Output Schema Field Constraint
+            Evidence Ref
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_evidence_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Output Schema Field Constraint
+            Evidence Contract Ref
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_gate
+        : type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Constraint
+            Gate
+        required_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint:
+          type: string
+          title: Required Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint
+        validation_check_output_schema_field_constraint_claim:
+          type: string
+          title: Validation Check Output Schema Field Constraint Claim
+        validation_check_output_schema_field_constraint_target_ref:
+          type: string
+          title: Validation Check Output Schema Field Constraint Target Ref
+        validation_check_output_schema_field_constraint_source_ref:
+          type: string
+          title: Validation Check Output Schema Field Constraint Source Ref
+        predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_refs:
+          items:
+            type: string
+          type: array
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Refs
+        predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_count:
+          type: integer
+          minimum: 0.0
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Count
+          default: 0
+        successor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_refs:
+          items:
+            type: string
+          type: array
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Refs
+        successor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_count:
+          type: integer
+          minimum: 0.0
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Count
+          default: 0
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_blockers
+        : items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Constraint
+            Blockers
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_blocker_count
+        : type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Constraint
+            Blocker Count
+          default: 0
+        inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_type_blockers:
+          items:
+            type: string
+          type: array
+          title: Inherited Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Type Blockers
+        inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_type_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Inherited Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Type Blocker Count
+          default: 0
+        validation_check_output_schema_field_constraint_required:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Required
+          default: true
+        validation_check_output_schema_field_constraint_ready:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Ready
+          default: false
+        validation_check_output_schema_field_constraint_declared:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Declared
+          default: false
+        validation_check_output_schema_field_constraint_source_ref_declared:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Declared
+          default: false
+        validation_check_output_schema_field_constraint_contextless_review_passed:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Contextless Review
+            Passed
+          default: false
+        validation_check_output_schema_field_constraint_accepted:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Accepted
+          default: false
+        validation_check_output_schema_field_constraint_recorded:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Recorded
+          default: false
+        clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRef'
+        clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_index:
+          type: integer
+          minimum: 0.0
+          title: Clearance Step Review Input Store Record Validation Check Output
+            Schema Field Constraint Source Ref Index
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_evidence_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Evidence Ref
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_evidence_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Evidence Contract Ref
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_gate
+        : type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Gate
+        required_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref:
+          type: string
+          title: Required Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref
+        validation_check_output_schema_field_constraint_source_ref_claim:
+          type: string
+          title: Validation Check Output Schema Field Constraint Source Ref Claim
+        validation_check_output_schema_field_constraint_source_ref_target_ref:
+          type: string
+          title: Validation Check Output Schema Field Constraint Source Ref Target
+            Ref
+        validation_check_output_schema_field_constraint_source_ref_source_ref:
+          type: string
+          title: Validation Check Output Schema Field Constraint Source Ref Source
+            Ref
+        predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_refs:
+          items:
+            type: string
+          type: array
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Refs
+        predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_count:
+          type: integer
+          minimum: 0.0
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Count
+          default: 0
+        successor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_refs:
+          items:
+            type: string
+          type: array
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Refs
+        successor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_count:
+          type: integer
+          minimum: 0.0
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Count
+          default: 0
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_blockers
+        : items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Blockers
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_blocker_count
+        : type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Blocker Count
+          default: 0
+        inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_blockers:
+          items:
+            type: string
+          type: array
+          title: Inherited Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Blockers
+        inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Inherited Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Blocker Count
+          default: 0
+        validation_check_output_schema_field_constraint_source_ref_required:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Required
+          default: true
+        validation_check_output_schema_field_constraint_source_ref_ready:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Ready
+          default: false
+        validation_check_output_schema_field_constraint_source_ref_contextless_review_passed:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Contextless
+            Review Passed
+          default: false
+        validation_check_output_schema_field_constraint_source_ref_accepted:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Accepted
+          default: false
+        validation_check_output_schema_field_constraint_source_ref_recorded:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Recorded
+          default: false
+        ? clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_kind
+        : $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefContextlessReview'
+        ? clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_index
+        : type: integer
+          minimum: 0.0
+          title: Clearance Step Review Input Store Record Validation Check Output
+            Schema Field Constraint Source Ref Contextless Review Index
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_evidence_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Contextless Review Evidence Ref
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_evidence_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Contextless Review Evidence Contract Ref
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_gate
+        : type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Contextless Review Gate
+        ? required_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review
+        : type: string
+          title: Required Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Contextless Review
+        validation_check_output_schema_field_constraint_source_ref_contextless_review_claim:
+          type: string
+          title: Validation Check Output Schema Field Constraint Source Ref Contextless
+            Review Claim
+        validation_check_output_schema_field_constraint_source_ref_contextless_review_target_ref:
+          type: string
+          title: Validation Check Output Schema Field Constraint Source Ref Contextless
+            Review Target Ref
+        validation_check_output_schema_field_constraint_source_ref_contextless_review_source_ref:
+          type: string
+          title: Validation Check Output Schema Field Constraint Source Ref Contextless
+            Review Source Ref
+        ? predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_refs
+        : items:
+            type: string
+          type: array
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Contextless Review Refs
+        ? predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_count
+        : type: integer
+          minimum: 0.0
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Contextless Review Count
+          default: 0
+        ? successor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_refs
+        : items:
+            type: string
+          type: array
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Contextless Review Refs
+        ? successor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_count
+        : type: integer
+          minimum: 0.0
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Contextless Review Count
+          default: 0
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_blockers
+        : items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefContextlessReviewBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Contextless Review Blockers
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_blocker_count
+        : type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Contextless Review Blocker Count
+          default: 0
+        inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_blockers:
+          items:
+            type: string
+          type: array
+          title: Inherited Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Blockers
+        ? inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_blocker_count
+        : type: integer
+          minimum: 0.0
+          title: Inherited Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Blocker Count
+          default: 0
+        validation_check_output_schema_field_constraint_source_ref_contextless_review_required:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Contextless
+            Review Required
+          default: true
+        validation_check_output_schema_field_constraint_source_ref_contextless_review_ready:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Contextless
+            Review Ready
+          default: false
+        validation_check_output_schema_field_constraint_source_ref_contextless_review_declared:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Contextless
+            Review Declared
+          default: false
+        validation_check_output_schema_field_constraint_source_ref_contextless_review_accepted:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Contextless
+            Review Accepted
+          default: false
+        validation_check_output_schema_field_constraint_source_ref_contextless_review_recorded:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Contextless
+            Review Recorded
+          default: false
+        clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefAcceptance'
+        clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_index:
+          type: integer
+          minimum: 0.0
+          title: Clearance Step Review Input Store Record Validation Check Output
+            Schema Field Constraint Source Ref Acceptance Index
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_evidence_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Acceptance Evidence Ref
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_evidence_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Acceptance Evidence Contract Ref
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_gate
+        : type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Acceptance Gate
+        required_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance:
+          type: string
+          title: Required Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Acceptance
+        validation_check_output_schema_field_constraint_source_ref_acceptance_claim:
+          type: string
+          title: Validation Check Output Schema Field Constraint Source Ref Acceptance
+            Claim
+        validation_check_output_schema_field_constraint_source_ref_acceptance_target_ref:
+          type: string
+          title: Validation Check Output Schema Field Constraint Source Ref Acceptance
+            Target Ref
+        validation_check_output_schema_field_constraint_source_ref_acceptance_source_ref:
+          type: string
+          title: Validation Check Output Schema Field Constraint Source Ref Acceptance
+            Source Ref
+        ? predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_refs
+        : items:
+            type: string
+          type: array
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Acceptance Refs
+        ? predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count
+        : type: integer
+          minimum: 0.0
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Acceptance Count
+          default: 0
+        ? successor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_refs
+        : items:
+            type: string
+          type: array
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Acceptance Refs
+        ? successor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_count
+        : type: integer
+          minimum: 0.0
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Acceptance Count
+          default: 0
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_blockers
+        : items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefAcceptanceBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Acceptance Blockers
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_blocker_count
+        : type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Acceptance Blocker Count
+          default: 0
+        ? inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_blockers
+        : items:
+            type: string
+          type: array
+          title: Inherited Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Contextless Review Blockers
+        ? inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_blocker_count
+        : type: integer
+          minimum: 0.0
+          title: Inherited Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Contextless Review Blocker Count
+          default: 0
+        validation_check_output_schema_field_constraint_source_ref_acceptance_required:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Acceptance
+            Required
+          default: true
+        validation_check_output_schema_field_constraint_source_ref_acceptance_ready:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Acceptance
+            Ready
+          default: false
+        validation_check_output_schema_field_constraint_source_ref_acceptance_declared:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Acceptance
+            Declared
+          default: false
+        validation_check_output_schema_field_constraint_source_ref_acceptance_passed:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Acceptance
+            Passed
+          default: false
+        validation_check_output_schema_field_constraint_source_ref_acceptance_recorded:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Acceptance
+            Recorded
+          default: false
+        clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptance_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefRecordAcceptance'
+        ? clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptance_index
+        : type: integer
+          minimum: 0.0
+          title: Clearance Step Review Input Store Record Validation Check Output
+            Schema Field Constraint Source Ref Record Acceptance Index
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptance_evidence_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Record Acceptance Evidence Ref
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptance_evidence_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Record Acceptance Evidence Contract Ref
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptance_gate
+        : type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Record Acceptance Gate
+        ? required_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptance
+        : type: string
+          title: Required Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Record Acceptance
+        validation_check_output_schema_field_constraint_source_ref_record_acceptance_claim:
+          type: string
+          title: Validation Check Output Schema Field Constraint Source Ref Record
+            Acceptance Claim
+        validation_check_output_schema_field_constraint_source_ref_record_acceptance_target_ref:
+          type: string
+          title: Validation Check Output Schema Field Constraint Source Ref Record
+            Acceptance Target Ref
+        validation_check_output_schema_field_constraint_source_ref_record_acceptance_source_ref:
+          type: string
+          title: Validation Check Output Schema Field Constraint Source Ref Record
+            Acceptance Source Ref
+        ? predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptance_refs
+        : items:
+            type: string
+          type: array
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Record Acceptance Refs
+        ? predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptance_count
+        : type: integer
+          minimum: 0.0
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Record Acceptance Count
+          default: 0
+        ? successor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptance_refs
+        : items:
+            type: string
+          type: array
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Record Acceptance Refs
+        ? successor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptance_count
+        : type: integer
+          minimum: 0.0
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Record Acceptance Count
+          default: 0
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptance_blockers
+        : items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefRecordAcceptanceBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Record Acceptance Blockers
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptance_blocker_count
+        : type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Record Acceptance Blocker Count
+          default: 0
+        ? inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_blockers
+        : items:
+            type: string
+          type: array
+          title: Inherited Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Acceptance Blockers
+        ? inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_blocker_count
+        : type: integer
+          minimum: 0.0
+          title: Inherited Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Acceptance Blocker Count
+          default: 0
+        validation_check_output_schema_field_constraint_source_ref_record_acceptance_required:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Record
+            Acceptance Required
+          default: true
+        validation_check_output_schema_field_constraint_source_ref_record_acceptance_ready:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Record
+            Acceptance Ready
+          default: false
+        validation_check_output_schema_field_constraint_source_ref_record_acceptance_declared:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Record
+            Acceptance Declared
+          default: false
+        validation_check_output_schema_field_constraint_source_ref_record_acceptance_passed:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Record
+            Acceptance Passed
+          default: false
+        validation_check_output_schema_field_constraint_source_ref_record_accepted:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Record
+            Accepted
+          default: false
+        validation_check_output_schema_field_constraint_source_ref_record_acceptance_recorded:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Record
+            Acceptance Recorded
+          default: false
+        validation_record_accepted:
+          type: boolean
+          title: Validation Record Accepted
+          default: false
+        ? clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_kind
+        : $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptance'
+        ? clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_index
+        : type: integer
+          minimum: 0.0
+          title: Clearance Step Review Input Store Record Validation Check Output
+            Schema Field Constraint Source Ref Validation Record Acceptance Index
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_evidence_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Validation Record Acceptance Evidence Ref
+        ? execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_evidence_contract_ref
+        : type: string
+          title: Execution Eligibility Resolution Plan Step Review Input Store Record
+            Validation Remediation Dependency Work Item Claim Trace Clearance Step
+            Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Validation Record Acceptance Evidence Contract Ref
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_gate
+        : type: string
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Validation Record Acceptance Gate
+        ? required_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance
+        : type: string
+          title: Required Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Validation Record Acceptance
+        validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_claim:
+          type: string
+          title: Validation Check Output Schema Field Constraint Source Ref Validation
+            Record Acceptance Claim
+        validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_target_ref:
+          type: string
+          title: Validation Check Output Schema Field Constraint Source Ref Validation
+            Record Acceptance Target Ref
+        validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_source_ref:
+          type: string
+          title: Validation Check Output Schema Field Constraint Source Ref Validation
+            Record Acceptance Source Ref
+        ? predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_refs
+        : items:
+            type: string
+          type: array
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Validation Record Acceptance
+            Refs
+        ? predecessor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_count
+        : type: integer
+          minimum: 0.0
+          title: Predecessor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Validation Record Acceptance
+            Count
+          default: 0
+        ? successor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_refs
+        : items:
+            type: string
+          type: array
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Validation Record Acceptance
+            Refs
+        ? successor_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_count
+        : type: integer
+          minimum: 0.0
+          title: Successor Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Validation Record Acceptance
+            Count
+          default: 0
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_blockers
+        : items:
+            $ref: '#/components/schemas/AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceBlocker'
+          type: array
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Validation Record Acceptance Blockers
+        ? record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_blocker_count
+        : type: integer
+          minimum: 0.0
+          title: Record Validation Remediation Dependency Work Item Claim Trace Clearance
+            Step Review Input Store Record Validation Check Output Schema Field Constraint
+            Source Ref Validation Record Acceptance Blocker Count
+          default: 0
+        ? inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptance_blockers
+        : items:
+            type: string
+          type: array
+          title: Inherited Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Record Acceptance Blockers
+        ? inherited_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptance_blocker_count
+        : type: integer
+          minimum: 0.0
+          title: Inherited Clearance Step Review Input Store Record Validation Check
+            Output Schema Field Constraint Source Ref Record Acceptance Blocker Count
+          default: 0
+        validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_required:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Validation
+            Record Acceptance Required
+          default: true
+        validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_ready:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Validation
+            Record Acceptance Ready
+          default: false
+        validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_declared:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Validation
+            Record Acceptance Declared
+          default: false
+        validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_passed:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Validation
+            Record Acceptance Passed
+          default: false
+        validation_check_output_schema_field_constraint_source_ref_validation_record_accepted:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Validation
+            Record Accepted
+          default: false
+        validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_recorded:
+          type: boolean
+          title: Validation Check Output Schema Field Constraint Source Ref Validation
+            Record Acceptance Recorded
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - field
+      - blocker
+      - semantic_artifact
+      - resolution_plan_step_kind
+      - resolution_plan_step_index
+      - review_input_kind
+      - review_input_index
+      - validation_record_execution_eligibility_contract_ref
+      - validation_record_execution_eligibility_blocker_ref
+      - semantic_ref
+      - execution_eligibility_resolution_plan_ref
+      - execution_eligibility_resolution_plan_contract_ref
+      - execution_eligibility_resolution_plan_step_ref
+      - execution_eligibility_resolution_plan_step_contract_ref
+      - execution_eligibility_resolution_plan_step_review_ref
+      - execution_eligibility_resolution_plan_step_review_contract_ref
+      - execution_eligibility_resolution_plan_step_review_input_ref
+      - execution_eligibility_resolution_plan_step_review_input_contract_ref
+      - ordered_resolution_step_ref
+      - required_backend_contract
+      - missing_backend_contract
+      - missing_reason
+      - detail
+      - review_input_store_requirement_kind
+      - review_input_store_requirement_index
+      - execution_eligibility_resolution_plan_step_review_input_store_requirement_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_requirement_contract_ref
+      - review_input_store_record_contract_kind
+      - review_input_store_record_contract_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_contract_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_contract_contract_ref
+      - required_record_schema_ref
+      - required_append_only_log_ref
+      - required_idempotency_key
+      - record_contract_gate
+      - review_input_store_record_validation_kind
+      - review_input_store_record_validation_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_contract_ref
+      - record_validation_gate
+      - record_validation_schema_ref
+      - review_input_store_record_validation_remediation_kind
+      - review_input_store_record_validation_remediation_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_contract_ref
+      - record_validation_remediation_gate
+      - review_input_store_record_validation_remediation_dependency_kind
+      - review_input_store_record_validation_remediation_dependency_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_contract_ref
+      - record_validation_remediation_dependency_gate
+      - review_input_store_record_validation_remediation_dependency_work_item_kind
+      - review_input_store_record_validation_remediation_dependency_work_item_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_contract_ref
+      - record_validation_remediation_dependency_work_item_gate
+      - review_input_store_record_validation_remediation_dependency_work_item_claim_trace_kind
+      - review_input_store_record_validation_remediation_dependency_work_item_claim_trace_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_contract_ref
+      - record_validation_remediation_dependency_work_item_claim_trace_gate
+      - claim_trace_claim
+      - claim_trace_target_ref
+      - claim_trace_source_ref
+      - review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_kind
+      - review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_contract_ref
+      - record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_gate
+      - required_claim_trace_contract
+      - required_clearance_plan_store_ref
+      - clearance_plan_claim
+      - clearance_plan_target_ref
+      - clearance_plan_source_ref
+      - clearance_step_name
+      - clearance_step_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_contract_ref
+      - record_validation_remediation_dependency_work_item_claim_trace_clearance_step_gate
+      - required_clearance_plan_contract
+      - required_clearance_step_review_ref
+      - clearance_step_claim
+      - clearance_step_target_ref
+      - clearance_step_source_ref
+      - clearance_step_review_name
+      - clearance_step_review_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_contract_ref
+      - record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_gate
+      - required_clearance_step_contract
+      - required_clearance_step_review_input_ref
+      - clearance_step_review_claim
+      - clearance_step_review_target_ref
+      - clearance_step_review_source_ref
+      - clearance_step_review_input_name
+      - clearance_step_review_input_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_contract_ref
+      - record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_gate
+      - required_clearance_step_review_contract
+      - required_clearance_step_review_input_store_ref
+      - clearance_step_review_input_claim
+      - clearance_step_review_input_target_ref
+      - clearance_step_review_input_source_ref
+      - clearance_step_review_input_store_requirement_kind
+      - clearance_step_review_input_store_requirement_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_contract_ref
+      - record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_gate
+      - required_clearance_step_review_input_contract
+      - clearance_step_review_input_store_requirement_claim
+      - clearance_step_review_input_store_requirement_target_ref
+      - clearance_step_review_input_store_requirement_source_ref
+      - clearance_step_review_input_store_record_contract_kind
+      - clearance_step_review_input_store_record_contract_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_contract_ref
+      - record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_gate
+      - required_clearance_step_review_input_store_requirement_contract
+      - clearance_step_review_input_store_record_contract_claim
+      - clearance_step_review_input_store_record_contract_target_ref
+      - clearance_step_review_input_store_record_contract_source_ref
+      - clearance_step_review_input_store_record_validation_kind
+      - clearance_step_review_input_store_record_validation_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_contract_ref
+      - record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_gate
+      - required_clearance_step_review_input_store_record_contract_contract
+      - validation_gate
+      - replay_gate
+      - clearance_step_review_input_store_record_validation_claim
+      - clearance_step_review_input_store_record_validation_target_ref
+      - clearance_step_review_input_store_record_validation_source_ref
+      - clearance_step_review_input_store_record_validation_check_kind
+      - clearance_step_review_input_store_record_validation_check_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_contract_ref
+      - record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_gate
+      - required_clearance_step_review_input_store_record_validation_contract
+      - validation_check_claim
+      - validation_check_target_ref
+      - validation_check_source_ref
+      - clearance_step_review_input_store_record_validation_check_contract_kind
+      - clearance_step_review_input_store_record_validation_check_contract_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_contract_evidence_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_contract_evidence_contract_ref
+      - record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_contract_gate
+      - required_clearance_step_review_input_store_record_validation_check_contract
+      - validation_check_contract_claim
+      - validation_check_contract_target_ref
+      - validation_check_contract_source_ref
+      - clearance_step_review_input_store_record_validation_check_output_schema_kind
+      - clearance_step_review_input_store_record_validation_check_output_schema_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_evidence_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_evidence_contract_ref
+      - record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_gate
+      - required_clearance_step_review_input_store_record_validation_check_output_schema
+      - validation_check_output_schema_claim
+      - validation_check_output_schema_target_ref
+      - validation_check_output_schema_source_ref
+      - clearance_step_review_input_store_record_validation_check_output_schema_field_kind
+      - clearance_step_review_input_store_record_validation_check_output_schema_field_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_evidence_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_evidence_contract_ref
+      - record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_gate
+      - required_clearance_step_review_input_store_record_validation_check_output_schema_field
+      - validation_check_output_schema_field_claim
+      - validation_check_output_schema_field_target_ref
+      - validation_check_output_schema_field_source_ref
+      - clearance_step_review_input_store_record_validation_check_output_schema_field_type_kind
+      - clearance_step_review_input_store_record_validation_check_output_schema_field_type_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_type_evidence_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_type_evidence_contract_ref
+      - record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_type_gate
+      - required_clearance_step_review_input_store_record_validation_check_output_schema_field_type
+      - validation_check_output_schema_field_type_claim
+      - validation_check_output_schema_field_type_target_ref
+      - validation_check_output_schema_field_type_source_ref
+      - clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_kind
+      - clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_evidence_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_evidence_contract_ref
+      - record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_gate
+      - required_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint
+      - validation_check_output_schema_field_constraint_claim
+      - validation_check_output_schema_field_constraint_target_ref
+      - validation_check_output_schema_field_constraint_source_ref
+      - clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_kind
+      - clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_evidence_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_evidence_contract_ref
+      - record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_gate
+      - required_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref
+      - validation_check_output_schema_field_constraint_source_ref_claim
+      - validation_check_output_schema_field_constraint_source_ref_target_ref
+      - validation_check_output_schema_field_constraint_source_ref_source_ref
+      - clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_kind
+      - clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_evidence_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_evidence_contract_ref
+      - record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review_gate
+      - required_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_review
+      - validation_check_output_schema_field_constraint_source_ref_contextless_review_claim
+      - validation_check_output_schema_field_constraint_source_ref_contextless_review_target_ref
+      - validation_check_output_schema_field_constraint_source_ref_contextless_review_source_ref
+      - clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_kind
+      - clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_evidence_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_evidence_contract_ref
+      - record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance_gate
+      - required_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptance
+      - validation_check_output_schema_field_constraint_source_ref_acceptance_claim
+      - validation_check_output_schema_field_constraint_source_ref_acceptance_target_ref
+      - validation_check_output_schema_field_constraint_source_ref_acceptance_source_ref
+      - clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptance_kind
+      - clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptance_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptance_evidence_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptance_evidence_contract_ref
+      - record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptance_gate
+      - required_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptance
+      - validation_check_output_schema_field_constraint_source_ref_record_acceptance_claim
+      - validation_check_output_schema_field_constraint_source_ref_record_acceptance_target_ref
+      - validation_check_output_schema_field_constraint_source_ref_record_acceptance_source_ref
+      - clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_kind
+      - clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_index
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_evidence_ref
+      - execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_evidence_contract_ref
+      - record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_gate
+      - required_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance
+      - validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_claim
+      - validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_target_ref
+      - validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_source_ref
+      title: AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceItem
+      description: One disabled validation-record acceptance dependency for a validation-check
         output schema field constraint source ref.
     ? AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldItem
     : properties:
@@ -83232,6 +86354,60 @@ components:
             Dependency Work Item Claim Trace Clearance Step Review Input Store Record
             Validation Check Output Schema Field Constraint Source Ref Record Acceptance
             Count
+          default: 0
+        ? request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_count
+        : type: integer
+          minimum: 0.0
+          title: Request Payload Validation Record Execution Eligibility Resolution
+            Plan Step Review Input Store Record Validation Remediation Dependency
+            Work Item Claim Trace Clearance Step Review Input Store Record Validation
+            Check Output Schema Field Constraint Source Ref Validation Record Acceptance
+            Count
+          default: 0
+        ? blocking_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_count
+        : type: integer
+          minimum: 0.0
+          title: Blocking Request Payload Validation Record Execution Eligibility
+            Resolution Plan Step Review Input Store Record Validation Remediation
+            Dependency Work Item Claim Trace Clearance Step Review Input Store Record
+            Validation Check Output Schema Field Constraint Source Ref Validation
+            Record Acceptance Count
+          default: 0
+        ? ready_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_count
+        : type: integer
+          minimum: 0.0
+          title: Ready Request Payload Validation Record Execution Eligibility Resolution
+            Plan Step Review Input Store Record Validation Remediation Dependency
+            Work Item Claim Trace Clearance Step Review Input Store Record Validation
+            Check Output Schema Field Constraint Source Ref Validation Record Acceptance
+            Count
+          default: 0
+        ? declared_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_count
+        : type: integer
+          minimum: 0.0
+          title: Declared Request Payload Validation Record Execution Eligibility
+            Resolution Plan Step Review Input Store Record Validation Remediation
+            Dependency Work Item Claim Trace Clearance Step Review Input Store Record
+            Validation Check Output Schema Field Constraint Source Ref Validation
+            Record Acceptance Count
+          default: 0
+        ? passed_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_count
+        : type: integer
+          minimum: 0.0
+          title: Passed Request Payload Validation Record Execution Eligibility Resolution
+            Plan Step Review Input Store Record Validation Remediation Dependency
+            Work Item Claim Trace Clearance Step Review Input Store Record Validation
+            Check Output Schema Field Constraint Source Ref Validation Record Acceptance
+            Count
+          default: 0
+        ? accepted_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_count
+        : type: integer
+          minimum: 0.0
+          title: Accepted Request Payload Validation Record Execution Eligibility
+            Resolution Plan Step Review Input Store Record Validation Remediation
+            Dependency Work Item Claim Trace Clearance Step Review Input Store Record
+            Validation Check Output Schema Field Constraint Source Ref Validation
+            Record Acceptance Count
           default: 0
         request_payload_validation_record_semantic_artifact_count:
           type: integer

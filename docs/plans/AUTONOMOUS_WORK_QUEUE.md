@@ -111,8 +111,8 @@ record-validation remediation dependency work-item claim-trace clearance-step
 review input store record-validation check output schema field-constraint
 source-ref record-acceptance evidence.
 
-Active `7641-7660` validation-record acceptance evidence is planned through a
-new backend registry derived from
+Active `7641-7660` validation-record acceptance evidence is implemented through
+a new backend registry derived from
 `application/admin_api/futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_ref_record_acceptances.py`,
 Admin API models/read-service serialization, OpenAPI, generated frontend
 schema, frontend adapter/view-model display, and bounded mock fixtures.

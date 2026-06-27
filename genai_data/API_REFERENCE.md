@@ -16,23 +16,24 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7621-7640` futures/perpetual request payload validation record
+Current M57 `7641-7660` futures/perpetual request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
 remediation dependency work-item claim-trace clearance-step review input store
 record-validation check output schema field-constraint source-ref
-record-acceptance evidence for `GET /api/v1/futures/command-suite` is the
+validation-record acceptance evidence for `GET /api/v1/futures/command-suite` is the
 active slice. It adds disabled clearance-step review input store
 record-validation check output schema field-constraint source-ref
-record-acceptance rows through
-`application/admin_api/futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_ref_record_acceptances.py`.
-Completed M57 `7601-7620` clearance-step review input store
-record-validation check output schema field-constraint source-ref acceptance
-evidence is now carried forward history.
+validation-record acceptance rows through
+`application/admin_api/futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptances.py`.
+Completed M57 `7621-7640` clearance-step review input store
+record-validation check output schema field-constraint source-ref
+record-acceptance evidence is now carried forward history.
 The current rows are read-only/no-live evidence and must not accept validation
-records, pass source-ref acceptance, pass contextless review, declare source
-refs, declare constraints, declare field types, declare field names, declare
-fields, declare schemas, admit commands, execute reconciliation, call Coinbase,
-mutate futures/order/exchange state, or grant browser/BFF or spot-rule
+records, pass validation-record acceptance, pass source-ref record acceptance,
+pass source-ref acceptance, pass contextless review, declare source refs,
+declare constraints, declare field types, declare field names, declare fields,
+declare schemas, admit commands, execute reconciliation, call Coinbase, mutate
+futures/order/exchange state, or grant browser/BFF or spot-rule
 authority.
 
 Completed M57 `7541-7560` futures/perpetual request payload validation record
