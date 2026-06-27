@@ -1914,6 +1914,35 @@ class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreR
     CONTEXTLESS_REVIEW_MISSING = "contextless_review_missing"
 
 
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceContextlessReviewAcceptance(
+    str,
+    Enum,
+):
+    """Backend-owned acceptance evidence for validation-record acceptance contextless-review rows."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_VALIDATION_RECORD_ACCEPTANCE_CONTEXTLESS_REVIEW_ACCEPTANCE = (
+        "output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_review_acceptance"
+    )
+
+
+class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceContextlessReviewAcceptanceBlocker(
+    str,
+    Enum,
+):
+    """Blocked acceptance reasons before validation-record acceptance contextless-review rows can be accepted."""
+
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_VALIDATION_RECORD_ACCEPTANCE_CONTEXTLESS_REVIEW_NOT_READY = (
+        "output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_review_not_ready"
+    )
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_VALIDATION_RECORD_ACCEPTANCE_CONTEXTLESS_REVIEW_NOT_PASSED = (
+        "output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_review_not_passed"
+    )
+    OUTPUT_SCHEMA_FIELD_CONSTRAINT_SOURCE_REF_VALIDATION_RECORD_ACCEPTANCE_CONTEXTLESS_REVIEW_ACCEPTANCE_MISSING = (
+        "output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_review_acceptance_missing"
+    )
+    CONTEXTLESS_REVIEW_ACCEPTANCE_MISSING = "contextless_review_acceptance_missing"
+
+
 class AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckInputSchemaField(
     str,
     Enum,

@@ -54,7 +54,7 @@ and notional evidence fields.
   registers route-bound no-live command drafts for those four families, but
   does not call Coinbase, execute reconciliation, mutate state, or grant
   browser/BFF authority.
-- Active M57 `7681-7700` evidence adds futures request payload validation
+- Completed M57 `7681-7700` evidence adds futures request payload validation
   record execution-eligibility resolution-plan step review input store
   record-validation remediation dependency work-item claim-trace clearance-step
   review input store record-validation check output schema field-constraint
@@ -101,7 +101,7 @@ and notional evidence fields.
   record execution-eligibility resolution-plan step review input store
   record-validation check output schema field-constraint evidence.
 
-Exact active M57 phrase: Active M57 `7681-7700` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref validation-record acceptance contextless-review acceptance evidence while completed M57 `7661-7680` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref validation-record acceptance contextless-review evidence.
+Exact completed M57 phrase: Completed M57 `7681-7700` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref validation-record acceptance contextless-review acceptance evidence while completed M57 `7661-7680` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref validation-record acceptance contextless-review evidence.
 - Completed M57 `7541-7560` evidence adds futures request payload validation
   record execution-eligibility resolution-plan step review input store
   record-validation remediation dependency work-item claim-trace clearance-step
@@ -575,7 +575,7 @@ Exact active M57 phrase: Active M57 `7681-7700` evidence adds futures request pa
   reviews as execution authority, validate payloads, resolve blockers, admit
   commands, call Coinbase, execute reconciliation, mutate futures/order/
   exchange state, or grant browser/BFF or spot-rule authority.
-  Current M57 `7321-7340` adds first-class resolution-plan step review input
+  Completed M57 `7321-7340` adds first-class resolution-plan step review input
   store record-validation remediation dependency work-item claim-trace
   clearance-step review input store requirement rows through
   `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements.py`,
@@ -704,10 +704,10 @@ Exact active M57 phrase: Active M57 `7681-7700` evidence adds futures request pa
   blocker resolution. Resolution plan step review input store record-validation
   presence is not blocker resolution. Resolution plan step review input store
   record-contract presence is not blocker resolution.
-  Exact autonomous phrase: Active M57 `7361-7380` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation evidence while completed M57 `7341-7360` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-contract evidence.
-  Completed autonomous phrase: Active M57 `7341-7360` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-contract evidence while completed M57 `7321-7340` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store requirement evidence.
-  Completed autonomous phrase: Active M57 `7321-7340` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store requirement evidence while completed M57 `7301-7320` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input evidence.
-  Completed autonomous phrase: Active M57 `7301-7320` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input evidence while completed M57 `7281-7300` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review evidence.
+  Completed autonomous phrase: Completed M57 `7361-7380` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation evidence while completed M57 `7341-7360` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-contract evidence.
+  Completed autonomous phrase: Completed M57 `7341-7360` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-contract evidence while completed M57 `7321-7340` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store requirement evidence.
+  Completed autonomous phrase: Completed M57 `7321-7340` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store requirement evidence while completed M57 `7301-7320` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input evidence.
+  Completed autonomous phrase: Completed M57 `7301-7320` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input evidence while completed M57 `7281-7300` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review evidence.
   Literal machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review evidence.
   Carried-forward machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance step evidence.
   Carried-forward machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance plan evidence.
@@ -749,7 +749,7 @@ Exact active M57 phrase: Active M57 `7681-7700` evidence adds futures request pa
   step review input store requirement presence is not blocker resolution.
   Resolution plan step review input presence is not blocker resolution.
   Resolution plan step review presence is not blocker resolution.
-  Exact autonomous phrase: Active M57 `7101-7120` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store requirement evidence while completed M57 `7081-7100` carries forward futures request payload validation record execution-eligibility resolution-plan step review input evidence.
+  Completed autonomous phrase: Completed M57 `7101-7120` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store requirement evidence while completed M57 `7081-7100` carries forward futures request payload validation record execution-eligibility resolution-plan step review input evidence.
   Literal machine-check phrase: futures request payload validation record execution-eligibility resolution-plan step review input store requirement evidence.
 - The command-suite route also exposes request-payload validation record
   semantic artifact evidence through
