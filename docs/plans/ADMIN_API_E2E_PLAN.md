@@ -49,11 +49,27 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7821-7840
+## Current Active Phases 7841-7860
+
+Batch label: Futures/Perpetuals Risk-Proof Acceptance Blocker Summary Evidence.
+
+Current M57 `7841-7860` adds backend-owned read-only
+`risk_proof_acceptance_blocker_summaries` to
+`GET /api/v1/futures/command-suite` after completed `7821-7840`
+risk-proof record resolver summary evidence. The acceptance blocker summary
+rows are derived from existing per-command risk-proof requirement rows. They
+cannot resolve proof acceptance, accept risk proofs, register proof routes,
+enable proof writers, clear command readiness, admit commands, call Coinbase,
+execute reconciliation, mutate futures/order state, grant browser/BFF
+authority, or import spot-rule authority.
+
+Exact autonomous phrase: Active M57 `7841-7860` evidence adds futures risk-proof acceptance blocker summary evidence while completed M57 `7821-7840` carries forward futures risk-proof record resolver summary evidence.
+
+## Completed Phases 7821-7840
 
 Batch label: Futures/Perpetuals Risk-Proof Record Resolver Summary Evidence.
 
-Current M57 `7821-7840` adds backend-owned read-only
+Completed M57 `7821-7840` added backend-owned read-only
 `risk_proof_record_resolver_summaries` to
 `GET /api/v1/futures/command-suite` after completed `7801-7820`
 readiness-decision summary evidence. The resolver summary rows are derived
@@ -63,7 +79,7 @@ writers, clear command readiness, admit commands, call Coinbase, execute
 reconciliation, mutate futures/order state, grant browser/BFF authority, or
 import spot-rule authority.
 
-Exact autonomous phrase: Active M57 `7821-7840` evidence adds futures risk-proof record resolver summary evidence while completed M57 `7801-7820` carries forward futures command readiness-decision summary evidence.
+Exact historical phrase: Completed M57 `7821-7840` evidence adds futures risk-proof record resolver summary evidence while completed M57 `7801-7820` carries forward futures command readiness-decision summary evidence.
 
 ## Completed Phases 7801-7820
 

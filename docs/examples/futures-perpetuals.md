@@ -11,18 +11,20 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7821-7840 range targets explicit M57 futures/perpetual risk-proof
-record resolver summary evidence. `GET /api/v1/futures/command-suite`
-reports `"approved_phase_range": "7821-7840"`,
-`risk_proof_record_resolver_summary_count`,
-`risk_proof_record_resolver_summary_blocking_count`, and
-`risk_proof_record_resolver_summaries` rows derived from existing
+The active 7841-7860 range targets explicit M57 futures/perpetual risk-proof
+acceptance blocker summary evidence. `GET /api/v1/futures/command-suite`
+reports `"approved_phase_range": "7841-7860"`,
+`risk_proof_acceptance_blocker_summary_count`,
+`risk_proof_acceptance_blocker_summary_blocking_count`, and
+`risk_proof_acceptance_blocker_summaries` rows derived from existing
 per-command risk-proof requirement rows. These rows are display-only evidence
 and do not resolve proof acceptance, accept risk proofs, register proof
 routes, enable proof writers, admit commands, call Coinbase, execute
 reconciliation, mutate state, grant browser/BFF authority, or import
-spot-rule authority. Completed 7801-7820 command readiness-decision summary
-evidence remains carried-forward history. Completed 7781-7800 command
+spot-rule authority. Completed 7821-7840 risk-proof record resolver summary
+evidence remains carried-forward history. Completed 7801-7820 command
+readiness-decision summary evidence remains carried-forward history.
+Completed 7781-7800 command
 risk-proof requirement summary evidence remains carried-forward history.
 Completed 7761-7780 command
 semantic-guard summary evidence remains carried-forward history. Completed

@@ -11200,6 +11200,8 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     assert command_suite.risk_proof_requirement_summary_blocking_count == 9
     assert command_suite.risk_proof_record_resolver_summary_count == 1
     assert command_suite.risk_proof_record_resolver_summary_blocking_count == 1
+    assert command_suite.risk_proof_acceptance_blocker_summary_count == 6
+    assert command_suite.risk_proof_acceptance_blocker_summary_blocking_count == 6
     assert command_suite.readiness_decision_summary_count == 1
     assert command_suite.readiness_decision_summary_blocking_count == 1
     assert set(summaries_by_blocker) == {
@@ -11264,6 +11266,55 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     assert missing_resolver_summary.browser_authority == "display_only"
     assert missing_resolver_summary.bff_authority == "forward_only_no_execution"
     assert "cannot resolve proof acceptance" in missing_resolver_summary.detail
+
+    acceptance_blocker_summaries_by_id = {
+        item.blocker: item
+        for item in command_suite.risk_proof_acceptance_blocker_summaries
+    }
+    assert set(acceptance_blocker_summaries_by_id) == set(
+        AdminFuturesCommandRiskProofAcceptanceBlocker
+    )
+    for blocker_summary in acceptance_blocker_summaries_by_id.values():
+        assert blocker_summary.status == AdminApiGateStatus.BLOCKED
+        assert blocker_summary.blocking is True
+        assert blocker_summary.command_count == 4
+        assert blocker_summary.affected_commands == affected_commands
+        assert blocker_summary.proof_requirement_count == 20
+        assert blocker_summary.proof_acceptance_blocker_count == 20
+        assert blocker_summary.proof_acceptance_blocker_ref_count == len(
+            blocker_summary.proof_acceptance_blocker_refs
+        )
+        assert blocker_summary.proof_acceptance_blocker_refs
+        assert blocker_summary.proof_acceptance_blocked_requirement_count == 20
+        assert (
+            blocker_summary.proof_record_resolved_but_acceptance_blocked_count
+            == 0
+        )
+        assert blocker_summary.proof_record_resolves_acceptance_count == 0
+        assert blocker_summary.latest_futures_risk_proof_id_count == 0
+        assert blocker_summary.latest_futures_risk_proof_ids == []
+        assert blocker_summary.proof_record_satisfies_requirement_count == 0
+        assert blocker_summary.proof_record_lookup_statuses == [
+            AdminFuturesCommandRiskProofRecordLookupStatus.MISSING
+        ]
+        assert blocker_summary.command_route_registered_count == 0
+        assert blocker_summary.command_draft_allowed_count == 0
+        assert blocker_summary.execution_allowed_count == 0
+        assert blocker_summary.proof_route_registered_count == 0
+        assert blocker_summary.proof_writer_enabled_count == 0
+        assert blocker_summary.live_coinbase_orders_ran_count == 0
+        assert blocker_summary.backend_owned is True
+        assert blocker_summary.read_only is True
+        assert blocker_summary.spot_rule_authority is False
+        assert blocker_summary.browser_authority == "display_only"
+        assert blocker_summary.bff_authority == "forward_only_no_execution"
+        assert "cannot resolve proof acceptance" in blocker_summary.detail
+
+    assert "futures_place_margin_collateral_proof_record_acceptance" in (
+        acceptance_blocker_summaries_by_id[
+            AdminFuturesCommandRiskProofAcceptanceBlocker.PROOF_RECORD_NOT_ACCEPTED
+        ].proof_acceptance_blocker_refs
+    )
 
     for blocker, summary in summaries_by_blocker.items():
         assert summary.status == AdminApiGateStatus.BLOCKED
@@ -11652,6 +11703,8 @@ def test_futures_command_suite_resolves_safe_risk_proof_record_without_authority
     assert command_suite.stale_or_invalid_risk_proof_record_resolver_count == 0
     assert command_suite.risk_proof_record_resolver_summary_count == 2
     assert command_suite.risk_proof_record_resolver_summary_blocking_count == 2
+    assert command_suite.risk_proof_acceptance_blocker_summary_count == 6
+    assert command_suite.risk_proof_acceptance_blocker_summary_blocking_count == 6
     assert command_suite.risk_proof_acceptance_blocker_count == 120
     assert command_suite.proof_record_resolved_but_acceptance_blocked_count == 1
     assert command_suite.risk_proof_semantic_contract_requirement_count == 34
@@ -11773,6 +11826,57 @@ def test_futures_command_suite_resolves_safe_risk_proof_record_without_authority
     assert resolved_resolver_summary.execution_allowed_count == 0
     assert resolved_resolver_summary.live_coinbase_orders_ran_count == 0
     assert "cannot resolve proof acceptance" in resolved_resolver_summary.detail
+    acceptance_blocker_summaries_by_id = {
+        item.blocker: item
+        for item in command_suite.risk_proof_acceptance_blocker_summaries
+    }
+    assert set(acceptance_blocker_summaries_by_id) == set(
+        AdminFuturesCommandRiskProofAcceptanceBlocker
+    )
+    for blocker_summary in acceptance_blocker_summaries_by_id.values():
+        assert blocker_summary.status == AdminApiGateStatus.BLOCKED
+        assert blocker_summary.blocking is True
+        assert blocker_summary.command_count == 4
+        assert blocker_summary.affected_commands == [
+            AdminFuturesCommandAction.PLACE,
+            AdminFuturesCommandAction.CLOSE_REDUCE,
+            AdminFuturesCommandAction.CANCEL,
+            AdminFuturesCommandAction.RECONCILE,
+        ]
+        assert blocker_summary.proof_requirement_count == 20
+        assert blocker_summary.proof_acceptance_blocker_count == 20
+        assert blocker_summary.proof_acceptance_blocker_ref_count == len(
+            blocker_summary.proof_acceptance_blocker_refs
+        )
+        assert blocker_summary.proof_acceptance_blocker_refs
+        assert blocker_summary.proof_acceptance_blocked_requirement_count == 20
+        assert (
+            blocker_summary.proof_record_resolved_but_acceptance_blocked_count
+            == 1
+        )
+        assert blocker_summary.proof_record_resolves_acceptance_count == 0
+        assert blocker_summary.latest_futures_risk_proof_id_count == 1
+        assert blocker_summary.latest_futures_risk_proof_ids == [
+            record.futures_risk_proof_id
+        ]
+        assert blocker_summary.proof_record_satisfies_requirement_count == 0
+        assert set(blocker_summary.proof_record_lookup_statuses) == {
+            AdminFuturesCommandRiskProofRecordLookupStatus.MISSING,
+            AdminFuturesCommandRiskProofRecordLookupStatus.RESOLVED,
+        }
+        assert blocker_summary.command_route_registered_count == 0
+        assert blocker_summary.command_draft_allowed_count == 0
+        assert blocker_summary.execution_allowed_count == 0
+        assert blocker_summary.proof_route_registered_count == 0
+        assert blocker_summary.proof_writer_enabled_count == 0
+        assert blocker_summary.live_coinbase_orders_ran_count == 0
+        assert blocker_summary.backend_owned is True
+        assert blocker_summary.read_only is True
+        assert blocker_summary.spot_rule_authority is False
+        assert blocker_summary.browser_authority == "display_only"
+        assert blocker_summary.bff_authority == "forward_only_no_execution"
+        assert "cannot resolve proof acceptance" in blocker_summary.detail
+
     assert place.resolved_risk_proof_record_resolver_count == 1
     assert place.risk_proof_acceptance_blocker_count == 36
     assert place.proof_record_resolved_but_acceptance_blocked_count == 1

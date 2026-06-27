@@ -24,54 +24,95 @@ work. Historical milestone detail belongs in
 
 ## Current Phase
 
-- Latest completed and pushed range before this work: `7801-7820`.
-- Active approved range: `7821-7840`.
-- Scope: futures risk-proof record resolver summary evidence and frontend
+- Latest completed and pushed range before this work: `7821-7840`.
+- Active approved range: `7841-7860`.
+- Scope: futures risk-proof acceptance blocker summary evidence and frontend
   display. This continues M57 by aggregating existing per-command risk-proof
-  requirement rows into `risk_proof_record_resolver_summaries` so lookup
-  status, affected commands, proof kinds, latest proof ids, acceptance
-  blockers, command-route posture, proof-route posture, proof-writer posture,
-  execution flags, and no-live authority flags are visible without enabling
-  proof acceptance or any command path.
-- Backend implementation status: in progress for `7821-7840`.
-- Frontend implementation status: pending schema sync and display mapping for
-  `7821-7840`.
-- Contextless review status: PASS for `7821-7840`.
-- Commit/push status: pending for `7821-7840`.
+  requirement rows into `risk_proof_acceptance_blocker_summaries` so blocker
+  reason, affected commands, proof kinds, lookup statuses, latest proof ids,
+  blocker refs, command-route posture, proof-route posture, proof-writer
+  posture, execution flags, and no-live authority flags are visible without
+  enabling proof acceptance or any command path.
+- Backend implementation status: complete for `7841-7860`; focused validation
+  passed.
+- Frontend implementation status: complete for `7841-7860`; generated schema,
+  display mapping, mock evidence, and focused validation passed.
+- Contextless review status: PASS for `7841-7860`.
+- Commit/push status: pending for `7841-7860`.
 - Prior phase-end subagent sweep: reviewers
-  `019f092b-b73b-7233-820f-9b1b46466408` and
-  `019f092b-f635-74b3-9540-f168e339a207` were closed after `7801-7820`
+  `019f0963-bc60-72d0-864a-fed3c9382d14` and
+  `019f0964-12de-7621-87f1-f942cffb53c6` were closed after `7821-7840`
   findings were consumed. No prior phase-scoped subagents remain intentionally
   open.
 
 ## Phase Contract
 
-- The `7821-7840` fields are backend-owned disabled evidence on the existing
+- The `7841-7860` fields are backend-owned disabled evidence on the existing
   futures command-suite read model. They derive from existing risk-proof
   requirement rows and do not resolve proof acceptance.
-- Presence of futures risk-proof record resolver summary evidence is not proof
-  acceptance resolution, risk proof acceptance, proof-route registration,
-  proof-writer enablement, command readiness passage, command enablement
-  clearance, risk proof acceptance passage, approval passage, cap/guard
-  passage, reconciliation passage, command admission, Coinbase execution,
-  reconciliation execution, browser/BFF authority, or spot-rule authority.
-- The summary evidence can report lookup status, affected commands, proof
-  kinds, latest proof ids, proof acceptance blockers, blocker refs,
-  command-route posture, proof-route posture, proof-writer posture, execution
-  flags, and authority flags, but it cannot resolve proof acceptance, accept
-  risk proofs, register proof routes, enable proof writers, clear command
-  readiness, admit commands, call Coinbase, execute reconciliation, mutate
-  futures/order state, grant browser/BFF authority, or import spot-rule
+- Presence of futures risk-proof acceptance blocker summary evidence is not
+  proof acceptance resolution, risk proof acceptance, proof-route
+  registration, proof-writer enablement, command readiness passage, command
+  enablement clearance, risk proof acceptance passage, approval passage,
+  cap/guard passage, reconciliation passage, command admission, Coinbase
+  execution, reconciliation execution, browser/BFF authority, or spot-rule
   authority.
-- Exact boundary phrase: risk-proof record resolver summaries cannot resolve
+- The summary evidence can report blocker reason, affected commands, proof
+  kinds, lookup statuses, latest proof ids, blocker refs, command-route
+  posture, proof-route posture, proof-writer posture, execution flags, and
+  authority flags, but it cannot resolve proof acceptance, accept risk proofs,
+  register proof routes, enable proof writers, clear command readiness, admit
+  commands, call Coinbase, execute reconciliation, mutate futures/order state,
+  grant browser/BFF authority, or import spot-rule authority.
+- Exact boundary phrase: risk-proof acceptance blocker summaries cannot resolve
   proof acceptance.
-- Exact passage phrase: resolver summary presence is not cap/guard passage.
-- Exact validator phrase: risk-proof record resolver summaries cannot resolve proof acceptance; they do not accept risk proofs, register proof routes, enable proof writers, clear command readiness, grant admission, call Coinbase, execute reconciliation, mutate futures/order state, grant browser/BFF authority, or import spot-rule authority.
+- Exact passage phrase: acceptance blocker summary presence is not cap/guard
+  passage.
+- Exact validator phrase: risk-proof acceptance blocker summaries cannot resolve proof acceptance; they do not accept risk proofs, register proof routes, enable proof writers, clear command readiness, grant admission, Coinbase execution, call Coinbase, execute reconciliation, mutate futures/order state, grant browser/BFF authority, or import spot-rule authority.
 - The frontend consumes generated OpenAPI/backend contracts and remains
   display-only for this evidence surface.
 - No spot-only wallet, no-shorting, USDC quote, cost-basis, inventory-lot, or
   known-profitable-inventory rule may be imported into futures/perpetual
   readiness.
+
+## m57_7841_7860_blind_review
+
+- Result: PASS.
+- Reviewer agents: replacement backend reviewer
+  `019f09bb-cb84-72b1-b515-f38185c6a858` passed backend review and frontend
+  reviewer `019f09b3-da78-7dc3-973d-c30b02633fbe` passed frontend review.
+  Initial backend reviewer `019f09b3-c679-7e63-90ce-f4a4ecb25cc2` was closed
+  as superseded after reporting it was still running a focused pytest command
+  instead of returning a review verdict.
+- Scope: active M57 `7841-7860` futures risk-proof acceptance blocker summary
+  evidence and frontend display.
+- Boundary evidence for current futures risk-proof acceptance blocker summary
+  evidence: `risk_proof_acceptance_blocker_summaries` must remain
+  backend-owned, read-only, no-live evidence derived from existing
+  per-command risk-proof requirement rows. It is not proof acceptance
+  resolution, not risk proof acceptance, not proof-route registration, not
+  proof-writer enablement, not command readiness passage, not command
+  admission, not Coinbase execution, not reconciliation execution, not
+  futures/order/exchange state mutation, not browser authority, not BFF
+  execution authority, and not spot-rule authority.
+- Review evidence: backend reviewer verified model, read-service derivation,
+  OpenAPI, route posture, docs, and validators as read-only aggregate evidence
+  with no new authority path or order identity change. Frontend reviewer
+  verified generated schema, adapter mapping, mock derivation, display-only
+  table, docs, quality metadata, and no-live/no-authority posture.
+- Validation evidence: backend py_compile, autonomous queue check, focused
+  futures risk-proof regression tests, and focused Admin API contract/OpenAPI
+  checks passed. Frontend typecheck, focused unit tests, API check, and
+  autonomous check passed. Stale test-process check passed with `0` stale
+  processes.
+- Phase-end subagent sweep: reviewers
+  `019f09b3-c679-7e63-90ce-f4a4ecb25cc2`,
+  `019f09bb-cb84-72b1-b515-f38185c6a858`, and
+  `019f09b3-da78-7dc3-973d-c30b02633fbe` were closed after findings were
+  consumed. No phase-scoped subagents remain intentionally open for
+  `7841-7860`.
+- Live Coinbase execution: not planned; actual submitted/executed notional
+  remains `0` USDC.
 
 ## m57_7821_7840_blind_review
 

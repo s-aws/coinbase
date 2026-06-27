@@ -4,11 +4,22 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current futures/perpetual M57 scope: `7821-7840`.
+Current futures/perpetual M57 scope: `7841-7860`.
 
-Current futures/perpetual M57 scope details: `7821-7840` adds futures
-risk-proof record resolver summary evidence on top of completed `7801-7820`
-futures command readiness-decision summary evidence. The
+Current futures/perpetual M57 scope details: `7841-7860` adds futures
+risk-proof acceptance blocker summary evidence on top of completed
+`7821-7840` futures risk-proof record resolver summary evidence. The
+`risk_proof_acceptance_blocker_summaries` fields are backend-owned,
+display-only, no-live, and do not treat acceptance blocker summary presence as
+proof acceptance resolution, risk proof acceptance, proof-route registration,
+proof-writer enablement, command readiness passage, command enablement
+clearance, approval passage, cap/guard passage, reconciliation passage,
+command admission, Coinbase execution, reconciliation execution, browser/BFF
+authority, or spot-rule authority.
+
+Completed futures/perpetual M57 scope: `7821-7840` added futures risk-proof
+record resolver summary evidence on top of completed `7801-7820` futures
+command readiness-decision summary evidence. The
 `risk_proof_record_resolver_summaries` fields are backend-owned,
 display-only, no-live, and do not treat resolver summary presence as proof
 acceptance resolution, risk proof acceptance, proof-route registration,
