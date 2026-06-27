@@ -14,6 +14,7 @@ import uuid
 from core.enums import (
     ActionConditionType,
     ActionGuardPhase,
+    AdminApiAccountMarketInventoryFamily,
     AdminApiActionClass,
     AdminApiAuthMode,
     AdminAuditEvidenceSource,
@@ -112,6 +113,9 @@ from .live_execution import (
 )
 from .models import (
     AdminApiActor,
+    AdminAccountMarketInventoryFamilyItem,
+    AdminAccountMarketInventoryResponse,
+    AdminAccountMarketInventorySummary,
     AdminAuditModuleSummaryItem,
     AdminAuditWorkbenchEventItem,
     AdminAuditWorkbenchReadResponse,
@@ -5921,6 +5925,339 @@ class AdminApiReadService:
                 )
             )
         return AdminCapabilityRegistryResponse(capabilities=capabilities)
+
+    def build_account_market_inventory(self) -> AdminAccountMarketInventoryResponse:
+        """Return Release 0.1 account/market inventory coverage and gaps."""
+
+        route_lookup: dict[str, tuple[str, str]] = {}
+        for item in ADMIN_API_ROUTE_INVENTORY:
+            method, path = _surface_method_and_path(item.surface)
+            if method and path:
+                route_lookup[path] = (method, item.module_id)
+
+        def item(
+            *,
+            family: AdminApiAccountMarketInventoryFamily,
+            label: str,
+            module_id: str,
+            status: AdminApiModuleSupportStatus,
+            source: str,
+            detail: str,
+            required_for_release_0_1: bool,
+            route: str | None = None,
+            record_count: int = 0,
+            backend_contract_refs: list[str] | None = None,
+            frontend_contract_refs: list[str] | None = None,
+            documentation_refs: list[str] | None = None,
+            next_backend_contract: str | None = None,
+        ) -> AdminAccountMarketInventoryFamilyItem:
+            route_method = route_lookup.get(route or "", (None, module_id))[0]
+            release_blocking = required_for_release_0_1 and status in {
+                AdminApiModuleSupportStatus.NOT_MODELED,
+                AdminApiModuleSupportStatus.UNSUPPORTED,
+            }
+            return AdminAccountMarketInventoryFamilyItem(
+                family=family,
+                label=label,
+                module_id=module_id,
+                status=status,
+                route=route,
+                method=route_method,
+                source=source,
+                record_count=record_count,
+                required_for_release_0_1=required_for_release_0_1,
+                release_blocking=release_blocking,
+                backend_contract_refs=backend_contract_refs or [],
+                frontend_contract_refs=frontend_contract_refs or [],
+                documentation_refs=documentation_refs or [],
+                detail=detail,
+                next_backend_contract=next_backend_contract,
+            )
+
+        families = [
+            item(
+                family=AdminApiAccountMarketInventoryFamily.PRODUCT_CATALOG,
+                label="Product catalog",
+                module_id="admin_system_health",
+                status=AdminApiModuleSupportStatus.NOT_MODELED,
+                source="release_0_1_gap_matrix",
+                detail=(
+                    "The Admin API does not yet expose a first-class Coinbase "
+                    "product catalog read for tradable USDC products."
+                ),
+                required_for_release_0_1=True,
+                documentation_refs=[
+                    "docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md",
+                    "README.account-market-inventory.md",
+                ],
+                next_backend_contract="coinbase_product_catalog_read_model",
+            ),
+            item(
+                family=AdminApiAccountMarketInventoryFamily.SPOT_WALLETS,
+                label="Spot wallets",
+                module_id="admin_system_health",
+                status=AdminApiModuleSupportStatus.NOT_MODELED,
+                source="release_0_1_gap_matrix",
+                detail=(
+                    "Spot wallet inventory is not exposed as a backend-owned "
+                    "Admin API route yet; frontend code must not call Coinbase."
+                ),
+                required_for_release_0_1=True,
+                documentation_refs=[
+                    "docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md",
+                    "README.account-market-inventory.md",
+                ],
+                next_backend_contract="spot_wallet_inventory_read_model",
+            ),
+            item(
+                family=AdminApiAccountMarketInventoryFamily.SPOT_BALANCES,
+                label="Spot balances",
+                module_id="admin_system_health",
+                status=AdminApiModuleSupportStatus.NOT_MODELED,
+                source="release_0_1_gap_matrix",
+                detail=(
+                    "Available and held spot balances are not yet normalized "
+                    "behind an Admin API read route."
+                ),
+                required_for_release_0_1=True,
+                documentation_refs=[
+                    "docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md",
+                    "README.account-market-inventory.md",
+                ],
+                next_backend_contract="spot_balance_inventory_read_model",
+            ),
+            item(
+                family=AdminApiAccountMarketInventoryFamily.SPOT_FILLS,
+                label="Spot fills",
+                module_id="admin_system_health",
+                status=AdminApiModuleSupportStatus.NOT_MODELED,
+                source="release_0_1_gap_matrix",
+                detail=(
+                    "Fill-ledger health exists, but normalized fill rows and "
+                    "per-product fill history are not first-class Admin API reads."
+                ),
+                required_for_release_0_1=True,
+                documentation_refs=[
+                    "README.audit-workbench.md",
+                    "README.account-market-inventory.md",
+                ],
+                next_backend_contract="spot_fill_inventory_read_model",
+            ),
+            item(
+                family=AdminApiAccountMarketInventoryFamily.ORDER_READS,
+                label="Orders",
+                module_id="spot_operations",
+                status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                route="/api/v1/orders",
+                source="ADMIN_API_ROUTE_INVENTORY",
+                record_count=1,
+                detail=(
+                    "Order list/detail reads are exposed through backend-owned "
+                    "Admin API routes keyed by client_order_id."
+                ),
+                required_for_release_0_1=True,
+                backend_contract_refs=[
+                    "application/admin_api/read_service.py::build_order_list",
+                    "application/admin_api/route_inventory.py::ADMIN_API_ROUTE_INVENTORY",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::listOrders",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/examples/admin-api.md",
+                ],
+            ),
+            item(
+                family=AdminApiAccountMarketInventoryFamily.SPOT_READINESS,
+                label="Spot readiness",
+                module_id="spot_operations",
+                status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                route="/api/v1/spot/readiness",
+                source="ADMIN_API_ROUTE_INVENTORY",
+                record_count=1,
+                detail=(
+                    "Spot readiness exposes configured product and guard "
+                    "evidence, but it is not a substitute for wallet inventory."
+                ),
+                required_for_release_0_1=True,
+                backend_contract_refs=[
+                    "application/admin_api/read_service.py::build_spot_readiness",
+                    "application/admin_api/route_inventory.py::ADMIN_API_ROUTE_INVENTORY",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::getSpotReadiness",
+                ],
+                documentation_refs=["README.spot-trading.md"],
+            ),
+            item(
+                family=AdminApiAccountMarketInventoryFamily.SPOT_COST_BASIS,
+                label="Spot cost basis",
+                module_id="spot_operations",
+                status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                route="/api/v1/spot/cost-basis/status",
+                source="ADMIN_API_ROUTE_INVENTORY",
+                record_count=1,
+                detail=(
+                    "Coinbase average-cost and operational cost-basis status "
+                    "are visible as read-only backend evidence."
+                ),
+                required_for_release_0_1=True,
+                backend_contract_refs=[
+                    "application/admin_api/read_service.py::build_spot_cost_basis_status",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::getSpotCostBasisStatus",
+                ],
+                documentation_refs=["README.spot-trading.md"],
+            ),
+            item(
+                family=AdminApiAccountMarketInventoryFamily.SPOT_CAMPAIGNS,
+                label="Spot campaigns",
+                module_id="spot_operations",
+                status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                route="/api/v1/spot/campaign/status",
+                source="ADMIN_API_ROUTE_INVENTORY",
+                record_count=1,
+                detail=(
+                    "Campaign status is readable and execution routes are "
+                    "backend-owned command drafts with live execution disabled."
+                ),
+                required_for_release_0_1=True,
+                backend_contract_refs=[
+                    "application/admin_api/read_service.py::build_spot_campaign_status",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::getSpotCampaignStatus",
+                ],
+                documentation_refs=["README.spot-portfolio-sweep.md"],
+            ),
+            item(
+                family=AdminApiAccountMarketInventoryFamily.FUTURES_ACCOUNT,
+                label="Futures account",
+                module_id="futures_perpetuals",
+                status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                route="/api/v1/futures/account",
+                source="ADMIN_API_ROUTE_INVENTORY",
+                record_count=1,
+                detail=(
+                    "Futures/perpetual account, collateral, margin, liquidation, "
+                    "and P/L evidence are exposed as read-only backend evidence."
+                ),
+                required_for_release_0_1=True,
+                backend_contract_refs=[
+                    "application/admin_api/read_service.py::build_futures_account",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::getFuturesAccount",
+                ],
+                documentation_refs=["README.admin-api.md"],
+            ),
+            item(
+                family=AdminApiAccountMarketInventoryFamily.FUTURES_POSITIONS,
+                label="Futures positions",
+                module_id="futures_perpetuals",
+                status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                route="/api/v1/futures/positions",
+                source="ADMIN_API_ROUTE_INVENTORY",
+                record_count=1,
+                detail=(
+                    "Futures/perpetual position list and detail reads are "
+                    "available through backend-owned read routes."
+                ),
+                required_for_release_0_1=True,
+                backend_contract_refs=[
+                    "application/admin_api/read_service.py::build_futures_positions",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::listFuturesPositions",
+                ],
+                documentation_refs=["README.admin-api.md"],
+            ),
+            item(
+                family=AdminApiAccountMarketInventoryFamily.GUARD_RISK_POLICY,
+                label="Guard and risk policy",
+                module_id="guard_risk_policy",
+                status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                route="/api/v1/admin/guard-risk-policy",
+                source="ADMIN_API_ROUTE_INVENTORY",
+                record_count=1,
+                detail=(
+                    "Guard/risk policy evidence is backend-owned and read-only; "
+                    "the frontend does not evaluate trading guards."
+                ),
+                required_for_release_0_1=True,
+                backend_contract_refs=[
+                    "application/admin_api/read_service.py::build_guard_risk_policy",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::getAdminGuardRiskPolicy",
+                ],
+                documentation_refs=["README.guard-risk-policy.md"],
+            ),
+            item(
+                family=AdminApiAccountMarketInventoryFamily.AUDIT_WORKBENCH,
+                label="Audit workbench",
+                module_id="audit_workbench",
+                status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                route="/api/v1/admin/audit-workbench",
+                source="ADMIN_API_ROUTE_INVENTORY",
+                record_count=1,
+                detail=(
+                    "Audit workbench normalizes route, command, order, guard, "
+                    "campaign, and futures evidence without replaying commands."
+                ),
+                required_for_release_0_1=True,
+                backend_contract_refs=[
+                    "application/admin_api/read_service.py::build_audit_workbench",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::getAdminAuditWorkbench",
+                ],
+                documentation_refs=["README.audit-workbench.md"],
+            ),
+        ]
+        summary = AdminAccountMarketInventorySummary(
+            family_count=len(families),
+            read_only_ready_family_count=sum(
+                1
+                for family in families
+                if family.status
+                in {
+                    AdminApiModuleSupportStatus.PLATFORM_READY,
+                    AdminApiModuleSupportStatus.READ_ONLY_READY,
+                }
+            ),
+            command_draft_family_count=sum(
+                1
+                for family in families
+                if family.status
+                == AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+            ),
+            not_modeled_family_count=sum(
+                1
+                for family in families
+                if family.status == AdminApiModuleSupportStatus.NOT_MODELED
+            ),
+            unsupported_family_count=sum(
+                1
+                for family in families
+                if family.status == AdminApiModuleSupportStatus.UNSUPPORTED
+            ),
+            release_blocking_family_count=sum(
+                1 for family in families if family.release_blocking
+            ),
+        )
+        return AdminAccountMarketInventoryResponse(
+            schema_version=SCHEMA_VERSION,
+            status=(
+                AdminApiGateStatus.WARNING
+                if summary.release_blocking_family_count
+                else AdminApiGateStatus.PASSED
+            ),
+            summary=summary,
+            families=families,
+        )
 
     def build_enterprise_readiness(self) -> AdminEnterpriseReadinessResponse:
         """Return whole-platform M9 readiness evidence without running gates."""

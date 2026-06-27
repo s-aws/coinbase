@@ -11,6 +11,7 @@ from typing import Annotated, Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from core.enums import (
+    AdminApiAccountMarketInventoryFamily,
     AdminApiActionClass,
     AdminApiApprovalLifecycleStatus,
     AdminApiCommandStatus,
@@ -2506,6 +2507,65 @@ class AdminCapabilityRegistryResponse(BaseModel):
 
     type: str = "admin_capabilities"
     capabilities: list[AdminCapabilityItem] = Field(default_factory=list)
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminAccountMarketInventoryFamilyItem(BaseModel):
+    """One backend-owned account or market inventory family."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    family: AdminApiAccountMarketInventoryFamily
+    label: str
+    module_id: str
+    status: AdminApiModuleSupportStatus
+    route: str | None = None
+    method: str | None = None
+    source: str
+    record_count: int = Field(default=0, ge=0)
+    required_for_release_0_1: bool
+    release_blocking: bool
+    backend_contract_refs: list[str] = Field(default_factory=list)
+    frontend_contract_refs: list[str] = Field(default_factory=list)
+    documentation_refs: list[str] = Field(default_factory=list)
+    detail: str
+    next_backend_contract: str | None = None
+    browser_authority: str = "display_only"
+    bff_execution_authority: str = "forward_only_no_execution"
+    live_coinbase_execution: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.NOT_RUN
+    notional_usdc: DecimalString = "0"
+
+
+class AdminAccountMarketInventorySummary(BaseModel):
+    """Rollup counts for the account and market inventory surface."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    family_count: int = Field(ge=0)
+    read_only_ready_family_count: int = Field(ge=0)
+    command_draft_family_count: int = Field(ge=0)
+    not_modeled_family_count: int = Field(ge=0)
+    unsupported_family_count: int = Field(ge=0)
+    release_blocking_family_count: int = Field(ge=0)
+
+
+class AdminAccountMarketInventoryResponse(BaseModel):
+    """Release 0.1 account/market inventory and explicit gap contract."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_account_market_inventory"
+    schema_version: str
+    module_id: str = "admin_system_health"
+    status: AdminApiGateStatus
+    release_blocker: str = "account_market_inventory"
+    summary: AdminAccountMarketInventorySummary
+    families: list[AdminAccountMarketInventoryFamilyItem] = Field(default_factory=list)
+    read_only: bool = True
+    frontend_authority: str = "backend_contract_only"
+    live_posture: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.LIVE_DISABLED
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
     live_coinbase_orders_ran: bool = False
 
 

@@ -14,6 +14,7 @@ from application.admin_api.auth import (
     require_permission,
 )
 from application.admin_api.models import (
+    AdminAccountMarketInventoryResponse,
     AdminApiActor,
     AdminAuditWorkbenchReadResponse,
     AdminApiErrorResponse,
@@ -164,6 +165,20 @@ def admin_live_enablement(
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
     return _read_response(service.build_live_enablement())
+
+
+@router.get(
+    "/admin/account-market-inventory",
+    response_model=AdminAccountMarketInventoryResponse,
+    responses=READ_ROUTE_RESPONSES,
+    summary="Read account and market inventory coverage and Release 0.1 gaps",
+)
+def admin_account_market_inventory(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    return _read_response(service.build_account_market_inventory())
 
 
 @router.get(

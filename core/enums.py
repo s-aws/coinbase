@@ -233,6 +233,23 @@ class AdminApiModuleSupportStatus(str, Enum):
     UNSUPPORTED = "unsupported"
 
 
+class AdminApiAccountMarketInventoryFamily(str, Enum):
+    """Stable account and market inventory families exposed to the admin UI."""
+
+    PRODUCT_CATALOG = "product_catalog"
+    SPOT_WALLETS = "spot_wallets"
+    SPOT_BALANCES = "spot_balances"
+    SPOT_FILLS = "spot_fills"
+    ORDER_READS = "order_reads"
+    SPOT_READINESS = "spot_readiness"
+    SPOT_COST_BASIS = "spot_cost_basis"
+    SPOT_CAMPAIGNS = "spot_campaigns"
+    FUTURES_ACCOUNT = "futures_account"
+    FUTURES_POSITIONS = "futures_positions"
+    GUARD_RISK_POLICY = "guard_risk_policy"
+    AUDIT_WORKBENCH = "audit_workbench"
+
+
 class AdminApiFunctionalityWorkflowType(str, Enum):
     """Enterprise admin workflow classification for backend functionality."""
 

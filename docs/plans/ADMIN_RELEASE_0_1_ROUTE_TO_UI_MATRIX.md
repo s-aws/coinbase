@@ -40,7 +40,7 @@ The current generated route inventory
 
 | Module | Route count | Release reading |
 | --- | ---: | --- |
-| `admin_system_health` | 32 | Health, session, approval, admission audit, cap/guard, reconciliation, live-execution decision, readiness, and release-gate evidence exist. Lifecycle start/stop/pause/resume controls are not modeled as backend routes. |
+| `admin_system_health` | 33 | Health, session, account/market inventory coverage, approval, admission audit, cap/guard, reconciliation, live-execution decision, readiness, and release-gate evidence exist. Lifecycle start/stop/pause/resume controls are not modeled as backend routes. |
 | `spot_operations` | 26 | Spot reads, command-suite evidence, order read/cancel/place routes, campaign/sweep routes, recovery, P/L checkpoint, and audit routes exist. Command routes are still live-disabled unless backend gates explicitly pass. |
 | `stealth_orders` | 38 | Stealth reads and many proof/record routes exist. Create/reveal/move/cancel/recovery/reconciliation routes are present but remain blocked by exchange-reality and live-disabled gates. |
 | `futures_perpetuals` | 11 | Account, position, command-suite, risk-proof, order, cancel, close/reduce, and reconciliation route contracts exist. Command execution remains disabled evidence, not usable live trading. |
@@ -54,7 +54,7 @@ The current generated route inventory
 | Release area | Backend route evidence | Frontend surface | Status | Release gap | Next slice |
 | --- | --- | --- | --- | --- | --- |
 | Admin shell | `/api/v1/admin/bootstrap`, `/health`, `/session`, `/capabilities`, `/live-enablement`, `/enterprise-readiness`, `/release-gate` | Overview, Modules, Settings, Admin Evidence | `blocked` | Read posture is usable, but lifecycle start/stop/pause/resume state is not modeled as backend-owned routes. | Add explicit lifecycle support classification: backend route if supported, otherwise `unsupported`/`not_modeled` UI evidence. |
-| Account inventory | `/api/v1/orders`, `/api/v1/orders/{client_order_id}`, `/api/v1/futures/account`, `/api/v1/futures/positions`, spot readiness/cost-basis/sweep/campaign reads | Orders, Spot Operations, Futures/Perpetuals | `blocked` | Products, accounts, spot balances, fills, and complete wallet inventory are not represented as a first-class backend contract. | Build the Account and Market Inventory vertical slice before new command expansion. |
+| Account inventory | `/api/v1/admin/account-market-inventory`, `/api/v1/orders`, `/api/v1/orders/{client_order_id}`, `/api/v1/futures/account`, `/api/v1/futures/positions`, spot readiness/cost-basis/sweep/campaign reads | Inventory, Orders, Spot Operations, Futures/Perpetuals | `blocked` | First-class coverage exists, but product catalog, spot wallets, spot balances, and spot fills are explicitly `not_modeled` and release-blocking. | Implement backend product/wallet/balance/fill read contracts and keep the frontend display-only. |
 | Spot commands | `/api/v1/orders`, `/api/v1/orders/{client_order_id}/cancel`, `/api/v1/spot/command-suite`, `/api/v1/spot/campaign/executions`, `/api/v1/spot/sweep/automation-runs` | Command Workflows, Spot Operations, Campaigns | `blocked` | Command routes exist, but frontend-visible command contracts are currently live-disabled. | After inventory, choose one spot command path and make backend gate results operator-completable without browser authority. |
 | Stealth commands | `/api/v1/stealth/orders`, reveal, move, cancel, recovery, reconciliation, command suite, proof routes | Stealth Orders, Command Workflows | `blocked` | Evidence is rich, but operator completion is blocked by exchange-reality, lifecycle-write, live-disabled, and reconciliation gates. | Surface every stealth command as usable or blocked by exact gate; do not add hide-again shortcuts. |
 | Movement/repricing | `/api/v1/movement-repricing/evidence`, order detail, stealth detail, stealth reprice | Movement/Repricing, Command Workflows | `blocked` | Reprice exists as a live-disabled command route; move, premark, cooldown, claim, and cancel/replace workflows are not complete. | Add a movement action-state matrix before adding controls. |
@@ -64,30 +64,51 @@ The current generated route inventory
 | Unsupported behavior | Enterprise readiness command gaps, route inventory, capability registry | Modules, nav posture, command evidence | `blocked` | Gaps exist in evidence, but Release 0.1 needs a direct operator-facing blocker matrix rather than implied absence. | Add Release 0.1 unsupported/not-modeled panel to the frontend. |
 | Validation | Focused backend checks, autonomous checker, stale process checker, full regression runner | Release gate and docs | `usable` | Focused validation is usable. Full regression is reserved for closeout. | Keep focused checks per slice; run full regression at Release 0.1 closeout. |
 
+## Implemented Account/Market Coverage Slice
+
+The Account and Market Inventory coverage slice is now represented by
+`GET /api/v1/admin/account-market-inventory` and the frontend Inventory
+section. It is a backend-owned, read-only contract that lists inventory
+families, their support status, release-blocking status, route linkage, and
+explicit `not_modeled` gaps.
+
+What this clears:
+
+- The private operator can see a single account/market inventory coverage
+  surface instead of inferring gaps from scattered order, spot, and futures
+  panels.
+- Existing order, futures account, futures positions, guard/risk, audit,
+  readiness, cost-basis, and campaign reads are linked from one inventory
+  contract.
+- Product catalog, spot wallet, spot balance, and spot fill gaps are visible as
+  backend-owned `not_modeled` release blockers.
+
 ## Next Implementation Slice
 
-The next implementation slice should be **Account and Market Inventory**.
+The next implementation slice should be **Product, Wallet, Balance, And Fill
+Read Contracts**.
 
-Reason: without product, account, balance, fill, and wallet inventory reads,
-the admin frontend cannot manage the project even if command proofs exist. This
-gap directly maps to the Release 0.1 Account inventory blocker and avoids more
-evidence-only expansion.
+Reason: the coverage surface is useful but not sufficient for Release 0.1
+operator management. The admin still cannot inspect the actual Coinbase product
+catalog, spot wallet inventory, balances, or fills through first-class backend
+contracts. Those gaps directly block account inventory completion and should be
+addressed before new command expansion.
 
 Expected backend result:
 
-- First-class backend-owned inventory contract or route set for products,
-  accounts, balances, fills, orders, positions, and relevant risk/funding
-  summaries.
-- Explicit per-row status for `usable`, `unsupported`, and `not_modeled`
-  inventory families.
+- Backend-owned read contracts for product catalog, spot wallets, spot
+  balances, and spot fills.
+- Per-family status changes from `not_modeled` to loaded, empty, unsupported,
+  or blocked with exact evidence.
 - No frontend wallet authority and no direct Coinbase browser calls.
 
 Expected frontend result:
 
-- One operator inventory surface that shows account/product/balance/fill/order
-  coverage and distinguishes loaded, empty, unsupported, and not-modeled data.
-- Links from inventory rows to existing order, spot, futures, audit, and
-  reconciliation surfaces.
+- The Inventory section renders loaded and empty product/wallet/balance/fill
+  data from backend responses while preserving `unsupported` and `not_modeled`
+  states for missing pieces.
+- Rows continue linking to order, spot, futures, audit, and reconciliation
+  surfaces without adding browser-side trading behavior.
 
 ## Live Coinbase Execution
 

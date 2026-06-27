@@ -440,6 +440,68 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/account-market-inventory:
+    get:
+      tags:
+      - admin
+      summary: Read account and market inventory coverage and Release 0.1 gaps
+      operationId: admin_account_market_inventory_api_v1_admin_account_market_inventory_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAccountMarketInventoryResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/enterprise-readiness:
     get:
       tags:
@@ -10133,6 +10195,202 @@ components:
       - reveal
       title: ActionGuardPhase
       description: Action-condition guard evaluation phase.
+    AdminAccountMarketInventoryFamilyItem:
+      properties:
+        family:
+          $ref: '#/components/schemas/AdminApiAccountMarketInventoryFamily'
+        label:
+          type: string
+          title: Label
+        module_id:
+          type: string
+          title: Module Id
+        status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+        route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Route
+        method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Method
+        source:
+          type: string
+          title: Source
+        record_count:
+          type: integer
+          minimum: 0.0
+          title: Record Count
+          default: 0
+        required_for_release_0_1:
+          type: boolean
+          title: Required For Release 0 1
+        release_blocking:
+          type: boolean
+          title: Release Blocking
+        backend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Backend Contract Refs
+        frontend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Frontend Contract Refs
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+        detail:
+          type: string
+          title: Detail
+        next_backend_contract:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Backend Contract
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_execution_authority:
+          type: string
+          title: Bff Execution Authority
+          default: forward_only_no_execution
+        live_coinbase_execution:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+      additionalProperties: false
+      type: object
+      required:
+      - family
+      - label
+      - module_id
+      - status
+      - source
+      - required_for_release_0_1
+      - release_blocking
+      - detail
+      title: AdminAccountMarketInventoryFamilyItem
+      description: One backend-owned account or market inventory family.
+    AdminAccountMarketInventoryResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_account_market_inventory
+        schema_version:
+          type: string
+          title: Schema Version
+        module_id:
+          type: string
+          title: Module Id
+          default: admin_system_health
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        release_blocker:
+          type: string
+          title: Release Blocker
+          default: account_market_inventory
+        summary:
+          $ref: '#/components/schemas/AdminAccountMarketInventorySummary'
+        families:
+          items:
+            $ref: '#/components/schemas/AdminAccountMarketInventoryFamilyItem'
+          type: array
+          title: Families
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        frontend_authority:
+          type: string
+          title: Frontend Authority
+          default: backend_contract_only
+        live_posture:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: live_disabled
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - schema_version
+      - status
+      - summary
+      title: AdminAccountMarketInventoryResponse
+      description: Release 0.1 account/market inventory and explicit gap contract.
+    AdminAccountMarketInventorySummary:
+      properties:
+        family_count:
+          type: integer
+          minimum: 0.0
+          title: Family Count
+        read_only_ready_family_count:
+          type: integer
+          minimum: 0.0
+          title: Read Only Ready Family Count
+        command_draft_family_count:
+          type: integer
+          minimum: 0.0
+          title: Command Draft Family Count
+        not_modeled_family_count:
+          type: integer
+          minimum: 0.0
+          title: Not Modeled Family Count
+        unsupported_family_count:
+          type: integer
+          minimum: 0.0
+          title: Unsupported Family Count
+        release_blocking_family_count:
+          type: integer
+          minimum: 0.0
+          title: Release Blocking Family Count
+      additionalProperties: false
+      type: object
+      required:
+      - family_count
+      - read_only_ready_family_count
+      - command_draft_family_count
+      - not_modeled_family_count
+      - unsupported_family_count
+      - release_blocking_family_count
+      title: AdminAccountMarketInventorySummary
+      description: Rollup counts for the account and market inventory surface.
     AdminAdmissionAuditCreateRequest:
       properties:
         route:
@@ -10484,6 +10742,24 @@ components:
       - message
       title: AdminAdmissionAuditResponse
       description: Response for admission audit mutations and detail reads.
+    AdminApiAccountMarketInventoryFamily:
+      type: string
+      enum:
+      - product_catalog
+      - spot_wallets
+      - spot_balances
+      - spot_fills
+      - order_reads
+      - spot_readiness
+      - spot_cost_basis
+      - spot_campaigns
+      - futures_account
+      - futures_positions
+      - guard_risk_policy
+      - audit_workbench
+      title: AdminApiAccountMarketInventoryFamily
+      description: Stable account and market inventory families exposed to the admin
+        UI.
     AdminApiActionClass:
       type: string
       enum:

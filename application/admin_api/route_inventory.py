@@ -1497,6 +1497,22 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="admin_system_health",
+        surface="GET /api/v1/admin/account-market-inventory",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="read-only coverage evidence only",
+        audit="optional read audit",
+        shared_method="build_account_market_inventory",
+        parity_test=(
+            "read-only Release 0.1 account/market inventory coverage and "
+            "explicit not_modeled gaps; no Coinbase read, browser fallback, "
+            "BFF execution, or trading mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
         surface="GET /api/v1/admin/enterprise-readiness",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,

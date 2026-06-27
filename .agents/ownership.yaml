@@ -72,6 +72,7 @@ owners:
       - README.action-condition-guards.md
       - README.admission-audits.md
       - README.admin-api.md
+      - README.account-market-inventory.md
       - README.audit-workbench.md
       - README.cap-guard-decisions.md
       - README.futures-perpetuals.md

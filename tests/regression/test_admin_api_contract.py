@@ -404,6 +404,7 @@ from core.enums import (
     AdminApiLiveExecutionStatus,
     AdminApiLivePreflightCategory,
     AdminApiLiveReadinessPrecondition,
+    AdminApiAccountMarketInventoryFamily,
     AdminApiMutationFamilyType,
     AdminApiModuleSupportStatus,
     AdminApiPermission,
@@ -9305,6 +9306,10 @@ def test_admin_api_route_inventory_export_file_matches_generated_contract():
         if item["path"]
     }
     assert route_modules["/api/v1/admin/bootstrap"] == "admin_system_health"
+    assert (
+        route_modules["/api/v1/admin/account-market-inventory"]
+        == "admin_system_health"
+    )
     assert route_modules["/api/v1/admin/guard-risk-policy"] == "guard_risk_policy"
     assert route_modules["/api/v1/admin/audit-workbench"] == "audit_workbench"
     assert route_modules["/api/v1/futures/account"] == "futures_perpetuals"
@@ -43212,6 +43217,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     capabilities = client.get("/api/v1/admin/capabilities", headers=headers)
     csrf = client.get("/api/v1/admin/csrf", headers=headers)
     live_enablement = client.get("/api/v1/admin/live-enablement", headers=headers)
+    account_market_inventory = client.get(
+        "/api/v1/admin/account-market-inventory",
+        headers=headers,
+    )
     enterprise_readiness = client.get(
         "/api/v1/admin/enterprise-readiness",
         headers=headers,
@@ -43250,12 +43259,17 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "/api/v1/admin/bootstrap" in routes
     assert "/api/v1/admin/csrf" in routes
     assert "/api/v1/admin/live-enablement" in routes
+    assert "/api/v1/admin/account-market-inventory" in routes
     assert "/api/v1/admin/enterprise-readiness" in routes
     route_modules = {
         item["route"]: item["module_id"]
         for item in capabilities.json()["capabilities"]
     }
     assert route_modules["/api/v1/admin/bootstrap"] == "admin_system_health"
+    assert (
+        route_modules["/api/v1/admin/account-market-inventory"]
+        == "admin_system_health"
+    )
     assert route_modules["/api/v1/spot/readiness"] == "spot_operations"
     assert route_modules["/api/v1/spot/recovery/preview"] == "spot_operations"
     assert route_modules["/api/v1/futures/account"] == "futures_perpetuals"
@@ -43375,6 +43389,37 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert live_payload["blocking_readiness_precondition_count"] == 63
     assert live_payload["passed_readiness_precondition_count"] == 36
     assert live_payload["live_coinbase_orders_ran"] is False
+
+    assert account_market_inventory.status_code == 200
+    inventory_payload = account_market_inventory.json()
+    assert inventory_payload["type"] == "admin_account_market_inventory"
+    assert inventory_payload["module_id"] == "admin_system_health"
+    assert inventory_payload["status"] == AdminApiGateStatus.WARNING.value
+    assert inventory_payload["read_only"] is True
+    assert inventory_payload["frontend_authority"] == "backend_contract_only"
+    assert inventory_payload["live_coinbase_orders_ran"] is False
+    assert inventory_payload["submitted_notional_usdc"] == "0"
+    assert inventory_payload["executed_notional_usdc"] == "0"
+    inventory_by_family = {
+        item["family"]: item for item in inventory_payload["families"]
+    }
+    assert inventory_by_family[
+        AdminApiAccountMarketInventoryFamily.PRODUCT_CATALOG.value
+    ]["status"] == AdminApiModuleSupportStatus.NOT_MODELED.value
+    assert inventory_by_family[
+        AdminApiAccountMarketInventoryFamily.SPOT_BALANCES.value
+    ]["status"] == AdminApiModuleSupportStatus.NOT_MODELED.value
+    assert inventory_by_family[
+        AdminApiAccountMarketInventoryFamily.SPOT_FILLS.value
+    ]["status"] == AdminApiModuleSupportStatus.NOT_MODELED.value
+    assert inventory_by_family[
+        AdminApiAccountMarketInventoryFamily.ORDER_READS.value
+    ]["route"] == "/api/v1/orders"
+    assert inventory_by_family[
+        AdminApiAccountMarketInventoryFamily.FUTURES_ACCOUNT.value
+    ]["route"] == "/api/v1/futures/account"
+    assert inventory_payload["summary"]["release_blocking_family_count"] >= 3
+    assert inventory_payload["summary"]["not_modeled_family_count"] >= 3
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
     assert "/api/v1/orders/{client_order_id}/cancel" in live_routes
@@ -44717,8 +44762,12 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "GET /api/v1/admin/guard-risk-policy" not in admin_module["read_routes"]
     assert "GET /api/v1/admin/audit-workbench" not in admin_module["read_routes"]
     assert "GET /api/v1/admin/approvals" in admin_module["read_routes"]
+    assert (
+        "GET /api/v1/admin/account-market-inventory"
+        in admin_module["read_routes"]
+    )
     assert "POST /api/v1/admin/approvals/requests" in admin_module["command_routes"]
-    assert admin_module["action_posture"]["read_route_count"] == 24
+    assert admin_module["action_posture"]["read_route_count"] == 25
     assert admin_module["action_posture"]["command_route_count"] == 8
     assert registry_by_id["guard_risk_policy"]["read_routes"] == [
         "GET /api/v1/admin/guard-risk-policy"
@@ -57323,6 +57372,10 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows["GET /api/v1/admin/audit-workbench"].permission == (
         AdminApiPermission.AUDIT_READ
     )
+    assert rows["GET /api/v1/admin/account-market-inventory"].shared_method == (
+        "build_account_market_inventory"
+    )
+    assert "GET /api/v1/admin/account-market-inventory" in doc
     assert rows["POST /api/v1/spot/campaign/executions"].shared_method == (
         "execute_spot_campaign"
     )

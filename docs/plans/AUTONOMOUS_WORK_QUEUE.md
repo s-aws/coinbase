@@ -177,9 +177,13 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
 
 - Select the next implementation slice strictly by release impact and state the
   blocker it clears.
-- Current selection: Account and Market Inventory, because product, account,
-  balance, fill, and wallet inventory coverage is the largest Release 0.1
-  operator-management blocker.
+- Current implementation result: Account and Market Inventory coverage is
+  represented by `GET /api/v1/admin/account-market-inventory` and the frontend
+  Inventory section.
+- Remaining release-linked selection: Product, Wallet, Balance, And Fill Read
+  Contracts, because the coverage route now exposes product catalog, spot
+  wallets, spot balances, and spot fills as explicit `not_modeled`
+  release-blocking gaps.
 
 ### Phase 7994 - Operator Runbook Update
 
