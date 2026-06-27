@@ -341,6 +341,7 @@ from core.enums import (
     AdminFuturesCommandRiskProofPayloadField,
     AdminFuturesCommandRiskProofRecordContractKind,
     AdminFuturesCommandRiskProofRecordLookupStatus,
+    AdminFuturesCommandRiskProofRecordValidationRemediationAction,
     AdminFuturesCommandSemanticArtifact,
     AdminFuturesCommandSemanticGuard,
     AdminFuturesEvidenceSource,
@@ -11681,6 +11682,179 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
                 "futures_cancel_product_scope_store_schema_"
                 "record_validation_ready"
             ) in record_validation_summary.required_evidence_refs
+
+    record_validation_remediation_summaries_by_kind = {
+        item.contract_kind: item
+        for item in (
+            command_suite.risk_proof_record_validation_remediation_summaries
+        )
+    }
+    assert set(record_validation_remediation_summaries_by_kind) == set(
+        AdminFuturesCommandRiskProofRecordContractKind
+    )
+    assert command_suite.risk_proof_record_validation_remediation_summary_count == 6
+    assert (
+        command_suite.risk_proof_record_validation_remediation_summary_blocking_count
+        == 6
+    )
+    expected_remediation_actions = [
+        (
+            AdminFuturesCommandRiskProofRecordValidationRemediationAction
+            .REGISTER_RECORD_CONTRACT
+        ),
+        (
+            AdminFuturesCommandRiskProofRecordValidationRemediationAction
+            .CREATE_STORE_SCHEMA
+        ),
+        (
+            AdminFuturesCommandRiskProofRecordValidationRemediationAction
+            .CONFIGURE_APPEND_ONLY_LOG
+        ),
+        (
+            AdminFuturesCommandRiskProofRecordValidationRemediationAction
+            .BIND_IDEMPOTENCY
+        ),
+        (
+            AdminFuturesCommandRiskProofRecordValidationRemediationAction
+            .REGISTER_PAYLOAD_VALIDATION
+        ),
+        (
+            AdminFuturesCommandRiskProofRecordValidationRemediationAction
+            .REGISTER_REPLAY_GUARD
+        ),
+        (
+            AdminFuturesCommandRiskProofRecordValidationRemediationAction
+            .LINK_AUDIT_EVIDENCE
+        ),
+        (
+            AdminFuturesCommandRiskProofRecordValidationRemediationAction
+            .REGISTER_RECORD_VALIDATOR
+        ),
+        (
+            AdminFuturesCommandRiskProofRecordValidationRemediationAction
+            .RUN_CONTEXTLESS_REVIEW
+        ),
+    ]
+    for (
+        contract_kind,
+        remediation_summary,
+    ) in record_validation_remediation_summaries_by_kind.items():
+        assert remediation_summary.status == AdminApiGateStatus.BLOCKED
+        assert remediation_summary.blocking is True
+        assert remediation_summary.command_count == 4
+        assert remediation_summary.affected_commands == affected_commands
+        assert remediation_summary.proof_requirement_count == 20
+        assert remediation_summary.record_validation_remediation_count == 20
+        assert (
+            remediation_summary.blocking_record_validation_remediation_count == 20
+        )
+        assert remediation_summary.ready_record_validation_remediation_count == 0
+        assert (
+            remediation_summary.performed_record_validation_remediation_count == 0
+        )
+        assert remediation_summary.required_backend_contract_count == 20
+        assert remediation_summary.required_backend_contracts
+        assert remediation_summary.required_store_ref_count == 20
+        assert remediation_summary.required_store_refs
+        assert remediation_summary.required_record_key_count == 20
+        assert remediation_summary.required_record_keys
+        assert remediation_summary.remediation_ref_count == 20
+        assert remediation_summary.remediation_refs
+        assert remediation_summary.remediation_gate_count == 20
+        assert remediation_summary.remediation_gates
+        assert remediation_summary.validation_gate_count == 20
+        assert remediation_summary.validation_gates
+        assert remediation_summary.replay_gate_count == 20
+        assert remediation_summary.replay_gates
+        assert remediation_summary.required_validation_check_count == 7
+        assert remediation_summary.required_validation_checks == [
+            "record_contract_available",
+            "store_schema_registered",
+            "append_only_log_configured",
+            "idempotency_bound",
+            "payload_validation_registered",
+            "replay_guard_registered",
+            "audit_linked",
+        ]
+        assert remediation_summary.required_remediation_action_count == 9
+        assert (
+            remediation_summary.required_remediation_actions
+            == expected_remediation_actions
+        )
+        assert remediation_summary.remediation_owner_count == 1
+        assert remediation_summary.remediation_owners == [
+            "backend_admin_api_owner"
+        ]
+        assert remediation_summary.required_evidence_ref_count == len(
+            remediation_summary.required_evidence_refs
+        )
+        assert remediation_summary.required_evidence_refs
+        assert remediation_summary.missing_evidence_ref_count == len(
+            remediation_summary.missing_evidence_refs
+        )
+        assert remediation_summary.missing_evidence_refs == (
+            remediation_summary.required_evidence_refs
+        )
+        assert remediation_summary.remediation_work_item_created_count == 0
+        assert remediation_summary.record_contract_available_count == 0
+        assert remediation_summary.store_schema_registered_count == 0
+        assert remediation_summary.append_only_log_configured_count == 0
+        assert remediation_summary.idempotency_bound_count == 0
+        assert remediation_summary.payload_validation_registered_count == 0
+        assert remediation_summary.replay_guard_registered_count == 0
+        assert remediation_summary.audit_linked_count == 0
+        assert remediation_summary.record_validation_registered_count == 0
+        assert remediation_summary.record_validation_ready_count == 0
+        assert remediation_summary.remediation_ready_count == 0
+        assert remediation_summary.remediation_performed_count == 0
+        assert remediation_summary.proof_record_accepted_count == 0
+        assert remediation_summary.command_route_registered_count == 0
+        assert remediation_summary.command_draft_allowed_count == 0
+        assert remediation_summary.execution_allowed_count == 0
+        assert remediation_summary.proof_route_registered_count == 0
+        assert remediation_summary.proof_writer_enabled_count == 0
+        assert remediation_summary.live_coinbase_orders_ran_count == 0
+        assert remediation_summary.backend_owned is True
+        assert remediation_summary.read_only is True
+        assert remediation_summary.spot_rule_authority is False
+        assert remediation_summary.browser_authority == "display_only"
+        assert remediation_summary.bff_authority == (
+            "forward_only_no_execution"
+        )
+        assert "cannot perform remediation" in remediation_summary.detail
+        assert "create work items" in remediation_summary.detail
+        assert "register record validators" in remediation_summary.detail
+        assert "write validation records" in remediation_summary.detail
+        assert "accept proof records" in remediation_summary.detail
+        assert "call Coinbase" in remediation_summary.detail
+        if (
+            contract_kind
+            == AdminFuturesCommandRiskProofRecordContractKind.STORE_SCHEMA
+        ):
+            assert (
+                "application/admin_api/futures_proof_validation_remediation.py::"
+                "futures_place_product_scope_store_schema_"
+                "record_validation_remediation"
+            ) in remediation_summary.required_backend_contracts
+            assert "futures_proof_records.futures_cancel.product_scope" in (
+                remediation_summary.required_store_refs
+            )
+            assert (
+                "proof_record.futures_cancel.product_scope."
+                "client_order_id.idempotency_key.correlation_id"
+            ) in remediation_summary.required_record_keys
+            assert (
+                "futures_place_margin_collateral_store_schema_"
+                "record_validation_remediation_gate"
+            ) in remediation_summary.remediation_gates
+            assert (
+                "futures_place_margin_collateral_store_schema_"
+                "record_validation_gate"
+            ) in remediation_summary.validation_gates
+            assert (
+                "futures_cancel_product_scope_store_schema_replay_gate"
+                in remediation_summary.replay_gates
+            )
 
     for blocker, summary in summaries_by_blocker.items():
         assert summary.status == AdminApiGateStatus.BLOCKED

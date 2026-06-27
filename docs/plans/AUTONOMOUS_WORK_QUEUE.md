@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **7941-7960**.
+- Approved phase range: **7961-7980**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `7921-7940`.
+- Previous completed range: `7941-7960`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `7940`.
+- `current_phase`: `7960`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,152 +81,177 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 7941-7960
+## Active Phases 7961-7980
 
-Batch label: Futures/Perpetuals Risk-Proof Record Validation Summary Evidence.
+Batch label: Futures/Perpetuals Risk-Proof Record Validation Remediation Summary Evidence.
 
-These phases continue M57 after completed `7921-7940` exposed futures
-risk-proof record-contract summary evidence. The concrete gap is that
+These phases continue M57 after completed `7941-7960` exposed futures
+risk-proof record-validation summary evidence. The concrete gap is that
 per-command risk-proof requirement rows already expose disabled proof
-record-validation rows, but operators and contextless agents cannot yet see a
-backend-owned aggregate grouped by proof record contract kind. Active
-`7941-7960` must add derived read-only
-`risk_proof_record_validation_summaries` to
+record-validation remediation rows, but operators and contextless agents
+cannot yet see a backend-owned aggregate grouped by proof record contract
+kind. Active `7961-7980` must add derived read-only
+`risk_proof_record_validation_remediation_summaries` to
 `GET /api/v1/futures/command-suite`, sync OpenAPI and the frontend, and prove
-that the summary cannot validate records, register validators, run validation
-checks, pass replay gates, create stores, configure append-only logs, bind
-idempotency, register payload validation, register replay guards, link audit
-evidence, write proof records, accept proof records, accept risk proofs, clear
+that the summary cannot perform remediation, create work items, register
+record validators, run contextless reviews, configure validation gates, create
+stores, configure append-only logs, bind idempotency, register payload
+validation, register replay guards, link audit evidence, write validation
+records, write proof records, accept proof records, accept risk proofs, clear
 command readiness, admit commands, call Coinbase, execute reconciliation,
 mutate futures/order/exchange state, grant browser/BFF authority, or import
 spot-rule authority.
 
-Active M57 `7941-7960` evidence adds futures risk-proof record validation
-summary evidence while completed M57 `7921-7940` carries forward futures
-risk-proof record contract summary evidence.
+Active M57 `7961-7980` evidence adds futures risk-proof record validation
+remediation summary evidence while completed M57 `7941-7960` carries forward
+futures risk-proof record validation summary evidence.
 
-Exact autonomous phrase: Active M57 `7941-7960` evidence adds futures risk-proof record validation summary evidence while completed M57 `7921-7940` carries forward futures risk-proof record contract summary evidence.
+Exact autonomous phrase: Active M57 `7961-7980` evidence adds futures risk-proof record validation remediation summary evidence while completed M57 `7941-7960` carries forward futures risk-proof record validation summary evidence.
 
-### Phase 7941 - Prior Range Closure
+### Phase 7961 - Prior Range Closure
 
-- Record completed/pushed `7921-7940` risk-proof record contract summary
-  evidence as historical and move active metadata to `7941-7960`.
+- Record completed/pushed `7941-7960` risk-proof record validation summary
+  evidence as historical and move active metadata to `7961-7980`.
 
-### Phase 7942 - Backend Record Validation Summary Model
+### Phase 7962 - Backend Record Validation Remediation Summary Model
 
-- Add typed backend-owned risk-proof record-validation summary rows to the
-  futures command-suite response without adding validator registration,
-  validation execution, replay passage, store creation, append-only log
-  configuration, idempotency binding, payload validation registration,
-  replay protection, audit linkage, proof-record writes, proof-record
-  acceptance, proof-route registration, proof-writer enablement,
-  proof-acceptance resolution, risk-proof acceptance, command readiness
-  clearance, or command admission authority.
+- Add typed backend-owned risk-proof record-validation remediation summary rows
+  to the futures command-suite response without adding remediation execution,
+  work-item creation, validator registration, validation execution, replay
+  passage, store creation, append-only log configuration, idempotency binding,
+  payload validation registration, replay protection, audit linkage,
+  validation-record writes, proof-record writes, proof-record acceptance,
+  proof-route registration, proof-writer enablement, proof-acceptance
+  resolution, risk-proof acceptance, command readiness clearance, or command
+  admission authority.
 
-### Phase 7943 - Read-Service Derivation
+### Phase 7963 - Read-Service Derivation
 
-- Derive record-validation summaries from existing per-command risk-proof
-  requirement `record_validations` rows, including contract kind, affected
-  commands, proof kinds, required backend contracts, store refs, record keys,
-  payload fields, validation gates, replay gates, validation checks,
-  evidence refs, disabled validation posture, route/writer posture,
+- Derive record-validation remediation summaries from existing per-command
+  risk-proof requirement `record_validation_remediations` rows, including
+  contract kind, affected commands, proof kinds, required backend contracts,
+  store refs, record keys, remediation refs, remediation gates, validation
+  gates, replay gates, validation checks, remediation actions, owners,
+  evidence refs, disabled remediation posture, route/writer posture,
   execution flags, and no-live authority flags.
 
-### Phase 7944 - No-Authority Boundary
+### Phase 7964 - No-Authority Boundary
 
-- Prove risk-proof record-validation summaries cannot validate records,
-  register validators, run validation checks, pass replay gates, create
-  stores, configure append-only logs, bind idempotency, register payload
-  validation, register replay guards, link audit evidence, write proof
-  records, accept proof records, accept risk proofs, clear command readiness,
-  admit commands, call Coinbase, execute reconciliation, mutate
-  futures/order/exchange state, grant browser/BFF authority, or import
-  spot-rule authority.
+- Prove risk-proof record-validation remediation summaries cannot perform
+  remediation, create work items, register record validators, run contextless
+  reviews, configure validation gates, create stores, configure append-only
+  logs, bind idempotency, register payload validation, register replay guards,
+  link audit evidence, write validation records, write proof records, accept
+  proof records, accept risk proofs, clear command readiness, admit commands,
+  call Coinbase, execute reconciliation, mutate futures/order/exchange state,
+  grant browser/BFF authority, or import spot-rule authority.
 
-### Phase 7945 - OpenAPI Sync
+### Phase 7965 - OpenAPI Sync
 
 - Regenerate Admin API OpenAPI from the backend-owned contract.
 
-### Phase 7946 - Frontend Schema Sync
+### Phase 7966 - Frontend Schema Sync
 
 - Regenerate the frontend generated schema from the updated Admin API OpenAPI.
 
-### Phase 7947 - Frontend Adapter Mapping
+### Phase 7967 - Frontend Adapter Mapping
 
-- Map record-validation summary rows into the futures view model with
-  generated contract types.
+- Map record-validation remediation summary rows into the futures view model
+  with generated contract types.
 
-### Phase 7948 - Frontend Display
+### Phase 7968 - Frontend Display
 
-- Render record-validation summaries as display-only table evidence without
-  validator-registration controls, validation-run controls, replay-passage
-  controls, store-creation controls, append-only log configuration controls,
-  idempotency controls, proof-record write controls, proof-record acceptance
-  affordances, proof acceptance affordances, or execution affordances.
+- Render record-validation remediation summaries as display-only table evidence
+  without remediation controls, work-item controls, validator-registration
+  controls, validation-run controls, replay-passage controls, store-creation
+  controls, append-only log configuration controls, idempotency controls,
+  proof-record write controls, proof-record acceptance affordances, proof
+  acceptance affordances, or execution affordances.
 
-### Phase 7949 - Mock Backend Derivation
+### Phase 7969 - Mock Backend Derivation
 
-- Update mock backend command-suite fixtures so record-validation summaries are
-  derived from fixture risk-proof requirement record-validation rows instead
-  of hand-maintained rows.
+- Update mock backend command-suite fixtures so record-validation remediation
+  summaries are derived from fixture risk-proof requirement remediation rows
+  instead of hand-maintained rows.
 
-### Phase 7950 - Backend Focused Tests
+### Phase 7970 - Backend Focused Tests
 
 - Assert summary counts, contract-kind grouping, backend contracts, store
-  refs, record keys, payload fields, validation gates, replay gates,
-  validation checks, evidence refs, disabled validation posture, route/writer
-  posture, authority flags, and no-live posture.
+  refs, record keys, remediation refs, remediation gates, validation gates,
+  replay gates, validation checks, remediation actions, owners, evidence refs,
+  disabled remediation posture, route/writer posture, authority flags, and
+  no-live posture.
 
-### Phase 7951 - Frontend Focused Tests
+### Phase 7971 - Frontend Focused Tests
 
 - Assert mock parity, adapter/render behavior, active metadata, and
   no-authority display.
 
-### Phase 7952 - API Documentation
+### Phase 7972 - API Documentation
 
-- Update API references and examples for record-validation summary fields and
-  no-live/no-authority semantics.
+- Update API references and examples for record-validation remediation summary
+  fields and no-live/no-authority semantics.
 
-### Phase 7953 - Capability Matrix
+### Phase 7973 - Capability Matrix
 
-- Update the capability matrix so M57 lists record-validation summaries as
-  backend-owned read-only evidence.
+- Update the capability matrix so M57 lists record-validation remediation
+  summaries as backend-owned read-only evidence.
 
-### Phase 7954 - Maintainer Handoff
+### Phase 7974 - Maintainer Handoff
 
 - Update agent state, roadmap, and maintainer handoff docs for active
-  `7941-7960` and completed `7921-7940`.
+  `7961-7980` and completed `7941-7960`.
 
-### Phase 7955 - Generated Reference And Examples
+### Phase 7975 - Generated Reference And Examples
 
 - Keep OpenAPI, examples, expanded API reference, and docs index aligned so a
-  contextless maintainer can find the record-validation summary surface.
+  contextless maintainer can find the record-validation remediation summary
+  surface.
 
-### Phase 7956 - Autonomous Validator Sync
+### Phase 7976 - Autonomous Validator Sync
 
 - Update autonomous work-queue validators and phase metadata so stale
-  `7921-7940` active wording fails.
+  `7941-7960` active wording fails.
 
-### Phase 7957 - Backend Contextless Review
+### Phase 7977 - Backend Contextless Review
 
 - Run blind/contextless backend review and remediate any ambiguity before
   treating the phase as complete.
 
-### Phase 7958 - Frontend Contextless Review
+### Phase 7978 - Frontend Contextless Review
 
 - Run blind/contextless frontend review and remediate any ambiguity before
   treating the phase as complete.
 
-### Phase 7959 - Validation And Hygiene Sweep
+### Phase 7979 - Validation And Hygiene Sweep
 
 - Run focused backend/frontend validation, autonomous validators,
   stale-process checks after any interrupted command, and phase-end subagent
   cleanup.
 
-### Phase 7960 - Commit And Push Evidence
+### Phase 7980 - Commit And Push Evidence
 
 - Commit and push synchronized backend/frontend changes after validation and
   review pass, recording live Coinbase execution status and notional evidence.
+
+## Completed Phases 7941-7960
+
+Batch label: Futures/Perpetuals Risk-Proof Record Validation Summary Evidence.
+
+Completed M57 `7941-7960` added backend-owned read-only
+`risk_proof_record_validation_summaries` to
+`GET /api/v1/futures/command-suite` after completed `7921-7940` risk-proof
+record contract summary evidence. The record-validation summary rows are
+derived from existing per-command risk-proof record-validation rows. They
+cannot validate records, register validators, run validation checks, pass
+replay gates, create stores, configure append-only logs, bind idempotency,
+register payload validation, register replay guards, link audit evidence,
+write proof records, accept proof records, accept risk proofs, clear command
+readiness, admit commands, call Coinbase, execute reconciliation, mutate
+futures/order state, grant browser/BFF authority, or import spot-rule
+authority.
+
+Exact historical phrase: Completed M57 `7941-7960` evidence adds futures risk-proof record validation summary evidence while completed M57 `7921-7940` carries forward futures risk-proof record contract summary evidence.
 
 ## Completed Phases 7921-7940
 

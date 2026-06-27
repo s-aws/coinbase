@@ -13,19 +13,25 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 ## Current Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
-`"approved_phase_range": "7941-7960"`. Futures/perpetual command-suite reads
-now expose backend-owned `risk_proof_record_validation_summary_count`,
-`risk_proof_record_validation_summary_blocking_count`, and
-`risk_proof_record_validation_summaries` evidence for current M57 `7941-7960`
-while completed `7921-7940` risk-proof record contract summary evidence
-remains carried-forward history. The current rows are disabled, no-live
-evidence only and must not validate records, register validators, run
-validation checks, pass replay gates, create stores, configure append-only
-logs, bind idempotency, register payload validation, register replay guards,
-link audit evidence, write proof records, accept proof records, resolve proof
+`"approved_phase_range": "7961-7980"`. Futures/perpetual command-suite reads
+now expose backend-owned
+`risk_proof_record_validation_remediation_summary_count`,
+`risk_proof_record_validation_remediation_summary_blocking_count`, and
+`risk_proof_record_validation_remediation_summaries` evidence for current M57
+`7961-7980` while completed `7941-7960` risk-proof record validation summary
+evidence remains carried-forward history. The current rows are disabled,
+no-live evidence only and must not perform remediation, create work items,
+register record validators, run contextless reviews, configure validation
+gates, create stores, configure append-only logs, bind idempotency, register
+payload validation, register replay guards, link audit evidence, write
+validation records, write proof records, accept proof records, resolve proof
 acceptance, accept risk proofs, pass command readiness, admit commands, pass
 approval/cap/guard/reconciliation gates, call Coinbase, execute
 reconciliation, mutate state, or grant browser/BFF or spot-rule authority.
+
+Completed `"approved_phase_range": "7941-7960"`. Futures/perpetual
+command-suite reads expose backend-owned risk-proof record validation summary
+evidence while carrying forward risk-proof record contract summary evidence.
 
 Completed `"approved_phase_range": "7921-7940"`. Futures/perpetual
 command-suite reads expose backend-owned risk-proof record contract summary

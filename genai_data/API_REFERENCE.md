@@ -16,23 +16,30 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7941-7960` futures/perpetual risk-proof record validation summary
-evidence for `GET /api/v1/futures/command-suite` is the active slice. It adds
-read-only `risk_proof_record_validation_summary_count`,
-`risk_proof_record_validation_summary_blocking_count`, and
-`risk_proof_record_validation_summaries` fields derived from existing
-per-command risk-proof record-validation rows and carries forward completed
-`7921-7940` risk-proof record contract summary evidence. The fields are
-read-only/no-live evidence and must not validate records, register validators,
-run validation checks, pass replay gates, create stores, configure append-only
-logs, bind idempotency, register payload validation, register replay guards,
-link audit evidence, write proof records, accept proof records, resolve proof
-acceptance, accept risk proofs, pass command readiness, clear command
-readiness, admit commands, pass approval, cap/guard, or reconciliation gates,
-execute reconciliation, call Coinbase, mutate futures/order/exchange state,
-or grant browser/BFF or spot-rule authority.
-Exact boundary phrase: risk-proof record validation summaries cannot validate records.
-Exact validator phrase: risk-proof record validation summaries cannot validate records; they are not validator registration, not validation execution, not replay passage, not store creation, not append-only log configuration, not idempotency binding, not payload validation registration, not replay-guard registration, not audit linkage, not proof record writes, not proof record acceptance, do not resolve proof acceptance, accept risk proofs, clear command readiness, grant admission, Coinbase execution, call Coinbase, execute reconciliation, mutate futures/order state, grant browser/BFF authority, or import spot-rule authority.
+Current M57 `7961-7980` futures/perpetual risk-proof record validation
+remediation summary evidence for `GET /api/v1/futures/command-suite` is the
+active slice. It adds read-only
+`risk_proof_record_validation_remediation_summary_count`,
+`risk_proof_record_validation_remediation_summary_blocking_count`, and
+`risk_proof_record_validation_remediation_summaries` fields derived from
+existing per-command risk-proof record-validation remediation rows and carries
+forward completed `7941-7960` risk-proof record validation summary evidence.
+The fields are read-only/no-live evidence and must not perform remediation,
+create work items, register record validators, run contextless reviews,
+configure validation gates, create stores, configure append-only logs, bind
+idempotency, register payload validation, register replay guards, link audit
+evidence, write validation records, write proof records, accept proof records,
+resolve proof acceptance, accept risk proofs, pass command readiness, clear
+command readiness, admit commands, pass approval, cap/guard, or reconciliation
+gates, execute reconciliation, call Coinbase, mutate futures/order/exchange
+state, or grant browser/BFF or spot-rule authority.
+Exact boundary phrase: risk-proof record validation remediation summaries cannot perform remediation.
+Exact validator phrase: risk-proof record validation remediation summaries cannot perform remediation; they are not work item creation, not record validator registration, not contextless review execution, not validation gate configuration, not store creation, not append-only log configuration, not idempotency binding, not payload validation registration, not replay-guard registration, not audit linkage, not validation record writes, not proof record writes, not proof record acceptance, do not resolve proof acceptance, accept risk proofs, clear command readiness, grant admission, Coinbase execution, call Coinbase, execute reconciliation, mutate futures/order state, grant browser/BFF authority, or import spot-rule authority.
+
+Completed M57 `7941-7960` futures/perpetual risk-proof record validation
+summary evidence for `GET /api/v1/futures/command-suite` is carried forward
+history. It added read-only record-validation summary fields derived from
+existing per-command risk-proof record-validation rows.
 
 Completed M57 `7921-7940` futures/perpetual risk-proof record contract summary
 evidence for `GET /api/v1/futures/command-suite` is carried forward history.

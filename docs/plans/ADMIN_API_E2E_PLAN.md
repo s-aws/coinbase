@@ -49,11 +49,30 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7941-7960
+## Current Active Phases 7961-7980
+
+Batch label: Futures/Perpetuals Risk-Proof Record Validation Remediation Summary Evidence.
+
+Current M57 `7961-7980` adds backend-owned read-only
+`risk_proof_record_validation_remediation_summaries` to
+`GET /api/v1/futures/command-suite` after completed `7941-7960` risk-proof
+record validation summary evidence. The remediation summary rows are derived
+from existing per-command risk-proof record-validation remediation rows. They
+cannot perform remediation, create work items, register record validators, run
+contextless reviews, configure validation gates, create stores, configure
+append-only logs, bind idempotency, register payload validation, register
+replay guards, link audit evidence, write validation records, write proof
+records, accept proof records, accept risk proofs, clear command readiness,
+admit commands, call Coinbase, execute reconciliation, mutate futures/order
+state, grant browser/BFF authority, or import spot-rule authority.
+
+Exact autonomous phrase: Active M57 `7961-7980` evidence adds futures risk-proof record validation remediation summary evidence while completed M57 `7941-7960` carries forward futures risk-proof record validation summary evidence.
+
+## Completed Phases 7941-7960
 
 Batch label: Futures/Perpetuals Risk-Proof Record Validation Summary Evidence.
 
-Current M57 `7941-7960` adds backend-owned read-only
+Completed M57 `7941-7960` added backend-owned read-only
 `risk_proof_record_validation_summaries` to
 `GET /api/v1/futures/command-suite` after completed `7921-7940` risk-proof
 record contract summary evidence. The record-validation summary rows are
@@ -66,7 +85,7 @@ readiness, admit commands, call Coinbase, execute reconciliation, mutate
 futures/order state, grant browser/BFF authority, or import spot-rule
 authority.
 
-Exact autonomous phrase: Active M57 `7941-7960` evidence adds futures risk-proof record validation summary evidence while completed M57 `7921-7940` carries forward futures risk-proof record contract summary evidence.
+Exact historical phrase: Completed M57 `7941-7960` evidence adds futures risk-proof record validation summary evidence while completed M57 `7921-7940` carries forward futures risk-proof record contract summary evidence.
 
 ## Completed Phases 7921-7940
 

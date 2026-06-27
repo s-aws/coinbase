@@ -11,21 +11,24 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 7941-7960 range targets explicit M57 futures/perpetual risk-proof
-record validation summary evidence. `GET /api/v1/futures/command-suite`
-reports `"approved_phase_range": "7941-7960"`,
-`risk_proof_record_validation_summary_count`,
-`risk_proof_record_validation_summary_blocking_count`, and
-`risk_proof_record_validation_summaries` rows derived from existing
-per-command risk-proof record-validation rows. These rows are display-only
-evidence and do not validate records, register validators, run validation
-checks, pass replay gates, create stores, configure append-only logs, bind
-idempotency, register payload validation, register replay guards, link audit
-evidence, write proof records, accept proof records, resolve proof acceptance,
-accept risk proofs, admit commands, call Coinbase, execute reconciliation,
-mutate state, grant browser/BFF authority, or import spot-rule authority.
-Completed 7921-7940 risk-proof record contract summary evidence remains
-carried-forward history. Completed 7901-7920 risk-proof payload field summary
+The active 7961-7980 range targets explicit M57 futures/perpetual risk-proof
+record validation remediation summary evidence. `GET /api/v1/futures/command-suite`
+reports `"approved_phase_range": "7961-7980"`,
+`risk_proof_record_validation_remediation_summary_count`,
+`risk_proof_record_validation_remediation_summary_blocking_count`, and
+`risk_proof_record_validation_remediation_summaries` rows derived from
+existing per-command risk-proof record-validation remediation rows. These rows
+are display-only evidence and do not perform remediation, create work items,
+register record validators, run contextless reviews, configure validation
+gates, create stores, configure append-only logs, bind idempotency, register
+payload validation, register replay guards, link audit evidence, write
+validation records, write proof records, accept proof records, resolve proof
+acceptance, accept risk proofs, admit commands, call Coinbase, execute
+reconciliation, mutate state, grant browser/BFF authority, or import
+spot-rule authority. Completed 7941-7960 risk-proof record validation summary
+evidence remains carried-forward history. Completed 7921-7940 risk-proof
+record contract summary evidence remains carried-forward history. Completed
+7901-7920 risk-proof payload field summary
 evidence remains carried-forward history.
 Completed 7881-7900 risk-proof contract summary evidence remains
 carried-forward history. Completed 7861-7880 risk-proof acceptance

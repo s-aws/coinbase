@@ -4,11 +4,27 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current futures/perpetual M57 scope: `7941-7960`.
+Current futures/perpetual M57 scope: `7961-7980`.
 
-Current futures/perpetual M57 scope details: `7941-7960` adds futures
-risk-proof record validation summary evidence on top of completed `7921-7940`
-futures risk-proof record contract summary evidence. The
+Current futures/perpetual M57 scope details: `7961-7980` adds futures
+risk-proof record validation remediation summary evidence on top of completed
+`7941-7960` futures risk-proof record validation summary evidence. The
+`risk_proof_record_validation_remediation_summaries` fields are backend-owned,
+display-only, no-live, and do not treat record-validation remediation summary
+presence as remediation execution, work item creation, record validator
+registration, contextless review execution, validation gate configuration,
+record validation, validation execution, replay passage, store creation,
+append-only log configuration, idempotency binding, payload validation
+registration, replay-guard registration, audit linkage, validation record
+writes, proof record writes, proof record acceptance, proof acceptance
+resolution, risk proof acceptance, command readiness passage, command
+enablement clearance, approval passage, cap/guard passage, reconciliation
+passage, command admission, Coinbase execution, reconciliation execution,
+browser/BFF authority, or spot-rule authority.
+
+Completed futures/perpetual M57 scope: `7941-7960` added futures risk-proof
+record validation summary evidence on top of completed `7921-7940` futures
+risk-proof record contract summary evidence. The
 `risk_proof_record_validation_summaries` fields are backend-owned,
 display-only, no-live, and do not treat record-validation summary presence as
 record validation, validator registration, validation execution, replay

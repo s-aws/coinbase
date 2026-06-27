@@ -24,39 +24,40 @@ work. Historical milestone detail belongs in
 
 ## Current Phase
 
-- Latest completed and pushed range before this work: `7921-7940`.
-- Latest completed and pushed range after this work: `7941-7960`.
-- Active approved range: `7941-7960` complete; next range not yet started in
-  this state file.
-- Scope: futures risk-proof record validation summary evidence and frontend
-  display. This continues M57 by aggregating existing per-command risk-proof
-  requirement record-validation rows into
-  `risk_proof_record_validation_summaries` so contract kind, affected
-  commands, proof kinds, backend contracts, store refs, record keys, payload
-  fields, validation gates, replay gates, validation checks, required/missing
-  evidence refs, disabled validation posture, route/writer posture, execution
-  flags, and no-live authority flags are visible without validating records,
-  registering validators, running validation checks, passing replay gates,
-  creating stores, configuring append-only logs, binding idempotency,
-  registering payload validation, registering replay guards, linking audit
-  evidence, writing proof records, accepting proof records, resolving proof
-  acceptance, or enabling any command path.
-- Backend implementation status: complete for `7941-7960`;
+- Latest completed and pushed range before this work: `7941-7960`.
+- Active approved range: `7961-7980`.
+- Scope: futures risk-proof record validation remediation summary evidence and
+  frontend display. This continues M57 by aggregating existing per-command
+  risk-proof requirement record-validation remediation rows into
+  `risk_proof_record_validation_remediation_summaries` so contract kind,
+  affected commands, proof kinds, backend contracts, store refs, record keys,
+  remediation refs, remediation gates, validation gates, replay gates,
+  validation checks, remediation actions, remediation owners,
+  required/missing evidence refs, disabled remediation posture, route/writer
+  posture, execution flags, and no-live authority flags are visible without
+  performing remediation, creating work items, registering record validators,
+  running contextless reviews, configuring validation gates, creating stores,
+  configuring append-only logs, binding idempotency, registering payload
+  validation, registering replay guards, linking audit evidence, writing
+  validation records, writing proof records, accepting proof records,
+  resolving proof acceptance, or enabling any command path.
+- Backend implementation status: complete locally for `7961-7980`;
   `application/admin_api/models.py` and `application/admin_api/read_service.py`
-  add `risk_proof_record_validation_summaries` and derive them from existing
-  per-command risk-proof record-validation rows.
-- Frontend implementation status: complete for `7941-7960`; generated schema,
-  adapter mapping, mock derivation, read-model display, examples, and quality
-  metadata consume record-validation summary evidence as display-only rows.
-- Contextless review status: PASS for `7941-7960`; backend reviewer
-  `019f0ad2-e889-7e40-963c-a90622514a07` passed, and frontend reviewer
-  `019f0ad3-1d2d-7cc2-9f5a-25c9c312989a` passed after stale handoff wording
-  was remediated.
-- Focused validation status: PASS for `7941-7960`; backend py_compile,
-  focused futures risk-proof regression, focused Admin API contract/OpenAPI
-  subset, backend autonomous checker, frontend typecheck/API/unit/autonomous
-  checks, and stale test-process checks passed.
-- Commit/push status: complete for `7941-7960` in backend and frontend repos.
+  add `risk_proof_record_validation_remediation_summaries` and derive them
+  from existing per-command risk-proof record-validation remediation rows.
+- Frontend implementation status: complete locally for `7961-7980`; generated
+  schema, adapter mapping, mock derivation, read-model display, examples, and
+  quality metadata consume remediation summary evidence as display-only rows.
+- Contextless review status: PASS for `7961-7980`; backend reviewer
+  `019f0b0f-9871-7801-9109-4ab7bd7a1501` found no blockers, and frontend
+  reviewer `019f0b0f-ec20-7990-ac9c-e44e1a185b39` passed after stale handoff
+  wording and remediation-summary table ref discoverability were remediated.
+- Focused validation status: PASS for `7961-7980`; backend py_compile,
+  autonomous checker, Admin API OpenAPI/route inventory contract checks,
+  futures read-service contract check, focused futures risk-proof regression,
+  frontend API generation/checks, frontend typecheck, targeted frontend units,
+  and stale test-process checks passed.
+- Commit/push status: pending for `7961-7980` in backend and frontend repos.
 - Prior phase-end subagent sweep: reviewers
   `019f09b3-c679-7e63-90ce-f4a4ecb25cc2`,
   `019f09bb-cb84-72b1-b515-f38185c6a858`, and
@@ -84,49 +85,83 @@ work. Historical milestone detail belongs in
   `019f0ad3-1d2d-7cc2-9f5a-25c9c312989a` were closed after `7941-7960`
   findings were consumed and remediated. No current phase-scoped subagent
   remains intentionally open.
+- Current phase-end subagent sweep: backend reviewer
+  `019f0b0f-9871-7801-9109-4ab7bd7a1501` and frontend reviewer
+  `019f0b0f-ec20-7990-ac9c-e44e1a185b39` were closed after `7961-7980`
+  findings were consumed and remediated. No current phase-scoped subagent
+  remains intentionally open.
 
 ## Phase Contract
 
-- The `7941-7960` fields are backend-owned disabled evidence on the existing
+- The `7961-7980` fields are backend-owned disabled evidence on the existing
   futures command-suite read model. They derive from existing risk-proof
-  requirement record-validation rows and do not validate records, register
-  validators, run validation checks, pass replay gates, create stores,
-  configure append-only logs, bind idempotency, register payload validation,
-  register replay guards, link audit evidence, write proof records, or accept
-  proof records.
-- Presence of futures risk-proof record validation summary evidence is not
-  record validation, not validator registration, not validation execution, not
-  replay passage, not store creation, not append-only log configuration, not
+  requirement record-validation remediation rows and do not perform
+  remediation, create work items, register record validators, run contextless
+  reviews, configure validation gates, create stores, configure append-only
+  logs, bind idempotency, register payload validation, register replay guards,
+  link audit evidence, write validation records, write proof records, or
+  accept proof records.
+- Presence of futures risk-proof record validation remediation summary evidence
+  is not remediation execution, not work item creation, not record validator
+  registration, not contextless review execution, not validation gate
+  configuration, not record validation, not validation execution, not replay
+  passage, not store creation, not append-only log configuration, not
   idempotency binding, not payload validation registration, not replay-guard
-  registration, not audit linkage, not proof record writes, not proof record
-  acceptance, not proof route registration, not proof writer enablement, not
-  proof acceptance resolution, not risk proof acceptance, not command
-  readiness passage, not command enablement clearance, not approval passage,
-  not cap/guard passage, not reconciliation passage, not command admission,
-  not Coinbase execution, not reconciliation execution, not futures/order/
-  exchange state mutation, not browser/BFF authority, and not spot-rule
-  authority.
+  registration, not audit linkage, not validation record writes, not proof
+  record writes, not proof record acceptance, not proof route registration,
+  not proof writer enablement, not proof acceptance resolution, not risk proof
+  acceptance, not command readiness passage, not command enablement clearance,
+  not approval passage, not cap/guard passage, not reconciliation passage, not
+  command admission, not Coinbase execution, not reconciliation execution, not
+  futures/order/exchange state mutation, not browser/BFF authority, and not
+  spot-rule authority.
 - The summary evidence can report contract kind, affected commands, proof
-  kinds, required backend contracts, store refs, record keys, payload fields,
-  validation gates, replay gates, validation checks, required/missing evidence
-  refs, disabled validation posture, route/writer posture, execution flags,
-  and authority flags, but it cannot validate records, register validators,
-  run validation checks, pass replay gates, create stores, configure
-  append-only logs, bind idempotency, register payload validation, register
-  replay guards, link audit evidence, write proof records, accept proof
-  records, register proof routes, enable proof writers, resolve proof
-  acceptance, accept risk proofs, clear command readiness, admit commands,
-  call Coinbase, execute reconciliation, mutate futures/order/exchange state,
-  grant browser/BFF authority, or import spot-rule authority.
-- Exact boundary phrase: risk-proof record validation summaries cannot
-  validate records.
-- Exact passage phrase: proof record validation summary presence is not risk proof acceptance passage, not approval passage, not cap/guard passage, not reconciliation passage, and not admission, Coinbase execution.
-- Exact validator phrase: risk-proof record validation summaries cannot validate records; they are not record validation, not validator registration, not validation execution, not replay passage, not store creation, not append-only log configuration, not idempotency binding, not payload validation registration, not replay guard registration, not audit link creation, not proof record writes, not proof record acceptance, not proof route registration, not proof writer enablement, do not resolve proof acceptance, accept risk proofs, clear command readiness, grant admission, Coinbase execution, call Coinbase, execute reconciliation, mutate futures/order/exchange state, grant browser/BFF authority, or import spot-rule authority.
+  kinds, required backend contracts, store refs, record keys, remediation
+  refs, remediation gates, validation gates, replay gates, validation checks,
+  remediation actions, remediation owners, required/missing evidence refs,
+  disabled remediation posture, route/writer posture, execution flags, and
+  authority flags, but it cannot perform remediation, create work items,
+  register record validators, run contextless reviews, configure validation
+  gates, create stores, configure append-only logs, bind idempotency, register
+  payload validation, register replay guards, link audit evidence, write
+  validation records, write proof records, accept proof records, register
+  proof routes, enable proof writers, resolve proof acceptance, accept risk
+  proofs, clear command readiness, admit commands, call Coinbase, execute
+  reconciliation, mutate futures/order/exchange state, grant browser/BFF
+  authority, or import spot-rule authority.
+- Exact boundary phrase: risk-proof record validation remediation summaries
+  cannot perform remediation.
+- Exact passage phrase: proof record validation remediation summary presence is not remediation execution, not risk proof acceptance passage, not approval passage, not cap/guard passage, not reconciliation passage, and not admission, Coinbase execution.
+- Exact validator phrase: risk-proof record validation remediation summaries cannot perform remediation; they are not remediation execution, not work item creation, not record validator registration, not contextless review execution, not validation gate configuration, not record validation, not validation execution, not replay passage, not store creation, not append-only log configuration, not idempotency binding, not payload validation registration, not replay guard registration, not audit link creation, not validation record writes, not proof record writes, not proof record acceptance, not proof route registration, not proof writer enablement, do not resolve proof acceptance, accept risk proofs, clear command readiness, grant admission, Coinbase execution, call Coinbase, execute reconciliation, mutate futures/order/exchange state, grant browser/BFF authority, or import spot-rule authority.
 - The frontend consumes generated OpenAPI/backend contracts and remains
   display-only for this evidence surface.
 - No spot-only wallet, no-shorting, USDC quote, cost-basis, inventory-lot, or
   known-profitable-inventory rule may be imported into futures/perpetual
   readiness.
+
+## m57_7961_7980_blind_review
+
+- Result: PASS after frontend remediation.
+- Backend reviewer `019f0b0f-9871-7801-9109-4ab7bd7a1501` verified the backend
+  model, read-service derivation from existing record-validation remediation
+  rows, response wiring, OpenAPI schema, focused tests, no-live/no-authority
+  posture, and active/completed range clarity. No backend blockers were found.
+- Frontend reviewer `019f0b0f-ec20-7990-ac9c-e44e1a185b39` first blocked on
+  stale handoff wording and insufficient table-level discoverability of
+  backend refs, store refs, record keys, remediation refs, and required/missing
+  evidence refs. After remediation, the reviewer passed the display from a
+  contextless perspective.
+- Focused validation evidence: backend py_compile, autonomous checker, Admin
+  API OpenAPI/route inventory contract checks, futures read-service contract
+  check, focused futures risk-proof regression, frontend API generation/checks,
+  frontend typecheck, targeted frontend units, and stale test-process checks
+  passed.
+- Live Coinbase execution: not run; submitted/executed notional `0` USDC.
+- Phase-end subagent sweep: reviewers
+  `019f0b0f-9871-7801-9109-4ab7bd7a1501` and
+  `019f0b0f-ec20-7990-ac9c-e44e1a185b39` were closed after findings were
+  consumed and remediated. No current phase-scoped subagent remains
+  intentionally open.
 
 ## m57_7941_7960_blind_review
 

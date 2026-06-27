@@ -213,6 +213,7 @@ from .models import (
     AdminFuturesCommandRiskProofRecordContractSummaryItem,
     AdminFuturesCommandRiskProofRecordResolverSummaryItem,
     AdminFuturesCommandRiskProofRecordValidationItem,
+    AdminFuturesCommandRiskProofRecordValidationRemediationSummaryItem,
     AdminFuturesCommandRiskProofRecordValidationSummaryItem,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyItem,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItem,
@@ -711,7 +712,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "7941-7960"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "7961-7980"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -46615,6 +46616,388 @@ class AdminApiReadService:
             risk_proof_record_validation_summaries_for(commands)
         )
 
+        def risk_proof_record_validation_remediation_summaries_for(
+            command_items: list[AdminFuturesCommandContractItem],
+        ) -> list[
+            AdminFuturesCommandRiskProofRecordValidationRemediationSummaryItem
+        ]:
+            rows: list[
+                AdminFuturesCommandRiskProofRecordValidationRemediationSummaryItem
+            ] = []
+            for contract_kind in AdminFuturesCommandRiskProofRecordContractKind:
+                remediation_pairs = [
+                    (command_item, proof_requirement, remediation)
+                    for command_item in command_items
+                    for proof_requirement in command_item.risk_proof_requirements
+                    for remediation in (
+                        proof_requirement.record_validation_remediations
+                    )
+                    if remediation.contract_kind == contract_kind
+                ]
+                if not remediation_pairs:
+                    continue
+                affected_commands = list(
+                    dict.fromkeys(
+                        command_item.command
+                        for command_item, _proof_requirement, _remediation in (
+                            remediation_pairs
+                        )
+                    )
+                )
+                proof_kinds = unique_enum_values(
+                    [
+                        proof_requirement.proof_kind
+                        for _command_item, proof_requirement, _remediation in (
+                            remediation_pairs
+                        )
+                    ]
+                )
+                proof_requirement_refs = unique_strings(
+                    [
+                        (
+                            f"{command_item.command.value}:"
+                            f"{proof_requirement.proof_kind.value}"
+                        )
+                        for command_item, proof_requirement, _remediation in (
+                            remediation_pairs
+                        )
+                    ]
+                )
+                remediation_refs = unique_strings(
+                    [
+                        remediation.remediation_ref
+                        for _command_item, _proof_requirement, remediation in (
+                            remediation_pairs
+                        )
+                    ]
+                )
+                remediation_gates = unique_strings(
+                    [
+                        remediation.remediation_gate
+                        for _command_item, _proof_requirement, remediation in (
+                            remediation_pairs
+                        )
+                    ]
+                )
+                required_backend_contracts = unique_strings(
+                    [
+                        remediation.required_backend_contract
+                        for _command_item, _proof_requirement, remediation in (
+                            remediation_pairs
+                        )
+                    ]
+                )
+                required_store_refs = unique_strings(
+                    [
+                        remediation.required_store_ref
+                        for _command_item, _proof_requirement, remediation in (
+                            remediation_pairs
+                        )
+                    ]
+                )
+                required_record_keys = unique_strings(
+                    [
+                        remediation.required_record_key
+                        for _command_item, _proof_requirement, remediation in (
+                            remediation_pairs
+                        )
+                    ]
+                )
+                validation_gates = unique_strings(
+                    [
+                        remediation.validation_gate
+                        for _command_item, _proof_requirement, remediation in (
+                            remediation_pairs
+                        )
+                    ]
+                )
+                replay_gates = unique_strings(
+                    [
+                        remediation.replay_gate
+                        for _command_item, _proof_requirement, remediation in (
+                            remediation_pairs
+                        )
+                    ]
+                )
+                required_validation_checks = unique_strings(
+                    [
+                        validation_check
+                        for _command_item, _proof_requirement, remediation in (
+                            remediation_pairs
+                        )
+                        for validation_check in remediation.required_validation_checks
+                    ]
+                )
+                required_remediation_actions = unique_enum_values(
+                    [
+                        remediation_action
+                        for _command_item, _proof_requirement, remediation in (
+                            remediation_pairs
+                        )
+                        for remediation_action in (
+                            remediation.required_remediation_actions
+                        )
+                    ]
+                )
+                remediation_owners = unique_strings(
+                    [
+                        remediation.remediation_owner
+                        for _command_item, _proof_requirement, remediation in (
+                            remediation_pairs
+                        )
+                    ]
+                )
+                required_evidence_refs = unique_strings(
+                    [
+                        evidence_ref
+                        for _command_item, _proof_requirement, remediation in (
+                            remediation_pairs
+                        )
+                        for evidence_ref in remediation.required_evidence_refs
+                    ]
+                )
+                missing_evidence_refs = unique_strings(
+                    [
+                        evidence_ref
+                        for _command_item, _proof_requirement, remediation in (
+                            remediation_pairs
+                        )
+                        if remediation.blocking
+                        for evidence_ref in remediation.missing_evidence_refs
+                    ]
+                )
+                blocking_remediation_count = sum(
+                    1
+                    for _command_item, _proof_requirement, remediation in (
+                        remediation_pairs
+                    )
+                    if remediation.blocking
+                )
+                blocking = blocking_remediation_count > 0
+                rows.append(
+                    AdminFuturesCommandRiskProofRecordValidationRemediationSummaryItem(
+                        contract_kind=contract_kind,
+                        status=(
+                            AdminApiGateStatus.BLOCKED
+                            if blocking
+                            else AdminApiGateStatus.PASSED
+                        ),
+                        blocking=blocking,
+                        command_count=len(affected_commands),
+                        affected_commands=affected_commands,
+                        proof_requirement_count=len(proof_requirement_refs),
+                        proof_kinds=proof_kinds,
+                        record_validation_remediation_count=len(
+                            remediation_pairs
+                        ),
+                        blocking_record_validation_remediation_count=(
+                            blocking_remediation_count
+                        ),
+                        ready_record_validation_remediation_count=sum(
+                            1
+                            for _command_item, _proof_requirement, remediation in (
+                                remediation_pairs
+                            )
+                            if remediation.remediation_ready
+                        ),
+                        performed_record_validation_remediation_count=sum(
+                            1
+                            for _command_item, _proof_requirement, remediation in (
+                                remediation_pairs
+                            )
+                            if remediation.remediation_performed
+                        ),
+                        required_backend_contract_count=len(
+                            required_backend_contracts
+                        ),
+                        required_backend_contracts=required_backend_contracts,
+                        required_store_ref_count=len(required_store_refs),
+                        required_store_refs=required_store_refs,
+                        required_record_key_count=len(required_record_keys),
+                        required_record_keys=required_record_keys,
+                        remediation_ref_count=len(remediation_refs),
+                        remediation_refs=remediation_refs,
+                        remediation_gate_count=len(remediation_gates),
+                        remediation_gates=remediation_gates,
+                        validation_gate_count=len(validation_gates),
+                        validation_gates=validation_gates,
+                        replay_gate_count=len(replay_gates),
+                        replay_gates=replay_gates,
+                        required_validation_check_count=len(
+                            required_validation_checks
+                        ),
+                        required_validation_checks=required_validation_checks,
+                        required_remediation_action_count=len(
+                            required_remediation_actions
+                        ),
+                        required_remediation_actions=required_remediation_actions,
+                        remediation_owner_count=len(remediation_owners),
+                        remediation_owners=remediation_owners,
+                        required_evidence_ref_count=len(required_evidence_refs),
+                        required_evidence_refs=required_evidence_refs,
+                        missing_evidence_ref_count=len(missing_evidence_refs),
+                        missing_evidence_refs=missing_evidence_refs,
+                        remediation_work_item_created_count=sum(
+                            1
+                            for _command_item, _proof_requirement, remediation in (
+                                remediation_pairs
+                            )
+                            if remediation.remediation_work_item_created
+                        ),
+                        record_contract_available_count=sum(
+                            1
+                            for _command_item, _proof_requirement, remediation in (
+                                remediation_pairs
+                            )
+                            if remediation.record_contract_available
+                        ),
+                        store_schema_registered_count=sum(
+                            1
+                            for _command_item, _proof_requirement, remediation in (
+                                remediation_pairs
+                            )
+                            if remediation.store_schema_registered
+                        ),
+                        append_only_log_configured_count=sum(
+                            1
+                            for _command_item, _proof_requirement, remediation in (
+                                remediation_pairs
+                            )
+                            if remediation.append_only_log_configured
+                        ),
+                        idempotency_bound_count=sum(
+                            1
+                            for _command_item, _proof_requirement, remediation in (
+                                remediation_pairs
+                            )
+                            if remediation.idempotency_bound
+                        ),
+                        payload_validation_registered_count=sum(
+                            1
+                            for _command_item, _proof_requirement, remediation in (
+                                remediation_pairs
+                            )
+                            if remediation.payload_validation_registered
+                        ),
+                        replay_guard_registered_count=sum(
+                            1
+                            for _command_item, _proof_requirement, remediation in (
+                                remediation_pairs
+                            )
+                            if remediation.replay_guard_registered
+                        ),
+                        audit_linked_count=sum(
+                            1
+                            for _command_item, _proof_requirement, remediation in (
+                                remediation_pairs
+                            )
+                            if remediation.audit_linked
+                        ),
+                        record_validation_registered_count=sum(
+                            1
+                            for _command_item, _proof_requirement, remediation in (
+                                remediation_pairs
+                            )
+                            if remediation.record_validation_registered
+                        ),
+                        record_validation_ready_count=sum(
+                            1
+                            for _command_item, _proof_requirement, remediation in (
+                                remediation_pairs
+                            )
+                            if remediation.record_validation_ready
+                        ),
+                        remediation_ready_count=sum(
+                            1
+                            for _command_item, _proof_requirement, remediation in (
+                                remediation_pairs
+                            )
+                            if remediation.remediation_ready
+                        ),
+                        remediation_performed_count=sum(
+                            1
+                            for _command_item, _proof_requirement, remediation in (
+                                remediation_pairs
+                            )
+                            if remediation.remediation_performed
+                        ),
+                        proof_record_accepted_count=sum(
+                            1
+                            for _command_item, _proof_requirement, remediation in (
+                                remediation_pairs
+                            )
+                            if remediation.proof_record_accepted
+                        ),
+                        command_route_registered_count=sum(
+                            1
+                            for _command_item, _proof_requirement, remediation in (
+                                remediation_pairs
+                            )
+                            if remediation.command_route_registered
+                        ),
+                        command_draft_allowed_count=sum(
+                            1
+                            for _command_item, _proof_requirement, remediation in (
+                                remediation_pairs
+                            )
+                            if remediation.command_draft_allowed
+                        ),
+                        execution_allowed_count=sum(
+                            1
+                            for _command_item, _proof_requirement, remediation in (
+                                remediation_pairs
+                            )
+                            if remediation.execution_allowed
+                        ),
+                        proof_route_registered_count=sum(
+                            1
+                            for _command_item, _proof_requirement, remediation in (
+                                remediation_pairs
+                            )
+                            if remediation.proof_route_registered
+                        ),
+                        proof_writer_enabled_count=sum(
+                            1
+                            for _command_item, _proof_requirement, remediation in (
+                                remediation_pairs
+                            )
+                            if remediation.proof_writer_enabled
+                        ),
+                        live_coinbase_orders_ran_count=sum(
+                            1
+                            for _command_item, proof_requirement, _remediation in (
+                                remediation_pairs
+                            )
+                            if proof_requirement.live_coinbase_orders_ran
+                        ),
+                        detail=(
+                            f"{contract_kind.value} proof record validation "
+                            f"remediations cover {len(remediation_pairs)} "
+                            "futures/perpetual remediation row(s). This "
+                            "aggregate summary is backend-owned read-only "
+                            "evidence and cannot perform remediation, create "
+                            "work items, register record validators, run "
+                            "contextless reviews, configure validation gates, "
+                            "validate records, run validation checks, pass "
+                            "replay gates, create stores, configure "
+                            "append-only logs, bind idempotency, register "
+                            "payload validation, register replay guards, link "
+                            "audit evidence, write validation records, write "
+                            "proof records, accept proof records, resolve "
+                            "proof acceptance, accept risk proofs, clear "
+                            "command readiness, admit commands, call Coinbase, "
+                            "execute reconciliation, mutate "
+                            "futures/order/exchange state, grant browser/BFF "
+                            "authority, or import spot-rule authority."
+                        ),
+                    )
+                )
+            return rows
+
+        risk_proof_record_validation_remediation_summaries = (
+            risk_proof_record_validation_remediation_summaries_for(commands)
+        )
+
         def readiness_decision_summaries_for(
             command_items: list[AdminFuturesCommandContractItem],
         ) -> list[AdminFuturesCommandReadinessDecisionSummaryItem]:
@@ -48496,6 +48879,17 @@ class AdminApiReadService:
             ),
             risk_proof_record_validation_summaries=(
                 risk_proof_record_validation_summaries
+            ),
+            risk_proof_record_validation_remediation_summary_count=len(
+                risk_proof_record_validation_remediation_summaries
+            ),
+            risk_proof_record_validation_remediation_summary_blocking_count=sum(
+                1
+                for item in risk_proof_record_validation_remediation_summaries
+                if item.blocking
+            ),
+            risk_proof_record_validation_remediation_summaries=(
+                risk_proof_record_validation_remediation_summaries
             ),
             risk_proof_acceptance_blocker_count=sum(
                 command.risk_proof_acceptance_blocker_count
