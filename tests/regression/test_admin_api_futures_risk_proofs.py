@@ -336,6 +336,7 @@ from core.enums import (
     AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceContextlessReviewBlocker as SourceRefValidationRecordAcceptanceContextlessReviewBlocker,
     AdminFuturesCommandRiskProofAcceptanceBlocker,
     AdminFuturesCommandRiskProofAcceptanceCheck,
+    AdminFuturesCommandRiskProofContractKind,
     AdminFuturesCommandRiskProofKind,
     AdminFuturesCommandRiskProofRecordLookupStatus,
     AdminFuturesCommandSemanticArtifact,
@@ -11384,6 +11385,56 @@ def test_futures_command_enablement_blocker_summaries_remain_read_only() -> None
     assert "futures_cancel_product_scope_proof_route_registered" in (
         proof_route_summary.required_evidence_refs
     )
+
+    proof_contract_summaries_by_kind = {
+        item.contract_kind: item for item in command_suite.risk_proof_contract_summaries
+    }
+    assert set(proof_contract_summaries_by_kind) == set(
+        AdminFuturesCommandRiskProofContractKind
+    )
+    assert command_suite.risk_proof_contract_summary_count == 2
+    assert command_suite.risk_proof_contract_summary_blocking_count == 2
+    for contract_kind, contract_summary in proof_contract_summaries_by_kind.items():
+        assert contract_summary.status == AdminApiGateStatus.BLOCKED
+        assert contract_summary.blocking is True
+        assert contract_summary.command_count == 4
+        assert contract_summary.affected_commands == affected_commands
+        assert contract_summary.proof_requirement_count == 20
+        assert contract_summary.contract_count == 20
+        assert contract_summary.blocking_contract_count == 20
+        assert contract_summary.required_backend_contract_count == 20
+        assert contract_summary.required_backend_contracts
+        assert contract_summary.required_method_count == 1
+        assert contract_summary.required_evidence_ref_count == 20
+        assert contract_summary.missing_evidence_ref_count == 20
+        assert contract_summary.missing_evidence_refs == (
+            contract_summary.required_evidence_refs
+        )
+        assert contract_summary.route_registered_count == 0
+        assert contract_summary.writer_enabled_count == 0
+        assert contract_summary.command_route_registered_count == 0
+        assert contract_summary.command_draft_allowed_count == 0
+        assert contract_summary.execution_allowed_count == 0
+        assert contract_summary.proof_route_registered_count == 0
+        assert contract_summary.proof_writer_enabled_count == 0
+        assert contract_summary.live_coinbase_orders_ran_count == 0
+        assert contract_summary.backend_owned is True
+        assert contract_summary.read_only is True
+        assert contract_summary.spot_rule_authority is False
+        assert contract_summary.browser_authority == "display_only"
+        assert contract_summary.bff_authority == "forward_only_no_execution"
+        assert "cannot register proof routes" in contract_summary.detail
+        assert "cannot" in contract_summary.detail
+        if contract_kind == AdminFuturesCommandRiskProofContractKind.PROOF_ROUTE:
+            assert contract_summary.required_methods == ["POST"]
+            assert contract_summary.required_route_path_count == 20
+            assert "/api/v1/futures/proofs/futures_cancel/product_scope" in (
+                contract_summary.required_route_paths
+            )
+        else:
+            assert contract_summary.required_methods == ["LOCAL"]
+            assert contract_summary.required_route_path_count == 0
+            assert contract_summary.required_route_paths == []
 
     for blocker, summary in summaries_by_blocker.items():
         assert summary.status == AdminApiGateStatus.BLOCKED

@@ -49,11 +49,27 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7861-7880
+## Current Active Phases 7881-7900
+
+Batch label: Futures/Perpetuals Risk-Proof Contract Summary Evidence.
+
+Current M57 `7881-7900` adds backend-owned read-only
+`risk_proof_contract_summaries` to `GET /api/v1/futures/command-suite` after
+completed `7861-7880` risk-proof acceptance criterion summary evidence. The
+proof contract summary rows are derived from existing per-command risk-proof
+proof contracts. They cannot register proof routes, enable proof writers,
+accept criteria, resolve proof acceptance, accept risk proofs, clear command
+readiness, admit commands, call Coinbase, execute reconciliation, mutate
+futures/order state, grant browser/BFF authority, or import spot-rule
+authority.
+
+Exact autonomous phrase: Active M57 `7881-7900` evidence adds futures risk-proof contract summary evidence while completed M57 `7861-7880` carries forward futures risk-proof acceptance criterion summary evidence.
+
+## Completed Phases 7861-7880
 
 Batch label: Futures/Perpetuals Risk-Proof Acceptance Criterion Summary Evidence.
 
-Current M57 `7861-7880` adds backend-owned read-only
+Completed M57 `7861-7880` added backend-owned read-only
 `risk_proof_acceptance_criterion_summaries` to
 `GET /api/v1/futures/command-suite` after completed `7841-7860`
 risk-proof acceptance blocker summary evidence. The acceptance criterion
@@ -63,7 +79,7 @@ proofs, register proof routes, enable proof writers, clear command readiness,
 admit commands, call Coinbase, execute reconciliation, mutate futures/order
 state, grant browser/BFF authority, or import spot-rule authority.
 
-Exact autonomous phrase: Active M57 `7861-7880` evidence adds futures risk-proof acceptance criterion summary evidence while completed M57 `7841-7860` carries forward futures risk-proof acceptance blocker summary evidence.
+Exact historical phrase: Completed M57 `7861-7880` evidence adds futures risk-proof acceptance criterion summary evidence while completed M57 `7841-7860` carries forward futures risk-proof acceptance blocker summary evidence.
 
 ## Completed Phases 7841-7860
 

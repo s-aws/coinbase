@@ -206,6 +206,7 @@ from .models import (
     AdminFuturesCommandRiskProofAcceptanceBlockerSummaryItem,
     AdminFuturesCommandRiskProofAcceptanceCriterionSummaryItem,
     AdminFuturesCommandRiskProofContractItem,
+    AdminFuturesCommandRiskProofContractSummaryItem,
     AdminFuturesCommandRiskProofPayloadFieldItem,
     AdminFuturesCommandRiskProofRecordContractItem,
     AdminFuturesCommandRiskProofRecordResolverSummaryItem,
@@ -707,7 +708,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "7861-7880"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "7881-7900"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -45676,6 +45677,188 @@ class AdminApiReadService:
             risk_proof_acceptance_criterion_summaries_for(commands)
         )
 
+        def risk_proof_contract_summaries_for(
+            command_items: list[AdminFuturesCommandContractItem],
+        ) -> list[AdminFuturesCommandRiskProofContractSummaryItem]:
+            rows: list[AdminFuturesCommandRiskProofContractSummaryItem] = []
+            for contract_kind in AdminFuturesCommandRiskProofContractKind:
+                contract_pairs = [
+                    (command_item, proof_requirement, contract)
+                    for command_item in command_items
+                    for proof_requirement in command_item.risk_proof_requirements
+                    for contract in proof_requirement.proof_contracts
+                    if contract.contract_kind == contract_kind
+                ]
+                if not contract_pairs:
+                    continue
+                affected_commands = list(
+                    dict.fromkeys(
+                        command_item.command
+                        for command_item, _proof_requirement, _contract in (
+                            contract_pairs
+                        )
+                    )
+                )
+                proof_kinds = unique_enum_values(
+                    [
+                        proof_requirement.proof_kind
+                        for _command_item, proof_requirement, _contract in (
+                            contract_pairs
+                        )
+                    ]
+                )
+                required_backend_contracts = unique_strings(
+                    [
+                        contract.required_backend_contract
+                        for _command_item, _proof_requirement, contract in (
+                            contract_pairs
+                        )
+                    ]
+                )
+                required_route_paths = unique_strings(
+                    [
+                        contract.required_route_path
+                        for _command_item, _proof_requirement, contract in (
+                            contract_pairs
+                        )
+                    ]
+                )
+                required_methods = unique_strings(
+                    [
+                        contract.required_method
+                        for _command_item, _proof_requirement, contract in (
+                            contract_pairs
+                        )
+                    ]
+                )
+                required_evidence_refs = unique_strings(
+                    [
+                        contract.required_evidence_ref
+                        for _command_item, _proof_requirement, contract in (
+                            contract_pairs
+                        )
+                    ]
+                )
+                missing_evidence_refs = unique_strings(
+                    [
+                        contract.missing_evidence_ref
+                        for _command_item, _proof_requirement, contract in (
+                            contract_pairs
+                        )
+                        if contract.blocking
+                    ]
+                )
+                blocking_contract_count = sum(
+                    1
+                    for _command_item, _proof_requirement, contract in (
+                        contract_pairs
+                    )
+                    if contract.blocking
+                )
+                blocking = blocking_contract_count > 0
+                rows.append(
+                    AdminFuturesCommandRiskProofContractSummaryItem(
+                        contract_kind=contract_kind,
+                        status=(
+                            AdminApiGateStatus.BLOCKED
+                            if blocking
+                            else AdminApiGateStatus.PASSED
+                        ),
+                        blocking=blocking,
+                        command_count=len(affected_commands),
+                        affected_commands=affected_commands,
+                        proof_requirement_count=len(contract_pairs),
+                        proof_kinds=proof_kinds,
+                        contract_count=len(contract_pairs),
+                        blocking_contract_count=blocking_contract_count,
+                        required_backend_contract_count=len(
+                            required_backend_contracts
+                        ),
+                        required_backend_contracts=required_backend_contracts,
+                        required_route_path_count=len(required_route_paths),
+                        required_route_paths=required_route_paths,
+                        required_method_count=len(required_methods),
+                        required_methods=required_methods,
+                        required_evidence_ref_count=len(required_evidence_refs),
+                        required_evidence_refs=required_evidence_refs,
+                        missing_evidence_ref_count=len(missing_evidence_refs),
+                        missing_evidence_refs=missing_evidence_refs,
+                        route_registered_count=sum(
+                            1
+                            for _command_item, _proof_requirement, contract in (
+                                contract_pairs
+                            )
+                            if contract.route_registered
+                        ),
+                        writer_enabled_count=sum(
+                            1
+                            for _command_item, _proof_requirement, contract in (
+                                contract_pairs
+                            )
+                            if contract.writer_enabled
+                        ),
+                        command_route_registered_count=sum(
+                            1
+                            for _command_item, _proof_requirement, contract in (
+                                contract_pairs
+                            )
+                            if contract.command_route_registered
+                        ),
+                        command_draft_allowed_count=sum(
+                            1
+                            for _command_item, _proof_requirement, contract in (
+                                contract_pairs
+                            )
+                            if contract.command_draft_allowed
+                        ),
+                        execution_allowed_count=sum(
+                            1
+                            for _command_item, _proof_requirement, contract in (
+                                contract_pairs
+                            )
+                            if contract.execution_allowed
+                        ),
+                        proof_route_registered_count=sum(
+                            1
+                            for _command_item, _proof_requirement, contract in (
+                                contract_pairs
+                            )
+                            if contract.proof_route_registered
+                        ),
+                        proof_writer_enabled_count=sum(
+                            1
+                            for _command_item, _proof_requirement, contract in (
+                                contract_pairs
+                            )
+                            if contract.proof_writer_enabled
+                        ),
+                        live_coinbase_orders_ran_count=sum(
+                            1
+                            for _command_item, proof_requirement, _contract in (
+                                contract_pairs
+                            )
+                            if proof_requirement.live_coinbase_orders_ran
+                        ),
+                        detail=(
+                            f"{contract_kind.value} proof contracts cover "
+                            f"{len(contract_pairs)} futures/perpetual proof "
+                            "requirement(s). This aggregate summary is "
+                            "backend-owned read-only evidence and cannot "
+                            "register proof routes, enable proof writers, "
+                            "accept criteria, resolve proof acceptance, accept "
+                            "risk proofs, clear command readiness, admit "
+                            "commands, call Coinbase, execute reconciliation, "
+                            "mutate futures/order state, grant browser/BFF "
+                            "authority, or import spot-rule authority."
+                        ),
+                    )
+                )
+            return rows
+
+        risk_proof_contract_summaries = risk_proof_contract_summaries_for(
+            commands
+        )
+
         def readiness_decision_summaries_for(
             command_items: list[AdminFuturesCommandContractItem],
         ) -> list[AdminFuturesCommandReadinessDecisionSummaryItem]:
@@ -47524,6 +47707,11 @@ class AdminApiReadService:
             risk_proof_acceptance_criterion_summaries=(
                 risk_proof_acceptance_criterion_summaries
             ),
+            risk_proof_contract_summary_count=len(risk_proof_contract_summaries),
+            risk_proof_contract_summary_blocking_count=sum(
+                1 for item in risk_proof_contract_summaries if item.blocking
+            ),
+            risk_proof_contract_summaries=risk_proof_contract_summaries,
             risk_proof_acceptance_blocker_count=sum(
                 command.risk_proof_acceptance_blocker_count
                 for command in commands

@@ -78629,6 +78629,167 @@ components:
       - proof_writer
       title: AdminFuturesCommandRiskProofContractKind
       description: Backend contracts required before a futures risk proof can be accepted.
+    AdminFuturesCommandRiskProofContractSummaryItem:
+      properties:
+        contract_kind:
+          $ref: '#/components/schemas/AdminFuturesCommandRiskProofContractKind'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        command_count:
+          type: integer
+          minimum: 0.0
+          title: Command Count
+          default: 0
+        affected_commands:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandAction'
+          type: array
+          title: Affected Commands
+        proof_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Requirement Count
+          default: 0
+        proof_kinds:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofKind'
+          type: array
+          title: Proof Kinds
+        contract_count:
+          type: integer
+          minimum: 0.0
+          title: Contract Count
+          default: 0
+        blocking_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Contract Count
+          default: 0
+        required_backend_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Required Backend Contract Count
+          default: 0
+        required_backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Required Backend Contracts
+        required_route_path_count:
+          type: integer
+          minimum: 0.0
+          title: Required Route Path Count
+          default: 0
+        required_route_paths:
+          items:
+            type: string
+          type: array
+          title: Required Route Paths
+        required_method_count:
+          type: integer
+          minimum: 0.0
+          title: Required Method Count
+          default: 0
+        required_methods:
+          items:
+            type: string
+          type: array
+          title: Required Methods
+        required_evidence_ref_count:
+          type: integer
+          minimum: 0.0
+          title: Required Evidence Ref Count
+          default: 0
+        required_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Required Evidence Refs
+        missing_evidence_ref_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Evidence Ref Count
+          default: 0
+        missing_evidence_refs:
+          items:
+            type: string
+          type: array
+          title: Missing Evidence Refs
+        route_registered_count:
+          type: integer
+          minimum: 0.0
+          title: Route Registered Count
+          default: 0
+        writer_enabled_count:
+          type: integer
+          minimum: 0.0
+          title: Writer Enabled Count
+          default: 0
+        command_route_registered_count:
+          type: integer
+          minimum: 0.0
+          title: Command Route Registered Count
+          default: 0
+        command_draft_allowed_count:
+          type: integer
+          minimum: 0.0
+          title: Command Draft Allowed Count
+          default: 0
+        execution_allowed_count:
+          type: integer
+          minimum: 0.0
+          title: Execution Allowed Count
+          default: 0
+        proof_route_registered_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Route Registered Count
+          default: 0
+        proof_writer_enabled_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Writer Enabled Count
+          default: 0
+        live_coinbase_orders_ran_count:
+          type: integer
+          minimum: 0.0
+          title: Live Coinbase Orders Ran Count
+          default: 0
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - contract_kind
+      - detail
+      title: AdminFuturesCommandRiskProofContractSummaryItem
+      description: Backend-owned aggregate summary for futures risk proof contracts.
     AdminFuturesCommandRiskProofKind:
       type: string
       enum:
@@ -94967,6 +95128,21 @@ components:
             $ref: '#/components/schemas/AdminFuturesCommandRiskProofAcceptanceCriterionSummaryItem'
           type: array
           title: Risk Proof Acceptance Criterion Summaries
+        risk_proof_contract_summary_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Contract Summary Count
+          default: 0
+        risk_proof_contract_summary_blocking_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Contract Summary Blocking Count
+          default: 0
+        risk_proof_contract_summaries:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofContractSummaryItem'
+          type: array
+          title: Risk Proof Contract Summaries
         risk_proof_acceptance_blocker_count:
           type: integer
           minimum: 0.0

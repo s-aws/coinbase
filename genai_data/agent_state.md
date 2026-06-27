@@ -24,25 +24,31 @@ work. Historical milestone detail belongs in
 
 ## Current Phase
 
-- Latest completed and pushed range before this work: `7841-7860`.
-- Active approved range: `7861-7880`.
-- Scope: futures risk-proof acceptance criterion summary evidence and frontend
-  display. This continues M57 by aggregating existing per-command risk-proof
-  requirement acceptance-criteria rows into
-  `risk_proof_acceptance_criterion_summaries` so check id, affected commands,
-  proof kinds, required/missing evidence refs, negative-check posture,
-  accepted/blocked counts, proof-route posture, proof-writer posture,
-  execution flags, and no-live authority flags are visible without accepting
-  criteria, resolving proof acceptance, or enabling any command path.
-- Backend implementation status: complete for `7861-7880`; focused backend
-  validation passed.
-- Frontend implementation status: complete for `7861-7880`; schema sync,
-  adapter mapping, mock derivation, display mapping, and focused frontend
-  validation passed.
-- Contextless review status: PASS for `7861-7880`; backend reviewer
-  `019f09e8-3430-7111-ae9d-0e594cdfbdd3` and frontend reviewer
-  `019f09e8-63ba-7e81-b0c2-a0f23acfb32f` found no blocking ambiguity.
-- Commit/push status: pending final commit/push for `7861-7880`.
+- Latest completed and pushed range before this work: `7861-7880`.
+- Active approved range: `7881-7900`.
+- Scope: futures risk-proof contract summary evidence and frontend display.
+  This continues M57 by aggregating existing per-command risk-proof
+  requirement proof contract rows into `risk_proof_contract_summaries` so
+  contract kind, affected commands, proof kinds, required backend contracts,
+  route paths, methods, evidence refs, route/writer posture, execution flags,
+  and no-live authority flags are visible without registering proof routes,
+  enabling proof writers, accepting criteria, resolving proof acceptance, or
+  enabling any command path.
+- Backend implementation status: complete for `7881-7900`; generated OpenAPI
+  includes `risk_proof_contract_summaries`.
+- Frontend implementation status: complete for `7881-7900`; generated schema,
+  adapter mapping, mock derivation, read-model display, examples, and quality
+  metadata consume proof contract summary evidence.
+- Contextless review status: PASS for `7881-7900`. Backend reviewer Rawls
+  (`019f0a25-0d87-7cc2-88cf-6bdab1b74509`) and frontend reviewer Kuhn
+  (`019f0a25-2189-7901-852f-2263379041a2`) found no blockers.
+- Focused validation status: PASS for `7881-7900`. Backend py_compile,
+  backend autonomous checker, focused futures risk-proof regression, focused
+  Admin API contract bundle, frontend typecheck, frontend focused unit tests,
+  frontend API check, frontend autonomous check, and stale test-process checker
+  passed.
+- Commit/push status: ready for `7881-7900` closeout after this evidence file
+  is committed with the backend/frontend changes.
 - Prior phase-end subagent sweep: reviewers
   `019f09b3-c679-7e63-90ce-f4a4ecb25cc2`,
   `019f09bb-cb84-72b1-b515-f38185c6a858`, and
@@ -50,37 +56,36 @@ work. Historical milestone detail belongs in
   findings were consumed. No prior phase-scoped subagents remain intentionally
   open.
 - Current phase-end subagent sweep: backend reviewer
-  `019f09e8-3430-7111-ae9d-0e594cdfbdd3` and frontend reviewer
-  `019f09e8-63ba-7e81-b0c2-a0f23acfb32f` were closed after `7861-7880`
+  `019f0a25-0d87-7cc2-88cf-6bdab1b74509` and frontend reviewer
+  `019f0a25-2189-7901-852f-2263379041a2` were closed after `7881-7900`
   findings were consumed. No current phase-scoped subagents remain
   intentionally open.
 
 ## Phase Contract
 
-- The `7861-7880` fields are backend-owned disabled evidence on the existing
+- The `7881-7900` fields are backend-owned disabled evidence on the existing
   futures command-suite read model. They derive from existing risk-proof
-  requirement acceptance-criteria rows and do not accept criteria or resolve
-  proof acceptance.
-- Presence of futures risk-proof acceptance criterion summary evidence is not
-  acceptance criteria acceptance, not proof acceptance resolution, not risk
-  proof acceptance, not proof-route registration, not proof-writer enablement,
-  not command readiness passage, not command enablement clearance, not risk
-  proof acceptance passage, not approval passage, not cap/guard passage, not
+  requirement proof contract rows and do not register proof routes or enable
+  proof writers.
+- Presence of futures risk-proof contract summary evidence is not proof route
+  registration, not proof writer enablement, not acceptance criteria
+  acceptance, not proof acceptance resolution, not risk proof acceptance, not
+  command readiness passage, not command enablement clearance, not risk proof
+  acceptance passage, not approval passage, not cap/guard passage, not
   reconciliation passage, not command admission, not admission, Coinbase
   execution, not reconciliation execution, not browser/BFF authority, and not
   spot-rule authority.
-- The summary evidence can report check id, affected commands, proof kinds,
-  required/missing evidence refs, negative-check posture, accepted/blocked
-  counts, proof-route posture, proof-writer posture, execution flags, and
-  authority flags, but it cannot accept criteria, resolve proof acceptance,
-  accept risk proofs, register proof routes, enable proof writers, clear
-  command readiness, admit commands, call Coinbase, execute reconciliation,
-  mutate futures/order state, grant browser/BFF authority, or import
-  spot-rule authority.
-- Exact boundary phrase: risk-proof acceptance criterion summaries cannot
-  accept criteria.
-- Exact passage phrase: acceptance criterion summary presence is not risk proof acceptance passage, not approval passage, not cap/guard passage, not reconciliation passage, and not admission, Coinbase execution.
-- Exact validator phrase: risk-proof acceptance criterion summaries cannot accept criteria; they do not resolve proof acceptance, accept risk proofs, register proof routes, enable proof writers, clear command readiness, grant admission, Coinbase execution, call Coinbase, execute reconciliation, mutate futures/order state, grant browser/BFF authority, or import spot-rule authority.
+- The summary evidence can report contract kind, affected commands, proof
+  kinds, required backend contracts, route paths, methods, required/missing
+  evidence refs, route/writer posture, execution flags, and authority flags,
+  but it cannot register proof routes, enable proof writers, accept criteria,
+  resolve proof acceptance, accept risk proofs, clear command readiness, admit
+  commands, call Coinbase, execute reconciliation, mutate futures/order state,
+  grant browser/BFF authority, or import spot-rule authority.
+- Exact boundary phrase: risk-proof contract summaries cannot register proof
+  routes.
+- Exact passage phrase: proof contract summary presence is not risk proof acceptance passage, not approval passage, not cap/guard passage, not reconciliation passage, and not admission, Coinbase execution.
+- Exact validator phrase: risk-proof contract summaries cannot register proof routes; they do not enable proof writers, accept criteria, resolve proof acceptance, accept risk proofs, clear command readiness, grant admission, Coinbase execution, call Coinbase, execute reconciliation, mutate futures/order state, grant browser/BFF authority, or import spot-rule authority.
 - The frontend consumes generated OpenAPI/backend contracts and remains
   display-only for this evidence surface.
 - No spot-only wallet, no-shorting, USDC quote, cost-basis, inventory-lot, or

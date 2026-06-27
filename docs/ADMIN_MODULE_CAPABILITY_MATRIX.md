@@ -4,11 +4,22 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current futures/perpetual M57 scope: `7861-7880`.
+Current futures/perpetual M57 scope: `7881-7900`.
 
-Current futures/perpetual M57 scope details: `7861-7880` adds futures
-risk-proof acceptance criterion summary evidence on top of completed
-`7841-7860` futures risk-proof acceptance blocker summary evidence. The
+Current futures/perpetual M57 scope details: `7881-7900` adds futures
+risk-proof contract summary evidence on top of completed `7861-7880` futures
+risk-proof acceptance criterion summary evidence. The
+`risk_proof_contract_summaries` fields are backend-owned, display-only,
+no-live, and do not treat proof contract summary presence as proof-route
+registration, proof-writer enablement, acceptance criteria acceptance, proof
+acceptance resolution, risk proof acceptance, command readiness passage,
+command enablement clearance, approval passage, cap/guard passage,
+reconciliation passage, command admission, Coinbase execution, reconciliation
+execution, browser/BFF authority, or spot-rule authority.
+
+Completed futures/perpetual M57 scope: `7861-7880` added futures risk-proof
+acceptance criterion summary evidence on top of completed `7841-7860` futures
+risk-proof acceptance blocker summary evidence. The
 `risk_proof_acceptance_criterion_summaries` fields are backend-owned,
 display-only, no-live, and do not treat acceptance criterion summary presence
 as acceptance criteria acceptance, proof acceptance resolution, risk proof

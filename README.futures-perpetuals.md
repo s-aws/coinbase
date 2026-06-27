@@ -37,16 +37,16 @@ and position routes return
 blocked/no-live posture through route-bound draft, execution, browser, BFF,
 and notional evidence fields.
 
-Active M57 `7861-7880` evidence adds futures risk-proof acceptance criterion
-summary evidence while completed M57 `7841-7860` carries forward futures
-risk-proof acceptance blocker summary evidence. The
-`risk_proof_acceptance_criterion_summaries` rows are read-only evidence and
-cannot accept criteria, resolve proof acceptance, accept risk proofs, register
-proof routes, enable proof writers, clear command readiness, admit commands,
-call Coinbase, execute reconciliation, mutate futures/order state, grant
-browser/BFF authority, or import spot-rule authority.
+Active M57 `7881-7900` evidence adds futures risk-proof contract summary
+evidence while completed M57 `7861-7880` carries forward futures risk-proof
+acceptance criterion summary evidence. The `risk_proof_contract_summaries`
+rows are read-only evidence and cannot register proof routes, enable proof
+writers, accept criteria, resolve proof acceptance, accept risk proofs, clear
+command readiness, admit commands, call Coinbase, execute reconciliation,
+mutate futures/order state, grant browser/BFF authority, or import spot-rule
+authority.
 
-Exact autonomous phrase: Active M57 `7861-7880` evidence adds futures risk-proof acceptance criterion summary evidence while completed M57 `7841-7860` carries forward futures risk-proof acceptance blocker summary evidence.
+Exact autonomous phrase: Active M57 `7881-7900` evidence adds futures risk-proof contract summary evidence while completed M57 `7861-7880` carries forward futures risk-proof acceptance criterion summary evidence.
 
 ## Key Concepts
 
@@ -65,16 +65,19 @@ Exact autonomous phrase: Active M57 `7861-7880` evidence adds futures risk-proof
   registers route-bound no-live command drafts for those four families, but
   does not call Coinbase, execute reconciliation, mutate state, or grant
   browser/BFF authority.
-- Active M57 `7861-7880` evidence adds futures risk-proof acceptance criterion
-  summary evidence while completed M57 `7841-7860` carries forward futures
-  risk-proof acceptance blocker summary evidence. The
-  `risk_proof_acceptance_criterion_summaries` rows are derived from existing
-  per-command risk-proof acceptance criteria and are read-only/no-live
-  evidence only. They do not accept criteria, resolve proof acceptance, accept
-  risk proofs, register proof routes, enable proof writers, clear command
-  readiness, admit commands, call Coinbase, execute reconciliation, mutate
-  state, grant browser/BFF authority, or import spot-only rules.
-- Exact active phrase: Active M57 `7861-7880` evidence adds futures risk-proof acceptance criterion summary evidence while completed M57 `7841-7860` carries forward futures risk-proof acceptance blocker summary evidence.
+- Active M57 `7881-7900` evidence adds futures risk-proof contract summary
+  evidence while completed M57 `7861-7880` carries forward futures risk-proof
+  acceptance criterion summary evidence. The `risk_proof_contract_summaries`
+  rows are derived from existing per-command risk-proof proof contracts and
+  are read-only/no-live evidence only. They do not register proof routes,
+  enable proof writers, accept criteria, resolve proof acceptance, accept risk
+  proofs, clear command readiness, admit commands, call Coinbase, execute
+  reconciliation, mutate state, grant browser/BFF authority, or import
+  spot-only rules.
+- Exact active phrase: Active M57 `7881-7900` evidence adds futures risk-proof contract summary evidence while completed M57 `7861-7880` carries forward futures risk-proof acceptance criterion summary evidence.
+- Completed M57 `7861-7880` evidence adds futures risk-proof acceptance
+  criterion summary evidence while completed M57 `7841-7860` carries forward
+  futures risk-proof acceptance blocker summary evidence.
 - Completed M57 `7841-7860` evidence adds futures risk-proof acceptance
   blocker summary evidence while completed M57 `7821-7840` carries forward
   futures risk-proof record resolver summary evidence.
