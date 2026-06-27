@@ -78618,6 +78618,173 @@ components:
       - unavailable
       title: AdminFuturesCommandRiskProofRecordLookupStatus
       description: Read-only lookup status for futures risk proof record evidence.
+    AdminFuturesCommandRiskProofRecordResolverSummaryItem:
+      properties:
+        lookup_status:
+          $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordLookupStatus'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        blocking:
+          type: boolean
+          title: Blocking
+          default: true
+        command_count:
+          type: integer
+          minimum: 0.0
+          title: Command Count
+          default: 0
+        affected_commands:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandAction'
+          type: array
+          title: Affected Commands
+        proof_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Requirement Count
+          default: 0
+        proof_kinds:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofKind'
+          type: array
+          title: Proof Kinds
+        resolved_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Resolved Requirement Count
+          default: 0
+        missing_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Requirement Count
+          default: 0
+        stale_or_invalid_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Stale Or Invalid Requirement Count
+          default: 0
+        not_checked_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Not Checked Requirement Count
+          default: 0
+        unavailable_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Unavailable Requirement Count
+          default: 0
+        latest_futures_risk_proof_id_count:
+          type: integer
+          minimum: 0.0
+          title: Latest Futures Risk Proof Id Count
+          default: 0
+        latest_futures_risk_proof_ids:
+          items:
+            type: string
+          type: array
+          title: Latest Futures Risk Proof Ids
+        proof_record_satisfies_requirement_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Record Satisfies Requirement Count
+          default: 0
+        proof_acceptance_blocked_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Acceptance Blocked Count
+          default: 0
+        proof_record_resolved_but_acceptance_blocked_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Record Resolved But Acceptance Blocked Count
+          default: 0
+        proof_record_resolves_acceptance_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Record Resolves Acceptance Count
+          default: 0
+        proof_acceptance_blocker_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Acceptance Blocker Count
+          default: 0
+        proof_acceptance_blockers:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofAcceptanceBlocker'
+          type: array
+          title: Proof Acceptance Blockers
+        proof_acceptance_blocker_ref_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Acceptance Blocker Ref Count
+          default: 0
+        proof_acceptance_blocker_refs:
+          items:
+            type: string
+          type: array
+          title: Proof Acceptance Blocker Refs
+        command_route_registered_count:
+          type: integer
+          minimum: 0.0
+          title: Command Route Registered Count
+          default: 0
+        command_draft_allowed_count:
+          type: integer
+          minimum: 0.0
+          title: Command Draft Allowed Count
+          default: 0
+        execution_allowed_count:
+          type: integer
+          minimum: 0.0
+          title: Execution Allowed Count
+          default: 0
+        proof_route_registered_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Route Registered Count
+          default: 0
+        proof_writer_enabled_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Writer Enabled Count
+          default: 0
+        live_coinbase_orders_ran_count:
+          type: integer
+          minimum: 0.0
+          title: Live Coinbase Orders Ran Count
+          default: 0
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        spot_rule_authority:
+          type: boolean
+          title: Spot Rule Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - lookup_status
+      - detail
+      title: AdminFuturesCommandRiskProofRecordResolverSummaryItem
+      description: Backend-owned aggregate summary for futures risk proof record lookup
+        posture.
     AdminFuturesCommandRiskProofRecordValidationItem:
       properties:
         contract_kind:
@@ -94473,6 +94640,21 @@ components:
           minimum: 0.0
           title: Stale Or Invalid Risk Proof Record Resolver Count
           default: 0
+        risk_proof_record_resolver_summary_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Record Resolver Summary Count
+          default: 0
+        risk_proof_record_resolver_summary_blocking_count:
+          type: integer
+          minimum: 0.0
+          title: Risk Proof Record Resolver Summary Blocking Count
+          default: 0
+        risk_proof_record_resolver_summaries:
+          items:
+            $ref: '#/components/schemas/AdminFuturesCommandRiskProofRecordResolverSummaryItem'
+          type: array
+          title: Risk Proof Record Resolver Summaries
         risk_proof_acceptance_blocker_count:
           type: integer
           minimum: 0.0

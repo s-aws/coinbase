@@ -16,19 +16,25 @@ command-service parity logic, then stop at the fail-closed live execution gate.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7801-7820` futures/perpetual command readiness-decision summary
+Current M57 `7821-7840` futures/perpetual risk-proof record resolver summary
 evidence for `GET /api/v1/futures/command-suite` is the active slice. It adds
-read-only `readiness_decision_summary_count`,
-`readiness_decision_summary_blocking_count`, and
-`readiness_decision_summaries` fields derived from existing per-command
-readiness decision rows and carries forward completed `7781-7800` command
-risk-proof requirement summary evidence. The fields are read-only/no-live
-evidence and must not mark commands ready, clear readiness decisions, pass
-command readiness, validate submitted proof payloads, accept risk proofs,
-admit commands, pass approval, cap/guard, or reconciliation gates, execute
-reconciliation, call Coinbase, mutate futures/order/exchange state, or grant
-browser/BFF or spot-rule authority.
-Exact validator phrase: readiness-decision summaries cannot mark commands ready.
+read-only `risk_proof_record_resolver_summary_count`,
+`risk_proof_record_resolver_summary_blocking_count`, and
+`risk_proof_record_resolver_summaries` fields derived from existing
+per-command risk-proof requirement rows and carries forward completed
+`7801-7820` command readiness-decision summary evidence. The fields are
+read-only/no-live evidence and must not resolve proof acceptance, accept risk
+proofs, register proof routes, enable proof writers, pass command readiness,
+clear command readiness, admit commands, pass approval, cap/guard, or
+reconciliation gates, execute reconciliation, call Coinbase, mutate
+futures/order/exchange state, or grant browser/BFF or spot-rule authority.
+Exact boundary phrase: resolver summaries cannot accept risk proofs.
+Exact validator phrase: risk-proof record resolver summaries cannot resolve proof acceptance.
+
+Completed M57 `7801-7820` futures/perpetual command readiness-decision
+summary evidence for `GET /api/v1/futures/command-suite` is carried forward
+history. It added read-only readiness-decision summary fields derived from
+existing per-command readiness decision rows.
 
 Completed M57 `7781-7800` futures/perpetual command risk-proof requirement
 summary evidence for `GET /api/v1/futures/command-suite` is carried forward

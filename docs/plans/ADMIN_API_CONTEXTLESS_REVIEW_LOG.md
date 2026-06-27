@@ -1,3 +1,64 @@
+## M57 Futures/Perpetual Risk-Proof Record Resolver Summary Evidence - Phases 7821-7840
+
+Result: PASS. Scope: phases `7821-7840`, after completed history through
+`7801-7820`, adds backend-owned read-only futures risk-proof record resolver
+summary evidence to `GET /api/v1/futures/command-suite`. Compact history
+phrase: completed history through `7801-7820`.
+
+Boundary evidence for current `7821-7840` review: futures command
+`risk_proof_record_resolver_summaries` rows derive from existing per-command
+risk-proof requirement rows. They may report lookup status, affected
+commands, proof kinds, latest proof ids, proof acceptance blockers, blocker
+refs, command-route posture, draft posture, proof-route posture, proof-writer
+posture, execution flags, live-order flags, and authority flags. They must not
+resolve proof acceptance, accept risk proofs, register proof routes, enable
+proof writers, pass command readiness, clear command enablement, pass
+approval, cap/guard, or reconciliation gates, admit commands, call Coinbase,
+execute reconciliation, mutate futures/order/exchange state, grant browser/BFF
+authority, or import spot-rule authority.
+
+Exact validation phrases: No live Coinbase execution is planned. The actual
+submitted/executed notional remains `0` USDC. Completed futures command
+readiness-decision summary evidence remains carried-forward history.
+Completed futures command risk-proof requirement summary evidence remains
+carried-forward history; current futures risk-proof record resolver summary
+evidence is not proof acceptance resolution, not risk proof acceptance, not
+command admission, not Coinbase execution, not reconciliation execution, not
+futures/order/exchange state mutation, not browser authority, not BFF
+execution authority, and not spot-rule authority.
+Compact validator phrase: actual submitted/executed notional remains `0` USDC; current risk-proof record resolver summary evidence is not Coinbase execution, not futures/order/exchange state mutation, and not spot-rule authority.
+Exact checker phrase: futures risk-proof record resolver summary evidence; not proof acceptance resolution; not risk proof acceptance; not command admission; not BFF execution authority.
+
+Fresh blind/contextless backend review: PASS. Reviewer
+`019f0963-bc60-72d0-864a-fed3c9382d14` verified the new response model is
+read-only aggregate evidence, `risk_proof_record_resolver_summaries` derive
+from existing per-command `risk_proof_requirements` grouped by
+`AdminFuturesCommandRiskProofRecordLookupStatus`, the summary detail denies
+proof acceptance, route registration, proof writers, readiness clearance,
+admission, Coinbase, reconciliation, state mutation, browser/BFF authority,
+and spot-rule authority, the route remains the existing read-only
+`GET /api/v1/futures/command-suite`, OpenAPI exposes only schema/response
+fields, and docs make `7821-7840` active while `7801-7820` is completed
+history.
+
+Fresh blind/contextless frontend review: PASS. Reviewer
+`019f0964-12de-7621-87f1-f942cffb53c6` verified the generated schema,
+adapter mapping, display-only resolver summary table, mock derivation from
+existing `risk_proof_requirements`, frontend docs, quality metadata, and
+no-live/no-authority boundary for proof acceptance, route registration, proof
+writer enablement, browser/BFF authority, Coinbase execution,
+reconciliation, futures/order mutation, and spot-rule authority.
+
+Focused validation evidence: `python -m py_compile ...` passed; backend
+`python tools/run_autonomous_work_queue_check.py --summary-only` passed;
+focused backend pytest covered OpenAPI schema, futures read routes,
+read-service runtime positions, default resolver summary evidence, and
+stored-proof resolver summary evidence; frontend `npm run typecheck`,
+`npm run api:check`, `npm run autonomous:check`, and targeted unit tests for
+mock backend, futures/perpetual read model, and quality gates passed.
+No live Coinbase execution was run; actual submitted/executed notional remains
+`0` USDC.
+
 ## M57 Futures/Perpetual Command Readiness-Decision Summary Evidence - Phases 7801-7820
 
 Result: PASS. Scope: phases `7801-7820`, after completed history through

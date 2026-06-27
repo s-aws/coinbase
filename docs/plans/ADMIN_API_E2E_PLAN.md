@@ -49,11 +49,27 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7801-7820
+## Current Active Phases 7821-7840
+
+Batch label: Futures/Perpetuals Risk-Proof Record Resolver Summary Evidence.
+
+Current M57 `7821-7840` adds backend-owned read-only
+`risk_proof_record_resolver_summaries` to
+`GET /api/v1/futures/command-suite` after completed `7801-7820`
+readiness-decision summary evidence. The resolver summary rows are derived
+from existing per-command risk-proof requirement rows. They cannot resolve
+proof acceptance, accept risk proofs, register proof routes, enable proof
+writers, clear command readiness, admit commands, call Coinbase, execute
+reconciliation, mutate futures/order state, grant browser/BFF authority, or
+import spot-rule authority.
+
+Exact autonomous phrase: Active M57 `7821-7840` evidence adds futures risk-proof record resolver summary evidence while completed M57 `7801-7820` carries forward futures command readiness-decision summary evidence.
+
+## Completed Phases 7801-7820
 
 Batch label: Futures/Perpetuals Command Readiness-Decision Summary Evidence.
 
-Current M57 `7801-7820` adds backend-owned read-only
+Completed M57 `7801-7820` added backend-owned read-only
 `readiness_decision_summaries` to `GET /api/v1/futures/command-suite` after
 completed `7781-7800` risk-proof requirement summary evidence. The readiness
 decision summary rows are derived from existing per-command readiness decision
@@ -61,7 +77,7 @@ rows. They cannot mark commands ready, clear readiness decisions, admit
 commands, call Coinbase, execute reconciliation, mutate futures/order state,
 grant browser/BFF authority, or import spot-rule authority.
 
-Exact autonomous phrase: Active M57 `7801-7820` evidence adds futures command readiness-decision summary evidence while completed M57 `7781-7800` carries forward futures command risk-proof requirement summary evidence.
+Exact historical phrase: Completed M57 `7801-7820` evidence adds futures command readiness-decision summary evidence while completed M57 `7781-7800` carries forward futures command risk-proof requirement summary evidence.
 
 ## Completed Phases 7781-7800
 

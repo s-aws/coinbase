@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **7801-7820**.
+- Approved phase range: **7821-7840**.
 - Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
-- Previous completed range: `7781-7800`.
+- Previous completed range: `7801-7820`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -62,7 +62,7 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `7800`.
+- `current_phase`: `7820`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
@@ -81,7 +81,137 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 7801-7820
+## Active Phases 7821-7840
+
+Batch label: Futures/Perpetuals Risk-Proof Record Resolver Summary Evidence.
+
+These phases continue M57 after completed `7801-7820` exposed futures command
+readiness-decision summary evidence. The concrete gap is that per-command
+risk-proof requirement rows already expose record lookup status, acceptance
+blockers, proof route posture, proof writer posture, command route posture, and
+no-live flags, but operators and contextless agents cannot yet see a
+backend-owned aggregate by risk-proof record lookup status. Active `7821-7840`
+must add derived read-only `risk_proof_record_resolver_summaries` to
+`GET /api/v1/futures/command-suite`, sync OpenAPI and the frontend, and prove
+that the summary cannot resolve proof acceptance, accept risk proofs, register
+proof routes, enable proof writers, clear command readiness, admit commands,
+call Coinbase, execute reconciliation, mutate futures/order state, grant
+browser/BFF authority, or import spot-rule authority.
+
+Active M57 `7821-7840` evidence adds futures risk-proof record resolver
+summary evidence while completed M57 `7801-7820` carries forward futures
+command readiness-decision summary evidence.
+
+Exact autonomous phrase: Active M57 `7821-7840` evidence adds futures risk-proof record resolver summary evidence while completed M57 `7801-7820` carries forward futures command readiness-decision summary evidence.
+
+### Phase 7821 - Prior Range Closure
+
+- Record completed/pushed `7801-7820` command readiness-decision summary
+  evidence as historical and move active metadata to `7821-7840`.
+
+### Phase 7822 - Backend Resolver Summary Model
+
+- Add typed backend-owned risk-proof record resolver summary rows to the
+  futures command-suite response without adding proof acceptance, risk-proof
+  acceptance, command readiness clearance, or command admission authority.
+
+### Phase 7823 - Read-Service Derivation
+
+- Derive resolver summaries from existing per-command risk-proof requirement
+  rows, including lookup status, affected commands, proof kinds, resolved and
+  missing counts, latest proof ids, acceptance blockers, command-route posture,
+  proof-route posture, proof-writer posture, execution flags, and no-live
+  authority flags.
+
+### Phase 7824 - No-Authority Boundary
+
+- Prove risk-proof record resolver summaries cannot resolve proof acceptance,
+  accept risk proofs, register proof routes, enable proof writers, clear
+  command readiness, admit commands, call Coinbase, execute reconciliation,
+  mutate futures/order state, grant browser/BFF authority, or import
+  spot-rule authority.
+
+### Phase 7825 - OpenAPI Sync
+
+- Regenerate Admin API OpenAPI from the backend-owned contract.
+
+### Phase 7826 - Frontend Schema Sync
+
+- Regenerate the frontend generated schema from the updated Admin API OpenAPI.
+
+### Phase 7827 - Frontend Adapter Mapping
+
+- Map resolver summary rows into the futures view model with generated
+  contract types.
+
+### Phase 7828 - Frontend Display
+
+- Render resolver summaries as display-only table evidence without controls,
+  proof acceptance affordances, route registration affordances, writer toggles,
+  or execution affordances.
+
+### Phase 7829 - Mock Backend Derivation
+
+- Update mock backend command-suite fixtures so resolver summaries are derived
+  from fixture risk-proof requirement rows instead of hand-maintained rows.
+
+### Phase 7830 - Backend Focused Tests
+
+- Assert summary counts, lookup-status grouping, proof ids, acceptance
+  blockers, authority flags, proof route/writer counts, and no-live posture.
+
+### Phase 7831 - Frontend Focused Tests
+
+- Assert mock parity, adapter/render behavior, active metadata, and
+  no-authority display.
+
+### Phase 7832 - API Documentation
+
+- Update API references and examples for resolver summary fields and
+  no-live/no-authority semantics.
+
+### Phase 7833 - Capability Matrix
+
+- Update the capability matrix so M57 lists resolver summaries as
+  backend-owned read-only evidence.
+
+### Phase 7834 - Maintainer Handoff
+
+- Update agent state, roadmap, and maintainer handoff docs for active
+  `7821-7840` and completed `7801-7820`.
+
+### Phase 7835 - Contextless Review Preparation
+
+- Add pending review evidence that asks blind/contextless reviewers to verify
+  whether the new summary makes risk-proof record lookup and acceptance
+  blockers understandable without implying proof acceptance resolution.
+
+### Phase 7836 - Backend Contextless Review
+
+- Run blind/contextless backend review and remediate any ambiguity before
+  treating the phase as complete.
+
+### Phase 7837 - Frontend Contextless Review
+
+- Run blind/contextless frontend review and remediate any ambiguity before
+  treating the phase as complete.
+
+### Phase 7838 - Validation Sweep
+
+- Run focused backend/frontend validation, autonomous validators, stale-process
+  checks after any interrupted command, and no-live evidence checks.
+
+### Phase 7839 - Commit And Push
+
+- Commit and push synchronized backend/frontend changes after validation and
+  review pass.
+
+### Phase 7840 - Phase Closeout Evidence
+
+- Record validation, contextless review, phase-end subagent sweep, live
+  Coinbase execution status, and notional evidence before advancing.
+
+## Completed Phases 7801-7820
 
 Batch label: Futures/Perpetuals Command Readiness-Decision Summary Evidence.
 

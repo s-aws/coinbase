@@ -206,6 +206,7 @@ from .models import (
     AdminFuturesCommandRiskProofContractItem,
     AdminFuturesCommandRiskProofPayloadFieldItem,
     AdminFuturesCommandRiskProofRecordContractItem,
+    AdminFuturesCommandRiskProofRecordResolverSummaryItem,
     AdminFuturesCommandRiskProofRecordValidationItem,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyItem,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItem,
@@ -704,7 +705,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "7801-7820"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "7821-7840"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -45167,6 +45168,191 @@ class AdminApiReadService:
             commands
         )
 
+        def risk_proof_record_resolver_summaries_for(
+            command_items: list[AdminFuturesCommandContractItem],
+        ) -> list[AdminFuturesCommandRiskProofRecordResolverSummaryItem]:
+            rows: list[AdminFuturesCommandRiskProofRecordResolverSummaryItem] = []
+            for lookup_status in AdminFuturesCommandRiskProofRecordLookupStatus:
+                proof_pairs = [
+                    (command_item, proof_requirement)
+                    for command_item in command_items
+                    for proof_requirement in command_item.risk_proof_requirements
+                    if proof_requirement.proof_record_lookup_status == lookup_status
+                ]
+                if not proof_pairs:
+                    continue
+                affected_commands = list(
+                    dict.fromkeys(
+                        command_item.command
+                        for command_item, _proof_requirement in proof_pairs
+                    )
+                )
+                proof_kinds = unique_enum_values(
+                    [
+                        proof_requirement.proof_kind
+                        for _command_item, proof_requirement in proof_pairs
+                    ]
+                )
+                latest_futures_risk_proof_ids = unique_strings(
+                    [
+                        proof_requirement.latest_futures_risk_proof_id
+                        for _command_item, proof_requirement in proof_pairs
+                    ]
+                )
+                proof_acceptance_blockers = unique_enum_values(
+                    [
+                        blocker
+                        for _command_item, proof_requirement in proof_pairs
+                        for blocker in proof_requirement.proof_acceptance_blockers
+                    ]
+                )
+                proof_acceptance_blocker_refs = unique_strings(
+                    [
+                        blocker_ref
+                        for _command_item, proof_requirement in proof_pairs
+                        for blocker_ref in (
+                            proof_requirement.proof_acceptance_blocker_refs
+                        )
+                    ]
+                )
+                proof_acceptance_blocked_count = sum(
+                    1
+                    for _command_item, proof_requirement in proof_pairs
+                    if proof_requirement.proof_acceptance_blocked
+                )
+                proof_record_resolved_but_acceptance_blocked_count = sum(
+                    1
+                    for _command_item, proof_requirement in proof_pairs
+                    if proof_requirement.proof_record_resolved
+                    and proof_requirement.proof_acceptance_blocked
+                )
+                blocking = (
+                    lookup_status
+                    != AdminFuturesCommandRiskProofRecordLookupStatus.RESOLVED
+                    or proof_acceptance_blocked_count > 0
+                )
+                rows.append(
+                    AdminFuturesCommandRiskProofRecordResolverSummaryItem(
+                        lookup_status=lookup_status,
+                        status=(
+                            AdminApiGateStatus.BLOCKED
+                            if blocking
+                            else AdminApiGateStatus.PASSED
+                        ),
+                        blocking=blocking,
+                        command_count=len(affected_commands),
+                        affected_commands=affected_commands,
+                        proof_requirement_count=len(proof_pairs),
+                        proof_kinds=proof_kinds,
+                        resolved_requirement_count=sum(
+                            1
+                            for _command_item, proof_requirement in proof_pairs
+                            if proof_requirement.proof_record_lookup_status
+                            == AdminFuturesCommandRiskProofRecordLookupStatus.RESOLVED
+                        ),
+                        missing_requirement_count=sum(
+                            1
+                            for _command_item, proof_requirement in proof_pairs
+                            if proof_requirement.proof_record_lookup_status
+                            == AdminFuturesCommandRiskProofRecordLookupStatus.MISSING
+                        ),
+                        stale_or_invalid_requirement_count=sum(
+                            1
+                            for _command_item, proof_requirement in proof_pairs
+                            if proof_requirement.proof_record_lookup_status
+                            == AdminFuturesCommandRiskProofRecordLookupStatus.STALE_OR_INVALID
+                        ),
+                        not_checked_requirement_count=sum(
+                            1
+                            for _command_item, proof_requirement in proof_pairs
+                            if proof_requirement.proof_record_lookup_status
+                            == AdminFuturesCommandRiskProofRecordLookupStatus.NOT_CHECKED
+                        ),
+                        unavailable_requirement_count=sum(
+                            1
+                            for _command_item, proof_requirement in proof_pairs
+                            if proof_requirement.proof_record_lookup_status
+                            == AdminFuturesCommandRiskProofRecordLookupStatus.UNAVAILABLE
+                        ),
+                        latest_futures_risk_proof_id_count=len(
+                            latest_futures_risk_proof_ids
+                        ),
+                        latest_futures_risk_proof_ids=latest_futures_risk_proof_ids,
+                        proof_record_satisfies_requirement_count=sum(
+                            1
+                            for _command_item, proof_requirement in proof_pairs
+                            if proof_requirement.proof_record_satisfies_requirement
+                        ),
+                        proof_acceptance_blocked_count=(
+                            proof_acceptance_blocked_count
+                        ),
+                        proof_record_resolved_but_acceptance_blocked_count=(
+                            proof_record_resolved_but_acceptance_blocked_count
+                        ),
+                        proof_record_resolves_acceptance_count=sum(
+                            1
+                            for _command_item, proof_requirement in proof_pairs
+                            if proof_requirement.proof_record_resolves_acceptance
+                        ),
+                        proof_acceptance_blocker_count=sum(
+                            proof_requirement.proof_acceptance_blocker_count
+                            for _command_item, proof_requirement in proof_pairs
+                        ),
+                        proof_acceptance_blockers=proof_acceptance_blockers,
+                        proof_acceptance_blocker_ref_count=len(
+                            proof_acceptance_blocker_refs
+                        ),
+                        proof_acceptance_blocker_refs=proof_acceptance_blocker_refs,
+                        command_route_registered_count=sum(
+                            1
+                            for _command_item, proof_requirement in proof_pairs
+                            if proof_requirement.command_route_registered
+                        ),
+                        command_draft_allowed_count=sum(
+                            1
+                            for _command_item, proof_requirement in proof_pairs
+                            if proof_requirement.command_draft_allowed
+                        ),
+                        execution_allowed_count=sum(
+                            1
+                            for _command_item, proof_requirement in proof_pairs
+                            if proof_requirement.execution_allowed
+                        ),
+                        proof_route_registered_count=sum(
+                            1
+                            for _command_item, proof_requirement in proof_pairs
+                            if proof_requirement.proof_route_registered
+                        ),
+                        proof_writer_enabled_count=sum(
+                            1
+                            for _command_item, proof_requirement in proof_pairs
+                            if proof_requirement.proof_writer_enabled
+                        ),
+                        live_coinbase_orders_ran_count=sum(
+                            1
+                            for _command_item, proof_requirement in proof_pairs
+                            if proof_requirement.live_coinbase_orders_ran
+                        ),
+                        detail=(
+                            f"{lookup_status.value} risk-proof record resolver "
+                            f"evidence covers {len(proof_pairs)} futures/"
+                            "perpetual proof requirement(s). This aggregate "
+                            "summary is backend-owned read-only evidence and "
+                            "cannot resolve proof acceptance, accept risk "
+                            "proofs, register proof routes, enable proof "
+                            "writers, clear command readiness, admit commands, "
+                            "call Coinbase, execute reconciliation, mutate "
+                            "futures/order state, grant browser/BFF authority, "
+                            "or import spot-rule authority."
+                        ),
+                    )
+                )
+            return rows
+
+        risk_proof_record_resolver_summaries = (
+            risk_proof_record_resolver_summaries_for(commands)
+        )
+
         def readiness_decision_summaries_for(
             command_items: list[AdminFuturesCommandContractItem],
         ) -> list[AdminFuturesCommandReadinessDecisionSummaryItem]:
@@ -46983,6 +47169,15 @@ class AdminApiReadService:
             stale_or_invalid_risk_proof_record_resolver_count=sum(
                 command.stale_or_invalid_risk_proof_record_resolver_count
                 for command in commands
+            ),
+            risk_proof_record_resolver_summary_count=len(
+                risk_proof_record_resolver_summaries
+            ),
+            risk_proof_record_resolver_summary_blocking_count=sum(
+                1 for item in risk_proof_record_resolver_summaries if item.blocking
+            ),
+            risk_proof_record_resolver_summaries=(
+                risk_proof_record_resolver_summaries
             ),
             risk_proof_acceptance_blocker_count=sum(
                 command.risk_proof_acceptance_blocker_count

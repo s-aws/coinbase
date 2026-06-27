@@ -12384,6 +12384,49 @@ class AdminFuturesCommandRiskProofRequirementSummaryItem(BaseModel):
     detail: str
 
 
+class AdminFuturesCommandRiskProofRecordResolverSummaryItem(BaseModel):
+    """Backend-owned aggregate summary for futures risk proof record lookup posture."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    lookup_status: AdminFuturesCommandRiskProofRecordLookupStatus
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    blocking: bool = True
+    command_count: int = Field(default=0, ge=0)
+    affected_commands: list[AdminFuturesCommandAction] = Field(default_factory=list)
+    proof_requirement_count: int = Field(default=0, ge=0)
+    proof_kinds: list[AdminFuturesCommandRiskProofKind] = Field(default_factory=list)
+    resolved_requirement_count: int = Field(default=0, ge=0)
+    missing_requirement_count: int = Field(default=0, ge=0)
+    stale_or_invalid_requirement_count: int = Field(default=0, ge=0)
+    not_checked_requirement_count: int = Field(default=0, ge=0)
+    unavailable_requirement_count: int = Field(default=0, ge=0)
+    latest_futures_risk_proof_id_count: int = Field(default=0, ge=0)
+    latest_futures_risk_proof_ids: list[str] = Field(default_factory=list)
+    proof_record_satisfies_requirement_count: int = Field(default=0, ge=0)
+    proof_acceptance_blocked_count: int = Field(default=0, ge=0)
+    proof_record_resolved_but_acceptance_blocked_count: int = Field(default=0, ge=0)
+    proof_record_resolves_acceptance_count: int = Field(default=0, ge=0)
+    proof_acceptance_blocker_count: int = Field(default=0, ge=0)
+    proof_acceptance_blockers: list[AdminFuturesCommandRiskProofAcceptanceBlocker] = (
+        Field(default_factory=list)
+    )
+    proof_acceptance_blocker_ref_count: int = Field(default=0, ge=0)
+    proof_acceptance_blocker_refs: list[str] = Field(default_factory=list)
+    command_route_registered_count: int = Field(default=0, ge=0)
+    command_draft_allowed_count: int = Field(default=0, ge=0)
+    execution_allowed_count: int = Field(default=0, ge=0)
+    proof_route_registered_count: int = Field(default=0, ge=0)
+    proof_writer_enabled_count: int = Field(default=0, ge=0)
+    live_coinbase_orders_ran_count: int = Field(default=0, ge=0)
+    backend_owned: bool = True
+    read_only: bool = True
+    spot_rule_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminFuturesCommandContractItem(BaseModel):
     """One planned futures/perpetual command contract row."""
 
@@ -15725,6 +15768,11 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     resolved_risk_proof_record_resolver_count: int = Field(default=0, ge=0)
     missing_risk_proof_record_resolver_count: int = Field(default=0, ge=0)
     stale_or_invalid_risk_proof_record_resolver_count: int = Field(default=0, ge=0)
+    risk_proof_record_resolver_summary_count: int = Field(default=0, ge=0)
+    risk_proof_record_resolver_summary_blocking_count: int = Field(default=0, ge=0)
+    risk_proof_record_resolver_summaries: list[
+        AdminFuturesCommandRiskProofRecordResolverSummaryItem
+    ] = Field(default_factory=list)
     risk_proof_acceptance_blocker_count: int = Field(default=0, ge=0)
     proof_record_resolved_but_acceptance_blocked_count: int = Field(
         default=0,

@@ -24,52 +24,86 @@ work. Historical milestone detail belongs in
 
 ## Current Phase
 
-- Latest completed and pushed range before this work: `7781-7800`.
-- Active approved range: `7801-7820`.
-- Scope: futures command readiness-decision summary evidence and frontend
-  display. This continues M57 by aggregating existing per-command readiness
-  decision rows into `readiness_decision_summaries` so blocked decision states,
-  affected commands, blocker counts, evidence routes, first blockers,
-  command-route posture, draft posture, and no-live authority flags are visible
-  without enabling any command path.
-- Backend implementation status: implemented and focused validation passed.
-- Frontend implementation status: implemented and focused validation passed
-  after contextless-review remediation.
-- Contextless review status: PASS after frontend remediation for
-  `7801-7820`.
-- Commit/push status: completed for `7801-7820` by the commits containing
-  this state entry.
+- Latest completed and pushed range before this work: `7801-7820`.
+- Active approved range: `7821-7840`.
+- Scope: futures risk-proof record resolver summary evidence and frontend
+  display. This continues M57 by aggregating existing per-command risk-proof
+  requirement rows into `risk_proof_record_resolver_summaries` so lookup
+  status, affected commands, proof kinds, latest proof ids, acceptance
+  blockers, command-route posture, proof-route posture, proof-writer posture,
+  execution flags, and no-live authority flags are visible without enabling
+  proof acceptance or any command path.
+- Backend implementation status: in progress for `7821-7840`.
+- Frontend implementation status: pending schema sync and display mapping for
+  `7821-7840`.
+- Contextless review status: PASS for `7821-7840`.
+- Commit/push status: pending for `7821-7840`.
 - Prior phase-end subagent sweep: reviewers
-  `019f08f8-b75d-7260-82e8-b43fd5c9a1fa` and
-  `019f08f8-fb2f-7290-af29-507a8da21fe0` were closed after `7781-7800`
+  `019f092b-b73b-7233-820f-9b1b46466408` and
+  `019f092b-f635-74b3-9540-f168e339a207` were closed after `7801-7820`
   findings were consumed. No prior phase-scoped subagents remain intentionally
   open.
 
 ## Phase Contract
 
-- The `7801-7820` fields are backend-owned disabled evidence on the existing
-  futures command-suite read model. They derive from existing command
-  readiness decision rows and do not resolve command readiness.
-- Presence of futures command readiness-decision summary evidence is not
-  command readiness passage, readiness-decision clearance, command enablement
-  clearance, approval passage, cap/guard passage, reconciliation passage,
-  command admission, Coinbase execution, reconciliation execution, browser/BFF
-  authority, or spot-rule authority.
-- The summary evidence can report blocked readiness decisions, affected
-  commands, blocker counts, evidence routes, first blockers,
-  next-required-backend-contract refs, route-registration posture,
-  draft-allowed posture, execution flags, and authority flags, but it cannot
-  mark commands ready, clear readiness decisions, admit commands, call
-  Coinbase, execute reconciliation, mutate futures/order state, grant
-  browser/BFF authority, or import spot-rule authority.
-- Exact boundary phrase: readiness-decision summaries cannot mark commands
-  ready.
-- Exact validator phrase: readiness-decision summaries cannot mark commands ready; they do not clear readiness decisions, grant command readiness passage, grant admission, call Coinbase, execute reconciliation, mutate futures/order state, grant browser/BFF authority, or import spot-rule authority.
+- The `7821-7840` fields are backend-owned disabled evidence on the existing
+  futures command-suite read model. They derive from existing risk-proof
+  requirement rows and do not resolve proof acceptance.
+- Presence of futures risk-proof record resolver summary evidence is not proof
+  acceptance resolution, risk proof acceptance, proof-route registration,
+  proof-writer enablement, command readiness passage, command enablement
+  clearance, risk proof acceptance passage, approval passage, cap/guard
+  passage, reconciliation passage, command admission, Coinbase execution,
+  reconciliation execution, browser/BFF authority, or spot-rule authority.
+- The summary evidence can report lookup status, affected commands, proof
+  kinds, latest proof ids, proof acceptance blockers, blocker refs,
+  command-route posture, proof-route posture, proof-writer posture, execution
+  flags, and authority flags, but it cannot resolve proof acceptance, accept
+  risk proofs, register proof routes, enable proof writers, clear command
+  readiness, admit commands, call Coinbase, execute reconciliation, mutate
+  futures/order state, grant browser/BFF authority, or import spot-rule
+  authority.
+- Exact boundary phrase: risk-proof record resolver summaries cannot resolve
+  proof acceptance.
+- Exact passage phrase: resolver summary presence is not cap/guard passage.
+- Exact validator phrase: risk-proof record resolver summaries cannot resolve proof acceptance; they do not accept risk proofs, register proof routes, enable proof writers, clear command readiness, grant admission, call Coinbase, execute reconciliation, mutate futures/order state, grant browser/BFF authority, or import spot-rule authority.
 - The frontend consumes generated OpenAPI/backend contracts and remains
   display-only for this evidence surface.
 - No spot-only wallet, no-shorting, USDC quote, cost-basis, inventory-lot, or
   known-profitable-inventory rule may be imported into futures/perpetual
   readiness.
+
+## m57_7821_7840_blind_review
+
+- Result: PASS.
+- Reviewer agents:
+  `019f0963-bc60-72d0-864a-fed3c9382d14` passed backend review and
+  `019f0964-12de-7621-87f1-f942cffb53c6` passed frontend review.
+- Scope: active M57 `7821-7840` futures risk-proof record resolver summary
+  evidence and frontend display.
+- Boundary evidence for current futures risk-proof record resolver summary
+  evidence: `risk_proof_record_resolver_summaries` must remain backend-owned,
+  read-only, no-live evidence derived from existing per-command risk-proof
+  requirement rows. It is not proof acceptance resolution, not risk proof
+  acceptance, not proof-route registration, not proof-writer enablement, not
+  command readiness passage, not command admission, not Coinbase execution,
+  not reconciliation execution, not futures/order/exchange state mutation, not
+  browser authority, not BFF execution authority, and not spot-rule authority.
+- Review evidence: backend reviewer verified the response model, read-service
+  derivation, OpenAPI, route posture, docs, and validators as read-only
+  resolver summary evidence with no proof acceptance, route registration,
+  proof writer enablement, command readiness, admission, Coinbase,
+  reconciliation, state mutation, browser/BFF authority, or spot-rule
+  authority. Frontend reviewer verified generated schema, adapter mapping,
+  mock derivation, display-only table, docs, quality metadata, and no-live
+  no-authority posture.
+- Phase-end subagent sweep: reviewers
+  `019f0963-bc60-72d0-864a-fed3c9382d14` and
+  `019f0964-12de-7621-87f1-f942cffb53c6` were closed after PASS evidence was
+  consumed. No phase-scoped subagents remain intentionally open for
+  `7821-7840`.
+- Live Coinbase execution: not planned; actual submitted/executed notional
+  remains `0` USDC.
 
 ## m57_7801_7820_blind_review
 
