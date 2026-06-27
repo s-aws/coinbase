@@ -65,9 +65,9 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "7621-7640"
-APPROVED_PHASES = tuple(range(7621, 7641))
-PREVIOUS_COMPLETED_PHASE_RANGE = "7601-7620"
+APPROVED_PHASE_RANGE = "7641-7660"
+APPROVED_PHASES = tuple(range(7641, 7661))
+PREVIOUS_COMPLETED_PHASE_RANGE = "7621-7640"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 
@@ -499,7 +499,7 @@ def _check_example_phase_range_docs() -> QueueCheck:
             "futures request payload validation record replay guard evidence",
             "futures request payload validation record audit-link evidence",
             "futures request payload validation record admission-link evidence",
-            "Active M57 `7621-7640` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref record-acceptance evidence while completed M57 `7601-7620` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref acceptance evidence.",
+            "Active M57 `7641-7660` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref validation-record acceptance evidence while completed M57 `7621-7640` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref record-acceptance evidence.",
             "futures request payload validation record execution-eligibility blocker evidence",
             "futures request payload validation record execution-eligibility evidence",
             "futures request payload validation record admission-link evidence",
@@ -1814,7 +1814,10 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         or "Result: PASS after hygiene remediation." in first_section
         or "Result: PASS after phase-close verification." in first_section
     )
-    has_pending_result = "Result: PENDING." in first_section
+    has_pending_result = (
+        "Result: PENDING." in first_section
+        or "Result: PLANNED." in first_section
+    )
     section = body
     required = [
         APPROVED_PHASE_RANGE,
@@ -1995,7 +1998,7 @@ def _check_contextless_review_log_docs() -> QueueCheck:
         ]
     missing = [text for text in required if text not in section]
     if not has_pass_result and not has_pending_result:
-        missing.append("Result: PASS or PASS-after-remediation")
+        missing.append("Result: PASS/PENDING/PLANNED")
     stale_matches = [text for text in stale if text in section]
     return QueueCheck(
         name="contextless_review_log_current_range",

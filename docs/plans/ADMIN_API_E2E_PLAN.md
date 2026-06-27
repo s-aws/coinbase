@@ -49,26 +49,40 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7441-7460
+## Current Active Phases 7641-7660
 
-Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Input Store Record Validation Check Input Schema Field Evidence.
+Batch label: Futures/Perpetuals Request Payload Validation Record Execution-Eligibility Resolution-Plan Step Review Input Store Record-Validation Remediation Dependency Work-Item Claim-Trace Clearance-Step Review Input Store Record Validation Check Output Schema Field-Constraint Source-Ref Validation-Record Acceptance Evidence.
 
-Current M57 work adds backend-owned disabled resolution-plan step review input
-store record-validation remediation dependency work-item claim-trace
-clearance-step review input store record-validation check input schema field
+Current M57 work will add backend-owned disabled validation-record acceptance
 evidence to futures request payload validation record execution-eligibility
-blocker rows after completed `7421-7440` clearance-step review input store
-record-validation check input schema evidence. The backend-owned contract is implemented
-through
-`application/admin_api/futures_request_payload_validation_record_validation_check_input_schema_fields.py`,
-Admin API models/read-service serialization, and generated OpenAPI. The rows
-remain no-live display evidence only and do not declare fields, field names,
-field types, field constraints, field source refs, acceptance contracts, or
-contextless review; they also do not ready validation-check input schemas,
+blocker rows after completed `7621-7640` source-ref record-acceptance
+evidence. The backend-owned contract must be implemented through a new registry
+derived from
+`application/admin_api/futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_ref_record_acceptances.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend
+schema, frontend adapter/display, and bounded mock fixtures. The rows must
+remain no-live display evidence only and must not accept validation records,
+pass source-ref record acceptance, pass source-ref acceptance, declare schemas,
 admit commands, execute reconciliation, call Coinbase, mutate
 futures/order/exchange state, or grant browser/BFF or spot-rule authority.
 
-Exact autonomous phrase: Active M57 `7441-7460` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check input schema field evidence while completed M57 `7421-7440` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation check input schema evidence.
+Exact autonomous phrase: Active M57 `7641-7660` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref validation-record acceptance evidence while completed M57 `7621-7640` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref record-acceptance evidence.
+
+## Completed Phases 7621-7640
+
+Completed M57 work added backend-owned disabled source-ref record-acceptance
+evidence to futures request payload validation record execution-eligibility
+blocker rows after completed `7601-7620` source-ref acceptance evidence. The
+backend-owned contract is implemented through
+`application/admin_api/futures_request_payload_validation_record_validation_check_output_schema_field_constraint_source_ref_record_acceptances.py`,
+Admin API models/read-service serialization, OpenAPI, generated frontend
+schema, frontend adapter/display, and bounded mock fixtures. The rows remain
+no-live display evidence only and do not accept records, accept validation
+records, pass source-ref acceptance, admit commands, execute reconciliation,
+call Coinbase, mutate futures/order/exchange state, or grant browser/BFF or
+spot-rule authority.
+
+Completed autonomous phrase: Completed M57 `7621-7640` evidence adds futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref record-acceptance evidence while completed M57 `7601-7620` carries forward futures request payload validation record execution-eligibility resolution-plan step review input store record-validation remediation dependency work-item claim-trace clearance-step review input store record-validation check output schema field-constraint source-ref acceptance evidence.
 
 ## Completed Phases 7421-7440
 

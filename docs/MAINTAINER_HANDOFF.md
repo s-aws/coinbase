@@ -123,9 +123,9 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `7601-7620` under M57.
-- Active autonomous range: `7621-7640` under M57.
-- Current range validation: PASS after remediation for execution-eligibility
+- Latest completed autonomous range: `7621-7640` under M57.
+- Active autonomous range: `7641-7660` under M57.
+- Completed range validation: PASS after remediation for execution-eligibility
   resolution-plan step review input store record-validation remediation
   dependency work-item claim-trace clearance-step review input store
   record-validation check output schema field-constraint source-ref
@@ -142,7 +142,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   a durable milestone closeout gate, not an ordinary phase gate.
   No live Coinbase execution was run; submitted/executed notional remains `0`
   USDC.
-- Latest completed range validation: completed for execution-eligibility
+- Current active range: `7641-7660` will add validation-record acceptance
+  evidence derived from the completed source-ref record-acceptance rows. It
+  must remain disabled, no-live, backend-owned evidence only and must not
+  admit commands, accept validation records, execute reconciliation, call
+  Coinbase, mutate futures/order/exchange state, grant browser/BFF authority,
+  or import spot-only rules.
+- Prior completed range validation: completed for execution-eligibility
   resolution-plan step review input store record-validation remediation
   dependency work-item claim-trace clearance-step review input store
   record-validation check output schema field-constraint source-ref acceptance
