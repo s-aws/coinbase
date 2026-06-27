@@ -40,6 +40,16 @@ work. Historical milestone detail belongs in
   is surfaced as `unsupported` or `not_modeled`, and no missing behavior is
   implemented in browser code, BFF code, local frontend services, or a second
   trading path.
+- Phase instruction review status: backend `AGENTS.md`, backend `agent.md`,
+  and frontend `AGENTS.md` were reviewed on 2026-06-27 for this phase. No
+  phase-direction change was required.
+- Release 0.1 matrix status:
+  `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md` and frontend
+  `docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md` identify Account and
+  Market Inventory as the next implementation slice because products,
+  accounts, balances, fills, and wallet inventory are not yet complete as a
+  first-class operator management surface.
+- Exact next implementation slice: Account and Market Inventory.
 - Contextless review status: planned for `7981-8000`; reviewers must verify
   that the Release 0.1 pivot is understandable without chat history and that
   future work cannot drift back into proof-only expansion without a named

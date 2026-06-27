@@ -28,6 +28,9 @@ perpetuals, stealth orders, movement/repricing, or future modules.
 9. Read `docs/plans/ADMIN_RELEASE_0_1_BURNDOWN.md` before creating new phases.
    Active work must clear a named Release 0.1 blocker or directly improve the
    usable operator admin product.
+10. Read `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md` before selecting
+    the next implementation slice. It records current `usable`, `blocked`,
+    `unsupported`, and `not_modeled` route-to-frontend status.
 
 ## Subagent Hygiene
 
@@ -134,6 +137,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   backend behavior must be surfaced as `unsupported` or `not_modeled`; do not
   implement missing behavior in the browser, BFF, route-local FastAPI handlers,
   or any second trading path.
+- Phase `7981-8000` instruction review: backend `AGENTS.md` and `agent.md`
+  were reviewed on 2026-06-27 before the Release 0.1 matrix work. No
+  phase-direction change was required.
+- Release 0.1 matrix status: `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md`
+  identifies Account and Market Inventory as the next implementation slice
+  because product/account/balance/fill coverage is the largest private-MVP
+  management gap.
 - Completed `7961-7980` added risk-proof record validation remediation summary
   evidence derived from existing per-command risk-proof record-validation
   remediation rows and remains carried-forward disabled, no-live,

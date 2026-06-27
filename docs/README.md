@@ -44,6 +44,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Admin Module Capability Matrix](ADMIN_MODULE_CAPABILITY_MATRIX.md)
 - [Maintainer Handoff](MAINTAINER_HANDOFF.md)
 - [Admin Release 0.1 Burn-Down](plans/ADMIN_RELEASE_0_1_BURNDOWN.md)
+- [Admin Release 0.1 Route-To-UI Matrix](plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md)
 - [Admin Platform Durable Milestones](plans/ADMIN_PLATFORM_DURABLE_MILESTONES.md)
 - [Frontend Association](FRONTEND_ASSOCIATION.md)
 - [Admin API E2E Plan](plans/ADMIN_API_E2E_PLAN.md)

@@ -36,6 +36,9 @@ CONTEXTLESS_REVIEW_LOG_DOC = (
 ADMIN_RELEASE_0_1_BURNDOWN_DOC = (
     PROJECT_ROOT / "docs" / "plans" / "ADMIN_RELEASE_0_1_BURNDOWN.md"
 )
+ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX_DOC = (
+    PROJECT_ROOT / "docs" / "plans" / "ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md"
+)
 REGRESSION_GATE_POLICY_DOCS = (
     PROJECT_ROOT / ".github" / "PULL_REQUEST_TEMPLATE.md",
     PROJECT_ROOT / ".github" / "workflows" / "public-agent-checks.yml",
@@ -248,21 +251,40 @@ def _check_release_pivot_policy(body: str) -> QueueCheck:
             "Release Blockers",
             RELEASE_PIVOT_PHRASE,
         ],
+        ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX_DOC: [
+            "Admin Release 0.1 Route-To-UI Matrix",
+            "Does this make the frontend able to manage the project?",
+            "Phase Instruction Review",
+            "AGENTS.md",
+            "`usable`",
+            "`blocked`",
+            "`unsupported`",
+            "`not_modeled`",
+            "Account and Market Inventory",
+            "Submitted notional: `0` USDC",
+            "Executed notional: `0` USDC",
+        ],
         MAINTAINER_HANDOFF_DOC: [
             "Release 0.1 blocker",
             "usable admin product",
             "unsupported` or `not_modeled`",
             "second trading path",
+            "ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md",
+            "Account and Market Inventory",
         ],
         AGENT_STATE_DOC: [
             "Release 0.1 Operator Admin Pivot",
             "Does this make the frontend able to manage the",
             "No new evidence-only",
             "unsupported` or `not_modeled`",
+            "Phase instruction review status",
+            "Account and Market Inventory",
         ],
         DOCS_INDEX: [
             "Admin Release 0.1 Burn-Down",
             "plans/ADMIN_RELEASE_0_1_BURNDOWN.md",
+            "Admin Release 0.1 Route-To-UI Matrix",
+            "plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md",
         ],
     }
     missing: dict[str, list[str]] = {}

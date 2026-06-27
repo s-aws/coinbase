@@ -55,6 +55,11 @@ result in the phase evidence, handoff, or closeout summary before advancing.
   range when this range is completed and pushed, but only when the next gap is
   directly tied to the Release 0.1 burn-down. If no release-aligned next gap
   exists, stop and request a new decision instead of inventing scope.
+- Phase `7981-8000` instruction review status: backend `AGENTS.md`, backend
+  `agent.md`, and frontend `AGENTS.md` were reviewed on 2026-06-27 before
+  matrix work. No phase-direction change was required.
+- Phase `7981-8000` matrix-work subagent sweep status: no phase-scoped
+  subagents were spawned, so no subagent cleanup was required.
 
 ## Current Progress Record
 
@@ -153,11 +158,15 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
 
 - Produce a route-to-frontend matrix that classifies each admin workflow as
   usable, blocked, `unsupported`, or `not_modeled`.
+- Current artifact:
+  `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md`.
 
 ### Phase 7991 - Frontend Workflow Release Matrix
 
 - Produce a navigation/workflow matrix that shows which operator tasks can be
   completed end to end in the frontend.
+- Current artifact:
+  `C:\coinbase-frontend\docs\plans\ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md`.
 
 ### Phase 7992 - Unsupported Gap Classification
 
@@ -168,6 +177,9 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
 
 - Select the next implementation slice strictly by release impact and state the
   blocker it clears.
+- Current selection: Account and Market Inventory, because product, account,
+  balance, fill, and wallet inventory coverage is the largest Release 0.1
+  operator-management blocker.
 
 ### Phase 7994 - Operator Runbook Update
 
@@ -178,6 +190,8 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
 
 - Link the burn-down, milestones, handoff, and work queue from the ordered docs
   index.
+- Also link the Release 0.1 route-to-UI and workflow matrices from the ordered
+  backend/frontend docs indexes.
 
 ### Phase 7996 - Autonomous Validator Pivot
 
