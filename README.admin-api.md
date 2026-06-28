@@ -1314,9 +1314,13 @@ routes are derived from `ADMIN_API_ROUTE_INVENTORY` and are local-state
 evidence requirements only. They are not browser authorization, BFF execution
 authority, live reconciliation execution, or Coinbase calls. The
 `POST /api/v1/spot/sweep/automation-runs` command route is keyed by
-`sweep_config_id`, requires `spot_sweep:execute`, and returns
-`501 not_implemented` until durable scheduler, run-limit, recovery,
-reconciliation, and live execution gates pass.
+`sweep_config_id`, requires `spot_sweep:execute`, and accepts `dry_run=true`
+review requests with `200 accepted`, `live_exchange_submitted=false`, and zero
+submitted/executed notional. `dry_run=false` still returns `501
+not_implemented` until durable scheduler, run-limit, recovery, reconciliation,
+and live execution gates pass. The paired campaign execution route follows the
+same no-live review posture and never invokes runners or Coinbase for accepted
+dry-runs.
 Spot P/L checkpoint records add a separate local-state mutation surface:
 `POST /api/v1/spot/pnl/checkpoints`, with read evidence at
 `GET /api/v1/spot/pnl/checkpoints` and

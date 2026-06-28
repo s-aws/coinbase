@@ -2416,6 +2416,47 @@ class AdminApiCommandService:
         """Evaluate a future spot campaign execution command through the live gate."""
 
         gate = evaluate_live_execution_gate(allow_live_execution=False)
+        if command.request.dry_run:
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.ACCEPTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+                required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+                service_method="execute_spot_campaign",
+                message=(
+                    "Spot campaign dry-run review accepted; no live sweep "
+                    "runner or Coinbase order submission was invoked."
+                ),
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=False,
+                guard=gate.model_dump(),
+                data={
+                    "campaign_id": command.request.campaign_id,
+                    "side": command.request.side.value,
+                    "dry_run": True,
+                    "dry_run_review_accepted": True,
+                    "live_execution_requested": False,
+                    "product_count": len(command.request.product_ids or []),
+                    "quote_notional_per_product": (
+                        command.request.quote_notional_per_product
+                    ),
+                    "max_products": command.request.max_products,
+                    "manual_live_acknowledgement": (
+                        command.request.manual_live_acknowledgement
+                    ),
+                    "campaign_runner_invoked": False,
+                    "sweep_runner_invoked": False,
+                    "scheduler_invoked": False,
+                    "coinbase_orders_submitted": False,
+                    "browser_authority": "display_only",
+                    "bff_authority": "forward_only_no_execution",
+                    "live_coinbase_execution": (
+                        AdminApiLiveExecutionStatus.NOT_RUN.value
+                    ),
+                    "submitted_notional_usdc": "0",
+                    "executed_notional_usdc": "0",
+                },
+            )
         return AdminApiCommandResponse(
             status=AdminApiCommandStatus.NOT_IMPLEMENTED,
             action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
@@ -2449,6 +2490,54 @@ class AdminApiCommandService:
         """Evaluate a future spot sweep automation run through the live gate."""
 
         gate = evaluate_live_execution_gate(allow_live_execution=False)
+        if command.request.dry_run:
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.ACCEPTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+                required_permission=AdminApiPermission.SPOT_SWEEP_EXECUTE,
+                service_method="run_spot_sweep_automation",
+                message=(
+                    "Spot sweep automation dry-run review accepted; no "
+                    "scheduler loop, sweep runner, or Coinbase order "
+                    "submission was invoked."
+                ),
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=False,
+                guard=gate.model_dump(),
+                data={
+                    "sweep_config_id": command.request.sweep_config_id,
+                    "side": command.request.side.value,
+                    "dry_run": True,
+                    "dry_run_review_accepted": True,
+                    "live_execution_requested": False,
+                    "run_if_due": command.request.run_if_due,
+                    "max_runs": command.request.max_runs,
+                    "max_products": command.request.max_products,
+                    "max_planned_orders": command.request.max_planned_orders,
+                    "repeat_every_hours": command.request.repeat_every_hours,
+                    "quote_notional_per_product": (
+                        command.request.quote_notional_per_product
+                    ),
+                    "max_total_notional_per_run": (
+                        command.request.max_total_notional_per_run
+                    ),
+                    "max_notional_per_order": command.request.max_notional_per_order,
+                    "manual_live_acknowledgement": (
+                        command.request.manual_live_acknowledgement
+                    ),
+                    "scheduler_invoked": False,
+                    "sweep_runner_invoked": False,
+                    "coinbase_orders_submitted": False,
+                    "browser_authority": "display_only",
+                    "bff_authority": "forward_only_no_execution",
+                    "live_coinbase_execution": (
+                        AdminApiLiveExecutionStatus.NOT_RUN.value
+                    ),
+                    "submitted_notional_usdc": "0",
+                    "executed_notional_usdc": "0",
+                },
+            )
         return AdminApiCommandResponse(
             status=AdminApiCommandStatus.NOT_IMPLEMENTED,
             action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,

@@ -9162,7 +9162,7 @@ class AdminApiReadService:
                 summary=(
                     "Manual order, cancel by client_order_id, campaign execution, "
                     "and sweep automation commands are exposed as authenticated "
-                    "live-disabled drafts."
+                    "no-live dry-run reviews; live execution remains disabled."
                 ),
                 backend_supported=True,
                 admin_api_exposed=True,
@@ -9214,8 +9214,8 @@ class AdminApiReadService:
                 summary=(
                     "Backend sweep planning, scheduling, safety policy, live executor, "
                     "run records, and reconciliation helpers exist; enterprise admin "
-                    "currently exposes status, live-disabled campaign execution, "
-                    "and a live-disabled sweep automation run contract."
+                    "currently exposes status plus no-live dry-run campaign execution "
+                    "and sweep automation review contracts."
                 ),
                 backend_supported=True,
                 admin_api_exposed=True,
@@ -10780,7 +10780,8 @@ class AdminApiReadService:
                 support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
                 summary=(
                     "Spot campaign execution is the Admin API command family for "
-                    "campaign and sweep automation review, still live-disabled."
+                    "campaign and sweep automation dry-run review; live execution "
+                    "remains disabled."
                 ),
                 identity_keys=["campaign_id", "config_id", "client_order_id"],
                 owning_backend_service="application/admin_api/command_service.py",
@@ -10827,7 +10828,8 @@ class AdminApiReadService:
                 support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
                 summary=(
                     "Spot sweep automation is a route-bound Admin API command "
-                    "contract keyed by sweep_config_id, still live-disabled."
+                    "dry-run review contract keyed by sweep_config_id; live "
+                    "execution remains disabled."
                 ),
                 identity_keys=["sweep_config_id", "config_id", "client_order_id"],
                 owning_backend_service="application/admin_api/command_service.py",
@@ -52019,9 +52021,10 @@ class AdminApiReadService:
                 ],
                 "detail": (
                     "Spot sweep automation has a route-bound command contract, "
-                    "but remains non-executable until durable scheduling, "
-                    "run-limit, recovery, and reconciliation contracts are wired "
-                    "through backend-owned gates."
+                    "and dry-run review requests are accepted without invoking "
+                    "the scheduler, runner, or Coinbase. Live execution remains "
+                    "non-executable until durable scheduling, run-limit, recovery, "
+                    "and reconciliation contracts are wired through backend-owned gates."
                 ),
             },
             AdminApiMutationFamilyType.SPOT_RECOVERY_APPLY_EXECUTION: {

@@ -34053,6 +34053,51 @@ def test_admin_api_movement_reprice_contract_is_keyed_by_stealth_order_id(monkey
 
 
 @pytest.mark.regression
+def test_admin_api_campaign_execution_dry_run_is_accepted_no_live(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+
+    response = client.post(
+        "/api/v1/spot/campaign/executions",
+        headers=_headers(idempotency_key="idem-campaign-dry-run"),
+        json={
+            "campaign_id": "usdc-sweep-001",
+            "side": "BUY",
+            "quote_notional_per_product": "1.00",
+            "product_ids": ["BTC-USDC", "ETH-USDC"],
+            "dry_run": True,
+            "manual_live_acknowledgement": False,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["required_permission"] == AdminApiPermission.CAMPAIGN_EXECUTE.value
+    assert payload["service_method"] == "execute_spot_campaign"
+    assert payload["live_exchange_submitted"] is False
+    assert payload["failure_stage"] is None
+    assert payload["admission_decision"]["allowed"] is False
+    assert payload["guard"]["allowed"] is False
+    assert payload["guard"]["live_execution_enabled"] is False
+    assert payload["data"]["campaign_id"] == "usdc-sweep-001"
+    assert payload["data"]["dry_run"] is True
+    assert payload["data"]["dry_run_review_accepted"] is True
+    assert payload["data"]["live_execution_requested"] is False
+    assert payload["data"]["campaign_runner_invoked"] is False
+    assert payload["data"]["coinbase_orders_submitted"] is False
+    assert payload["data"]["browser_authority"] == "display_only"
+    assert payload["data"]["bff_authority"] == "forward_only_no_execution"
+    assert payload["data"]["live_coinbase_execution"] == (
+        AdminApiLiveExecutionStatus.NOT_RUN.value
+    )
+    assert payload["data"]["submitted_notional_usdc"] == "0"
+    assert payload["data"]["executed_notional_usdc"] == "0"
+    assert payload["audit_id"]
+
+
+@pytest.mark.regression
 def test_admin_api_campaign_execution_contract_is_not_implemented_and_not_live(
     monkeypatch,
 ):
@@ -34085,6 +34130,59 @@ def test_admin_api_campaign_execution_contract_is_not_implemented_and_not_live(
     )
     assert payload["data"]["campaign_id"] == "usdc-sweep-001"
     assert payload["data"]["product_count"] == 2
+    assert payload["audit_id"]
+
+
+@pytest.mark.regression
+def test_admin_api_spot_sweep_automation_dry_run_is_accepted_no_live(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+
+    response = client.post(
+        "/api/v1/spot/sweep/automation-runs",
+        headers=_headers(idempotency_key="idem-sweep-automation-dry-run"),
+        json={
+            "sweep_config_id": "spot-sweep-usdc-hourly",
+            "side": "BUY",
+            "quote_notional_per_product": "1.00",
+            "repeat_every_hours": "6",
+            "max_runs": 2,
+            "max_products": 3,
+            "max_total_notional_per_run": "3.00",
+            "max_notional_per_order": "1.00",
+            "max_planned_orders": 3,
+            "run_if_due": True,
+            "dry_run": True,
+            "manual_live_acknowledgement": False,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["action_class"] == AdminApiActionClass.LIVE_EXCHANGE_PLACE.value
+    assert payload["required_permission"] == AdminApiPermission.SPOT_SWEEP_EXECUTE.value
+    assert payload["service_method"] == "run_spot_sweep_automation"
+    assert payload["live_exchange_submitted"] is False
+    assert payload["failure_stage"] is None
+    assert payload["admission_decision"]["allowed"] is False
+    assert payload["guard"]["allowed"] is False
+    assert payload["guard"]["live_execution_enabled"] is False
+    assert payload["data"]["sweep_config_id"] == "spot-sweep-usdc-hourly"
+    assert payload["data"]["dry_run"] is True
+    assert payload["data"]["dry_run_review_accepted"] is True
+    assert payload["data"]["live_execution_requested"] is False
+    assert payload["data"]["sweep_runner_invoked"] is False
+    assert payload["data"]["scheduler_invoked"] is False
+    assert payload["data"]["coinbase_orders_submitted"] is False
+    assert payload["data"]["browser_authority"] == "display_only"
+    assert payload["data"]["bff_authority"] == "forward_only_no_execution"
+    assert payload["data"]["live_coinbase_execution"] == (
+        AdminApiLiveExecutionStatus.NOT_RUN.value
+    )
+    assert payload["data"]["submitted_notional_usdc"] == "0"
+    assert payload["data"]["executed_notional_usdc"] == "0"
     assert payload["audit_id"]
 
 

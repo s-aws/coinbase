@@ -1173,7 +1173,7 @@ def cancel_order_by_client_order_id(
     response_model=AdminApiCommandResponse,
     status_code=status.HTTP_200_OK,
     responses=COMMAND_ROUTE_RESPONSES,
-    summary="Execute a spot campaign through the shared command service",
+    summary="Review a spot campaign dry-run through the shared command service",
 )
 def execute_spot_campaign(
     request: Request,
@@ -1196,10 +1196,11 @@ def execute_spot_campaign(
         Depends(get_live_execution_service),
     ],
 ) -> JSONResponse:
-    """Route adapter for future campaign execution.
+    """Route adapter for spot campaign dry-run review.
 
     The route has the command envelope, idempotency, audit, RBAC, and fail-closed
-    live gate, but it does not submit Coinbase orders.
+    live gate. Dry-run requests are accepted without invoking campaign runners
+    or submitting Coinbase orders; non-dry-run execution remains disabled.
     """
 
     endpoint = f"{request.method} {request.url.path}"
@@ -1246,7 +1247,7 @@ def execute_spot_campaign(
     response_model=AdminApiCommandResponse,
     status_code=status.HTTP_200_OK,
     responses=COMMAND_ROUTE_RESPONSES,
-    summary="Run a spot sweep automation through the shared command service",
+    summary="Review a spot sweep automation dry-run through the shared command service",
 )
 def run_spot_sweep_automation(
     request: Request,
@@ -1269,10 +1270,11 @@ def run_spot_sweep_automation(
         Depends(get_live_execution_service),
     ],
 ) -> JSONResponse:
-    """Route adapter for future spot sweep automation execution.
+    """Route adapter for spot sweep automation dry-run review.
 
     The route has the command envelope, idempotency, audit, RBAC, and fail-closed
-    live gate, but it does not run sweep tools or submit Coinbase orders.
+    live gate. Dry-run requests are accepted without invoking schedulers, sweep
+    runners, or submitting Coinbase orders; non-dry-run execution remains disabled.
     """
 
     endpoint = f"{request.method} {request.url.path}"

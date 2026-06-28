@@ -164,10 +164,14 @@ Coinbase call, reconciliation executor, or lifecycle/order state mutation.
 `POST /api/v1/spot/sweep/automation-runs` is the route-bound sweep automation
 command contract. It is keyed by `sweep_config_id`, requires
 `spot_sweep:execute`, records idempotency/audit/admission evidence, and
-currently returns `501 not_implemented` with `live_exchange_submitted=false`.
-It must not call `tools/run_spot_portfolio_sweep_live.py`, invoke Coinbase,
-create a browser scheduler, or close the wider sweep automation gap until the
-durable scheduler, run-limit, recovery, and reconciliation contracts exist.
+accepts `dry_run=true` review requests with `200 accepted`,
+`live_exchange_submitted=false`, no scheduler invocation, no sweep runner
+invocation, no Coinbase orders, and zero submitted/executed notional.
+`dry_run=false` still returns `501 not_implemented`. It must not call
+`tools/run_spot_portfolio_sweep_live.py`, invoke Coinbase, create a browser
+scheduler, or close the wider sweep automation gap until the durable scheduler,
+run-limit, recovery, and reconciliation contracts exist. The campaign execution
+route accepts the same no-live dry-run review posture keyed by `campaign_id`.
 
 `POST /api/v1/spot/pnl/checkpoints` is a backend-owned local-state mutation
 for durable operator-review records sourced from

@@ -1064,7 +1064,10 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         caps="required",
         audit="required",
         shared_method="execute_spot_campaign",
-        parity_test="campaign execution remains fail-closed until live gates pass",
+        parity_test=(
+            "campaign dry-run review is accepted without invoking runners or "
+            "Coinbase; live execution remains fail-closed"
+        ),
     ),
     AdminApiRouteInventoryItem(
         module_id="spot_operations",
@@ -1077,8 +1080,8 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         audit="required",
         shared_method="run_spot_sweep_automation",
         parity_test=(
-            "sweep automation remains fail-closed until scheduler, run-limit, "
-            "safety, recovery, and reconciliation gates pass"
+            "sweep dry-run review is accepted without invoking scheduler, "
+            "runner, or Coinbase; live execution remains fail-closed"
         ),
     ),
     AdminApiRouteInventoryItem(
