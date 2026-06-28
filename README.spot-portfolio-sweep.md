@@ -92,7 +92,9 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   recovery-gate pass/block evidence scoped to the requested `sweep_config_id`,
   and reconciliation/live execution boundary evidence so operators can see
   whether dispatch/retry would be ready and which backend admission/recovery
-  gates still block execution. The route must not run the live sweep CLI,
+  gates still block execution. Scheduler/retry executor-admission evidence is
+  recovery-gate-aware and reports `executor_ready_for_admission=false` when
+  recovery or reconciliation is pending. The route must not run the live sweep CLI,
   create a browser scheduler, execute recovery or reconciliation, mutate state,
   or submit Coinbase orders until live scheduler/retry execution, recovery,
   reconciliation, and live execution gates pass.

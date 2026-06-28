@@ -86,20 +86,22 @@ class AdminApiSpotSweepAutomationExecutionService:
             sweep_records=sweep_records,
             control_records=control_records,
         )
+        recovery_gate_contract = _build_recovery_gate_contract(
+            request=request,
+            sweep_records=sweep_records,
+            sweep_state_file=sweep_state_file,
+        )
         scheduler_admission_contract = _build_scheduler_executor_admission_contract(
             request=request,
             scheduler_contract=scheduler_contract,
+            recovery_gate_contract=recovery_gate_contract,
             admission_decision=admission_decision,
         )
         retry_admission_contract = _build_retry_executor_admission_contract(
             request=request,
             retry_contract=retry_contract,
+            recovery_gate_contract=recovery_gate_contract,
             admission_decision=admission_decision,
-        )
-        recovery_gate_contract = _build_recovery_gate_contract(
-            request=request,
-            sweep_records=sweep_records,
-            sweep_state_file=sweep_state_file,
         )
         reconciliation_contract = _build_reconciliation_execution_contract(
             recovery_gate_contract=recovery_gate_contract,
@@ -370,6 +372,7 @@ def _build_scheduler_executor_admission_contract(
     *,
     request: SpotSweepAutomationRunRequest,
     scheduler_contract: Mapping[str, Any],
+    recovery_gate_contract: Mapping[str, Any],
     admission_decision: AdminLiveAdmissionDecisionEvidence | None,
 ) -> dict[str, Any]:
     source_ready = bool(
@@ -380,8 +383,12 @@ def _build_scheduler_executor_admission_contract(
         admission_decision=admission_decision,
         source_contract_ready=source_ready,
         source_contract_decision=scheduler_contract["decision"].value,
+        recovery_gate_contract=recovery_gate_contract,
         source_not_ready_decision=(
             SpotSweepAutomationExecutionDecision.SCHEDULER_EXECUTOR_SOURCE_NOT_READY
+        ),
+        recovery_gate_blocked_decision=(
+            SpotSweepAutomationExecutionDecision.SCHEDULER_EXECUTOR_RECOVERY_GATE_BLOCKED
         ),
         admission_blocked_decision=(
             SpotSweepAutomationExecutionDecision.SCHEDULER_EXECUTOR_ADMISSION_BLOCKED
@@ -397,6 +404,7 @@ def _build_retry_executor_admission_contract(
     *,
     request: SpotSweepAutomationRunRequest,
     retry_contract: Mapping[str, Any],
+    recovery_gate_contract: Mapping[str, Any],
     admission_decision: AdminLiveAdmissionDecisionEvidence | None,
 ) -> dict[str, Any]:
     retry_data = retry_contract.get("data") or {}
@@ -408,8 +416,12 @@ def _build_retry_executor_admission_contract(
         admission_decision=admission_decision,
         source_contract_ready=source_ready,
         source_contract_decision=retry_contract["decision"].value,
+        recovery_gate_contract=recovery_gate_contract,
         source_not_ready_decision=(
             SpotSweepAutomationExecutionDecision.RETRY_EXECUTOR_SOURCE_NOT_READY
+        ),
+        recovery_gate_blocked_decision=(
+            SpotSweepAutomationExecutionDecision.RETRY_EXECUTOR_RECOVERY_GATE_BLOCKED
         ),
         admission_blocked_decision=(
             SpotSweepAutomationExecutionDecision.RETRY_EXECUTOR_ADMISSION_BLOCKED
@@ -427,15 +439,31 @@ def _build_executor_admission_contract(
     admission_decision: AdminLiveAdmissionDecisionEvidence | None,
     source_contract_ready: bool,
     source_contract_decision: str,
+    recovery_gate_contract: Mapping[str, Any],
     source_not_ready_decision: SpotSweepAutomationExecutionDecision,
+    recovery_gate_blocked_decision: SpotSweepAutomationExecutionDecision,
     admission_blocked_decision: SpotSweepAutomationExecutionDecision,
     admission_ready_decision: SpotSweepAutomationExecutionDecision,
     executor_invoked_key: str,
 ) -> dict[str, Any]:
     admission_allowed = bool(admission_decision and admission_decision.allowed)
+    recovery_gate_data = recovery_gate_contract.get("data") or {}
+    recovery_gate_blocks_execution = bool(
+        recovery_gate_data.get("recovery_gate_blocks_execution")
+    )
+    executor_ready_for_admission = bool(
+        source_contract_ready and not recovery_gate_blocks_execution
+    )
+    recovery_gate_blockers = [
+        str(value)
+        for value in recovery_gate_data.get("blockers") or []
+        if str(value or "").strip()
+    ]
     decision = (
         source_not_ready_decision
         if not source_contract_ready
+        else recovery_gate_blocked_decision
+        if recovery_gate_blocks_execution
         else admission_ready_decision
         if admission_allowed
         else admission_blocked_decision
@@ -460,6 +488,11 @@ def _build_executor_admission_contract(
         "operator_action_available": False,
         "source_contract_ready_for_admission": source_contract_ready,
         "source_contract_decision": source_contract_decision,
+        "recovery_gate_attached": True,
+        "recovery_gate_status": recovery_gate_data.get("recovery_gate_status"),
+        "recovery_gate_blocks_execution": recovery_gate_blocks_execution,
+        "recovery_gate_blockers": recovery_gate_blockers,
+        "executor_ready_for_admission": executor_ready_for_admission,
         "admission_attached": admission_decision is not None,
         "admission_allowed": admission_allowed,
         "admission_status": (
@@ -472,6 +505,7 @@ def _build_executor_admission_contract(
             AdminApiLiveReadinessPrecondition.APPROVAL_SNAPSHOT.value,
             AdminApiLiveReadinessPrecondition.ADMISSION_AUDIT_TRAIL.value,
             AdminApiLiveReadinessPrecondition.CAP_GUARD_CONTRACT.value,
+            AdminApiLiveReadinessPrecondition.SWEEP_RECOVERY_GATE_CLEAR.value,
             AdminApiLiveReadinessPrecondition.RECONCILIATION_PLAN.value,
             AdminApiLiveReadinessPrecondition.LIVE_EXECUTION_SERVICE.value,
             AdminApiLiveReadinessPrecondition.BROWSER_BFF_BOUNDARY.value,

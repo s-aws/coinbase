@@ -34270,6 +34270,13 @@ def test_admin_api_spot_sweep_automation_dry_run_is_accepted_no_live(
     )
     scheduler_admission = payload["data"]["scheduler_executor_admission_contract"]
     assert scheduler_admission["source_contract_ready_for_admission"] is True
+    assert scheduler_admission["recovery_gate_attached"] is True
+    assert scheduler_admission["recovery_gate_status"] == (
+        AdminApiGateStatus.PASSED.value
+    )
+    assert scheduler_admission["recovery_gate_blocks_execution"] is False
+    assert scheduler_admission["recovery_gate_blockers"] == []
+    assert scheduler_admission["executor_ready_for_admission"] is True
     assert scheduler_admission["admission_attached"] is True
     assert scheduler_admission["admission_allowed"] is False
     assert scheduler_admission["manual_live_acknowledgement_present"] is False
@@ -34315,6 +34322,11 @@ def test_admin_api_spot_sweep_automation_dry_run_is_accepted_no_live(
     )
     retry_admission = payload["data"]["retry_executor_admission_contract"]
     assert retry_admission["source_contract_ready_for_admission"] is False
+    assert retry_admission["recovery_gate_attached"] is True
+    assert retry_admission["recovery_gate_status"] == AdminApiGateStatus.PASSED.value
+    assert retry_admission["recovery_gate_blocks_execution"] is False
+    assert retry_admission["recovery_gate_blockers"] == []
+    assert retry_admission["executor_ready_for_admission"] is False
     assert retry_admission["admission_attached"] is True
     assert retry_admission["admission_allowed"] is False
     assert retry_admission["retry_executor_invoked"] is False
@@ -34622,12 +34634,38 @@ def test_admin_api_spot_sweep_automation_dry_run_reports_retry_ready_no_live(
     assert payload["data"]["retry_executor_admission_contract_status"] == (
         AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
     )
+    assert payload["data"]["scheduler_executor_admission_decision"] == (
+        SpotSweepAutomationExecutionDecision.SCHEDULER_EXECUTOR_RECOVERY_GATE_BLOCKED.value
+    )
+    scheduler_admission = payload["data"]["scheduler_executor_admission_contract"]
+    assert scheduler_admission["source_contract_ready_for_admission"] is True
+    assert scheduler_admission["recovery_gate_attached"] is True
+    assert scheduler_admission["recovery_gate_status"] == (
+        AdminApiGateStatus.BLOCKED.value
+    )
+    assert scheduler_admission["recovery_gate_blocks_execution"] is True
+    assert scheduler_admission["recovery_gate_blockers"] == [
+        SpotSweepAutomationExecutionBlocker.RECOVERY_GATE_PENDING.value
+    ]
+    assert scheduler_admission["executor_ready_for_admission"] is False
     assert payload["data"]["retry_executor_admission_decision"] == (
-        SpotSweepAutomationExecutionDecision.RETRY_EXECUTOR_ADMISSION_BLOCKED.value
+        SpotSweepAutomationExecutionDecision.RETRY_EXECUTOR_RECOVERY_GATE_BLOCKED.value
     )
     assert payload["data"]["retry_executor_admission_contract"][
         "source_contract_ready_for_admission"
     ] is True
+    assert payload["data"]["retry_executor_admission_contract"][
+        "recovery_gate_status"
+    ] == AdminApiGateStatus.BLOCKED.value
+    assert payload["data"]["retry_executor_admission_contract"][
+        "recovery_gate_blocks_execution"
+    ] is True
+    assert payload["data"]["retry_executor_admission_contract"][
+        "recovery_gate_blockers"
+    ] == [SpotSweepAutomationExecutionBlocker.RECOVERY_GATE_PENDING.value]
+    assert payload["data"]["retry_executor_admission_contract"][
+        "executor_ready_for_admission"
+    ] is False
     assert payload["data"]["retry_executor_admission_contract"][
         "admission_allowed"
     ] is False

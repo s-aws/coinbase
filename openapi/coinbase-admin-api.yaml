@@ -11941,6 +11941,7 @@ components:
       - approval_snapshot
       - admission_audit_trail
       - cap_guard_contract
+      - sweep_recovery_gate_clear
       - reconciliation_plan
       - live_execution_adapter
       - execution_intent_envelope

@@ -1000,6 +1000,7 @@ class AdminApiLiveReadinessPrecondition(str, Enum):
     APPROVAL_SNAPSHOT = "approval_snapshot"
     ADMISSION_AUDIT_TRAIL = "admission_audit_trail"
     CAP_GUARD_CONTRACT = "cap_guard_contract"
+    SWEEP_RECOVERY_GATE_CLEAR = "sweep_recovery_gate_clear"
     RECONCILIATION_PLAN = "reconciliation_plan"
     LIVE_EXECUTION_ADAPTER = "live_execution_adapter"
     EXECUTION_INTENT_ENVELOPE = "execution_intent_envelope"
@@ -2634,9 +2635,13 @@ class SpotSweepAutomationExecutionDecision(str, Enum):
     SCHEDULER_EXECUTOR_SOURCE_NOT_READY = "scheduler_executor_source_not_ready"
     SCHEDULER_EXECUTOR_ADMISSION_BLOCKED = "scheduler_executor_admission_blocked"
     SCHEDULER_EXECUTOR_ADMISSION_READY = "scheduler_executor_admission_ready"
+    SCHEDULER_EXECUTOR_RECOVERY_GATE_BLOCKED = (
+        "scheduler_executor_recovery_gate_blocked"
+    )
     RETRY_EXECUTOR_SOURCE_NOT_READY = "retry_executor_source_not_ready"
     RETRY_EXECUTOR_ADMISSION_BLOCKED = "retry_executor_admission_blocked"
     RETRY_EXECUTOR_ADMISSION_READY = "retry_executor_admission_ready"
+    RETRY_EXECUTOR_RECOVERY_GATE_BLOCKED = "retry_executor_recovery_gate_blocked"
     RECOVERY_GATE_PASSED = "recovery_gate_passed"
     RECOVERY_GATE_BLOCKED = "recovery_gate_blocked"
     RECONCILIATION_EXECUTION_BOUNDARY_LIVE_DISABLED = (
