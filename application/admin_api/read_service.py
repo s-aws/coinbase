@@ -54615,6 +54615,9 @@ class AdminApiReadService:
             build_sweep_config_registry,
             load_sweep_run_records,
         )
+        from tools.run_spot_sweep_recovery_gate import (
+            build_sweep_recovery_gate_plan,
+        )
 
         campaign_path = (
             Path(campaign_state_file)
@@ -54639,6 +54642,47 @@ class AdminApiReadService:
 
         campaign_records = load_spot_campaign_snapshot_records(campaign_path)
         sweep_records = load_sweep_run_records(sweep_path)
+        raw_recovery_gate_plan = build_sweep_recovery_gate_plan(
+            records=sweep_records,
+            state_file=sweep_path,
+        )
+        recovery_gate_plan = dict(raw_recovery_gate_plan)
+        recovery_gate_plan.pop("backfill_orders", None)
+        recovery_gate_plan["backfill_orders_included"] = False
+        planned_reconciliation_run_count = int(
+            recovery_gate_plan.get("planned_reconciliation_run_count") or 0
+        )
+        candidate_backfill_order_count = int(
+            recovery_gate_plan.get("candidate_backfill_order_count") or 0
+        )
+        planned_backfill_order_count = int(
+            recovery_gate_plan.get("planned_backfill_order_count") or 0
+        )
+        runs_needing_reconciliation = [
+            run_id
+            for run_id in (
+                str(value or "").strip()
+                for value in recovery_gate_plan.get("runs_needing_reconciliation")
+                or []
+            )
+            if run_id
+        ]
+        runs_needing_backfill = [
+            run_id
+            for run_id in (
+                str(value or "").strip()
+                for value in recovery_gate_plan.get("runs_needing_backfill") or []
+            )
+            if run_id
+        ]
+        recovery_gate_blocks_execution = bool(
+            planned_reconciliation_run_count or planned_backfill_order_count
+        )
+        recovery_gate_status = (
+            AdminApiGateStatus.BLOCKED
+            if recovery_gate_blocks_execution
+            else AdminApiGateStatus.PASSED
+        )
         control_records = control_store.read_recent(limit=100)
         latest_control_state = build_spot_sweep_automation_control_state(
             control_records
@@ -54740,6 +54784,20 @@ class AdminApiReadService:
             control_contract_status=(
                 AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
             ),
+            recovery_gate_contract_status=(
+                AdminApiModuleSupportStatus.READ_ONLY_READY
+            ),
+            recovery_gate_status=recovery_gate_status,
+            recovery_gate_plan=recovery_gate_plan,
+            planned_reconciliation_run_count=planned_reconciliation_run_count,
+            candidate_backfill_order_count=candidate_backfill_order_count,
+            planned_backfill_order_count=planned_backfill_order_count,
+            runs_needing_reconciliation=runs_needing_reconciliation,
+            runs_needing_backfill=runs_needing_backfill,
+            recovery_gate_blocks_execution=recovery_gate_blocks_execution,
+            recovery_gate_coinbase_read_attempted=False,
+            recovery_gate_reconciliation_executed=False,
+            recovery_gate_fill_backfill_executed=False,
             operation_lock_status=operation_lock_status,
             sweep_config_registry=sweep_config_registry,
             campaign_operator_status=campaign_operator_status,
@@ -54755,6 +54813,7 @@ class AdminApiReadService:
                 "GET /api/v1/spot/campaign/status",
                 "GET /api/v1/spot/sweep/status",
                 "GET /api/v1/spot/sweep/pnl",
+                "GET /api/v1/spot/recovery/preview",
                 "GET /api/v1/spot/command-suite",
             ],
             command_routes=[
@@ -54783,10 +54842,11 @@ class AdminApiReadService:
             detail=(
                 "Spot sweep automation service evidence is read-only and "
                 "backend-owned. It summarizes durable campaign and sweep "
-                "ledgers, the shared operation lock, and backend-owned "
-                "pause/resume/retry control evidence. It does not invoke a "
-                "scheduler, run a sweep, submit Coinbase orders, or grant "
-                "browser/BFF automation authority."
+                "ledgers, the shared operation lock, backend-owned recovery "
+                "gate planning, and backend-owned pause/resume/retry control "
+                "evidence. It does not invoke a scheduler, run a sweep, "
+                "execute recovery, read Coinbase, submit Coinbase orders, or "
+                "grant browser/BFF automation authority."
             ),
         )
         return payload.model_dump(mode="json")

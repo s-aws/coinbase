@@ -25842,6 +25842,22 @@ class SpotSweepAutomationServiceStatusResponse(AdminApiReadPayload):
     control_contract_status: AdminApiModuleSupportStatus = (
         AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
     )
+    recovery_gate_contract_status: AdminApiModuleSupportStatus = (
+        AdminApiModuleSupportStatus.READ_ONLY_READY
+    )
+    recovery_gate_status: AdminApiGateStatus = AdminApiGateStatus.PASSED
+    recovery_gate_plan: AdminApiFlexibleObject = Field(
+        default_factory=AdminApiFlexibleObject
+    )
+    planned_reconciliation_run_count: int = Field(default=0, ge=0)
+    candidate_backfill_order_count: int = Field(default=0, ge=0)
+    planned_backfill_order_count: int = Field(default=0, ge=0)
+    runs_needing_reconciliation: list[str] = Field(default_factory=list)
+    runs_needing_backfill: list[str] = Field(default_factory=list)
+    recovery_gate_blocks_execution: bool = False
+    recovery_gate_coinbase_read_attempted: bool = False
+    recovery_gate_reconciliation_executed: bool = False
+    recovery_gate_fill_backfill_executed: bool = False
     operation_lock_status: AdminApiFlexibleObject = Field(
         default_factory=AdminApiFlexibleObject
     )

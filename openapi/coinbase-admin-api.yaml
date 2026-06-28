@@ -141471,7 +141471,7 @@ components:
           title: Approved Phase Range
         service_contract_status:
           $ref: '#/components/schemas/AdminApiModuleSupportStatus'
-          default: not_modeled
+          default: command_draft_live_disabled
         campaign_state_file:
           type: string
           title: Campaign State File
@@ -141555,13 +141555,62 @@ components:
           default: read_only_ready
         scheduler_dispatch_contract_status:
           $ref: '#/components/schemas/AdminApiModuleSupportStatus'
-          default: not_modeled
+          default: command_draft_live_disabled
         run_limit_contract_status:
           $ref: '#/components/schemas/AdminApiModuleSupportStatus'
           default: read_only_ready
         control_contract_status:
           $ref: '#/components/schemas/AdminApiModuleSupportStatus'
-          default: not_modeled
+          default: command_draft_live_disabled
+        recovery_gate_contract_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+          default: read_only_ready
+        recovery_gate_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: passed
+        recovery_gate_plan:
+          $ref: '#/components/schemas/AdminApiFlexibleObject'
+        planned_reconciliation_run_count:
+          type: integer
+          minimum: 0.0
+          title: Planned Reconciliation Run Count
+          default: 0
+        candidate_backfill_order_count:
+          type: integer
+          minimum: 0.0
+          title: Candidate Backfill Order Count
+          default: 0
+        planned_backfill_order_count:
+          type: integer
+          minimum: 0.0
+          title: Planned Backfill Order Count
+          default: 0
+        runs_needing_reconciliation:
+          items:
+            type: string
+          type: array
+          title: Runs Needing Reconciliation
+        runs_needing_backfill:
+          items:
+            type: string
+          type: array
+          title: Runs Needing Backfill
+        recovery_gate_blocks_execution:
+          type: boolean
+          title: Recovery Gate Blocks Execution
+          default: false
+        recovery_gate_coinbase_read_attempted:
+          type: boolean
+          title: Recovery Gate Coinbase Read Attempted
+          default: false
+        recovery_gate_reconciliation_executed:
+          type: boolean
+          title: Recovery Gate Reconciliation Executed
+          default: false
+        recovery_gate_fill_backfill_executed:
+          type: boolean
+          title: Recovery Gate Fill Backfill Executed
+          default: false
         operation_lock_status:
           $ref: '#/components/schemas/AdminApiFlexibleObject'
         sweep_config_registry:

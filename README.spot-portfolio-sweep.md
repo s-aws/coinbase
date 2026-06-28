@@ -98,10 +98,11 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
 - The Admin API exposes `GET /api/v1/spot/sweep/automation-service` as
   backend-owned read evidence for the campaign ledger, sweep ledger, operation
   lock, scheduler due/not-due/disabled/max-run decisions, run-limit remaining
-  counts, retry plans, local control ledger, and no-live proof. Due and
-  run-limit evaluation are read-only ready; scheduler dispatch and retry
-  execution review are modeled as no-live command evidence; reconciliation
-  execution and live execution remain blocked or not modeled.
+  counts, retry plans, local control ledger, bounded recovery-gate planning,
+  and no-live proof. Due, run-limit, and recovery-gate evaluation are read-only
+  ready; scheduler dispatch and retry execution review are modeled as no-live
+  command evidence; reconciliation execution, fill-backfill execution, and live
+  execution remain blocked or not modeled.
 - Automation is a durable run-if-due CLI mode, not a daemon. Each invocation
   reloads fresh Coinbase product/wallet state, checks the JSONL run ledger, runs
   at most one due sweep, records the outcome, and exits.
@@ -161,6 +162,13 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   `POST /api/v1/spot/sweep/automation-runs`
 - Read-only Admin API automation service evidence:
   `GET /api/v1/spot/sweep/automation-service`
+  - Includes bounded recovery-gate summary fields such as
+    `recovery_gate_status`, `planned_reconciliation_run_count`,
+    `planned_backfill_order_count`, `runs_needing_reconciliation`,
+    `runs_needing_backfill`, and no-live/no-recovery-execution flags.
+  - Does not include order-level `backfill_orders` details, execute
+    reconciliation, retry fill backfill, read Coinbase, run a scheduler, or
+    submit Coinbase orders.
 - Local-state Admin API P/L checkpoint contract:
   `POST /api/v1/spot/pnl/checkpoints`
 - Read-only Admin API P/L checkpoint evidence:

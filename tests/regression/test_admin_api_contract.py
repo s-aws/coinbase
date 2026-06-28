@@ -44784,6 +44784,20 @@ def test_admin_api_spot_sweep_automation_service_status_reads_ledgers_no_live(
     )
     assert payload["retry_plan_count"] == 1
     assert payload["retry_ready_count"] == 1
+    assert payload["recovery_gate_contract_status"] == (
+        AdminApiModuleSupportStatus.READ_ONLY_READY.value
+    )
+    assert payload["recovery_gate_status"] == AdminApiGateStatus.BLOCKED.value
+    assert payload["recovery_gate_blocks_execution"] is True
+    assert payload["planned_reconciliation_run_count"] == 1
+    assert payload["planned_backfill_order_count"] == 0
+    assert payload["runs_needing_reconciliation"] == ["spot-sweep-admin-service"]
+    assert payload["runs_needing_backfill"] == ["spot-sweep-admin-service"]
+    assert payload["recovery_gate_plan"]["planned_reconciliation_run_count"] == 1
+    assert payload["recovery_gate_plan"]["backfill_orders_included"] is False
+    assert payload["recovery_gate_coinbase_read_attempted"] is False
+    assert payload["recovery_gate_reconciliation_executed"] is False
+    assert payload["recovery_gate_fill_backfill_executed"] is False
     assert payload["automation_control_file"] == str(automation_control_file)
     assert payload["automation_control_count"] == 0
     assert payload["control_contract_status"] == (
@@ -44800,6 +44814,9 @@ def test_admin_api_spot_sweep_automation_service_status_reads_ledgers_no_live(
     assert payload["submitted_notional_usdc"] == "0"
     assert payload["executed_notional_usdc"] == "0"
     assert "GET /api/v1/spot/sweep/status" in payload["current_read_evidence_routes"]
+    assert "GET /api/v1/spot/recovery/preview" in payload[
+        "current_read_evidence_routes"
+    ]
     assert "POST /api/v1/spot/sweep/automation-runs" in payload["command_routes"]
     assert "POST /api/v1/spot/sweep/automation-controls" in payload["command_routes"]
     assert "enterprise_sweep_scheduler_dispatch_service_contract" not in payload[

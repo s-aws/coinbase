@@ -127,6 +127,14 @@ and `submitted_notional_usdc=0` / `executed_notional_usdc=0`. Frontend and BFF
 surfaces may render or submit only the backend route-bound controls, but must
 not turn them into timers, local retry loops, proof writers, reconciliation
 executors, or Coinbase calls.
+`GET /api/v1/spot/sweep/automation-service` also exposes bounded recovery-gate
+planning derived from durable sweep records: `recovery_gate_status`,
+planned reconciliation/backfill counts, run ids needing reconciliation or
+backfill, and no-live/no-recovery-execution flags. This read model lets the
+Campaigns UI show when pending reconciliation or fill backfill blocks future
+automation, but it does not include order-level backfill rows, execute
+reconciliation, retry fill backfill, read Coinbase, invoke a scheduler, or
+submit orders.
 The stealth command-suite uses the same pattern for blocked recovery and
 reconciliation gaps. Those rows may point to
 `GET /api/v1/admin/recovery-gate`,
