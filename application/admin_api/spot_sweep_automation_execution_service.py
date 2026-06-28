@@ -81,6 +81,8 @@ class AdminApiSpotSweepAutomationExecutionService:
             sweep_records=sweep_records,
             control_records=control_records,
         )
+        reconciliation_contract = _build_reconciliation_execution_contract()
+        live_contract = _build_live_execution_contract()
 
         dry_run = bool(request.dry_run)
         automation_decision = (
@@ -114,6 +116,16 @@ class AdminApiSpotSweepAutomationExecutionService:
             "retry_execution_contract_status": NO_LIVE_CONTRACT_STATUS.value,
             "retry_execution_decision": retry_contract["decision"].value,
             "retry_execution_contract": retry_contract["data"],
+            "reconciliation_execution_contract_status": (
+                NO_LIVE_CONTRACT_STATUS.value
+            ),
+            "reconciliation_execution_decision": (
+                reconciliation_contract["decision"].value
+            ),
+            "reconciliation_execution_contract": reconciliation_contract["data"],
+            "live_execution_contract_status": NO_LIVE_CONTRACT_STATUS.value,
+            "live_execution_decision": live_contract["decision"].value,
+            "live_execution_contract": live_contract["data"],
             "scheduler_invoked": False,
             "sweep_runner_invoked": False,
             "coinbase_orders_submitted": False,
@@ -299,6 +311,85 @@ def _build_retry_execution_contract(
             "source_run_id": (retry_plan or {}).get("source_run_id"),
             "source_run_status": (retry_plan or {}).get("source_run_status"),
             "retry_executor_invoked": False,
+            "sweep_runner_invoked": False,
+            "coinbase_orders_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        },
+    }
+
+
+def _build_reconciliation_execution_contract() -> dict[str, Any]:
+    decision = (
+        SpotSweepAutomationExecutionDecision.RECONCILIATION_EXECUTION_BOUNDARY_LIVE_DISABLED
+    )
+    return {
+        "decision": decision,
+        "data": {
+            "contract_status": NO_LIVE_CONTRACT_STATUS.value,
+            "decision": decision.value,
+            "route": SPOT_SWEEP_AUTOMATION_RUN_ROUTE,
+            "backend_owned": True,
+            "operator_action_available": False,
+            "reconciliation_execution_allowed": False,
+            "required_gate_chain": [
+                "scheduler_dispatch_review_contract",
+                "retry_execution_review_contract",
+                "sweep_reconciliation_execution_contract",
+                "post_live_reconciliation",
+                "audit_link",
+            ],
+            "blockers": [
+                (
+                    SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED.value
+                )
+            ],
+            "reconciliation_executor_invoked": False,
+            "reconciliation_executed": False,
+            "order_state_mutated": False,
+            "exchange_state_mutated": False,
+            "coinbase_read_attempted": False,
+            "coinbase_orders_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        },
+    }
+
+
+def _build_live_execution_contract() -> dict[str, Any]:
+    decision = SpotSweepAutomationExecutionDecision.LIVE_EXECUTION_BOUNDARY_DISABLED
+    return {
+        "decision": decision,
+        "data": {
+            "contract_status": NO_LIVE_CONTRACT_STATUS.value,
+            "decision": decision.value,
+            "route": SPOT_SWEEP_AUTOMATION_RUN_ROUTE,
+            "backend_owned": True,
+            "operator_action_available": False,
+            "live_execution_enabled": False,
+            "live_service_invoked": False,
+            "live_adapter_invoked": False,
+            "required_gate_chain": [
+                "approval_snapshot",
+                "admission_audit",
+                "cap_guard_decision",
+                "scheduler_dispatch_review_contract",
+                "retry_execution_review_contract",
+                "reconciliation_execution_boundary",
+                "sweep_live_execution_contract",
+                "post_live_reconciliation",
+            ],
+            "blockers": [
+                SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_DISABLED.value,
+                SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_CONTRACT_REQUIRED.value,
+            ],
+            "scheduler_invoked": False,
             "sweep_runner_invoked": False,
             "coinbase_orders_submitted": False,
             "live_coinbase_orders_ran": False,

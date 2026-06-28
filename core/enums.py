@@ -2631,6 +2631,10 @@ class SpotSweepAutomationExecutionDecision(str, Enum):
     RETRY_EXECUTION_NO_READY_PLAN = "retry_execution_no_ready_plan"
     RETRY_EXECUTION_BLOCKED = "retry_execution_blocked"
     RETRY_EXECUTION_READY_LIVE_DISABLED = "retry_execution_ready_live_disabled"
+    RECONCILIATION_EXECUTION_BOUNDARY_LIVE_DISABLED = (
+        "reconciliation_execution_boundary_live_disabled"
+    )
+    LIVE_EXECUTION_BOUNDARY_DISABLED = "live_execution_boundary_disabled"
 
 
 class SpotSweepAutomationExecutionBlocker(str, Enum):

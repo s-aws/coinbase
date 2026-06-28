@@ -34284,6 +34284,38 @@ def test_admin_api_spot_sweep_automation_dry_run_is_accepted_no_live(
     assert payload["data"]["retry_execution_contract"][
         "live_coinbase_orders_ran"
     ] is False
+    assert payload["data"]["reconciliation_execution_contract_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert payload["data"]["reconciliation_execution_decision"] == (
+        SpotSweepAutomationExecutionDecision.RECONCILIATION_EXECUTION_BOUNDARY_LIVE_DISABLED.value
+    )
+    assert payload["data"]["reconciliation_execution_contract"][
+        "reconciliation_executor_invoked"
+    ] is False
+    assert payload["data"]["reconciliation_execution_contract"][
+        "order_state_mutated"
+    ] is False
+    assert payload["data"]["reconciliation_execution_contract"][
+        "exchange_state_mutated"
+    ] is False
+    assert payload["data"]["reconciliation_execution_contract"][
+        "coinbase_orders_submitted"
+    ] is False
+    assert payload["data"]["live_execution_contract_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert payload["data"]["live_execution_decision"] == (
+        SpotSweepAutomationExecutionDecision.LIVE_EXECUTION_BOUNDARY_DISABLED.value
+    )
+    assert payload["data"]["live_execution_contract"][
+        "live_execution_enabled"
+    ] is False
+    assert payload["data"]["live_execution_contract"][
+        "coinbase_orders_submitted"
+    ] is False
+    assert payload["data"]["live_execution_contract"]["submitted_notional_usdc"] == "0"
+    assert payload["data"]["live_execution_contract"]["executed_notional_usdc"] == "0"
     assert payload["data"]["live_coinbase_orders_ran"] is False
     assert payload["data"]["submitted_notional_usdc"] == "0"
     assert payload["data"]["executed_notional_usdc"] == "0"
@@ -34606,6 +34638,10 @@ def test_admin_api_spot_sweep_automation_contract_is_not_implemented_and_not_liv
         "would_dispatch_if_live_enabled"
     ] is True
     assert payload["data"]["retry_execution_contract"]["retry_plan_ready"] is False
+    assert payload["data"]["reconciliation_execution_contract"][
+        "reconciliation_executor_invoked"
+    ] is False
+    assert payload["data"]["live_execution_contract"]["live_execution_enabled"] is False
     assert payload["data"]["live_coinbase_orders_ran"] is False
     assert payload["data"]["automation_execution_blockers"] == [
         SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_DISABLED.value,

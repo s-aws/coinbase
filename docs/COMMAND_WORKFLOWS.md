@@ -187,9 +187,10 @@ It must not call `tools/run_spot_portfolio_sweep_live.py`, invoke Coinbase,
 create a browser scheduler, or close the wider sweep automation gap until the
 durable live scheduler/retry executor, recovery, reconciliation, and live
 execution contracts exist. The route does model scheduler dispatch readiness
-and retry execution readiness as no-live backend evidence. The campaign
-execution route accepts the same no-live dry-run review posture keyed by
-`campaign_id`.
+and retry execution readiness as no-live backend evidence, and it exposes
+reconciliation/live execution boundary objects that keep executor, state
+mutation, Coinbase, and notional flags false. The campaign execution route
+accepts the same no-live dry-run review posture keyed by `campaign_id`.
 
 `POST /api/v1/spot/pnl/checkpoints` is a backend-owned local-state mutation
 for durable operator-review records sourced from
