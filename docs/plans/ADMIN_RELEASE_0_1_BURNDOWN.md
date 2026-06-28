@@ -162,10 +162,11 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
   enabled by default. Accepted configured live manual BUY responses now expose
   a structured `post_submit_reconciliation` audit handoff with the direct-order
   audit route, admission ids, submission-event status, and no-mutation/
-  no-browser/BFF-authority flags. The next release-linked blocker is making one
-  manual Spot BUY path operator-completable through frontend controls that
-  render/use that backend handoff, live Coinbase validation under the approved
-  notional cap, and eventual reconciliation execution proof; SELL waits for
+  no-browser/BFF-authority flags. The frontend command workflow now renders
+  and links that handoff without creating browser/BFF execution authority. The
+  next release-linked blocker is making one manual Spot BUY path
+  operator-completable through live Coinbase validation under the approved
+  notional cap and eventual reconciliation execution proof; SELL waits for
   Admin API lot-authority and planned-budget sources.
 
 ### Phase 7994 - Operator Runbook Update

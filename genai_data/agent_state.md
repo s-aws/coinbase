@@ -59,9 +59,10 @@ work. Historical milestone detail belongs in
   Accepted configured live manual BUY responses now expose a structured
   `post_submit_reconciliation` audit handoff with the direct-order audit route,
   admission ids, submission-event status, and no-mutation/no-browser/BFF
-  authority flags. Remaining blockers are frontend controls that render/use
-  that backend handoff, live Coinbase validation under the approved notional
-  cap, eventual reconciliation execution proof, and later SELL
+  authority flags. The frontend command workflow now renders and links that
+  backend handoff without creating browser/BFF execution authority. Remaining
+  blockers are live Coinbase validation under the approved notional cap,
+  eventual reconciliation execution proof, and later SELL
   lot-authority/planned-budget sources.
 - Exact next implementation slice: manual Spot BUY operator-complete path.
 - Contextless review status: planned for `7981-8000`; reviewers must verify

@@ -201,11 +201,12 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
   acknowledgement/live-service contract, and no live Coinbase execution is
   enabled by default.
 - Remaining release-linked selection: one manual Spot BUY path still needs
-  frontend operator controls that render/use the backend
-  `post_submit_reconciliation` handoff, live Coinbase validation under the
-  approved notional cap, and eventual reconciliation execution proof. SELL
-  remains blocked until the Admin API has lot-authority and planned-budget
-  sources; cancel remains blocked until it has an explicit
+  live Coinbase validation under the approved notional cap and eventual
+  reconciliation execution proof. The frontend command workflow now renders
+  and links the backend `post_submit_reconciliation` handoff without creating
+  browser/BFF execution authority. SELL remains blocked until the Admin API
+  has lot-authority and planned-budget sources; cancel remains blocked until
+  it has an explicit
   acknowledgement/live-service contract.
   Product catalog, spot wallet, spot balance, and spot fill read contracts now
   belong to the account-market-inventory `ready_with_data_gate` surface, not a
