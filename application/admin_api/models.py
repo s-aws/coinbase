@@ -25773,6 +25773,56 @@ class SpotCampaignStatusResponse(AdminApiReadPayload):
     message: str | None = None
 
 
+class SpotSweepAutomationServiceStatusResponse(AdminApiReadPayload):
+    """Read-only status contract for backend-owned spot sweep automation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "spot_sweep_automation_service_status"
+    module_id: str = "spot_operations"
+    approved_phase_range: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    service_contract_status: AdminApiModuleSupportStatus = (
+        AdminApiModuleSupportStatus.NOT_MODELED
+    )
+    campaign_state_file: str
+    sweep_state_file: str
+    operation_lock_file: str
+    campaign_count: int = Field(default=0, ge=0)
+    sweep_config_count: int = Field(default=0, ge=0)
+    scheduler_status_count: int = Field(default=0, ge=0)
+    scheduler_due_count: int = Field(default=0, ge=0)
+    retry_plan_count: int = Field(default=0, ge=0)
+    retry_ready_count: int = Field(default=0, ge=0)
+    operation_lock_status: AdminApiFlexibleObject = Field(
+        default_factory=AdminApiFlexibleObject
+    )
+    sweep_config_registry: AdminApiFlexibleObject = Field(
+        default_factory=AdminApiFlexibleObject
+    )
+    campaign_operator_status: AdminApiFlexibleObject = Field(
+        default_factory=AdminApiFlexibleObject
+    )
+    scheduler_statuses: list[AdminApiFlexibleObject] = Field(default_factory=list)
+    retry_plans: list[AdminApiFlexibleObject] = Field(default_factory=list)
+    current_read_evidence_routes: list[str] = Field(default_factory=list)
+    command_routes: list[str] = Field(default_factory=list)
+    missing_contracts: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    read_only: bool = True
+    operator_action_available: bool = False
+    browser_scheduler_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    scheduler_invoked: bool = False
+    sweep_runner_invoked: bool = False
+    coinbase_orders_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    detail: str
+
+
 class SpotDirectOrderAuditResponse(AdminApiReadPayload):
     """Direct spot order audit response keyed by ``client_order_id``."""
 

@@ -33,6 +33,7 @@ from application.admin_api.models import (
     SpotRecoveryPreviewResponse,
     SpotRecoveryReconciliationProofResponse,
     SpotRecoveryRollbackPlanResponse,
+    SpotSweepAutomationServiceStatusResponse,
     SpotSweepPnlResponse,
     SpotSweepStatusResponse,
 )
@@ -456,6 +457,32 @@ def spot_sweep_status(
     return _read_model_response(
         SpotSweepStatusResponse,
         service.build_spot_sweep_status(state_file=state_file),
+    )
+
+
+@router.get(
+    "/spot/sweep/automation-service",
+    response_model=SpotSweepAutomationServiceStatusResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="Read backend-owned spot sweep automation service status",
+)
+def spot_sweep_automation_service_status(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+    campaign_state_file: str | None = None,
+    sweep_state_file: str | None = None,
+    operation_lock_file: str | None = None,
+    lock_stale_after_seconds: Annotated[int, Query(gt=0, le=86400)] = 3600,
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    return _read_model_response(
+        SpotSweepAutomationServiceStatusResponse,
+        service.build_spot_sweep_automation_service_status(
+            campaign_state_file=campaign_state_file,
+            sweep_state_file=sweep_state_file,
+            operation_lock_file=operation_lock_file,
+            lock_stale_after_seconds=lock_stale_after_seconds,
+        ),
     )
 
 

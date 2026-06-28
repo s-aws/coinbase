@@ -189,6 +189,14 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
   command service with fake REST, and prove planning-cap, wallet/planned-budget,
   and `known_inventory_available` lot-authority wiring without browser/BFF
   execution authority, a second SELL path, or live Coinbase execution.
+- Current automation/campaign implementation result: `GET
+  /api/v1/spot/sweep/automation-service` is a backend-owned read-only service
+  status contract for campaign ledger, sweep ledger, operation-lock,
+  scheduler-status, retry-plan, missing-contract, and no-live proof evidence.
+  It reports `not_modeled` control gaps without invoking a scheduler, runner,
+  Coinbase order, browser job, BFF execution path, or second sweep path. The
+  next release-linked automation blocker is an exact backend-owned
+  pause/resume and retry control contract, not more proof-summary expansion.
 
 ### Phase 7994 - Operator Runbook Update
 

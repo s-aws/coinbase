@@ -43957,6 +43957,193 @@ def test_admin_api_spot_routes_preserve_typed_read_payload_fields(monkeypatch):
 
 
 @pytest.mark.regression
+def test_admin_api_spot_sweep_automation_service_status_reads_ledgers_no_live(
+    tmp_path,
+):
+    from application.admin_api.read_service import AdminApiReadService
+    from business.spot_campaign import (
+        append_spot_campaign_snapshot_record,
+        build_spot_campaign_snapshot_record,
+        spot_campaign_config_to_sweep_config,
+    )
+    from business.spot_portfolio_sweep import (
+        append_sweep_run_record,
+        build_sweep_run_record,
+    )
+    from core.enums import (
+        OrderSide,
+        SpotCampaignRunMode,
+        SpotCampaignStatus,
+        SpotPortfolioSweepExecutionStatus,
+        SpotPortfolioSweepRunStatus,
+    )
+
+    campaign_state_file = tmp_path / "spot_campaigns.jsonl"
+    sweep_state_file = tmp_path / "spot_sweeps.jsonl"
+    operation_lock_file = tmp_path / "spot_portfolio_sweep.lock"
+    operation_lock_file.write_text("busy", encoding="utf-8")
+    config = {
+        "version": 1,
+        "campaign_name": "admin_service_contract",
+        "side": OrderSide.BUY.value,
+        "quote_notional": "1",
+        "max_products": 2,
+        "order_type": "market_ioc",
+        "automation": {
+            "enabled": True,
+            "repeat_every_hours": "6",
+            "max_runs": 3,
+        },
+        "product_scope": {
+            "quote_currency": "USDC",
+            "us_customer_available": True,
+            "selection_rule": "all_coinbase_usdc_spot_us_customer_available",
+        },
+        "safety_policy": {
+            "max_total_notional_per_run": "2",
+            "max_notional_per_order": "1",
+            "max_planned_orders": 2,
+        },
+        "inventory_policy": {"retention": "retain"},
+        "cost_basis_authority": {
+            "allowed_sources": ["fill_ledger", "imported_baseline"],
+        },
+    }
+    campaign_record = build_spot_campaign_snapshot_record(
+        config=config,
+        mode=SpotCampaignRunMode.DRY_RUN,
+        status=SpotCampaignStatus.READY,
+        dry_run_matrix={
+            "plan": {"planned_count": 2},
+            "safety_evaluation": {"decision": "allowed"},
+        },
+        generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    sweep_record = build_sweep_run_record(
+        config_id=campaign_record["sweep_config_id"],
+        run_id="spot-sweep-admin-service",
+        status=SpotPortfolioSweepRunStatus.PARTIAL.value,
+        started_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        completed_at=datetime(2026, 1, 1, 0, 1, tzinfo=timezone.utc),
+        config=spot_campaign_config_to_sweep_config(config),
+        execution={
+            "orders": [
+                {
+                    "product_id": "AAA-USDC",
+                    "status": SpotPortfolioSweepExecutionStatus.BLOCKED.value,
+                    "submitted_notional_usdc": "0",
+                    "executed_notional_usdc": "0",
+                }
+            ],
+            "live_coinbase_orders_ran": False,
+            "total_submitted_notional_usdc": "0",
+            "total_executed_notional_usdc": "0",
+        },
+    )
+    append_spot_campaign_snapshot_record(campaign_state_file, campaign_record)
+    append_sweep_run_record(sweep_state_file, sweep_record)
+
+    payload = AdminApiReadService().build_spot_sweep_automation_service_status(
+        campaign_state_file=str(campaign_state_file),
+        sweep_state_file=str(sweep_state_file),
+        operation_lock_file=str(operation_lock_file),
+        lock_stale_after_seconds=3600,
+    )
+
+    assert payload["type"] == "spot_sweep_automation_service_status"
+    assert payload["status"] == AdminApiGateStatus.BLOCKED.value
+    assert payload["service_contract_status"] == (
+        AdminApiModuleSupportStatus.NOT_MODELED.value
+    )
+    assert payload["campaign_count"] == 1
+    assert payload["sweep_config_count"] == 1
+    assert payload["scheduler_status_count"] == 1
+    assert payload["scheduler_due_count"] == 1
+    assert payload["retry_plan_count"] == 1
+    assert payload["retry_ready_count"] == 1
+    assert payload["operation_lock_status"]["exists"] is True
+    assert payload["operator_action_available"] is False
+    assert payload["scheduler_invoked"] is False
+    assert payload["sweep_runner_invoked"] is False
+    assert payload["coinbase_orders_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["submitted_notional_usdc"] == "0"
+    assert payload["executed_notional_usdc"] == "0"
+    assert "GET /api/v1/spot/sweep/status" in payload["current_read_evidence_routes"]
+    assert "POST /api/v1/spot/sweep/automation-runs" in payload["command_routes"]
+    assert "enterprise_sweep_scheduler_service_contract" in payload["missing_contracts"]
+    assert payload["scheduler_statuses"][0]["live_coinbase_orders_ran"] is False
+    assert payload["retry_plans"][0]["retryable_product_ids"] == ["AAA-USDC"]
+
+
+@pytest.mark.regression
+def test_admin_api_spot_sweep_automation_service_route_is_read_only(monkeypatch):
+    from api.v1.routes import spot as spot_routes
+
+    client = _client(monkeypatch)
+    service = SimpleNamespace(
+        build_spot_sweep_automation_service_status=lambda **kwargs: {
+            "type": "spot_sweep_automation_service_status",
+            "module_id": "spot_operations",
+            "approved_phase_range": "7981-8000",
+            "status": AdminApiGateStatus.BLOCKED.value,
+            "service_contract_status": AdminApiModuleSupportStatus.NOT_MODELED.value,
+            "campaign_state_file": kwargs["campaign_state_file"],
+            "sweep_state_file": kwargs["sweep_state_file"],
+            "operation_lock_file": kwargs["operation_lock_file"],
+            "campaign_count": 0,
+            "sweep_config_count": 0,
+            "scheduler_status_count": 0,
+            "scheduler_due_count": 0,
+            "retry_plan_count": 0,
+            "retry_ready_count": 0,
+            "operation_lock_status": {"exists": False},
+            "sweep_config_registry": {},
+            "campaign_operator_status": {},
+            "scheduler_statuses": [],
+            "retry_plans": [],
+            "current_read_evidence_routes": [],
+            "command_routes": [],
+            "missing_contracts": ["enterprise_sweep_scheduler_service_contract"],
+            "backend_owned": True,
+            "read_only": True,
+            "operator_action_available": False,
+            "browser_scheduler_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "read_only_forward",
+            "scheduler_invoked": False,
+            "sweep_runner_invoked": False,
+            "coinbase_orders_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
+            "detail": "Read-only automation service evidence.",
+        },
+    )
+    client.app.dependency_overrides[spot_routes.get_read_service] = lambda: service
+
+    response = client.get(
+        (
+            "/api/v1/spot/sweep/automation-service"
+            "?campaign_state_file=campaign.jsonl"
+            "&sweep_state_file=sweep.jsonl"
+            "&operation_lock_file=sweep.lock"
+            "&lock_stale_after_seconds=120"
+        ),
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+
+    payload = response.json()
+    assert response.status_code == 200
+    assert payload["campaign_state_file"] == "campaign.jsonl"
+    assert payload["sweep_state_file"] == "sweep.jsonl"
+    assert payload["operation_lock_file"] == "sweep.lock"
+    assert payload["read_only"] is True
+    assert payload["operator_action_available"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+
+
+@pytest.mark.regression
 def test_admin_api_direct_order_audit_read_service_does_not_import_dashboard(
     monkeypatch,
 ):

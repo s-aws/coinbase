@@ -95,6 +95,8 @@ from core.enums import (
     OrderSide,
     ProductCapability,
     ProductType,
+    SpotCampaignStatus,
+    SpotPortfolioSweepAutomationDecision,
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
     StealthOrderStatus,
@@ -353,6 +355,7 @@ from .models import (
     SpotRecoveryRepairTargetItem,
     SpotRecoveryRollbackPlanResponse,
     SpotRecoveryStateRepairTaxonomyItem,
+    SpotSweepAutomationServiceStatusResponse,
     StealthCommandSuiteCommandItem,
     StealthCommandSuiteAdmissionContextItem,
     StealthCommandSuiteAdmissionReadinessItem,
@@ -54359,6 +54362,130 @@ class AdminApiReadService:
         from dashboard_server import _build_spot_campaign_payload
 
         return _build_spot_campaign_payload(state_file=state_file)
+
+    def build_spot_sweep_automation_service_status(
+        self,
+        *,
+        campaign_state_file: str | None = None,
+        sweep_state_file: str | None = None,
+        operation_lock_file: str | None = None,
+        lock_stale_after_seconds: int = 3600,
+    ) -> dict[str, Any]:
+        """Read backend-owned spot campaign automation readiness without execution."""
+        from business.spot_campaign import (
+            build_spot_campaign_operation_lock_status,
+            build_spot_campaign_operator_status,
+            build_spot_campaign_retry_plan,
+            build_spot_campaign_scheduler_status,
+            load_spot_campaign_snapshot_records,
+        )
+        from business.spot_portfolio_sweep import (
+            build_sweep_config_registry,
+            load_sweep_run_records,
+        )
+
+        campaign_path = (
+            Path(campaign_state_file)
+            if campaign_state_file
+            else Path("runtime_state") / "spot_campaigns.jsonl"
+        )
+        sweep_path = (
+            Path(sweep_state_file)
+            if sweep_state_file
+            else Path("runtime_state") / "spot_portfolio_sweeps.jsonl"
+        )
+        lock_path = (
+            Path(operation_lock_file)
+            if operation_lock_file
+            else Path("runtime_state") / "spot_portfolio_sweep.lock"
+        )
+
+        campaign_records = load_spot_campaign_snapshot_records(campaign_path)
+        sweep_records = load_sweep_run_records(sweep_path)
+        campaign_operator_status = build_spot_campaign_operator_status(
+            records=campaign_records,
+        )
+        sweep_config_registry = build_sweep_config_registry(records=sweep_records)
+        operation_lock_status = build_spot_campaign_operation_lock_status(
+            lock_file=lock_path,
+            stale_after_seconds=lock_stale_after_seconds,
+        )
+
+        latest_configs_by_campaign: dict[str, dict[str, Any]] = {}
+        for record in campaign_records:
+            config = record.get("config")
+            campaign_id = str(record.get("campaign_id") or "")
+            if not campaign_id or not isinstance(config, Mapping):
+                continue
+            latest_configs_by_campaign[campaign_id] = dict(config)
+
+        scheduler_statuses = [
+            build_spot_campaign_scheduler_status(
+                config=config,
+                sweep_records=sweep_records,
+            )
+            for config in latest_configs_by_campaign.values()
+        ]
+        retry_plans = [
+            build_spot_campaign_retry_plan(
+                config=config,
+                sweep_records=sweep_records,
+            )
+            for config in latest_configs_by_campaign.values()
+        ]
+        scheduler_due_count = sum(
+            1
+            for item in scheduler_statuses
+            if (item.get("scheduler_decision") or {}).get("decision")
+            == SpotPortfolioSweepAutomationDecision.DUE.value
+        )
+        retry_ready_count = sum(
+            1
+            for item in retry_plans
+            if item.get("retry_status") == SpotCampaignStatus.READY.value
+        )
+
+        payload = SpotSweepAutomationServiceStatusResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            campaign_state_file=str(campaign_path),
+            sweep_state_file=str(sweep_path),
+            operation_lock_file=str(lock_path),
+            campaign_count=int(campaign_operator_status.get("campaign_count") or 0),
+            sweep_config_count=int(sweep_config_registry.get("config_count") or 0),
+            scheduler_status_count=len(scheduler_statuses),
+            scheduler_due_count=scheduler_due_count,
+            retry_plan_count=len(retry_plans),
+            retry_ready_count=retry_ready_count,
+            operation_lock_status=operation_lock_status,
+            sweep_config_registry=sweep_config_registry,
+            campaign_operator_status=campaign_operator_status,
+            scheduler_statuses=scheduler_statuses,
+            retry_plans=retry_plans,
+            current_read_evidence_routes=[
+                "GET /api/v1/spot/campaign/status",
+                "GET /api/v1/spot/sweep/status",
+                "GET /api/v1/spot/sweep/pnl",
+                "GET /api/v1/spot/command-suite",
+            ],
+            command_routes=[
+                "POST /api/v1/spot/campaign/executions",
+                "POST /api/v1/spot/sweep/automation-runs",
+            ],
+            missing_contracts=[
+                "enterprise_sweep_scheduler_service_contract",
+                "sweep_pause_resume_service_contract",
+                "sweep_retry_recovery_service_contract",
+                "sweep_live_execution_service_contract",
+            ],
+            detail=(
+                "Spot sweep automation service evidence is read-only and "
+                "backend-owned. It summarizes durable campaign and sweep "
+                "ledgers plus the shared operation lock, but it does not "
+                "invoke a scheduler, run a sweep, submit Coinbase orders, or "
+                "grant browser/BFF automation authority."
+            ),
+        )
+        return payload.model_dump(mode="json")
 
     def build_spot_direct_order_audit(
         self,

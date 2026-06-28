@@ -12754,3 +12754,45 @@ Status:
   `C:\coinbase-frontend\artifacts\ui-smoke-4681-4700.png`.
 - Live Coinbase execution was not run for this review; submitted notional
   `$0`, executed notional `$0`.
+
+## Release 0.1 Spot Sweep Automation-Service Read Contract - Phase 7998
+
+Review scope:
+
+- `C:\coinbase`
+- `C:\coinbase-frontend`
+- Blind reviewer was not given chat history.
+
+Reviewer tasks:
+
+- classify the new spot sweep/campaign automation-service admin contract as a
+  reusable admin primitive or a spot-domain module
+- identify spot-only rules that must not be copied into non-spot modules
+- trace the backend-owned OpenAPI contract, canonical frontend wrapper, UI
+  role, no-live evidence, and focused validation commands
+- call out unclear code/docs that could mislead a smaller local agent or human
+
+Findings and resolution:
+
+- PASS: blind/contextless review found no blocking implementation issue. It
+  confirmed the change is a spot-domain read module exposed by
+  `GET /api/v1/spot/sweep/automation-service`, not a reusable platform
+  automation primitive.
+- PASS: the reviewer confirmed the frontend consumes the backend-owned OpenAPI
+  contract through `BackendApiClient.getSpotSweepAutomationServiceStatus` and
+  does not invent a scheduler, runner, browser trading path, BFF execution
+  authority, or Coinbase call.
+- REMEDIATED: the reviewer flagged the heading `Automation Service Contract`
+  as too generic for a spot-only panel. The heading and test expectation were
+  changed to `Spot Sweep Automation Service Contract`.
+
+Status:
+
+- Backend focused Admin API contract and route inventory/OpenAPI sync checks
+  passed with `5` selected tests and `1` warning.
+- Frontend focused API/runtime/adapter/read-model/AdminShell tests passed with
+  `98` selected tests.
+- Frontend `npm run api:check`, `npm run typecheck`, and `npm run lint`
+  passed.
+- Live Coinbase execution was not run for this review; submitted notional
+  `$0`, executed notional `$0`.

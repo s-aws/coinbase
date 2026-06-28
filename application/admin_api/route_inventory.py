@@ -1768,6 +1768,22 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="spot_operations",
+        surface="GET /api/v1/spot/sweep/automation-service",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="read-only campaign/sweep automation service evidence",
+        audit="optional read audit",
+        shared_method="build_spot_sweep_automation_service_status",
+        parity_test=(
+            "read-only backend-owned automation status; no scheduler "
+            "invocation, no sweep runner invocation, no browser/BFF "
+            "automation authority, and no Coinbase REST placement"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="GET /api/v1/spot/sweep/pnl",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,

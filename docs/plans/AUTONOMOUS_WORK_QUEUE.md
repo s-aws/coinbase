@@ -82,6 +82,15 @@ result in the phase evidence, handoff, or closeout summary before advancing.
   docs and contextless checklist bootstrap; remediation was applied. Fresh
   reviewer `019f0cfb-e2eb-7073-81a7-4fffd20d3ca0` passed with no blockers.
   Phase-scoped reviewers were closed after findings were consumed.
+- Phase `7998` automation-service contextless review status: backend
+  `AGENTS.md` and frontend `AGENTS.md` were reviewed again on 2026-06-28
+  before adding the sweep automation-service read contract. Blind reviewer
+  `019f0f4f-861a-7b61-a19d-1be83af858cb` confirmed the change is a spot-domain
+  read module, not a reusable platform automation primitive; the only
+  ambiguity was the frontend heading `Automation Service Contract`, which was
+  remediated to `Spot Sweep Automation Service Contract`. The reviewer was
+  closed after findings were consumed. Live Coinbase execution was not run;
+  submitted notional `0` USDC, executed notional `0` USDC.
 
 ## Current Progress Record
 
@@ -302,11 +311,25 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
 
 - Run blind/contextless frontend review focused on whether Release 0.1 scope,
   blockers, and backend association are understandable without chat history.
+- Current implementation result: `GET /api/v1/spot/sweep/automation-service`
+  now exposes backend-owned read-only campaign ledger, sweep ledger,
+  operation-lock, scheduler-status, retry-plan, missing-contract, and no-live
+  proof evidence. The sibling frontend consumes the generated OpenAPI contract
+  through `getSpotSweepAutomationServiceStatus` and renders a spot-specific
+  Campaigns panel without scheduler controls, retry loops, BFF execution
+  authority, Coinbase calls, or a second sweep execution path.
 
 ### Phase 7999 - Focused Validation And Hygiene
 
 - Run focused backend/frontend validation, autonomous validators, stale-process
   checks after any interrupted command, and phase-end subagent cleanup.
+- Current automation-service validation result: focused backend Admin API
+  contract tests and route inventory/OpenAPI sync checks passed. Focused
+  frontend unit tests for the API client, runtime, spot adapters,
+  spot read-only route metadata, Campaigns read model, and Admin shell passed.
+  Frontend API coverage, typecheck, and lint passed. Full backend regression
+  and frontend `release:gate` remain durable milestone closeout gates, not
+  ordinary phase gates.
 
 ### Phase 8000 - Commit And Push Evidence
 

@@ -1330,6 +1330,12 @@ BFF authority `forward_only_no_execution`, no scheduler invocation, no runner
 invocation, no Coinbase orders, and `0` submitted/executed USDC notional. They
 are not frontend scheduler jobs, pause/resume buttons, retry loops, proof
 writers, reconciliation executors, or live-execution authority.
+`GET /api/v1/spot/sweep/automation-service` is the paired read-only
+automation-service status contract. It summarizes campaign ledger rows, sweep
+ledger rows, operation-lock state, scheduler due state, retry readiness,
+missing backend control contracts, and no-live proof. It does not invoke a
+scheduler, run a sweep, submit Coinbase orders, grant browser/BFF execution
+authority, or create a second sweep path.
 Spot P/L checkpoint records add a separate local-state mutation surface:
 `POST /api/v1/spot/pnl/checkpoints`, with read evidence at
 `GET /api/v1/spot/pnl/checkpoints` and
@@ -1948,6 +1954,7 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}`
 - `GET /api/v1/spot/cost-basis/status`
 - `GET /api/v1/spot/campaign/status`
+- `GET /api/v1/spot/sweep/automation-service`
 - `GET /api/v1/spot/direct-orders/{client_order_id}/audit`
 - `GET /api/v1/spot/command-suite`
 - `GET /api/v1/spot/recovery/preview`
