@@ -11947,6 +11947,7 @@ components:
       - execution_intent_envelope
       - browser_bff_boundary
       - live_execution_service
+      - post_live_reconciliation
       title: AdminApiLiveReadinessPrecondition
       description: Backend-owned preconditions before Admin API live execution.
     AdminApiModuleSupportStatus:

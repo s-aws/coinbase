@@ -94,10 +94,13 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   whether dispatch/retry would be ready and which backend admission/recovery
   gates still block execution. Scheduler/retry executor-admission evidence is
   recovery-gate-aware and reports `executor_ready_for_admission=false` when
-  recovery or reconciliation is pending. The route must not run the live sweep CLI,
-  create a browser scheduler, execute recovery or reconciliation, mutate state,
-  or submit Coinbase orders until live scheduler/retry execution, recovery,
-  reconciliation, and live execution gates pass.
+  recovery or reconciliation is pending. Scheduler/retry executor boundary
+  contracts name the missing backend executor service and keep executor,
+  runner, recovery, reconciliation, Coinbase, and notional flags false. The
+  route must not run the live sweep CLI, create a browser scheduler, execute
+  recovery or reconciliation, mutate state, or submit Coinbase orders until
+  live scheduler/retry execution, recovery, reconciliation, and live execution
+  gates pass.
 - The Admin API exposes `GET /api/v1/spot/sweep/automation-service` as
   backend-owned read evidence for the campaign ledger, sweep ledger, operation
   lock, scheduler due/not-due/disabled/max-run decisions, run-limit remaining

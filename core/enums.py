@@ -1006,6 +1006,7 @@ class AdminApiLiveReadinessPrecondition(str, Enum):
     EXECUTION_INTENT_ENVELOPE = "execution_intent_envelope"
     BROWSER_BFF_BOUNDARY = "browser_bff_boundary"
     LIVE_EXECUTION_SERVICE = "live_execution_service"
+    POST_LIVE_RECONCILIATION = "post_live_reconciliation"
 
 
 class AdminApiIdempotencyDecision(str, Enum):
@@ -2638,10 +2639,14 @@ class SpotSweepAutomationExecutionDecision(str, Enum):
     SCHEDULER_EXECUTOR_RECOVERY_GATE_BLOCKED = (
         "scheduler_executor_recovery_gate_blocked"
     )
+    SCHEDULER_EXECUTOR_BOUNDARY_LIVE_DISABLED = (
+        "scheduler_executor_boundary_live_disabled"
+    )
     RETRY_EXECUTOR_SOURCE_NOT_READY = "retry_executor_source_not_ready"
     RETRY_EXECUTOR_ADMISSION_BLOCKED = "retry_executor_admission_blocked"
     RETRY_EXECUTOR_ADMISSION_READY = "retry_executor_admission_ready"
     RETRY_EXECUTOR_RECOVERY_GATE_BLOCKED = "retry_executor_recovery_gate_blocked"
+    RETRY_EXECUTOR_BOUNDARY_LIVE_DISABLED = "retry_executor_boundary_live_disabled"
     RECOVERY_GATE_PASSED = "recovery_gate_passed"
     RECOVERY_GATE_BLOCKED = "recovery_gate_blocked"
     RECONCILIATION_EXECUTION_BOUNDARY_LIVE_DISABLED = (
@@ -2658,7 +2663,11 @@ class SpotSweepAutomationExecutionBlocker(str, Enum):
     SCHEDULER_DISPATCH_CONTRACT_REQUIRED = (
         "enterprise_sweep_scheduler_dispatch_service_contract"
     )
+    SCHEDULER_EXECUTOR_CONTRACT_REQUIRED = (
+        "enterprise_sweep_scheduler_executor_contract"
+    )
     RETRY_EXECUTION_CONTRACT_REQUIRED = "sweep_retry_execution_contract"
+    RETRY_EXECUTOR_CONTRACT_REQUIRED = "sweep_retry_executor_contract"
     RECONCILIATION_EXECUTION_CONTRACT_REQUIRED = (
         "sweep_reconciliation_execution_contract"
     )

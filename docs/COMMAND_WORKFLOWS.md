@@ -205,9 +205,11 @@ notional flags false. Executor-admission rows are sourced from the same route
 admission decision used by the command service and are recovery-gate-aware:
 when recovery or reconciliation is pending they report
 `executor_ready_for_admission=false` before any future scheduler/retry executor
-could run. They do not create a second scheduler, retry runner, recovery
-executor, or live sweep path. The campaign execution route accepts the same
-no-live dry-run review posture keyed by `campaign_id`.
+could run. Scheduler/retry executor boundary objects then name the missing
+backend executor contracts and keep executor, runner, recovery, reconciliation,
+Coinbase, and notional flags false. They do not create a second scheduler,
+retry runner, recovery executor, or live sweep path. The campaign execution
+route accepts the same no-live dry-run review posture keyed by `campaign_id`.
 
 `POST /api/v1/spot/pnl/checkpoints` is a backend-owned local-state mutation
 for durable operator-review records sourced from

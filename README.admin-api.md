@@ -1325,8 +1325,10 @@ execution, retry executor-admission, scoped recovery-gate pass/block evidence,
 and reconciliation/live boundary objects. Scheduler/retry executor-admission
 evidence now reports the recovery-gate status and
 `executor_ready_for_admission=false` when pending recovery/reconciliation would
-block future execution. The paired campaign execution route follows the same
-no-live review posture keyed by `campaign_id`.
+block future execution. Scheduler/retry executor boundary contracts also name
+the missing backend executor services and keep executor, runner, recovery,
+reconciliation, Coinbase, and notional flags false. The paired campaign
+execution route follows the same no-live review posture keyed by `campaign_id`.
 The same command-suite response exposes `automation_control_readiness` as the
 backend-owned control-state contract for campaign/sweep automation. It reports
 six explicit controls: scheduler, run limit, pause/resume, retry/recovery,

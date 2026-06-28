@@ -34292,6 +34292,31 @@ def test_admin_api_spot_sweep_automation_dry_run_is_accepted_no_live(
     assert scheduler_admission["sweep_runner_invoked"] is False
     assert scheduler_admission["coinbase_orders_submitted"] is False
     assert scheduler_admission["live_coinbase_orders_ran"] is False
+    assert payload["data"]["scheduler_executor_contract_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert payload["data"]["scheduler_executor_decision"] == (
+        SpotSweepAutomationExecutionDecision.SCHEDULER_EXECUTOR_BOUNDARY_LIVE_DISABLED.value
+    )
+    scheduler_executor = payload["data"]["scheduler_executor_contract"]
+    assert scheduler_executor["contract_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert scheduler_executor["source_admission_decision"] == (
+        SpotSweepAutomationExecutionDecision.SCHEDULER_EXECUTOR_ADMISSION_BLOCKED.value
+    )
+    assert scheduler_executor["source_executor_ready_for_admission"] is True
+    assert scheduler_executor["source_admission_allowed"] is False
+    assert scheduler_executor["executor_contract_enabled"] is False
+    assert scheduler_executor["executor_invoked"] is False
+    assert scheduler_executor["scheduler_invoked"] is False
+    assert scheduler_executor["sweep_runner_invoked"] is False
+    assert scheduler_executor["coinbase_orders_submitted"] is False
+    assert scheduler_executor["live_coinbase_orders_ran"] is False
+    assert scheduler_executor["blockers"] == [
+        SpotSweepAutomationExecutionBlocker.SCHEDULER_EXECUTOR_CONTRACT_REQUIRED.value,
+        SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_DISABLED.value,
+    ]
     assert payload["data"]["retry_execution_contract_status"] == (
         AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
     )
@@ -34333,6 +34358,31 @@ def test_admin_api_spot_sweep_automation_dry_run_is_accepted_no_live(
     assert retry_admission["sweep_runner_invoked"] is False
     assert retry_admission["coinbase_orders_submitted"] is False
     assert retry_admission["live_coinbase_orders_ran"] is False
+    assert payload["data"]["retry_executor_contract_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert payload["data"]["retry_executor_decision"] == (
+        SpotSweepAutomationExecutionDecision.RETRY_EXECUTOR_BOUNDARY_LIVE_DISABLED.value
+    )
+    retry_executor = payload["data"]["retry_executor_contract"]
+    assert retry_executor["contract_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert retry_executor["source_admission_decision"] == (
+        SpotSweepAutomationExecutionDecision.RETRY_EXECUTOR_SOURCE_NOT_READY.value
+    )
+    assert retry_executor["source_executor_ready_for_admission"] is False
+    assert retry_executor["source_admission_allowed"] is False
+    assert retry_executor["executor_contract_enabled"] is False
+    assert retry_executor["executor_invoked"] is False
+    assert retry_executor["retry_executor_invoked"] is False
+    assert retry_executor["sweep_runner_invoked"] is False
+    assert retry_executor["coinbase_orders_submitted"] is False
+    assert retry_executor["live_coinbase_orders_ran"] is False
+    assert retry_executor["blockers"] == [
+        SpotSweepAutomationExecutionBlocker.RETRY_EXECUTOR_CONTRACT_REQUIRED.value,
+        SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_DISABLED.value,
+    ]
     assert payload["data"]["recovery_gate_contract_status"] == (
         AdminApiModuleSupportStatus.READ_ONLY_READY.value
     )
@@ -34401,7 +34451,9 @@ def test_admin_api_spot_sweep_automation_dry_run_is_accepted_no_live(
     assert payload["data"]["automation_execution_blockers"] == [
         SpotSweepAutomationExecutionBlocker.DRY_RUN_REVIEW_ONLY.value,
         SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_LIVE_DISABLED.value,
+        SpotSweepAutomationExecutionBlocker.SCHEDULER_EXECUTOR_CONTRACT_REQUIRED.value,
         SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_NO_READY_PLAN.value,
+        SpotSweepAutomationExecutionBlocker.RETRY_EXECUTOR_CONTRACT_REQUIRED.value,
         SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED.value,
         SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_CONTRACT_REQUIRED.value,
     ]
@@ -34480,7 +34532,9 @@ def test_admin_api_spot_sweep_automation_dry_run_respects_pause_control_no_live(
     assert payload["data"]["automation_execution_blockers"] == [
         SpotSweepAutomationExecutionBlocker.DRY_RUN_REVIEW_ONLY.value,
         SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_PAUSED.value,
+        SpotSweepAutomationExecutionBlocker.SCHEDULER_EXECUTOR_CONTRACT_REQUIRED.value,
         SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_NO_READY_PLAN.value,
+        SpotSweepAutomationExecutionBlocker.RETRY_EXECUTOR_CONTRACT_REQUIRED.value,
         SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED.value,
         SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_CONTRACT_REQUIRED.value,
     ]
@@ -34669,6 +34723,32 @@ def test_admin_api_spot_sweep_automation_dry_run_reports_retry_ready_no_live(
     assert payload["data"]["retry_executor_admission_contract"][
         "admission_allowed"
     ] is False
+    assert payload["data"]["scheduler_executor_decision"] == (
+        SpotSweepAutomationExecutionDecision.SCHEDULER_EXECUTOR_BOUNDARY_LIVE_DISABLED.value
+    )
+    assert payload["data"]["scheduler_executor_contract"][
+        "source_admission_decision"
+    ] == (
+        SpotSweepAutomationExecutionDecision.SCHEDULER_EXECUTOR_RECOVERY_GATE_BLOCKED.value
+    )
+    assert payload["data"]["scheduler_executor_contract"][
+        "source_executor_ready_for_admission"
+    ] is False
+    assert payload["data"]["scheduler_executor_contract"][
+        "executor_contract_enabled"
+    ] is False
+    assert payload["data"]["retry_executor_decision"] == (
+        SpotSweepAutomationExecutionDecision.RETRY_EXECUTOR_BOUNDARY_LIVE_DISABLED.value
+    )
+    assert payload["data"]["retry_executor_contract"][
+        "source_admission_decision"
+    ] == (
+        SpotSweepAutomationExecutionDecision.RETRY_EXECUTOR_RECOVERY_GATE_BLOCKED.value
+    )
+    assert payload["data"]["retry_executor_contract"][
+        "source_executor_ready_for_admission"
+    ] is False
+    assert payload["data"]["retry_executor_contract"]["executor_contract_enabled"] is False
     assert payload["data"]["retry_executor_admission_contract"][
         "admission_blockers"
     ] == [
@@ -34719,7 +34799,9 @@ def test_admin_api_spot_sweep_automation_dry_run_reports_retry_ready_no_live(
     assert payload["data"]["automation_execution_blockers"] == [
         SpotSweepAutomationExecutionBlocker.DRY_RUN_REVIEW_ONLY.value,
         SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_LIVE_DISABLED.value,
+        SpotSweepAutomationExecutionBlocker.SCHEDULER_EXECUTOR_CONTRACT_REQUIRED.value,
         SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_LIVE_DISABLED.value,
+        SpotSweepAutomationExecutionBlocker.RETRY_EXECUTOR_CONTRACT_REQUIRED.value,
         SpotSweepAutomationExecutionBlocker.RECOVERY_GATE_PENDING.value,
         SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED.value,
         SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_CONTRACT_REQUIRED.value,
@@ -34818,7 +34900,9 @@ def test_admin_api_spot_sweep_automation_contract_is_not_implemented_and_not_liv
     assert payload["data"]["automation_execution_blockers"] == [
         SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_DISABLED.value,
         SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_LIVE_DISABLED.value,
+        SpotSweepAutomationExecutionBlocker.SCHEDULER_EXECUTOR_CONTRACT_REQUIRED.value,
         SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_NO_READY_PLAN.value,
+        SpotSweepAutomationExecutionBlocker.RETRY_EXECUTOR_CONTRACT_REQUIRED.value,
         SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED.value,
         SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_CONTRACT_REQUIRED.value,
     ]

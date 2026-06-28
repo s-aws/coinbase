@@ -103,6 +103,26 @@ class AdminApiSpotSweepAutomationExecutionService:
             recovery_gate_contract=recovery_gate_contract,
             admission_decision=admission_decision,
         )
+        scheduler_executor_contract = _build_executor_boundary_contract(
+            admission_contract=scheduler_admission_contract,
+            decision=(
+                SpotSweepAutomationExecutionDecision.SCHEDULER_EXECUTOR_BOUNDARY_LIVE_DISABLED
+            ),
+            contract_blocker=(
+                SpotSweepAutomationExecutionBlocker.SCHEDULER_EXECUTOR_CONTRACT_REQUIRED
+            ),
+            executor_invoked_key="scheduler_executor_invoked",
+        )
+        retry_executor_contract = _build_executor_boundary_contract(
+            admission_contract=retry_admission_contract,
+            decision=(
+                SpotSweepAutomationExecutionDecision.RETRY_EXECUTOR_BOUNDARY_LIVE_DISABLED
+            ),
+            contract_blocker=(
+                SpotSweepAutomationExecutionBlocker.RETRY_EXECUTOR_CONTRACT_REQUIRED
+            ),
+            executor_invoked_key="retry_executor_invoked",
+        )
         reconciliation_contract = _build_reconciliation_execution_contract(
             recovery_gate_contract=recovery_gate_contract,
         )
@@ -122,7 +142,9 @@ class AdminApiSpotSweepAutomationExecutionService:
                     else SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_DISABLED
                 ),
                 *scheduler_contract["blocker_enums"],
+                SpotSweepAutomationExecutionBlocker.SCHEDULER_EXECUTOR_CONTRACT_REQUIRED,
                 *retry_contract["blocker_enums"],
+                SpotSweepAutomationExecutionBlocker.RETRY_EXECUTOR_CONTRACT_REQUIRED,
                 *recovery_gate_contract["blocker_enums"],
                 (
                     SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED
@@ -147,6 +169,11 @@ class AdminApiSpotSweepAutomationExecutionService:
             "scheduler_executor_admission_contract": (
                 scheduler_admission_contract["data"]
             ),
+            "scheduler_executor_contract_status": NO_LIVE_CONTRACT_STATUS.value,
+            "scheduler_executor_decision": (
+                scheduler_executor_contract["decision"].value
+            ),
+            "scheduler_executor_contract": scheduler_executor_contract["data"],
             "retry_execution_contract_status": NO_LIVE_CONTRACT_STATUS.value,
             "retry_execution_decision": retry_contract["decision"].value,
             "retry_execution_contract": retry_contract["data"],
@@ -157,6 +184,9 @@ class AdminApiSpotSweepAutomationExecutionService:
                 retry_admission_contract["decision"].value
             ),
             "retry_executor_admission_contract": retry_admission_contract["data"],
+            "retry_executor_contract_status": NO_LIVE_CONTRACT_STATUS.value,
+            "retry_executor_decision": retry_executor_contract["decision"].value,
+            "retry_executor_contract": retry_executor_contract["data"],
             "recovery_gate_contract_status": (
                 AdminApiModuleSupportStatus.READ_ONLY_READY.value
             ),
@@ -516,6 +546,59 @@ def _build_executor_admission_contract(
         "scheduler_executor_invoked": False,
         "retry_executor_invoked": False,
         "sweep_runner_invoked": False,
+        "coinbase_orders_submitted": False,
+        "live_coinbase_orders_ran": False,
+        "submitted_notional_usdc": "0",
+        "executed_notional_usdc": "0",
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+    }
+    data[executor_invoked_key] = False
+    return {"decision": decision, "data": data}
+
+
+def _build_executor_boundary_contract(
+    *,
+    admission_contract: Mapping[str, Any],
+    decision: SpotSweepAutomationExecutionDecision,
+    contract_blocker: SpotSweepAutomationExecutionBlocker,
+    executor_invoked_key: str,
+) -> dict[str, Any]:
+    admission_data = admission_contract.get("data") or {}
+    data = {
+        "contract_status": NO_LIVE_CONTRACT_STATUS.value,
+        "decision": decision.value,
+        "route": SPOT_SWEEP_AUTOMATION_RUN_ROUTE,
+        "backend_owned": True,
+        "operator_action_available": False,
+        "source_admission_decision": admission_contract["decision"].value,
+        "source_executor_ready_for_admission": bool(
+            admission_data.get("executor_ready_for_admission")
+        ),
+        "source_admission_allowed": bool(admission_data.get("admission_allowed")),
+        "executor_contract_enabled": False,
+        "required_gate_chain": [
+            AdminApiLiveReadinessPrecondition.APPROVAL_SNAPSHOT.value,
+            AdminApiLiveReadinessPrecondition.ADMISSION_AUDIT_TRAIL.value,
+            AdminApiLiveReadinessPrecondition.CAP_GUARD_CONTRACT.value,
+            AdminApiLiveReadinessPrecondition.SWEEP_RECOVERY_GATE_CLEAR.value,
+            AdminApiLiveReadinessPrecondition.RECONCILIATION_PLAN.value,
+            AdminApiLiveReadinessPrecondition.LIVE_EXECUTION_SERVICE.value,
+            AdminApiLiveReadinessPrecondition.BROWSER_BFF_BOUNDARY.value,
+            AdminApiLiveReadinessPrecondition.POST_LIVE_RECONCILIATION.value,
+        ],
+        "blockers": [
+            contract_blocker.value,
+            SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_DISABLED.value,
+        ],
+        "executor_invoked": False,
+        "scheduler_invoked": False,
+        "scheduler_executor_invoked": False,
+        "retry_executor_invoked": False,
+        "sweep_runner_invoked": False,
+        "recovery_executor_invoked": False,
+        "reconciliation_executor_invoked": False,
+        "coinbase_read_attempted": False,
         "coinbase_orders_submitted": False,
         "live_coinbase_orders_ran": False,
         "submitted_notional_usdc": "0",
