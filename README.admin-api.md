@@ -1230,7 +1230,11 @@ through the shared `AdminApiCommandService.place_manual_order` method. It is
 configured evidence only and remains non-executable. M54 starts the Spot
 command-suite with `GET /api/v1/spot/command-suite`, a read-only readiness
 contract for manual order placement, cancel by `client_order_id`, spot
-campaign execution, and spot sweep automation. The route reports blockers,
+campaign execution, and spot sweep automation. The enterprise admin frontend
+uses this route as the source of the Spot Buy/Sell/Cancel readiness table:
+manual order and cancel rows expose route identity, live-disabled status,
+proof gates, blocking preconditions, and the next backend blocker without
+making the browser or BFF executable. The route reports blockers,
 missing gate-chain evidence, proof routes for backend approval/audit/cap/
 reconciliation records, `readiness_preconditions` copied from live-enablement
 evidence, aggregate `readiness_precondition_count`,

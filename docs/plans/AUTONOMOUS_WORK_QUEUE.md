@@ -184,10 +184,15 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
   Classification is represented by backend `lifecycle_support` rows on
   `GET /api/v1/admin/enterprise-readiness` and the frontend Lifecycle section.
   Lifecycle controls remain absent until backend command contracts exist.
-- Remaining release-linked selection: Product, Wallet, Balance, And Fill Read
-  Contracts, because the coverage route now exposes product catalog, spot
-  wallets, spot balances, and spot fills as explicit `not_modeled`
-  release-blocking gaps.
+- Current spot command implementation result: frontend Spot Command Suite
+  renders backend `GET /api/v1/spot/command-suite` Buy/Sell/Cancel readiness
+  evidence for manual order and cancel-by-`client_order_id` routes.
+- Remaining release-linked selection: spot command live admission and live
+  execution remain blocked by backend proof, approval, cap/guard,
+  reconciliation, audit, wallet/no-shorting, direct acknowledgement, and
+  live-service gates. Product catalog, spot wallet, spot balance, and spot
+  fill read contracts now belong to the account-market-inventory
+  `ready_with_data_gate` surface, not a missing-contract blocker.
 
 ### Phase 7994 - Operator Runbook Update
 

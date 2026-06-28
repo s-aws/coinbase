@@ -133,10 +133,20 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
 
 - Select the next implementation slice strictly by release impact and state the
   blocker it clears.
+- Current implementation result: Account and Market Inventory coverage is
+  implemented through `GET /api/v1/admin/account-market-inventory` and the
+  frontend Inventory section. Product catalog, spot wallet, spot balance, and
+  spot fill coverage is now a `ready_with_data_gate` read surface, not a
+  missing-contract blocker.
 - Current implementation result: Admin Lifecycle Support Classification is
   implemented through backend `lifecycle_support` rows and the frontend
   Lifecycle section. Lifecycle controls remain absent until backend command
   contracts exist.
+- Current implementation result: Spot Buy/Sell/Cancel readiness is surfaced
+  from backend `GET /api/v1/spot/command-suite` evidence in the frontend Spot
+  Command Suite. Live spot buy/sell and cancel remain blocked by backend
+  admission, proof, approval, cap/guard, reconciliation, audit,
+  wallet/no-shorting, direct acknowledgement, and live-service gates.
 
 ### Phase 7994 - Operator Runbook Update
 
