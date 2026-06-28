@@ -49,7 +49,9 @@ work. Historical milestone detail belongs in
   `unsupported` or `not_modeled`.
 - Phase instruction review status: backend `AGENTS.md`, backend `agent.md`,
   frontend `AGENTS.md`, and related agent contract docs were reviewed again on
-  2026-06-28 for this phase. No phase-direction change was required.
+  2026-06-28 for this phase, including the direct-order audit lookup slice.
+  No phase-direction change was required, but Release 0.1 product progress
+  remains the controlling rule.
 - Release 0.1 matrix status:
   `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md` and frontend
   `docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md` now identify the next
@@ -60,9 +62,14 @@ work. Historical milestone detail belongs in
   `post_submit_reconciliation` audit handoff with the direct-order audit route,
   admission ids, submission-event status, and no-mutation/no-browser/BFF
   authority flags. The frontend command workflow now renders and links that
-  backend handoff without creating browser/BFF execution authority. Remaining
-  blockers are live Coinbase validation under the approved notional cap,
-  eventual reconciliation execution proof, and later SELL
+  backend handoff without creating browser/BFF execution authority. The
+  frontend Spot Operations Direct Order Audit panel now loads a handoff
+  `client_order_id` through the canonical runtime client for
+  `GET /api/v1/spot/direct-orders/{client_order_id}/audit`, clearing the
+  frontend read-only audit handoff usability gap without adding browser/BFF
+  execution authority, Coinbase calls, reconciliation execution, or state
+  mutation. Remaining blockers are live Coinbase validation under the approved
+  notional cap, eventual reconciliation execution proof, and later SELL
   lot-authority/planned-budget sources.
 - Exact next implementation slice: manual Spot BUY operator-complete path.
 - Contextless review status: planned for `7981-8000`; reviewers must verify
