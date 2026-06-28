@@ -25,6 +25,8 @@ work. Historical milestone detail belongs in
 ## Current Phase
 
 - Latest completed and pushed range before this work: `7961-7980`.
+- Latest completed and pushed range before the active Release 0.1 work:
+  `7961-7980`.
 - Active approved range: `7981-8000`.
 - Scope: Release 0.1 Operator Admin Pivot. The project is moving away from
   evidence-only roadmap expansion and toward a usable private operator admin
@@ -50,14 +52,15 @@ work. Historical milestone detail belongs in
 - Phase instruction review status: backend `AGENTS.md`, backend `agent.md`,
   frontend `AGENTS.md`, and related agent contract docs were reviewed again on
   2026-06-28 for this phase, including the no-live Admin API manual Spot SELL
-  validation runner slice. Release 0.1 product progress remains the
-  controlling rule.
+  validation runner slice and the operator runbook update. Release 0.1 product
+  progress remains the controlling rule.
 - Release 0.1 matrix status:
   `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md` and frontend
-  `docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md` now identify the next
-  implementation slice as one operator-completable manual Spot BUY path.
-  Account and Market Inventory is already implemented as the
-  `ready_with_data_gate` read slice, not the next missing-contract blocker.
+  `docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md` now identify operator
+  runbook, documentation index, autonomous validator, and contextless review
+  work as the next Release 0.1 closeout support slice. Account and Market Inventory
+  is already implemented as the `ready_with_data_gate` read slice,
+  not the next missing-contract blocker.
   Accepted configured live manual BUY responses now expose a structured
   `post_submit_reconciliation` audit handoff with the direct-order audit route,
   admission ids, submission-event status, and no-mutation/no-browser/BFF
@@ -118,10 +121,22 @@ work. Historical milestone detail belongs in
   py_compile, ownership check, and backend autonomous queue check passed. No
   frontend files changed in this SELL validation slice. Full backend
   regression and frontend release gate were not run because this is ordinary
-  phase work, not milestone closeout.
-- Commit/push status: pending for `7981-8000` in backend and frontend repos.
-- Current phase-end subagent sweep: no subagents were spawned for this phase;
-  no stale phase-scoped subagents are intentionally open.
+  phase work, not milestone closeout. Operator runbook phase validation passed:
+  backend ownership check, backend autonomous queue check, backend
+  `git diff --check`, frontend release readiness check, frontend autonomous
+  queue check, and frontend `git diff --check`. Fresh blind/contextless review
+  passed after remediation with no blocking ambiguities for startup, usable
+  surfaces, non-operator-complete workflows, and Spot BUY/SELL/cancel backend
+  authority.
+- Commit/push status: previous backend commit `da937a15` was pushed with the
+  no-live Admin API manual Spot SELL validation runner. Current operator
+  runbook/docs sync changes are pending validation, commit, and push in the
+  backend and frontend repos.
+- Current phase-end subagent sweep: first blind/contextless reviewer
+  `019f0cd4-c028-76a0-88c5-48f196541a1a` failed on startup/live-notional
+  ambiguity and was closed after remediation; fresh reviewer
+  `019f0cd8-286f-7471-a7ff-ff13aac216af` passed and was closed. No stale
+  phase-scoped subagents are intentionally open.
 
 ## Phase Contract
 

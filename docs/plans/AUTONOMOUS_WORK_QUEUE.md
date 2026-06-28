@@ -61,11 +61,16 @@ result in the phase evidence, handoff, or closeout summary before advancing.
   exists, stop and request a new decision instead of inventing scope.
 - Phase `7981-8000` instruction review status: backend `AGENTS.md`, backend
   `agent.md`, frontend `AGENTS.md`, and related owner contracts were reviewed
-  on 2026-06-28 before manual Spot BUY Admin API live-validation work and again
-  before Admin API spot SELL authority source wiring. Release 0.1 product
-  progress remains the controlling rule.
+  on 2026-06-28 before manual Spot BUY Admin API live-validation work, before
+  Admin API spot SELL authority source wiring, and before the operator runbook
+  update. Release 0.1 product progress remains the controlling rule.
 - Phase `7981-8000` matrix-work subagent sweep status: no phase-scoped
   subagents were spawned, so no subagent cleanup was required.
+- Phase `7994` operator-runbook subagent sweep status: blind/contextless
+  reviewer `019f0cd4-c028-76a0-88c5-48f196541a1a` found startup and live
+  notional ambiguities and was closed after remediation. Fresh reviewer
+  `019f0cd8-286f-7471-a7ff-ff13aac216af` passed with no blocking ambiguities
+  and was closed. No stale phase-scoped subagents are intentionally open.
 
 ## Current Progress Record
 
@@ -215,8 +220,9 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
   `post_submit_reconciliation` handoff without creating browser/BFF execution
   authority. Admin API manual-order dependencies now source planned budget from
   durable `stealth_orders` rows and spot SELL lot authority from the shared fill
-  ledger/imported baselines through `ActionConditionGuard`; cancel remains
-  blocked until it has an explicit acknowledgement/live-service contract.
+  ledger/imported baselines through `ActionConditionGuard`; cancel now has an
+  explicit acknowledgement/live-service contract and reaches only
+  `cancel_order(client_order_id)` after exact backend gates pass.
   Current manual Spot BUY validation must use
   `python tools\run_admin_api_manual_spot_buy_live.py`, not the direct Coinbase
   smoke script, so the proof covers the enterprise Admin API route and shared
@@ -238,6 +244,13 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
 
 - Update the operator runbook so a contextless maintainer can start the admin
   API/frontend and understand what Release 0.1 can and cannot do.
+- Current implementation result: the frontend human operator runbook now
+  states backend Admin API startup, BFF mode as the normal local operator
+  path, direct backend mode as session-bridge/test-harness only, usable Release
+  0.1 surfaces, non-operator-complete workflows, Spot BUY/SELL/cancel backend
+  authority status, prior backend BUY live-validation notional, and this
+  phase's no-live Coinbase notional evidence. Backend and frontend handoff
+  docs were synced to the same current Spot command posture.
 
 ### Phase 7995 - Documentation Index Update
 

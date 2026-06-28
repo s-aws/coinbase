@@ -194,6 +194,13 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
 
 - Update the operator runbook so a contextless maintainer can start the admin
   API/frontend and understand what Release 0.1 can and cannot do.
+- Current implementation result: the frontend human operator runbook now
+  states backend Admin API startup, BFF mode as the normal local operator
+  path, direct backend mode as session-bridge/test-harness only, usable Release
+  0.1 surfaces, non-operator-complete workflows, Spot BUY/SELL/cancel backend
+  authority status, prior backend BUY live-validation notional, and this
+  phase's no-live Coinbase notional evidence. Backend and frontend handoff
+  docs were synced to the same current Spot command posture.
 
 ### Phase 7995 - Documentation Index Update
 

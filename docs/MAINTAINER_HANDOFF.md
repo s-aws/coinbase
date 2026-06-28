@@ -130,6 +130,8 @@ notional, retained inventory, reconciliation result, and audit ids.
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
 - Latest completed autonomous range: `7961-7980` under M57.
+- Latest completed and pushed range before the active Release 0.1 work:
+  `7961-7980`.
 - Active autonomous range: `7981-8000` under Release 0.1.
 - Current active range: `7981-8000` pivots the Admin API/frontend work to a
   usable private operator MVP. Every new phase must either clear a named
@@ -137,13 +139,29 @@ notional, retained inventory, reconciliation result, and audit ids.
   backend behavior must be surfaced as `unsupported` or `not_modeled`; do not
   implement missing behavior in the browser, BFF, route-local FastAPI handlers,
   or any second trading path.
-- Phase `7981-8000` instruction review: backend `AGENTS.md` and `agent.md`
-  were reviewed on 2026-06-27 before the Release 0.1 matrix work. No
-  phase-direction change was required.
+- Phase `7981-8000` instruction review: backend `AGENTS.md`, backend
+  `agent.md`, frontend `AGENTS.md`, and related agent contract docs were
+  reviewed on 2026-06-27 before the Release 0.1 matrix work and again on
+  2026-06-28 before the manual Spot BUY validation, SELL validation, and
+  operator runbook phases. No phase-direction change was required, but the
+  Release 0.1 product-progress rule remains controlling.
 - Release 0.1 matrix status: `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md`
-  identifies Account and Market Inventory as the next implementation slice
-  because product/account/balance/fill coverage is the largest private-MVP
-  management gap.
+  treats Account and Market Inventory as a `ready_with_data_gate` read surface,
+  not the next implementation slice. Manual Spot BUY has capped backend
+  validation evidence through Admin API order submission, read-only Coinbase
+  fill lookup, fill-ledger backfill, and direct-order audit readback with
+  `dashboard_dependency=false`. Manual Spot SELL has no-live validation through
+  the existing `POST /api/v1/orders` route and shared command service with
+  fake REST, durable planned-budget reads, and shared fill-ledger/imported
+  baseline lot authority through `ActionConditionGuard`. Cancel now has
+  explicit `manual_live_acknowledgement`, a route-scoped configured backend
+  live-service dependency, service-level acknowledgement rejection before
+  REST, and can only reach `cancel_order(client_order_id)` when all backend
+  gates pass.
+- Exact next implementation slice: continue approved Release 0.1 closeout
+  support through operator runbook, documentation index, autonomous validator,
+  and contextless review work. Do not create another spot proof slice unless it
+  clears a named Release 0.1 blocker.
 - Completed `7961-7980` added risk-proof record validation remediation summary
   evidence derived from existing per-command risk-proof record-validation
   remediation rows and remains carried-forward disabled, no-live,
