@@ -157,9 +157,12 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
   reach the existing command-service live branch when backend env, REST client,
   and durable order-event publisher gates pass. The default disabled service
   remains blocked/no-live, the generic live-service dependency remains disabled
-  for other routes, cancel remains blocked pending an explicit
-  acknowledgement/live-service contract, and no live Coinbase execution is
-  enabled by default. Accepted configured live manual BUY responses now expose
+  for other routes, and no live Coinbase execution is enabled by default.
+  Cancel now carries `manual_live_acknowledgement`, uses a route-scoped
+  configured backend live-service dependency, requires the same exact backend
+  admission chain, and reaches only the shared
+  `cancel_order(client_order_id)` wrapper when all gates pass. Accepted
+  configured live manual BUY responses now expose
   a structured `post_submit_reconciliation` audit handoff with the direct-order
   audit route, admission ids, submission-event status, and no-mutation/
   no-browser/BFF-authority flags. The frontend command workflow now renders
@@ -179,9 +182,9 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
   `business.spot_fill_backfill.backfill_fill_ledger_from_order_reports`, and
   read back `GET /api/v1/spot/direct-orders/{client_order_id}/audit` through
   `application.admin_api.read_service` with `dashboard_dependency=false`.
-  The remaining spot command blocker is cancel acknowledgement/live-service
-  handling plus release validation that presents the SELL source wiring clearly
-  to operators without browser/BFF execution authority.
+  The remaining spot command blocker is release validation that presents the
+  SELL source wiring clearly to operators without browser/BFF execution
+  authority.
 
 ### Phase 7994 - Operator Runbook Update
 

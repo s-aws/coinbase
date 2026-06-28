@@ -810,6 +810,14 @@ M53_PILOT_LIVE_ADAPTER_MODULE_ID = "spot_operations"
 M53_PILOT_LIVE_ADAPTER_SERVICE_METHOD = "place_manual_order"
 M53_PILOT_LIVE_ADAPTER_SOURCE = "m53_backend_pilot_dry_run"
 M53_PILOT_LIVE_ADAPTER_MISSING_REASON = "pilot_dry_run_only"
+RELEASE_0_1_CANCEL_LIVE_ADAPTER_ROUTE = (
+    "/api/v1/orders/{client_order_id}/cancel"
+)
+RELEASE_0_1_CANCEL_LIVE_ADAPTER_METHOD = "POST"
+RELEASE_0_1_CANCEL_LIVE_ADAPTER_MODULE_ID = "spot_operations"
+RELEASE_0_1_CANCEL_LIVE_ADAPTER_SERVICE_METHOD = "cancel_order_by_client_order_id"
+RELEASE_0_1_CANCEL_LIVE_ADAPTER_SOURCE = "release_0_1_cancel_backend_dry_run"
+RELEASE_0_1_CANCEL_LIVE_ADAPTER_MISSING_REASON = "cancel_dry_run_only"
 M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_ROUTE = (
     "/api/v1/stealth/orders/{stealth_order_id}/reveal"
 )
@@ -16597,6 +16605,96 @@ def build_m53_pilot_live_execution_adapter_contract(
     }
 
 
+def build_release_0_1_cancel_live_execution_adapter_contract(
+    *,
+    method: str,
+    route: str,
+    module_id: str,
+    service_method: str,
+    action_class: AdminApiActionClass,
+    live_adapter_decision_store: FileAdminApiLiveAdapterDecisionStore | None = None,
+    include_construction_contract: bool = True,
+) -> dict[str, Any]:
+    """Return route-bound cancel adapter evidence for Release 0.1."""
+
+    adapter_reference = f"AdminApiCommandService.{service_method}"
+    return {
+        "required": True,
+        "configured": True,
+        "backend_owned": True,
+        "route_bound": True,
+        "status": AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+        "source": RELEASE_0_1_CANCEL_LIVE_ADAPTER_SOURCE,
+        "missing_reason": RELEASE_0_1_CANCEL_LIVE_ADAPTER_MISSING_REASON,
+        "module_id": module_id,
+        "route": route,
+        "method": method,
+        "service_method": service_method,
+        "adapter_reference": adapter_reference,
+        "action_class": action_class,
+        "executable": False,
+        "construction_precondition_required": True,
+        "construction_precondition_resolved": False,
+        "construction_precondition_authority": (
+            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_AUTHORITY
+        ),
+        "required_construction_artifacts": list(
+            LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
+        ),
+        "missing_construction_artifacts": list(
+            LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS
+        ),
+        "construction_contract_refs": list(
+            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_CONTRACT_REFS
+        ),
+        "construction_verification_gates": list(
+            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_VERIFICATION_GATES
+        ),
+        "construction_blockers": list(
+            LIVE_EXECUTION_ADAPTER_CONSTRUCTION_BLOCKERS
+        ),
+        "construction_contract_available": True,
+        "construction_contract_ref": LIVE_ADAPTER_DECISION_NEXT_REQUIRED_CONTRACT,
+        "construction_contract_satisfies_construction": False,
+        "construction_contract": (
+            build_live_adapter_construction_contract(
+                method=method,
+                route=route,
+                module_id=module_id,
+                service_method=service_method,
+                action_class=action_class,
+            )
+            if include_construction_contract
+            else None
+        ),
+        **build_live_execution_adapter_construction_satisfaction(),
+        **build_live_execution_adapter_decision_readback(
+            method=method,
+            route=route,
+            module_id=module_id,
+            service_method=service_method,
+            live_adapter_decision_store=live_adapter_decision_store,
+        ),
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "forbidden_methods": list(DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS),
+        "evidence": [
+            "Release 0.1 cancel maps the route to the shared backend command service.",
+            "Cancel adapter evidence is non-executable and exposes no browser or BFF cancel authority.",
+            "Live execution service admission remains required before Coinbase cancellation.",
+            "The shared command path must call cancel_order(client_order_id).",
+            "Backend live adapter construction preconditions remain unresolved.",
+        ],
+        "detail": (
+            f"{method} {route} is configured as the Release 0.1 cancel "
+            f"adapter for {adapter_reference}; it remains non-executable until "
+            "backend live execution service admission, route-bound approvals, "
+            "caps, admission audit, reconciliation proof, manual acknowledgement, "
+            "and live caps all pass."
+        ),
+    }
+
+
 def build_m55_stealth_reveal_live_execution_adapter_contract(
     *,
     method: str,
@@ -16706,6 +16804,21 @@ def build_live_execution_adapter_contract(
         and service_method == M53_PILOT_LIVE_ADAPTER_SERVICE_METHOD
     ):
         return build_m53_pilot_live_execution_adapter_contract(
+            method=method,
+            route=route,
+            module_id=module_id,
+            service_method=service_method,
+            action_class=action_class,
+            live_adapter_decision_store=live_adapter_decision_store,
+            include_construction_contract=include_construction_contract,
+        )
+    if (
+        method == RELEASE_0_1_CANCEL_LIVE_ADAPTER_METHOD
+        and route == RELEASE_0_1_CANCEL_LIVE_ADAPTER_ROUTE
+        and module_id == RELEASE_0_1_CANCEL_LIVE_ADAPTER_MODULE_ID
+        and service_method == RELEASE_0_1_CANCEL_LIVE_ADAPTER_SERVICE_METHOD
+    ):
+        return build_release_0_1_cancel_live_execution_adapter_contract(
             method=method,
             route=route,
             module_id=module_id,

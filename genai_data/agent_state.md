@@ -82,12 +82,16 @@ work. Historical milestone detail belongs in
   Admin API manual-order dependencies now source planned budget from durable
   `stealth_orders` rows and spot SELL lot authority from the shared fill
   ledger/imported baselines through `ActionConditionGuard`, without adding a
-  route-local sell guard or second trading path. Remaining blockers are cancel
-  acknowledgement/live-service contracts and operator-facing SELL validation
-  evidence before Release 0.1 closeout.
-- Exact next implementation slice: add the cancel acknowledgement/live-service
-  contract for `client_order_id` cancellation while preserving the existing
-  project wrapper `cancel_order(client_order_id)`.
+  route-local sell guard or second trading path. The cancel
+  acknowledgement/live-service contract now adds explicit
+  `manual_live_acknowledgement`, a route-scoped configured backend live-service
+  dependency, service-level acknowledgement rejection before REST, and the
+  existing project wrapper `cancel_order(client_order_id)` as the only live
+  cancel call. Remaining blocker is operator-facing SELL validation evidence
+  before Release 0.1 closeout.
+- Exact next implementation slice: keep SELL on the existing manual-order path
+  and produce operator-facing validation evidence without adding browser/BFF
+  execution authority or a second spot sell path.
 - Contextless review status: planned for `7981-8000`; reviewers must verify
   that the Release 0.1 pivot is understandable without chat history and that
   future work cannot drift back into proof-only expansion without a named
@@ -519,8 +523,7 @@ work. Historical milestone detail belongs in
 ## Next Actions
 
 1. Continue Release 0.1 phases from the burn-down, prioritizing
-   cancel-by-`client_order_id` acknowledgement/live-service handling as the
-   next spot command blocker.
+   operator-facing SELL validation evidence on the existing manual-order path.
 2. Keep SELL on the existing manual-order path and use focused validation
    evidence rather than adding a second spot sell path.
 3. Keep full regression reserved for durable milestone closeout unless

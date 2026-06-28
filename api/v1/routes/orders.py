@@ -361,6 +361,20 @@ def get_manual_order_live_execution_service() -> AdminApiLiveExecutionService:
     )
 
 
+def get_cancel_order_live_execution_service() -> AdminApiLiveExecutionService:
+    """Return the cancel-order live service, disabled unless configured."""
+
+    live_enabled = _env_flag_enabled(ADMIN_API_LIVE_EXECUTION_ENABLED_ENV)
+    if not live_enabled:
+        return get_disabled_live_execution_service()
+    _rest_client, rest_client_available = _get_admin_api_rest_client_dependency()
+    return get_configured_live_execution_service(
+        enabled=True,
+        rest_client_available=rest_client_available,
+        order_event_stream_available=_admin_api_order_event_stream_available(),
+    )
+
+
 def get_read_service() -> AdminApiReadService:
     """Return the read-only Admin API status service."""
 
@@ -1100,7 +1114,7 @@ def cancel_order_by_client_order_id(
     ],
     live_execution_service: Annotated[
         AdminApiLiveExecutionService,
-        Depends(get_live_execution_service),
+        Depends(get_cancel_order_live_execution_service),
     ],
 ) -> JSONResponse:
     """Route adapter for cancel-by-client-order-id."""
@@ -1139,6 +1153,7 @@ def cancel_order_by_client_order_id(
         cap_guard_store=cap_guard_store,
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
+        manual_live_acknowledgement=body.manual_live_acknowledgement,
         client_order_id=client_order_id,
         command_runner_with_admission=lambda admission_decision: (
             service.cancel_order_by_client_order_id(

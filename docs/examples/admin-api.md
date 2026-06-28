@@ -2535,7 +2535,7 @@ X-Admin-Roles: trader
 X-CSRF-Token: <configured-csrf-token-when-required>
 Content-Type: application/json
 
-{"reason":"operator_requested_cancel"}
+{"reason":"operator_requested_cancel","manual_live_acknowledgement":true}
 ```
 
 Current backend behavior:
@@ -2543,15 +2543,17 @@ Current backend behavior:
 - parse the request through FastAPI/Pydantic
 - authenticate actor and authorize `order:cancel`
 - evaluate durable idempotency
-- call the shared command service with HTTP live execution disabled
+- call the shared command service with HTTP live execution disabled by default
 - write durable command audit evidence
-- return `501` with `status: "not_implemented"`
-- never call Coinbase
+- return `501` with `status: "not_implemented"` unless exact backend
+  admission, acknowledgement, and the configured live-service gate pass
+- never call Coinbase from the browser or BFF
 
-Future live execution must call the project Coinbase wrapper
-`cancel_order(client_order_id)` after rate/cap policy is complete. The wrapper
-must parse Coinbase cancel payloads and accept only explicit `success: true`
-evidence as a successful exchange cancellation.
+Configured live execution must call the project Coinbase wrapper
+`cancel_order(client_order_id)` after approval, admission-audit, cap/guard,
+reconciliation, manual acknowledgement, and live-service policy pass. The
+wrapper must parse Coinbase cancel payloads and accept only explicit
+`success: true` evidence as a successful exchange cancellation.
 
 ## Stealth Cancel By Stealth Order ID
 

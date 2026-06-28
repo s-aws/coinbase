@@ -22,6 +22,12 @@ execution as not run with notional `$0`.
   REST client, and order-event-stream gates pass. It uses the same
   action-condition guard with durable `stealth_orders` planned-budget reads and
   shared fill-ledger/imported-baseline spot SELL authority.
+- Admin HTTP `POST /api/v1/orders/{client_order_id}/cancel` is the enterprise
+  cancel surface. It is disabled by default, but it can reach the shared
+  command-service live branch when backend auth/RBAC, idempotency, approval,
+  admission-audit, cap/guard, reconciliation, manual acknowledgement,
+  configured live-service, REST client, and order-event-stream gates pass. It
+  calls only the project wrapper `cancel_order(client_order_id)`.
 - Legacy dashboard WebSocket `cancel_order` is a compatibility-only manual
   live cancellation surface. It accepts `client_order_id` and calls the project
   wrapper `cancel_order(client_order_id)`.
@@ -36,14 +42,16 @@ execution as not run with notional `$0`.
 
 ## Read-Only Or Disabled Surfaces
 
-- Admin HTTP mutating routes other than the configured manual order exception
+- Admin HTTP mutating routes other than the configured manual order and cancel
+  exceptions
   fail closed after auth/RBAC, idempotency, approval-gate, and audit handling.
   They do not submit or cancel Coinbase orders yet.
-- Admin HTTP `POST /api/v1/orders` remains no-live unless the manual-order
-  live-service gate is explicitly configured and exact backend admission
-  evidence passes. Backend `trader` or `admin` authority is required for the
-  command route; a human "operator" label in the frontend is not enough RBAC
-  authority.
+- Admin HTTP `POST /api/v1/orders` and
+  `POST /api/v1/orders/{client_order_id}/cancel` remain no-live unless the
+  route-specific live-service gate is explicitly configured and exact backend
+  admission evidence passes. Backend `trader` or `admin` authority is required
+  for the command route; a human "operator" label in the frontend is not enough
+  RBAC authority.
 - Admin HTTP read-only spot routes can report readiness, sweep status, P/L,
   cost-basis status, campaign status, and direct-order audit evidence.
 - The enterprise frontend must use the HTTP Admin API contract. It must not

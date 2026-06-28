@@ -417,6 +417,7 @@ class CancelOrderRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     reason: str | None = None
+    manual_live_acknowledgement: bool = False
 
 
 class StealthCancelRequest(BaseModel):

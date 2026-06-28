@@ -2455,6 +2455,7 @@ class ActionGuardPhase(str, Enum):
     """Action-condition guard evaluation phase."""
     PLANNING = "planning"
     REVEAL = "reveal"
+    EXECUTION = "execution"
 
 
 class ActionConditionType(str, Enum):

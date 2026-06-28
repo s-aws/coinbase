@@ -232,10 +232,13 @@ project-specific exception where the backend wrapper calls
 that operation. Do not replace this with an exchange-native `order_id` flow.
 The cancel route uses the same backend-admission-bound `allow_live_execution`
 handoff as manual order placement; it does not add an exchange `order_id`
-cancel path or make the default disabled live service executable. Because the
-cancel request does not yet carry an explicit manual live acknowledgement, its
-route-level admission remains blocked even if other synthetic evidence is
-complete.
+cancel path or make the default disabled live service executable. The cancel
+request now carries `manual_live_acknowledgement`; route-level admission can
+pass only when that acknowledgement, the exact approval snapshot, admission
+audit, cap/guard decision, reconciliation plan, and configured backend
+live-service evidence all match. The shared command service also checks the
+acknowledgement before any REST cancellation branch, then calls only the
+project wrapper `cancel_order(client_order_id)`.
 
 ## Stealth Command Suite
 

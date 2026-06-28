@@ -203,9 +203,11 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
   reach the existing command-service live branch when backend env, REST client,
   and durable order-event publisher gates pass. The default disabled service
   remains blocked/no-live, the generic live-service dependency remains disabled
-  for other routes, cancel remains blocked pending an explicit
-  acknowledgement/live-service contract, and no live Coinbase execution is
-  enabled by default.
+  for other routes, and no live Coinbase execution is enabled by default.
+  Cancel now carries `manual_live_acknowledgement`, uses a route-scoped
+  configured backend live-service dependency, rejects missing acknowledgement
+  before REST, and reaches only `cancel_order(client_order_id)` when exact
+  backend admission passes.
 - Remaining release-linked selection: one manual Spot BUY path now has capped
   live Coinbase validation through the Admin API route, Admin API direct-order
   audit readback, and post-submit fill-ledger backfill proof. The frontend
@@ -224,6 +226,8 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
   `business.spot_fill_backfill.backfill_fill_ledger_from_order_reports`, and
   read back `GET /api/v1/spot/direct-orders/{client_order_id}/audit` through
   `application.admin_api.read_service` with `dashboard_dependency=false`.
+  Remaining spot command work is operator-facing SELL validation evidence on
+  the existing manual-order path without browser/BFF execution authority.
   Product catalog, spot wallet, spot balance, and spot fill read contracts now
   belong to the account-market-inventory `ready_with_data_gate` surface, not a
   missing-contract blocker.

@@ -1673,12 +1673,6 @@ class AdminApiCommandService:
 
         deps = self.dependencies
         client_order_id = command.client_order_id
-        if not deps.rest_client_available:
-            return self._cancel_rejected(
-                command=command,
-                message="REST client not available",
-                failure_stage="rest_client",
-            )
         if not client_order_id:
             return self._cancel_rejected(
                 command=command,
@@ -1687,6 +1681,35 @@ class AdminApiCommandService:
                     "order_id, to dashboard cancel_order."
                 ),
                 failure_stage="validation",
+            )
+        if not command.request.manual_live_acknowledgement:
+            reason = (
+                "Cancel is a live manual order surface; set "
+                "manual_live_acknowledgement=true before REST cancellation."
+            )
+            guard_failure = {
+                "condition": ActionConditionType.MANUAL_LIVE_ACKNOWLEDGEMENT.value,
+                "block_category": (
+                    ActionConditionType.MANUAL_LIVE_ACKNOWLEDGEMENT.value
+                ),
+                "reason": reason,
+                "client_order_id": client_order_id,
+                "phase": ActionGuardPhase.EXECUTION.value,
+                "manual_live_acknowledgement_required": True,
+            }
+            message = f"Cancel rejected by manual live acknowledgement: {reason}"
+            deps.add_log_entry("WARNING", message)
+            return self._cancel_rejected(
+                command=command,
+                message=message,
+                guard=guard_failure,
+                failure_stage="manual_live_acknowledgement",
+            )
+        if not deps.rest_client_available:
+            return self._cancel_rejected(
+                command=command,
+                message="REST client not available",
+                failure_stage="rest_client",
             )
 
         try:
@@ -5329,6 +5352,7 @@ class AdminApiCommandService:
         command: CancelOrderCommand,
         message: str,
         failure_stage: str,
+        guard: dict[str, Any] | None = None,
     ) -> AdminApiCommandResponse:
         return AdminApiCommandResponse(
             status=AdminApiCommandStatus.REJECTED,
@@ -5339,5 +5363,6 @@ class AdminApiCommandService:
             client_order_id=command.client_order_id,
             correlation_id=command.envelope.correlation_id,
             idempotency_key=command.envelope.idempotency_key,
+            guard=guard,
             failure_stage=failure_stage,
         )

@@ -353,6 +353,7 @@ from application.admin_api.models import (
     AdminApiCommandResponse,
     AdminApprovalRequestCreateRequest,
     AdminLiveAdmissionDecisionEvidence,
+    CancelOrderRequest,
     ManualOrderRequest,
     MovementRepriceRequest,
     SpotRecoveryApplyExecutionRequest,
@@ -385,6 +386,8 @@ from application.admin_api.models import (
 )
 from application.admin_api.route_inventory import ADMIN_API_ROUTE_INVENTORY
 from core.enums import (
+    ActionConditionType,
+    ActionGuardPhase,
     AdminApiActionClass,
     AdminApiApprovalLifecycleEventType,
     AdminApiApprovalLifecycleStatus,
@@ -941,6 +944,29 @@ def _manual_order_approval_payload(
     }
 
 
+def _cancel_order_approval_payload(
+    *,
+    actor_id: str = "operator-001",
+    roles: list[str] | None = None,
+    operator_intent: str = "manual_one_off",
+    client_order_id: str = "client-cancel-approved",
+    manual_live_acknowledgement: bool = True,
+) -> dict:
+    return {
+        "endpoint": f"POST /api/v1/orders/{client_order_id}/cancel",
+        "actor_id": actor_id,
+        "roles": roles or [AdminApiRole.TRADER.value],
+        "operator_intent": operator_intent,
+        "body": CancelOrderRequest.model_validate(
+            {
+                "reason": "operator_request",
+                "manual_live_acknowledgement": manual_live_acknowledgement,
+            }
+        ).model_dump(mode="json"),
+        "path_params": {"client_order_id": client_order_id},
+    }
+
+
 def _approval_request_payload(
     *,
     client_order_id: str = "client-approved",
@@ -1062,6 +1088,7 @@ class _FakeAdminApiRestClient:
 
     def __init__(self) -> None:
         self.create_order_calls: list[dict[str, object]] = []
+        self.cancel_order_calls: list[str] = []
 
     def create_order(self, **kwargs):
         self.create_order_calls.append(dict(kwargs))
@@ -1069,6 +1096,10 @@ class _FakeAdminApiRestClient:
             "success": True,
             "success_response": {"order_id": "exchange-live-route-001"},
         }
+
+    def cancel_order(self, client_order_id: str):
+        self.cancel_order_calls.append(client_order_id)
+        return {"success": True, "client_order_id": client_order_id}
 
 
 class _FakeAdminApiOrderEventPublisher:
@@ -1373,6 +1404,209 @@ def _append_manual_order_reconciliation_plan(
         max_submitted_notional_usdc="3.10",
         max_executed_notional_usdc="1.00",
         reason="Exact backend-owned reconciliation plan proof for no-live admission tests.",
+    )
+    store.append(record)
+    return record
+
+
+def _append_cancel_order_approval(
+    *,
+    store: FileAdminApiApprovalStore,
+    now: datetime,
+    client_order_id: str = "client-cancel-approved",
+    idempotency_key: str = "idem-cancel-approved",
+    operator_intent: str = "manual_one_off",
+    requested_by_actor_id: str = "operator-001",
+    payload_hash: str | None = None,
+) -> AdminApiApprovalRecord:
+    record = AdminApiApprovalRecord(
+        expires_at=now + timedelta(minutes=5),
+        approved_by_actor_id="approver-001",
+        requested_by_actor_id=requested_by_actor_id,
+        route="/api/v1/orders/{client_order_id}/cancel",
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value=client_order_id,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        required_permission=AdminApiPermission.ORDER_CANCEL,
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash
+        or make_payload_hash(
+            _cancel_order_approval_payload(
+                operator_intent=operator_intent,
+                client_order_id=client_order_id,
+            )
+        ),
+        cap_guard_decision_ref="cap-guard-cancel-001",
+        reconciliation_plan_ref="reconciliation-cancel-001",
+    )
+    store.append(record)
+    return record
+
+
+def _append_cancel_order_admission_audit(
+    *,
+    store: FileAdminApiAuditStore,
+    approval: AdminApiApprovalRecord,
+    client_order_id: str = "client-cancel-approved",
+    idempotency_key: str = "idem-cancel-approved",
+    operator_intent: str = "manual_one_off",
+    payload_hash: str | None = None,
+) -> AdminApiAuditEvent:
+    resolved_payload_hash = payload_hash or make_payload_hash(
+        _cancel_order_approval_payload(
+            operator_intent=operator_intent,
+            client_order_id=client_order_id,
+        )
+    )
+    event = AdminApiAuditEvent(
+        actor_id="operator-001",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        endpoint=f"POST /api/v1/orders/{client_order_id}/cancel",
+        request_id="corr-cancel-audit-proof",
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        approval_id=approval.approval_id,
+        client_order_id=client_order_id,
+        status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+        failure_stage="approval",
+        message="Prior route-bound cancel admission audit proof.",
+        admission_decision=AdminLiveAdmissionDecisionEvidence(
+            status=AdminApiGateStatus.BLOCKED,
+            allowed=False,
+            route="/api/v1/orders/{client_order_id}/cancel",
+            method="POST",
+            module_id="spot_operations",
+            identity_key="client_order_id",
+            identity_value=client_order_id,
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            required_permission=AdminApiPermission.ORDER_CANCEL,
+            service_method="cancel_order_by_client_order_id",
+            actor_id="operator-001",
+            idempotency_key=idempotency_key,
+            operator_intent=operator_intent,
+            payload_hash=resolved_payload_hash,
+            approval_snapshot_required=True,
+            approval_store_required=True,
+            admission_audit_required=True,
+            cap_guard_required=True,
+            reconciliation_required=True,
+            approval_snapshot_present=True,
+            approval_snapshot_id=approval.approval_id,
+            approval_snapshot_source="approval_store",
+            approval_snapshot_approved_by_actor_id=approval.approved_by_actor_id,
+            approval_snapshot_requested_by_actor_id=approval.requested_by_actor_id,
+            approval_snapshot_expires_at=approval.expires_at.isoformat(),
+            browser_authority="rejected",
+            live_exchange_submitted=False,
+            blockers=[
+                AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED,
+                AdminApiLiveAdmissionBlocker.ADMISSION_AUDIT_MISSING,
+                AdminApiLiveAdmissionBlocker.CAP_GUARD_MISSING,
+                AdminApiLiveAdmissionBlocker.RECONCILIATION_PLAN_MISSING,
+                AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED,
+            ],
+            evidence=["prior append-only cancel command admission audit"],
+            detail="Prior backend-owned cancel admission audit proof.",
+        ),
+    )
+    store.append(event)
+    return event
+
+
+def _append_cancel_order_cap_guard_decision(
+    *,
+    store: FileAdminApiCapGuardStore,
+    approval: AdminApiApprovalRecord,
+    audit_event: AdminApiAuditEvent,
+    client_order_id: str = "client-cancel-approved",
+    idempotency_key: str = "idem-cancel-approved",
+    operator_intent: str = "manual_one_off",
+    payload_hash: str | None = None,
+    allowed: bool = True,
+    status: AdminApiGateStatus = AdminApiGateStatus.PASSED,
+) -> CapGuardDecisionRecord:
+    record = CapGuardDecisionRecord(
+        decision_id=approval.cap_guard_decision_ref,
+        route="/api/v1/orders/{client_order_id}/cancel",
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value=client_order_id,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        required_permission=AdminApiPermission.ORDER_CANCEL,
+        service_method="cancel_order_by_client_order_id",
+        actor_id="operator-001",
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash
+        or make_payload_hash(
+            _cancel_order_approval_payload(
+                operator_intent=operator_intent,
+                client_order_id=client_order_id,
+            )
+        ),
+        approval_snapshot_id=approval.approval_id,
+        admission_audit_id=audit_event.audit_id,
+        allowed=allowed,
+        status=status,
+        cap_policy_ref="submitted_notional_cap:cancel_existing_order",
+        guard_policy_ref="action_condition_guard:cancel_order",
+        product_scope="USDC spot cancel scope",
+        max_submitted_notional_usdc="3.10",
+        max_executed_notional_usdc="1.00",
+        reason="Exact backend-owned cancel cap/guard proof for route tests.",
+    )
+    store.append(record)
+    return record
+
+
+def _append_cancel_order_reconciliation_plan(
+    *,
+    store: FileAdminApiReconciliationStore,
+    approval: AdminApiApprovalRecord,
+    audit_event: AdminApiAuditEvent,
+    cap_guard: CapGuardDecisionRecord,
+    client_order_id: str = "client-cancel-approved",
+    idempotency_key: str = "idem-cancel-approved",
+    operator_intent: str = "manual_one_off",
+    payload_hash: str | None = None,
+    allowed: bool = True,
+    status: AdminApiGateStatus = AdminApiGateStatus.PASSED,
+) -> ReconciliationPlanRecord:
+    record = ReconciliationPlanRecord(
+        plan_id=approval.reconciliation_plan_ref,
+        route="/api/v1/orders/{client_order_id}/cancel",
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value=client_order_id,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        required_permission=AdminApiPermission.ORDER_CANCEL,
+        service_method="cancel_order_by_client_order_id",
+        actor_id="operator-001",
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash
+        or make_payload_hash(
+            _cancel_order_approval_payload(
+                operator_intent=operator_intent,
+                client_order_id=client_order_id,
+            )
+        ),
+        approval_snapshot_id=approval.approval_id,
+        admission_audit_id=audit_event.audit_id,
+        cap_guard_decision_id=cap_guard.decision_id,
+        allowed=allowed,
+        status=status,
+        reconciliation_policy_ref="post_cancel_reconciliation:client_order_id",
+        product_scope="USDC spot cancel scope",
+        max_submitted_notional_usdc="3.10",
+        max_executed_notional_usdc="1.00",
+        reason="Exact backend-owned cancel reconciliation plan proof for route tests.",
     )
     store.append(record)
     return record
@@ -10479,6 +10713,9 @@ def test_admin_api_configured_manual_service_does_not_enable_generic_live_servic
     manual_state = (
         order_routes.get_manual_order_live_execution_service().admission_state()
     )
+    cancel_state = (
+        order_routes.get_cancel_order_live_execution_service().admission_state()
+    )
 
     assert generic_state.status == AdminApiLiveExecutionStatus.LIVE_DISABLED
     assert generic_state.source == "disabled_backend_service"
@@ -10486,6 +10723,9 @@ def test_admin_api_configured_manual_service_does_not_enable_generic_live_servic
     assert manual_state.status == AdminApiLiveExecutionStatus.COMPLETED
     assert manual_state.source == "configured_backend_live_execution_service"
     assert manual_state.missing_reason is None
+    assert cancel_state.status == AdminApiLiveExecutionStatus.COMPLETED
+    assert cancel_state.source == "configured_backend_live_execution_service"
+    assert cancel_state.missing_reason is None
 
 
 @pytest.mark.regression
@@ -10591,6 +10831,9 @@ def test_admin_api_cancel_route_binds_command_live_flag_to_admission(monkeypatch
 
     def fake_cancel_order_by_client_order_id(self, command):
         captured["allow_live_execution"] = command.allow_live_execution
+        captured["manual_live_acknowledgement"] = (
+            command.request.manual_live_acknowledgement
+        )
         return AdminApiCommandResponse(
             status=AdminApiCommandStatus.NOT_IMPLEMENTED,
             action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
@@ -10618,16 +10861,239 @@ def test_admin_api_cancel_route_binds_command_live_flag_to_admission(monkeypatch
     response = client.post(
         "/api/v1/orders/client-route-admission/cancel",
         headers=_headers(idempotency_key="idem-route-admission-cancel"),
-        json={"reason": "operator_request"},
+        json={
+            "reason": "operator_request",
+            "manual_live_acknowledgement": True,
+        },
     )
 
     assert response.status_code == 501
     payload = response.json()
     assert captured["allow_live_execution"] is True
+    assert captured["manual_live_acknowledgement"] is True
     assert payload["admission_decision"]["allowed"] is True
     assert payload["client_order_id"] == "client-route-admission"
     assert payload["live_exchange_submitted"] is False
     assert payload["failure_stage"] == "synthetic_no_live"
+
+
+@pytest.mark.regression
+def test_admin_api_cancel_admission_can_pass_with_completed_backend_live_service(
+    monkeypatch,
+):
+    from api.v1.routes import orders as order_routes
+
+    client = _client(monkeypatch)
+    client.app.dependency_overrides[
+        order_routes.get_cancel_order_live_execution_service
+    ] = lambda: _CompletedRouteAdmissionLiveExecutionService()
+    now = datetime.now(timezone.utc)
+    client_order_id = "client-cancel-live-admitted"
+    idempotency_key = "idem-cancel-live-admitted"
+    approval = _append_cancel_order_approval(
+        store=client.admin_api_test_approval_store,
+        now=now,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+    audit_event = _append_cancel_order_admission_audit(
+        store=client.admin_api_test_audit_store,
+        approval=approval,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+    cap_guard = _append_cancel_order_cap_guard_decision(
+        store=client.admin_api_test_cap_guard_store,
+        approval=approval,
+        audit_event=audit_event,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+    reconciliation_plan = _append_cancel_order_reconciliation_plan(
+        store=client.admin_api_test_reconciliation_store,
+        approval=approval,
+        audit_event=audit_event,
+        cap_guard=cap_guard,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+    captured: dict[str, bool] = {}
+
+    def fake_cancel_order_by_client_order_id(self, command):
+        captured["allow_live_execution"] = command.allow_live_execution
+        captured["manual_live_acknowledgement"] = (
+            command.request.manual_live_acknowledgement
+        )
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            required_permission=AdminApiPermission.ORDER_CANCEL,
+            service_method="cancel_order_by_client_order_id",
+            message="synthetic no-Coinbase cancel admission pass proof",
+            client_order_id=command.client_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            failure_stage="synthetic_no_live",
+        )
+
+    monkeypatch.setattr(
+        AdminApiCommandService,
+        "cancel_order_by_client_order_id",
+        fake_cancel_order_by_client_order_id,
+    )
+
+    response = client.post(
+        f"/api/v1/orders/{client_order_id}/cancel",
+        headers=_headers(idempotency_key=idempotency_key),
+        json={
+            "reason": "operator_request",
+            "manual_live_acknowledgement": True,
+        },
+    )
+
+    assert response.status_code == 501
+    payload = response.json()
+    admission = payload["admission_decision"]
+    assert captured["allow_live_execution"] is True
+    assert captured["manual_live_acknowledgement"] is True
+    assert admission["status"] == AdminApiGateStatus.PASSED.value
+    assert admission["allowed"] is True
+    assert admission["approval_snapshot_id"] == approval.approval_id
+    assert admission["admission_audit_id"] == audit_event.audit_id
+    assert admission["cap_guard_decision_id"] == cap_guard.decision_id
+    assert admission["reconciliation_plan_id"] == reconciliation_plan.plan_id
+    assert admission["live_execution_service_status"] == "completed"
+    assert admission["live_execution_service_source"] == (
+        "synthetic_completed_backend_live_service"
+    )
+    assert admission["live_execution_service_missing_reason"] is None
+    assert admission["blockers"] == []
+    assert payload["client_order_id"] == client_order_id
+    assert payload["live_exchange_submitted"] is False
+    assert payload["failure_stage"] == "synthetic_no_live"
+
+
+@pytest.mark.regression
+def test_admin_api_cancel_live_branch_requires_manual_acknowledgement(monkeypatch):
+    from api.v1.routes import orders as order_routes
+
+    client = _client(monkeypatch)
+
+    def fake_evaluate_command_live_admission(**kwargs):
+        return _allowed_route_admission_decision(
+            **_route_admission_decision_fields(kwargs)
+        )
+
+    monkeypatch.setattr(
+        order_routes,
+        "evaluate_command_live_admission",
+        fake_evaluate_command_live_admission,
+    )
+
+    response = client.post(
+        "/api/v1/orders/client-cancel-no-ack/cancel",
+        headers=_headers(idempotency_key="idem-cancel-no-ack"),
+        json={"reason": "operator_request"},
+    )
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["client_order_id"] == "client-cancel-no-ack"
+    assert payload["admission_decision"]["allowed"] is True
+    assert payload["live_exchange_submitted"] is False
+    assert payload["failure_stage"] == "manual_live_acknowledgement"
+    assert payload["guard"]["condition"] == (
+        ActionConditionType.MANUAL_LIVE_ACKNOWLEDGEMENT.value
+    )
+    assert payload["guard"]["phase"] == ActionGuardPhase.EXECUTION.value
+    assert payload["guard"]["manual_live_acknowledgement_required"] is True
+
+
+@pytest.mark.regression
+def test_admin_api_cancel_configured_backend_service_reaches_cancel_wrapper(
+    monkeypatch,
+):
+    from api.v1.routes import orders as order_routes
+    import business.order_event_stream as order_event_stream
+    import configuration
+
+    fake_rest_client = _FakeAdminApiRestClient()
+    fake_publisher = _FakeAdminApiOrderEventPublisher()
+    monkeypatch.setattr(configuration, "API_KEY", "test-key", raising=False)
+    monkeypatch.setattr(configuration, "API_SECRET", "test-secret", raising=False)
+    monkeypatch.setattr(configuration, "REST_CLIENT", fake_rest_client, raising=False)
+    monkeypatch.setattr(
+        order_event_stream,
+        "OrderEventStreamPublisher",
+        lambda _db_module: fake_publisher,
+    )
+    monkeypatch.setenv("COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED", "true")
+
+    client = _client(monkeypatch)
+    client.app.dependency_overrides.pop(order_routes.get_command_service, None)
+    now = datetime.now(timezone.utc)
+    client_order_id = "client-cancel-configured-live-branch"
+    idempotency_key = "idem-cancel-configured-live-branch"
+    approval = _append_cancel_order_approval(
+        store=client.admin_api_test_approval_store,
+        now=now,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+    audit_event = _append_cancel_order_admission_audit(
+        store=client.admin_api_test_audit_store,
+        approval=approval,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+    cap_guard = _append_cancel_order_cap_guard_decision(
+        store=client.admin_api_test_cap_guard_store,
+        approval=approval,
+        audit_event=audit_event,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+    _append_cancel_order_reconciliation_plan(
+        store=client.admin_api_test_reconciliation_store,
+        approval=approval,
+        audit_event=audit_event,
+        cap_guard=cap_guard,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+
+    response = client.post(
+        f"/api/v1/orders/{client_order_id}/cancel",
+        headers=_headers(idempotency_key=idempotency_key),
+        json={
+            "reason": "operator_request",
+            "manual_live_acknowledgement": True,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    admission = payload["admission_decision"]
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["client_order_id"] == client_order_id
+    assert payload["live_exchange_submitted"] is True
+    assert payload["data"] == {
+        "success": True,
+        "client_order_id": client_order_id,
+    }
+    assert payload["failure_stage"] is None
+    assert admission["status"] == AdminApiGateStatus.PASSED.value
+    assert admission["allowed"] is True
+    assert admission["live_execution_service_status"] == "completed"
+    assert admission["live_execution_service_source"] == (
+        "configured_backend_live_execution_service"
+    )
+    assert admission["blockers"] == []
+    assert fake_rest_client.cancel_order_calls == [client_order_id]
+    assert fake_rest_client.create_order_calls == []
+    assert fake_publisher.events == []
 
 
 def _assert_stealth_command_context_echo(
@@ -33892,6 +34358,7 @@ def test_admin_api_openapi_cancel_request_does_not_accept_order_id():
 
     assert "client_order_id" not in cancel_schema.get("properties", {})
     assert "order_id" not in cancel_schema.get("properties", {})
+    assert "manual_live_acknowledgement" in cancel_schema.get("properties", {})
     assert "client_order_id" in str(
         schema["paths"]["/api/v1/orders/{client_order_id}/cancel"]["post"]["parameters"]
     )
@@ -43152,11 +43619,12 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     cancel = commands[AdminApiMutationFamilyType.SPOT_ORDER_CANCEL.value]
     assert cancel["route"] == "/api/v1/orders/{client_order_id}/cancel"
     assert cancel["identity_key"] == "client_order_id"
-    assert cancel["live_adapter_configured"] is False
+    assert cancel["live_adapter_configured"] is True
     assert (
         cancel["live_execution_status"]
-        == AdminApiLiveExecutionStatus.LIVE_DISABLED.value
+        == AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value
     )
+    assert "live_execution_service" in cancel["missing_gate_chain"]
     assert "cancel_order(client_order_id)" in cancel["backend_contract_refs"]
     assert all(
         item["command_identity_key"] == "client_order_id"
@@ -44125,11 +44593,11 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert live_payload["cap_guard_requirement_count"] == 154
     assert live_payload["cap_guard_missing_requirement_count"] == 154
     assert live_payload["live_execution_adapter_required_count"] == 11
-    assert live_payload["live_execution_adapter_configured_count"] == 2
-    assert live_payload["live_execution_adapter_missing_count"] == 9
+    assert live_payload["live_execution_adapter_configured_count"] == 3
+    assert live_payload["live_execution_adapter_missing_count"] == 8
     assert live_payload["readiness_precondition_count"] == 99
-    assert live_payload["blocking_readiness_precondition_count"] == 63
-    assert live_payload["passed_readiness_precondition_count"] == 36
+    assert live_payload["blocking_readiness_precondition_count"] == 62
+    assert live_payload["passed_readiness_precondition_count"] == 37
     assert live_payload["live_coinbase_orders_ran"] is False
 
     assert account_market_inventory.status_code == 200
@@ -44225,9 +44693,14 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert all(item["live_enabled"] is False for item in live_routes.values())
     configured_adapter_routes = {
         "/api/v1/orders",
+        "/api/v1/orders/{client_order_id}/cancel",
         "/api/v1/stealth/orders/{stealth_order_id}/reveal",
     }
     assert live_routes["/api/v1/orders"]["status"] == "approval_required"
+    assert (
+        live_routes["/api/v1/orders/{client_order_id}/cancel"]["status"]
+        == "approval_required"
+    )
     assert (
         live_routes["/api/v1/stealth/orders/{stealth_order_id}/reveal"]["status"]
         == "approval_required"
@@ -44416,6 +44889,12 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert live_routes["/api/v1/orders"]["live_execution_adapter"]["configured"] is True
     assert (
+        live_routes["/api/v1/orders/{client_order_id}/cancel"][
+            "live_execution_adapter"
+        ]["configured"]
+        is True
+    )
+    assert (
         live_routes["/api/v1/stealth/orders/{stealth_order_id}/reveal"][
             "live_execution_adapter"
         ]["configured"]
@@ -44451,6 +44930,18 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert live_routes["/api/v1/orders"]["live_execution_adapter"]["missing_reason"] == (
         "pilot_dry_run_only"
+    )
+    assert (
+        live_routes["/api/v1/orders/{client_order_id}/cancel"][
+            "live_execution_adapter"
+        ]["source"]
+        == "release_0_1_cancel_backend_dry_run"
+    )
+    assert (
+        live_routes["/api/v1/orders/{client_order_id}/cancel"][
+            "live_execution_adapter"
+        ]["missing_reason"]
+        == "cancel_dry_run_only"
     )
     assert (
         live_routes["/api/v1/stealth/orders/{stealth_order_id}/reveal"][

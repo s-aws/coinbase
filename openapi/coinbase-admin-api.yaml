@@ -10193,6 +10193,7 @@ components:
       enum:
       - planning
       - reveal
+      - execution
       title: ActionGuardPhase
       description: Action-condition guard evaluation phase.
     AdminAccountMarketInventoryFamilyItem:
@@ -135266,6 +135267,10 @@ components:
           - type: string
           - type: 'null'
           title: Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
       additionalProperties: false
       type: object
       title: CancelOrderRequest
