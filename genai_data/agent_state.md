@@ -112,12 +112,17 @@ work. Historical milestone detail belongs in
   display/forward-only authority, and `submitted_notional_usdc=0` /
   `executed_notional_usdc=0` proof. `dry_run=false` campaign/sweep execution
   remains fail-closed with explicit no scheduler/runner/Coinbase evidence.
-- Exact next implementation slice: continue Release 0.1 blocker clearing from
-  the Automation/campaigns row by inventorying campaign/sweep scheduler state
-  and representing missing scheduler, run-limit, retry, pause/resume, and
-  live execution controls as `not_modeled` or blocked backend contracts. Do
-  not add a browser scheduler, runner authority, retry loop, or second trading
-  path.
+- Current automation-control readiness slice adds typed backend-owned
+  `automation_control_readiness` rows to `GET /api/v1/spot/command-suite` for
+  scheduler, run limit, pause/resume, retry/recovery, reconciliation
+  execution, and live execution. The frontend Campaigns panel consumes those
+  rows as no-live blocker evidence with no browser/BFF scheduler, runner, or
+  Coinbase authority.
+- Exact next implementation slice: continue Release 0.1 blocker clearing by
+  either defining the first exact backend-owned campaign/sweep automation
+  service contract or closing the operator runbook/release-closeout path for
+  the remaining not-modeled automation controls. Do not add a browser
+  scheduler, BFF runner authority, retry loop, or second trading path.
 - Contextless review status: backend Phase 7997 passed after remediation.
   Initial blind reviews blocked on stale current Admin API command-authority
   docs and `genai_data` references that still implied all HTTP mutating routes
@@ -133,6 +138,12 @@ work. Historical milestone detail belongs in
   was fail-closed but frontend evidence omitted exact backend `data` fields
   and non-dry `501` responses needed explicit no-live proof. Those findings
   were remediated before commit, and the reviewer was closed.
+  Current automation-control readiness phase attempted a contextless-blind
+  subagent review, but the subagent failed on account usage quota before doing
+  work and was no longer addressable by the close tool. Local self-audit
+  reviewed the backend contract, frontend mapper/UI, docs, tests, and no-live
+  evidence. A fresh blind-subagent retry remains required when quota is
+  available before broadening campaign/sweep execution authority.
 - Focused validation status: focused pytest passed for
   `tests/regression/test_admin_api_manual_spot_buy_live_runner.py`,
   `tests/regression/test_spot_direct_order_audit.py`, and the targeted Admin
@@ -187,13 +198,26 @@ work. Historical milestone detail belongs in
   lint; frontend `git diff --check`. Full backend regression and frontend
   release gate were not run because this was ordinary phase work, not
   milestone closeout.
+  Automation-control readiness validation passed: backend py_compile; focused
+  backend Admin API command-suite regression; generated OpenAPI schema match;
+  backend ownership check; backend `git diff --check`; frontend TDD/focused
+  unit coverage for spot adapters, Campaign read models, mock backend,
+  backend runtime snapshots, Spot read-only views, and command workflow shell;
+  frontend `api:check`; frontend `typecheck`; frontend `security:commands`;
+  frontend `autonomous:check`; frontend `release:check`; frontend `lint`; and
+  frontend `git diff --check`. Full backend regression and frontend
+  release-gate were not run because this is ordinary phase work, not
+  milestone closeout.
 - Commit/push status: campaign/sweep no-live proof is pushed in backend commit
-  `5b4b7d1b` and frontend commit `70d6e4f` on
+  `5b4b7d1b` and frontend commit `70d6e4f`; automation-control readiness
+  changes are validated locally and pending commit/push on
   `codex/stealth-live-service-decision-3501`.
-- Current phase-end subagent sweep: current campaign/sweep reviewer
-  `019f0eff-0b6d-7053-a341-c989baa632f4` was closed after findings were
-  consumed and remediated. No stale phase-scoped subagents are intentionally
-  open.
+- Current phase-end subagent sweep: campaign/sweep reviewer
+  `019f0eff-0b6d-7053-a341-c989baa632f4` was previously closed after findings
+  were consumed and remediated. Current attempted contextless reviewer
+  `019f0f1f-927b-75c2-b0b9-53d46e59e763` failed on usage quota before work
+  began and was not found by the close tool. No stale phase-scoped subagents
+  are intentionally open.
 
 ## Phase Contract
 
@@ -602,6 +626,11 @@ work. Historical milestone detail belongs in
   `0` USDC. Non-dry campaign/sweep requests remain live-disabled and report
   explicit no scheduler, no runner, no Coinbase order, and zero-notional
   evidence.
+- Automation-control readiness did not run live Coinbase execution. Backend
+  command-suite evidence and frontend Campaigns rendering report submitted
+  notional `0` USDC and executed notional `0` USDC for scheduler, run-limit,
+  pause/resume, retry/recovery, reconciliation execution, and live execution
+  controls.
 
 ## Regression Policy
 
@@ -615,9 +644,11 @@ work. Historical milestone detail belongs in
 ## Next Actions
 
 1. Continue Release 0.1 phases from the burn-down, prioritizing the next
-   Automation/campaigns blocker: inventory campaign/sweep scheduler state and
-   surface scheduler, run-limit, retry, pause/resume, and live execution gaps
-   as backend-owned `not_modeled` or blocked contracts.
+   Automation/campaigns blocker: define the first exact backend-owned
+   campaign/sweep automation service contract or closeout runbook for the
+   remaining `not_modeled` controls. Do not repeat gap inventory, and do not
+   add browser scheduler, BFF runner authority, or a second sweep execution
+   path.
 2. Keep future Spot BUY/SELL/cancel work on the existing manual-order and
    cancel-by-`client_order_id` paths and use focused validation evidence rather
    than adding a second spot path.

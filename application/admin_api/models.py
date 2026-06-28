@@ -136,6 +136,7 @@ from core.enums import (
     AdminApiSessionStatus,
     AdminApiSettingsPolicyMapCategory,
     AdminApiSettingsPolicyMapStatus,
+    AdminApiSpotAutomationControl,
     AdminApiSpotCommandSuiteGapFamily,
     AdminApiStealthAdmissionContextField,
     AdminApiStealthClosureClearanceOwner,
@@ -26783,6 +26784,38 @@ class SpotCommandSuiteCoverageGapItem(BaseModel):
     detail: str
 
 
+class SpotCommandSuiteAutomationControlReadinessItem(BaseModel):
+    """Backend-owned campaign/sweep automation control readiness evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    control: AdminApiSpotAutomationControl
+    label: str
+    support_status: AdminApiModuleSupportStatus = AdminApiModuleSupportStatus.NOT_MODELED
+    gate_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    exposure_status: AdminApiFunctionalityExposureStatus = (
+        AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED
+    )
+    related_command_routes: list[str] = Field(default_factory=list)
+    current_read_evidence_routes: list[str] = Field(default_factory=list)
+    required_backend_contract: str
+    required_gate_chain: list[str] = Field(default_factory=list)
+    missing_contract: str
+    backend_owned: bool = True
+    operator_action_available: bool = False
+    browser_scheduler_authority: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    scheduler_invoked: bool = False
+    runner_invoked: bool = False
+    coinbase_orders_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    documentation_refs: list[str] = Field(default_factory=list)
+    detail: str
+
+
 class SpotCommandSuiteResponse(AdminApiReadPayload):
     """Read-only M54 spot command-suite readiness evidence."""
 
@@ -26802,6 +26835,10 @@ class SpotCommandSuiteResponse(AdminApiReadPayload):
     commands: list[SpotCommandSuiteCommandItem] = Field(default_factory=list)
     coverage_gap_count: int = 0
     coverage_gaps: list[SpotCommandSuiteCoverageGapItem] = Field(default_factory=list)
+    automation_control_readiness_count: int = 0
+    automation_control_readiness: list[
+        SpotCommandSuiteAutomationControlReadinessItem
+    ] = Field(default_factory=list)
     read_routes: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
     message: str | None = None

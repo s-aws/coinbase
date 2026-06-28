@@ -416,6 +416,7 @@ from core.enums import (
     AdminApiPermission,
     AdminApiRole,
     AdminApiSettingsPolicyMapStatus,
+    AdminApiSpotAutomationControl,
     AdminApiSpotCommandSuiteGapFamily,
     AdminApiStealthClosureClearanceOwner,
     AdminApiStealthClosureClearanceStepName,
@@ -43577,6 +43578,55 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     assert sweep_gap["command_route"] == "/api/v1/spot/sweep/automation-runs"
     assert "GET /api/v1/spot/sweep/status" in sweep_gap["current_read_evidence_routes"]
     assert "enterprise_sweep_scheduler_contract" in sweep_gap["missing_contracts"]
+    automation_controls = {
+        item["control"]: item for item in payload["automation_control_readiness"]
+    }
+    assert payload["automation_control_readiness_count"] == 6
+    assert set(automation_controls) == {
+        AdminApiSpotAutomationControl.SCHEDULER.value,
+        AdminApiSpotAutomationControl.RUN_LIMIT.value,
+        AdminApiSpotAutomationControl.PAUSE_RESUME.value,
+        AdminApiSpotAutomationControl.RETRY_RECOVERY.value,
+        AdminApiSpotAutomationControl.RECONCILIATION_EXECUTION.value,
+        AdminApiSpotAutomationControl.LIVE_EXECUTION.value,
+    }
+    for control in automation_controls.values():
+        assert control["support_status"] == AdminApiModuleSupportStatus.NOT_MODELED.value
+        assert control["gate_status"] == AdminApiGateStatus.BLOCKED.value
+        assert (
+            control["exposure_status"]
+            == AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED.value
+        )
+        assert control["backend_owned"] is True
+        assert control["operator_action_available"] is False
+        assert control["browser_scheduler_authority"] is False
+        assert control["browser_authority"] == "display_only"
+        assert control["bff_authority"] == "forward_only_no_execution"
+        assert control["scheduler_invoked"] is False
+        assert control["runner_invoked"] is False
+        assert control["coinbase_orders_submitted"] is False
+        assert control["live_coinbase_orders_ran"] is False
+        assert control["submitted_notional_usdc"] == "0"
+        assert control["executed_notional_usdc"] == "0"
+        assert control["current_read_evidence_routes"]
+        assert control["required_backend_contract"]
+        assert control["missing_contract"]
+        assert control["documentation_refs"]
+    assert (
+        automation_controls[AdminApiSpotAutomationControl.SCHEDULER.value][
+            "missing_contract"
+        ]
+        == "enterprise_sweep_scheduler_contract"
+    )
+    assert (
+        automation_controls[AdminApiSpotAutomationControl.LIVE_EXECUTION.value][
+            "missing_contract"
+        ]
+        == "sweep_live_execution_contract"
+    )
+    assert "GET /api/v1/spot/command-suite" in automation_controls[
+        AdminApiSpotAutomationControl.LIVE_EXECUTION.value
+    ]["current_read_evidence_routes"]
     assert (
         coverage_gaps[AdminApiSpotCommandSuiteGapFamily.SPOT_RECONCILIATION_WORKFLOW.value][
             "command_route"

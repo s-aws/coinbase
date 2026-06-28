@@ -1321,6 +1321,15 @@ returns `501 not_implemented` until durable scheduler, run-limit, recovery,
 reconciliation, and live execution gates pass, with explicit no scheduler,
 runner, Coinbase order, and zero-notional proof. The paired campaign execution
 route follows the same no-live review posture keyed by `campaign_id`.
+The same command-suite response exposes `automation_control_readiness` as the
+backend-owned control-state contract for campaign/sweep automation. It reports
+six explicit controls: scheduler, run limit, pause/resume, retry/recovery,
+reconciliation execution, and live execution. These rows are `not_modeled` /
+`blocked` evidence with browser authority `display_only`,
+BFF authority `forward_only_no_execution`, no scheduler invocation, no runner
+invocation, no Coinbase orders, and `0` submitted/executed USDC notional. They
+are not frontend scheduler jobs, pause/resume buttons, retry loops, proof
+writers, reconciliation executors, or live-execution authority.
 Spot P/L checkpoint records add a separate local-state mutation surface:
 `POST /api/v1/spot/pnl/checkpoints`, with read evidence at
 `GET /api/v1/spot/pnl/checkpoints` and

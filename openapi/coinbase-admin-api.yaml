@@ -11916,6 +11916,17 @@ components:
       - not_modeled
       title: AdminApiSettingsPolicyMapStatus
       description: Safe operator settings and policy surface classification.
+    AdminApiSpotAutomationControl:
+      type: string
+      enum:
+      - scheduler
+      - run_limit
+      - pause_resume
+      - retry_recovery
+      - reconciliation_execution
+      - live_execution
+      title: AdminApiSpotAutomationControl
+      description: Spot campaign/sweep automation controls surfaced by the Admin API.
     AdminApiSpotCommandSuiteGapFamily:
       type: string
       enum:
@@ -136857,6 +136868,115 @@ components:
       type: object
       title: SpotCampaignStatusResponse
       description: Spot campaign status response.
+    SpotCommandSuiteAutomationControlReadinessItem:
+      properties:
+        control:
+          $ref: '#/components/schemas/AdminApiSpotAutomationControl'
+        label:
+          type: string
+          title: Label
+        support_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+          default: not_modeled
+        gate_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        exposure_status:
+          $ref: '#/components/schemas/AdminApiFunctionalityExposureStatus'
+          default: backend_contract_required
+        related_command_routes:
+          items:
+            type: string
+          type: array
+          title: Related Command Routes
+        current_read_evidence_routes:
+          items:
+            type: string
+          type: array
+          title: Current Read Evidence Routes
+        required_backend_contract:
+          type: string
+          title: Required Backend Contract
+        required_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Required Gate Chain
+        missing_contract:
+          type: string
+          title: Missing Contract
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        operator_action_available:
+          type: boolean
+          title: Operator Action Available
+          default: false
+        browser_scheduler_authority:
+          type: boolean
+          title: Browser Scheduler Authority
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        scheduler_invoked:
+          type: boolean
+          title: Scheduler Invoked
+          default: false
+        runner_invoked:
+          type: boolean
+          title: Runner Invoked
+          default: false
+        coinbase_orders_submitted:
+          type: boolean
+          title: Coinbase Orders Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - control
+      - label
+      - required_backend_contract
+      - missing_contract
+      - detail
+      title: SpotCommandSuiteAutomationControlReadinessItem
+      description: Backend-owned campaign/sweep automation control readiness evidence.
     SpotCommandSuiteCommandItem:
       properties:
         mutation_family:
@@ -137297,6 +137417,15 @@ components:
             $ref: '#/components/schemas/SpotCommandSuiteCoverageGapItem'
           type: array
           title: Coverage Gaps
+        automation_control_readiness_count:
+          type: integer
+          title: Automation Control Readiness Count
+          default: 0
+        automation_control_readiness:
+          items:
+            $ref: '#/components/schemas/SpotCommandSuiteAutomationControlReadinessItem'
+          type: array
+          title: Automation Control Readiness
         read_routes:
           items:
             type: string

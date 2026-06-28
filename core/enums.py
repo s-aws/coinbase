@@ -541,6 +541,17 @@ class AdminApiSpotCommandSuiteGapFamily(str, Enum):
     SPOT_RECONCILIATION_WORKFLOW = "spot_reconciliation_workflow"
 
 
+class AdminApiSpotAutomationControl(str, Enum):
+    """Spot campaign/sweep automation controls surfaced by the Admin API."""
+
+    SCHEDULER = "scheduler"
+    RUN_LIMIT = "run_limit"
+    PAUSE_RESUME = "pause_resume"
+    RETRY_RECOVERY = "retry_recovery"
+    RECONCILIATION_EXECUTION = "reconciliation_execution"
+    LIVE_EXECUTION = "live_execution"
+
+
 class AdminApiStealthCommandSuiteGapFamily(str, Enum):
     """Stealth command-suite families that still require admin contract work."""
 
