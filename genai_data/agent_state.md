@@ -55,10 +55,13 @@ work. Historical milestone detail belongs in
   frontend `AGENTS.md`, and related agent contract docs were reviewed again on
   2026-06-28 for this phase, including the no-live Admin API manual Spot SELL
   validation runner slice, the operator runbook update, the documentation
-  index update, the autonomous validator pivot, and the backend contextless
-  review. Release 0.1 product progress remains the controlling rule: every
-  phase must clear a named Release 0.1 blocker or directly improve usable
-  admin management.
+  index update, the autonomous validator pivot, the backend contextless
+  review, and the campaign/sweep dry-run proof visibility slice. Release 0.1
+  product progress remains the controlling rule: every phase must clear a
+  named Release 0.1 blocker or directly improve usable admin management. The
+  review did not change the current phase direction; it reinforced that
+  campaign/sweep review evidence must stay backend-owned, no-live, and
+  display/forward-only in the frontend.
 - Release 0.1 matrix status:
   `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md` and frontend
   `docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md` now identify operator
@@ -103,12 +106,18 @@ work. Historical milestone detail belongs in
   seeds exact route admission evidence, calls the existing
   `POST /api/v1/orders` route through the FastAPI app, reaches the shared
   command service with fake REST, and reports live Coinbase execution as not
-  run with submitted/executed notional `0`.
-- Exact next implementation slice: continue approved Release 0.1 closeout
-  support through frontend contextless review work (`7998`). The operator
-  runbook, documentation index, autonomous validator, and backend contextless
-  review slices are complete for this range. Do not create another spot proof
-  slice unless it clears a named Release 0.1 blocker.
+  run with submitted/executed notional `0`. Campaign and sweep `dry_run=true`
+  reviews are now accepted backend command reviews and rendered in Command
+  Workflows with explicit no scheduler, no runner, no Coinbase order,
+  display/forward-only authority, and `submitted_notional_usdc=0` /
+  `executed_notional_usdc=0` proof. `dry_run=false` campaign/sweep execution
+  remains fail-closed with explicit no scheduler/runner/Coinbase evidence.
+- Exact next implementation slice: continue Release 0.1 blocker clearing from
+  the Automation/campaigns row by inventorying campaign/sweep scheduler state
+  and representing missing scheduler, run-limit, retry, pause/resume, and
+  live execution controls as `not_modeled` or blocked backend contracts. Do
+  not add a browser scheduler, runner authority, retry loop, or second trading
+  path.
 - Contextless review status: backend Phase 7997 passed after remediation.
   Initial blind reviews blocked on stale current Admin API command-authority
   docs and `genai_data` references that still implied all HTTP mutating routes
@@ -119,6 +128,11 @@ work. Historical milestone detail belongs in
   `cancel_order(client_order_id)` for Coinbase cancellation. Final fresh
   reviewer `019f0cfb-e2eb-7073-81a7-4fffd20d3ca0` passed. No live Coinbase
   execution ran in Phase 7997; submitted/executed notional `0`/`0` USDC.
+  Current campaign/sweep dry-run proof reviewer
+  `019f0eff-0b6d-7053-a341-c989baa632f4` found that backend dry-run behavior
+  was fail-closed but frontend evidence omitted exact backend `data` fields
+  and non-dry `501` responses needed explicit no-live proof. Those findings
+  were remediated before commit, and the reviewer was closed.
 - Focused validation status: focused pytest passed for
   `tests/regression/test_admin_api_manual_spot_buy_live_runner.py`,
   `tests/regression/test_spot_direct_order_audit.py`, and the targeted Admin
@@ -164,17 +178,22 @@ work. Historical milestone detail belongs in
   targeted Admin API route-inventory contract tests,
   `python tools\run_autonomous_work_queue_check.py --summary-only`,
   `python tools\check_ownership.py`, and `git diff --check`.
-- Commit/push status: backend contextless review remediation/evidence changes
-  are included in the current backend commit on
-  `codex/stealth-live-service-decision-3501`. Previous backend commit
-  `ee72686f` and frontend commit `5392c2a` were pushed with the autonomous
-  validator pivot changes.
-- Current phase-end subagent sweep: backend contextless reviewers
-  `019f0ce9-fe23-75d2-b87b-7153779aca20` and
-  `019f0cf9-ce90-79e2-ac80-16efcf1749e5` blocked on stale docs/import
-  bootstrap and were closed after remediation was consumed. Fresh reviewer
-  `019f0cfb-e2eb-7073-81a7-4fffd20d3ca0` passed and was closed. No stale
-  phase-scoped subagents are intentionally open.
+  Campaign/sweep dry-run proof validation passed: targeted backend Admin API
+  contract tests for campaign dry-run, campaign non-dry fail-closed, sweep
+  dry-run, and sweep non-dry fail-closed; backend py_compile; backend
+  ownership check; backend `git diff --check`; frontend TDD/focused unit
+  coverage for command dry-submit and Command Workflows rendering; focused
+  frontend command/API/security/release checks; frontend typecheck; frontend
+  lint; frontend `git diff --check`. Full backend regression and frontend
+  release gate were not run because this was ordinary phase work, not
+  milestone closeout.
+- Commit/push status: campaign/sweep no-live proof is pushed in backend commit
+  `5b4b7d1b` and frontend commit `70d6e4f` on
+  `codex/stealth-live-service-decision-3501`.
+- Current phase-end subagent sweep: current campaign/sweep reviewer
+  `019f0eff-0b6d-7053-a341-c989baa632f4` was closed after findings were
+  consumed and remediated. No stale phase-scoped subagents are intentionally
+  open.
 
 ## Phase Contract
 
@@ -578,6 +597,11 @@ work. Historical milestone detail belongs in
   was `0` USDC; executed notional was `0` USDC.
 - Phase 7996 autonomous validator pivot did not run live Coinbase execution;
   submitted notional `0` USDC; executed notional `0` USDC.
+- Campaign/sweep dry-run proof visibility did not run live Coinbase execution.
+  Dry-run reviews reported submitted notional `0` USDC and executed notional
+  `0` USDC. Non-dry campaign/sweep requests remain live-disabled and report
+  explicit no scheduler, no runner, no Coinbase order, and zero-notional
+  evidence.
 
 ## Regression Policy
 
@@ -590,10 +614,13 @@ work. Historical milestone detail belongs in
 
 ## Next Actions
 
-1. Continue Release 0.1 phases from the burn-down, prioritizing operator
-   backend and frontend contextless reviews for the private operator MVP.
-2. Keep any future SELL work on the existing manual-order path and use focused
-   validation evidence rather than adding a second spot sell path.
+1. Continue Release 0.1 phases from the burn-down, prioritizing the next
+   Automation/campaigns blocker: inventory campaign/sweep scheduler state and
+   surface scheduler, run-limit, retry, pause/resume, and live execution gaps
+   as backend-owned `not_modeled` or blocked contracts.
+2. Keep future Spot BUY/SELL/cancel work on the existing manual-order and
+   cancel-by-`client_order_id` paths and use focused validation evidence rather
+   than adding a second spot path.
 3. Keep full regression reserved for durable milestone closeout unless
    explicitly requested.
 
