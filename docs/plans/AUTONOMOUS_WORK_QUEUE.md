@@ -63,8 +63,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
   `agent.md`, frontend `AGENTS.md`, and related owner contracts were reviewed
   on 2026-06-28 before manual Spot BUY Admin API live-validation work, before
   Admin API spot SELL authority source wiring, and before the operator runbook
-  update, documentation index update, and autonomous validator pivot. Release
-  0.1 product progress remains the controlling rule.
+  update, documentation index update, autonomous validator pivot, and
+  command-suite scheduler/retry executor readiness controls. Release 0.1
+  product progress remains the controlling rule.
 - Phase `7981-8000` matrix-work subagent sweep status: no phase-scoped
   subagents were spawned, so no subagent cleanup was required.
 - Phase `7994` operator-runbook subagent sweep status: blind/contextless
@@ -91,6 +92,15 @@ result in the phase evidence, handoff, or closeout summary before advancing.
   remediated to `Spot Sweep Automation Service Contract`. The reviewer was
   closed after findings were consumed. Live Coinbase execution was not run;
   submitted notional `0` USDC, executed notional `0` USDC.
+- Phase `8000` sweep executor readiness review status: blind/contextless
+  reviewer `019f1088-f998-75f2-a4cb-f8efc2dc81b5` found stale frontend
+  fallback rows and ambiguous scheduler-executor wording. Both findings were
+  remediated, and the reviewer was closed after findings were consumed. No
+  stale phase-scoped subagents remain intentionally open.
+- Phase `8000` commit/push status: backend commit `70426b34` and frontend
+  commit `b14d021` were pushed to
+  `codex/stealth-live-service-decision-3501`. Live Coinbase execution was not
+  run; submitted notional `0` USDC, executed notional `0` USDC.
 
 ## Current Progress Record
 
@@ -98,11 +108,11 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `7980`.
+- `current_phase`: `8000`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
-- `next_phase`: `complete_current_approved_range`.
+- `next_phase`: `advance_next_release_linked_range`.
 
 ## Stop Conditions
 
@@ -335,6 +345,19 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
 
 - Commit and push synchronized backend/frontend changes after validation and
   review pass, recording live Coinbase execution status and notional evidence.
+- Current sweep executor readiness result: backend command-suite readiness now
+  reports scheduler executor and retry executor control rows as
+  `command_draft_live_disabled`, action-disabled blocker evidence. Frontend
+  mocks, generated schema, adapters, fallback rows, tests, and docs render the
+  same no-live contract without browser/BFF execution authority.
+- Current validation result: focused backend command-suite regression,
+  backend core-type focused tests, backend ownership check, frontend focused
+  unit tests, `npm run api:check`, `npm run typecheck`, `npm run lint`,
+  `npm run security:commands`, `npm run autonomous:check`, and diff checks
+  passed. Blind/contextless review findings were remediated.
+- Current commit result: backend commit `70426b34` and frontend commit
+  `b14d021` were pushed. Live Coinbase execution was not run; submitted
+  notional `0` USDC, executed notional `0` USDC.
 
 ## Completed Phases 7961-7980
 
