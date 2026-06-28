@@ -210,7 +210,8 @@ work. Historical milestone detail belongs in
   milestone closeout.
 - Commit/push status: campaign/sweep no-live proof is pushed in backend commit
   `5b4b7d1b` and frontend commit `70d6e4f`; automation-control readiness
-  changes are validated locally and pending commit/push on
+  backend contract changes are committed in `3d3f9371`, and frontend
+  rendering changes are committed in `d5d549e` on
   `codex/stealth-live-service-decision-3501`.
 - Current phase-end subagent sweep: campaign/sweep reviewer
   `019f0eff-0b6d-7053-a341-c989baa632f4` was previously closed after findings
