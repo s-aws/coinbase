@@ -66,8 +66,13 @@ tool selects the cheapest previewable Coinbase USDC spot product, refuses to
 exceed the approved `3.10` USDC submitted-notional and `1.00` USDC
 executed-notional caps, writes exact approval/admission-audit/cap/reconciliation
 evidence, calls `POST /api/v1/orders` through the FastAPI app route, and then
-checks the local direct-order audit readback. It is not the direct Coinbase
-smoke path and does not bypass the shared command service.
+executes the existing REST-fill backfill path for that submitted order before
+reading `GET /api/v1/spot/direct-orders/{client_order_id}/audit` through the
+Admin API route. The audit route is now built by
+`application.admin_api.read_service` from `business.spot_direct_order_audit`;
+it does not import `dashboard_server.py` or rely on the proof-of-concept
+dashboard. The live runner is not the direct Coinbase smoke path and does not
+bypass the shared command service.
 
 The generated OpenAPI contract documents the eventual `200` accepted/replayed
 command response shape and the current `501` live-disabled response shape.

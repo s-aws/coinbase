@@ -67,27 +67,38 @@ work. Historical milestone detail belongs in
   `client_order_id` through the canonical runtime client for
   `GET /api/v1/spot/direct-orders/{client_order_id}/audit`, clearing the
   frontend read-only audit handoff usability gap without adding browser/BFF
-  execution authority, Coinbase calls, reconciliation execution, or state
-  mutation. Current backend work adds
-  `tools/run_admin_api_manual_spot_buy_live.py` so live validation uses the
-  enterprise Admin API route and shared command service, not the direct
-  Coinbase smoke script. Latest live validation selected `MOG-USDC`, submitted
-  `1.00` USDC, executed `0.99935033` USDC, and found direct-order audit
-  submission evidence. Remaining blockers are eventual reconciliation
-  execution proof and later SELL lot-authority/planned-budget sources.
-- Exact next implementation slice: add/clear the post-submit reconciliation
-  execution proof for the manual Spot BUY path without browser/BFF authority.
+  execution authority or Coinbase order calls. Current backend work keeps
+  `tools/run_admin_api_manual_spot_buy_live.py` as the live validation path so
+  validation uses the enterprise Admin API route and shared command service,
+  not the direct Coinbase smoke script. The Admin API direct-order audit
+  readback is now built directly in `application.admin_api.read_service` from
+  `business.spot_direct_order_audit` and no longer imports `dashboard_server.py`.
+  Latest live validation selected `MOG-USDC`, submitted `1.00` USDC, executed
+  `0.99935033` USDC, ran read-only Coinbase `list_fills`, appended one
+  fill-ledger row through
+  `business.spot_fill_backfill.backfill_fill_ledger_from_order_reports`, and
+  read back `GET /api/v1/spot/direct-orders/{client_order_id}/audit` through
+  `application.admin_api.read_service` with `dashboard_dependency=false`.
+  Remaining blockers are SELL lot-authority/planned-budget sources and cancel
+  acknowledgement/live-service contracts.
+- Exact next implementation slice: add the backend-owned SELL lot-authority
+  and planned-budget sources needed for a Spot SELL command without importing
+  spot-only assumptions into non-spot modules.
 - Contextless review status: planned for `7981-8000`; reviewers must verify
   that the Release 0.1 pivot is understandable without chat history and that
   future work cannot drift back into proof-only expansion without a named
   release blocker.
-- Focused validation status: backend py_compile passed for the changed tools
-  and new regression test; focused pytest passed for
-  `tests/regression/test_admin_api_manual_spot_buy_live_runner.py` and
-  `tests/regression/test_spot_direct_order_audit.py`; ownership check passed;
-  autonomous work queue check passed; no-live Admin API manual Spot BUY
-  preflight passed; approved live Admin API manual Spot BUY validation passed
-  with submitted/executed notional `1.00`/`0.99935033` USDC.
+- Focused validation status: focused pytest passed for
+  `tests/regression/test_admin_api_manual_spot_buy_live_runner.py`,
+  `tests/regression/test_spot_direct_order_audit.py`, and the targeted Admin
+  API direct-order audit route/read-service tests. No-live Admin API manual
+  Spot BUY preflight passed. Approved live Admin API manual Spot BUY
+  validation passed with submitted/executed notional `1.00`/`0.99935033` USDC,
+  post-submit fill backfill fetched/appended one fill, and Admin API audit
+  readback returned `dashboard_dependency=false`. Backend py_compile,
+  ownership check, backend autonomous queue check, and frontend autonomous
+  check passed. Full backend regression and frontend release gate were not run
+  because this is ordinary phase work, not milestone closeout.
 - Commit/push status: pending for `7981-8000` in backend and frontend repos.
 - Current phase-end subagent sweep: no subagents were spawned for this phase;
   no stale phase-scoped subagents are intentionally open.
@@ -476,9 +487,16 @@ work. Historical milestone detail belongs in
 
 ## Live Execution
 
-- Live Coinbase execution for this phase: not run.
-- Submitted notional: `0` USDC.
-- Executed notional: `0` USDC.
+- Live Coinbase execution for this phase: approved and run once through
+  `python tools\run_admin_api_manual_spot_buy_live.py --approved-live-orders --summary-only`.
+- Product: `MOG-USDC`.
+- Client order id: `aslb-e4f2cfe7f7d942b7bb80a981`.
+- Coinbase order id: `57a15f8c-6810-4642-a062-4064c42e7cc4`.
+- Submitted notional: `1.00` USDC.
+- Executed notional: `0.99935033` USDC.
+- Post-submit evidence: read-only Coinbase `list_fills` fetched one fill,
+  fill-ledger backfill appended one row, and Admin API direct-order audit
+  readback returned `dashboard_dependency=false`.
 
 ## Regression Policy
 

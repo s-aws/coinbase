@@ -2,7 +2,8 @@
 
 These examples describe the current enterprise Admin API contract. Mutating
 HTTP endpoints are authenticated, permission-checked, idempotent, and audited,
-then return `not_implemented`; they do not call Coinbase. Read-only spot
+then default to `not_implemented` unless a route-scoped backend live-service
+exception is explicitly configured and all admission gates pass. Read-only spot
 operator endpoints are available behind the same fail-closed auth dependency.
 
 The Admin API is the backend contract layer for the enterprise admin platform.
@@ -39,10 +40,13 @@ python tools\run_admin_api_manual_spot_buy_live.py --approved-live-orders --summ
 
 The live run refuses to exceed `3.10` USDC submitted notional and `1.00` USDC
 executed notional, writes route-exact approval, admission-audit, cap/guard,
-and reconciliation records, then checks
-`GET /api/v1/spot/direct-orders/{client_order_id}/audit` evidence. This is the
-enterprise Admin API route path; do not substitute the direct Coinbase smoke
-tool when the goal is proving frontend/API manageability.
+and reconciliation records, runs the existing REST-fill backfill path for the
+submitted order, then checks
+`GET /api/v1/spot/direct-orders/{client_order_id}/audit` through
+`application.admin_api.read_service`. The audit readback must report
+`dashboard_dependency=false`. This is the enterprise Admin API route path; do
+not substitute the direct Coinbase smoke tool when the goal is proving
+frontend/API manageability.
 
 ## Completed Futures/Perpetuals M57 Evidence
 

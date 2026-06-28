@@ -206,19 +206,22 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
   acknowledgement/live-service contract, and no live Coinbase execution is
   enabled by default.
 - Remaining release-linked selection: one manual Spot BUY path now has capped
-  live Coinbase validation through the Admin API route; it still needs eventual
-  reconciliation execution proof. The frontend command workflow now renders
-  and links the backend `post_submit_reconciliation` handoff without creating
-  browser/BFF execution authority. SELL remains blocked until the Admin API
-  has lot-authority and planned-budget sources; cancel remains blocked until
-  it has an explicit
+  live Coinbase validation through the Admin API route, Admin API direct-order
+  audit readback, and post-submit fill-ledger backfill proof. The frontend
+  command workflow now renders and links the backend
+  `post_submit_reconciliation` handoff without creating browser/BFF execution
+  authority. SELL remains blocked until the Admin API has lot-authority and
+  planned-budget sources; cancel remains blocked until it has an explicit
   acknowledgement/live-service contract.
   Current manual Spot BUY validation must use
   `python tools\run_admin_api_manual_spot_buy_live.py`, not the direct Coinbase
   smoke script, so the proof covers the enterprise Admin API route and shared
   command service. Latest live validation selected `MOG-USDC`, submitted
-  `1.00` USDC, executed `0.99935033` USDC, and found direct-order audit
-  submission evidence.
+  `1.00` USDC, executed `0.99935033` USDC, ran read-only Coinbase
+  `list_fills`, appended one fill-ledger row through
+  `business.spot_fill_backfill.backfill_fill_ledger_from_order_reports`, and
+  read back `GET /api/v1/spot/direct-orders/{client_order_id}/audit` through
+  `application.admin_api.read_service` with `dashboard_dependency=false`.
   Product catalog, spot wallet, spot balance, and spot fill read contracts now
   belong to the account-market-inventory `ready_with_data_gate` surface, not a
   missing-contract blocker.

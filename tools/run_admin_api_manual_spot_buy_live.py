@@ -49,11 +49,7 @@ from application.admin_api.reconciliation import (
     FileAdminApiReconciliationStore,
     ReconciliationPlanRecord,
 )
-from business.spot_direct_order_audit import (
-    build_spot_direct_order_audit,
-    fetch_direct_order_event_rows,
-    fetch_direct_order_fill_rows,
-)
+from business.spot_fill_backfill import backfill_fill_ledger_from_order_reports
 from core.enums import (
     ActionGuardPhase,
     AdminApiActionClass,
@@ -67,6 +63,7 @@ from core.enums import (
     OrderType,
     ProductType,
     SpotDirectOrderAuditStatus,
+    SpotFillBackfillStatus,
 )
 from tools.run_live_spot_usdc_smoke import (
     _decimal,
@@ -426,27 +423,125 @@ def _api_headers(plan: AdminApiManualSpotBuyPlan) -> dict[str, str]:
     return headers
 
 
-def _build_direct_order_audit(client_order_id: str) -> dict[str, Any]:
+def build_manual_spot_buy_fill_backfill_order_report(
+    *,
+    plan: AdminApiManualSpotBuyPlan,
+    exchange_order_id: str | None,
+) -> dict[str, Any]:
+    """Build the existing fill-backfill order-report shape for this run."""
+
+    return {
+        "source": "admin_api_manual_spot_buy_live",
+        "source_file": str(DEFAULT_AUDIT_FILE),
+        "run_id": plan.run_id,
+        "config_id": None,
+        "product_id": plan.product_id,
+        "side": OrderSide.BUY.value,
+        "client_order_id": plan.client_order_id,
+        "exchange_order_id": exchange_order_id,
+        "source_status": "admin_api_submitted",
+        "submitted_notional_usdc": _format_decimal(plan.quote_size),
+        "executed_notional_usdc": None,
+    }
+
+
+def _build_fill_ledger_repo() -> Any:
+    from business.fill_ledger import FillLedgerRepository
     from database.database import PostgresDB
 
-    db_client = PostgresDB()
-    event_rows = fetch_direct_order_event_rows(
-        db_client=db_client,
-        client_order_id=client_order_id,
-        limit=100,
+    return FillLedgerRepository(PostgresDB())
+
+
+def _run_post_submit_fill_backfill(
+    *,
+    rest_client: Any,
+    plan: AdminApiManualSpotBuyPlan,
+    exchange_order_id: str | None,
+) -> dict[str, Any]:
+    """Run the existing REST-fill backfill path for this submitted order."""
+
+    order_report = build_manual_spot_buy_fill_backfill_order_report(
+        plan=plan,
+        exchange_order_id=exchange_order_id,
     )
-    fill_rows = fetch_direct_order_fill_rows(
-        db_client=db_client,
-        client_order_id=client_order_id,
-        limit=1000,
+    backfill = backfill_fill_ledger_from_order_reports(
+        fill_ledger_repo=_build_fill_ledger_repo(),
+        rest_client=rest_client,
+        order_reports=[order_report],
     )
-    return build_spot_direct_order_audit(
-        client_order_id=client_order_id,
-        event_rows=event_rows,
-        fill_rows=fill_rows,
-        include_events=False,
-        include_fills=False,
+    errored = [
+        order
+        for order in backfill.get("orders") or []
+        if order.get("status") == SpotFillBackfillStatus.ERROR.value
+    ]
+    skipped = [
+        order
+        for order in backfill.get("orders") or []
+        if order.get("status") == SpotFillBackfillStatus.SKIPPED.value
+    ]
+    return {
+        "ran": True,
+        "status": "failed" if errored else "passed",
+        "shared_method": "business.spot_fill_backfill.backfill_fill_ledger_from_order_reports",
+        "source": "tools.run_admin_api_manual_spot_buy_live",
+        "client_order_id": plan.client_order_id,
+        "exchange_order_id": exchange_order_id,
+        "backend_owned": True,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "read_only_coinbase_requests": ["list_fills"],
+        "live_coinbase_orders_ran": False,
+        "coinbase_order_submitted": False,
+        "order_state_mutated": False,
+        "exchange_state_mutated": False,
+        "fill_ledger_mutated": bool(backfill.get("total_appended_fill_count")),
+        "errored_order_count": len(errored),
+        "skipped_order_count": len(skipped),
+        "fill_backfill": backfill,
+    }
+
+
+def _build_direct_order_audit(
+    *,
+    api_client: TestClient,
+    headers: Mapping[str, str],
+    client_order_id: str,
+) -> dict[str, Any]:
+    """Read direct-order audit evidence through the Admin API route."""
+
+    response = api_client.get(
+        f"/api/v1/spot/direct-orders/{client_order_id}/audit",
+        headers=dict(headers),
+        params={
+            "include_events": "false",
+            "include_fills": "false",
+            "event_limit": "100",
+            "fill_limit": "1000",
+        },
     )
+    payload = response.json()
+    audit = payload.get("audit") if isinstance(payload, Mapping) else None
+    if isinstance(audit, Mapping):
+        result = dict(audit)
+    else:
+        result = {
+            "status": "error",
+            "error": "admin_api_direct_order_audit_missing_payload",
+        }
+    result["admin_api_route"] = (
+        f"/api/v1/spot/direct-orders/{client_order_id}/audit"
+    )
+    result["admin_api_route_http_status_code"] = response.status_code
+    result["admin_api_route_response_status"] = (
+        payload.get("status") if isinstance(payload, Mapping) else None
+    )
+    result["admin_api_route_source"] = (
+        payload.get("source") if isinstance(payload, Mapping) else None
+    )
+    result["admin_api_route_dashboard_dependency"] = (
+        payload.get("dashboard_dependency") if isinstance(payload, Mapping) else None
+    )
+    return result
 
 
 def _live_service_state_payload(state: Any) -> dict[str, Any]:
@@ -666,9 +761,11 @@ def main(argv: list[str] | None = None) -> int:
         print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True, default=str))
         return 1
 
-    response = TestClient(create_app()).post(
+    api_client = TestClient(create_app())
+    request_headers = _api_headers(plan)
+    response = api_client.post(
         "/api/v1/orders",
-        headers=_api_headers(plan),
+        headers=request_headers,
         json=body,
     )
     payload = response.json()
@@ -714,7 +811,30 @@ def main(argv: list[str] | None = None) -> int:
     summary["executed_notional_usdc"] = _format_decimal(executed_notional)
 
     try:
-        direct_audit = _build_direct_order_audit(plan.client_order_id)
+        post_submit_reconciliation = _run_post_submit_fill_backfill(
+            rest_client=client,
+            plan=plan,
+            exchange_order_id=order_id,
+        )
+    except Exception as exc:
+        post_submit_reconciliation = {
+            "ran": True,
+            "status": "failed",
+            "error": f"{type(exc).__name__}: {exc}",
+            "shared_method": (
+                "business.spot_fill_backfill.backfill_fill_ledger_from_order_reports"
+            ),
+            "read_only_coinbase_requests": ["list_fills"],
+            "live_coinbase_orders_ran": False,
+        }
+    summary["post_submit_reconciliation_execution"] = post_submit_reconciliation
+
+    try:
+        direct_audit = _build_direct_order_audit(
+            api_client=api_client,
+            headers=request_headers,
+            client_order_id=plan.client_order_id,
+        )
     except Exception as exc:
         direct_audit = {
             "status": "error",
@@ -735,6 +855,21 @@ def main(argv: list[str] | None = None) -> int:
         )
     if direct_audit.get("status") != SpotDirectOrderAuditStatus.FOUND.value:
         failures.append("direct_order_audit_missing")
+    if direct_audit.get("admin_api_route_http_status_code") != 200:
+        failures.append("admin_api_direct_order_audit_route_failed")
+    if direct_audit.get("admin_api_route_dashboard_dependency") is not False:
+        failures.append("admin_api_direct_order_audit_uses_dashboard_dependency")
+    if post_submit_reconciliation.get("status") != "passed":
+        failures.append("post_submit_reconciliation_execution_failed")
+    if (
+        executed_notional > 0
+        and post_submit_reconciliation.get("fill_backfill", {}).get(
+            "total_fetched_fill_count",
+            0,
+        )
+        <= 0
+    ):
+        failures.append("post_submit_reconciliation_no_rest_fills")
 
     summary["failures"] = failures
     summary["status"] = "passed" if not failures else "failed"

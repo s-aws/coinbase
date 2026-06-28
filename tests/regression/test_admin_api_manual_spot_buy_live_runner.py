@@ -26,10 +26,12 @@ from tools.run_admin_api_manual_spot_buy_live import (
     MAX_EXECUTED_NOTIONAL_USDC,
     MAX_SUBMITTED_NOTIONAL_USDC,
     _apply_runtime_config,
+    _build_direct_order_audit,
     _manual_order_body,
     _payload_hash,
     append_manual_spot_buy_live_admission_chain,
     AdminApiManualSpotBuyPlan,
+    build_manual_spot_buy_fill_backfill_order_report,
 )
 
 
@@ -178,3 +180,76 @@ def test_manual_spot_buy_runner_runtime_config_marks_selected_usdc_spot(
     assert configuration.ACTION_CONDITION_GUARDS["limits"][0]["max_notional"] == (
         "3.10"
     )
+
+
+def test_manual_spot_buy_runner_builds_existing_fill_backfill_order_report():
+    plan, _body = _plan()
+
+    report = build_manual_spot_buy_fill_backfill_order_report(
+        plan=plan,
+        exchange_order_id="exchange-live-buy",
+    )
+
+    assert report == {
+        "source": "admin_api_manual_spot_buy_live",
+        "source_file": "runtime_state\\admin_api_manual_spot_buy_live.jsonl",
+        "run_id": plan.run_id,
+        "config_id": None,
+        "product_id": "TEST-USDC",
+        "side": OrderSide.BUY.value,
+        "client_order_id": "aslb-test-live-buy",
+        "exchange_order_id": "exchange-live-buy",
+        "source_status": "admin_api_submitted",
+        "submitted_notional_usdc": "1",
+        "executed_notional_usdc": None,
+    }
+
+
+def test_manual_spot_buy_runner_direct_order_audit_uses_admin_api_route():
+    class FakeResponse:
+        status_code = 200
+
+        def json(self):
+            return {
+                "status": "success",
+                "source": "application.admin_api.read_service",
+                "dashboard_dependency": False,
+                "audit": {
+                    "status": "found",
+                    "client_order_id": "aslb-test-live-buy",
+                    "fill_count": 1,
+                },
+            }
+
+    class FakeApiClient:
+        def __init__(self):
+            self.calls = []
+
+        def get(self, path, *, headers, params):
+            self.calls.append((path, headers, params))
+            return FakeResponse()
+
+    client = FakeApiClient()
+
+    audit = _build_direct_order_audit(
+        api_client=client,
+        headers={"Authorization": "Bearer test"},
+        client_order_id="aslb-test-live-buy",
+    )
+
+    assert client.calls == [
+        (
+            "/api/v1/spot/direct-orders/aslb-test-live-buy/audit",
+            {"Authorization": "Bearer test"},
+            {
+                "include_events": "false",
+                "include_fills": "false",
+                "event_limit": "100",
+                "fill_limit": "1000",
+            },
+        )
+    ]
+    assert audit["status"] == "found"
+    assert audit["admin_api_route_http_status_code"] == 200
+    assert audit["admin_api_route_source"] == "application.admin_api.read_service"
+    assert audit["admin_api_route_dashboard_dependency"] is False

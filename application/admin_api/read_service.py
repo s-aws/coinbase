@@ -53797,12 +53797,72 @@ class AdminApiReadService:
         event_limit: int = 100,
         fill_limit: int = 1000,
     ) -> dict[str, Any]:
-        from dashboard_server import _build_spot_direct_order_audit_payload
-
-        return _build_spot_direct_order_audit_payload(
-            client_order_id=client_order_id,
-            include_events=include_events,
-            include_fills=include_fills,
-            event_limit=event_limit,
-            fill_limit=fill_limit,
+        from business.spot_direct_order_audit import (
+            build_spot_direct_order_audit,
+            fetch_direct_order_event_rows,
+            fetch_direct_order_fill_rows,
         )
+        from database.database import PostgresDB
+
+        client_id = str(client_order_id or "").strip()
+        if not client_id:
+            audit = build_spot_direct_order_audit(
+                client_order_id=client_id,
+                event_rows=[],
+                fill_rows=[],
+                include_events=include_events,
+                include_fills=include_fills,
+            )
+            return {
+                "type": "spot_direct_order_audit",
+                "status": "error",
+                "source": "application.admin_api.read_service",
+                "dashboard_dependency": False,
+                "client_order_id": client_id,
+                "audit": audit,
+                "events": audit.get("events", []) if include_events else [],
+                "fills": audit.get("fills", []) if include_fills else [],
+                "message": "Missing client_order_id",
+            }
+
+        try:
+            db_client = PostgresDB()
+            event_rows = fetch_direct_order_event_rows(
+                db_client=db_client,
+                client_order_id=client_id,
+                limit=event_limit,
+            )
+            fill_rows = fetch_direct_order_fill_rows(
+                db_client=db_client,
+                client_order_id=client_id,
+                limit=fill_limit,
+            )
+            audit = build_spot_direct_order_audit(
+                client_order_id=client_id,
+                event_rows=event_rows,
+                fill_rows=fill_rows,
+                include_events=include_events,
+                include_fills=include_fills,
+            )
+            return {
+                "type": "spot_direct_order_audit",
+                "status": "success",
+                "source": "application.admin_api.read_service",
+                "dashboard_dependency": False,
+                "client_order_id": client_id,
+                "audit": audit,
+                "events": audit.get("events", []) if include_events else [],
+                "fills": audit.get("fills", []) if include_fills else [],
+            }
+        except Exception as exc:
+            return {
+                "type": "spot_direct_order_audit",
+                "status": "error",
+                "source": "application.admin_api.read_service",
+                "dashboard_dependency": False,
+                "client_order_id": client_id,
+                "message": (
+                    "direct order audit failed: "
+                    f"{type(exc).__name__}: {exc}"
+                ),
+            }

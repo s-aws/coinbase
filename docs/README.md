@@ -75,9 +75,11 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Spot Contextless Agent Testing](SPOT_CONTEXTLESS_AGENT_TESTING.md)
 - Contextless checklist harness:
   `python tools\run_spot_contextless_agent_checklist.py --summary-only`
-- Direct spot order audit:
+- Admin API direct spot order audit:
+  `GET /api/v1/spot/direct-orders/{client_order_id}/audit`
+- Direct spot order audit CLI:
   `python tools\run_spot_direct_order_audit.py --client-order-id <client_order_id>`
-- Dashboard direct spot order audit:
+- Legacy dashboard direct spot order audit:
   `request_spot_direct_order_audit` with `params.client_order_id`
 - Spot campaign operator reports:
   `python tools\run_spot_campaign.py --ledger-cleanup-plan --summary-only`

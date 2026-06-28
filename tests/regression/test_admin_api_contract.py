@@ -43296,6 +43296,84 @@ def test_admin_api_spot_routes_preserve_typed_read_payload_fields(monkeypatch):
 
 
 @pytest.mark.regression
+def test_admin_api_direct_order_audit_read_service_does_not_import_dashboard(
+    monkeypatch,
+):
+    import builtins
+    from decimal import Decimal
+
+    import database.database as database_module
+    from application.admin_api.read_service import AdminApiReadService
+    from core.enums import EventSourceChannel, EventStreamType
+
+    real_import = builtins.__import__
+
+    def guarded_import(name, *args, **kwargs):
+        if name == "dashboard_server":
+            raise AssertionError("Admin API read service must not import dashboard_server")
+        return real_import(name, *args, **kwargs)
+
+    class FakeDirectOrderAuditDB:
+        def execute_query(self, query, params):
+            if "FROM order_event_stream" in query:
+                return [
+                    {
+                        "event_id": "event-admin-audit",
+                        "event_type": EventStreamType.ORDER_SUBMITTED.value,
+                        "source_channel": EventSourceChannel.REST_SUBMIT.value,
+                        "client_order_id": params[0],
+                        "order_id": "exchange-admin-audit",
+                        "product_id": "MOG-USDC",
+                        "side": "BUY",
+                        "event_status_to": "PENDING",
+                        "raw_payload_json": {
+                            "order_configuration_type": "market_market_ioc",
+                            "quote_size": "1",
+                        },
+                    }
+                ]
+            if "FROM fill_ledger" in query:
+                return [
+                    {
+                        "id": 1,
+                        "derived_trade_key": "fill-admin-audit",
+                        "instrument": "MOG-USDC",
+                        "side": "BUY",
+                        "quantity": Decimal("10"),
+                        "price": Decimal("0.1"),
+                        "fees": Decimal("0.001"),
+                        "reconciliation_status": "RECONCILED",
+                    }
+                ]
+            return []
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    monkeypatch.setattr(database_module, "PostgresDB", FakeDirectOrderAuditDB)
+
+    payload = AdminApiReadService().build_spot_direct_order_audit(
+        client_order_id="admin-audit-client-order",
+        include_events=False,
+        include_fills=False,
+    )
+
+    assert payload["type"] == "spot_direct_order_audit"
+    assert payload["status"] == "success"
+    assert payload["client_order_id"] == "admin-audit-client-order"
+    assert payload["source"] == "application.admin_api.read_service"
+    assert payload["dashboard_dependency"] is False
+    assert payload["events"] == []
+    assert payload["fills"] == []
+    assert payload["audit"]["status"] == "found"
+    assert payload["audit"]["event_count"] == 1
+    assert payload["audit"]["fill_count"] == 1
+    assert payload["audit"]["submission"]["exchange_order_id"] == (
+        "exchange-admin-audit"
+    )
+    assert "events" not in payload["audit"]
+    assert "fills" not in payload["audit"]
+
+
+@pytest.mark.regression
 def test_admin_api_spot_pnl_checkpoint_routes_record_replay_and_read(monkeypatch):
     client = _client(monkeypatch)
     body = {
