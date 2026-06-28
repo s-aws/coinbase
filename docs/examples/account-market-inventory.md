@@ -23,8 +23,26 @@ Expected operator signals:
   `data_fetch_error` explaining the disabled read
 - ready families include backend route refs such as `/api/v1/orders` and
   `/api/v1/futures/account`
+- family rows and bounded product/balance/fill records may include
+  `drilldown_refs`, for example:
+
+```json
+{
+  "label": "Orders",
+  "route": "/api/v1/orders",
+  "method": "GET",
+  "module_id": "spot_operations",
+  "query": { "product_id": "BTC-USDC" },
+  "path_params": {},
+  "read_only": true,
+  "browser_authority": "display_only",
+  "bff_execution_authority": "forward_only_no_execution"
+}
+```
 
 This command reads backend evidence only by default. When backend Coinbase
 reads are explicitly enabled, it may make read-only product, account, and fill
 requests from the backend. It never mutates orders, balances, fills, products,
-campaigns, or futures state.
+campaigns, or futures state. Drilldown refs are navigation metadata only; they
+must not be treated as frontend authority to fetch Coinbase data or execute
+commands.

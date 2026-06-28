@@ -10256,6 +10256,12 @@ components:
             type: object
           type: array
           title: Records
+        drilldown_refs:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Drilldown Refs
         required_for_release_0_1:
           type: boolean
           title: Required For Release 0 1

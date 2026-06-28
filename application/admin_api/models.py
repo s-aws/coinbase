@@ -2530,6 +2530,7 @@ class AdminAccountMarketInventoryFamilyItem(BaseModel):
     data_fetch_error: str | None = None
     data_summary: FlexibleDict = Field(default_factory=dict)
     records: list[FlexibleDict] = Field(default_factory=list)
+    drilldown_refs: list[FlexibleDict] = Field(default_factory=list)
     required_for_release_0_1: bool
     release_blocking: bool
     backend_contract_refs: list[str] = Field(default_factory=list)

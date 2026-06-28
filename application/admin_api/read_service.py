@@ -738,6 +738,21 @@ ACCOUNT_MARKET_INVENTORY_DEFAULT_PRODUCT_LIMIT = 500
 ACCOUNT_MARKET_INVENTORY_DEFAULT_WALLET_LIMIT = 500
 ACCOUNT_MARKET_INVENTORY_DEFAULT_FILL_LIMIT = 100
 ACCOUNT_MARKET_INVENTORY_MAX_RECORD_LIMIT = 1000
+ACCOUNT_MARKET_INVENTORY_ROUTE_SELF = "/api/v1/admin/account-market-inventory"
+ACCOUNT_MARKET_INVENTORY_ROUTE_ORDERS = "/api/v1/orders"
+ACCOUNT_MARKET_INVENTORY_ROUTE_ORDER_DETAIL = "/api/v1/orders/{client_order_id}"
+ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_READINESS = "/api/v1/spot/readiness"
+ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_SWEEP_STATUS = "/api/v1/spot/sweep/status"
+ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_SWEEP_PNL = "/api/v1/spot/sweep/pnl"
+ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_COST_BASIS = "/api/v1/spot/cost-basis/status"
+ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_CAMPAIGN = "/api/v1/spot/campaign/status"
+ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_DIRECT_ORDER_AUDIT = (
+    "/api/v1/spot/direct-orders/{client_order_id}/audit"
+)
+ACCOUNT_MARKET_INVENTORY_ROUTE_FUTURES_ACCOUNT = "/api/v1/futures/account"
+ACCOUNT_MARKET_INVENTORY_ROUTE_FUTURES_POSITIONS = "/api/v1/futures/positions"
+ACCOUNT_MARKET_INVENTORY_ROUTE_GUARD_RISK = "/api/v1/admin/guard-risk-policy"
+ACCOUNT_MARKET_INVENTORY_ROUTE_AUDIT_WORKBENCH = "/api/v1/admin/audit-workbench"
 
 
 def _env_truthy(name: str) -> bool:
@@ -6225,6 +6240,223 @@ class AdminApiReadService:
             _inventory_get(provider_payload, "live_coinbase_read_ran")
         )
 
+        def cleaned_mapping(values: Mapping[str, Any] | None) -> dict[str, str]:
+            if not values:
+                return {}
+            cleaned: dict[str, str] = {}
+            for key, value in values.items():
+                text_value = _inventory_text(value)
+                if text_value:
+                    cleaned[str(key)] = text_value
+            return cleaned
+
+        def drilldown_ref(
+            label: str,
+            route: str,
+            *,
+            query: Mapping[str, Any] | None = None,
+            path_params: Mapping[str, Any] | None = None,
+            identity_key: str | None = None,
+            identity_value: str | None = None,
+        ) -> dict[str, Any]:
+            method, module_id = route_lookup.get(route, ("GET", "admin_system_health"))
+            ref: dict[str, Any] = {
+                "label": label,
+                "route": route,
+                "method": method or "GET",
+                "module_id": module_id,
+                "query": cleaned_mapping(query),
+                "path_params": cleaned_mapping(path_params),
+                "read_only": True,
+                "browser_authority": "display_only",
+                "bff_execution_authority": "forward_only_no_execution",
+            }
+            if identity_key and identity_value:
+                ref["identity_key"] = identity_key
+                ref["identity_value"] = identity_value
+            if ref["path_params"]:
+                resolved_route = route
+                for key, value in ref["path_params"].items():
+                    resolved_route = resolved_route.replace(
+                        "{" + key + "}",
+                        value,
+                    )
+                ref["resolved_route"] = resolved_route
+            return ref
+
+        def product_drilldown_refs(product_id: str) -> list[dict[str, Any]]:
+            normalized_product_id = _inventory_text(product_id).upper()
+            if not normalized_product_id:
+                return []
+            product_query = {"product_id": normalized_product_id}
+            return [
+                drilldown_ref(
+                    "Spot readiness",
+                    ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_READINESS,
+                    query=product_query,
+                    identity_key="product_id",
+                    identity_value=normalized_product_id,
+                ),
+                drilldown_ref(
+                    "Orders",
+                    ACCOUNT_MARKET_INVENTORY_ROUTE_ORDERS,
+                    query=product_query,
+                    identity_key="product_id",
+                    identity_value=normalized_product_id,
+                ),
+                drilldown_ref(
+                    "Spot P/L",
+                    ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_SWEEP_PNL,
+                    query=product_query,
+                    identity_key="product_id",
+                    identity_value=normalized_product_id,
+                ),
+                drilldown_ref(
+                    "Guard/risk",
+                    ACCOUNT_MARKET_INVENTORY_ROUTE_GUARD_RISK,
+                    query=product_query,
+                    identity_key="product_id",
+                    identity_value=normalized_product_id,
+                ),
+                drilldown_ref(
+                    "Audit workbench",
+                    ACCOUNT_MARKET_INVENTORY_ROUTE_AUDIT_WORKBENCH,
+                    query=product_query,
+                    identity_key="product_id",
+                    identity_value=normalized_product_id,
+                ),
+            ]
+
+        def fill_drilldown_refs(
+            *,
+            product_id: str,
+            client_order_id: str,
+        ) -> list[dict[str, Any]]:
+            refs: list[dict[str, Any]] = []
+            normalized_product_id = _inventory_text(product_id).upper()
+            normalized_client_order_id = _inventory_text(client_order_id)
+            if normalized_product_id:
+                refs.append(
+                    drilldown_ref(
+                        "Orders",
+                        ACCOUNT_MARKET_INVENTORY_ROUTE_ORDERS,
+                        query={"product_id": normalized_product_id},
+                        identity_key="product_id",
+                        identity_value=normalized_product_id,
+                    )
+                )
+            if normalized_client_order_id:
+                client_order_params = {
+                    "client_order_id": normalized_client_order_id,
+                }
+                refs.append(
+                    drilldown_ref(
+                        "Order detail",
+                        ACCOUNT_MARKET_INVENTORY_ROUTE_ORDER_DETAIL,
+                        path_params=client_order_params,
+                        identity_key="client_order_id",
+                        identity_value=normalized_client_order_id,
+                    )
+                )
+                refs.append(
+                    drilldown_ref(
+                        "Direct order audit",
+                        ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_DIRECT_ORDER_AUDIT,
+                        path_params=client_order_params,
+                        identity_key="client_order_id",
+                        identity_value=normalized_client_order_id,
+                    )
+                )
+                refs.append(
+                    drilldown_ref(
+                        "Audit workbench",
+                        ACCOUNT_MARKET_INVENTORY_ROUTE_AUDIT_WORKBENCH,
+                        query={
+                            "client_order_id": normalized_client_order_id,
+                            "product_id": normalized_product_id,
+                        },
+                        identity_key="client_order_id",
+                        identity_value=normalized_client_order_id,
+                    )
+                )
+            elif normalized_product_id:
+                refs.append(
+                    drilldown_ref(
+                        "Audit workbench",
+                        ACCOUNT_MARKET_INVENTORY_ROUTE_AUDIT_WORKBENCH,
+                        query={"product_id": normalized_product_id},
+                        identity_key="product_id",
+                        identity_value=normalized_product_id,
+                    )
+                )
+            return refs
+
+        def family_drilldown_refs(
+            family: AdminApiAccountMarketInventoryFamily,
+        ) -> list[dict[str, Any]]:
+            refs_by_family: dict[
+                AdminApiAccountMarketInventoryFamily,
+                list[tuple[str, str]],
+            ] = {
+                AdminApiAccountMarketInventoryFamily.PRODUCT_CATALOG: [
+                    ("Spot readiness", ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_READINESS),
+                    ("Orders", ACCOUNT_MARKET_INVENTORY_ROUTE_ORDERS),
+                    ("Guard/risk", ACCOUNT_MARKET_INVENTORY_ROUTE_GUARD_RISK),
+                    ("Audit workbench", ACCOUNT_MARKET_INVENTORY_ROUTE_AUDIT_WORKBENCH),
+                ],
+                AdminApiAccountMarketInventoryFamily.SPOT_WALLETS: [
+                    ("Inventory", ACCOUNT_MARKET_INVENTORY_ROUTE_SELF),
+                    ("Spot readiness", ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_READINESS),
+                ],
+                AdminApiAccountMarketInventoryFamily.SPOT_BALANCES: [
+                    ("Spot readiness", ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_READINESS),
+                    ("Spot P/L", ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_SWEEP_PNL),
+                    ("Orders", ACCOUNT_MARKET_INVENTORY_ROUTE_ORDERS),
+                    ("Guard/risk", ACCOUNT_MARKET_INVENTORY_ROUTE_GUARD_RISK),
+                    ("Audit workbench", ACCOUNT_MARKET_INVENTORY_ROUTE_AUDIT_WORKBENCH),
+                ],
+                AdminApiAccountMarketInventoryFamily.SPOT_FILLS: [
+                    ("Orders", ACCOUNT_MARKET_INVENTORY_ROUTE_ORDERS),
+                    ("Audit workbench", ACCOUNT_MARKET_INVENTORY_ROUTE_AUDIT_WORKBENCH),
+                ],
+                AdminApiAccountMarketInventoryFamily.ORDER_READS: [
+                    ("Orders", ACCOUNT_MARKET_INVENTORY_ROUTE_ORDERS),
+                    ("Audit workbench", ACCOUNT_MARKET_INVENTORY_ROUTE_AUDIT_WORKBENCH),
+                ],
+                AdminApiAccountMarketInventoryFamily.SPOT_READINESS: [
+                    ("Spot readiness", ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_READINESS),
+                    ("Guard/risk", ACCOUNT_MARKET_INVENTORY_ROUTE_GUARD_RISK),
+                ],
+                AdminApiAccountMarketInventoryFamily.SPOT_COST_BASIS: [
+                    ("Cost basis", ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_COST_BASIS),
+                    ("Spot P/L", ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_SWEEP_PNL),
+                ],
+                AdminApiAccountMarketInventoryFamily.SPOT_CAMPAIGNS: [
+                    ("Campaign status", ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_CAMPAIGN),
+                    ("Sweep status", ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_SWEEP_STATUS),
+                    ("Spot P/L", ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_SWEEP_PNL),
+                ],
+                AdminApiAccountMarketInventoryFamily.FUTURES_ACCOUNT: [
+                    ("Futures account", ACCOUNT_MARKET_INVENTORY_ROUTE_FUTURES_ACCOUNT),
+                    ("Futures positions", ACCOUNT_MARKET_INVENTORY_ROUTE_FUTURES_POSITIONS),
+                ],
+                AdminApiAccountMarketInventoryFamily.FUTURES_POSITIONS: [
+                    ("Futures positions", ACCOUNT_MARKET_INVENTORY_ROUTE_FUTURES_POSITIONS),
+                    ("Futures account", ACCOUNT_MARKET_INVENTORY_ROUTE_FUTURES_ACCOUNT),
+                ],
+                AdminApiAccountMarketInventoryFamily.GUARD_RISK_POLICY: [
+                    ("Guard/risk", ACCOUNT_MARKET_INVENTORY_ROUTE_GUARD_RISK),
+                    ("Audit workbench", ACCOUNT_MARKET_INVENTORY_ROUTE_AUDIT_WORKBENCH),
+                ],
+                AdminApiAccountMarketInventoryFamily.AUDIT_WORKBENCH: [
+                    ("Audit workbench", ACCOUNT_MARKET_INVENTORY_ROUTE_AUDIT_WORKBENCH),
+                ],
+            }
+            return [
+                drilldown_ref(label, route)
+                for label, route in refs_by_family.get(family, [])
+            ]
+
         product_limit = _account_market_inventory_provider_limit(
             provider_payload,
             "product_limit",
@@ -6260,9 +6492,10 @@ class AdminApiReadService:
 
         product_rows: list[dict[str, Any]] = []
         for product in eligible_products:
+            product_id = _inventory_product_id(product)
             product_rows.append(
                 {
-                    "product_id": _inventory_product_id(product),
+                    "product_id": product_id,
                     "base_currency": _inventory_base_currency(product),
                     "quote_currency": _inventory_quote_currency(product),
                     "product_type": _inventory_text(
@@ -6307,6 +6540,7 @@ class AdminApiReadService:
                     "post_only": _inventory_bool(
                         _inventory_get(product, "post_only")
                     ),
+                    "drilldown_refs": product_drilldown_refs(product_id),
                 }
             )
         product_records, product_truncated, product_total = _bounded_inventory_rows(
@@ -6374,6 +6608,7 @@ class AdminApiReadService:
         balance_error = balance_error or product_error or wallet_error
         balance_rows: list[dict[str, Any]] = []
         for product_row in product_rows:
+            product_id = product_row["product_id"]
             base_currency = product_row["base_currency"]
             quote_currency = product_row["quote_currency"]
             base_wallet = wallet_by_currency.get(base_currency, {})
@@ -6384,7 +6619,7 @@ class AdminApiReadService:
             price = _inventory_decimal(product_row["price"])
             balance_rows.append(
                 {
-                    "product_id": product_row["product_id"],
+                    "product_id": product_id,
                     "base_currency": base_currency,
                     "quote_currency": quote_currency,
                     "base_available": _inventory_balance_text(
@@ -6414,6 +6649,7 @@ class AdminApiReadService:
                     "estimated_mark_value": _inventory_format_decimal(
                         base_total * price
                     ),
+                    "drilldown_refs": product_drilldown_refs(product_id),
                 }
             )
         balance_records, balance_truncated, balance_total = _bounded_inventory_rows(
@@ -6427,15 +6663,15 @@ class AdminApiReadService:
         fill_source = list(_inventory_get(provider_payload, "fills", default=[]) or [])
         fill_rows: list[dict[str, Any]] = []
         for fill in fill_source:
+            fill_product_id = _inventory_text(_inventory_get(fill, "product_id")).upper()
+            fill_client_order_id = _inventory_text(
+                _inventory_get(fill, "client_order_id")
+            )
             fill_rows.append(
                 {
-                    "product_id": _inventory_text(
-                        _inventory_get(fill, "product_id")
-                    ).upper(),
+                    "product_id": fill_product_id,
                     "order_id": _inventory_text(_inventory_get(fill, "order_id")),
-                    "client_order_id": _inventory_text(
-                        _inventory_get(fill, "client_order_id")
-                    ),
+                    "client_order_id": fill_client_order_id,
                     "trade_id": _inventory_text(_inventory_get(fill, "trade_id")),
                     "entry_id": _inventory_text(_inventory_get(fill, "entry_id")),
                     "side": _inventory_text(_inventory_get(fill, "side")).upper(),
@@ -6455,6 +6691,10 @@ class AdminApiReadService:
                     ),
                     "liquidity_indicator": _inventory_text(
                         _inventory_get(fill, "liquidity_indicator")
+                    ),
+                    "drilldown_refs": fill_drilldown_refs(
+                        product_id=fill_product_id,
+                        client_order_id=fill_client_order_id,
                     ),
                 }
             )
@@ -6497,6 +6737,7 @@ class AdminApiReadService:
             data_fetch_error: str | None = None,
             data_summary: dict[str, Any] | None = None,
             records: list[dict[str, Any]] | None = None,
+            drilldown_refs: list[dict[str, Any]] | None = None,
             live_coinbase_read_ran: bool = False,
             backend_contract_refs: list[str] | None = None,
             frontend_contract_refs: list[str] | None = None,
@@ -6524,6 +6765,11 @@ class AdminApiReadService:
                 data_fetch_error=data_fetch_error or None,
                 data_summary=data_summary or {},
                 records=records or [],
+                drilldown_refs=(
+                    drilldown_refs
+                    if drilldown_refs is not None
+                    else family_drilldown_refs(family)
+                ),
                 required_for_release_0_1=required_for_release_0_1,
                 release_blocking=release_blocking,
                 backend_contract_refs=backend_contract_refs or [],

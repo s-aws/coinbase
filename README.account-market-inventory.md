@@ -23,7 +23,11 @@ records are currently loaded, and whether any data reads are blocked.
 
 Each family row includes the backend module id, route when available, source,
 record count, data status, data source, record limit, truncation flag, optional
-fetch error, bounded records, release-blocking flag, and documentation refs.
+fetch error, bounded records, backend-owned `drilldown_refs`,
+release-blocking flag, and documentation refs. `drilldown_refs` are read-only
+route metadata for operator navigation. They may include safe query or path
+parameters such as `product_id` or `client_order_id`, but they do not execute
+the target route and do not grant the frontend trading authority.
 
 ## Safety Rules
 
@@ -35,6 +39,10 @@ fetch error, bounded records, release-blocking flag, and documentation refs.
   explicitly enabled read-only Coinbase product, account, or fill request.
 - The route inventory row lives under `admin_system_health`; domain-specific
   module ids are carried inside the family rows.
+- Drilldown refs must stay backend-owned, read-only, and display-only. The
+  frontend may render them as navigation hints into existing admin sections,
+  but must not use them to create a second fetch path, wallet check, guard
+  check, or Coinbase call.
 
 ## Examples
 

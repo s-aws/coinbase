@@ -43208,7 +43208,14 @@ def test_admin_api_backend_rbac_matches_frontend_role_hints():
 
 @pytest.mark.regression
 def test_admin_api_account_market_inventory_normalizes_provider_rows():
-    from application.admin_api.read_service import AdminApiReadService
+    from application.admin_api.read_service import (
+        ACCOUNT_MARKET_INVENTORY_ROUTE_AUDIT_WORKBENCH,
+        ACCOUNT_MARKET_INVENTORY_ROUTE_ORDER_DETAIL,
+        ACCOUNT_MARKET_INVENTORY_ROUTE_ORDERS,
+        ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_DIRECT_ORDER_AUDIT,
+        ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_READINESS,
+        AdminApiReadService,
+    )
 
     def fake_account_market_provider():
         return {
@@ -43300,19 +43307,59 @@ def test_admin_api_account_market_inventory_normalizes_provider_rows():
     assert product["record_count"] == 1
     assert product["records"][0]["product_id"] == "AAA-USDC"
     assert product["records"][0]["quote_currency"] == "USDC"
+    product_family_refs = {
+        ref["route"]: ref for ref in product["drilldown_refs"]
+    }
+    assert product_family_refs[ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_READINESS][
+        "method"
+    ] == "GET"
+    assert product_family_refs[ACCOUNT_MARKET_INVENTORY_ROUTE_ORDERS][
+        "module_id"
+    ] == "spot_operations"
+    product_record_refs = {
+        ref["route"]: ref for ref in product["records"][0]["drilldown_refs"]
+    }
+    assert product_record_refs[ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_READINESS][
+        "query"
+    ] == {"product_id": "AAA-USDC"}
+    assert product_record_refs[ACCOUNT_MARKET_INVENTORY_ROUTE_ORDERS][
+        "browser_authority"
+    ] == "display_only"
 
     assert wallets["data_status"] == AdminApiGateStatus.PASSED.value
     assert [row["currency"] for row in wallets["records"]] == ["AAA", "USDC"]
     assert wallets["records"][0]["available_balance"] == "3"
+    assert wallets["drilldown_refs"]
 
     assert balances["data_status"] == AdminApiGateStatus.PASSED.value
     assert balances["records"][0]["base_available"] == "3"
     assert balances["records"][0]["base_total"] == "4"
     assert balances["records"][0]["estimated_mark_value"] == "8"
+    balance_record_refs = {
+        ref["route"]: ref for ref in balances["records"][0]["drilldown_refs"]
+    }
+    assert balance_record_refs[ACCOUNT_MARKET_INVENTORY_ROUTE_AUDIT_WORKBENCH][
+        "query"
+    ] == {"product_id": "AAA-USDC"}
 
     assert fills["data_status"] == AdminApiGateStatus.PASSED.value
     assert fills["records"][0]["trade_id"] == "trade-1"
     assert fills["records"][0]["client_order_id"] == "client-order-1"
+    fill_record_refs = {
+        ref["route"]: ref for ref in fills["records"][0]["drilldown_refs"]
+    }
+    assert fill_record_refs[ACCOUNT_MARKET_INVENTORY_ROUTE_ORDER_DETAIL][
+        "path_params"
+    ] == {"client_order_id": "client-order-1"}
+    assert fill_record_refs[ACCOUNT_MARKET_INVENTORY_ROUTE_ORDER_DETAIL][
+        "resolved_route"
+    ] == "/api/v1/orders/client-order-1"
+    assert fill_record_refs[
+        ACCOUNT_MARKET_INVENTORY_ROUTE_SPOT_DIRECT_ORDER_AUDIT
+    ]["path_params"] == {"client_order_id": "client-order-1"}
+    assert fill_record_refs[ACCOUNT_MARKET_INVENTORY_ROUTE_AUDIT_WORKBENCH][
+        "query"
+    ] == {"client_order_id": "client-order-1", "product_id": "AAA-USDC"}
 
 
 @pytest.mark.regression
@@ -43528,11 +43575,25 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         assert direct_read_family["data_source"] == "disabled"
         assert direct_read_family["record_count"] == 0
         assert direct_read_family["records"] == []
+        assert direct_read_family["drilldown_refs"]
+        assert all(ref["read_only"] is True for ref in direct_read_family["drilldown_refs"])
+        assert all(
+            ref["browser_authority"] == "display_only"
+            for ref in direct_read_family["drilldown_refs"]
+        )
         assert direct_read_family["release_blocking"] is False
         assert direct_read_family["live_coinbase_read_ran"] is False
     assert inventory_by_family[
         AdminApiAccountMarketInventoryFamily.ORDER_READS.value
     ]["route"] == "/api/v1/orders"
+    order_drilldown_routes = {
+        ref["route"]
+        for ref in inventory_by_family[
+            AdminApiAccountMarketInventoryFamily.ORDER_READS.value
+        ]["drilldown_refs"]
+    }
+    assert "/api/v1/orders" in order_drilldown_routes
+    assert "/api/v1/admin/audit-workbench" in order_drilldown_routes
     assert inventory_by_family[
         AdminApiAccountMarketInventoryFamily.FUTURES_ACCOUNT.value
     ]["route"] == "/api/v1/futures/account"
