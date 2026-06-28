@@ -661,6 +661,10 @@ from .spot_recovery_repair import (
     FileSpotRecoveryRepairResultJournalStore,
     SpotRecoveryRepairResultRecord,
 )
+from .spot_sweep_automation_control import (
+    FileSpotSweepAutomationControlStore,
+    build_spot_sweep_automation_control_state,
+)
 from .stealth_exchange_truth import (
     FileStealthExchangeTruthProofStore,
     FileStealthExchangeTruthSnapshotStore,
@@ -5951,6 +5955,9 @@ class AdminApiReadService:
         spot_recovery_completion_store: (
             FileSpotRecoveryCompletionJournalStore | None
         ) = None,
+        spot_sweep_automation_control_store: (
+            FileSpotSweepAutomationControlStore | None
+        ) = None,
         stealth_exchange_truth_snapshot_store: (
             FileStealthExchangeTruthSnapshotStore | None
         ) = None,
@@ -6017,6 +6024,10 @@ class AdminApiReadService:
         self.spot_recovery_completion_store = (
             spot_recovery_completion_store
             or FileSpotRecoveryCompletionJournalStore()
+        )
+        self.spot_sweep_automation_control_store = (
+            spot_sweep_automation_control_store
+            or FileSpotSweepAutomationControlStore()
         )
         self.stealth_exchange_truth_snapshot_store = (
             stealth_exchange_truth_snapshot_store
@@ -52468,15 +52479,15 @@ class AdminApiReadService:
                     ]
                 ),
                 required_backend_contract=(
-                    "Durable enterprise sweep scheduling, pause/resume, run-limit, "
-                    "retry, execution-record, recovery, and reconciliation contract."
+                    "Durable enterprise sweep scheduling, run-limit, retry "
+                    "execution, execution-record, recovery, and reconciliation "
+                    "contract."
                 ),
                 required_gate_chain=gap_required_gate_chain,
                 missing_contracts=[
                     "enterprise_sweep_scheduler_contract",
                     "sweep_run_limit_contract",
-                    "sweep_pause_resume_contract",
-                    "sweep_retry_recovery_contract",
+                    "sweep_retry_execution_contract",
                     "sweep_reconciliation_execution_contract",
                     "sweep_live_execution_contract",
                 ],
@@ -52489,8 +52500,8 @@ class AdminApiReadService:
                 detail=(
                     "Sweep and campaign evidence is readable, but enterprise admin "
                     "sweep automation is not command-complete until durable "
-                    "scheduler, run-limit, recovery, and reconciliation contracts "
-                    "exist."
+                    "scheduler, run-limit, retry execution, recovery, and "
+                    "reconciliation contracts exist."
                 ),
             ),
             SpotCommandSuiteCoverageGapItem(
@@ -52620,6 +52631,7 @@ class AdminApiReadService:
         related_automation_command_routes = [
             "/api/v1/spot/campaign/executions",
             "/api/v1/spot/sweep/automation-runs",
+            "/api/v1/spot/sweep/automation-controls",
         ]
         automation_control_specs = [
             (
@@ -52659,7 +52671,7 @@ class AdminApiReadService:
             (
                 AdminApiSpotAutomationControl.PAUSE_RESUME,
                 "Pause/resume",
-                "sweep_pause_resume_contract",
+                "scheduler_pause_resume_binding_contract",
                 "Backend-owned sweep pause/resume control contract with audit.",
                 [
                     "route_inventory_contract",
@@ -52668,14 +52680,15 @@ class AdminApiReadService:
                     "audit_link",
                 ],
                 (
-                    "Campaign/sweep pause and resume controls are not modeled. Runtime "
-                    "pause/resume commands do not pause an individual sweep scheduler."
+                    "Campaign/sweep pause and resume controls are route-bound "
+                    "local-state records. The enterprise scheduler is still not "
+                    "modeled, so these records do not stop a running scheduler."
                 ),
             ),
             (
                 AdminApiSpotAutomationControl.RETRY_RECOVERY,
                 "Retry/recovery",
-                "sweep_retry_recovery_contract",
+                "sweep_retry_execution_contract",
                 "Backend-owned retry, recovery, and skipped-product replay contract.",
                 [
                     "route_inventory_contract",
@@ -52684,8 +52697,9 @@ class AdminApiReadService:
                     "audit_link",
                 ],
                 (
-                    "Retry and recovery controls are not modeled for enterprise sweep "
-                    "automation. Existing recovery reads remain evidence only."
+                    "Retry intent acceptance is route-bound as local-state "
+                    "evidence. Retry execution and recovery replay remain not "
+                    "modeled for enterprise sweep automation."
                 ),
             ),
             (
@@ -52727,14 +52741,28 @@ class AdminApiReadService:
                 ),
             ),
         ]
+        draft_control_contracts = {
+            AdminApiSpotAutomationControl.PAUSE_RESUME,
+            AdminApiSpotAutomationControl.RETRY_RECOVERY,
+        }
         automation_control_readiness = [
             SpotCommandSuiteAutomationControlReadinessItem(
                 control=control,
                 label=label,
-                support_status=AdminApiModuleSupportStatus.NOT_MODELED,
-                gate_status=AdminApiGateStatus.BLOCKED,
+                support_status=(
+                    AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                    if control in draft_control_contracts
+                    else AdminApiModuleSupportStatus.NOT_MODELED
+                ),
+                gate_status=(
+                    AdminApiGateStatus.WARNING
+                    if control in draft_control_contracts
+                    else AdminApiGateStatus.BLOCKED
+                ),
                 exposure_status=(
-                    AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED
+                    AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
+                    if control in draft_control_contracts
+                    else AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED
                 ),
                 related_command_routes=list(related_automation_command_routes),
                 current_read_evidence_routes=list(automation_evidence_routes),
@@ -52742,7 +52770,7 @@ class AdminApiReadService:
                 required_gate_chain=list(required_gates),
                 missing_contract=missing_contract,
                 backend_owned=True,
-                operator_action_available=False,
+                operator_action_available=control in draft_control_contracts,
                 browser_scheduler_authority=False,
                 browser_authority="display_only",
                 bff_authority="forward_only_no_execution",
@@ -52797,7 +52825,7 @@ class AdminApiReadService:
                 "M54 gate linkage names backend proof routes for approval, admission audit, cap/guard, and reconciliation records.",
                 "Manual order, cancel, and campaign command families remain live-blocked.",
                 "Sweep automation, recovery workflow, and reconciliation workflow gaps remain explicit backend-owned evidence; spot recovery preview, apply-review, rollback-plan, reconciliation-proof, and execution-journal routes are backend-owned evidence while state repair and reconciliation execution remain blocked.",
-                "Campaign/sweep automation control readiness is backend-owned evidence for scheduler, run-limit, pause/resume, retry/recovery, reconciliation execution, and live execution gaps; all controls remain not modeled and no-live.",
+                "Campaign/sweep automation control readiness is backend-owned evidence for scheduler, run-limit, pause/resume, retry/recovery, reconciliation execution, and live execution gaps; pause/resume plus retry-intent controls are draft local-state commands while scheduler, runner, reconciliation execution, and live execution remain blocked.",
                 "Spot recovery reconciliation-proof readback exposes fail-closed reconciliation execution boundaries and backend-owned exchange-state snapshot rows while the executor and live Coinbase read authority remain blocked.",
                 "Spot command readiness is not platform-wide authority for non-spot modules.",
             ],
@@ -54369,6 +54397,7 @@ class AdminApiReadService:
         campaign_state_file: str | None = None,
         sweep_state_file: str | None = None,
         operation_lock_file: str | None = None,
+        automation_control_file: str | None = None,
         lock_stale_after_seconds: int = 3600,
     ) -> dict[str, Any]:
         """Read backend-owned spot campaign automation readiness without execution."""
@@ -54399,9 +54428,18 @@ class AdminApiReadService:
             if operation_lock_file
             else Path("runtime_state") / "spot_portfolio_sweep.lock"
         )
+        control_store = (
+            FileSpotSweepAutomationControlStore(automation_control_file)
+            if automation_control_file
+            else self.spot_sweep_automation_control_store
+        )
 
         campaign_records = load_spot_campaign_snapshot_records(campaign_path)
         sweep_records = load_sweep_run_records(sweep_path)
+        control_records = control_store.read_recent(limit=100)
+        latest_control_state = build_spot_sweep_automation_control_state(
+            control_records
+        )
         campaign_operator_status = build_spot_campaign_operator_status(
             records=campaign_records,
         )
@@ -54450,17 +54488,26 @@ class AdminApiReadService:
             campaign_state_file=str(campaign_path),
             sweep_state_file=str(sweep_path),
             operation_lock_file=str(lock_path),
+            automation_control_file=str(control_store.path),
             campaign_count=int(campaign_operator_status.get("campaign_count") or 0),
             sweep_config_count=int(sweep_config_registry.get("config_count") or 0),
+            automation_control_count=len(control_records),
             scheduler_status_count=len(scheduler_statuses),
             scheduler_due_count=scheduler_due_count,
             retry_plan_count=len(retry_plans),
             retry_ready_count=retry_ready_count,
+            control_contract_status=(
+                AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+            ),
             operation_lock_status=operation_lock_status,
             sweep_config_registry=sweep_config_registry,
             campaign_operator_status=campaign_operator_status,
             scheduler_statuses=scheduler_statuses,
             retry_plans=retry_plans,
+            latest_control_state=latest_control_state,
+            automation_control_records=[
+                record.model_dump(mode="json") for record in control_records[:20]
+            ],
             current_read_evidence_routes=[
                 "GET /api/v1/spot/campaign/status",
                 "GET /api/v1/spot/sweep/status",
@@ -54470,19 +54517,32 @@ class AdminApiReadService:
             command_routes=[
                 "POST /api/v1/spot/campaign/executions",
                 "POST /api/v1/spot/sweep/automation-runs",
+                "POST /api/v1/spot/sweep/automation-controls",
             ],
             missing_contracts=[
                 "enterprise_sweep_scheduler_service_contract",
-                "sweep_pause_resume_service_contract",
-                "sweep_retry_recovery_service_contract",
+                "sweep_retry_execution_service_contract",
                 "sweep_live_execution_service_contract",
             ],
+            operator_action_available=True,
+            pause_resume_control_available=True,
+            retry_control_available=True,
+            browser_scheduler_authority=False,
+            browser_authority="display_only",
+            bff_authority="forward_only_no_execution",
+            scheduler_invoked=False,
+            sweep_runner_invoked=False,
+            coinbase_orders_submitted=False,
+            live_coinbase_orders_ran=False,
+            submitted_notional_usdc="0",
+            executed_notional_usdc="0",
             detail=(
                 "Spot sweep automation service evidence is read-only and "
                 "backend-owned. It summarizes durable campaign and sweep "
-                "ledgers plus the shared operation lock, but it does not "
-                "invoke a scheduler, run a sweep, submit Coinbase orders, or "
-                "grant browser/BFF automation authority."
+                "ledgers, the shared operation lock, and backend-owned "
+                "pause/resume/retry control evidence. It does not invoke a "
+                "scheduler, run a sweep, submit Coinbase orders, or grant "
+                "browser/BFF automation authority."
             ),
         )
         return payload.model_dump(mode="json")

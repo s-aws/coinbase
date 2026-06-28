@@ -1086,6 +1086,22 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="spot_operations",
+        surface="POST /api/v1/spot/sweep/automation-controls",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.SPOT_SWEEP_EXECUTE,
+        idempotency="required",
+        approval="required for admission evidence",
+        caps="required for command admission evidence",
+        audit="required",
+        shared_method="record_spot_sweep_automation_control",
+        parity_test=(
+            "pause/resume/retry control records append-only local evidence; "
+            "no scheduler invocation, no sweep runner invocation, no browser/BFF "
+            "automation authority, and no Coinbase REST placement"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="POST /api/v1/spot/recovery/apply-executions",
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
         permission=AdminApiPermission.SPOT_RECOVERY_EXECUTE,

@@ -63,6 +63,7 @@ from .models import (
     SpotRecoveryReconciliationExecutionCommand,
     SpotRecoveryReconciliationProofRecordCommand,
     SpotRecoveryRollbackExecutionCommand,
+    SpotSweepAutomationControlCommand,
     SpotSweepAutomationRunCommand,
     StealthActivePlacementExchangeTruthProofCommand,
     StealthActivePlacementExchangeTruthSnapshotCommand,
@@ -114,6 +115,12 @@ from .spot_recovery_proof_service import (
 from .spot_recovery_snapshot_service import (
     AdminApiSpotRecoverySnapshotService,
     SpotRecoverySnapshotError,
+)
+from .spot_sweep_automation_control import (
+    AdminApiSpotSweepAutomationControlService,
+    FileSpotSweepAutomationControlStore,
+    SpotSweepAutomationControlError,
+    spot_sweep_automation_control_response_data,
 )
 from .futures_risk_proof import (
     FileFuturesRiskProofStore,
@@ -297,6 +304,10 @@ class AdminApiCommandDependencies:
         [],
         FileSpotRecoveryCompletionJournalStore,
     ] = FileSpotRecoveryCompletionJournalStore
+    spot_sweep_automation_control_store_getter: Callable[
+        [],
+        FileSpotSweepAutomationControlStore,
+    ] = FileSpotSweepAutomationControlStore
     futures_risk_proof_store_getter: Callable[
         [],
         FileFuturesRiskProofStore,
@@ -371,6 +382,9 @@ class AdminApiCommandDependencies:
     spot_recovery_snapshot_service: AdminApiSpotRecoverySnapshotService = field(
         default_factory=AdminApiSpotRecoverySnapshotService
     )
+    spot_sweep_automation_control_service: (
+        AdminApiSpotSweepAutomationControlService
+    ) = field(default_factory=AdminApiSpotSweepAutomationControlService)
     futures_risk_proof_service: AdminApiFuturesRiskProofService = field(
         default_factory=AdminApiFuturesRiskProofService
     )
@@ -2598,6 +2612,93 @@ class AdminApiCommandService:
                 "executed_notional_usdc": "0",
             },
             failure_stage="approval",
+        )
+
+    def record_spot_sweep_automation_control(
+        self,
+        command: SpotSweepAutomationControlCommand,
+    ) -> AdminApiCommandResponse:
+        """Record backend-owned pause/resume/retry control intent."""
+
+        if command.admission_decision is None:
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.REJECTED,
+                action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+                required_permission=AdminApiPermission.SPOT_SWEEP_EXECUTE,
+                service_method="record_spot_sweep_automation_control",
+                message="Spot sweep automation control admission evidence is missing.",
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=False,
+                data={
+                    "sweep_config_id": command.request.sweep_config_id,
+                    "control_action": command.request.control_action.value,
+                    "control_recorded": False,
+                    "scheduler_invoked": False,
+                    "sweep_runner_invoked": False,
+                    "coinbase_orders_submitted": False,
+                    "browser_authority": "display_only",
+                    "bff_authority": "forward_only_no_execution",
+                    "submitted_notional_usdc": "0",
+                    "executed_notional_usdc": "0",
+                },
+                failure_stage="admission",
+            )
+
+        deps = self.dependencies
+        audit_id = deps.uuid_factory()
+        try:
+            record = deps.spot_sweep_automation_control_service.record_control(
+                control_store=deps.spot_sweep_automation_control_store_getter(),
+                body=command.request,
+                admission_decision=command.admission_decision,
+                actor_id=command.envelope.actor.actor_id,
+                operator_intent=command.envelope.operator_intent,
+                idempotency_key=command.envelope.idempotency_key,
+                correlation_id=command.envelope.correlation_id,
+                payload_hash=command.admission_decision.payload_hash,
+                audit_id=audit_id,
+            )
+        except SpotSweepAutomationControlError as exc:
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.REJECTED,
+                action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+                required_permission=AdminApiPermission.SPOT_SWEEP_EXECUTE,
+                service_method="record_spot_sweep_automation_control",
+                message=str(exc),
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=False,
+                data={
+                    "sweep_config_id": command.request.sweep_config_id,
+                    "control_action": command.request.control_action.value,
+                    "control_recorded": False,
+                    "scheduler_invoked": False,
+                    "sweep_runner_invoked": False,
+                    "coinbase_orders_submitted": False,
+                    "browser_authority": "display_only",
+                    "bff_authority": "forward_only_no_execution",
+                    "submitted_notional_usdc": "0",
+                    "executed_notional_usdc": "0",
+                },
+                failure_stage="control_validation",
+            )
+
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.ACCEPTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.SPOT_SWEEP_EXECUTE,
+            service_method="record_spot_sweep_automation_control",
+            message=(
+                "Spot sweep automation control recorded as backend-owned local "
+                "state; no scheduler, sweep runner, Coinbase order submission, "
+                "or browser/BFF execution authority was invoked."
+            ),
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            audit_id=record.audit_id,
+            live_exchange_submitted=False,
+            data=spot_sweep_automation_control_response_data(record),
         )
 
     def _disabled_futures_command_response(

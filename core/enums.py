@@ -2579,6 +2579,21 @@ class SpotPortfolioSweepAutomationDecision(str, Enum):
     DISABLED = "disabled"
 
 
+class SpotSweepAutomationControlAction(str, Enum):
+    """Operator control actions for backend-owned spot sweep automation."""
+
+    PAUSE = "pause"
+    RESUME = "resume"
+    ACCEPT_RETRY = "accept_retry"
+
+
+class SpotSweepAutomationControlState(str, Enum):
+    """Durable pause/resume state for spot sweep automation controls."""
+
+    ACTIVE = "active"
+    PAUSED = "paused"
+
+
 class SpotPortfolioSweepOrderType(str, Enum):
     """Supported live order policies for USDC spot portfolio sweeps."""
 

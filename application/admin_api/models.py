@@ -166,6 +166,7 @@ from core.enums import (
     SpotRecoveryExchangeStateSnapshotSource,
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
+    SpotSweepAutomationControlAction,
     EngineState,
     StealthExchangeTruthEvidenceSource,
     StealthCommandExecutionBlocker,
@@ -966,6 +967,19 @@ class SpotSweepAutomationRunRequest(BaseModel):
     manual_live_acknowledgement: bool = False
 
 
+class SpotSweepAutomationControlRequest(BaseModel):
+    """Spot sweep automation pause/resume/retry control request."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sweep_config_id: str = Field(min_length=1, examples=["spot-sweep-usdc-hourly"])
+    control_action: SpotSweepAutomationControlAction
+    campaign_id: str | None = Field(default=None, min_length=1)
+    retry_plan_id: str | None = Field(default=None, min_length=1)
+    operator_reason: str | None = None
+    manual_live_acknowledgement: bool = False
+
+
 class SpotRecoveryApplyExecutionRequest(BaseModel):
     """Spot recovery apply request keyed by ``client_order_id``."""
 
@@ -1478,6 +1492,17 @@ class SpotSweepAutomationRunCommand(BaseModel):
 
     envelope: AdminApiCommandEnvelope
     request: SpotSweepAutomationRunRequest
+    allow_live_execution: bool = False
+
+
+class SpotSweepAutomationControlCommand(BaseModel):
+    """Shared service command for backend-owned automation controls."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    request: SpotSweepAutomationControlRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     allow_live_execution: bool = False
 
 
@@ -25788,12 +25813,19 @@ class SpotSweepAutomationServiceStatusResponse(AdminApiReadPayload):
     campaign_state_file: str
     sweep_state_file: str
     operation_lock_file: str
+    automation_control_file: str = (
+        "runtime_state/admin_api_spot_sweep_automation_controls.jsonl"
+    )
     campaign_count: int = Field(default=0, ge=0)
     sweep_config_count: int = Field(default=0, ge=0)
+    automation_control_count: int = Field(default=0, ge=0)
     scheduler_status_count: int = Field(default=0, ge=0)
     scheduler_due_count: int = Field(default=0, ge=0)
     retry_plan_count: int = Field(default=0, ge=0)
     retry_ready_count: int = Field(default=0, ge=0)
+    control_contract_status: AdminApiModuleSupportStatus = (
+        AdminApiModuleSupportStatus.NOT_MODELED
+    )
     operation_lock_status: AdminApiFlexibleObject = Field(
         default_factory=AdminApiFlexibleObject
     )
@@ -25805,12 +25837,20 @@ class SpotSweepAutomationServiceStatusResponse(AdminApiReadPayload):
     )
     scheduler_statuses: list[AdminApiFlexibleObject] = Field(default_factory=list)
     retry_plans: list[AdminApiFlexibleObject] = Field(default_factory=list)
+    latest_control_state: AdminApiFlexibleObject = Field(
+        default_factory=AdminApiFlexibleObject
+    )
+    automation_control_records: list[AdminApiFlexibleObject] = Field(
+        default_factory=list
+    )
     current_read_evidence_routes: list[str] = Field(default_factory=list)
     command_routes: list[str] = Field(default_factory=list)
     missing_contracts: list[str] = Field(default_factory=list)
     backend_owned: bool = True
     read_only: bool = True
     operator_action_available: bool = False
+    pause_resume_control_available: bool = False
+    retry_control_available: bool = False
     browser_scheduler_authority: bool = False
     browser_authority: str = "display_only"
     bff_authority: str = "read_only_forward"

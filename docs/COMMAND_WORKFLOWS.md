@@ -117,13 +117,16 @@ the missing backend contracts.
 The command-suite response also reports typed
 `automation_control_readiness` rows for campaign/sweep controls that operators
 would expect before automation is usable: scheduler, run limit, pause/resume,
-retry/recovery, reconciliation execution, and live execution. These rows are
-backend-owned `not_modeled` / `blocked` contract evidence with browser
-authority `display_only`, BFF authority `forward_only_no_execution`, no
-scheduler invocation, no runner invocation, no Coinbase order submission, and
-`submitted_notional_usdc=0` / `executed_notional_usdc=0`. Frontend and BFF
-surfaces may render those rows but must not turn them into timers, buttons,
-retry loops, proof writers, reconciliation executors, or Coinbase calls.
+retry/recovery, reconciliation execution, and live execution. Pause/resume and
+retry-intent are backend-owned `command_draft_live_disabled` local-state
+controls through `POST /api/v1/spot/sweep/automation-controls`; all other
+automation execution controls remain blocked or not modeled. Every row keeps
+browser authority `display_only`, BFF authority `forward_only_no_execution`,
+no scheduler invocation, no runner invocation, no Coinbase order submission,
+and `submitted_notional_usdc=0` / `executed_notional_usdc=0`. Frontend and BFF
+surfaces may render or submit only the backend route-bound controls, but must
+not turn them into timers, local retry loops, proof writers, reconciliation
+executors, or Coinbase calls.
 The stealth command-suite uses the same pattern for blocked recovery and
 reconciliation gaps. Those rows may point to
 `GET /api/v1/admin/recovery-gate`,

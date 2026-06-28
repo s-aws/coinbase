@@ -1324,18 +1324,21 @@ route follows the same no-live review posture keyed by `campaign_id`.
 The same command-suite response exposes `automation_control_readiness` as the
 backend-owned control-state contract for campaign/sweep automation. It reports
 six explicit controls: scheduler, run limit, pause/resume, retry/recovery,
-reconciliation execution, and live execution. These rows are `not_modeled` /
-`blocked` evidence with browser authority `display_only`,
-BFF authority `forward_only_no_execution`, no scheduler invocation, no runner
-invocation, no Coinbase orders, and `0` submitted/executed USDC notional. They
-are not frontend scheduler jobs, pause/resume buttons, retry loops, proof
-writers, reconciliation executors, or live-execution authority.
+reconciliation execution, and live execution. Pause/resume plus retry-intent
+rows are now backend-owned `command_draft_live_disabled` local-state controls
+through `POST /api/v1/spot/sweep/automation-controls`; scheduler, run-limit,
+retry execution, reconciliation execution, and live execution remain blocked or
+not modeled. All rows keep browser authority `display_only`, BFF authority
+`forward_only_no_execution`, no scheduler invocation, no runner invocation, no
+Coinbase orders, and `0` submitted/executed USDC notional. They are not
+frontend scheduler jobs, retry loops, proof writers, reconciliation executors,
+or live-execution authority.
 `GET /api/v1/spot/sweep/automation-service` is the paired read-only
 automation-service status contract. It summarizes campaign ledger rows, sweep
 ledger rows, operation-lock state, scheduler due state, retry readiness,
-missing backend control contracts, and no-live proof. It does not invoke a
-scheduler, run a sweep, submit Coinbase orders, grant browser/BFF execution
-authority, or create a second sweep path.
+the append-only automation-control ledger, remaining backend control contracts,
+and no-live proof. It does not invoke a scheduler, run a sweep, submit Coinbase
+orders, grant browser/BFF execution authority, or create a second sweep path.
 Spot P/L checkpoint records add a separate local-state mutation surface:
 `POST /api/v1/spot/pnl/checkpoints`, with read evidence at
 `GET /api/v1/spot/pnl/checkpoints` and

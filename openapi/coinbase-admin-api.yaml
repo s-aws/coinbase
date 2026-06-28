@@ -5243,6 +5243,114 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/sweep/automation-controls:
+    post:
+      tags:
+      - orders
+      summary: Record a backend-owned spot sweep automation control
+      description: Route adapter for backend-owned automation pause/resume/retry controls.
+      operationId: record_spot_sweep_automation_control_api_v1_spot_sweep_automation_controls_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SpotSweepAutomationControlRequest'
+      responses:
+        '200':
+          description: Command accepted or replayed after all backend gates pass.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Command rejected before live exchange execution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '501':
+          description: Live HTTP execution is not implemented for this command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/spot/recovery/apply-executions:
     post:
       tags:
@@ -6477,6 +6585,14 @@ paths:
           - type: string
           - type: 'null'
           title: Operation Lock File
+      - name: automation_control_file
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Automation Control File
       - name: lock_stale_after_seconds
         in: query
         required: false
@@ -141200,6 +141316,52 @@ components:
       - detail
       title: SpotRecoveryStateRepairTaxonomyItem
       description: Allowed and rejected Spot recovery state-repair category evidence.
+    SpotSweepAutomationControlAction:
+      type: string
+      enum:
+      - pause
+      - resume
+      - accept_retry
+      title: SpotSweepAutomationControlAction
+      description: Operator control actions for backend-owned spot sweep automation.
+    SpotSweepAutomationControlRequest:
+      properties:
+        sweep_config_id:
+          type: string
+          minLength: 1
+          title: Sweep Config Id
+          examples:
+          - spot-sweep-usdc-hourly
+        control_action:
+          $ref: '#/components/schemas/SpotSweepAutomationControlAction'
+        campaign_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Campaign Id
+        retry_plan_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Retry Plan Id
+        operator_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - sweep_config_id
+      - control_action
+      title: SpotSweepAutomationControlRequest
+      description: Spot sweep automation pause/resume/retry control request.
     SpotSweepAutomationRunRequest:
       properties:
         sweep_config_id:
@@ -141319,6 +141481,10 @@ components:
         operation_lock_file:
           type: string
           title: Operation Lock File
+        automation_control_file:
+          type: string
+          title: Automation Control File
+          default: runtime_state/admin_api_spot_sweep_automation_controls.jsonl
         campaign_count:
           type: integer
           minimum: 0.0
@@ -141328,6 +141494,11 @@ components:
           type: integer
           minimum: 0.0
           title: Sweep Config Count
+          default: 0
+        automation_control_count:
+          type: integer
+          minimum: 0.0
+          title: Automation Control Count
           default: 0
         scheduler_status_count:
           type: integer
@@ -141349,6 +141520,9 @@ components:
           minimum: 0.0
           title: Retry Ready Count
           default: 0
+        control_contract_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+          default: not_modeled
         operation_lock_status:
           $ref: '#/components/schemas/AdminApiFlexibleObject'
         sweep_config_registry:
@@ -141365,6 +141539,13 @@ components:
             $ref: '#/components/schemas/AdminApiFlexibleObject'
           type: array
           title: Retry Plans
+        latest_control_state:
+          $ref: '#/components/schemas/AdminApiFlexibleObject'
+        automation_control_records:
+          items:
+            $ref: '#/components/schemas/AdminApiFlexibleObject'
+          type: array
+          title: Automation Control Records
         current_read_evidence_routes:
           items:
             type: string
@@ -141391,6 +141572,14 @@ components:
         operator_action_available:
           type: boolean
           title: Operator Action Available
+          default: false
+        pause_resume_control_available:
+          type: boolean
+          title: Pause Resume Control Available
+          default: false
+        retry_control_available:
+          type: boolean
+          title: Retry Control Available
           default: false
         browser_scheduler_authority:
           type: boolean

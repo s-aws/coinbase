@@ -4262,7 +4262,7 @@ X-Admin-Roles: viewer
           "detail": "Existing read-only Admin API evidence route for a spot command-suite coverage gap; it does not create a command route, execute reconciliation, or call Coinbase."
         }
       ],
-      "required_backend_contract": "Durable enterprise sweep scheduling, pause/resume, run-limit, retry, execution-record, recovery, and reconciliation contract.",
+      "required_backend_contract": "Durable enterprise sweep scheduling, run-limit, retry execution, execution-record, recovery, and reconciliation contract.",
       "required_gate_chain": [
         "route_inventory_contract",
         "approval_snapshot",
@@ -4274,8 +4274,7 @@ X-Admin-Roles: viewer
       "missing_contracts": [
         "enterprise_sweep_scheduler_contract",
         "sweep_run_limit_contract",
-        "sweep_pause_resume_contract",
-        "sweep_retry_recovery_contract",
+        "sweep_retry_execution_contract",
         "sweep_reconciliation_execution_contract"
       ],
       "backend_owned": true,
@@ -4287,7 +4286,7 @@ X-Admin-Roles: viewer
         "README.spot-campaign.md",
         "docs/COMMAND_WORKFLOWS.md"
       ],
-      "detail": "Sweep and campaign evidence is readable, but enterprise admin sweep automation is not command-complete until durable scheduler, run-limit, recovery, and reconciliation contracts exist."
+      "detail": "Sweep and campaign evidence is readable, but enterprise admin sweep automation is not command-complete until durable scheduler, run-limit, retry execution, recovery, and reconciliation contracts exist."
     },
     {
       "family": "spot_recovery_workflow",

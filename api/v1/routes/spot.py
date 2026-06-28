@@ -472,6 +472,7 @@ def spot_sweep_automation_service_status(
     campaign_state_file: str | None = None,
     sweep_state_file: str | None = None,
     operation_lock_file: str | None = None,
+    automation_control_file: str | None = None,
     lock_stale_after_seconds: Annotated[int, Query(gt=0, le=86400)] = 3600,
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
@@ -481,6 +482,7 @@ def spot_sweep_automation_service_status(
             campaign_state_file=campaign_state_file,
             sweep_state_file=sweep_state_file,
             operation_lock_file=operation_lock_file,
+            automation_control_file=automation_control_file,
             lock_stale_after_seconds=lock_stale_after_seconds,
         ),
     )
