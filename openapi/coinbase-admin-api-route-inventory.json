@@ -19,6 +19,38 @@
       "command_contract": true
     },
     {
+      "module_id": "admin_system_health",
+      "surface": "POST /api/v1/admin/lifecycle/pause",
+      "method": "POST",
+      "path": "/api/v1/admin/lifecycle/pause",
+      "action_class": "admin_runtime",
+      "permission": "runtime:pause",
+      "idempotency": "required",
+      "approval": "not required for soft runtime pause",
+      "caps": "not applicable",
+      "audit": "required",
+      "shared_method": "pause_runtime",
+      "parity_test": "calls RuntimeController.request_pause through Admin API auth, idempotency, operator-intent, and audit; no dashboard WebSocket fallback and no Coinbase execution",
+      "compatibility_mode": null,
+      "command_contract": true
+    },
+    {
+      "module_id": "admin_system_health",
+      "surface": "POST /api/v1/admin/lifecycle/resume",
+      "method": "POST",
+      "path": "/api/v1/admin/lifecycle/resume",
+      "action_class": "admin_runtime",
+      "permission": "runtime:resume",
+      "idempotency": "required",
+      "approval": "not required for runtime resume",
+      "caps": "not applicable",
+      "audit": "required",
+      "shared_method": "resume_runtime",
+      "parity_test": "calls RuntimeController.resume through Admin API auth, idempotency, operator-intent, and audit; no dashboard WebSocket fallback and no Coinbase execution",
+      "compatibility_mode": null,
+      "command_contract": true
+    },
+    {
       "module_id": "spot_operations",
       "surface": "GET /api/v1/orders",
       "method": "GET",

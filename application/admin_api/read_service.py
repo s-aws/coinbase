@@ -8274,47 +8274,49 @@ class AdminApiReadService:
             lifecycle_item(
                 action=AdminApiLifecycleAction.PAUSE,
                 label="Pause engine",
-                support_status=AdminApiModuleSupportStatus.NOT_MODELED,
-                exposure_status=(
-                    AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED
-                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
                 current_state_source="core.runtime_controller.RuntimeController.request_pause",
+                supported_route="/api/v1/admin/lifecycle/pause",
+                supported_method="POST",
                 operator_task="Pause new backend order admission.",
                 release_0_1_decision=(
-                    "RuntimeController supports pause internally, but no enterprise "
-                    "Admin API route models authorization, audit, and operator "
-                    "intent for it."
+                    "Pause is exposed through a backend-owned Admin API command "
+                    "route with runtime RBAC, idempotency, audit, operator "
+                    "intent, and no dashboard fallback."
                 ),
                 backend_contract_refs=[
+                    "api/v1/routes/admin.py::admin_lifecycle_pause",
+                    "application/admin_api/command_service.py::AdminApiCommandService.pause_runtime",
                     "core/runtime_controller.py::RuntimeController.request_pause",
-                    "dashboard_server.py::admin_pause",
                 ],
                 frontend_boundary=(
-                    "Show not_modeled; do not call dashboard admin_pause or local "
-                    "process helpers."
+                    "Forward only through the backend Admin API route; do not "
+                    "call dashboard admin_pause or local process helpers."
                 ),
             ),
             lifecycle_item(
                 action=AdminApiLifecycleAction.RESUME,
                 label="Resume engine",
-                support_status=AdminApiModuleSupportStatus.NOT_MODELED,
-                exposure_status=(
-                    AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED
-                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
                 current_state_source="core.runtime_controller.RuntimeController.resume",
+                supported_route="/api/v1/admin/lifecycle/resume",
+                supported_method="POST",
                 operator_task="Resume backend order admission after pause.",
                 release_0_1_decision=(
-                    "RuntimeController supports resume internally, but no "
-                    "enterprise Admin API route models authorization, audit, and "
-                    "operator intent for it."
+                    "Resume is exposed through a backend-owned Admin API command "
+                    "route with runtime RBAC, idempotency, audit, operator "
+                    "intent, and no dashboard fallback."
                 ),
                 backend_contract_refs=[
+                    "api/v1/routes/admin.py::admin_lifecycle_resume",
+                    "application/admin_api/command_service.py::AdminApiCommandService.resume_runtime",
                     "core/runtime_controller.py::RuntimeController.resume",
-                    "dashboard_server.py::admin_resume",
                 ],
                 frontend_boundary=(
-                    "Show not_modeled; do not call dashboard admin_resume or local "
-                    "process helpers."
+                    "Forward only through the backend Admin API route; do not "
+                    "call dashboard admin_resume or local process helpers."
                 ),
             ),
             lifecycle_item(

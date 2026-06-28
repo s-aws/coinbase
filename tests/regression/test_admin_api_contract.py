@@ -455,6 +455,7 @@ from core.enums import (
     SpotRecoveryExchangeStateSnapshotSource,
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
+    EngineState,
 )
 from tools.generate_admin_api_openapi import generate_openapi_schema
 from tools.export_admin_api_route_inventory import (
@@ -533,6 +534,7 @@ def test_admin_api_contract_store_dir_is_disposable_and_outside_runtime_state():
 
 
 def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
+    from api.v1.routes import admin as admin_routes
     from api.v1.routes import admission_audit as admission_audit_routes
     from api.v1.routes import approvals as approval_routes
     from api.v1.routes import cap_guard as cap_guard_routes
@@ -541,10 +543,12 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     from api.v1.routes import reconciliation as reconciliation_routes
     from api.v1.routes import spot as spot_routes
     from api.v1.routes import stealth as stealth_routes
+    from core.runtime_controller import RuntimeController
 
     monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-admin-token")
     app = create_app()
     store_dir = _store_dir()
+    runtime_controller = RuntimeController()
     idempotency_store = FileIdempotencyStore(store_dir / "idempotency.jsonl")
     audit_store = FileAdminApiAuditStore(store_dir / "audit.jsonl")
     approval_store = FileAdminApiApprovalStore(store_dir / "approvals.jsonl")
@@ -712,6 +716,13 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[order_routes.get_reconciliation_store] = (
         lambda: reconciliation_store
     )
+    app.dependency_overrides[admin_routes.get_idempotency_store] = (
+        lambda: idempotency_store
+    )
+    app.dependency_overrides[admin_routes.get_audit_store] = lambda: audit_store
+    app.dependency_overrides[admin_routes.get_runtime_controller] = (
+        lambda: runtime_controller
+    )
     app.dependency_overrides[approval_routes.get_idempotency_store] = (
         lambda: idempotency_store
     )
@@ -810,6 +821,7 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     client.admin_api_test_live_adapter_decision_store = live_adapter_decision_store
     client.admin_api_test_reconciliation_store = reconciliation_store
     client.admin_api_test_pnl_checkpoint_store = pnl_checkpoint_store
+    client.admin_api_test_runtime_controller = runtime_controller
     client.admin_api_test_spot_recovery_proof_store = spot_recovery_proof_store
     client.admin_api_test_spot_recovery_snapshot_store = (
         spot_recovery_snapshot_store
@@ -3440,6 +3452,8 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "/api/v1/spot/sweep/automation-runs" in written["paths"]
     assert "/api/v1/admin/bootstrap" in written["paths"]
     assert "/api/v1/admin/health" in written["paths"]
+    assert "/api/v1/admin/lifecycle/pause" in written["paths"]
+    assert "/api/v1/admin/lifecycle/resume" in written["paths"]
     assert "/api/v1/admin/session" in written["paths"]
     assert "/api/v1/admin/oidc-readiness" in written["paths"]
     assert "/api/v1/admin/capabilities" in written["paths"]
@@ -44264,6 +44278,138 @@ def test_admin_api_backend_rbac_matches_frontend_role_hints():
 
 
 @pytest.mark.regression
+def test_admin_api_lifecycle_pause_and_resume_use_runtime_controller(monkeypatch):
+    client = _client(monkeypatch)
+    runtime_controller = client.admin_api_test_runtime_controller
+    runtime_controller._reset_for_tests()
+
+    pause_response = client.post(
+        "/api/v1/admin/lifecycle/pause",
+        headers=_headers(
+            idempotency_key="lifecycle-pause-001",
+            operator_intent="pause_new_order_admission",
+            roles=AdminApiRole.OPERATOR.value,
+        ),
+        json={
+            "reason": "operator pause before maintenance",
+            "expected_state": EngineState.RUNNING.value,
+        },
+    )
+
+    assert pause_response.status_code == 200
+    pause_payload = pause_response.json()
+    assert pause_payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert pause_payload["action_class"] == AdminApiActionClass.ADMIN_RUNTIME.value
+    assert pause_payload["required_permission"] == (
+        AdminApiPermission.RUNTIME_PAUSE.value
+    )
+    assert pause_payload["service_method"] == "pause_runtime"
+    assert pause_payload["live_exchange_submitted"] is False
+    assert pause_payload["data"]["action"] == AdminApiLifecycleAction.PAUSE.value
+    assert pause_payload["data"]["state_before"] == EngineState.RUNNING.value
+    assert pause_payload["data"]["state_after"] == EngineState.PAUSED.value
+    assert pause_payload["data"]["transition_performed"] is True
+    assert pause_payload["data"]["dashboard_websocket_fallback_allowed"] is False
+    assert pause_payload["data"]["live_coinbase_execution"] == (
+        AdminApiLiveExecutionStatus.NOT_RUN.value
+    )
+    assert runtime_controller.state == EngineState.PAUSED
+
+    replay_response = client.post(
+        "/api/v1/admin/lifecycle/pause",
+        headers=_headers(
+            idempotency_key="lifecycle-pause-001",
+            operator_intent="pause_new_order_admission",
+            roles=AdminApiRole.OPERATOR.value,
+        ),
+        json={
+            "reason": "operator pause before maintenance",
+            "expected_state": EngineState.RUNNING.value,
+        },
+    )
+
+    assert replay_response.status_code == 200
+    assert replay_response.headers["X-Idempotency-Replayed"] == "true"
+    assert replay_response.json()["data"]["transition_performed"] is True
+    assert runtime_controller.state == EngineState.PAUSED
+
+    resume_response = client.post(
+        "/api/v1/admin/lifecycle/resume",
+        headers=_headers(
+            idempotency_key="lifecycle-resume-001",
+            operator_intent="resume_new_order_admission",
+            roles=AdminApiRole.OPERATOR.value,
+        ),
+        json={
+            "reason": "operator resume after maintenance",
+            "expected_state": EngineState.PAUSED.value,
+        },
+    )
+
+    assert resume_response.status_code == 200
+    resume_payload = resume_response.json()
+    assert resume_payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert resume_payload["required_permission"] == (
+        AdminApiPermission.RUNTIME_RESUME.value
+    )
+    assert resume_payload["service_method"] == "resume_runtime"
+    assert resume_payload["data"]["action"] == AdminApiLifecycleAction.RESUME.value
+    assert resume_payload["data"]["state_before"] == EngineState.PAUSED.value
+    assert resume_payload["data"]["state_after"] == EngineState.RUNNING.value
+    assert resume_payload["data"]["transition_performed"] is True
+    assert runtime_controller.state == EngineState.RUNNING
+
+    audit_events = client.admin_api_test_audit_store.read_recent(limit=10)
+    endpoints = {event.endpoint for event in audit_events}
+    assert "POST /api/v1/admin/lifecycle/pause" in endpoints
+    assert "POST /api/v1/admin/lifecycle/resume" in endpoints
+
+
+@pytest.mark.regression
+def test_admin_api_lifecycle_pause_rejects_viewer_and_expected_state_mismatch(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    runtime_controller = client.admin_api_test_runtime_controller
+    runtime_controller._reset_for_tests()
+
+    viewer_response = client.post(
+        "/api/v1/admin/lifecycle/pause",
+        headers=_headers(
+            idempotency_key="lifecycle-pause-viewer",
+            operator_intent="viewer_cannot_pause",
+            roles=AdminApiRole.VIEWER.value,
+        ),
+        json={"reason": "viewer should not control runtime"},
+    )
+
+    assert viewer_response.status_code == 403
+    assert runtime_controller.state == EngineState.RUNNING
+
+    mismatch_response = client.post(
+        "/api/v1/admin/lifecycle/pause",
+        headers=_headers(
+            idempotency_key="lifecycle-pause-mismatch",
+            operator_intent="pause_expected_state_mismatch",
+            roles=AdminApiRole.OPERATOR.value,
+        ),
+        json={
+            "reason": "operator pause before maintenance",
+            "expected_state": EngineState.PAUSED.value,
+        },
+    )
+
+    assert mismatch_response.status_code == 400
+    mismatch_payload = mismatch_response.json()
+    assert mismatch_payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert mismatch_payload["failure_stage"] == "expected_state"
+    assert mismatch_payload["data"]["state_before"] == EngineState.RUNNING.value
+    assert mismatch_payload["data"]["state_after"] == EngineState.RUNNING.value
+    assert mismatch_payload["data"]["transition_performed"] is False
+    assert runtime_controller.state == EngineState.RUNNING
+
+
+@pytest.mark.regression
 def test_admin_api_account_market_inventory_normalizes_provider_rows():
     from application.admin_api.read_service import (
         ACCOUNT_MARKET_INVENTORY_ROUTE_AUDIT_WORKBENCH,
@@ -46032,13 +46178,13 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert "POST /api/v1/admin/approvals/requests" in admin_module["command_routes"]
     assert admin_module["action_posture"]["read_route_count"] == 25
-    assert admin_module["action_posture"]["command_route_count"] == 8
+    assert admin_module["action_posture"]["command_route_count"] == 10
     lifecycle_rows = {
         item["action"]: item for item in enterprise_payload["lifecycle_support"]
     }
     assert enterprise_payload["lifecycle_support_count"] == 6
-    assert enterprise_payload["lifecycle_supported_read_count"] == 1
-    assert enterprise_payload["lifecycle_not_modeled_count"] == 4
+    assert enterprise_payload["lifecycle_supported_read_count"] == 3
+    assert enterprise_payload["lifecycle_not_modeled_count"] == 2
     assert enterprise_payload["lifecycle_unsupported_count"] == 1
     assert set(lifecycle_rows) == {
         AdminApiLifecycleAction.STATUS.value,
@@ -46085,10 +46231,48 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "cannot start the same stopped process" in lifecycle_rows[
         AdminApiLifecycleAction.START.value
     ]["release_0_1_decision"]
+    assert lifecycle_rows[AdminApiLifecycleAction.PAUSE.value]["support_status"] == (
+        AdminApiModuleSupportStatus.PLATFORM_READY.value
+    )
+    assert lifecycle_rows[AdminApiLifecycleAction.PAUSE.value]["supported_route"] == (
+        "/api/v1/admin/lifecycle/pause"
+    )
+    assert lifecycle_rows[AdminApiLifecycleAction.PAUSE.value]["supported_method"] == (
+        "POST"
+    )
+    assert "api/v1/routes/admin.py::admin_lifecycle_pause" in lifecycle_rows[
+        AdminApiLifecycleAction.PAUSE.value
+    ]["backend_contract_refs"]
+    assert (
+        "application/admin_api/command_service.py::AdminApiCommandService.pause_runtime"
+        in lifecycle_rows[AdminApiLifecycleAction.PAUSE.value]["backend_contract_refs"]
+    )
+    assert (
+        "dashboard admin_pause"
+        in lifecycle_rows[AdminApiLifecycleAction.PAUSE.value]["frontend_boundary"]
+    )
+    assert lifecycle_rows[AdminApiLifecycleAction.RESUME.value]["support_status"] == (
+        AdminApiModuleSupportStatus.PLATFORM_READY.value
+    )
+    assert lifecycle_rows[AdminApiLifecycleAction.RESUME.value]["supported_route"] == (
+        "/api/v1/admin/lifecycle/resume"
+    )
+    assert lifecycle_rows[AdminApiLifecycleAction.RESUME.value]["supported_method"] == (
+        "POST"
+    )
+    assert "api/v1/routes/admin.py::admin_lifecycle_resume" in lifecycle_rows[
+        AdminApiLifecycleAction.RESUME.value
+    ]["backend_contract_refs"]
+    assert (
+        "application/admin_api/command_service.py::AdminApiCommandService.resume_runtime"
+        in lifecycle_rows[AdminApiLifecycleAction.RESUME.value]["backend_contract_refs"]
+    )
+    assert (
+        "dashboard admin_resume"
+        in lifecycle_rows[AdminApiLifecycleAction.RESUME.value]["frontend_boundary"]
+    )
     for action in (
         AdminApiLifecycleAction.STOP,
-        AdminApiLifecycleAction.PAUSE,
-        AdminApiLifecycleAction.RESUME,
         AdminApiLifecycleAction.DRAIN,
     ):
         lifecycle_row = lifecycle_rows[action.value]
@@ -58709,6 +58893,24 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
         "build_account_market_inventory"
     )
     assert "GET /api/v1/admin/account-market-inventory" in doc
+    pause_route = rows["POST /api/v1/admin/lifecycle/pause"]
+    assert pause_route.shared_method == "pause_runtime"
+    assert hasattr(AdminApiCommandService, pause_route.shared_method)
+    assert pause_route.action_class == AdminApiActionClass.ADMIN_RUNTIME
+    assert pause_route.permission == AdminApiPermission.RUNTIME_PAUSE
+    assert pause_route.idempotency == "required"
+    assert pause_route.audit == "required"
+    assert "RuntimeController.request_pause" in pause_route.parity_test
+    assert "Coinbase execution" in pause_route.parity_test
+    resume_route = rows["POST /api/v1/admin/lifecycle/resume"]
+    assert resume_route.shared_method == "resume_runtime"
+    assert hasattr(AdminApiCommandService, resume_route.shared_method)
+    assert resume_route.action_class == AdminApiActionClass.ADMIN_RUNTIME
+    assert resume_route.permission == AdminApiPermission.RUNTIME_RESUME
+    assert resume_route.idempotency == "required"
+    assert resume_route.audit == "required"
+    assert "RuntimeController.resume" in resume_route.parity_test
+    assert "Coinbase execution" in resume_route.parity_test
     assert rows["POST /api/v1/spot/campaign/executions"].shared_method == (
         "execute_spot_campaign"
     )

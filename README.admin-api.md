@@ -115,11 +115,12 @@ Enterprise-readiness evidence also includes structured per-module
 modeled, and live-disabled command paths are visible without relying on
 free-form unsupported-action strings. The same readiness payload now includes
 `lifecycle_support` rows for `status`, `start`, `stop`, `pause`, `resume`,
-and `drain`: `status` is displayable through backend health, `start` is
-`unsupported`, and `stop`/`pause`/`resume`/`drain` are `not_modeled` until
-enterprise Admin API command contracts exist. Lifecycle support is read-only
-classification; it does not call dashboard WebSockets, run process helpers,
-grant BFF process authority, or call Coinbase. The readiness payload also
+and `drain`: `status` is displayable through backend health, `pause` and
+`resume` are backend-owned Admin API runtime commands, `start` is
+`unsupported`, and `stop`/`drain` remain `not_modeled` until enterprise Admin
+API command contracts exist. Lifecycle support does not call dashboard
+WebSockets, run process helpers, grant BFF process authority, or call
+Coinbase. The readiness payload also
 includes M48 `mutation_taxonomy` rows and aggregate counts. Each row maps a command
 route or legacy command surface to exactly one backend-owned mutation family
 with identity keys, RBAC permission, idempotency, operator intent, approval,
@@ -1946,11 +1947,13 @@ does not authorize browser-side commands or replace backend guard, wallet,
 margin, approval, audit, cap, or reconciliation gates.
 
 The same response exposes `lifecycle_support` evidence for Admin/System Health
-actions. Current counts are six lifecycle rows: one supported read, four
-`not_modeled` commands, and one `unsupported` command. Only `status` links to
-an existing Admin API route (`GET /api/v1/admin/health`). Lifecycle support
-does not authorize route-local process control, dashboard WebSocket fallback,
-BFF process authority, shell helpers, or Coinbase calls.
+actions. Current counts are six lifecycle rows: three backend-supported rows,
+two `not_modeled` commands, and one `unsupported` command. `status` links to
+`GET /api/v1/admin/health`; `pause` and `resume` link to
+`POST /api/v1/admin/lifecycle/pause` and
+`POST /api/v1/admin/lifecycle/resume`. Lifecycle support does not authorize
+route-local process control, dashboard WebSocket fallback, BFF process
+authority, shell helpers, or Coinbase calls.
 
 The same response exposes M48 `mutation_taxonomy` evidence. Current taxonomy
 rows cover live-disabled HTTP command routes, backend-owned local-state

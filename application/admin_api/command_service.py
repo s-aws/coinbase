@@ -19,8 +19,11 @@ from core.enums import (
     AdminApiActionClass,
     AdminApiCommandStatus,
     AdminApiGateStatus,
+    AdminApiLifecycleAction,
+    AdminApiLiveExecutionStatus,
     AdminApiMutationFamilyType,
     AdminApiPermission,
+    EngineState,
     EventSourceChannel,
     EventStreamType,
     OrderSide,
@@ -36,6 +39,7 @@ from core.product_capability import evaluate_product_capability
 from core.runtime_controller import (
     INFLIGHT_REST_CANCEL,
     INFLIGHT_REST_PLACE,
+    RuntimeController,
     get_runtime_controller,
 )
 
@@ -43,6 +47,7 @@ from .approval import evaluate_live_execution_gate
 from .audit import FileAdminApiAuditStore
 from .models import (
     AdminApiCommandResponse,
+    AdminLifecycleCommandRequest,
     CampaignExecutionCommand,
     CancelOrderCommand,
     FuturesCancelOrderCommand,
@@ -1308,6 +1313,137 @@ class AdminApiCommandService:
 
     def __init__(self, dependencies: AdminApiCommandDependencies | None = None) -> None:
         self.dependencies = dependencies or AdminApiCommandDependencies()
+
+    def pause_runtime(
+        self,
+        command: AdminLifecycleCommandRequest,
+        *,
+        controller: RuntimeController | None = None,
+        correlation_id: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> AdminApiCommandResponse:
+        """Pause runtime order admission through the shared controller."""
+
+        return self._execute_runtime_lifecycle(
+            action=AdminApiLifecycleAction.PAUSE,
+            command=command,
+            controller=controller,
+            correlation_id=correlation_id,
+            idempotency_key=idempotency_key,
+        )
+
+    def resume_runtime(
+        self,
+        command: AdminLifecycleCommandRequest,
+        *,
+        controller: RuntimeController | None = None,
+        correlation_id: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> AdminApiCommandResponse:
+        """Resume runtime order admission through the shared controller."""
+
+        return self._execute_runtime_lifecycle(
+            action=AdminApiLifecycleAction.RESUME,
+            command=command,
+            controller=controller,
+            correlation_id=correlation_id,
+            idempotency_key=idempotency_key,
+        )
+
+    def _execute_runtime_lifecycle(
+        self,
+        *,
+        action: AdminApiLifecycleAction,
+        command: AdminLifecycleCommandRequest,
+        controller: RuntimeController | None,
+        correlation_id: str | None,
+        idempotency_key: str | None,
+    ) -> AdminApiCommandResponse:
+        controller = controller or self.dependencies.runtime_controller_factory()
+        service_method = (
+            "pause_runtime"
+            if action == AdminApiLifecycleAction.PAUSE
+            else "resume_runtime"
+        )
+        permission = (
+            AdminApiPermission.RUNTIME_PAUSE
+            if action == AdminApiLifecycleAction.PAUSE
+            else AdminApiPermission.RUNTIME_RESUME
+        )
+        state_before = controller.state
+        transition_performed = False
+        rejected_stage: str | None = None
+        message: str
+
+        if command.expected_state is not None and command.expected_state is not state_before:
+            rejected_stage = "expected_state"
+            message = (
+                "Runtime lifecycle command rejected because expected_state did "
+                f"not match current state {state_before.value}."
+            )
+        elif action == AdminApiLifecycleAction.PAUSE:
+            if state_before == EngineState.RUNNING:
+                transition_performed = controller.request_pause()
+                message = "Runtime pause accepted; new order admission is paused."
+            elif state_before == EngineState.PAUSED:
+                message = "Runtime pause accepted; engine was already paused."
+            else:
+                rejected_stage = "runtime_state"
+                message = (
+                    "Runtime pause rejected; pause is only valid from RUNNING "
+                    f"or already PAUSED state, not {state_before.value}."
+                )
+        else:
+            if state_before == EngineState.PAUSED:
+                transition_performed = controller.resume()
+                message = "Runtime resume accepted; new order admission is running."
+            elif state_before == EngineState.RUNNING:
+                message = "Runtime resume accepted; engine was already running."
+            else:
+                rejected_stage = "runtime_state"
+                message = (
+                    "Runtime resume rejected; resume is only valid from PAUSED "
+                    f"or already RUNNING state, not {state_before.value}."
+                )
+
+        state_after = controller.state
+        return AdminApiCommandResponse(
+            status=(
+                AdminApiCommandStatus.REJECTED
+                if rejected_stage is not None
+                else AdminApiCommandStatus.ACCEPTED
+            ),
+            action_class=AdminApiActionClass.ADMIN_RUNTIME,
+            required_permission=permission,
+            service_method=service_method,
+            message=message,
+            correlation_id=correlation_id,
+            idempotency_key=idempotency_key,
+            live_exchange_submitted=False,
+            data={
+                "action": action.value,
+                "reason": command.reason,
+                "expected_state": (
+                    command.expected_state.value
+                    if command.expected_state is not None
+                    else None
+                ),
+                "state_before": state_before.value,
+                "state_after": state_after.value,
+                "transition_performed": transition_performed,
+                "inflight": controller.inflight_snapshot(),
+                "runtime_controller_source": (
+                    "core/runtime_controller.py::RuntimeController"
+                ),
+                "dashboard_websocket_fallback_allowed": False,
+                "browser_authority": "display_only",
+                "bff_execution_authority": "forward_only_no_execution",
+                "live_coinbase_execution": AdminApiLiveExecutionStatus.NOT_RUN.value,
+                "submitted_notional_usdc": "0",
+                "executed_notional_usdc": "0",
+            },
+            failure_stage=rejected_stage,
+        )
 
     def place_manual_order(self, command: ManualOrderCommand) -> AdminApiCommandResponse:
         """Place a manual order through the existing guarded REST path."""

@@ -130,6 +130,210 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/lifecycle/pause:
+    post:
+      tags:
+      - admin
+      summary: Pause runtime order admission through the backend controller
+      description: Pause new runtime order admission without dashboard fallback.
+      operationId: admin_lifecycle_pause_api_v1_admin_lifecycle_pause_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminLifecycleCommandRequest'
+      responses:
+        '200':
+          description: Lifecycle command accepted or idempotently replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Lifecycle command rejected before runtime transition.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/lifecycle/resume:
+    post:
+      tags:
+      - admin
+      summary: Resume runtime order admission through the backend controller
+      description: Resume runtime order admission without dashboard fallback.
+      operationId: admin_lifecycle_resume_api_v1_admin_lifecycle_resume_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminLifecycleCommandRequest'
+      responses:
+        '200':
+          description: Lifecycle command accepted or idempotently replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Lifecycle command rejected before runtime transition.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/session:
     get:
       tags:
@@ -97748,6 +97952,21 @@ components:
       - api_version
       title: AdminHealthResponse
       description: Read-only backend health and diagnostics payload.
+    AdminLifecycleCommandRequest:
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          title: Reason
+          default: operator_lifecycle_control
+        expected_state:
+          anyOf:
+          - $ref: '#/components/schemas/EngineState'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      title: AdminLifecycleCommandRequest
+      description: Backend-owned lifecycle command request for runtime controls.
     AdminLiveAdapterConstructionAcceptanceEvidenceProducerClearanceAction:
       properties:
         clearance_action_id:
@@ -135275,6 +135494,29 @@ components:
       type: object
       title: CancelOrderRequest
       description: Cancel request body keyed by path ``client_order_id``.
+    EngineState:
+      type: string
+      enum:
+      - RUNNING
+      - PAUSING
+      - PAUSED
+      - DRAINING
+      - STOPPED
+      title: EngineState
+      description: "Engine lifecycle states for graceful shutdown / pause / restart.\n\
+        \nState machine (industry-standard quiesce-drain-stop model):\n\n    RUNNING\
+        \  --request_pause()-->     PAUSING  --(drain)-->  PAUSED\n    PAUSED   --resume()-->\
+        \            RUNNING\n    RUNNING  --request_shutdown()-->  DRAINING --(drain)-->\
+        \  STOPPED\n    PAUSED   --request_shutdown()-->  DRAINING --(drain)-->  STOPPED\n\
+        \nAdmission rules (what is accepted at each state):\n\n    | State    | New\
+        \ orders | Cancellations | Fill processing | DB writes |\n    | RUNNING  |\
+        \    yes     |     yes       |       yes       |    yes    |\n    | PAUSING\
+        \  |    no      |     yes       |       yes       |    yes    |\n    | PAUSED\
+        \   |    no      |     yes       |       yes       |    yes    |\n    | DRAINING\
+        \ |    no      |     yes       |       yes       |    yes    |\n    | STOPPED\
+        \  |    no      |     no        |       no        |    no     |\n\n\"Soft\
+        \ pause\" -- pause stops *originating* new orders but keeps WS, fills,\nand\
+        \ cancellations active so existing positions remain manageable."
     FuturesCancelOrderRequest:
       properties:
         product_id:

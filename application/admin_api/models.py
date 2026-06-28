@@ -163,6 +163,7 @@ from core.enums import (
     SpotRecoveryExchangeStateSnapshotSource,
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
+    EngineState,
     StealthExchangeTruthEvidenceSource,
     StealthCommandExecutionBlocker,
     StealthCommandExecutionPrerequisite,
@@ -2644,6 +2645,15 @@ class AdminEnterpriseLifecycleSupportItem(BaseModel):
     dashboard_websocket_fallback_allowed: bool = False
     live_coinbase_execution: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.NOT_RUN
     notional_usdc: DecimalString = "0"
+
+
+class AdminLifecycleCommandRequest(BaseModel):
+    """Backend-owned lifecycle command request for runtime controls."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(default="operator_lifecycle_control", min_length=1)
+    expected_state: EngineState | None = None
 
 
 class AdminEnterpriseFunctionalityInventoryItem(BaseModel):

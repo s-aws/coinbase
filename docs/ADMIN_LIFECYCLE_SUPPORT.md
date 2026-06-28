@@ -3,9 +3,9 @@
 `GET /api/v1/admin/enterprise-readiness` exposes the backend-owned lifecycle
 support classification for Release 0.1.
 
-The purpose is explicit gap visibility, not process control. The Admin API
-must say whether lifecycle actions are supported, unsupported, or not modeled
-before the frontend can show any lifecycle controls.
+The purpose is explicit backend authority, not a second process-control path.
+The Admin API must say whether lifecycle actions are supported, unsupported,
+or not modeled before the frontend can show any lifecycle controls.
 
 ## Current Classification
 
@@ -14,8 +14,8 @@ before the frontend can show any lifecycle controls.
 | `status` | `platform_ready` | Existing health/status evidence from `GET /api/v1/admin/health` and `RuntimeController.state`. |
 | `start` | `unsupported` | A running backend process cannot start the same process after it is stopped; this requires an external supervisor contract. |
 | `stop` | `not_modeled` | `RuntimeController.drain_and_stop` exists internally, but no enterprise Admin API route models authorization, audit, operator intent, timeout, or result evidence. |
-| `pause` | `not_modeled` | `RuntimeController.request_pause` exists internally, but no enterprise Admin API route models authorization, audit, or operator intent. |
-| `resume` | `not_modeled` | `RuntimeController.resume` exists internally, but no enterprise Admin API route models authorization, audit, or operator intent. |
+| `pause` | `platform_ready` | `POST /api/v1/admin/lifecycle/pause` models authorization, RBAC, idempotency, operator intent, audit, expected-state checks, and `RuntimeController.request_pause`. |
+| `resume` | `platform_ready` | `POST /api/v1/admin/lifecycle/resume` models authorization, RBAC, idempotency, operator intent, audit, expected-state checks, and `RuntimeController.resume`. |
 | `drain` | `not_modeled` | `RuntimeController.wait_drain` exists internally, but no enterprise Admin API route models drain request, timeout, audit, or result evidence. |
 
 ## Non-Authority Rules

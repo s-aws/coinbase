@@ -28,6 +28,38 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         ),
     ),
     AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
+        surface="POST /api/v1/admin/lifecycle/pause",
+        action_class=AdminApiActionClass.ADMIN_RUNTIME,
+        permission=AdminApiPermission.RUNTIME_PAUSE,
+        idempotency="required",
+        approval="not required for soft runtime pause",
+        caps="not applicable",
+        audit="required",
+        shared_method="pause_runtime",
+        parity_test=(
+            "calls RuntimeController.request_pause through Admin API auth, "
+            "idempotency, operator-intent, and audit; no dashboard WebSocket "
+            "fallback and no Coinbase execution"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
+        surface="POST /api/v1/admin/lifecycle/resume",
+        action_class=AdminApiActionClass.ADMIN_RUNTIME,
+        permission=AdminApiPermission.RUNTIME_RESUME,
+        idempotency="required",
+        approval="not required for runtime resume",
+        caps="not applicable",
+        audit="required",
+        shared_method="resume_runtime",
+        parity_test=(
+            "calls RuntimeController.resume through Admin API auth, "
+            "idempotency, operator-intent, and audit; no dashboard WebSocket "
+            "fallback and no Coinbase execution"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
         module_id="spot_operations",
         surface="GET /api/v1/orders",
         action_class=AdminApiActionClass.READ_ONLY,
