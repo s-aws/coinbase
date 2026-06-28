@@ -46,16 +46,19 @@ order-event publishing, the manual-order route may use the configured backend
 live-service posture and reach the existing shared command-service live branch
 for an admitted manual Spot order. That branch still performs the backend
 wallet, no-short sell-authority, product capability, event-stream, REST
-submission, and response checks. A successful configured live response includes
+submission, and response checks. The Admin API route dependency now supplies
+planned spot budget from durable `stealth_orders` rows and spot SELL
+lot-authority evaluation from the shared `FillLedgerRepository` plus configured
+`SPOT_INVENTORY_BASELINES`. A successful configured live response includes
 `data.post_submit_reconciliation` with the direct-order audit route
 `GET /api/v1/spot/direct-orders/{client_order_id}/audit`, admission/cap/
 reconciliation ids, audit command, submission-event evidence status, and
 explicit no-mutation/no-browser/BFF-authority flags. The response does not
-execute reconciliation or mutate order/exchange state. The current Admin API
-dependency boundary
-does not yet provide a Spot lot-authority evaluator or planned-budget source,
-so SELL authority and internal planned-commitment accounting remain release
-blockers. The UI label "operator" names a human workflow role; backend order
+execute reconciliation or mutate order/exchange state. Direct Spot SELL still
+requires the configured planning cap, `known_inventory_available`, wallet,
+durable audit, admission, reconciliation, manual acknowledgement, and
+live-service gates to pass before REST submission. The UI label "operator"
+names a human workflow role; backend order
 creation still requires `trader` or `admin` RBAC authority.
 
 Use `python tools\run_admin_api_manual_spot_buy_live.py --summary-only` for a
@@ -1851,8 +1854,11 @@ is enabled with a configured REST client and durable order-event publisher.
 The generic Admin API live-service dependency remains disabled for cancel,
 campaign, recovery, and proof routes until each route has its own explicit
 live contract. The cancel route remains fail-closed until it has an explicit
-acknowledgement/live-service contract. Blocked commands return `501` without
-Coinbase submission.
+acknowledgement/live-service contract. The manual-order dependency boundary
+uses the existing action-condition guard with durable `stealth_orders`
+planned-budget reads and shared fill-ledger/imported-baseline spot SELL lot
+authority; it does not add a route-local sell guard or a second trading path.
+Blocked commands return `501` without Coinbase submission.
 
 Current read-only HTTP surfaces include:
 

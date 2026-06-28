@@ -115,6 +115,7 @@ local order that reveals later under the shared guard path.
 | Surface | Planning/admission | Live exchange call | Durable evidence |
 | --- | --- | --- | --- |
 | Direct dashboard `place_order` | Product capability, size validation, planning-phase action guard | `REST_CLIENT.create_order` | `order_response`, `order_submitted` / `rest_submit`, later websocket/reconciliation/fill-ledger rows keyed by `client_order_id` |
+| Admin API manual `POST /api/v1/orders` | Auth/RBAC, idempotency, approval, admission audit, cap/guard, reconciliation plan, manual acknowledgement, configured live-service gate, product capability, size validation, planning-phase action guard | `REST_CLIENT.create_order` only when every backend gate passes | `AdminApiCommandResponse`, `order_event_stream`, `post_submit_reconciliation`, direct-order audit route, later websocket/reconciliation/fill-ledger rows keyed by `client_order_id` |
 | Dashboard `cancel_order` | Requires `client_order_id` before REST | `REST_CLIENT.cancel_order(client_order_id)` | `cancel_response`; later exchange/order evidence remains tied to local `client_order_id` |
 | Stealth reveal | Stored stealth plan, profitability, product capability, reveal-time action guard | `REST_CLIENT.place_limit_order` | `order_parent`, stealth reveal audit, placement pointers, event-stream evidence keyed by `client_order_id` |
 | Hotpoint seed order | Runtime admission, hotpoint capability, size validation, planning-phase action guard, pre-inserted parent row | `REST_CLIENT.limit_order_gtc` | `order_parent`, `order_submitted` / `rest_submit`, hotpoint parent policy flags |
@@ -135,11 +136,11 @@ local order that reveals later under the shared guard path.
   that runs the read-only direct-order audit by `client_order_id`; follow-on
   evidence comes from the dashboard log plus normal websocket, order lifecycle,
   reconciliation, and fill-ledger records keyed by `client_order_id`.
-  Direct dashboard placement is an immediate manual order surface. It does not
-  pre-insert `order_parent` or opt the order into automated follow-up policy
-  state before submission; use stealth or sweep paths when a feature needs
-  pre-submit parent policy state, managed reveal behavior, campaign accounting,
-  portfolio-wide automation, or scheduled execution.
+  Direct dashboard placement and Admin API manual placement are immediate manual
+  order surfaces. They do not pre-insert `order_parent` or opt the order into
+  automated follow-up policy state before submission; use stealth or sweep paths
+  when a feature needs pre-submit parent policy state, managed reveal behavior,
+  campaign accounting, portfolio-wide automation, or scheduled execution.
   There is no direct-order dry-run equivalent for raw `place_order`; use the
   sweep/campaign dry-run tools when a dry-runable spot order workflow is
   required.
@@ -180,7 +181,10 @@ local order that reveals later under the shared guard path.
   placement requires an explicit planning-phase `max_notional` action-condition
   cap before REST submission. Direct spot `SELL` also requires
   `known_inventory_available` to be enabled and supported by
-  fill-ledger/imported known-cost authority. Direct spot placement also
+  fill-ledger/imported known-cost authority. Admin API manual placement supplies
+  that authority from the shared fill-ledger repository and configured imported
+  baselines, and supplies planned-budget accounting from durable
+  `stealth_orders` rows. Direct spot placement also
   requires an enabled local `order_event_stream` publisher before REST
   submission so the `client_order_id` can be audited after the exchange call.
   Use a regenerated strict SELL allowlist through sweep/campaign instead of raw

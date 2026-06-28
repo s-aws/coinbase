@@ -60,10 +60,10 @@ matching planning-phase `max_notional` guard policy explicitly.
 
 ## Production Direct Spot Guard Baseline
 
-Use this shape when direct dashboard spot orders need a cap and spot `SELL`
-orders should be allowed through known profitable inventory. It applies to
-configured spot products in `products.json`; USDC sweep/campaign has separate
-run-level caps and authority allowlists.
+Use this shape when direct dashboard or Admin API manual spot orders need a cap
+and spot `SELL` orders should be allowed through known profitable inventory. It
+applies to configured spot products in `products.json`; USDC sweep/campaign has
+separate run-level caps and authority allowlists.
 Direct spot placement also requires the local `order_event_stream` publisher to
 be enabled before REST submission.
 
@@ -118,6 +118,8 @@ $env:ACTION_CONDITION_GUARDS_JSON = '{"known_inventory_available":{"enabled":tru
 With this enabled, a spot `SELL` must be covered by known profitable `BUY` lots.
 Wallet balance is still checked separately by `wallet_available`; unknown-cost
 inventory does not satisfy known-profit authority.
+Admin API manual order placement evaluates the same condition through the
+shared fill-ledger/imported-baseline authority source before REST submission.
 
 Imported baseline inventory can be supplied when the account already holds spot
 assets before this project recorded the fills:
@@ -158,9 +160,9 @@ Without `manual_live_acknowledgement: true`, direct spot `place_order` blocks
 before the guard and before REST because the raw dashboard surface submits live
 immediately.
 
-If hidden spot stealth orders already reserve most of the quote wallet, the same
-dashboard path returns `block_category: "planned_budget_available"` before REST
-placement.
+If hidden spot stealth orders already reserve most of the quote wallet, direct
+dashboard placement and Admin API manual order placement return
+`block_category: "planned_budget_available"` before REST placement.
 
 ## Inspect A Spot Replacement Delta
 

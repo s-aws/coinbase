@@ -17,6 +17,8 @@ Current invocation points:
   `StealthOrderManager.build_stealth_move_plan`,
   `StealthOrderManager.execute_stealth_move`, and revealed anchor reprice
 - raw dashboard placement: `dashboard_server.py` `place_order`
+- Admin API manual order placement: `POST /api/v1/orders` through
+  `AdminApiCommandService.place_manual_order`
 
 ## Key Concepts
 
@@ -24,11 +26,12 @@ Current invocation points:
   memory/DB persistence, including spot follow-up stealth orders.
 - `ActionGuardPhase.REVEAL` runs after reveal-price planning and before
   pre-submission hooks, `order_parent` pre-insert, and REST placement.
-- Direct dashboard `place_order` runs the planning-phase guard after size
-  validation and before `REST_CLIENT.create_order`. For spot products, the
-  dashboard handler also requires `manual_live_acknowledgement=true` before the
-  planning guard and REST submission. Direct spot placement also requires a
-  matching planning-phase `max_notional` limit rule. Direct spot `SELL` requires
+- Direct dashboard `place_order` and Admin API manual order placement run the
+  planning-phase guard after size validation and before
+  `REST_CLIENT.create_order`. For spot products, the direct placement surface
+  also requires `manual_live_acknowledgement=true` before the planning guard and
+  REST submission. Direct spot placement also requires a matching planning-phase
+  `max_notional` limit rule. Direct spot `SELL` requires
   `known_inventory_available` to be enabled. Direct spot placement also blocks
   when the local durable audit publisher is unavailable.
 - `wallet_available` checks spot account balances when Coinbase REST
@@ -77,12 +80,15 @@ Spot follow-up planning is checked by default; set
 
 Planned-budget subtraction has no separate configuration key. It runs when a
 caller supplies local planned-budget state to `ActionConditionGuard`, currently
-from `StealthOrderManager` and from dashboard direct placement when the stealth
-manager is attached.
+from `StealthOrderManager`, from dashboard direct placement when the stealth
+manager is attached, and from Admin API manual order placement through durable
+`stealth_orders` reads.
 
 Known-inventory authority has no wallet fallback. If
 `known_inventory_available` is enabled and the fill-ledger authority is not
-available, spot `SELL` admission blocks with a structured reason.
+available, spot `SELL` admission blocks with a structured reason. Admin API
+manual order placement supplies this authority from the shared
+`FillLedgerRepository` plus configured `SPOT_INVENTORY_BASELINES`.
 
 ## Safety Constraints
 

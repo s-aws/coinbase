@@ -50,8 +50,8 @@ work. Historical milestone detail belongs in
 - Phase instruction review status: backend `AGENTS.md`, backend `agent.md`,
   frontend `AGENTS.md`, and related agent contract docs were reviewed again on
   2026-06-28 for this phase, including the manual Spot BUY Admin API
-  live-validation runner slice. Release 0.1 product progress remains the
-  controlling rule.
+  live-validation runner slice and Admin API spot SELL authority source wiring.
+  Release 0.1 product progress remains the controlling rule.
 - Release 0.1 matrix status:
   `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md` and frontend
   `docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md` now identify the next
@@ -79,11 +79,15 @@ work. Historical milestone detail belongs in
   `business.spot_fill_backfill.backfill_fill_ledger_from_order_reports`, and
   read back `GET /api/v1/spot/direct-orders/{client_order_id}/audit` through
   `application.admin_api.read_service` with `dashboard_dependency=false`.
-  Remaining blockers are SELL lot-authority/planned-budget sources and cancel
-  acknowledgement/live-service contracts.
-- Exact next implementation slice: add the backend-owned SELL lot-authority
-  and planned-budget sources needed for a Spot SELL command without importing
-  spot-only assumptions into non-spot modules.
+  Admin API manual-order dependencies now source planned budget from durable
+  `stealth_orders` rows and spot SELL lot authority from the shared fill
+  ledger/imported baselines through `ActionConditionGuard`, without adding a
+  route-local sell guard or second trading path. Remaining blockers are cancel
+  acknowledgement/live-service contracts and operator-facing SELL validation
+  evidence before Release 0.1 closeout.
+- Exact next implementation slice: add the cancel acknowledgement/live-service
+  contract for `client_order_id` cancellation while preserving the existing
+  project wrapper `cancel_order(client_order_id)`.
 - Contextless review status: planned for `7981-8000`; reviewers must verify
   that the Release 0.1 pivot is understandable without chat history and that
   future work cannot drift back into proof-only expansion without a named
@@ -95,10 +99,13 @@ work. Historical milestone detail belongs in
   Spot BUY preflight passed. Approved live Admin API manual Spot BUY
   validation passed with submitted/executed notional `1.00`/`0.99935033` USDC,
   post-submit fill backfill fetched/appended one fill, and Admin API audit
-  readback returned `dashboard_dependency=false`. Backend py_compile,
-  ownership check, backend autonomous queue check, and frontend autonomous
-  check passed. Full backend regression and frontend release gate were not run
-  because this is ordinary phase work, not milestone closeout.
+  readback returned `dashboard_dependency=false`. Focused Admin API spot SELL
+  authority tests passed for planned-budget DB reads, fill-ledger/imported
+  baseline lot authority, and command-service consumption before fake REST.
+  Backend py_compile, ownership check, and backend autonomous queue check
+  passed. No frontend files changed in this SELL authority source slice. Full
+  backend regression and frontend release gate were not run because this is
+  ordinary phase work, not milestone closeout.
 - Commit/push status: pending for `7981-8000` in backend and frontend repos.
 - Current phase-end subagent sweep: no subagents were spawned for this phase;
   no stale phase-scoped subagents are intentionally open.
@@ -497,6 +504,8 @@ work. Historical milestone detail belongs in
 - Post-submit evidence: read-only Coinbase `list_fills` fetched one fill,
   fill-ledger backfill appended one row, and Admin API direct-order audit
   readback returned `dashboard_dependency=false`.
+- Additional Admin API spot SELL authority source wiring did not run live
+  Coinbase execution; submitted notional `0` USDC, executed notional `0` USDC.
 
 ## Regression Policy
 
@@ -509,10 +518,12 @@ work. Historical milestone detail belongs in
 
 ## Next Actions
 
-1. Continue Release 0.1 phases from the burn-down, prioritizing work that
-   clears named release blockers or directly improves the usable operator
-   admin product.
-2. Keep full regression reserved for durable milestone closeout unless
+1. Continue Release 0.1 phases from the burn-down, prioritizing
+   cancel-by-`client_order_id` acknowledgement/live-service handling as the
+   next spot command blocker.
+2. Keep SELL on the existing manual-order path and use focused validation
+   evidence rather than adding a second spot sell path.
+3. Keep full regression reserved for durable milestone closeout unless
    explicitly requested.
 
 ## Durable Decisions

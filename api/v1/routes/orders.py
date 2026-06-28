@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import uuid
-from typing import Annotated, Callable
+from typing import Annotated, Any, Callable
 
 from fastapi import APIRouter, Depends, Header, Path, Query, Request, status
 from fastapi.encoders import jsonable_encoder
@@ -238,11 +238,60 @@ def _admin_api_order_event_stream_available() -> bool:
 
 
 def _get_admin_api_spot_planned_budget_commitments() -> dict[str, float]:
-    return {}
+    try:
+        import database.order as order_db
+        from core.action_condition_guard import (
+            SPOT_PLANNED_BUDGET_STATUSES,
+            collect_spot_planned_budget_commitments,
+        )
+    except Exception:
+        return {}
+
+    statuses = tuple(SPOT_PLANNED_BUDGET_STATUSES)
+    if not statuses:
+        return {}
+    placeholders = ", ".join(["%s"] * len(statuses))
+    query = f"""
+        SELECT stealth_order_id, product_id, side, remaining_size, limit_price, status
+        FROM stealth_orders
+        WHERE UPPER(status) IN ({placeholders})
+    """
+    try:
+        rows = order_db.DB_CLIENT.execute_query(query, statuses) or []
+    except Exception:
+        return {}
+    return collect_spot_planned_budget_commitments(rows)
 
 
 def _get_admin_api_spot_lot_authority_evaluator() -> object | None:
-    return None
+    try:
+        import configuration
+        import database.order as order_db
+        from business.fill_ledger import FillLedgerRepository
+        from business.spot_inventory_authority import (
+            evaluate_spot_sell_lot_authority,
+        )
+    except Exception:
+        return None
+
+    try:
+        fill_ledger_repo = FillLedgerRepository(order_db.DB_CLIENT)
+    except Exception:
+        return None
+
+    inventory_baselines = getattr(configuration, "SPOT_INVENTORY_BASELINES", None)
+
+    def _evaluate_spot_lot_authority(**kwargs: Any) -> dict[str, Any]:
+        return evaluate_spot_sell_lot_authority(
+            product_id=kwargs.get("product_id", ""),
+            side=kwargs.get("side", ""),
+            size=kwargs.get("size"),
+            limit_price=kwargs.get("limit_price"),
+            fill_ledger_repo=fill_ledger_repo,
+            inventory_baselines=inventory_baselines,
+        ).to_dict()
+
+    return _evaluate_spot_lot_authority
 
 
 def get_command_service() -> AdminApiCommandService:

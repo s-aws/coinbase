@@ -61,8 +61,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
   exists, stop and request a new decision instead of inventing scope.
 - Phase `7981-8000` instruction review status: backend `AGENTS.md`, backend
   `agent.md`, frontend `AGENTS.md`, and related owner contracts were reviewed
-  on 2026-06-28 before manual Spot BUY Admin API live-validation work. Release
-  0.1 product progress remains the controlling rule.
+  on 2026-06-28 before manual Spot BUY Admin API live-validation work and again
+  before Admin API spot SELL authority source wiring. Release 0.1 product
+  progress remains the controlling rule.
 - Phase `7981-8000` matrix-work subagent sweep status: no phase-scoped
   subagents were spawned, so no subagent cleanup was required.
 
@@ -210,9 +211,10 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
   audit readback, and post-submit fill-ledger backfill proof. The frontend
   command workflow now renders and links the backend
   `post_submit_reconciliation` handoff without creating browser/BFF execution
-  authority. SELL remains blocked until the Admin API has lot-authority and
-  planned-budget sources; cancel remains blocked until it has an explicit
-  acknowledgement/live-service contract.
+  authority. Admin API manual-order dependencies now source planned budget from
+  durable `stealth_orders` rows and spot SELL lot authority from the shared fill
+  ledger/imported baselines through `ActionConditionGuard`; cancel remains
+  blocked until it has an explicit acknowledgement/live-service contract.
   Current manual Spot BUY validation must use
   `python tools\run_admin_api_manual_spot_buy_live.py`, not the direct Coinbase
   smoke script, so the proof covers the enterprise Admin API route and shared

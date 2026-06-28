@@ -147,10 +147,11 @@ matrices when the operator needs a dry-runable spot workflow.
 
 Before sending a raw direct order, confirm the product, side, base or quote
 notional, active action-condition guard policy, and local audit availability.
-Spot direct placement requires the explicit `manual_live_acknowledgement=true`
-field before the server will submit to Coinbase. It also requires a matching
-planning-phase `max_notional` cap and an enabled local `order_event_stream`
-publisher before REST submission.
+Spot direct placement through the legacy dashboard or Admin API manual order
+route requires the explicit `manual_live_acknowledgement=true` field before the
+server will submit to Coinbase. It also requires a matching planning-phase
+`max_notional` cap and an enabled local `order_event_stream` publisher before
+REST submission.
 
 Configure a direct spot notional cap through the existing guard path:
 
@@ -168,6 +169,9 @@ $env:ACTION_CONDITION_GUARDS_JSON = '{"wallet_available":{"enabled":true,"block_
 Use a regenerated strict SELL sweep/campaign allowlist instead of raw
 `place_order` when the operator needs portfolio-wide profit-authority evidence,
 per-run caps, skipped-order accounting, or repeatable execution.
+Admin API manual placement uses the same backend `ActionConditionGuard`, with
+planned budget sourced from durable `stealth_orders` rows and SELL authority
+from fill-ledger/imported known-cost lots.
 
 Raw direct spot `SELL` should be limit-priced. A direct market SELL does not
 provide a positive operator-selected sale price to the known-inventory
