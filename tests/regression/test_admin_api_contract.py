@@ -34262,6 +34262,29 @@ def test_admin_api_spot_sweep_automation_dry_run_is_accepted_no_live(
     assert payload["data"]["scheduler_dispatch_contract"][
         "live_coinbase_orders_ran"
     ] is False
+    assert payload["data"]["scheduler_executor_admission_contract_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert payload["data"]["scheduler_executor_admission_decision"] == (
+        SpotSweepAutomationExecutionDecision.SCHEDULER_EXECUTOR_ADMISSION_BLOCKED.value
+    )
+    scheduler_admission = payload["data"]["scheduler_executor_admission_contract"]
+    assert scheduler_admission["source_contract_ready_for_admission"] is True
+    assert scheduler_admission["admission_attached"] is True
+    assert scheduler_admission["admission_allowed"] is False
+    assert scheduler_admission["manual_live_acknowledgement_present"] is False
+    assert scheduler_admission["admission_blockers"] == [
+        AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED.value,
+        AdminApiLiveAdmissionBlocker.APPROVAL_SNAPSHOT_MISSING.value,
+        AdminApiLiveAdmissionBlocker.ADMISSION_AUDIT_MISSING.value,
+        AdminApiLiveAdmissionBlocker.CAP_GUARD_MISSING.value,
+        AdminApiLiveAdmissionBlocker.RECONCILIATION_PLAN_MISSING.value,
+        AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED.value,
+    ]
+    assert scheduler_admission["scheduler_executor_invoked"] is False
+    assert scheduler_admission["sweep_runner_invoked"] is False
+    assert scheduler_admission["coinbase_orders_submitted"] is False
+    assert scheduler_admission["live_coinbase_orders_ran"] is False
     assert payload["data"]["retry_execution_contract_status"] == (
         AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
     )
@@ -34284,6 +34307,20 @@ def test_admin_api_spot_sweep_automation_dry_run_is_accepted_no_live(
     assert payload["data"]["retry_execution_contract"][
         "live_coinbase_orders_ran"
     ] is False
+    assert payload["data"]["retry_executor_admission_contract_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert payload["data"]["retry_executor_admission_decision"] == (
+        SpotSweepAutomationExecutionDecision.RETRY_EXECUTOR_SOURCE_NOT_READY.value
+    )
+    retry_admission = payload["data"]["retry_executor_admission_contract"]
+    assert retry_admission["source_contract_ready_for_admission"] is False
+    assert retry_admission["admission_attached"] is True
+    assert retry_admission["admission_allowed"] is False
+    assert retry_admission["retry_executor_invoked"] is False
+    assert retry_admission["sweep_runner_invoked"] is False
+    assert retry_admission["coinbase_orders_submitted"] is False
+    assert retry_admission["live_coinbase_orders_ran"] is False
     assert payload["data"]["reconciliation_execution_contract_status"] == (
         AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
     )
@@ -34383,6 +34420,12 @@ def test_admin_api_spot_sweep_automation_dry_run_respects_pause_control_no_live(
     assert payload["data"]["scheduler_dispatch_contract"]["dispatch_blockers"] == [
         SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_PAUSED.value
     ]
+    assert payload["data"]["scheduler_executor_admission_decision"] == (
+        SpotSweepAutomationExecutionDecision.SCHEDULER_EXECUTOR_SOURCE_NOT_READY.value
+    )
+    assert payload["data"]["scheduler_executor_admission_contract"][
+        "source_contract_ready_for_admission"
+    ] is False
     assert payload["data"]["scheduler_dispatch_contract"]["latest_control_state"][
         "control_state_after"
     ] == "paused"
@@ -34546,6 +34589,28 @@ def test_admin_api_spot_sweep_automation_dry_run_reports_retry_ready_no_live(
     assert payload["data"]["retry_execution_contract"]["retry_blockers"] == [
         SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_LIVE_DISABLED.value
     ]
+    assert payload["data"]["retry_executor_admission_contract_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert payload["data"]["retry_executor_admission_decision"] == (
+        SpotSweepAutomationExecutionDecision.RETRY_EXECUTOR_ADMISSION_BLOCKED.value
+    )
+    assert payload["data"]["retry_executor_admission_contract"][
+        "source_contract_ready_for_admission"
+    ] is True
+    assert payload["data"]["retry_executor_admission_contract"][
+        "admission_allowed"
+    ] is False
+    assert payload["data"]["retry_executor_admission_contract"][
+        "admission_blockers"
+    ] == [
+        AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED.value,
+        AdminApiLiveAdmissionBlocker.APPROVAL_SNAPSHOT_MISSING.value,
+        AdminApiLiveAdmissionBlocker.ADMISSION_AUDIT_MISSING.value,
+        AdminApiLiveAdmissionBlocker.CAP_GUARD_MISSING.value,
+        AdminApiLiveAdmissionBlocker.RECONCILIATION_PLAN_MISSING.value,
+        AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED.value,
+    ]
     assert payload["data"]["retry_execution_contract"]["retry_executor_invoked"] is False
     assert payload["data"]["retry_execution_contract"]["sweep_runner_invoked"] is False
     assert payload["data"]["retry_execution_contract"][
@@ -34637,7 +34702,16 @@ def test_admin_api_spot_sweep_automation_contract_is_not_implemented_and_not_liv
     assert payload["data"]["scheduler_dispatch_contract"][
         "would_dispatch_if_live_enabled"
     ] is True
+    assert payload["data"]["scheduler_executor_admission_contract"][
+        "manual_live_acknowledgement_present"
+    ] is True
+    assert payload["data"]["scheduler_executor_admission_contract"][
+        "admission_allowed"
+    ] is False
     assert payload["data"]["retry_execution_contract"]["retry_plan_ready"] is False
+    assert payload["data"]["retry_executor_admission_decision"] == (
+        SpotSweepAutomationExecutionDecision.RETRY_EXECUTOR_SOURCE_NOT_READY.value
+    )
     assert payload["data"]["reconciliation_execution_contract"][
         "reconciliation_executor_invoked"
     ] is False

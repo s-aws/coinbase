@@ -87,13 +87,14 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   returns accepted no-live review evidence; `dry_run=false` still returns
   `501 not_implemented`. Responses include backend-owned
   `automation_execution_contract_status`, `automation_execution_decision`,
-  scheduler dispatch contract evidence, retry execution contract evidence, and
+  scheduler dispatch contract evidence, scheduler executor-admission evidence,
+  retry execution contract evidence, retry executor-admission evidence, and
   reconciliation/live execution boundary evidence so operators can see whether
-  dispatch/retry would be ready and why live execution remains unavailable. The
-  route must not run the live sweep CLI, create a browser scheduler, execute
-  reconciliation, mutate state, or submit Coinbase orders until live
-  scheduler/retry execution, recovery, reconciliation, and live execution gates
-  pass.
+  dispatch/retry would be ready and which backend admission gates still block
+  execution. The route must not run the live sweep CLI, create a browser
+  scheduler, execute reconciliation, mutate state, or submit Coinbase orders
+  until live scheduler/retry execution, recovery, reconciliation, and live
+  execution gates pass.
 - The Admin API exposes `GET /api/v1/spot/sweep/automation-service` as
   backend-owned read evidence for the campaign ledger, sweep ledger, operation
   lock, scheduler due/not-due/disabled/max-run decisions, run-limit remaining

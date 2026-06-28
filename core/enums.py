@@ -2631,6 +2631,12 @@ class SpotSweepAutomationExecutionDecision(str, Enum):
     RETRY_EXECUTION_NO_READY_PLAN = "retry_execution_no_ready_plan"
     RETRY_EXECUTION_BLOCKED = "retry_execution_blocked"
     RETRY_EXECUTION_READY_LIVE_DISABLED = "retry_execution_ready_live_disabled"
+    SCHEDULER_EXECUTOR_SOURCE_NOT_READY = "scheduler_executor_source_not_ready"
+    SCHEDULER_EXECUTOR_ADMISSION_BLOCKED = "scheduler_executor_admission_blocked"
+    SCHEDULER_EXECUTOR_ADMISSION_READY = "scheduler_executor_admission_ready"
+    RETRY_EXECUTOR_SOURCE_NOT_READY = "retry_executor_source_not_ready"
+    RETRY_EXECUTOR_ADMISSION_BLOCKED = "retry_executor_admission_blocked"
+    RETRY_EXECUTOR_ADMISSION_READY = "retry_executor_admission_ready"
     RECONCILIATION_EXECUTION_BOUNDARY_LIVE_DISABLED = (
         "reconciliation_execution_boundary_live_disabled"
     )

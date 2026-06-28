@@ -1492,6 +1492,7 @@ class SpotSweepAutomationRunCommand(BaseModel):
 
     envelope: AdminApiCommandEnvelope
     request: SpotSweepAutomationRunRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     allow_live_execution: bool = False
 
 

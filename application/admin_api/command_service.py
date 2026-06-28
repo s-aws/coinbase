@@ -2539,6 +2539,7 @@ class AdminApiCommandService:
         execution_contract_data = (
             deps.spot_sweep_automation_execution_service.build_contract_data(
                 request=command.request,
+                admission_decision=command.admission_decision,
                 sweep_state_file=deps.spot_sweep_state_file,
                 campaign_state_file=deps.spot_campaign_state_file,
                 operation_lock_file=deps.spot_sweep_operation_lock_file,

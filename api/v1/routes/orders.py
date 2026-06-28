@@ -1312,8 +1312,16 @@ def run_spot_sweep_automation(
         cap_guard_store=cap_guard_store,
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
-        command_runner=lambda: service.run_spot_sweep_automation(
-            SpotSweepAutomationRunCommand(envelope=envelope, request=body)
+        manual_live_acknowledgement=body.manual_live_acknowledgement,
+        command_runner_with_admission=lambda admission_decision: (
+            service.run_spot_sweep_automation(
+                SpotSweepAutomationRunCommand(
+                    envelope=envelope,
+                    request=body,
+                    admission_decision=admission_decision,
+                    allow_live_execution=admission_decision.allowed,
+                )
+            )
         ),
     )
 
