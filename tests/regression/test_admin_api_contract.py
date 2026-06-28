@@ -44432,16 +44432,25 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     automation_controls = {
         item["control"]: item for item in payload["automation_control_readiness"]
     }
-    assert payload["automation_control_readiness_count"] == 6
+    assert payload["automation_control_readiness_count"] == 8
     assert set(automation_controls) == {
         AdminApiSpotAutomationControl.SCHEDULER.value,
+        AdminApiSpotAutomationControl.SCHEDULER_EXECUTOR.value,
         AdminApiSpotAutomationControl.RUN_LIMIT.value,
         AdminApiSpotAutomationControl.PAUSE_RESUME.value,
         AdminApiSpotAutomationControl.RETRY_RECOVERY.value,
+        AdminApiSpotAutomationControl.RETRY_EXECUTOR.value,
         AdminApiSpotAutomationControl.RECONCILIATION_EXECUTION.value,
         AdminApiSpotAutomationControl.LIVE_EXECUTION.value,
     }
     draft_controls = {
+        AdminApiSpotAutomationControl.SCHEDULER.value,
+        AdminApiSpotAutomationControl.SCHEDULER_EXECUTOR.value,
+        AdminApiSpotAutomationControl.PAUSE_RESUME.value,
+        AdminApiSpotAutomationControl.RETRY_RECOVERY.value,
+        AdminApiSpotAutomationControl.RETRY_EXECUTOR.value,
+    }
+    operator_action_controls = {
         AdminApiSpotAutomationControl.SCHEDULER.value,
         AdminApiSpotAutomationControl.PAUSE_RESUME.value,
         AdminApiSpotAutomationControl.RETRY_RECOVERY.value,
@@ -44469,7 +44478,9 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
                 control["exposure_status"]
                 == AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
             )
-            assert control["operator_action_available"] is True
+            assert control["operator_action_available"] is (
+                control_name in operator_action_controls
+            )
         else:
             assert control["support_status"] == (
                 AdminApiModuleSupportStatus.NOT_MODELED.value
@@ -44500,11 +44511,49 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
         ]
         == SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_LIVE_DISABLED.value
     )
+    scheduler_executor_control = automation_controls[
+        AdminApiSpotAutomationControl.SCHEDULER_EXECUTOR.value
+    ]
+    assert scheduler_executor_control["support_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert scheduler_executor_control["exposure_status"] == (
+        AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
+    )
+    assert scheduler_executor_control["operator_action_available"] is False
+    assert scheduler_executor_control["missing_contract"] == (
+        SpotSweepAutomationExecutionBlocker.SCHEDULER_EXECUTOR_CONTRACT_REQUIRED.value
+    )
+    assert AdminApiLiveReadinessPrecondition.SWEEP_RECOVERY_GATE_CLEAR.value in (
+        scheduler_executor_control["required_gate_chain"]
+    )
+    assert AdminApiLiveReadinessPrecondition.POST_LIVE_RECONCILIATION.value in (
+        scheduler_executor_control["required_gate_chain"]
+    )
     assert (
         automation_controls[AdminApiSpotAutomationControl.RUN_LIMIT.value][
             "support_status"
         ]
         == AdminApiModuleSupportStatus.READ_ONLY_READY.value
+    )
+    retry_executor_control = automation_controls[
+        AdminApiSpotAutomationControl.RETRY_EXECUTOR.value
+    ]
+    assert retry_executor_control["support_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert retry_executor_control["exposure_status"] == (
+        AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
+    )
+    assert retry_executor_control["operator_action_available"] is False
+    assert retry_executor_control["missing_contract"] == (
+        SpotSweepAutomationExecutionBlocker.RETRY_EXECUTOR_CONTRACT_REQUIRED.value
+    )
+    assert AdminApiLiveReadinessPrecondition.SWEEP_RECOVERY_GATE_CLEAR.value in (
+        retry_executor_control["required_gate_chain"]
+    )
+    assert AdminApiLiveReadinessPrecondition.POST_LIVE_RECONCILIATION.value in (
+        retry_executor_control["required_gate_chain"]
     )
     assert (
         automation_controls[AdminApiSpotAutomationControl.LIVE_EXECUTION.value][

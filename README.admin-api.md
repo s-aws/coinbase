@@ -1331,12 +1331,17 @@ reconciliation, Coinbase, and notional flags false. The paired campaign
 execution route follows the same no-live review posture keyed by `campaign_id`.
 The same command-suite response exposes `automation_control_readiness` as the
 backend-owned control-state contract for campaign/sweep automation. It reports
-six explicit controls: scheduler, run limit, pause/resume, retry/recovery,
-reconciliation execution, and live execution. Pause/resume plus retry-intent
-rows are now backend-owned `command_draft_live_disabled` local-state controls
-through `POST /api/v1/spot/sweep/automation-controls`; scheduler, run-limit,
-retry execution, reconciliation execution, and live execution remain blocked or
-not modeled. All rows keep browser authority `display_only`, BFF authority
+eight explicit controls: scheduler dispatch, scheduler executor, run limit,
+pause/resume, retry/recovery, retry executor, reconciliation execution, and
+live execution. Scheduler dispatch, pause/resume, retry/recovery, scheduler
+executor, and retry executor rows are backend-owned
+`command_draft_live_disabled` evidence, but only scheduler dispatch,
+pause/resume, and retry/recovery are operator-action rows. The executor rows
+name the missing backend executor contracts and remain action-disabled until
+approval, cap/guard, recovery, reconciliation, live-service, audit, and
+post-live reconciliation gates can pass. Run-limit is `read_only_ready`;
+reconciliation execution and live execution remain backend-contract-required
+blockers. All rows keep browser authority `display_only`, BFF authority
 `forward_only_no_execution`, no scheduler invocation, no runner invocation, no
 Coinbase orders, and `0` submitted/executed USDC notional. They are not
 frontend scheduler jobs, retry loops, proof writers, reconciliation executors,

@@ -545,9 +545,11 @@ class AdminApiSpotAutomationControl(str, Enum):
     """Spot campaign/sweep automation controls surfaced by the Admin API."""
 
     SCHEDULER = "scheduler"
+    SCHEDULER_EXECUTOR = "scheduler_executor"
     RUN_LIMIT = "run_limit"
     PAUSE_RESUME = "pause_resume"
     RETRY_RECOVERY = "retry_recovery"
+    RETRY_EXECUTOR = "retry_executor"
     RECONCILIATION_EXECUTION = "reconciliation_execution"
     LIVE_EXECUTION = "live_execution"
 

@@ -116,17 +116,22 @@ the missing backend contracts.
 
 The command-suite response also reports typed
 `automation_control_readiness` rows for campaign/sweep controls that operators
-would expect before automation is usable: scheduler, run limit, pause/resume,
-retry/recovery, reconciliation execution, and live execution. Pause/resume and
-retry-intent are backend-owned `command_draft_live_disabled` local-state
-controls through `POST /api/v1/spot/sweep/automation-controls`; all other
-automation execution controls remain blocked or not modeled. Every row keeps
+would expect before automation is usable: scheduler dispatch, scheduler
+executor, run limit, pause/resume, retry/recovery, retry executor,
+reconciliation execution, and live execution. Scheduler dispatch, pause/resume,
+retry/recovery, scheduler executor, and retry executor are backend-owned
+`command_draft_live_disabled` rows; only scheduler dispatch, pause/resume, and
+retry/recovery are operator-action rows. The scheduler executor and retry executor rows
+name missing backend executor contracts and stay action-disabled until backend
+executor, recovery, reconciliation, live-service, audit, and post-live
+reconciliation gates exist. Run-limit is read-only, while reconciliation and
+live execution remain backend-contract-required blockers. Every row keeps
 browser authority `display_only`, BFF authority `forward_only_no_execution`,
 no scheduler invocation, no runner invocation, no Coinbase order submission,
 and `submitted_notional_usdc=0` / `executed_notional_usdc=0`. Frontend and BFF
 surfaces may render or submit only the backend route-bound controls, but must
-not turn them into timers, local retry loops, proof writers, reconciliation
-executors, or Coinbase calls.
+not turn them into timers, executor controls, local retry loops, proof writers,
+reconciliation executors, or Coinbase calls.
 `GET /api/v1/spot/sweep/automation-service` also exposes bounded recovery-gate
 planning derived from durable sweep records: `recovery_gate_status`,
 planned reconciliation/backfill counts, run ids needing reconciliation or

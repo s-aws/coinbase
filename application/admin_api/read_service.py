@@ -52840,6 +52840,30 @@ class AdminApiReadService:
                 ),
             ),
             (
+                AdminApiSpotAutomationControl.SCHEDULER_EXECUTOR,
+                "Scheduler executor",
+                SpotSweepAutomationExecutionBlocker.SCHEDULER_EXECUTOR_CONTRACT_REQUIRED.value,
+                "Backend-owned scheduler executor boundary contract behind all live gates.",
+                [
+                    "route_inventory_contract",
+                    "scheduler_dispatch_review_contract",
+                    AdminApiLiveReadinessPrecondition.APPROVAL_SNAPSHOT.value,
+                    AdminApiLiveReadinessPrecondition.ADMISSION_AUDIT_TRAIL.value,
+                    AdminApiLiveReadinessPrecondition.CAP_GUARD_CONTRACT.value,
+                    AdminApiLiveReadinessPrecondition.SWEEP_RECOVERY_GATE_CLEAR.value,
+                    AdminApiLiveReadinessPrecondition.RECONCILIATION_PLAN.value,
+                    AdminApiLiveReadinessPrecondition.LIVE_EXECUTION_SERVICE.value,
+                    AdminApiLiveReadinessPrecondition.POST_LIVE_RECONCILIATION.value,
+                ],
+                (
+                    "Scheduler executor boundary evidence is now modeled as "
+                    "no-live backend readback. It names the missing executor "
+                    "contract and proves no scheduler loop, sweep runner, "
+                    "recovery, reconciliation, Coinbase order, or notional "
+                    "side effect ran."
+                ),
+            ),
+            (
                 AdminApiSpotAutomationControl.RUN_LIMIT,
                 "Run limit",
                 "sweep_scheduler_dispatch_service_contract",
@@ -52893,6 +52917,29 @@ class AdminApiReadService:
                 ),
             ),
             (
+                AdminApiSpotAutomationControl.RETRY_EXECUTOR,
+                "Retry executor",
+                SpotSweepAutomationExecutionBlocker.RETRY_EXECUTOR_CONTRACT_REQUIRED.value,
+                "Backend-owned retry executor boundary contract behind retry intent and all live gates.",
+                [
+                    "route_inventory_contract",
+                    "retry_execution_review_contract",
+                    AdminApiLiveReadinessPrecondition.APPROVAL_SNAPSHOT.value,
+                    AdminApiLiveReadinessPrecondition.ADMISSION_AUDIT_TRAIL.value,
+                    AdminApiLiveReadinessPrecondition.CAP_GUARD_CONTRACT.value,
+                    AdminApiLiveReadinessPrecondition.SWEEP_RECOVERY_GATE_CLEAR.value,
+                    AdminApiLiveReadinessPrecondition.RECONCILIATION_PLAN.value,
+                    AdminApiLiveReadinessPrecondition.LIVE_EXECUTION_SERVICE.value,
+                    AdminApiLiveReadinessPrecondition.POST_LIVE_RECONCILIATION.value,
+                ],
+                (
+                    "Retry executor boundary evidence is now modeled as no-live "
+                    "backend readback. It names the missing executor contract "
+                    "and proves no retry runner, sweep runner, recovery, "
+                    "reconciliation, Coinbase order, or notional side effect ran."
+                ),
+            ),
+            (
                 AdminApiSpotAutomationControl.RECONCILIATION_EXECUTION,
                 "Reconciliation execution",
                 "sweep_reconciliation_execution_contract",
@@ -52932,6 +52979,13 @@ class AdminApiReadService:
             ),
         ]
         draft_control_contracts = {
+            AdminApiSpotAutomationControl.SCHEDULER,
+            AdminApiSpotAutomationControl.SCHEDULER_EXECUTOR,
+            AdminApiSpotAutomationControl.PAUSE_RESUME,
+            AdminApiSpotAutomationControl.RETRY_RECOVERY,
+            AdminApiSpotAutomationControl.RETRY_EXECUTOR,
+        }
+        operator_action_controls = {
             AdminApiSpotAutomationControl.SCHEDULER,
             AdminApiSpotAutomationControl.PAUSE_RESUME,
             AdminApiSpotAutomationControl.RETRY_RECOVERY,
@@ -52973,7 +53027,7 @@ class AdminApiReadService:
                 required_gate_chain=list(required_gates),
                 missing_contract=missing_contract,
                 backend_owned=True,
-                operator_action_available=control in draft_control_contracts,
+                operator_action_available=control in operator_action_controls,
                 browser_scheduler_authority=False,
                 browser_authority="display_only",
                 bff_authority="forward_only_no_execution",

@@ -12133,9 +12133,11 @@ components:
       type: string
       enum:
       - scheduler
+      - scheduler_executor
       - run_limit
       - pause_resume
       - retry_recovery
+      - retry_executor
       - reconciliation_execution
       - live_execution
       title: AdminApiSpotAutomationControl
