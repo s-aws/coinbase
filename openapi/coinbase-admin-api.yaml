@@ -334,6 +334,108 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/lifecycle/drain:
+    post:
+      tags:
+      - admin
+      summary: Drain runtime in-flight work through the backend controller
+      description: Enter draining mode and wait for tracked in-flight work.
+      operationId: admin_lifecycle_drain_api_v1_admin_lifecycle_drain_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminLifecycleCommandRequest'
+      responses:
+        '200':
+          description: Lifecycle command accepted or idempotently replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Lifecycle command rejected before runtime transition.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/session:
     get:
       tags:
@@ -98050,6 +98152,13 @@ components:
           anyOf:
           - $ref: '#/components/schemas/EngineState'
           - type: 'null'
+        timeout_seconds:
+          anyOf:
+          - type: number
+            maximum: 60.0
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Timeout Seconds
       additionalProperties: false
       type: object
       title: AdminLifecycleCommandRequest

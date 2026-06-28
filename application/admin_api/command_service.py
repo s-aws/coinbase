@@ -1308,6 +1308,28 @@ def hotpoint_test_order_response_to_dashboard_payload(
     return payload
 
 
+def runtime_lifecycle_service_method(action: AdminApiLifecycleAction) -> str:
+    if action == AdminApiLifecycleAction.PAUSE:
+        return "pause_runtime"
+    if action == AdminApiLifecycleAction.RESUME:
+        return "resume_runtime"
+    if action == AdminApiLifecycleAction.DRAIN:
+        return "drain_runtime"
+    raise ValueError(f"Unsupported runtime lifecycle action: {action.value}")
+
+
+def runtime_lifecycle_permission(
+    action: AdminApiLifecycleAction,
+) -> AdminApiPermission:
+    if action == AdminApiLifecycleAction.PAUSE:
+        return AdminApiPermission.RUNTIME_PAUSE
+    if action == AdminApiLifecycleAction.RESUME:
+        return AdminApiPermission.RUNTIME_RESUME
+    if action == AdminApiLifecycleAction.DRAIN:
+        return AdminApiPermission.RUNTIME_SHUTDOWN
+    raise ValueError(f"Unsupported runtime lifecycle action: {action.value}")
+
+
 class AdminApiCommandService:
     """Shared command-service boundary for enterprise API work."""
 
@@ -1350,6 +1372,24 @@ class AdminApiCommandService:
             idempotency_key=idempotency_key,
         )
 
+    def drain_runtime(
+        self,
+        command: AdminLifecycleCommandRequest,
+        *,
+        controller: RuntimeController | None = None,
+        correlation_id: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> AdminApiCommandResponse:
+        """Request runtime drain mode and wait for tracked in-flight work."""
+
+        return self._execute_runtime_lifecycle(
+            action=AdminApiLifecycleAction.DRAIN,
+            command=command,
+            controller=controller,
+            correlation_id=correlation_id,
+            idempotency_key=idempotency_key,
+        )
+
     def _execute_runtime_lifecycle(
         self,
         *,
@@ -1360,20 +1400,16 @@ class AdminApiCommandService:
         idempotency_key: str | None,
     ) -> AdminApiCommandResponse:
         controller = controller or self.dependencies.runtime_controller_factory()
-        service_method = (
-            "pause_runtime"
-            if action == AdminApiLifecycleAction.PAUSE
-            else "resume_runtime"
-        )
-        permission = (
-            AdminApiPermission.RUNTIME_PAUSE
-            if action == AdminApiLifecycleAction.PAUSE
-            else AdminApiPermission.RUNTIME_RESUME
-        )
+        service_method = runtime_lifecycle_service_method(action)
+        permission = runtime_lifecycle_permission(action)
         state_before = controller.state
         transition_performed = False
         rejected_stage: str | None = None
         message: str
+        timeout_seconds = command.timeout_seconds
+        drained_clean: bool | None = None
+        inflight_before = controller.inflight_snapshot()
+        inflight_at_timeout: dict[str, int] = {}
 
         if command.expected_state is not None and command.expected_state is not state_before:
             rejected_stage = "expected_state"
@@ -1393,7 +1429,7 @@ class AdminApiCommandService:
                     "Runtime pause rejected; pause is only valid from RUNNING "
                     f"or already PAUSED state, not {state_before.value}."
                 )
-        else:
+        elif action == AdminApiLifecycleAction.RESUME:
             if state_before == EngineState.PAUSED:
                 transition_performed = controller.resume()
                 message = "Runtime resume accepted; new order admission is running."
@@ -1405,8 +1441,62 @@ class AdminApiCommandService:
                     "Runtime resume rejected; resume is only valid from PAUSED "
                     f"or already RUNNING state, not {state_before.value}."
                 )
+        else:
+            timeout_seconds = timeout_seconds or 5.0
+            if state_before == EngineState.STOPPED:
+                drained_clean = controller.total_inflight() == 0
+                message = "Runtime drain accepted; engine was already stopped."
+            else:
+                transition_performed = controller.request_shutdown()
+                drained_clean = controller.wait_drain(timeout_seconds)
+                if drained_clean:
+                    message = (
+                        "Runtime drain accepted; engine is draining and tracked "
+                        "in-flight work completed."
+                    )
+                else:
+                    rejected_stage = "drain_timeout"
+                    inflight_at_timeout = controller.inflight_snapshot()
+                    message = (
+                        "Runtime drain timed out; engine remains in draining "
+                        "state with tracked in-flight work remaining."
+                    )
 
         state_after = controller.state
+        data = {
+            "action": action.value,
+            "reason": command.reason,
+            "expected_state": (
+                command.expected_state.value
+                if command.expected_state is not None
+                else None
+            ),
+            "state_before": state_before.value,
+            "state_after": state_after.value,
+            "transition_performed": transition_performed,
+            "inflight": controller.inflight_snapshot(),
+            "inflight_before": inflight_before,
+            "runtime_controller_source": (
+                "core/runtime_controller.py::RuntimeController"
+            ),
+            "dashboard_websocket_fallback_allowed": False,
+            "browser_authority": "display_only",
+            "bff_execution_authority": "forward_only_no_execution",
+            "live_coinbase_execution": AdminApiLiveExecutionStatus.NOT_RUN.value,
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
+        }
+        if action == AdminApiLifecycleAction.DRAIN:
+            data.update(
+                {
+                    "timeout_seconds": timeout_seconds,
+                    "drained_clean": drained_clean,
+                    "inflight_at_timeout": inflight_at_timeout,
+                    "stop_hooks_invoked": False,
+                    "runtime_marked_stopped": False,
+                }
+            )
+
         return AdminApiCommandResponse(
             status=(
                 AdminApiCommandStatus.REJECTED
@@ -1420,28 +1510,7 @@ class AdminApiCommandService:
             correlation_id=correlation_id,
             idempotency_key=idempotency_key,
             live_exchange_submitted=False,
-            data={
-                "action": action.value,
-                "reason": command.reason,
-                "expected_state": (
-                    command.expected_state.value
-                    if command.expected_state is not None
-                    else None
-                ),
-                "state_before": state_before.value,
-                "state_after": state_after.value,
-                "transition_performed": transition_performed,
-                "inflight": controller.inflight_snapshot(),
-                "runtime_controller_source": (
-                    "core/runtime_controller.py::RuntimeController"
-                ),
-                "dashboard_websocket_fallback_allowed": False,
-                "browser_authority": "display_only",
-                "bff_execution_authority": "forward_only_no_execution",
-                "live_coinbase_execution": AdminApiLiveExecutionStatus.NOT_RUN.value,
-                "submitted_notional_usdc": "0",
-                "executed_notional_usdc": "0",
-            },
+            data=data,
             failure_stage=rejected_stage,
         )
 

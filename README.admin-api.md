@@ -116,10 +116,10 @@ Enterprise-readiness evidence also includes structured per-module
 modeled, and live-disabled command paths are visible without relying on
 free-form unsupported-action strings. The same readiness payload now includes
 `lifecycle_support` rows for `status`, `start`, `stop`, `pause`, `resume`,
-and `drain`: `status` is displayable through backend health, `pause` and
-`resume` are backend-owned Admin API runtime commands, `start` is
-`unsupported`, and `stop`/`drain` remain `not_modeled` until enterprise Admin
-API command contracts exist. Lifecycle support does not call dashboard
+and `drain`: `status` is displayable through backend health, `pause`,
+`resume`, and `drain` are backend-owned Admin API runtime commands, `start`
+is `unsupported`, and `stop` remains `not_modeled` until an enterprise Admin
+API command contract exists. Lifecycle support does not call dashboard
 WebSockets, run process helpers, grant BFF process authority, or call
 Coinbase. The readiness payload also
 includes M48 `mutation_taxonomy` rows and aggregate counts. Each row maps a command
@@ -1950,12 +1950,15 @@ margin, approval, audit, cap, or reconciliation gates.
 
 The same response exposes `lifecycle_support` evidence for Admin/System Health
 actions. Current counts are six lifecycle rows: three backend-supported rows,
-two `not_modeled` commands, and one `unsupported` command. `status` links to
-`GET /api/v1/admin/health`; `pause` and `resume` link to
-`POST /api/v1/admin/lifecycle/pause` and
-`POST /api/v1/admin/lifecycle/resume`. Lifecycle support does not authorize
-route-local process control, dashboard WebSocket fallback, BFF process
-authority, shell helpers, or Coinbase calls.
+one `not_modeled` command, and one `unsupported` command. `status` links to
+`GET /api/v1/admin/health`; `pause`, `resume`, and `drain` link to
+`POST /api/v1/admin/lifecycle/pause`,
+`POST /api/v1/admin/lifecycle/resume`, and
+`POST /api/v1/admin/lifecycle/drain`. Drain enters draining mode and waits
+for tracked in-flight work, but does not invoke stop hooks or mark the runtime
+stopped. Lifecycle support does not authorize route-local process control,
+dashboard WebSocket fallback, BFF process authority, shell helpers, or
+Coinbase calls.
 
 `GET /api/v1/admin/settings-policy-map` exposes the backend-owned settings
 and policy classification consumed by the enterprise Settings page. It reports

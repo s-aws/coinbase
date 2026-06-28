@@ -2705,6 +2705,7 @@ class AdminLifecycleCommandRequest(BaseModel):
 
     reason: str = Field(default="operator_lifecycle_control", min_length=1)
     expected_state: EngineState | None = None
+    timeout_seconds: float | None = Field(default=None, gt=0, le=60)
 
 
 class AdminEnterpriseFunctionalityInventoryItem(BaseModel):

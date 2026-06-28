@@ -44,7 +44,7 @@ The current generated route inventory
 
 | Module | Route count | Release reading |
 | --- | ---: | --- |
-| `admin_system_health` | 36 | Health, session, account/market inventory coverage, approval, admission audit, cap/guard, reconciliation, live-execution decision, settings/policy map, readiness, release-gate evidence, and backend-owned lifecycle pause/resume routes exist. Lifecycle start remains unsupported; stop/drain are not modeled as backend routes. |
+| `admin_system_health` | 37 | Health, session, account/market inventory coverage, approval, admission audit, cap/guard, reconciliation, live-execution decision, settings/policy map, readiness, release-gate evidence, and backend-owned lifecycle pause/resume/drain routes exist. Lifecycle start remains unsupported; stop is not modeled as a backend route. |
 | `spot_operations` | 26 | Spot reads, command-suite evidence, order read/cancel/place routes, campaign/sweep routes, recovery, P/L checkpoint, and audit routes exist. Command routes are still live-disabled unless backend gates explicitly pass. |
 | `stealth_orders` | 38 | Stealth reads and many proof/record routes exist. Create/reveal/move/cancel/recovery/reconciliation routes are present but remain blocked by exchange-reality and live-disabled gates. |
 | `futures_perpetuals` | 11 | Account, position, command-suite, risk-proof, order, cancel, close/reduce, and reconciliation route contracts exist. Command execution remains disabled evidence, not usable live trading. |
@@ -57,7 +57,7 @@ The current generated route inventory
 
 | Release area | Backend route evidence | Frontend surface | Status | Release gap | Next slice |
 | --- | --- | --- | --- | --- | --- |
-| Admin shell | `/api/v1/admin/bootstrap`, `/health`, `/session`, `/capabilities`, `/live-enablement`, `/settings-policy-map`, `/enterprise-readiness`, `/release-gate`, `/lifecycle/pause`, `/lifecycle/resume` | Overview, Lifecycle, Modules, Settings, Admin Evidence | `usable` | Read posture, lifecycle classification, backend-owned settings/policy visibility, and backend-owned pause/resume controls are usable. Start remains `unsupported`; stop/drain remain `not_modeled`. | Keep lifecycle and settings controls limited to backend-owned routes and move next release work to the highest-impact remaining blocked workflow. |
+| Admin shell | `/api/v1/admin/bootstrap`, `/health`, `/session`, `/capabilities`, `/live-enablement`, `/settings-policy-map`, `/enterprise-readiness`, `/release-gate`, `/lifecycle/pause`, `/lifecycle/resume`, `/lifecycle/drain` | Overview, Lifecycle, Modules, Settings, Admin Evidence | `usable` | Read posture, lifecycle classification, backend-owned settings/policy visibility, and backend-owned pause/resume/drain controls are usable. Start remains `unsupported`; stop remains `not_modeled`. | Keep lifecycle and settings controls limited to backend-owned routes and move next release work to the highest-impact remaining blocked workflow. |
 | Account inventory | `/api/v1/admin/account-market-inventory`, `/api/v1/orders`, `/api/v1/orders/{client_order_id}`, `/api/v1/futures/account`, `/api/v1/futures/positions`, spot readiness/cost-basis/sweep/campaign reads | Inventory, Orders, Spot Operations, Futures/Perpetuals | `ready_with_data_gate` | First-class coverage exists for product catalog, spot wallets, spot balances, and spot fills. Coinbase reads are backend-only, bounded, and disabled unless explicitly enabled, so the frontend must render `data_status` instead of inventing browser reads. | Keep the frontend display-only, surface blocked data clearly, and use this route as the account/market source of truth. |
 | Spot commands | `/api/v1/orders`, `/api/v1/orders/{client_order_id}/cancel`, `/api/v1/spot/command-suite`, `/api/v1/spot/direct-orders/{client_order_id}/audit`, `/api/v1/spot/campaign/executions`, `/api/v1/spot/sweep/automation-runs` | Command Workflows, Spot Operations, Campaigns | `blocked` | Command routes exist, `GET /api/v1/spot/command-suite` exposes Buy/Sell/Cancel readiness, and manual order/cancel route adapters now pass backend admission decisions into the shared command-service `allow_live_execution` flag. Manual order admission can pass when exact backend approval, admission-audit, cap/guard, reconciliation, manual acknowledgement, and completed live-service evidence all match. The manual-order route now has a route-scoped configured backend live-service dependency that can reach the existing command-service live branch when backend env/config/event-stream gates pass; default runtime remains blocked. Cancel now has explicit `manual_live_acknowledgement`, a route-scoped configured backend live-service dependency, and a service-level acknowledgement guard before it reaches the existing `cancel_order(client_order_id)` wrapper. Accepted configured live manual BUY responses now expose `data.post_submit_reconciliation` with the direct-order audit route and no-mutation/no-browser/BFF-authority flags, and the frontend command workflow renders/links that handoff. The frontend Spot Operations panel can load the returned `client_order_id` through `GET /api/v1/spot/direct-orders/{client_order_id}/audit` for read-only inspection. Capped live validation for one manual Spot BUY now proves Admin API order submission, read-only Coinbase fill lookup, fill-ledger backfill, and Admin API direct-order audit readback with `dashboard_dependency=false`. Admin API manual-order dependencies now source planned budget from durable `stealth_orders` rows and spot SELL lot authority from the shared fill ledger/imported baselines through `ActionConditionGuard`. No-live operator-facing SELL validation now runs through `tools/run_admin_api_manual_spot_sell_validation.py`, reaches the existing `POST /api/v1/orders` route and shared command service with fake REST, and reports live Coinbase execution not run with submitted/executed notional `0`. | Continue Release 0.1 closeout work through operator runbook/docs index/autonomous validator/contextless review; do not add browser/BFF authority or a second SELL path. |
 | Stealth commands | `/api/v1/stealth/orders`, reveal, move, cancel, recovery, reconciliation, command suite, proof routes | Stealth Orders, Command Workflows | `blocked` | Evidence is rich, but operator completion is blocked by exchange-reality, lifecycle-write, live-disabled, and reconciliation gates. | Surface every stealth command as usable or blocked by exact gate; do not add hide-again shortcuts. |
@@ -113,15 +113,15 @@ What this clears:
 classification for `status`, `start`, `stop`, `pause`, `resume`, and `drain`.
 The frontend Admin Lifecycle Support panel consumes those rows from the
 generated OpenAPI contract and renders backend-owned controls only for
-supported pause/resume routes.
+supported pause/resume/drain routes.
 
 What this clears:
 
 - Lifecycle status is displayable through existing backend health evidence.
-- `pause` and `resume` are explicit backend-owned Admin API command routes.
+- `pause`, `resume`, and `drain` are explicit backend-owned Admin API command routes.
 - `start` is explicitly `unsupported`.
-- `stop` and `drain` are explicit `not_modeled` backend contract gaps instead
-  of missing UI.
+- `stop` is an explicit `not_modeled` backend contract gap instead of missing
+  UI.
 - No route-local lifecycle execution, dashboard WebSocket bridge, browser/BFF
   process authority, shell helper, or Coinbase call was added.
 

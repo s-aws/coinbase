@@ -16,7 +16,7 @@ or not modeled before the frontend can show any lifecycle controls.
 | `stop` | `not_modeled` | `RuntimeController.drain_and_stop` exists internally, but no enterprise Admin API route models authorization, audit, operator intent, timeout, or result evidence. |
 | `pause` | `platform_ready` | `POST /api/v1/admin/lifecycle/pause` models authorization, RBAC, idempotency, operator intent, audit, expected-state checks, and `RuntimeController.request_pause`. |
 | `resume` | `platform_ready` | `POST /api/v1/admin/lifecycle/resume` models authorization, RBAC, idempotency, operator intent, audit, expected-state checks, and `RuntimeController.resume`. |
-| `drain` | `not_modeled` | `RuntimeController.wait_drain` exists internally, but no enterprise Admin API route models drain request, timeout, audit, or result evidence. |
+| `drain` | `platform_ready` | `POST /api/v1/admin/lifecycle/drain` models authorization, RBAC, idempotency, operator intent, timeout, audit, `RuntimeController.request_shutdown`, and `RuntimeController.wait_drain` without marking the runtime stopped. |
 
 ## Non-Authority Rules
 
@@ -26,6 +26,8 @@ or not modeled before the frontend can show any lifecycle controls.
   intent, audit, idempotency, and result evidence.
 - Do not mark lifecycle behavior supported because an internal
   `RuntimeController` method exists.
+- Do not treat drain as stop. Drain enters draining mode and waits for tracked
+  in-flight work; it does not invoke stop hooks or mark `STOPPED`.
 - Do not call Coinbase or submit/cancel orders from lifecycle support
   classification.
 

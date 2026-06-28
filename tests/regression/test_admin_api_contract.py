@@ -3455,6 +3455,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "/api/v1/admin/health" in written["paths"]
     assert "/api/v1/admin/lifecycle/pause" in written["paths"]
     assert "/api/v1/admin/lifecycle/resume" in written["paths"]
+    assert "/api/v1/admin/lifecycle/drain" in written["paths"]
     assert "/api/v1/admin/session" in written["paths"]
     assert "/api/v1/admin/oidc-readiness" in written["paths"]
     assert "/api/v1/admin/capabilities" in written["paths"]
@@ -44368,6 +44369,74 @@ def test_admin_api_lifecycle_pause_and_resume_use_runtime_controller(monkeypatch
 
 
 @pytest.mark.regression
+def test_admin_api_lifecycle_drain_uses_runtime_controller_without_stopping(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    runtime_controller = client.admin_api_test_runtime_controller
+    runtime_controller._reset_for_tests()
+
+    drain_response = client.post(
+        "/api/v1/admin/lifecycle/drain",
+        headers=_headers(
+            idempotency_key="lifecycle-drain-001",
+            operator_intent="drain_before_operator_shutdown",
+            roles=AdminApiRole.EMERGENCY.value,
+        ),
+        json={
+            "reason": "operator drain before maintenance",
+            "expected_state": EngineState.RUNNING.value,
+            "timeout_seconds": 0.25,
+        },
+    )
+
+    assert drain_response.status_code == 200
+    drain_payload = drain_response.json()
+    assert drain_payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert drain_payload["action_class"] == AdminApiActionClass.ADMIN_RUNTIME.value
+    assert drain_payload["required_permission"] == (
+        AdminApiPermission.RUNTIME_SHUTDOWN.value
+    )
+    assert drain_payload["service_method"] == "drain_runtime"
+    assert drain_payload["live_exchange_submitted"] is False
+    assert drain_payload["data"]["action"] == AdminApiLifecycleAction.DRAIN.value
+    assert drain_payload["data"]["state_before"] == EngineState.RUNNING.value
+    assert drain_payload["data"]["state_after"] == EngineState.DRAINING.value
+    assert drain_payload["data"]["transition_performed"] is True
+    assert drain_payload["data"]["timeout_seconds"] == 0.25
+    assert drain_payload["data"]["drained_clean"] is True
+    assert drain_payload["data"]["inflight_at_timeout"] == {}
+    assert drain_payload["data"]["dashboard_websocket_fallback_allowed"] is False
+    assert drain_payload["data"]["live_coinbase_execution"] == (
+        AdminApiLiveExecutionStatus.NOT_RUN.value
+    )
+    assert runtime_controller.state == EngineState.DRAINING
+
+    replay_response = client.post(
+        "/api/v1/admin/lifecycle/drain",
+        headers=_headers(
+            idempotency_key="lifecycle-drain-001",
+            operator_intent="drain_before_operator_shutdown",
+            roles=AdminApiRole.EMERGENCY.value,
+        ),
+        json={
+            "reason": "operator drain before maintenance",
+            "expected_state": EngineState.RUNNING.value,
+            "timeout_seconds": 0.25,
+        },
+    )
+
+    assert replay_response.status_code == 200
+    assert replay_response.headers["X-Idempotency-Replayed"] == "true"
+    assert replay_response.json()["data"]["transition_performed"] is True
+    assert runtime_controller.state == EngineState.DRAINING
+
+    audit_events = client.admin_api_test_audit_store.read_recent(limit=10)
+    endpoints = {event.endpoint for event in audit_events}
+    assert "POST /api/v1/admin/lifecycle/drain" in endpoints
+
+
+@pytest.mark.regression
 def test_admin_api_lifecycle_pause_rejects_viewer_and_expected_state_mismatch(
     monkeypatch,
 ):
@@ -44408,6 +44477,19 @@ def test_admin_api_lifecycle_pause_rejects_viewer_and_expected_state_mismatch(
     assert mismatch_payload["data"]["state_before"] == EngineState.RUNNING.value
     assert mismatch_payload["data"]["state_after"] == EngineState.RUNNING.value
     assert mismatch_payload["data"]["transition_performed"] is False
+    assert runtime_controller.state == EngineState.RUNNING
+
+    operator_drain_response = client.post(
+        "/api/v1/admin/lifecycle/drain",
+        headers=_headers(
+            idempotency_key="lifecycle-drain-operator",
+            operator_intent="operator_cannot_drain",
+            roles=AdminApiRole.OPERATOR.value,
+        ),
+        json={"reason": "operator should not drain runtime"},
+    )
+
+    assert operator_drain_response.status_code == 403
     assert runtime_controller.state == EngineState.RUNNING
 
 
@@ -45964,11 +46046,13 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert runtime_lifecycle_taxonomy["command_surfaces"] == [
         "POST /api/v1/admin/lifecycle/pause",
         "POST /api/v1/admin/lifecycle/resume",
+        "POST /api/v1/admin/lifecycle/drain",
     ]
-    assert runtime_lifecycle_taxonomy["action_classes"] == ["admin_runtime"] * 2
+    assert runtime_lifecycle_taxonomy["action_classes"] == ["admin_runtime"] * 3
     assert runtime_lifecycle_taxonomy["required_permissions"] == [
         "runtime:pause",
         "runtime:resume",
+        "runtime:shutdown",
     ]
     assert runtime_lifecycle_taxonomy["approval_required"] is False
     assert runtime_lifecycle_taxonomy["cap_guard_required"] is False
@@ -46260,13 +46344,13 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "GET /api/v1/admin/settings-policy-map" in admin_module["read_routes"]
     assert "POST /api/v1/admin/approvals/requests" in admin_module["command_routes"]
     assert admin_module["action_posture"]["read_route_count"] == 26
-    assert admin_module["action_posture"]["command_route_count"] == 10
+    assert admin_module["action_posture"]["command_route_count"] == 11
     lifecycle_rows = {
         item["action"]: item for item in enterprise_payload["lifecycle_support"]
     }
     assert enterprise_payload["lifecycle_support_count"] == 6
-    assert enterprise_payload["lifecycle_supported_read_count"] == 3
-    assert enterprise_payload["lifecycle_not_modeled_count"] == 2
+    assert enterprise_payload["lifecycle_supported_read_count"] == 4
+    assert enterprise_payload["lifecycle_not_modeled_count"] == 1
     assert enterprise_payload["lifecycle_unsupported_count"] == 1
     assert set(lifecycle_rows) == {
         AdminApiLifecycleAction.STATUS.value,
@@ -46353,21 +46437,37 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "dashboard admin_resume"
         in lifecycle_rows[AdminApiLifecycleAction.RESUME.value]["frontend_boundary"]
     )
-    for action in (
-        AdminApiLifecycleAction.STOP,
-        AdminApiLifecycleAction.DRAIN,
-    ):
-        lifecycle_row = lifecycle_rows[action.value]
-        assert lifecycle_row["support_status"] == (
-            AdminApiModuleSupportStatus.NOT_MODELED.value
-        )
-        assert lifecycle_row["supported_route"] is None
-        assert lifecycle_row["supported_method"] is None
-        assert lifecycle_row["dashboard_websocket_fallback_allowed"] is False
-        assert lifecycle_row["browser_authority"] == "display_only"
-        assert lifecycle_row["bff_execution_authority"] == "forward_only_no_execution"
-        assert lifecycle_row["live_coinbase_execution"] == "not_run"
-        assert lifecycle_row["notional_usdc"] == "0"
+    assert lifecycle_rows[AdminApiLifecycleAction.DRAIN.value]["support_status"] == (
+        AdminApiModuleSupportStatus.PLATFORM_READY.value
+    )
+    assert lifecycle_rows[AdminApiLifecycleAction.DRAIN.value]["supported_route"] == (
+        "/api/v1/admin/lifecycle/drain"
+    )
+    assert lifecycle_rows[AdminApiLifecycleAction.DRAIN.value]["supported_method"] == (
+        "POST"
+    )
+    assert "api/v1/routes/admin.py::admin_lifecycle_drain" in lifecycle_rows[
+        AdminApiLifecycleAction.DRAIN.value
+    ]["backend_contract_refs"]
+    assert (
+        "application/admin_api/command_service.py::AdminApiCommandService.drain_runtime"
+        in lifecycle_rows[AdminApiLifecycleAction.DRAIN.value]["backend_contract_refs"]
+    )
+    assert (
+        "dashboard admin_shutdown"
+        in lifecycle_rows[AdminApiLifecycleAction.DRAIN.value]["frontend_boundary"]
+    )
+    lifecycle_row = lifecycle_rows[AdminApiLifecycleAction.STOP.value]
+    assert lifecycle_row["support_status"] == (
+        AdminApiModuleSupportStatus.NOT_MODELED.value
+    )
+    assert lifecycle_row["supported_route"] is None
+    assert lifecycle_row["supported_method"] is None
+    assert lifecycle_row["dashboard_websocket_fallback_allowed"] is False
+    assert lifecycle_row["browser_authority"] == "display_only"
+    assert lifecycle_row["bff_execution_authority"] == "forward_only_no_execution"
+    assert lifecycle_row["live_coinbase_execution"] == "not_run"
+    assert lifecycle_row["notional_usdc"] == "0"
     assert registry_by_id["guard_risk_policy"]["read_routes"] == [
         "GET /api/v1/admin/guard-risk-policy"
     ]
@@ -58993,6 +59093,16 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert resume_route.audit == "required"
     assert "RuntimeController.resume" in resume_route.parity_test
     assert "Coinbase execution" in resume_route.parity_test
+    drain_route = rows["POST /api/v1/admin/lifecycle/drain"]
+    assert drain_route.shared_method == "drain_runtime"
+    assert hasattr(AdminApiCommandService, drain_route.shared_method)
+    assert drain_route.action_class == AdminApiActionClass.ADMIN_RUNTIME
+    assert drain_route.permission == AdminApiPermission.RUNTIME_SHUTDOWN
+    assert drain_route.idempotency == "required"
+    assert drain_route.audit == "required"
+    assert "RuntimeController.request_shutdown" in drain_route.parity_test
+    assert "wait_drain" in drain_route.parity_test
+    assert "Coinbase execution" in drain_route.parity_test
     assert rows["POST /api/v1/spot/campaign/executions"].shared_method == (
         "execute_spot_campaign"
     )

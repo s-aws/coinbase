@@ -14,7 +14,11 @@ from application.admin_api.auth import (
     get_authenticated_actor,
     require_permission,
 )
-from application.admin_api.command_service import AdminApiCommandService
+from application.admin_api.command_service import (
+    AdminApiCommandService,
+    runtime_lifecycle_permission,
+    runtime_lifecycle_service_method,
+)
 from application.admin_api.idempotency import FileIdempotencyStore, IdempotencyRecord, make_payload_hash
 from application.admin_api.models import (
     AdminAccountMarketInventoryResponse,
@@ -174,16 +178,8 @@ def _execute_lifecycle_command(
     service: AdminApiCommandService,
 ) -> JSONResponse:
     endpoint = f"{request.method} {request.url.path}"
-    permission = (
-        AdminApiPermission.RUNTIME_PAUSE
-        if action == AdminApiLifecycleAction.PAUSE
-        else AdminApiPermission.RUNTIME_RESUME
-    )
-    service_method = (
-        "pause_runtime"
-        if action == AdminApiLifecycleAction.PAUSE
-        else "resume_runtime"
-    )
+    permission = runtime_lifecycle_permission(action)
+    service_method = runtime_lifecycle_service_method(action)
     require_permission(actor, permission)
     payload_hash = make_payload_hash(
         {
@@ -223,11 +219,7 @@ def _execute_lifecycle_command(
         )
         return _command_response(response)
 
-    service_command = (
-        service.pause_runtime
-        if action == AdminApiLifecycleAction.PAUSE
-        else service.resume_runtime
-    )
+    service_command = getattr(service, service_method)
     response = service_command(
         body,
         controller=controller,
@@ -355,6 +347,45 @@ def admin_lifecycle_resume(
 
     return _execute_lifecycle_command(
         action=AdminApiLifecycleAction.RESUME,
+        request=request,
+        body=body,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        controller=controller,
+        service=service,
+    )
+
+
+@router.post(
+    "/admin/lifecycle/drain",
+    response_model=AdminApiCommandResponse,
+    status_code=status.HTTP_200_OK,
+    responses=COMMAND_ROUTE_RESPONSES,
+    summary="Drain runtime in-flight work through the backend controller",
+)
+def admin_lifecycle_drain(
+    request: Request,
+    body: AdminLifecycleCommandRequest,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    idempotency_store: Annotated[
+        FileIdempotencyStore,
+        Depends(get_idempotency_store),
+    ],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    controller: Annotated[RuntimeController, Depends(get_runtime_controller)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+) -> JSONResponse:
+    """Enter draining mode and wait for tracked in-flight work."""
+
+    return _execute_lifecycle_command(
+        action=AdminApiLifecycleAction.DRAIN,
         request=request,
         body=body,
         idempotency_key=idempotency_key,

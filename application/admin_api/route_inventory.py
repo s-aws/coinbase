@@ -60,6 +60,23 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         ),
     ),
     AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
+        surface="POST /api/v1/admin/lifecycle/drain",
+        action_class=AdminApiActionClass.ADMIN_RUNTIME,
+        permission=AdminApiPermission.RUNTIME_SHUTDOWN,
+        idempotency="required",
+        approval="not required for bounded runtime drain",
+        caps="not applicable",
+        audit="required",
+        shared_method="drain_runtime",
+        parity_test=(
+            "calls RuntimeController.request_shutdown and wait_drain through "
+            "Admin API auth, idempotency, operator-intent, timeout, and audit; "
+            "does not invoke stop hooks, mark STOPPED, use dashboard WebSocket "
+            "fallback, or run Coinbase execution"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
         module_id="spot_operations",
         surface="GET /api/v1/orders",
         action_class=AdminApiActionClass.READ_ONLY,
