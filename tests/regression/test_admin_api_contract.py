@@ -34130,6 +34130,19 @@ def test_admin_api_campaign_execution_contract_is_not_implemented_and_not_live(
     )
     assert payload["data"]["campaign_id"] == "usdc-sweep-001"
     assert payload["data"]["product_count"] == 2
+    assert payload["data"]["dry_run_review_accepted"] is False
+    assert payload["data"]["live_execution_requested"] is True
+    assert payload["data"]["campaign_runner_invoked"] is False
+    assert payload["data"]["sweep_runner_invoked"] is False
+    assert payload["data"]["scheduler_invoked"] is False
+    assert payload["data"]["coinbase_orders_submitted"] is False
+    assert payload["data"]["browser_authority"] == "display_only"
+    assert payload["data"]["bff_authority"] == "forward_only_no_execution"
+    assert payload["data"]["live_coinbase_execution"] == (
+        AdminApiLiveExecutionStatus.NOT_RUN.value
+    )
+    assert payload["data"]["submitted_notional_usdc"] == "0"
+    assert payload["data"]["executed_notional_usdc"] == "0"
     assert payload["audit_id"]
 
 
@@ -34227,7 +34240,18 @@ def test_admin_api_spot_sweep_automation_contract_is_not_implemented_and_not_liv
         AdminApiPermission.SPOT_SWEEP_EXECUTE.value
     )
     assert payload["data"]["sweep_config_id"] == "spot-sweep-usdc-hourly"
+    assert payload["data"]["dry_run_review_accepted"] is False
+    assert payload["data"]["live_execution_requested"] is True
+    assert payload["data"]["scheduler_invoked"] is False
     assert payload["data"]["sweep_runner_invoked"] is False
+    assert payload["data"]["coinbase_orders_submitted"] is False
+    assert payload["data"]["browser_authority"] == "display_only"
+    assert payload["data"]["bff_authority"] == "forward_only_no_execution"
+    assert payload["data"]["live_coinbase_execution"] == (
+        AdminApiLiveExecutionStatus.NOT_RUN.value
+    )
+    assert payload["data"]["submitted_notional_usdc"] == "0"
+    assert payload["data"]["executed_notional_usdc"] == "0"
     assert payload["audit_id"]
 
 

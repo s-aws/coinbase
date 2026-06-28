@@ -2475,10 +2475,23 @@ class AdminApiCommandService:
                 "campaign_id": command.request.campaign_id,
                 "side": command.request.side.value,
                 "dry_run": command.request.dry_run,
+                "dry_run_review_accepted": False,
+                "live_execution_requested": True,
                 "product_count": len(command.request.product_ids or []),
                 "manual_live_acknowledgement": (
                     command.request.manual_live_acknowledgement
                 ),
+                "campaign_runner_invoked": False,
+                "sweep_runner_invoked": False,
+                "scheduler_invoked": False,
+                "coinbase_orders_submitted": False,
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                "live_coinbase_execution": (
+                    AdminApiLiveExecutionStatus.NOT_RUN.value
+                ),
+                "submitted_notional_usdc": "0",
+                "executed_notional_usdc": "0",
             },
             failure_stage="approval",
         )
@@ -2571,7 +2584,18 @@ class AdminApiCommandService:
                 "manual_live_acknowledgement": (
                     command.request.manual_live_acknowledgement
                 ),
+                "dry_run_review_accepted": False,
+                "live_execution_requested": True,
+                "scheduler_invoked": False,
                 "sweep_runner_invoked": False,
+                "coinbase_orders_submitted": False,
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                "live_coinbase_execution": (
+                    AdminApiLiveExecutionStatus.NOT_RUN.value
+                ),
+                "submitted_notional_usdc": "0",
+                "executed_notional_usdc": "0",
             },
             failure_stage="approval",
         )
