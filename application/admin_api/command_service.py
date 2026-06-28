@@ -1315,6 +1315,8 @@ def runtime_lifecycle_service_method(action: AdminApiLifecycleAction) -> str:
         return "resume_runtime"
     if action == AdminApiLifecycleAction.DRAIN:
         return "drain_runtime"
+    if action == AdminApiLifecycleAction.STOP:
+        return "stop_runtime"
     raise ValueError(f"Unsupported runtime lifecycle action: {action.value}")
 
 
@@ -1326,6 +1328,8 @@ def runtime_lifecycle_permission(
     if action == AdminApiLifecycleAction.RESUME:
         return AdminApiPermission.RUNTIME_RESUME
     if action == AdminApiLifecycleAction.DRAIN:
+        return AdminApiPermission.RUNTIME_SHUTDOWN
+    if action == AdminApiLifecycleAction.STOP:
         return AdminApiPermission.RUNTIME_SHUTDOWN
     raise ValueError(f"Unsupported runtime lifecycle action: {action.value}")
 
@@ -1390,6 +1394,24 @@ class AdminApiCommandService:
             idempotency_key=idempotency_key,
         )
 
+    def stop_runtime(
+        self,
+        command: AdminLifecycleCommandRequest,
+        *,
+        controller: RuntimeController | None = None,
+        correlation_id: str | None = None,
+        idempotency_key: str | None = None,
+    ) -> AdminApiCommandResponse:
+        """Drain and stop the runtime through the shared controller."""
+
+        return self._execute_runtime_lifecycle(
+            action=AdminApiLifecycleAction.STOP,
+            command=command,
+            controller=controller,
+            correlation_id=correlation_id,
+            idempotency_key=idempotency_key,
+        )
+
     def _execute_runtime_lifecycle(
         self,
         *,
@@ -1408,6 +1430,7 @@ class AdminApiCommandService:
         message: str
         timeout_seconds = command.timeout_seconds
         drained_clean: bool | None = None
+        duration_seconds: float | None = None
         inflight_before = controller.inflight_snapshot()
         inflight_at_timeout: dict[str, int] = {}
 
@@ -1441,7 +1464,7 @@ class AdminApiCommandService:
                     "Runtime resume rejected; resume is only valid from PAUSED "
                     f"or already RUNNING state, not {state_before.value}."
                 )
-        else:
+        elif action == AdminApiLifecycleAction.DRAIN:
             timeout_seconds = timeout_seconds or 5.0
             if state_before == EngineState.STOPPED:
                 drained_clean = controller.total_inflight() == 0
@@ -1461,6 +1484,30 @@ class AdminApiCommandService:
                         "Runtime drain timed out; engine remains in draining "
                         "state with tracked in-flight work remaining."
                     )
+        elif action == AdminApiLifecycleAction.STOP:
+            timeout_seconds = timeout_seconds or 5.0
+            if state_before == EngineState.STOPPED:
+                drained_clean = controller.total_inflight() == 0
+                message = "Runtime stop accepted; engine was already stopped."
+            else:
+                result = controller.drain_and_stop(timeout_seconds)
+                transition_performed = True
+                drained_clean = result.drained_clean
+                inflight_at_timeout = result.inflight_at_timeout
+                duration_seconds = result.duration_seconds
+                if drained_clean:
+                    message = (
+                        "Runtime stop accepted; engine drained cleanly and "
+                        "is marked stopped."
+                    )
+                else:
+                    message = (
+                        "Runtime stop accepted with drain timeout; engine is "
+                        "marked stopped with tracked in-flight work remaining "
+                        "at timeout."
+                    )
+        else:
+            raise ValueError(f"Unsupported runtime lifecycle action: {action.value}")
 
         state_after = controller.state
         data = {
@@ -1490,10 +1537,25 @@ class AdminApiCommandService:
             data.update(
                 {
                     "timeout_seconds": timeout_seconds,
+                    "duration_seconds": duration_seconds,
                     "drained_clean": drained_clean,
                     "inflight_at_timeout": inflight_at_timeout,
                     "stop_hooks_invoked": False,
                     "runtime_marked_stopped": False,
+                }
+            )
+        if action == AdminApiLifecycleAction.STOP:
+            data.update(
+                {
+                    "timeout_seconds": timeout_seconds,
+                    "duration_seconds": duration_seconds,
+                    "drained_clean": drained_clean,
+                    "inflight_at_timeout": inflight_at_timeout,
+                    "stop_hooks_invoked": state_before != EngineState.STOPPED,
+                    "runtime_marked_stopped": state_after == EngineState.STOPPED,
+                    "runtime_stop_semantics": "runtime_terminal_state_only",
+                    "active_coinbase_orders_cancelled": False,
+                    "drain_timeout": drained_clean is False,
                 }
             )
 

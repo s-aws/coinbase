@@ -399,6 +399,45 @@ def admin_lifecycle_drain(
     )
 
 
+@router.post(
+    "/admin/lifecycle/stop",
+    response_model=AdminApiCommandResponse,
+    status_code=status.HTTP_200_OK,
+    responses=COMMAND_ROUTE_RESPONSES,
+    summary="Drain and stop the runtime through the backend controller",
+)
+def admin_lifecycle_stop(
+    request: Request,
+    body: AdminLifecycleCommandRequest,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    idempotency_store: Annotated[
+        FileIdempotencyStore,
+        Depends(get_idempotency_store),
+    ],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    controller: Annotated[RuntimeController, Depends(get_runtime_controller)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+) -> JSONResponse:
+    """Drain and stop the runtime without dashboard fallback or Coinbase calls."""
+
+    return _execute_lifecycle_command(
+        action=AdminApiLifecycleAction.STOP,
+        request=request,
+        body=body,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        controller=controller,
+        service=service,
+    )
+
+
 @router.get(
     "/admin/session",
     response_model=AdminSessionResponse,

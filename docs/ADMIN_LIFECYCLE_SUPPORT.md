@@ -13,7 +13,7 @@ or not modeled before the frontend can show any lifecycle controls.
 | --- | --- | --- |
 | `status` | `platform_ready` | Existing health/status evidence from `GET /api/v1/admin/health` and `RuntimeController.state`. |
 | `start` | `unsupported` | A running backend process cannot start the same process after it is stopped; this requires an external supervisor contract. |
-| `stop` | `not_modeled` | `RuntimeController.drain_and_stop` exists internally, but no enterprise Admin API route models authorization, audit, operator intent, timeout, or result evidence. |
+| `stop` | `platform_ready` | `POST /api/v1/admin/lifecycle/stop` models authorization, RBAC, idempotency, operator intent, timeout, audit, `RuntimeController.drain_and_stop`, stop-hook evidence, and `STOPPED` result evidence. |
 | `pause` | `platform_ready` | `POST /api/v1/admin/lifecycle/pause` models authorization, RBAC, idempotency, operator intent, audit, expected-state checks, and `RuntimeController.request_pause`. |
 | `resume` | `platform_ready` | `POST /api/v1/admin/lifecycle/resume` models authorization, RBAC, idempotency, operator intent, audit, expected-state checks, and `RuntimeController.resume`. |
 | `drain` | `platform_ready` | `POST /api/v1/admin/lifecycle/drain` models authorization, RBAC, idempotency, operator intent, timeout, audit, `RuntimeController.request_shutdown`, and `RuntimeController.wait_drain` without marking the runtime stopped. |
@@ -28,6 +28,10 @@ or not modeled before the frontend can show any lifecycle controls.
   `RuntimeController` method exists.
 - Do not treat drain as stop. Drain enters draining mode and waits for tracked
   in-flight work; it does not invoke stop hooks or mark `STOPPED`.
+- Do not treat stop as OS process supervision. Stop is a backend runtime
+  terminal-state command; external restart/start remains a supervisor concern.
+- Do not treat stop as exchange cleanup. It does not cancel active Coinbase
+  orders or execute reconciliation.
 - Do not call Coinbase or submit/cancel orders from lifecycle support
   classification.
 

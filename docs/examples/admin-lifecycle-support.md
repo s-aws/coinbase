@@ -14,8 +14,8 @@ Relevant lifecycle fields:
   "type": "admin_enterprise_readiness",
   "approved_phase_range": "7981-8000",
   "lifecycle_support_count": 6,
-  "lifecycle_supported_read_count": 4,
-  "lifecycle_not_modeled_count": 1,
+  "lifecycle_supported_read_count": 5,
+  "lifecycle_not_modeled_count": 0,
   "lifecycle_unsupported_count": 1,
   "lifecycle_support": [
     {
@@ -62,6 +62,20 @@ Relevant lifecycle fields:
       "notional_usdc": "0"
     },
     {
+      "action": "stop",
+      "label": "Stop engine",
+      "module_id": "admin_system_health",
+      "support_status": "platform_ready",
+      "exposure_status": "admin_exposed",
+      "supported_route": "/api/v1/admin/lifecycle/stop",
+      "supported_method": "POST",
+      "browser_authority": "display_only",
+      "bff_execution_authority": "forward_only_no_execution",
+      "dashboard_websocket_fallback_allowed": false,
+      "live_coinbase_execution": "not_run",
+      "notional_usdc": "0"
+    },
+    {
       "action": "drain",
       "label": "Drain engine",
       "module_id": "admin_system_health",
@@ -80,6 +94,6 @@ Relevant lifecycle fields:
 ```
 
 The omitted `resume` row uses the same backend-command authority shape as
-`pause` with route `/api/v1/admin/lifecycle/resume`. The omitted `stop` row
-remains `not_modeled` until a backend command contract safely covers the
-full stop sequence.
+`pause` with route `/api/v1/admin/lifecycle/resume`. `stop` is runtime
+terminal-state control only; it does not terminate the OS process, cancel
+Coinbase orders, or execute reconciliation.

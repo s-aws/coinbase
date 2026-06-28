@@ -8498,24 +8498,27 @@ class AdminApiReadService:
             lifecycle_item(
                 action=AdminApiLifecycleAction.STOP,
                 label="Stop engine",
-                support_status=AdminApiModuleSupportStatus.NOT_MODELED,
-                exposure_status=(
-                    AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED
-                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
                 current_state_source="core.runtime_controller.RuntimeController.drain_and_stop",
+                supported_route="/api/v1/admin/lifecycle/stop",
+                supported_method="POST",
                 operator_task="Stop the backend after a safe drain.",
                 release_0_1_decision=(
-                    "RuntimeController supports drain-and-stop internally, but no "
-                    "enterprise Admin API route models authorization, audit, "
-                    "operator intent, timeout, and result evidence for it."
+                    "Stop is exposed through a backend-owned Admin API command "
+                    "route with runtime shutdown RBAC, idempotency, audit, "
+                    "operator intent, timeout, stop-hook evidence, STOPPED "
+                    "result evidence, and no Coinbase execution."
                 ),
                 backend_contract_refs=[
+                    "api/v1/routes/admin.py::admin_lifecycle_stop",
+                    "application/admin_api/command_service.py::AdminApiCommandService.stop_runtime",
                     "core/runtime_controller.py::RuntimeController.drain_and_stop",
-                    "dashboard_server.py::admin_shutdown",
                 ],
                 frontend_boundary=(
-                    "Show not_modeled; do not call dashboard admin_shutdown or "
-                    "local process helpers."
+                    "Forward only through the backend Admin API route; do not "
+                    "call dashboard admin_shutdown, local process helpers, "
+                    "or infer OS process termination."
                 ),
             ),
             lifecycle_item(
@@ -8659,7 +8662,7 @@ class AdminApiReadService:
                 exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
                 support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
                 summary=(
-                    "Backend-owned runtime pause/resume/drain commands for "
+                    "Backend-owned runtime pause/resume/drain/stop commands for "
                     "operator control of RuntimeController state."
                 ),
                 backend_supported=True,
@@ -8675,15 +8678,18 @@ class AdminApiReadService:
                     "POST /api/v1/admin/lifecycle/pause",
                     "POST /api/v1/admin/lifecycle/resume",
                     "POST /api/v1/admin/lifecycle/drain",
+                    "POST /api/v1/admin/lifecycle/stop",
                 ],
                 identity_keys=["runtime_controller", "request_id", "correlation_id"],
                 backend_contract_refs=[
                     "api/v1/routes/admin.py::admin_lifecycle_pause",
                     "api/v1/routes/admin.py::admin_lifecycle_resume",
                     "api/v1/routes/admin.py::admin_lifecycle_drain",
+                    "api/v1/routes/admin.py::admin_lifecycle_stop",
                     "application/admin_api/command_service.py::pause_runtime",
                     "application/admin_api/command_service.py::resume_runtime",
                     "application/admin_api/command_service.py::drain_runtime",
+                    "application/admin_api/command_service.py::stop_runtime",
                     "core/runtime_controller.py",
                 ],
                 frontend_contract_refs=[
@@ -8695,9 +8701,9 @@ class AdminApiReadService:
                     "docs/examples/admin-api.md",
                 ],
                 frontend_boundary=(
-                    "The browser may request pause, resume, and drain only "
+                    "The browser may request pause, resume, drain, and stop only "
                     "through backend Admin API contracts; it must not call "
-                    "dashboard WebSockets or local process helpers."
+                    "dashboard WebSockets, local process helpers, or Coinbase."
                 ),
                 spot_rule_boundary=(
                     "Runtime lifecycle control is a platform primitive and not "
@@ -9951,6 +9957,7 @@ class AdminApiReadService:
             "POST /api/v1/admin/lifecycle/pause",
             "POST /api/v1/admin/lifecycle/resume",
             "POST /api/v1/admin/lifecycle/drain",
+            "POST /api/v1/admin/lifecycle/stop",
         ]
         runtime_lifecycle_rows = [
             route_inventory_item(surface)
@@ -10094,9 +10101,9 @@ class AdminApiReadService:
                 exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
                 support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
                 summary=(
-                    "Runtime lifecycle pause/resume/drain commands are "
+                    "Runtime lifecycle pause/resume/drain/stop commands are "
                     "backend-owned Admin API mutations against "
-                    "RuntimeController state; they are not process start/stop, "
+                    "RuntimeController state; they are not process start, "
                     "dashboard WebSocket, or Coinbase execution authority."
                 ),
                 command_surfaces=runtime_lifecycle_surfaces,
@@ -10116,10 +10123,10 @@ class AdminApiReadService:
                     "timeout_seconds",
                 ],
                 idempotency_contract="required",
-                approval_contract="not required for runtime pause/resume/drain",
-                cap_guard_contract="not applicable to runtime pause/resume/drain",
+                approval_contract="not required for runtime pause/resume/drain/stop",
+                cap_guard_contract="not applicable to runtime pause/resume/drain/stop",
                 admission_audit_contract="Admin API audit event required",
-                reconciliation_contract="not applicable to runtime pause/resume/drain",
+                reconciliation_contract="not applicable to runtime pause/resume/drain/stop",
                 owning_backend_service="application/admin_api/command_service.py",
                 shared_command_service_method=None,
                 route_inventory_refs=runtime_lifecycle_surfaces,
@@ -10127,9 +10134,11 @@ class AdminApiReadService:
                     "api/v1/routes/admin.py::admin_lifecycle_pause",
                     "api/v1/routes/admin.py::admin_lifecycle_resume",
                     "api/v1/routes/admin.py::admin_lifecycle_drain",
+                    "api/v1/routes/admin.py::admin_lifecycle_stop",
                     "application/admin_api/command_service.py::pause_runtime",
                     "application/admin_api/command_service.py::resume_runtime",
                     "application/admin_api/command_service.py::drain_runtime",
+                    "application/admin_api/command_service.py::stop_runtime",
                     "core/runtime_controller.py",
                 ],
                 frontend_contract_refs=[
@@ -10142,12 +10151,12 @@ class AdminApiReadService:
                 ],
                 blockers=[],
                 frontend_boundary=(
-                    "The frontend may request backend pause, resume, and drain "
+                    "The frontend may request backend pause, resume, drain, and stop "
                     "through generated contracts only; it must not call "
                     "dashboard WebSockets, shell helpers, or Coinbase."
                 ),
                 bff_boundary=(
-                    "BFF may forward pause/resume/drain only to backend Admin "
+                    "BFF may forward pause/resume/drain/stop only to backend Admin "
                     "API with required headers; it must not own runtime state."
                 ),
                 route_local_boundary=(
@@ -10156,7 +10165,7 @@ class AdminApiReadService:
                     "not implement process management or trading behavior."
                 ),
                 spot_rule_boundary=(
-                    "Runtime pause/resume/drain is a platform primitive and "
+                    "Runtime pause/resume/drain/stop is a platform primitive and "
                     "must not inherit spot wallet, USDC, cost-basis, or "
                     "no-shorting rules."
                 ),

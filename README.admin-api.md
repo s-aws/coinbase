@@ -117,11 +117,12 @@ modeled, and live-disabled command paths are visible without relying on
 free-form unsupported-action strings. The same readiness payload now includes
 `lifecycle_support` rows for `status`, `start`, `stop`, `pause`, `resume`,
 and `drain`: `status` is displayable through backend health, `pause`,
-`resume`, and `drain` are backend-owned Admin API runtime commands, `start`
-is `unsupported`, and `stop` remains `not_modeled` until an enterprise Admin
-API command contract exists. Lifecycle support does not call dashboard
-WebSockets, run process helpers, grant BFF process authority, or call
-Coinbase. The readiness payload also
+`resume`, `drain`, and `stop` are backend-owned Admin API runtime commands,
+and `start` is `unsupported`. Stop is runtime terminal-state control through
+`RuntimeController.drain_and_stop`; it does not terminate the OS process,
+cancel Coinbase orders, or execute reconciliation. Lifecycle support does not
+call dashboard WebSockets, run process helpers, grant BFF process authority,
+or call Coinbase. The readiness payload also
 includes M48 `mutation_taxonomy` rows and aggregate counts. Each row maps a command
 route or legacy command surface to exactly one backend-owned mutation family
 with identity keys, RBAC permission, idempotency, operator intent, approval,
@@ -1949,16 +1950,19 @@ does not authorize browser-side commands or replace backend guard, wallet,
 margin, approval, audit, cap, or reconciliation gates.
 
 The same response exposes `lifecycle_support` evidence for Admin/System Health
-actions. Current counts are six lifecycle rows: three backend-supported rows,
-one `not_modeled` command, and one `unsupported` command. `status` links to
-`GET /api/v1/admin/health`; `pause`, `resume`, and `drain` link to
+actions. Current counts are six lifecycle rows: five backend-supported rows
+and one `unsupported` command. `status` links to
+`GET /api/v1/admin/health`; `pause`, `resume`, `drain`, and `stop` link to
 `POST /api/v1/admin/lifecycle/pause`,
-`POST /api/v1/admin/lifecycle/resume`, and
-`POST /api/v1/admin/lifecycle/drain`. Drain enters draining mode and waits
+`POST /api/v1/admin/lifecycle/resume`,
+`POST /api/v1/admin/lifecycle/drain`, and
+`POST /api/v1/admin/lifecycle/stop`. Drain enters draining mode and waits
 for tracked in-flight work, but does not invoke stop hooks or mark the runtime
-stopped. Lifecycle support does not authorize route-local process control,
-dashboard WebSocket fallback, BFF process authority, shell helpers, or
-Coinbase calls.
+stopped. Stop invokes the existing drain-and-stop controller primitive and
+marks the runtime stopped after the bounded drain result, but it remains
+runtime state control only. Lifecycle support does not authorize route-local
+process control, dashboard WebSocket fallback, BFF process authority, shell
+helpers, or Coinbase calls.
 
 `GET /api/v1/admin/settings-policy-map` exposes the backend-owned settings
 and policy classification consumed by the enterprise Settings page. It reports

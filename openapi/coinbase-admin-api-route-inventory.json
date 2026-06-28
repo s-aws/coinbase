@@ -67,6 +67,22 @@
       "command_contract": true
     },
     {
+      "module_id": "admin_system_health",
+      "surface": "POST /api/v1/admin/lifecycle/stop",
+      "method": "POST",
+      "path": "/api/v1/admin/lifecycle/stop",
+      "action_class": "admin_runtime",
+      "permission": "runtime:shutdown",
+      "idempotency": "required",
+      "approval": "not required for bounded runtime stop",
+      "caps": "not applicable",
+      "audit": "required",
+      "shared_method": "stop_runtime",
+      "parity_test": "calls RuntimeController.drain_and_stop through Admin API auth, idempotency, operator-intent, timeout, and audit; marks the runtime STOPPED, invokes stop hooks, does not use dashboard WebSocket fallback, and does not run Coinbase execution",
+      "compatibility_mode": null,
+      "command_contract": true
+    },
+    {
       "module_id": "spot_operations",
       "surface": "GET /api/v1/orders",
       "method": "GET",

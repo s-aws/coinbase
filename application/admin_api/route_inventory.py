@@ -77,6 +77,23 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         ),
     ),
     AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
+        surface="POST /api/v1/admin/lifecycle/stop",
+        action_class=AdminApiActionClass.ADMIN_RUNTIME,
+        permission=AdminApiPermission.RUNTIME_SHUTDOWN,
+        idempotency="required",
+        approval="not required for bounded runtime stop",
+        caps="not applicable",
+        audit="required",
+        shared_method="stop_runtime",
+        parity_test=(
+            "calls RuntimeController.drain_and_stop through Admin API auth, "
+            "idempotency, operator-intent, timeout, and audit; marks the "
+            "runtime STOPPED, invokes stop hooks, does not use dashboard "
+            "WebSocket fallback, and does not run Coinbase execution"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
         module_id="spot_operations",
         surface="GET /api/v1/orders",
         action_class=AdminApiActionClass.READ_ONLY,
