@@ -438,6 +438,7 @@ from core.enums import (
     AdminApiStealthLiveReadinessDecision,
     AdminApiVerifierReadinessStatus,
     SpotSweepAutomationControlAction,
+    SpotSweepAutomationSchedulerBindingStatus,
     StealthMutationKind,
     StealthCommandExecutionBlocker,
     StealthCommandExecutionPrerequisite,
@@ -43778,7 +43779,11 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     )
     assert sweep_gap["command_route"] == "/api/v1/spot/sweep/automation-runs"
     assert "GET /api/v1/spot/sweep/status" in sweep_gap["current_read_evidence_routes"]
-    assert "enterprise_sweep_scheduler_contract" in sweep_gap["missing_contracts"]
+    assert (
+        "enterprise_sweep_scheduler_dispatch_service_contract"
+        in sweep_gap["missing_contracts"]
+    )
+    assert "sweep_run_limit_contract" not in sweep_gap["missing_contracts"]
     automation_controls = {
         item["control"]: item for item in payload["automation_control_readiness"]
     }
@@ -43795,8 +43800,22 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
         AdminApiSpotAutomationControl.PAUSE_RESUME.value,
         AdminApiSpotAutomationControl.RETRY_RECOVERY.value,
     }
+    read_only_controls = {
+        AdminApiSpotAutomationControl.SCHEDULER.value,
+        AdminApiSpotAutomationControl.RUN_LIMIT.value,
+    }
     for control_name, control in automation_controls.items():
-        if control_name in draft_controls:
+        if control_name in read_only_controls:
+            assert control["support_status"] == (
+                AdminApiModuleSupportStatus.READ_ONLY_READY.value
+            )
+            assert control["gate_status"] == AdminApiGateStatus.WARNING.value
+            assert (
+                control["exposure_status"]
+                == AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED.value
+            )
+            assert control["operator_action_available"] is False
+        elif control_name in draft_controls:
             assert control["support_status"] == (
                 AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
             )
@@ -43834,7 +43853,13 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
         automation_controls[AdminApiSpotAutomationControl.SCHEDULER.value][
             "missing_contract"
         ]
-        == "enterprise_sweep_scheduler_contract"
+        == "enterprise_sweep_scheduler_dispatch_service_contract"
+    )
+    assert (
+        automation_controls[AdminApiSpotAutomationControl.RUN_LIMIT.value][
+            "support_status"
+        ]
+        == AdminApiModuleSupportStatus.READ_ONLY_READY.value
     )
     assert (
         automation_controls[AdminApiSpotAutomationControl.LIVE_EXECUTION.value][
@@ -44279,6 +44304,21 @@ def test_admin_api_spot_sweep_automation_service_status_reads_ledgers_no_live(
     assert payload["sweep_config_count"] == 1
     assert payload["scheduler_status_count"] == 1
     assert payload["scheduler_due_count"] == 1
+    assert payload["scheduler_not_due_count"] == 0
+    assert payload["scheduler_disabled_count"] == 0
+    assert payload["scheduler_max_runs_reached_count"] == 0
+    assert payload["scheduler_due_blocked_by_control_count"] == 0
+    assert payload["scheduler_due_blocked_by_lock_count"] == 1
+    assert payload["scheduler_dispatchable_count"] == 0
+    assert payload["scheduler_decision_contract_status"] == (
+        AdminApiModuleSupportStatus.READ_ONLY_READY.value
+    )
+    assert payload["scheduler_dispatch_contract_status"] == (
+        AdminApiModuleSupportStatus.NOT_MODELED.value
+    )
+    assert payload["run_limit_contract_status"] == (
+        AdminApiModuleSupportStatus.READ_ONLY_READY.value
+    )
     assert payload["retry_plan_count"] == 1
     assert payload["retry_ready_count"] == 1
     assert payload["automation_control_file"] == str(automation_control_file)
@@ -44299,10 +44339,29 @@ def test_admin_api_spot_sweep_automation_service_status_reads_ledgers_no_live(
     assert "GET /api/v1/spot/sweep/status" in payload["current_read_evidence_routes"]
     assert "POST /api/v1/spot/sweep/automation-runs" in payload["command_routes"]
     assert "POST /api/v1/spot/sweep/automation-controls" in payload["command_routes"]
-    assert "enterprise_sweep_scheduler_service_contract" in payload["missing_contracts"]
+    assert "enterprise_sweep_scheduler_dispatch_service_contract" in payload[
+        "missing_contracts"
+    ]
     assert "sweep_pause_resume_service_contract" not in payload["missing_contracts"]
     assert "sweep_retry_recovery_service_contract" not in payload["missing_contracts"]
     assert payload["scheduler_statuses"][0]["live_coinbase_orders_ran"] is False
+    assert payload["scheduler_statuses"][0]["scheduler_binding_status"] == (
+        SpotSweepAutomationSchedulerBindingStatus.BLOCKED_BY_OPERATION_LOCK.value
+    )
+    assert payload["scheduler_statuses"][0]["scheduler_dispatchable"] is False
+    assert payload["scheduler_statuses"][0][
+        "would_dispatch_if_service_modeled"
+    ] is False
+    assert "spot_sweep_operation_lock_busy" in payload["scheduler_statuses"][0][
+        "dispatch_blockers"
+    ]
+    assert payload["scheduler_decision_summary"]["scheduler_due_count"] == 1
+    assert payload["scheduler_decision_summary"]["scheduler_dispatchable_count"] == 0
+    assert payload["run_limit_statuses"][0]["attempt_count"] == 1
+    assert payload["run_limit_statuses"][0]["max_runs"] == 3
+    assert payload["run_limit_statuses"][0]["remaining_runs"] == 2
+    assert payload["run_limit_statuses"][0]["run_limit_reached"] is False
+    assert payload["run_limit_statuses"][0]["scheduler_invoked"] is False
     assert payload["retry_plans"][0]["retryable_product_ids"] == ["AAA-USDC"]
 
 
@@ -44334,7 +44393,26 @@ def test_admin_api_spot_sweep_automation_service_route_is_read_only(monkeypatch)
             "retry_plans": [],
             "current_read_evidence_routes": [],
             "command_routes": [],
-            "missing_contracts": ["enterprise_sweep_scheduler_service_contract"],
+            "scheduler_not_due_count": 0,
+            "scheduler_disabled_count": 0,
+            "scheduler_max_runs_reached_count": 0,
+            "scheduler_due_blocked_by_control_count": 0,
+            "scheduler_due_blocked_by_lock_count": 0,
+            "scheduler_dispatchable_count": 0,
+            "scheduler_decision_contract_status": (
+                AdminApiModuleSupportStatus.READ_ONLY_READY.value
+            ),
+            "scheduler_dispatch_contract_status": (
+                AdminApiModuleSupportStatus.NOT_MODELED.value
+            ),
+            "run_limit_contract_status": (
+                AdminApiModuleSupportStatus.READ_ONLY_READY.value
+            ),
+            "scheduler_decision_summary": {},
+            "run_limit_statuses": [],
+            "missing_contracts": [
+                "enterprise_sweep_scheduler_dispatch_service_contract"
+            ],
             "backend_owned": True,
             "read_only": True,
             "operator_action_available": False,

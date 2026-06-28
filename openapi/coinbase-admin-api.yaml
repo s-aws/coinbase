@@ -141510,6 +141510,36 @@ components:
           minimum: 0.0
           title: Scheduler Due Count
           default: 0
+        scheduler_not_due_count:
+          type: integer
+          minimum: 0.0
+          title: Scheduler Not Due Count
+          default: 0
+        scheduler_disabled_count:
+          type: integer
+          minimum: 0.0
+          title: Scheduler Disabled Count
+          default: 0
+        scheduler_max_runs_reached_count:
+          type: integer
+          minimum: 0.0
+          title: Scheduler Max Runs Reached Count
+          default: 0
+        scheduler_due_blocked_by_control_count:
+          type: integer
+          minimum: 0.0
+          title: Scheduler Due Blocked By Control Count
+          default: 0
+        scheduler_due_blocked_by_lock_count:
+          type: integer
+          minimum: 0.0
+          title: Scheduler Due Blocked By Lock Count
+          default: 0
+        scheduler_dispatchable_count:
+          type: integer
+          minimum: 0.0
+          title: Scheduler Dispatchable Count
+          default: 0
         retry_plan_count:
           type: integer
           minimum: 0.0
@@ -141520,6 +141550,15 @@ components:
           minimum: 0.0
           title: Retry Ready Count
           default: 0
+        scheduler_decision_contract_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+          default: read_only_ready
+        scheduler_dispatch_contract_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+          default: not_modeled
+        run_limit_contract_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+          default: read_only_ready
         control_contract_status:
           $ref: '#/components/schemas/AdminApiModuleSupportStatus'
           default: not_modeled
@@ -141534,6 +141573,13 @@ components:
             $ref: '#/components/schemas/AdminApiFlexibleObject'
           type: array
           title: Scheduler Statuses
+        scheduler_decision_summary:
+          $ref: '#/components/schemas/AdminApiFlexibleObject'
+        run_limit_statuses:
+          items:
+            $ref: '#/components/schemas/AdminApiFlexibleObject'
+          type: array
+          title: Run Limit Statuses
         retry_plans:
           items:
             $ref: '#/components/schemas/AdminApiFlexibleObject'

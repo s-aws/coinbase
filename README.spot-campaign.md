@@ -73,6 +73,10 @@ Use a spot campaign when you want to:
 - If a live canary is partial, `--retry-plan` can derive a normal campaign and
   sweep config for only the products with no exchange order id and zero
   submitted/executed notional.
+- Admin API automation-service status exposes backend-owned read evidence for
+  scheduler due/not-due/disabled/max-run decisions and run-limit remaining
+  counts. This is not a scheduler dispatcher, retry executor, browser timer,
+  BFF runner, or Coinbase authority.
 - Planned sweep skips are not retry candidates and do not make a live campaign
   canary blocked by themselves. Campaign recording uses the effective sweep
   outcome while preserving the raw recorded sweep status in the snapshot.
@@ -176,6 +180,8 @@ named buffered profile and should not be used for strict fill-ledger canaries.
   `tools/run_spot_campaign.py --all-usdc-readiness-gate`
 - Scheduler due-state report:
   `tools/run_spot_campaign.py --scheduler-status`
+- Admin API automation-service read:
+  `GET /api/v1/spot/sweep/automation-service`
 - SELL authority allowlist:
   `tools/run_spot_campaign.py --sell-authority-allowlist`
 - SELL authority drift report:

@@ -4272,10 +4272,10 @@ X-Admin-Roles: viewer
         "live_execution_service"
       ],
       "missing_contracts": [
-        "enterprise_sweep_scheduler_contract",
-        "sweep_run_limit_contract",
+        "enterprise_sweep_scheduler_dispatch_service_contract",
         "sweep_retry_execution_contract",
-        "sweep_reconciliation_execution_contract"
+        "sweep_reconciliation_execution_contract",
+        "sweep_live_execution_contract"
       ],
       "backend_owned": true,
       "browser_authority": "display_only",
@@ -4286,7 +4286,7 @@ X-Admin-Roles: viewer
         "README.spot-campaign.md",
         "docs/COMMAND_WORKFLOWS.md"
       ],
-      "detail": "Sweep and campaign evidence is readable, but enterprise admin sweep automation is not command-complete until durable scheduler, run-limit, retry execution, recovery, and reconciliation contracts exist."
+      "detail": "Sweep and campaign evidence is readable, and scheduler/run-limit decisions are read-only evidence, but enterprise admin sweep automation is not command-complete until durable scheduler dispatch, retry execution, recovery, reconciliation, and live-execution contracts exist."
     },
     {
       "family": "spot_recovery_workflow",

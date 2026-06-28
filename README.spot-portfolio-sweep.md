@@ -87,6 +87,13 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   returns `501 not_implemented`; it must not run the live sweep CLI, create a
   browser scheduler, or submit Coinbase orders until scheduler, run-limit,
   recovery, reconciliation, and live execution gates pass.
+- The Admin API exposes `GET /api/v1/spot/sweep/automation-service` as
+  backend-owned read evidence for the campaign ledger, sweep ledger, operation
+  lock, scheduler due/not-due/disabled/max-run decisions, run-limit remaining
+  counts, retry plans, local control ledger, and no-live proof. Due and
+  run-limit evaluation are read-only ready; scheduler dispatch, retry
+  execution, reconciliation execution, and live execution remain blocked or
+  not modeled.
 - Automation is a durable run-if-due CLI mode, not a daemon. Each invocation
   reloads fresh Coinbase product/wallet state, checks the JSONL run ledger, runs
   at most one due sweep, records the outcome, and exits.
@@ -144,6 +151,8 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   `tools/run_spot_portfolio_sweep_live.py`
 - Live-disabled Admin API command contract:
   `POST /api/v1/spot/sweep/automation-runs`
+- Read-only Admin API automation service evidence:
+  `GET /api/v1/spot/sweep/automation-service`
 - Local-state Admin API P/L checkpoint contract:
   `POST /api/v1/spot/pnl/checkpoints`
 - Read-only Admin API P/L checkpoint evidence:

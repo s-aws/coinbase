@@ -97,6 +97,8 @@ from core.enums import (
     ProductType,
     SpotCampaignStatus,
     SpotPortfolioSweepAutomationDecision,
+    SpotSweepAutomationControlState,
+    SpotSweepAutomationSchedulerBindingStatus,
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
     StealthOrderStatus,
@@ -1045,6 +1047,170 @@ def _surface_method_and_path(surface: str) -> tuple[str, str]:
     if "WebSocket" in surface:
         return "WEBSOCKET", surface
     return "UNKNOWN", surface
+
+
+def _spot_sweep_scheduler_binding_evidence(
+    *,
+    scheduler_statuses: list[dict[str, Any]],
+    latest_control_state: Mapping[str, Any],
+    operation_lock_status: Mapping[str, Any],
+) -> dict[str, Any]:
+    paused_sweep_config_id = ""
+    if (
+        latest_control_state.get("control_state_after")
+        == SpotSweepAutomationControlState.PAUSED.value
+    ):
+        paused_sweep_config_id = str(latest_control_state.get("sweep_config_id") or "")
+    operation_lock_busy = bool(
+        operation_lock_status.get("exists")
+        and not operation_lock_status.get("stale")
+    )
+    bound_statuses: list[dict[str, Any]] = []
+    run_limit_statuses: list[dict[str, Any]] = []
+    counts = {
+        "due": 0,
+        "not_due": 0,
+        "disabled": 0,
+        "max_runs_reached": 0,
+        "blocked_by_control": 0,
+        "blocked_by_lock": 0,
+        "dispatchable": 0,
+    }
+
+    for status in scheduler_statuses:
+        item = dict(status)
+        decision = item.get("scheduler_decision") or {}
+        if not isinstance(decision, Mapping):
+            decision = {}
+        decision_value = str(decision.get("decision") or "")
+        sweep_config_id = str(item.get("sweep_config_id") or "")
+        control_state = (
+            SpotSweepAutomationControlState.PAUSED.value
+            if sweep_config_id and sweep_config_id == paused_sweep_config_id
+            else SpotSweepAutomationControlState.ACTIVE.value
+        )
+        is_due = decision_value == SpotPortfolioSweepAutomationDecision.DUE.value
+        is_not_due = decision_value == SpotPortfolioSweepAutomationDecision.NOT_DUE.value
+        is_disabled = decision_value == SpotPortfolioSweepAutomationDecision.DISABLED.value
+        is_run_limited = (
+            decision_value
+            == SpotPortfolioSweepAutomationDecision.MAX_RUNS_REACHED.value
+        )
+        if is_due:
+            counts["due"] += 1
+        if is_not_due:
+            counts["not_due"] += 1
+        if is_disabled:
+            counts["disabled"] += 1
+        if is_run_limited:
+            counts["max_runs_reached"] += 1
+
+        dispatch_blockers = ["enterprise_sweep_scheduler_dispatch_service_contract"]
+        binding_status = SpotSweepAutomationSchedulerBindingStatus.UNKNOWN
+        if control_state == SpotSweepAutomationControlState.PAUSED.value:
+            binding_status = (
+                SpotSweepAutomationSchedulerBindingStatus.BLOCKED_BY_PAUSE_CONTROL
+            )
+            dispatch_blockers.append("sweep_pause_resume_control_state_paused")
+            counts["blocked_by_control"] += 1
+        elif is_run_limited:
+            binding_status = SpotSweepAutomationSchedulerBindingStatus.MAX_RUNS_REACHED
+            dispatch_blockers.append("sweep_run_limit_reached")
+        elif is_disabled:
+            binding_status = SpotSweepAutomationSchedulerBindingStatus.DISABLED
+            dispatch_blockers.append("sweep_automation_disabled")
+        elif is_not_due:
+            binding_status = SpotSweepAutomationSchedulerBindingStatus.NOT_DUE
+            dispatch_blockers.append("repeat_interval_not_elapsed")
+        elif is_due and operation_lock_busy:
+            binding_status = (
+                SpotSweepAutomationSchedulerBindingStatus.BLOCKED_BY_OPERATION_LOCK
+            )
+            dispatch_blockers.append("spot_sweep_operation_lock_busy")
+            counts["blocked_by_lock"] += 1
+        elif is_due:
+            binding_status = (
+                SpotSweepAutomationSchedulerBindingStatus.DUE_DISPATCH_NOT_MODELED
+            )
+            counts["dispatchable"] += 1
+
+        attempt_count = int(decision.get("attempt_count") or 0)
+        max_runs = int(decision.get("max_runs") or 0)
+        remaining_runs = max(max_runs - attempt_count, 0) if max_runs else 0
+        item.update(
+            {
+                "scheduler_binding_status": binding_status.value,
+                "scheduler_dispatchable": False,
+                "would_dispatch_if_service_modeled": (
+                    binding_status
+                    == SpotSweepAutomationSchedulerBindingStatus.DUE_DISPATCH_NOT_MODELED
+                ),
+                "dispatch_blockers": dispatch_blockers,
+                "control_state_after": control_state,
+                "run_limit_reached": is_run_limited,
+                "run_limit_remaining": remaining_runs,
+                "scheduler_dispatch_contract_status": (
+                    AdminApiModuleSupportStatus.NOT_MODELED.value
+                ),
+                "scheduler_decision_contract_status": (
+                    AdminApiModuleSupportStatus.READ_ONLY_READY.value
+                ),
+                "browser_scheduler_authority": False,
+                "bff_authority": "forward_only_no_execution",
+            }
+        )
+        bound_statuses.append(item)
+        run_limit_statuses.append(
+            {
+                "campaign_id": item.get("campaign_id"),
+                "sweep_config_id": sweep_config_id,
+                "decision": decision_value
+                or SpotSweepAutomationSchedulerBindingStatus.UNKNOWN.value,
+                "attempt_count": attempt_count,
+                "max_runs": max_runs,
+                "remaining_runs": remaining_runs,
+                "run_limit_reached": is_run_limited,
+                "run_limit_contract_status": (
+                    AdminApiModuleSupportStatus.READ_ONLY_READY.value
+                ),
+                "backend_owned": True,
+                "read_only": True,
+                "scheduler_invoked": False,
+                "sweep_runner_invoked": False,
+                "coinbase_orders_submitted": False,
+                "live_coinbase_orders_ran": False,
+            }
+        )
+
+    return {
+        "scheduler_statuses": bound_statuses,
+        "run_limit_statuses": run_limit_statuses,
+        "summary": {
+            "scheduler_status_count": len(bound_statuses),
+            "scheduler_due_count": counts["due"],
+            "scheduler_not_due_count": counts["not_due"],
+            "scheduler_disabled_count": counts["disabled"],
+            "scheduler_max_runs_reached_count": counts["max_runs_reached"],
+            "scheduler_due_blocked_by_control_count": counts["blocked_by_control"],
+            "scheduler_due_blocked_by_lock_count": counts["blocked_by_lock"],
+            "scheduler_dispatchable_count": counts["dispatchable"],
+            "scheduler_decision_contract_status": (
+                AdminApiModuleSupportStatus.READ_ONLY_READY.value
+            ),
+            "scheduler_dispatch_contract_status": (
+                AdminApiModuleSupportStatus.NOT_MODELED.value
+            ),
+            "run_limit_contract_status": (
+                AdminApiModuleSupportStatus.READ_ONLY_READY.value
+            ),
+            "backend_owned": True,
+            "read_only": True,
+            "scheduler_invoked": False,
+            "sweep_runner_invoked": False,
+            "coinbase_orders_submitted": False,
+            "live_coinbase_orders_ran": False,
+        },
+    }
 
 
 def _route_availability(surface: str, action_class: AdminApiActionClass) -> AdminApiRouteAvailability:
@@ -52485,8 +52651,7 @@ class AdminApiReadService:
                 ),
                 required_gate_chain=gap_required_gate_chain,
                 missing_contracts=[
-                    "enterprise_sweep_scheduler_contract",
-                    "sweep_run_limit_contract",
+                    "enterprise_sweep_scheduler_dispatch_service_contract",
                     "sweep_retry_execution_contract",
                     "sweep_reconciliation_execution_contract",
                     "sweep_live_execution_contract",
@@ -52496,12 +52661,14 @@ class AdminApiReadService:
                     "README.spot-portfolio-sweep.md",
                     "README.spot-campaign.md",
                     "docs/COMMAND_WORKFLOWS.md",
+                    "docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md",
                 ],
                 detail=(
-                    "Sweep and campaign evidence is readable, but enterprise admin "
-                    "sweep automation is not command-complete until durable "
-                    "scheduler, run-limit, retry execution, recovery, and "
-                    "reconciliation contracts exist."
+                    "Sweep and campaign evidence now includes read-only scheduler "
+                    "due and run-limit decisions, but enterprise admin sweep "
+                    "automation is not command-complete until durable scheduler "
+                    "dispatch, retry execution, recovery, and reconciliation "
+                    "contracts exist."
                 ),
             ),
             SpotCommandSuiteCoverageGapItem(
@@ -52626,6 +52793,7 @@ class AdminApiReadService:
         automation_evidence_routes = [
             "GET /api/v1/spot/sweep/status",
             "GET /api/v1/spot/campaign/status",
+            "GET /api/v1/spot/sweep/automation-service",
             "GET /api/v1/spot/command-suite",
         ]
         related_automation_command_routes = [
@@ -52637,35 +52805,36 @@ class AdminApiReadService:
             (
                 AdminApiSpotAutomationControl.SCHEDULER,
                 "Scheduler",
-                "enterprise_sweep_scheduler_contract",
-                "Backend-owned durable scheduler contract for due-run calculation and dispatch.",
+                "enterprise_sweep_scheduler_dispatch_service_contract",
+                "Backend-owned scheduler due-decision contract exists; dispatch remains a missing backend service.",
                 [
                     "route_inventory_contract",
-                    "scheduler_contract",
+                    "scheduler_due_read_contract",
                     "operator_intent",
                     "audit_link",
                 ],
                 (
-                    "No enterprise scheduler contract is modeled for campaign/sweep "
-                    "runs. The frontend may display status and dry-run reviews only; "
-                    "it must not create timers or launch sweep tools."
+                    "Backend read models calculate due, not-due, disabled, and "
+                    "max-run states. No enterprise scheduler dispatch service is "
+                    "modeled, so the frontend may display status only; it must "
+                    "not create timers or launch sweep tools."
                 ),
             ),
             (
                 AdminApiSpotAutomationControl.RUN_LIMIT,
                 "Run limit",
-                "sweep_run_limit_contract",
-                "Backend-owned run-limit and max-run accounting contract.",
+                "sweep_scheduler_dispatch_service_contract",
+                "Backend-owned run-limit and max-run accounting read contract exists; dispatch remains gated.",
                 [
                     "route_inventory_contract",
-                    "scheduler_contract",
-                    "run_limit_contract",
+                    "scheduler_due_read_contract",
+                    "run_limit_read_contract",
                     "audit_link",
                 ],
                 (
-                    "Run-limit accounting is not modeled as an enterprise Admin API "
-                    "contract. Browser max-run inputs are review payload fields only "
-                    "and do not authorize a loop."
+                    "Run-limit accounting is exposed as backend read evidence. "
+                    "Browser max-run inputs are still review payload fields only "
+                    "and do not authorize a scheduler loop."
                 ),
             ),
             (
@@ -52745,24 +52914,37 @@ class AdminApiReadService:
             AdminApiSpotAutomationControl.PAUSE_RESUME,
             AdminApiSpotAutomationControl.RETRY_RECOVERY,
         }
+        read_only_control_contracts = {
+            AdminApiSpotAutomationControl.SCHEDULER,
+            AdminApiSpotAutomationControl.RUN_LIMIT,
+        }
         automation_control_readiness = [
             SpotCommandSuiteAutomationControlReadinessItem(
                 control=control,
                 label=label,
                 support_status=(
-                    AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
-                    if control in draft_control_contracts
-                    else AdminApiModuleSupportStatus.NOT_MODELED
+                    AdminApiModuleSupportStatus.READ_ONLY_READY
+                    if control in read_only_control_contracts
+                    else (
+                        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                        if control in draft_control_contracts
+                        else AdminApiModuleSupportStatus.NOT_MODELED
+                    )
                 ),
                 gate_status=(
                     AdminApiGateStatus.WARNING
                     if control in draft_control_contracts
+                    or control in read_only_control_contracts
                     else AdminApiGateStatus.BLOCKED
                 ),
                 exposure_status=(
-                    AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
-                    if control in draft_control_contracts
-                    else AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                    if control in read_only_control_contracts
+                    else (
+                        AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
+                        if control in draft_control_contracts
+                        else AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED
+                    )
                 ),
                 related_command_routes=list(related_automation_command_routes),
                 current_read_evidence_routes=list(automation_evidence_routes),
@@ -54482,6 +54664,14 @@ class AdminApiReadService:
             for item in retry_plans
             if item.get("retry_status") == SpotCampaignStatus.READY.value
         )
+        scheduler_binding = _spot_sweep_scheduler_binding_evidence(
+            scheduler_statuses=scheduler_statuses,
+            latest_control_state=latest_control_state,
+            operation_lock_status=operation_lock_status,
+        )
+        scheduler_statuses = scheduler_binding["scheduler_statuses"]
+        scheduler_decision_summary = scheduler_binding["summary"]
+        run_limit_statuses = scheduler_binding["run_limit_statuses"]
 
         payload = SpotSweepAutomationServiceStatusResponse(
             approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
@@ -54494,8 +54684,35 @@ class AdminApiReadService:
             automation_control_count=len(control_records),
             scheduler_status_count=len(scheduler_statuses),
             scheduler_due_count=scheduler_due_count,
+            scheduler_not_due_count=scheduler_decision_summary[
+                "scheduler_not_due_count"
+            ],
+            scheduler_disabled_count=scheduler_decision_summary[
+                "scheduler_disabled_count"
+            ],
+            scheduler_max_runs_reached_count=scheduler_decision_summary[
+                "scheduler_max_runs_reached_count"
+            ],
+            scheduler_due_blocked_by_control_count=scheduler_decision_summary[
+                "scheduler_due_blocked_by_control_count"
+            ],
+            scheduler_due_blocked_by_lock_count=scheduler_decision_summary[
+                "scheduler_due_blocked_by_lock_count"
+            ],
+            scheduler_dispatchable_count=scheduler_decision_summary[
+                "scheduler_dispatchable_count"
+            ],
             retry_plan_count=len(retry_plans),
             retry_ready_count=retry_ready_count,
+            scheduler_decision_contract_status=(
+                AdminApiModuleSupportStatus.READ_ONLY_READY
+            ),
+            scheduler_dispatch_contract_status=(
+                AdminApiModuleSupportStatus.NOT_MODELED
+            ),
+            run_limit_contract_status=(
+                AdminApiModuleSupportStatus.READ_ONLY_READY
+            ),
             control_contract_status=(
                 AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
             ),
@@ -54503,6 +54720,8 @@ class AdminApiReadService:
             sweep_config_registry=sweep_config_registry,
             campaign_operator_status=campaign_operator_status,
             scheduler_statuses=scheduler_statuses,
+            scheduler_decision_summary=scheduler_decision_summary,
+            run_limit_statuses=run_limit_statuses,
             retry_plans=retry_plans,
             latest_control_state=latest_control_state,
             automation_control_records=[
@@ -54520,8 +54739,8 @@ class AdminApiReadService:
                 "POST /api/v1/spot/sweep/automation-controls",
             ],
             missing_contracts=[
-                "enterprise_sweep_scheduler_service_contract",
-                "sweep_retry_execution_service_contract",
+                "enterprise_sweep_scheduler_dispatch_service_contract",
+                "sweep_retry_execution_contract",
                 "sweep_live_execution_service_contract",
             ],
             operator_action_available=True,

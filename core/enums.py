@@ -2594,6 +2594,18 @@ class SpotSweepAutomationControlState(str, Enum):
     PAUSED = "paused"
 
 
+class SpotSweepAutomationSchedulerBindingStatus(str, Enum):
+    """Read-only Admin API status for scheduler/run-limit binding evidence."""
+
+    DUE_DISPATCH_NOT_MODELED = "due_dispatch_not_modeled"
+    BLOCKED_BY_PAUSE_CONTROL = "blocked_by_pause_control"
+    BLOCKED_BY_OPERATION_LOCK = "blocked_by_operation_lock"
+    NOT_DUE = "not_due"
+    MAX_RUNS_REACHED = "max_runs_reached"
+    DISABLED = "disabled"
+    UNKNOWN = "unknown"
+
+
 class SpotPortfolioSweepOrderType(str, Enum):
     """Supported live order policies for USDC spot portfolio sweeps."""
 

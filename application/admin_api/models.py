@@ -25821,8 +25821,23 @@ class SpotSweepAutomationServiceStatusResponse(AdminApiReadPayload):
     automation_control_count: int = Field(default=0, ge=0)
     scheduler_status_count: int = Field(default=0, ge=0)
     scheduler_due_count: int = Field(default=0, ge=0)
+    scheduler_not_due_count: int = Field(default=0, ge=0)
+    scheduler_disabled_count: int = Field(default=0, ge=0)
+    scheduler_max_runs_reached_count: int = Field(default=0, ge=0)
+    scheduler_due_blocked_by_control_count: int = Field(default=0, ge=0)
+    scheduler_due_blocked_by_lock_count: int = Field(default=0, ge=0)
+    scheduler_dispatchable_count: int = Field(default=0, ge=0)
     retry_plan_count: int = Field(default=0, ge=0)
     retry_ready_count: int = Field(default=0, ge=0)
+    scheduler_decision_contract_status: AdminApiModuleSupportStatus = (
+        AdminApiModuleSupportStatus.READ_ONLY_READY
+    )
+    scheduler_dispatch_contract_status: AdminApiModuleSupportStatus = (
+        AdminApiModuleSupportStatus.NOT_MODELED
+    )
+    run_limit_contract_status: AdminApiModuleSupportStatus = (
+        AdminApiModuleSupportStatus.READ_ONLY_READY
+    )
     control_contract_status: AdminApiModuleSupportStatus = (
         AdminApiModuleSupportStatus.NOT_MODELED
     )
@@ -25836,6 +25851,10 @@ class SpotSweepAutomationServiceStatusResponse(AdminApiReadPayload):
         default_factory=AdminApiFlexibleObject
     )
     scheduler_statuses: list[AdminApiFlexibleObject] = Field(default_factory=list)
+    scheduler_decision_summary: AdminApiFlexibleObject = Field(
+        default_factory=AdminApiFlexibleObject
+    )
+    run_limit_statuses: list[AdminApiFlexibleObject] = Field(default_factory=list)
     retry_plans: list[AdminApiFlexibleObject] = Field(default_factory=list)
     latest_control_state: AdminApiFlexibleObject = Field(
         default_factory=AdminApiFlexibleObject
