@@ -15,6 +15,8 @@ The governing question remains:
 `AGENTS.md` and `agent.md` were reviewed for this phase on 2026-06-27 and
 again on 2026-06-28 before the frontend Release Blockers implementation. No
 phase-direction change was required. The controlling instructions remain:
+They were reviewed again on 2026-06-28 before Admin Lifecycle Support
+classification. No phase-direction change was required.
 
 - Release 0.1 work must clear a named blocker or directly improve the usable
   admin product.
@@ -54,7 +56,7 @@ The current generated route inventory
 
 | Release area | Backend route evidence | Frontend surface | Status | Release gap | Next slice |
 | --- | --- | --- | --- | --- | --- |
-| Admin shell | `/api/v1/admin/bootstrap`, `/health`, `/session`, `/capabilities`, `/live-enablement`, `/enterprise-readiness`, `/release-gate` | Overview, Modules, Settings, Admin Evidence | `blocked` | Read posture is usable, but lifecycle start/stop/pause/resume state is not modeled as backend-owned routes. | Add explicit lifecycle support classification: backend route if supported, otherwise `unsupported`/`not_modeled` UI evidence. |
+| Admin shell | `/api/v1/admin/bootstrap`, `/health`, `/session`, `/capabilities`, `/live-enablement`, `/enterprise-readiness`, `/release-gate` | Overview, Lifecycle, Modules, Settings, Admin Evidence | `blocked` | Read posture and lifecycle classification are usable, but lifecycle command execution remains `unsupported` or `not_modeled`. | Do not add lifecycle controls until backend-owned command contracts exist; move next release work to the highest-impact remaining blocked workflow. |
 | Account inventory | `/api/v1/admin/account-market-inventory`, `/api/v1/orders`, `/api/v1/orders/{client_order_id}`, `/api/v1/futures/account`, `/api/v1/futures/positions`, spot readiness/cost-basis/sweep/campaign reads | Inventory, Orders, Spot Operations, Futures/Perpetuals | `ready_with_data_gate` | First-class coverage exists for product catalog, spot wallets, spot balances, and spot fills. Coinbase reads are backend-only, bounded, and disabled unless explicitly enabled, so the frontend must render `data_status` instead of inventing browser reads. | Keep the frontend display-only, surface blocked data clearly, and use this route as the account/market source of truth. |
 | Spot commands | `/api/v1/orders`, `/api/v1/orders/{client_order_id}/cancel`, `/api/v1/spot/command-suite`, `/api/v1/spot/campaign/executions`, `/api/v1/spot/sweep/automation-runs` | Command Workflows, Spot Operations, Campaigns | `blocked` | Command routes exist, but frontend-visible command contracts are currently live-disabled. | After inventory, choose one spot command path and make backend gate results operator-completable without browser authority. |
 | Stealth commands | `/api/v1/stealth/orders`, reveal, move, cancel, recovery, reconciliation, command suite, proof routes | Stealth Orders, Command Workflows | `blocked` | Evidence is rich, but operator completion is blocked by exchange-reality, lifecycle-write, live-disabled, and reconciliation gates. | Surface every stealth command as usable or blocked by exact gate; do not add hide-again shortcuts. |
@@ -104,31 +106,29 @@ What this clears:
   execution, dashboard WebSocket calls, guard/wallet/reconciliation logic, and
   Coinbase calls remain absent.
 
+## Implemented Admin Lifecycle Support Slice
+
+`GET /api/v1/admin/enterprise-readiness` now exposes `lifecycle_support`
+classification for `status`, `start`, `stop`, `pause`, `resume`, and `drain`.
+The frontend Admin Lifecycle Support panel consumes those rows from the
+generated OpenAPI contract and renders them without controls.
+
+What this clears:
+
+- Lifecycle status is displayable through existing backend health evidence.
+- `start` is explicitly `unsupported`.
+- `stop`, `pause`, `resume`, and `drain` are explicit `not_modeled` backend
+  contract gaps instead of missing UI.
+- No route-local lifecycle execution, dashboard WebSocket bridge, browser/BFF
+  process authority, shell helper, or Coinbase call was added.
+
 ## Follow-On Implementation Slice
 
-The next implementation slice should be **Admin Lifecycle Support
-Classification**.
-
-Reason: direct unsupported/not-modeled visibility now exists. The admin shell
-still reports lifecycle start/stop/pause/resume state as a Release 0.1 gap
-unless backend route evidence explicitly supports it or classifies it as
-`unsupported`/`not_modeled`.
-
-Expected backend result:
-
-- Backend-owned lifecycle support classification for
-  start/stop/pause/resume/drain/status.
-- Explicit `unsupported` or `not_modeled` evidence where lifecycle commands do
-  not exist.
-- No route-local lifecycle execution, dashboard WebSocket bridge, browser/BFF
-  process authority, or Coinbase call.
-
-Expected frontend result:
-
-- The admin shell renders lifecycle support classification and links supported
-  reads to existing backend-owned health/session/release evidence.
-- Missing lifecycle commands appear as `unsupported` or `not_modeled` without
-  adding local controls or a second execution path.
+The next implementation slice should come from a still-blocked operator
+workflow in this matrix, not from lifecycle classification. Lifecycle command
+execution remains blocked until a future backend contract models auth, RBAC,
+operator intent, audit, idempotency, timeout/result evidence, and safe process
+authority.
 
 ## Live Coinbase Execution
 

@@ -1743,11 +1743,15 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "6541-6560",
+  "approved_phase_range": "7981-8000",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
   "command_gap_count": 17,
+  "lifecycle_support_count": 6,
+  "lifecycle_supported_read_count": 1,
+  "lifecycle_not_modeled_count": 4,
+  "lifecycle_unsupported_count": 1,
   "module_registry_count": 8,
   "module_action_posture_count": 8,
   "functionality_inventory_count": 25,
@@ -1763,6 +1767,41 @@ Expected current enterprise readiness posture:
   "live_disabled_mutation_count": 33,
   "backend_contract_required_mutation_count": 1,
   "compatibility_mutation_count": 3,
+  "lifecycle_support": [
+    {
+      "action": "status",
+      "support_status": "platform_ready",
+      "supported_route": "/api/v1/admin/health",
+      "supported_method": "GET",
+      "browser_authority": "display_only",
+      "bff_execution_authority": "forward_only_no_execution",
+      "dashboard_websocket_fallback_allowed": false,
+      "live_coinbase_execution": "not_run",
+      "notional_usdc": "0"
+    },
+    {
+      "action": "start",
+      "support_status": "unsupported",
+      "supported_route": null,
+      "supported_method": null,
+      "browser_authority": "display_only",
+      "bff_execution_authority": "forward_only_no_execution",
+      "dashboard_websocket_fallback_allowed": false,
+      "live_coinbase_execution": "not_run",
+      "notional_usdc": "0"
+    },
+    {
+      "action": "pause",
+      "support_status": "not_modeled",
+      "supported_route": null,
+      "supported_method": null,
+      "browser_authority": "display_only",
+      "bff_execution_authority": "forward_only_no_execution",
+      "dashboard_websocket_fallback_allowed": false,
+      "live_coinbase_execution": "not_run",
+      "notional_usdc": "0"
+    }
+  ],
   "functionality_inventory": [
     {
       "workflow_id": "spot.order_command_drafts",

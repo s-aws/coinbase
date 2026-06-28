@@ -126,6 +126,7 @@ from core.enums import (
     AdminApiLiveExecutionStatus,
     AdminApiLivePreflightCategory,
     AdminApiLiveReadinessPrecondition,
+    AdminApiLifecycleAction,
     AdminMovementRepricingEvidenceType,
     AdminApiMutationFamilyType,
     AdminApiModuleSupportStatus,
@@ -2617,6 +2618,32 @@ class AdminEnterpriseModuleActionPosture(BaseModel):
     notional_usdc: DecimalString = "0"
 
 
+class AdminEnterpriseLifecycleSupportItem(BaseModel):
+    """Backend-owned classification for admin lifecycle support."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action: AdminApiLifecycleAction
+    label: str
+    module_id: str = "admin_system_health"
+    support_status: AdminApiModuleSupportStatus
+    exposure_status: AdminApiFunctionalityExposureStatus
+    current_state_source: str
+    supported_route: str | None = None
+    supported_method: str | None = None
+    operator_task: str
+    release_0_1_decision: str
+    backend_contract_refs: list[str] = Field(default_factory=list)
+    frontend_contract_refs: list[str] = Field(default_factory=list)
+    documentation_refs: list[str] = Field(default_factory=list)
+    frontend_boundary: str
+    browser_authority: str = "display_only"
+    bff_execution_authority: str = "forward_only_no_execution"
+    dashboard_websocket_fallback_allowed: bool = False
+    live_coinbase_execution: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.NOT_RUN
+    notional_usdc: DecimalString = "0"
+
+
 class AdminEnterpriseFunctionalityInventoryItem(BaseModel):
     """One backend workflow and its enterprise admin exposure posture."""
 
@@ -2746,6 +2773,10 @@ class AdminEnterpriseReadinessResponse(BaseModel):
     supported_module_count: int = 0
     unsupported_module_count: int = 0
     command_gap_count: int = 0
+    lifecycle_support_count: int = 0
+    lifecycle_supported_read_count: int = 0
+    lifecycle_not_modeled_count: int = 0
+    lifecycle_unsupported_count: int = 0
     module_registry_count: int = 0
     module_action_posture_count: int = 0
     functionality_inventory_count: int = 0
@@ -2762,6 +2793,7 @@ class AdminEnterpriseReadinessResponse(BaseModel):
     backend_contract_required_mutation_count: int = 0
     compatibility_mutation_count: int = 0
     modules: list[AdminEnterpriseReadinessModuleItem] = Field(default_factory=list)
+    lifecycle_support: list[AdminEnterpriseLifecycleSupportItem] = Field(default_factory=list)
     functionality_inventory: list[AdminEnterpriseFunctionalityInventoryItem] = Field(default_factory=list)
     mutation_taxonomy: list[AdminEnterpriseMutationTaxonomyItem] = Field(default_factory=list)
     security_checks: list[AdminGateCheck] = Field(default_factory=list)

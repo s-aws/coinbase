@@ -233,6 +233,17 @@ class AdminApiModuleSupportStatus(str, Enum):
     UNSUPPORTED = "unsupported"
 
 
+class AdminApiLifecycleAction(str, Enum):
+    """Enterprise admin lifecycle actions that must be classified."""
+
+    STATUS = "status"
+    START = "start"
+    STOP = "stop"
+    PAUSE = "pause"
+    RESUME = "resume"
+    DRAIN = "drain"
+
+
 class AdminApiAccountMarketInventoryFamily(str, Enum):
     """Stable account and market inventory families exposed to the admin UI."""
 

@@ -11103,6 +11103,17 @@ components:
       - blocked
       title: AdminApiHealthStatus
       description: Admin API health/readiness state.
+    AdminApiLifecycleAction:
+      type: string
+      enum:
+      - status
+      - start
+      - stop
+      - pause
+      - resume
+      - drain
+      title: AdminApiLifecycleAction
+      description: Enterprise admin lifecycle actions that must be classified.
     AdminApiLiveAdapterConstructionArtifact:
       type: string
       enum:
@@ -12917,6 +12928,95 @@ components:
       - spot_rule_boundary
       title: AdminEnterpriseFunctionalityInventoryItem
       description: One backend workflow and its enterprise admin exposure posture.
+    AdminEnterpriseLifecycleSupportItem:
+      properties:
+        action:
+          $ref: '#/components/schemas/AdminApiLifecycleAction'
+        label:
+          type: string
+          title: Label
+        module_id:
+          type: string
+          title: Module Id
+          default: admin_system_health
+        support_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+        exposure_status:
+          $ref: '#/components/schemas/AdminApiFunctionalityExposureStatus'
+        current_state_source:
+          type: string
+          title: Current State Source
+        supported_route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Supported Route
+        supported_method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Supported Method
+        operator_task:
+          type: string
+          title: Operator Task
+        release_0_1_decision:
+          type: string
+          title: Release 0 1 Decision
+        backend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Backend Contract Refs
+        frontend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Frontend Contract Refs
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+        frontend_boundary:
+          type: string
+          title: Frontend Boundary
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_execution_authority:
+          type: string
+          title: Bff Execution Authority
+          default: forward_only_no_execution
+        dashboard_websocket_fallback_allowed:
+          type: boolean
+          title: Dashboard Websocket Fallback Allowed
+          default: false
+        live_coinbase_execution:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+      additionalProperties: false
+      type: object
+      required:
+      - action
+      - label
+      - support_status
+      - exposure_status
+      - current_state_source
+      - operator_task
+      - release_0_1_decision
+      - frontend_boundary
+      title: AdminEnterpriseLifecycleSupportItem
+      description: Backend-owned classification for admin lifecycle support.
     AdminEnterpriseModuleActionPosture:
       properties:
         module_id:
@@ -13304,6 +13404,22 @@ components:
           type: integer
           title: Command Gap Count
           default: 0
+        lifecycle_support_count:
+          type: integer
+          title: Lifecycle Support Count
+          default: 0
+        lifecycle_supported_read_count:
+          type: integer
+          title: Lifecycle Supported Read Count
+          default: 0
+        lifecycle_not_modeled_count:
+          type: integer
+          title: Lifecycle Not Modeled Count
+          default: 0
+        lifecycle_unsupported_count:
+          type: integer
+          title: Lifecycle Unsupported Count
+          default: 0
         module_registry_count:
           type: integer
           title: Module Registry Count
@@ -13369,6 +13485,11 @@ components:
             $ref: '#/components/schemas/AdminEnterpriseReadinessModuleItem'
           type: array
           title: Modules
+        lifecycle_support:
+          items:
+            $ref: '#/components/schemas/AdminEnterpriseLifecycleSupportItem'
+          type: array
+          title: Lifecycle Support
         functionality_inventory:
           items:
             $ref: '#/components/schemas/AdminEnterpriseFunctionalityInventoryItem'

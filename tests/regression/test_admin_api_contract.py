@@ -404,6 +404,7 @@ from core.enums import (
     AdminApiLiveExecutionStatus,
     AdminApiLivePreflightCategory,
     AdminApiLiveReadinessPrecondition,
+    AdminApiLifecycleAction,
     AdminApiAccountMarketInventoryFamily,
     AdminApiMutationFamilyType,
     AdminApiModuleSupportStatus,
@@ -44953,6 +44954,75 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "POST /api/v1/admin/approvals/requests" in admin_module["command_routes"]
     assert admin_module["action_posture"]["read_route_count"] == 25
     assert admin_module["action_posture"]["command_route_count"] == 8
+    lifecycle_rows = {
+        item["action"]: item for item in enterprise_payload["lifecycle_support"]
+    }
+    assert enterprise_payload["lifecycle_support_count"] == 6
+    assert enterprise_payload["lifecycle_supported_read_count"] == 1
+    assert enterprise_payload["lifecycle_not_modeled_count"] == 4
+    assert enterprise_payload["lifecycle_unsupported_count"] == 1
+    assert set(lifecycle_rows) == {
+        AdminApiLifecycleAction.STATUS.value,
+        AdminApiLifecycleAction.START.value,
+        AdminApiLifecycleAction.STOP.value,
+        AdminApiLifecycleAction.PAUSE.value,
+        AdminApiLifecycleAction.RESUME.value,
+        AdminApiLifecycleAction.DRAIN.value,
+    }
+    assert lifecycle_rows[AdminApiLifecycleAction.STATUS.value] == {
+        "action": AdminApiLifecycleAction.STATUS.value,
+        "label": "Lifecycle status",
+        "module_id": "admin_system_health",
+        "support_status": AdminApiModuleSupportStatus.PLATFORM_READY.value,
+        "exposure_status": AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED.value,
+        "current_state_source": "core.runtime_controller.RuntimeController.state",
+        "supported_route": "/api/v1/admin/health",
+        "supported_method": "GET",
+        "operator_task": "Inspect backend lifecycle health and route posture.",
+        "release_0_1_decision": "Status is displayable through existing backend health evidence.",
+        "backend_contract_refs": [
+            "core/runtime_controller.py::RuntimeController.state",
+            "application/admin_api/read_service.py::build_admin_health",
+        ],
+        "frontend_contract_refs": [
+            "src/features/admin-shell/LifecycleSupportPanel.tsx",
+        ],
+        "documentation_refs": [
+            "docs/ADMIN_LIFECYCLE_SUPPORT.md",
+        ],
+        "frontend_boundary": (
+            "Display health/lifecycle evidence only; no browser process "
+            "control or dashboard WebSocket fallback."
+        ),
+        "browser_authority": "display_only",
+        "bff_execution_authority": "forward_only_no_execution",
+        "dashboard_websocket_fallback_allowed": False,
+        "live_coinbase_execution": "not_run",
+        "notional_usdc": "0",
+    }
+    assert lifecycle_rows[AdminApiLifecycleAction.START.value]["support_status"] == (
+        AdminApiModuleSupportStatus.UNSUPPORTED.value
+    )
+    assert "cannot start the same stopped process" in lifecycle_rows[
+        AdminApiLifecycleAction.START.value
+    ]["release_0_1_decision"]
+    for action in (
+        AdminApiLifecycleAction.STOP,
+        AdminApiLifecycleAction.PAUSE,
+        AdminApiLifecycleAction.RESUME,
+        AdminApiLifecycleAction.DRAIN,
+    ):
+        lifecycle_row = lifecycle_rows[action.value]
+        assert lifecycle_row["support_status"] == (
+            AdminApiModuleSupportStatus.NOT_MODELED.value
+        )
+        assert lifecycle_row["supported_route"] is None
+        assert lifecycle_row["supported_method"] is None
+        assert lifecycle_row["dashboard_websocket_fallback_allowed"] is False
+        assert lifecycle_row["browser_authority"] == "display_only"
+        assert lifecycle_row["bff_execution_authority"] == "forward_only_no_execution"
+        assert lifecycle_row["live_coinbase_execution"] == "not_run"
+        assert lifecycle_row["notional_usdc"] == "0"
     assert registry_by_id["guard_risk_policy"]["read_routes"] == [
         "GET /api/v1/admin/guard-risk-policy"
     ]

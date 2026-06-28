@@ -65,6 +65,7 @@ from core.enums import (
     AdminApiLiveApprovalSnapshotField,
     AdminApiLiveCapGuardRequirement,
     AdminApiLiveExecutionStatus,
+    AdminApiLifecycleAction,
     AdminApiLivePreflightCategory,
     AdminApiLiveReadinessPrecondition,
     AdminApiModuleSupportStatus,
@@ -126,6 +127,7 @@ from .models import (
     AdminCsrfContractResponse,
     AdminEnterpriseCommandGapItem,
     AdminEnterpriseFunctionalityInventoryItem,
+    AdminEnterpriseLifecycleSupportItem,
     AdminEnterpriseMutationTaxonomyItem,
     AdminEnterpriseModuleActionPosture,
     AdminEnterpriseReadinessModuleItem,
@@ -7299,6 +7301,40 @@ class AdminApiReadService:
                 frontend_boundary=frontend_boundary,
             )
 
+        def lifecycle_item(
+            *,
+            action: AdminApiLifecycleAction,
+            label: str,
+            support_status: AdminApiModuleSupportStatus,
+            exposure_status: AdminApiFunctionalityExposureStatus,
+            current_state_source: str,
+            operator_task: str,
+            release_0_1_decision: str,
+            frontend_boundary: str,
+            backend_contract_refs: list[str],
+            supported_route: str | None = None,
+            supported_method: str | None = None,
+        ) -> AdminEnterpriseLifecycleSupportItem:
+            return AdminEnterpriseLifecycleSupportItem(
+                action=action,
+                label=label,
+                support_status=support_status,
+                exposure_status=exposure_status,
+                current_state_source=current_state_source,
+                supported_route=supported_route,
+                supported_method=supported_method,
+                operator_task=operator_task,
+                release_0_1_decision=release_0_1_decision,
+                backend_contract_refs=backend_contract_refs,
+                frontend_contract_refs=[
+                    "src/features/admin-shell/LifecycleSupportPanel.tsx",
+                ],
+                documentation_refs=[
+                    "docs/ADMIN_LIFECYCLE_SUPPORT.md",
+                ],
+                frontend_boundary=frontend_boundary,
+            )
+
         def functionality_item(
             *,
             workflow_id: str,
@@ -8168,6 +8204,140 @@ class AdminApiReadService:
                     "Legacy dashboard behavior is compatibility-only. Spot "
                     "rules exposed there are not reusable enterprise frontend "
                     "authority and must be reintroduced only through Admin API contracts."
+                ),
+            ),
+        ]
+        lifecycle_support = [
+            lifecycle_item(
+                action=AdminApiLifecycleAction.STATUS,
+                label="Lifecycle status",
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                current_state_source="core.runtime_controller.RuntimeController.state",
+                supported_route="/api/v1/admin/health",
+                supported_method="GET",
+                operator_task="Inspect backend lifecycle health and route posture.",
+                release_0_1_decision=(
+                    "Status is displayable through existing backend health evidence."
+                ),
+                backend_contract_refs=[
+                    "core/runtime_controller.py::RuntimeController.state",
+                    "application/admin_api/read_service.py::build_admin_health",
+                ],
+                frontend_boundary=(
+                    "Display health/lifecycle evidence only; no browser process "
+                    "control or dashboard WebSocket fallback."
+                ),
+            ),
+            lifecycle_item(
+                action=AdminApiLifecycleAction.START,
+                label="Start engine",
+                support_status=AdminApiModuleSupportStatus.UNSUPPORTED,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_UNSUPPORTED,
+                current_state_source="process supervisor not modeled in Admin API",
+                operator_task="Start a stopped backend process.",
+                release_0_1_decision=(
+                    "The running backend process cannot start the same stopped "
+                    "process; this needs an external supervisor contract."
+                ),
+                backend_contract_refs=[
+                    "core/runtime_controller.py",
+                ],
+                frontend_boundary=(
+                    "Show unsupported; do not add a browser start button, shell "
+                    "command, or dashboard WebSocket fallback."
+                ),
+            ),
+            lifecycle_item(
+                action=AdminApiLifecycleAction.STOP,
+                label="Stop engine",
+                support_status=AdminApiModuleSupportStatus.NOT_MODELED,
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED
+                ),
+                current_state_source="core.runtime_controller.RuntimeController.drain_and_stop",
+                operator_task="Stop the backend after a safe drain.",
+                release_0_1_decision=(
+                    "RuntimeController supports drain-and-stop internally, but no "
+                    "enterprise Admin API route models authorization, audit, "
+                    "operator intent, timeout, and result evidence for it."
+                ),
+                backend_contract_refs=[
+                    "core/runtime_controller.py::RuntimeController.drain_and_stop",
+                    "dashboard_server.py::admin_shutdown",
+                ],
+                frontend_boundary=(
+                    "Show not_modeled; do not call dashboard admin_shutdown or "
+                    "local process helpers."
+                ),
+            ),
+            lifecycle_item(
+                action=AdminApiLifecycleAction.PAUSE,
+                label="Pause engine",
+                support_status=AdminApiModuleSupportStatus.NOT_MODELED,
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED
+                ),
+                current_state_source="core.runtime_controller.RuntimeController.request_pause",
+                operator_task="Pause new backend order admission.",
+                release_0_1_decision=(
+                    "RuntimeController supports pause internally, but no enterprise "
+                    "Admin API route models authorization, audit, and operator "
+                    "intent for it."
+                ),
+                backend_contract_refs=[
+                    "core/runtime_controller.py::RuntimeController.request_pause",
+                    "dashboard_server.py::admin_pause",
+                ],
+                frontend_boundary=(
+                    "Show not_modeled; do not call dashboard admin_pause or local "
+                    "process helpers."
+                ),
+            ),
+            lifecycle_item(
+                action=AdminApiLifecycleAction.RESUME,
+                label="Resume engine",
+                support_status=AdminApiModuleSupportStatus.NOT_MODELED,
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED
+                ),
+                current_state_source="core.runtime_controller.RuntimeController.resume",
+                operator_task="Resume backend order admission after pause.",
+                release_0_1_decision=(
+                    "RuntimeController supports resume internally, but no "
+                    "enterprise Admin API route models authorization, audit, and "
+                    "operator intent for it."
+                ),
+                backend_contract_refs=[
+                    "core/runtime_controller.py::RuntimeController.resume",
+                    "dashboard_server.py::admin_resume",
+                ],
+                frontend_boundary=(
+                    "Show not_modeled; do not call dashboard admin_resume or local "
+                    "process helpers."
+                ),
+            ),
+            lifecycle_item(
+                action=AdminApiLifecycleAction.DRAIN,
+                label="Drain engine",
+                support_status=AdminApiModuleSupportStatus.NOT_MODELED,
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED
+                ),
+                current_state_source="core.runtime_controller.RuntimeController.wait_drain",
+                operator_task="Drain tracked in-flight backend work before shutdown.",
+                release_0_1_decision=(
+                    "RuntimeController supports drain tracking internally, but no "
+                    "enterprise Admin API route models drain request, timeout, "
+                    "audit, and result evidence for it."
+                ),
+                backend_contract_refs=[
+                    "core/runtime_controller.py::RuntimeController.wait_drain",
+                    "core/runtime_controller.py::RuntimeController.inflight_snapshot",
+                ],
+                frontend_boundary=(
+                    "Show not_modeled; do not add drain controls or local process "
+                    "helpers."
                 ),
             ),
         ]
@@ -12263,6 +12433,26 @@ class AdminApiReadService:
         )
         unsupported_module_count = len(modules) - supported_module_count
         command_gap_count = sum(len(module.command_gaps) for module in modules)
+        lifecycle_support_count = len(lifecycle_support)
+        lifecycle_supported_read_count = sum(
+            1
+            for item in lifecycle_support
+            if item.support_status
+            in {
+                AdminApiModuleSupportStatus.PLATFORM_READY,
+                AdminApiModuleSupportStatus.READ_ONLY_READY,
+            }
+        )
+        lifecycle_not_modeled_count = sum(
+            1
+            for item in lifecycle_support
+            if item.support_status == AdminApiModuleSupportStatus.NOT_MODELED
+        )
+        lifecycle_unsupported_count = sum(
+            1
+            for item in lifecycle_support
+            if item.support_status == AdminApiModuleSupportStatus.UNSUPPORTED
+        )
         functionality_inventory_count = len(functionality_inventory)
         backend_supported_workflow_count = sum(
             1 for item in functionality_inventory if item.backend_supported
@@ -12328,6 +12518,10 @@ class AdminApiReadService:
             supported_module_count=supported_module_count,
             unsupported_module_count=unsupported_module_count,
             command_gap_count=command_gap_count,
+            lifecycle_support_count=lifecycle_support_count,
+            lifecycle_supported_read_count=lifecycle_supported_read_count,
+            lifecycle_not_modeled_count=lifecycle_not_modeled_count,
+            lifecycle_unsupported_count=lifecycle_unsupported_count,
             module_registry_count=len(modules),
             module_action_posture_count=sum(
                 1 for module in modules if module.action_posture is not None
@@ -12348,6 +12542,7 @@ class AdminApiReadService:
             ),
             compatibility_mutation_count=compatibility_mutation_count,
             modules=modules,
+            lifecycle_support=lifecycle_support,
             functionality_inventory=functionality_inventory,
             mutation_taxonomy=mutation_taxonomy,
             security_checks=security_checks,

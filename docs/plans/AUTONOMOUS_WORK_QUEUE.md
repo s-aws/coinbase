@@ -180,6 +180,10 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
 - Current implementation result: Account and Market Inventory coverage is
   represented by `GET /api/v1/admin/account-market-inventory` and the frontend
   Inventory section.
+- Current lifecycle implementation result: Admin Lifecycle Support
+  Classification is represented by backend `lifecycle_support` rows on
+  `GET /api/v1/admin/enterprise-readiness` and the frontend Lifecycle section.
+  Lifecycle controls remain absent until backend command contracts exist.
 - Remaining release-linked selection: Product, Wallet, Balance, And Fill Read
   Contracts, because the coverage route now exposes product catalog, spot
   wallets, spot balances, and spot fills as explicit `not_modeled`
