@@ -62,6 +62,12 @@ execution as not run with notional `$0`.
 - Direct-order audit commands and dashboard audit requests are read-only local
   evidence readers. They do not submit, cancel, retry, or reconcile Coinbase
   orders.
+- `tools/run_admin_api_manual_spot_sell_validation.py` is a no-live Admin API
+  route validation runner. It injects a fake REST client to prove the existing
+  `POST /api/v1/orders` manual Spot SELL path consumes backend admission,
+  planned-budget, wallet, and lot-authority evidence before the REST boundary.
+  It must report live Coinbase execution as not run with submitted/executed
+  notional `$0`.
 
 ## Operator Rule
 

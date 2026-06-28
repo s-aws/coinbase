@@ -59,7 +59,7 @@ The current generated route inventory
 | --- | --- | --- | --- | --- | --- |
 | Admin shell | `/api/v1/admin/bootstrap`, `/health`, `/session`, `/capabilities`, `/live-enablement`, `/enterprise-readiness`, `/release-gate` | Overview, Lifecycle, Modules, Settings, Admin Evidence | `blocked` | Read posture and lifecycle classification are usable, but lifecycle command execution remains `unsupported` or `not_modeled`. | Do not add lifecycle controls until backend-owned command contracts exist; move next release work to the highest-impact remaining blocked workflow. |
 | Account inventory | `/api/v1/admin/account-market-inventory`, `/api/v1/orders`, `/api/v1/orders/{client_order_id}`, `/api/v1/futures/account`, `/api/v1/futures/positions`, spot readiness/cost-basis/sweep/campaign reads | Inventory, Orders, Spot Operations, Futures/Perpetuals | `ready_with_data_gate` | First-class coverage exists for product catalog, spot wallets, spot balances, and spot fills. Coinbase reads are backend-only, bounded, and disabled unless explicitly enabled, so the frontend must render `data_status` instead of inventing browser reads. | Keep the frontend display-only, surface blocked data clearly, and use this route as the account/market source of truth. |
-| Spot commands | `/api/v1/orders`, `/api/v1/orders/{client_order_id}/cancel`, `/api/v1/spot/command-suite`, `/api/v1/spot/direct-orders/{client_order_id}/audit`, `/api/v1/spot/campaign/executions`, `/api/v1/spot/sweep/automation-runs` | Command Workflows, Spot Operations, Campaigns | `blocked` | Command routes exist, `GET /api/v1/spot/command-suite` exposes Buy/Sell/Cancel readiness, and manual order/cancel route adapters now pass backend admission decisions into the shared command-service `allow_live_execution` flag. Manual order admission can pass when exact backend approval, admission-audit, cap/guard, reconciliation, manual acknowledgement, and completed live-service evidence all match. The manual-order route now has a route-scoped configured backend live-service dependency that can reach the existing command-service live branch when backend env/config/event-stream gates pass; default runtime remains blocked. Cancel now has explicit `manual_live_acknowledgement`, a route-scoped configured backend live-service dependency, and a service-level acknowledgement guard before it reaches the existing `cancel_order(client_order_id)` wrapper. Accepted configured live manual BUY responses now expose `data.post_submit_reconciliation` with the direct-order audit route and no-mutation/no-browser/BFF-authority flags, and the frontend command workflow renders/links that handoff. The frontend Spot Operations panel can load the returned `client_order_id` through `GET /api/v1/spot/direct-orders/{client_order_id}/audit` for read-only inspection. Capped live validation for one manual Spot BUY now proves Admin API order submission, read-only Coinbase fill lookup, fill-ledger backfill, and Admin API direct-order audit readback with `dashboard_dependency=false`. Admin API manual-order dependencies now source planned budget from durable `stealth_orders` rows and spot SELL lot authority from the shared fill ledger/imported baselines through `ActionConditionGuard`. SELL still needs operator-facing validation evidence before Release 0.1 closeout. | Keep SELL validation evidence on the manual-order path without adding browser/BFF authority. |
+| Spot commands | `/api/v1/orders`, `/api/v1/orders/{client_order_id}/cancel`, `/api/v1/spot/command-suite`, `/api/v1/spot/direct-orders/{client_order_id}/audit`, `/api/v1/spot/campaign/executions`, `/api/v1/spot/sweep/automation-runs` | Command Workflows, Spot Operations, Campaigns | `blocked` | Command routes exist, `GET /api/v1/spot/command-suite` exposes Buy/Sell/Cancel readiness, and manual order/cancel route adapters now pass backend admission decisions into the shared command-service `allow_live_execution` flag. Manual order admission can pass when exact backend approval, admission-audit, cap/guard, reconciliation, manual acknowledgement, and completed live-service evidence all match. The manual-order route now has a route-scoped configured backend live-service dependency that can reach the existing command-service live branch when backend env/config/event-stream gates pass; default runtime remains blocked. Cancel now has explicit `manual_live_acknowledgement`, a route-scoped configured backend live-service dependency, and a service-level acknowledgement guard before it reaches the existing `cancel_order(client_order_id)` wrapper. Accepted configured live manual BUY responses now expose `data.post_submit_reconciliation` with the direct-order audit route and no-mutation/no-browser/BFF-authority flags, and the frontend command workflow renders/links that handoff. The frontend Spot Operations panel can load the returned `client_order_id` through `GET /api/v1/spot/direct-orders/{client_order_id}/audit` for read-only inspection. Capped live validation for one manual Spot BUY now proves Admin API order submission, read-only Coinbase fill lookup, fill-ledger backfill, and Admin API direct-order audit readback with `dashboard_dependency=false`. Admin API manual-order dependencies now source planned budget from durable `stealth_orders` rows and spot SELL lot authority from the shared fill ledger/imported baselines through `ActionConditionGuard`. No-live operator-facing SELL validation now runs through `tools/run_admin_api_manual_spot_sell_validation.py`, reaches the existing `POST /api/v1/orders` route and shared command service with fake REST, and reports live Coinbase execution not run with submitted/executed notional `0`. | Continue Release 0.1 closeout work through operator runbook/docs index/autonomous validator/contextless review; do not add browser/BFF authority or a second SELL path. |
 | Stealth commands | `/api/v1/stealth/orders`, reveal, move, cancel, recovery, reconciliation, command suite, proof routes | Stealth Orders, Command Workflows | `blocked` | Evidence is rich, but operator completion is blocked by exchange-reality, lifecycle-write, live-disabled, and reconciliation gates. | Surface every stealth command as usable or blocked by exact gate; do not add hide-again shortcuts. |
 | Movement/repricing | `/api/v1/movement-repricing/evidence`, order detail, stealth detail, stealth reprice | Movement/Repricing, Command Workflows | `blocked` | Reprice exists as a live-disabled command route; move, premark, cooldown, claim, and cancel/replace workflows are not complete. | Add a movement action-state matrix before adding controls. |
 | Automation/campaigns | Spot campaign status, campaign executions, sweep status, sweep P/L, sweep automation runs | Campaigns, Spot Operations, Command Workflows | `blocked` | Scheduler/run-limit/retry/pause-resume behavior is not operator-complete; execution routes remain gated. | Inventory campaign/sweep scheduler state and represent missing controls as `not_modeled`. |
@@ -125,16 +125,18 @@ What this clears:
 
 ## Follow-On Implementation Slice
 
-The next implementation slice should come from the still-blocked spot command
-workflow, not from more lifecycle classification or inventory read modeling.
-Inventory read coverage is now `ready_with_data_gate`; the remaining Release
-0.1 spot blocker is no longer route-local command flag binding or generic
-live-service dependency wiring. Manual order and cancel route adapters now
-source `allow_live_execution` from backend live admission, and manual order has
-a route-scoped configured backend live-service dependency. Manual order
-admission can now pass with exact backend records, manual acknowledgement, and
-a completed backend live-service state. Accepted configured live responses now
-return a structured `post_submit_reconciliation` audit handoff for
+The next implementation slice should continue the approved Release 0.1
+operator runbook, documentation index, autonomous validator, and contextless
+review work. Inventory read coverage is now `ready_with_data_gate`; the
+remaining Release 0.1 spot blocker is no longer route-local command flag
+binding, generic live-service dependency wiring, BUY post-submit audit
+handoff, or SELL operator-facing validation evidence. Manual order and cancel
+route adapters now source `allow_live_execution` from backend live admission,
+and manual order has a route-scoped configured backend live-service
+dependency. Manual order admission can now pass with exact backend records,
+manual acknowledgement, and a completed backend live-service state. Accepted
+configured live responses now return a structured
+`post_submit_reconciliation` audit handoff for
 `GET /api/v1/spot/direct-orders/{client_order_id}/audit`; that is not
 reconciliation execution and does not mutate order or exchange state. The
 frontend command workflow now renders and links that backend evidence without
@@ -144,9 +146,9 @@ audit route for read-only inspection. Capped live validation now proves one
 manual Spot BUY through the Admin API route, post-submit REST-fill backfill,
 and direct-order audit readback with `dashboard_dependency=false`. The Admin
 API manual-order path now has backend-owned planned-budget and spot SELL
-lot-authority sources through the shared action-condition guard. The next
-blocker is SELL operator-facing validation evidence on the same manual-order
-path before Release 0.1 closeout.
+lot-authority sources through the shared action-condition guard, plus a
+no-live operator validation runner that proves the SELL route/service/guard
+path with fake REST and `0` USDC live Coinbase notional.
 Any implementation must keep auth, RBAC, operator intent, idempotency, audit,
 approval snapshot, cap/guard, reconciliation, wallet/no-shorting, direct
 acknowledgement, live-service, and Coinbase adapter authority in the backend.

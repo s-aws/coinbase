@@ -188,6 +188,12 @@ local order that reveals later under the shared guard path.
   `stealth_orders` rows. Direct spot placement also
   requires an enabled local `order_event_stream` publisher before REST
   submission so the `client_order_id` can be audited after the exchange call.
+  For operator validation of the Admin API direct SELL authority path without
+  Coinbase execution, run
+  `python tools\run_admin_api_manual_spot_sell_validation.py --summary-only`.
+  That runner uses the same Admin API route and shared command service with a
+  fake REST client; it must report live Coinbase execution as not run with
+  submitted/executed notional `0`.
   Use a regenerated strict SELL allowlist through sweep/campaign instead of raw
   `place_order` when the operator needs portfolio-wide profit-authority
   evidence, per-run caps, skipped-order accounting, or repeatable execution.

@@ -89,6 +89,16 @@ it does not import `dashboard_server.py` or rely on the proof-of-concept
 dashboard. The live runner is not the direct Coinbase smoke path and does not
 bypass the shared command service.
 
+Use `python tools\run_admin_api_manual_spot_sell_validation.py --summary-only`
+for no-live validation of the exact Admin API manual Spot SELL authority path.
+This runner seeds route-exact approval, admission-audit, cap/guard, and
+reconciliation evidence, calls `POST /api/v1/orders` through the FastAPI app
+route, injects a fake REST client, and proves the shared command service
+consumes the planning cap, wallet/planned-budget hook, and
+`known_inventory_available` lot-authority hook before the REST boundary. It
+must report `live_coinbase_orders_ran=false`, `submitted_notional_usdc=0`, and
+`executed_notional_usdc=0`; it is validation evidence, not a live SELL tool.
+
 The generated OpenAPI contract documents the eventual `200` accepted/replayed
 command response shape and the current `501` live-disabled response shape.
 The default runtime still returns `501` for create, order cancel, stealth

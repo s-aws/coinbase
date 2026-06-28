@@ -226,8 +226,10 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
   `business.spot_fill_backfill.backfill_fill_ledger_from_order_reports`, and
   read back `GET /api/v1/spot/direct-orders/{client_order_id}/audit` through
   `application.admin_api.read_service` with `dashboard_dependency=false`.
-  Remaining spot command work is operator-facing SELL validation evidence on
-  the existing manual-order path without browser/BFF execution authority.
+  No-live operator-facing SELL validation now runs through
+  `python tools\run_admin_api_manual_spot_sell_validation.py --summary-only`
+  on the existing manual-order path with fake REST and reports live Coinbase
+  execution as not run with submitted/executed notional `0`.
   Product catalog, spot wallet, spot balance, and spot fill read contracts now
   belong to the account-market-inventory `ready_with_data_gate` surface, not a
   missing-contract blocker.

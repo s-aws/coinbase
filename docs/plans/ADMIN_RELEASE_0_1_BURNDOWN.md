@@ -182,9 +182,13 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
   `business.spot_fill_backfill.backfill_fill_ledger_from_order_reports`, and
   read back `GET /api/v1/spot/direct-orders/{client_order_id}/audit` through
   `application.admin_api.read_service` with `dashboard_dependency=false`.
-  The remaining spot command blocker is release validation that presents the
-  SELL source wiring clearly to operators without browser/BFF execution
-  authority.
+  No-live operator-facing SELL validation now uses
+  `python tools\run_admin_api_manual_spot_sell_validation.py --summary-only`
+  to seed exact Admin API admission evidence, call the existing
+  `POST /api/v1/orders` route through the FastAPI app, reach the shared
+  command service with fake REST, and prove planning-cap, wallet/planned-budget,
+  and `known_inventory_available` lot-authority wiring without browser/BFF
+  execution authority, a second SELL path, or live Coinbase execution.
 
 ### Phase 7994 - Operator Runbook Update
 

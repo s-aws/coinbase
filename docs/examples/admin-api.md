@@ -48,6 +48,23 @@ submitted order, then checks
 not substitute the direct Coinbase smoke tool when the goal is proving
 frontend/API manageability.
 
+## Manual Spot SELL No-Live Validation
+
+Validate the exact Admin API manual Spot SELL authority path without live
+Coinbase execution:
+
+```powershell
+python tools\run_admin_api_manual_spot_sell_validation.py --summary-only
+```
+
+The runner seeds route-exact approval, admission-audit, cap/guard, and
+reconciliation records, calls `POST /api/v1/orders` through the FastAPI app
+route, and injects a fake REST client so the shared command service can prove
+the planning cap, wallet/planned-budget hook, and
+`known_inventory_available` lot-authority hook before the REST boundary. A
+passing summary must report `live_coinbase_orders_ran=false`,
+`submitted_notional_usdc=0`, and `executed_notional_usdc=0`.
+
 ## Completed Futures/Perpetuals M57 Evidence
 
 Completed `GET /api/v1/futures/command-suite` examples for M57 used

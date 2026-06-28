@@ -49,9 +49,9 @@ work. Historical milestone detail belongs in
   `unsupported` or `not_modeled`.
 - Phase instruction review status: backend `AGENTS.md`, backend `agent.md`,
   frontend `AGENTS.md`, and related agent contract docs were reviewed again on
-  2026-06-28 for this phase, including the manual Spot BUY Admin API
-  live-validation runner slice and Admin API spot SELL authority source wiring.
-  Release 0.1 product progress remains the controlling rule.
+  2026-06-28 for this phase, including the no-live Admin API manual Spot SELL
+  validation runner slice. Release 0.1 product progress remains the
+  controlling rule.
 - Release 0.1 matrix status:
   `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md` and frontend
   `docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md` now identify the next
@@ -87,11 +87,16 @@ work. Historical milestone detail belongs in
   `manual_live_acknowledgement`, a route-scoped configured backend live-service
   dependency, service-level acknowledgement rejection before REST, and the
   existing project wrapper `cancel_order(client_order_id)` as the only live
-  cancel call. Remaining blocker is operator-facing SELL validation evidence
-  before Release 0.1 closeout.
-- Exact next implementation slice: keep SELL on the existing manual-order path
-  and produce operator-facing validation evidence without adding browser/BFF
-  execution authority or a second spot sell path.
+  cancel call. No-live operator-facing SELL validation now runs through
+  `python tools\run_admin_api_manual_spot_sell_validation.py --summary-only`,
+  seeds exact route admission evidence, calls the existing
+  `POST /api/v1/orders` route through the FastAPI app, reaches the shared
+  command service with fake REST, and reports live Coinbase execution as not
+  run with submitted/executed notional `0`.
+- Exact next implementation slice: continue approved Release 0.1 closeout
+  support through operator runbook, docs index, autonomous validator, and
+  contextless review work. Do not create another spot proof slice unless it
+  clears a named Release 0.1 blocker.
 - Contextless review status: planned for `7981-8000`; reviewers must verify
   that the Release 0.1 pivot is understandable without chat history and that
   future work cannot drift back into proof-only expansion without a named
@@ -106,10 +111,14 @@ work. Historical milestone detail belongs in
   readback returned `dashboard_dependency=false`. Focused Admin API spot SELL
   authority tests passed for planned-budget DB reads, fill-ledger/imported
   baseline lot authority, and command-service consumption before fake REST.
-  Backend py_compile, ownership check, and backend autonomous queue check
-  passed. No frontend files changed in this SELL authority source slice. Full
-  backend regression and frontend release gate were not run because this is
-  ordinary phase work, not milestone closeout.
+  No-live Admin API manual Spot SELL validation runner focused tests passed,
+  and the operator runner itself passed with validated notional `2.00` USDC,
+  fake REST boundary reached, `live_coinbase_orders_ran=false`,
+  submitted notional `0` USDC, and executed notional `0` USDC. Backend
+  py_compile, ownership check, and backend autonomous queue check passed. No
+  frontend files changed in this SELL validation slice. Full backend
+  regression and frontend release gate were not run because this is ordinary
+  phase work, not milestone closeout.
 - Commit/push status: pending for `7981-8000` in backend and frontend repos.
 - Current phase-end subagent sweep: no subagents were spawned for this phase;
   no stale phase-scoped subagents are intentionally open.
@@ -510,6 +519,10 @@ work. Historical milestone detail belongs in
   readback returned `dashboard_dependency=false`.
 - Additional Admin API spot SELL authority source wiring did not run live
   Coinbase execution; submitted notional `0` USDC, executed notional `0` USDC.
+- No-live Admin API manual Spot SELL validation ran through
+  `python tools\run_admin_api_manual_spot_sell_validation.py --summary-only`
+  with fake REST only. Validated notional was `2.00` USDC; submitted notional
+  was `0` USDC; executed notional was `0` USDC.
 
 ## Regression Policy
 
@@ -522,10 +535,11 @@ work. Historical milestone detail belongs in
 
 ## Next Actions
 
-1. Continue Release 0.1 phases from the burn-down, prioritizing
-   operator-facing SELL validation evidence on the existing manual-order path.
-2. Keep SELL on the existing manual-order path and use focused validation
-   evidence rather than adding a second spot sell path.
+1. Continue Release 0.1 phases from the burn-down, prioritizing operator
+   runbook, documentation index, autonomous validator, and contextless review
+   work for the private operator MVP.
+2. Keep any future SELL work on the existing manual-order path and use focused
+   validation evidence rather than adding a second spot sell path.
 3. Keep full regression reserved for durable milestone closeout unless
    explicitly requested.
 

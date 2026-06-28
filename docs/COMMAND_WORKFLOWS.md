@@ -50,6 +50,12 @@ rejection evidence, not Coinbase submission.
   `bff_authority=forward_only_no_execution` flags. Operators and frontend code
   must treat that payload as the next audit handoff, not as reconciliation
   execution or browser/BFF authority.
+- Manual Spot SELL authority validation is operator-facing through
+  `python tools\run_admin_api_manual_spot_sell_validation.py --summary-only`.
+  That runner uses the real Admin API route and shared command service with a
+  fake REST client so it can prove cap, wallet/planned-budget, and
+  `known_inventory_available` lot-authority wiring without placing Coinbase
+  orders or adding a second sell path.
 
 ## Spot Command Suite
 

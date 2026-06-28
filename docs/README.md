@@ -90,6 +90,8 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
   `python tools\run_admin_api_manual_spot_buy_live.py --summary-only`
   and, only with explicit live approval,
   `python tools\run_admin_api_manual_spot_buy_live.py --approved-live-orders --summary-only`
+- Admin API manual Spot SELL no-live validation:
+  `python tools\run_admin_api_manual_spot_sell_validation.py --summary-only`
 - Process-parallel regression closeout:
   `python tools\run_parallel_regression.py --workers 4`
 - Stale test-process check before closeout and after interrupted tests:
