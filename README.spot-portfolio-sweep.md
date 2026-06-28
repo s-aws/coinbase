@@ -83,10 +83,15 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   `request_spot_sweep_pnl`; live sweep approval remains CLI-only.
 - The Admin API exposes `POST /api/v1/spot/sweep/automation-runs` as a
   route-bound, live-disabled command contract keyed by `sweep_config_id`. It
-  records admin envelope/idempotency/audit/admission evidence and currently
-  returns `501 not_implemented`; it must not run the live sweep CLI, create a
-  browser scheduler, or submit Coinbase orders until scheduler, run-limit,
-  recovery, reconciliation, and live execution gates pass.
+  records admin envelope/idempotency/audit/admission evidence. `dry_run=true`
+  returns accepted no-live review evidence; `dry_run=false` still returns
+  `501 not_implemented`. Responses include backend-owned
+  `automation_execution_contract_status`, `automation_execution_decision`,
+  scheduler dispatch contract evidence, retry execution contract evidence, and
+  blocker rows so operators can see why dispatch/retry/live execution remains
+  unavailable. The route must not run the live sweep CLI, create a browser
+  scheduler, or submit Coinbase orders until scheduler, run-limit, recovery,
+  reconciliation, and live execution gates pass.
 - The Admin API exposes `GET /api/v1/spot/sweep/automation-service` as
   backend-owned read evidence for the campaign ledger, sweep ledger, operation
   lock, scheduler due/not-due/disabled/max-run decisions, run-limit remaining

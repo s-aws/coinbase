@@ -77,6 +77,10 @@ Use a spot campaign when you want to:
   scheduler due/not-due/disabled/max-run decisions and run-limit remaining
   counts. This is not a scheduler dispatcher, retry executor, browser timer,
   BFF runner, or Coinbase authority.
+- Admin API sweep automation run reviews expose backend-owned scheduler
+  dispatch and retry execution contract evidence in the command response. This
+  is operator blocker evidence only; it does not dispatch a scheduler, execute
+  retries, reconcile, or call Coinbase.
 - Planned sweep skips are not retry candidates and do not make a live campaign
   canary blocked by themselves. Campaign recording uses the effective sweep
   outcome while preserving the raw recorded sweep status in the snapshot.

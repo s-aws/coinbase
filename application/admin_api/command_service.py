@@ -21,6 +21,7 @@ from core.enums import (
     AdminApiGateStatus,
     AdminApiLifecycleAction,
     AdminApiLiveExecutionStatus,
+    AdminApiModuleSupportStatus,
     AdminApiMutationFamilyType,
     AdminApiPermission,
     EngineState,
@@ -31,6 +32,8 @@ from core.enums import (
     OrderType,
     ProductCapability,
     ProductType,
+    SpotSweepAutomationExecutionBlocker,
+    SpotSweepAutomationExecutionDecision,
     StealthMutationKind,
     TargetMovementType,
 )
@@ -1348,6 +1351,85 @@ def runtime_lifecycle_permission(
     raise ValueError(f"Unsupported runtime lifecycle action: {action.value}")
 
 
+def spot_sweep_automation_execution_contract_data(
+    *,
+    dry_run: bool,
+) -> dict[str, Any]:
+    """Return fail-closed dispatch/retry evidence for one automation request."""
+
+    automation_decision = (
+        SpotSweepAutomationExecutionDecision.DRY_RUN_REVIEW_ONLY
+        if dry_run
+        else SpotSweepAutomationExecutionDecision.LIVE_EXECUTION_NOT_IMPLEMENTED
+    )
+    blockers = [
+        SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_CONTRACT_REQUIRED,
+        SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_CONTRACT_REQUIRED,
+        SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED,
+        SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_CONTRACT_REQUIRED,
+    ]
+    if dry_run:
+        blockers.insert(0, SpotSweepAutomationExecutionBlocker.DRY_RUN_REVIEW_ONLY)
+    else:
+        blockers.insert(0, SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_DISABLED)
+
+    return {
+        "automation_execution_contract_status": (
+            AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+        ),
+        "automation_execution_decision": automation_decision.value,
+        "automation_execution_blockers": [item.value for item in blockers],
+        "scheduler_dispatch_contract_status": (
+            AdminApiModuleSupportStatus.NOT_MODELED.value
+        ),
+        "scheduler_dispatch_decision": (
+            SpotSweepAutomationExecutionDecision.SCHEDULER_DISPATCH_NOT_MODELED.value
+        ),
+        "scheduler_dispatch_contract": {
+            "contract_status": AdminApiModuleSupportStatus.NOT_MODELED.value,
+            "decision": (
+                SpotSweepAutomationExecutionDecision.SCHEDULER_DISPATCH_NOT_MODELED.value
+            ),
+            "missing_contract": (
+                SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_CONTRACT_REQUIRED.value
+            ),
+            "route": "/api/v1/spot/sweep/automation-runs",
+            "backend_owned": True,
+            "operator_action_available": False,
+            "scheduler_invoked": False,
+            "sweep_runner_invoked": False,
+            "coinbase_orders_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        },
+        "retry_execution_contract_status": (
+            AdminApiModuleSupportStatus.NOT_MODELED.value
+        ),
+        "retry_execution_decision": (
+            SpotSweepAutomationExecutionDecision.RETRY_EXECUTION_NOT_MODELED.value
+        ),
+        "retry_execution_contract": {
+            "contract_status": AdminApiModuleSupportStatus.NOT_MODELED.value,
+            "decision": (
+                SpotSweepAutomationExecutionDecision.RETRY_EXECUTION_NOT_MODELED.value
+            ),
+            "missing_contract": (
+                SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_CONTRACT_REQUIRED.value
+            ),
+            "route": "/api/v1/spot/sweep/automation-runs",
+            "backend_owned": True,
+            "operator_action_available": False,
+            "retry_executor_invoked": False,
+            "sweep_runner_invoked": False,
+            "coinbase_orders_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        },
+    }
+
+
 class AdminApiCommandService:
     """Shared command-service boundary for enterprise API work."""
 
@@ -2563,6 +2645,9 @@ class AdminApiCommandService:
                     ),
                     "submitted_notional_usdc": "0",
                     "executed_notional_usdc": "0",
+                    **spot_sweep_automation_execution_contract_data(
+                        dry_run=True,
+                    ),
                 },
             )
         return AdminApiCommandResponse(
@@ -2610,6 +2695,9 @@ class AdminApiCommandService:
                 ),
                 "submitted_notional_usdc": "0",
                 "executed_notional_usdc": "0",
+                **spot_sweep_automation_execution_contract_data(
+                    dry_run=False,
+                ),
             },
             failure_stage="approval",
         )

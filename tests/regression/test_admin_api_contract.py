@@ -438,6 +438,8 @@ from core.enums import (
     AdminApiStealthLiveReadinessDecision,
     AdminApiVerifierReadinessStatus,
     SpotSweepAutomationControlAction,
+    SpotSweepAutomationExecutionBlocker,
+    SpotSweepAutomationExecutionDecision,
     SpotSweepAutomationSchedulerBindingStatus,
     StealthMutationKind,
     StealthCommandExecutionBlocker,
@@ -34214,6 +34216,39 @@ def test_admin_api_spot_sweep_automation_dry_run_is_accepted_no_live(
     )
     assert payload["data"]["submitted_notional_usdc"] == "0"
     assert payload["data"]["executed_notional_usdc"] == "0"
+    assert payload["data"]["automation_execution_contract_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert payload["data"]["automation_execution_decision"] == (
+        SpotSweepAutomationExecutionDecision.DRY_RUN_REVIEW_ONLY.value
+    )
+    assert payload["data"]["scheduler_dispatch_contract_status"] == (
+        AdminApiModuleSupportStatus.NOT_MODELED.value
+    )
+    assert payload["data"]["scheduler_dispatch_decision"] == (
+        SpotSweepAutomationExecutionDecision.SCHEDULER_DISPATCH_NOT_MODELED.value
+    )
+    assert payload["data"]["scheduler_dispatch_contract"]["missing_contract"] == (
+        SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_CONTRACT_REQUIRED.value
+    )
+    assert payload["data"]["scheduler_dispatch_contract"]["scheduler_invoked"] is False
+    assert payload["data"]["retry_execution_contract_status"] == (
+        AdminApiModuleSupportStatus.NOT_MODELED.value
+    )
+    assert payload["data"]["retry_execution_decision"] == (
+        SpotSweepAutomationExecutionDecision.RETRY_EXECUTION_NOT_MODELED.value
+    )
+    assert payload["data"]["retry_execution_contract"]["missing_contract"] == (
+        SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_CONTRACT_REQUIRED.value
+    )
+    assert payload["data"]["retry_execution_contract"]["retry_executor_invoked"] is False
+    assert payload["data"]["automation_execution_blockers"] == [
+        SpotSweepAutomationExecutionBlocker.DRY_RUN_REVIEW_ONLY.value,
+        SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_CONTRACT_REQUIRED.value,
+        SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_CONTRACT_REQUIRED.value,
+        SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED.value,
+        SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_CONTRACT_REQUIRED.value,
+    ]
     assert payload["audit_id"]
 
 
@@ -34270,6 +34305,31 @@ def test_admin_api_spot_sweep_automation_contract_is_not_implemented_and_not_liv
     )
     assert payload["data"]["submitted_notional_usdc"] == "0"
     assert payload["data"]["executed_notional_usdc"] == "0"
+    assert payload["data"]["automation_execution_contract_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert payload["data"]["automation_execution_decision"] == (
+        SpotSweepAutomationExecutionDecision.LIVE_EXECUTION_NOT_IMPLEMENTED.value
+    )
+    assert payload["data"]["scheduler_dispatch_contract_status"] == (
+        AdminApiModuleSupportStatus.NOT_MODELED.value
+    )
+    assert payload["data"]["scheduler_dispatch_decision"] == (
+        SpotSweepAutomationExecutionDecision.SCHEDULER_DISPATCH_NOT_MODELED.value
+    )
+    assert payload["data"]["retry_execution_contract_status"] == (
+        AdminApiModuleSupportStatus.NOT_MODELED.value
+    )
+    assert payload["data"]["retry_execution_decision"] == (
+        SpotSweepAutomationExecutionDecision.RETRY_EXECUTION_NOT_MODELED.value
+    )
+    assert payload["data"]["automation_execution_blockers"] == [
+        SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_DISABLED.value,
+        SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_CONTRACT_REQUIRED.value,
+        SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_CONTRACT_REQUIRED.value,
+        SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED.value,
+        SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_CONTRACT_REQUIRED.value,
+    ]
     assert payload["audit_id"]
 
 

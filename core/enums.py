@@ -2606,6 +2606,30 @@ class SpotSweepAutomationSchedulerBindingStatus(str, Enum):
     UNKNOWN = "unknown"
 
 
+class SpotSweepAutomationExecutionDecision(str, Enum):
+    """Admin API execution decision evidence for spot sweep automation runs."""
+
+    DRY_RUN_REVIEW_ONLY = "dry_run_review_only"
+    LIVE_EXECUTION_NOT_IMPLEMENTED = "live_execution_not_implemented"
+    SCHEDULER_DISPATCH_NOT_MODELED = "scheduler_dispatch_not_modeled"
+    RETRY_EXECUTION_NOT_MODELED = "retry_execution_not_modeled"
+
+
+class SpotSweepAutomationExecutionBlocker(str, Enum):
+    """Fail-closed blockers for spot sweep automation execution paths."""
+
+    DRY_RUN_REVIEW_ONLY = "dry_run_review_only"
+    LIVE_EXECUTION_DISABLED = "live_execution_disabled"
+    SCHEDULER_DISPATCH_CONTRACT_REQUIRED = (
+        "enterprise_sweep_scheduler_dispatch_service_contract"
+    )
+    RETRY_EXECUTION_CONTRACT_REQUIRED = "sweep_retry_execution_contract"
+    RECONCILIATION_EXECUTION_CONTRACT_REQUIRED = (
+        "sweep_reconciliation_execution_contract"
+    )
+    LIVE_EXECUTION_CONTRACT_REQUIRED = "sweep_live_execution_contract"
+
+
 class SpotPortfolioSweepOrderType(str, Enum):
     """Supported live order policies for USDC spot portfolio sweeps."""
 
