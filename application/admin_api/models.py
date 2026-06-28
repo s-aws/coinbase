@@ -134,6 +134,8 @@ from core.enums import (
     AdminApiRouteAvailability,
     AdminApiRole,
     AdminApiSessionStatus,
+    AdminApiSettingsPolicyMapCategory,
+    AdminApiSettingsPolicyMapStatus,
     AdminApiSpotCommandSuiteGapFamily,
     AdminApiStealthAdmissionContextField,
     AdminApiStealthClosureClearanceOwner,
@@ -2511,6 +2513,55 @@ class AdminCapabilityRegistryResponse(BaseModel):
 
     type: str = "admin_capabilities"
     capabilities: list[AdminCapabilityItem] = Field(default_factory=list)
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminSettingsPolicyMapItem(BaseModel):
+    """One safe settings/policy surface classification for operators."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    surface_id: str
+    label: str
+    category: AdminApiSettingsPolicyMapCategory
+    status: AdminApiSettingsPolicyMapStatus
+    operator_task: str
+    current_source: str
+    read_route: str | None = None
+    write_route: str | None = None
+    supported_method: str | None = None
+    required_permission: AdminApiPermission | str | None = None
+    secret_value_exposed: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    coinbase_authority: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.NOT_RUN
+    notional_usdc: DecimalString = "0"
+    release_0_1_decision: str
+    frontend_boundary: str
+    backend_contract_refs: list[str] = Field(default_factory=list)
+    frontend_contract_refs: list[str] = Field(default_factory=list)
+    documentation_refs: list[str] = Field(default_factory=list)
+
+
+class AdminSettingsPolicyMapResponse(BaseModel):
+    """Safe settings/policy surface map without secret or edit authority."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_settings_policy_map"
+    editable_count: int = Field(default=0, ge=0)
+    read_only_count: int = Field(default=0, ge=0)
+    secret_count: int = Field(default=0, ge=0)
+    unsupported_count: int = Field(default=0, ge=0)
+    not_modeled_count: int = Field(default=0, ge=0)
+    safe_to_render_count: int = Field(default=0, ge=0)
+    secret_values_exposed: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    coinbase_authority: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.NOT_RUN
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    items: list[AdminSettingsPolicyMapItem] = Field(default_factory=list)
     live_coinbase_orders_ran: bool = False
 
 

@@ -20,7 +20,8 @@ stealth create, reveal, move, cancel, recovery, and reconciliation command contr
 live-disabled movement reprice command contract, read-only futures/perpetual
 account, position, command-suite contract, and risk-proof record read routes,
 a no-live append-only futures/perpetual risk-proof record route, read-only guard/risk policy evidence, read-only
-cross-module audit workbench evidence, backend-owned approval, cap/guard,
+cross-module audit workbench evidence, read-only settings/policy map
+classification, backend-owned approval, cap/guard,
 admission audit, reconciliation plan, and live-service decision evidence
 routes, and read-only spot
 operator routes. Live-shaped trading command HTTP routes are no-live by
@@ -1897,6 +1898,7 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/admin/capabilities`
 - `GET /api/v1/admin/csrf`
 - `GET /api/v1/admin/live-enablement`
+- `GET /api/v1/admin/settings-policy-map`
 - `GET /api/v1/admin/account-market-inventory`
 - `GET /api/v1/admin/enterprise-readiness`
 - `GET /api/v1/admin/guard-risk-policy`
@@ -1954,6 +1956,17 @@ two `not_modeled` commands, and one `unsupported` command. `status` links to
 `POST /api/v1/admin/lifecycle/resume`. Lifecycle support does not authorize
 route-local process control, dashboard WebSocket fallback, BFF process
 authority, shell helpers, or Coinbase calls.
+
+`GET /api/v1/admin/settings-policy-map` exposes the backend-owned settings
+and policy classification consumed by the enterprise Settings page. It reports
+enum-backed `editable`, `read_only`, `secret`, `unsupported`, and
+`not_modeled` rows, while the current Release 0.1 contract intentionally keeps
+`editable_count=0`. The response sets `secret_values_exposed=false`,
+`browser_authority=display_only`, `bff_authority=forward_only_no_execution`,
+`coinbase_authority=not_run`, and submitted/executed notional to `0`. It does
+not expose secret values, approve settings edits, call Coinbase, or grant
+browser/BFF settings authority. See
+[Admin Settings Policy Map](docs/ADMIN_SETTINGS_POLICY_MAP.md).
 
 The same response exposes M48 `mutation_taxonomy` evidence. Current taxonomy
 rows cover live-disabled HTTP command routes, backend-owned local-state

@@ -34,6 +34,7 @@ from application.admin_api.models import (
     AdminOidcJwtReadinessResponse,
     AdminRiskPolicyReadResponse,
     AdminSessionResponse,
+    AdminSettingsPolicyMapResponse,
 )
 from application.admin_api.read_service import AdminApiReadService
 from core.enums import (
@@ -439,6 +440,20 @@ def admin_live_enablement(
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
     return _read_response(service.build_live_enablement())
+
+
+@router.get(
+    "/admin/settings-policy-map",
+    response_model=AdminSettingsPolicyMapResponse,
+    responses=READ_ROUTE_RESPONSES,
+    summary="Read safe settings and policy surface classifications",
+)
+def admin_settings_policy_map(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    return _read_response(service.build_settings_policy_map())
 
 
 @router.get(

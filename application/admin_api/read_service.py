@@ -74,6 +74,8 @@ from core.enums import (
     AdminApiPermission,
     AdminApiRouteAvailability,
     AdminApiSessionStatus,
+    AdminApiSettingsPolicyMapCategory,
+    AdminApiSettingsPolicyMapStatus,
     AdminApiSpotCommandSuiteGapFamily,
     AdminApiStealthAdmissionContextField,
     AdminApiStealthAdmissionEvidence,
@@ -287,6 +289,8 @@ from .models import (
     AdminRiskPolicyRuleItem,
     AdminRiskRejectionCategoryItem,
     AdminSessionResponse,
+    AdminSettingsPolicyMapItem,
+    AdminSettingsPolicyMapResponse,
     AdminStealthOrderDetailResponse,
     AdminStealthActivePlacementAuditEvidence,
     AdminStealthMutationClaimAuditEvidence,
@@ -6209,6 +6213,249 @@ class AdminApiReadService:
             )
         return AdminCapabilityRegistryResponse(capabilities=capabilities)
 
+    def build_settings_policy_map(self) -> AdminSettingsPolicyMapResponse:
+        """Return safe settings/policy surfaces without edit or secret authority."""
+
+        display_only = "display_only"
+        forward_only = "forward_only_no_execution"
+        backend_refs = [
+            "application/admin_api/read_service.py::build_settings_policy_map",
+            "application/admin_api/route_inventory.py::ADMIN_API_ROUTE_INVENTORY",
+        ]
+        frontend_refs = [
+            "src/shared/api/contracts/backendApiClient.ts",
+            "src/features/observability/SettingsPolicyMap.tsx",
+        ]
+        default_docs = [
+            "README.admin-api.md",
+            "docs/ADMIN_SETTINGS_POLICY_MAP.md",
+            "docs/examples/admin-settings-policy-map.md",
+        ]
+
+        items = [
+            AdminSettingsPolicyMapItem(
+                surface_id="capability_registry",
+                label="Admin API capability registry",
+                category=AdminApiSettingsPolicyMapCategory.API_CAPABILITIES,
+                status=AdminApiSettingsPolicyMapStatus.READ_ONLY,
+                operator_task="Inspect backend-owned route capabilities and support posture.",
+                current_source="ADMIN_API_ROUTE_INVENTORY",
+                read_route="/api/v1/admin/capabilities",
+                supported_method="GET",
+                required_permission=AdminApiPermission.ANALYTICS_READ,
+                release_0_1_decision=(
+                    "Usable as read-only navigation and capability evidence."
+                ),
+                frontend_boundary=(
+                    "Render rows only; do not infer execution or edit authority."
+                ),
+                backend_contract_refs=backend_refs,
+                frontend_contract_refs=frontend_refs,
+                documentation_refs=default_docs,
+            ),
+            AdminSettingsPolicyMapItem(
+                surface_id="guard_risk_policy",
+                label="Guard and risk policy evidence",
+                category=AdminApiSettingsPolicyMapCategory.GUARD_RISK_POLICY,
+                status=AdminApiSettingsPolicyMapStatus.READ_ONLY,
+                operator_task="Inspect configured guards, limits, and rejection policy.",
+                current_source="AdminApiReadService.build_guard_risk_policy",
+                read_route="/api/v1/admin/guard-risk-policy",
+                supported_method="GET",
+                required_permission=AdminApiPermission.ANALYTICS_READ,
+                release_0_1_decision=(
+                    "Usable as read-only policy evidence; safe edits are not modeled."
+                ),
+                frontend_boundary=(
+                    "Display policy evidence; do not calculate guards in the browser."
+                ),
+                backend_contract_refs=backend_refs
+                + ["application/admin_api/read_service.py::build_guard_risk_policy"],
+                frontend_contract_refs=frontend_refs
+                + ["src/features/guard-risk-policy/GuardRiskPolicyReadModel.tsx"],
+                documentation_refs=default_docs + ["README.guard-risk-policy.md"],
+            ),
+            AdminSettingsPolicyMapItem(
+                surface_id="oidc_readiness",
+                label="OIDC/JWT readiness",
+                category=AdminApiSettingsPolicyMapCategory.AUTH_RBAC,
+                status=AdminApiSettingsPolicyMapStatus.READ_ONLY,
+                operator_task="Inspect backend auth mode and verifier readiness.",
+                current_source="application/admin_api/auth.py",
+                read_route="/api/v1/admin/oidc-readiness",
+                supported_method="GET",
+                required_permission=AdminApiPermission.ANALYTICS_READ,
+                release_0_1_decision=(
+                    "Usable as readiness evidence; verifier secrets remain server-only."
+                ),
+                frontend_boundary=(
+                    "Display readiness only; do not expose tokens, keys, or verifier config."
+                ),
+                backend_contract_refs=backend_refs
+                + ["application/admin_api/auth.py::build_oidc_jwt_readiness"],
+                frontend_contract_refs=frontend_refs,
+                documentation_refs=default_docs + ["docs/AUTH_RBAC.md"],
+            ),
+            AdminSettingsPolicyMapItem(
+                surface_id="csrf_contract",
+                label="CSRF contract posture",
+                category=AdminApiSettingsPolicyMapCategory.CSRF,
+                status=AdminApiSettingsPolicyMapStatus.READ_ONLY,
+                operator_task="Inspect whether backend CSRF enforcement is required.",
+                current_source="COINBASE_ADMIN_API_CSRF_TOKEN presence",
+                read_route="/api/v1/admin/csrf",
+                supported_method="GET",
+                required_permission=AdminApiPermission.ANALYTICS_READ,
+                release_0_1_decision=(
+                    "Usable as read-only browser boundary evidence; token value hidden."
+                ),
+                frontend_boundary=(
+                    "Display the header contract only; never render CSRF token values."
+                ),
+                backend_contract_refs=backend_refs
+                + ["application/admin_api/read_service.py::build_csrf_contract"],
+                frontend_contract_refs=frontend_refs,
+                documentation_refs=default_docs + ["docs/AUTH_RBAC.md"],
+            ),
+            AdminSettingsPolicyMapItem(
+                surface_id="live_enablement",
+                label="Live execution enablement posture",
+                category=AdminApiSettingsPolicyMapCategory.LIVE_EXECUTION,
+                status=AdminApiSettingsPolicyMapStatus.READ_ONLY,
+                operator_task="Inspect disabled live execution, cap, and audit preconditions.",
+                current_source="AdminApiReadService.build_live_enablement",
+                read_route="/api/v1/admin/live-enablement",
+                supported_method="GET",
+                required_permission=AdminApiPermission.ANALYTICS_READ,
+                release_0_1_decision=(
+                    "Usable as read-only live posture; it does not enable Coinbase execution."
+                ),
+                frontend_boundary=(
+                    "Display backend decisions only; browser and BFF have no execution authority."
+                ),
+                backend_contract_refs=backend_refs
+                + ["application/admin_api/read_service.py::build_live_enablement"],
+                frontend_contract_refs=frontend_refs,
+                documentation_refs=default_docs + ["docs/BACKEND_ASSOCIATION.md"],
+            ),
+            AdminSettingsPolicyMapItem(
+                surface_id="coinbase_api_credentials",
+                label="Coinbase API credentials",
+                category=AdminApiSettingsPolicyMapCategory.COINBASE_SECRETS,
+                status=AdminApiSettingsPolicyMapStatus.SECRET,
+                operator_task="Confirm that Coinbase secrets are not exposed in Admin UI.",
+                current_source="server-only runtime environment",
+                required_permission=AdminApiPermission.CONFIG_UPDATE,
+                release_0_1_decision=(
+                    "Secret metadata is safe to render; credential values are never returned."
+                ),
+                frontend_boundary=(
+                    "Display secret posture only; never request, store, or render credential values."
+                ),
+                backend_contract_refs=backend_refs,
+                frontend_contract_refs=frontend_refs,
+                documentation_refs=default_docs + ["docs/SECURITY_HARDENING.md"],
+            ),
+            AdminSettingsPolicyMapItem(
+                surface_id="oidc_client_secret",
+                label="OIDC client and signing secrets",
+                category=AdminApiSettingsPolicyMapCategory.AUTH_RBAC,
+                status=AdminApiSettingsPolicyMapStatus.SECRET,
+                operator_task="Confirm that OIDC secret material stays server-side.",
+                current_source="server-only runtime environment",
+                required_permission=AdminApiPermission.CONFIG_UPDATE,
+                release_0_1_decision=(
+                    "Secret metadata is safe to render; verifier readiness remains read-only."
+                ),
+                frontend_boundary=(
+                    "Display readiness gaps only; never expose client secrets or signing keys."
+                ),
+                backend_contract_refs=backend_refs,
+                frontend_contract_refs=frontend_refs,
+                documentation_refs=default_docs + ["docs/AUTH_RBAC.md"],
+            ),
+            AdminSettingsPolicyMapItem(
+                surface_id="guard_risk_policy_edits",
+                label="Guard and risk policy safe edits",
+                category=AdminApiSettingsPolicyMapCategory.GUARD_RISK_POLICY,
+                status=AdminApiSettingsPolicyMapStatus.NOT_MODELED,
+                operator_task="Edit guard thresholds or account limits through audited backend commands.",
+                current_source="not_modeled",
+                required_permission=AdminApiPermission.CONFIG_UPDATE,
+                release_0_1_decision=(
+                    "Blocked until a backend write contract validates, audits, and persists edits."
+                ),
+                frontend_boundary=(
+                    "Show as unavailable; do not add browser-side policy edits."
+                ),
+                backend_contract_refs=backend_refs,
+                frontend_contract_refs=frontend_refs,
+                documentation_refs=default_docs,
+            ),
+            AdminSettingsPolicyMapItem(
+                surface_id="frontend_display_preferences",
+                label="Frontend display preferences",
+                category=AdminApiSettingsPolicyMapCategory.BFF_FRONTEND,
+                status=AdminApiSettingsPolicyMapStatus.NOT_MODELED,
+                operator_task="Persist operator display preferences durably.",
+                current_source="not_modeled",
+                required_permission=AdminApiPermission.CONFIG_UPDATE,
+                release_0_1_decision=(
+                    "Blocked until the backend owns a preference store or declares it out of scope."
+                ),
+                frontend_boundary=(
+                    "Do not create local-only preferences that look like backend settings."
+                ),
+                backend_contract_refs=backend_refs,
+                frontend_contract_refs=frontend_refs,
+                documentation_refs=default_docs,
+            ),
+            AdminSettingsPolicyMapItem(
+                surface_id="legacy_dashboard_settings",
+                label="Legacy dashboard WebSocket settings",
+                category=AdminApiSettingsPolicyMapCategory.LEGACY_DASHBOARD,
+                status=AdminApiSettingsPolicyMapStatus.UNSUPPORTED,
+                operator_task="Manage enterprise settings through Admin API, not legacy dashboard messages.",
+                current_source="dashboard_server.py compatibility surface",
+                release_0_1_decision=(
+                    "Unsupported for the enterprise frontend; no direct WebSocket control."
+                ),
+                frontend_boundary=(
+                    "Do not call dashboard WebSocket settings paths from product UI."
+                ),
+                backend_contract_refs=backend_refs,
+                frontend_contract_refs=frontend_refs,
+                documentation_refs=default_docs + ["agent.md"],
+            ),
+        ]
+
+        editable_count = sum(
+            item.status == AdminApiSettingsPolicyMapStatus.EDITABLE for item in items
+        )
+        read_only_count = sum(
+            item.status == AdminApiSettingsPolicyMapStatus.READ_ONLY for item in items
+        )
+        secret_count = sum(
+            item.status == AdminApiSettingsPolicyMapStatus.SECRET for item in items
+        )
+        unsupported_count = sum(
+            item.status == AdminApiSettingsPolicyMapStatus.UNSUPPORTED for item in items
+        )
+        not_modeled_count = sum(
+            item.status == AdminApiSettingsPolicyMapStatus.NOT_MODELED for item in items
+        )
+
+        return AdminSettingsPolicyMapResponse(
+            editable_count=editable_count,
+            read_only_count=read_only_count,
+            secret_count=secret_count,
+            unsupported_count=unsupported_count,
+            not_modeled_count=not_modeled_count,
+            safe_to_render_count=len(items),
+            secret_values_exposed=any(item.secret_value_exposed for item in items),
+            items=items,
+        )
+
     def build_account_market_inventory(self) -> AdminAccountMarketInventoryResponse:
         """Return Release 0.1 account/market inventory coverage and data."""
 
@@ -8366,6 +8613,7 @@ class AdminApiReadService:
                     "GET /api/v1/admin/capabilities",
                     "GET /api/v1/admin/csrf",
                     "GET /api/v1/admin/live-enablement",
+                    "GET /api/v1/admin/settings-policy-map",
                     "GET /api/v1/admin/enterprise-readiness",
                     "GET /api/v1/admin/release-gate",
                     "GET /api/v1/admin/recovery-gate",
@@ -8399,6 +8647,56 @@ class AdminApiReadService:
                     "secrets, or approve live commands from the browser."
                 ),
                 spot_rule_boundary="Platform evidence is not a spot-rule source.",
+            ),
+            functionality_item(
+                workflow_id="admin.runtime_lifecycle",
+                module_id="admin_system_health",
+                module="Admin / System Health",
+                workflow_type=AdminApiFunctionalityWorkflowType.COMMAND_DRAFT,
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Backend-owned runtime pause/resume commands for soft "
+                    "operator control of RuntimeController state."
+                ),
+                backend_supported=True,
+                admin_api_exposed=True,
+                frontend_exposed=True,
+                command_capable=True,
+                live_designated=False,
+                read_routes=[
+                    "GET /api/v1/admin/health",
+                    "GET /api/v1/admin/enterprise-readiness",
+                ],
+                command_routes=[
+                    "POST /api/v1/admin/lifecycle/pause",
+                    "POST /api/v1/admin/lifecycle/resume",
+                ],
+                identity_keys=["runtime_controller", "request_id", "correlation_id"],
+                backend_contract_refs=[
+                    "api/v1/routes/admin.py::admin_lifecycle_pause",
+                    "api/v1/routes/admin.py::admin_lifecycle_resume",
+                    "application/admin_api/command_service.py::pause_runtime",
+                    "application/admin_api/command_service.py::resume_runtime",
+                    "core/runtime_controller.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    "src/features/admin-shell/LifecycleSupportPanel.tsx",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/examples/admin-api.md",
+                ],
+                frontend_boundary=(
+                    "The browser may request pause/resume only through backend "
+                    "Admin API contracts; it must not call dashboard WebSockets "
+                    "or local process helpers."
+                ),
+                spot_rule_boundary=(
+                    "Runtime lifecycle control is a platform primitive and not "
+                    "a spot wallet, cost-basis, or no-shorting policy source."
+                ),
             ),
             functionality_item(
                 workflow_id="admin.approval_lifecycle",
@@ -9643,6 +9941,14 @@ class AdminApiReadService:
             route_inventory_item(surface)
             for surface in approval_lifecycle_surfaces
         ]
+        runtime_lifecycle_surfaces = [
+            "POST /api/v1/admin/lifecycle/pause",
+            "POST /api/v1/admin/lifecycle/resume",
+        ]
+        runtime_lifecycle_rows = [
+            route_inventory_item(surface)
+            for surface in runtime_lifecycle_surfaces
+        ]
         admission_audit_surfaces = [
             "POST /api/v1/admin/admission-audits",
         ]
@@ -9770,6 +10076,83 @@ class AdminApiReadService:
                 ),
                 cap_guard_required=True,
                 reconciliation_required=True,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_item(
+                mutation_id="admin.runtime_lifecycle",
+                mutation_family=AdminApiMutationFamilyType.ADMIN_RUNTIME_LIFECYCLE,
+                workflow_id="admin.runtime_lifecycle",
+                module_id="admin_system_health",
+                module="Admin / System Health",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Runtime lifecycle pause/resume commands are backend-owned "
+                    "Admin API mutations against RuntimeController state; they "
+                    "are not process start/stop, dashboard WebSocket, or "
+                    "Coinbase execution authority."
+                ),
+                command_surfaces=runtime_lifecycle_surfaces,
+                action_classes=[
+                    row.action_class for row in runtime_lifecycle_rows
+                ],
+                required_permissions=[
+                    row.permission for row in runtime_lifecycle_rows
+                ],
+                identity_keys=["runtime_controller"],
+                payload_binding_fields=[
+                    "endpoint",
+                    "actor",
+                    "operator_intent",
+                    "idempotency_key",
+                    "request_id",
+                ],
+                idempotency_contract="required",
+                approval_contract="not required for soft runtime pause/resume",
+                cap_guard_contract="not applicable to runtime pause/resume",
+                admission_audit_contract="Admin API audit event required",
+                reconciliation_contract="not applicable to runtime pause/resume",
+                owning_backend_service="application/admin_api/command_service.py",
+                shared_command_service_method=None,
+                route_inventory_refs=runtime_lifecycle_surfaces,
+                backend_contract_refs=[
+                    "api/v1/routes/admin.py::admin_lifecycle_pause",
+                    "api/v1/routes/admin.py::admin_lifecycle_resume",
+                    "application/admin_api/command_service.py::pause_runtime",
+                    "application/admin_api/command_service.py::resume_runtime",
+                    "core/runtime_controller.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                    "src/features/admin-shell/LifecycleSupportPanel.tsx",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/examples/admin-api.md",
+                ],
+                blockers=[],
+                frontend_boundary=(
+                    "The frontend may request backend pause/resume through "
+                    "generated contracts only; it must not call dashboard "
+                    "WebSockets, shell helpers, or Coinbase."
+                ),
+                bff_boundary=(
+                    "BFF may forward pause/resume only to backend Admin API "
+                    "with required headers; it must not own runtime state."
+                ),
+                route_local_boundary=(
+                    "FastAPI lifecycle routes must delegate to "
+                    "AdminApiCommandService and RuntimeController; they must "
+                    "not implement process management or trading behavior."
+                ),
+                spot_rule_boundary=(
+                    "Runtime pause/resume is a platform primitive and must not "
+                    "inherit spot wallet, USDC, cost-basis, or no-shorting rules."
+                ),
+                approval_required=False,
+                cap_guard_required=False,
+                admission_audit_required=False,
+                reconciliation_required=False,
                 live_adapter_required=False,
             ),
             mutation_taxonomy_item(

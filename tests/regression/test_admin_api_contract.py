@@ -415,6 +415,7 @@ from core.enums import (
     AdminApiModuleSupportStatus,
     AdminApiPermission,
     AdminApiRole,
+    AdminApiSettingsPolicyMapStatus,
     AdminApiSpotCommandSuiteGapFamily,
     AdminApiStealthClosureClearanceOwner,
     AdminApiStealthClosureClearanceStepName,
@@ -3459,6 +3460,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "/api/v1/admin/capabilities" in written["paths"]
     assert "/api/v1/admin/csrf" in written["paths"]
     assert "/api/v1/admin/live-enablement" in written["paths"]
+    assert "/api/v1/admin/settings-policy-map" in written["paths"]
     assert "/api/v1/admin/enterprise-readiness" in written["paths"]
     assert "/api/v1/admin/release-gate" in written["paths"]
     assert "/api/v1/admin/recovery-gate" in written["paths"]
@@ -44576,6 +44578,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     capabilities = client.get("/api/v1/admin/capabilities", headers=headers)
     csrf = client.get("/api/v1/admin/csrf", headers=headers)
     live_enablement = client.get("/api/v1/admin/live-enablement", headers=headers)
+    settings_policy_map = client.get(
+        "/api/v1/admin/settings-policy-map",
+        headers=headers,
+    )
     account_market_inventory = client.get(
         "/api/v1/admin/account-market-inventory",
         headers=headers,
@@ -44618,6 +44624,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "/api/v1/admin/bootstrap" in routes
     assert "/api/v1/admin/csrf" in routes
     assert "/api/v1/admin/live-enablement" in routes
+    assert "/api/v1/admin/settings-policy-map" in routes
     assert "/api/v1/admin/account-market-inventory" in routes
     assert "/api/v1/admin/enterprise-readiness" in routes
     route_modules = {
@@ -44625,6 +44632,9 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         for item in capabilities.json()["capabilities"]
     }
     assert route_modules["/api/v1/admin/bootstrap"] == "admin_system_health"
+    assert route_modules["/api/v1/admin/settings-policy-map"] == (
+        "admin_system_health"
+    )
     assert (
         route_modules["/api/v1/admin/account-market-inventory"]
         == "admin_system_health"
@@ -44655,12 +44665,15 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "frontend_safe": True,
         "shared_method": "place_manual_order",
         "idempotency": "required",
-        "approval": "required",
-        "caps": "required",
+        "approval": "required for route-scoped configured live gate",
+        "caps": "required for planning, guard, wallet, and lot authority",
         "audit": "required",
         "command_contract": True,
         "compatibility_mode": None,
-        "parity_test": "HTTP vs place_order guard/result parity",
+        "parity_test": (
+            "HTTP vs place_order guard/result parity; no-live by default, "
+            "REST only after exact backend admission"
+        ),
         "notes": "Backend-owned Admin API route",
     }
     assert command_capabilities[
@@ -44748,6 +44761,49 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert live_payload["blocking_readiness_precondition_count"] == 62
     assert live_payload["passed_readiness_precondition_count"] == 37
     assert live_payload["live_coinbase_orders_ran"] is False
+
+    assert settings_policy_map.status_code == 200
+    settings_payload = settings_policy_map.json()
+    assert settings_payload["type"] == "admin_settings_policy_map"
+    assert settings_payload["editable_count"] == 0
+    assert settings_payload["read_only_count"] == 5
+    assert settings_payload["secret_count"] == 2
+    assert settings_payload["unsupported_count"] == 1
+    assert settings_payload["not_modeled_count"] == 2
+    assert settings_payload["safe_to_render_count"] == 10
+    assert settings_payload["secret_values_exposed"] is False
+    assert settings_payload["browser_authority"] == "display_only"
+    assert settings_payload["bff_authority"] == "forward_only_no_execution"
+    assert settings_payload["coinbase_authority"] == "not_run"
+    assert settings_payload["submitted_notional_usdc"] == "0"
+    assert settings_payload["executed_notional_usdc"] == "0"
+    assert settings_payload["live_coinbase_orders_ran"] is False
+    settings_items = {
+        item["surface_id"]: item for item in settings_payload["items"]
+    }
+    assert settings_items["guard_risk_policy"]["read_route"] == (
+        "/api/v1/admin/guard-risk-policy"
+    )
+    assert settings_items["guard_risk_policy"]["status"] == (
+        AdminApiSettingsPolicyMapStatus.READ_ONLY.value
+    )
+    assert settings_items["guard_risk_policy_edits"]["status"] == (
+        AdminApiSettingsPolicyMapStatus.NOT_MODELED.value
+    )
+    assert settings_items["coinbase_api_credentials"]["status"] == (
+        AdminApiSettingsPolicyMapStatus.SECRET.value
+    )
+    assert settings_items["legacy_dashboard_settings"]["status"] == (
+        AdminApiSettingsPolicyMapStatus.UNSUPPORTED.value
+    )
+    assert all(item["secret_value_exposed"] is False for item in settings_items.values())
+    assert all(item["coinbase_authority"] == "not_run" for item in settings_items.values())
+    assert all(item["notional_usdc"] == "0" for item in settings_items.values())
+    assert all(
+        item["write_route"] is None
+        for item in settings_items.values()
+        if item["status"] != AdminApiSettingsPolicyMapStatus.EDITABLE.value
+    )
 
     assert account_market_inventory.status_code == 200
     inventory_payload = account_market_inventory.json()
@@ -45506,6 +45562,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "admin.reconciliation_plans",
         "admin.live_service_decisions",
         "admin.live_adapter_decisions",
+        "admin.runtime_lifecycle",
         "spot.manual_order",
         "spot.order_cancel",
         "spot.campaign_execution",
@@ -45544,6 +45601,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "admin.reconciliation_plans",
         "admin.live_service_decisions",
         "admin.live_adapter_decisions",
+        "admin.runtime_lifecycle",
         "spot.read_models",
         "spot.order_command_drafts",
         "spot.sweep_automation_and_live_executor",
@@ -45898,6 +45956,29 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "must not become approval authority" in approval_taxonomy[
         "frontend_boundary"
     ]
+    runtime_lifecycle_taxonomy = taxonomy_by_id["admin.runtime_lifecycle"]
+    assert runtime_lifecycle_taxonomy["mutation_family"] == (
+        AdminApiMutationFamilyType.ADMIN_RUNTIME_LIFECYCLE.value
+    )
+    assert runtime_lifecycle_taxonomy["workflow_id"] == "admin.runtime_lifecycle"
+    assert runtime_lifecycle_taxonomy["command_surfaces"] == [
+        "POST /api/v1/admin/lifecycle/pause",
+        "POST /api/v1/admin/lifecycle/resume",
+    ]
+    assert runtime_lifecycle_taxonomy["action_classes"] == ["admin_runtime"] * 2
+    assert runtime_lifecycle_taxonomy["required_permissions"] == [
+        "runtime:pause",
+        "runtime:resume",
+    ]
+    assert runtime_lifecycle_taxonomy["approval_required"] is False
+    assert runtime_lifecycle_taxonomy["cap_guard_required"] is False
+    assert runtime_lifecycle_taxonomy["admission_audit_required"] is False
+    assert runtime_lifecycle_taxonomy["reconciliation_required"] is False
+    assert runtime_lifecycle_taxonomy["live_adapter_required"] is False
+    assert runtime_lifecycle_taxonomy["route_local_execution_allowed"] is False
+    assert "must not call dashboard WebSockets" in runtime_lifecycle_taxonomy[
+        "frontend_boundary"
+    ]
     admission_audit_taxonomy = taxonomy_by_id["admin.admission_audits"]
     assert admission_audit_taxonomy["mutation_family"] == (
         AdminApiMutationFamilyType.ADMIN_ADMISSION_AUDIT.value
@@ -46176,8 +46257,9 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "GET /api/v1/admin/account-market-inventory"
         in admin_module["read_routes"]
     )
+    assert "GET /api/v1/admin/settings-policy-map" in admin_module["read_routes"]
     assert "POST /api/v1/admin/approvals/requests" in admin_module["command_routes"]
-    assert admin_module["action_posture"]["read_route_count"] == 25
+    assert admin_module["action_posture"]["read_route_count"] == 26
     assert admin_module["action_posture"]["command_route_count"] == 10
     lifecycle_rows = {
         item["action"]: item for item in enterprise_payload["lifecycle_support"]
@@ -58974,6 +59056,13 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows["GET /api/v1/admin/csrf"].shared_method == "build_csrf_contract"
     assert rows["GET /api/v1/admin/live-enablement"].shared_method == (
         "build_live_enablement"
+    )
+    assert rows["GET /api/v1/admin/settings-policy-map"].shared_method == (
+        "build_settings_policy_map"
+    )
+    assert (
+        rows["GET /api/v1/admin/settings-policy-map"].permission
+        == AdminApiPermission.ANALYTICS_READ
     )
     enterprise_readiness_route = rows["GET /api/v1/admin/enterprise-readiness"]
     assert enterprise_readiness_route.shared_method == "build_enterprise_readiness"

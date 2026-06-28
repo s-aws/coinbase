@@ -233,6 +233,30 @@ class AdminApiModuleSupportStatus(str, Enum):
     UNSUPPORTED = "unsupported"
 
 
+class AdminApiSettingsPolicyMapStatus(str, Enum):
+    """Safe operator settings and policy surface classification."""
+
+    EDITABLE = "editable"
+    READ_ONLY = "read_only"
+    SECRET = "secret"
+    UNSUPPORTED = "unsupported"
+    NOT_MODELED = "not_modeled"
+
+
+class AdminApiSettingsPolicyMapCategory(str, Enum):
+    """Settings/policy surface families exposed by the Admin API."""
+
+    API_CAPABILITIES = "api_capabilities"
+    AUTH_RBAC = "auth_rbac"
+    BFF_FRONTEND = "bff_frontend"
+    COINBASE_SECRETS = "coinbase_secrets"
+    CSRF = "csrf"
+    GUARD_RISK_POLICY = "guard_risk_policy"
+    LEGACY_DASHBOARD = "legacy_dashboard"
+    LIVE_EXECUTION = "live_execution"
+    OBSERVABILITY = "observability"
+
+
 class AdminApiLifecycleAction(str, Enum):
     """Enterprise admin lifecycle actions that must be classified."""
 
@@ -293,6 +317,7 @@ class AdminApiMutationFamilyType(str, Enum):
     ADMIN_RECONCILIATION_PLAN = "admin_reconciliation_plan"
     ADMIN_LIVE_SERVICE_DECISION = "admin_live_service_decision"
     ADMIN_LIVE_ADAPTER_DECISION = "admin_live_adapter_decision"
+    ADMIN_RUNTIME_LIFECYCLE = "admin_runtime_lifecycle"
     SPOT_MANUAL_ORDER = "spot_manual_order"
     SPOT_ORDER_CANCEL = "spot_order_cancel"
     SPOT_CAMPAIGN_EXECUTION = "spot_campaign_execution"

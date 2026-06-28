@@ -1535,6 +1535,22 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="admin_system_health",
+        surface="GET /api/v1/admin/settings-policy-map",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="read-only settings/policy classification only",
+        audit="optional read audit",
+        shared_method="build_settings_policy_map",
+        parity_test=(
+            "safe settings map classifies editable, read-only, secret, "
+            "unsupported, and not-modeled surfaces without exposing secrets "
+            "or enabling Coinbase execution"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
         surface="GET /api/v1/admin/account-market-inventory",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,

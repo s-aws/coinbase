@@ -644,6 +644,68 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/settings-policy-map:
+    get:
+      tags:
+      - admin
+      summary: Read safe settings and policy surface classifications
+      operationId: admin_settings_policy_map_api_v1_admin_settings_policy_map_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminSettingsPolicyMapResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/account-market-inventory:
     get:
       tags:
@@ -11485,6 +11547,7 @@ components:
       - admin_reconciliation_plan
       - admin_live_service_decision
       - admin_live_adapter_decision
+      - admin_runtime_lifecycle
       - spot_manual_order
       - spot_order_cancel
       - spot_campaign_execution
@@ -11620,6 +11683,30 @@ components:
       - forbidden
       title: AdminApiSessionStatus
       description: Authenticated Admin API session status.
+    AdminApiSettingsPolicyMapCategory:
+      type: string
+      enum:
+      - api_capabilities
+      - auth_rbac
+      - bff_frontend
+      - coinbase_secrets
+      - csrf
+      - guard_risk_policy
+      - legacy_dashboard
+      - live_execution
+      - observability
+      title: AdminApiSettingsPolicyMapCategory
+      description: Settings/policy surface families exposed by the Admin API.
+    AdminApiSettingsPolicyMapStatus:
+      type: string
+      enum:
+      - editable
+      - read_only
+      - secret
+      - unsupported
+      - not_modeled
+      title: AdminApiSettingsPolicyMapStatus
+      description: Safe operator settings and policy surface classification.
     AdminApiSpotCommandSuiteGapFamily:
       type: string
       enum:
@@ -134655,6 +134742,185 @@ components:
       - auth_mode
       title: AdminSessionResponse
       description: Authenticated session/RBAC evidence for the frontend.
+    AdminSettingsPolicyMapItem:
+      properties:
+        surface_id:
+          type: string
+          title: Surface Id
+        label:
+          type: string
+          title: Label
+        category:
+          $ref: '#/components/schemas/AdminApiSettingsPolicyMapCategory'
+        status:
+          $ref: '#/components/schemas/AdminApiSettingsPolicyMapStatus'
+        operator_task:
+          type: string
+          title: Operator Task
+        current_source:
+          type: string
+          title: Current Source
+        read_route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Read Route
+        write_route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Write Route
+        supported_method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Supported Method
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          - type: 'null'
+          title: Required Permission
+        secret_value_exposed:
+          type: boolean
+          title: Secret Value Exposed
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        coinbase_authority:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        release_0_1_decision:
+          type: string
+          title: Release 0 1 Decision
+        frontend_boundary:
+          type: string
+          title: Frontend Boundary
+        backend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Backend Contract Refs
+        frontend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Frontend Contract Refs
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+      additionalProperties: false
+      type: object
+      required:
+      - surface_id
+      - label
+      - category
+      - status
+      - operator_task
+      - current_source
+      - release_0_1_decision
+      - frontend_boundary
+      title: AdminSettingsPolicyMapItem
+      description: One safe settings/policy surface classification for operators.
+    AdminSettingsPolicyMapResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_settings_policy_map
+        editable_count:
+          type: integer
+          minimum: 0.0
+          title: Editable Count
+          default: 0
+        read_only_count:
+          type: integer
+          minimum: 0.0
+          title: Read Only Count
+          default: 0
+        secret_count:
+          type: integer
+          minimum: 0.0
+          title: Secret Count
+          default: 0
+        unsupported_count:
+          type: integer
+          minimum: 0.0
+          title: Unsupported Count
+          default: 0
+        not_modeled_count:
+          type: integer
+          minimum: 0.0
+          title: Not Modeled Count
+          default: 0
+        safe_to_render_count:
+          type: integer
+          minimum: 0.0
+          title: Safe To Render Count
+          default: 0
+        secret_values_exposed:
+          type: boolean
+          title: Secret Values Exposed
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        coinbase_authority:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+          default: not_run
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        items:
+          items:
+            $ref: '#/components/schemas/AdminSettingsPolicyMapItem'
+          type: array
+          title: Items
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      title: AdminSettingsPolicyMapResponse
+      description: Safe settings/policy surface map without secret or edit authority.
     AdminStealthActivePlacementAuditEvidence:
       properties:
         stealth_order_id:

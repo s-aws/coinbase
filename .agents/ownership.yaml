@@ -29,6 +29,7 @@ owners:
       - docs/OPERATOR_READ_MODELS.md
       - docs/STEALTH_ORDER_READS.md
       - docs/ADMIN_LIFECYCLE_SUPPORT.md
+      - docs/ADMIN_SETTINGS_POLICY_MAP.md
       - docs/ADMIN_PLATFORM_ARCHITECTURE.md
       - docs/ADMIN_MODULE_CAPABILITY_MATRIX.md
       - docs/PUBLIC_ROADMAP.md

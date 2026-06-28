@@ -1636,6 +1636,22 @@
     },
     {
       "module_id": "admin_system_health",
+      "surface": "GET /api/v1/admin/settings-policy-map",
+      "method": "GET",
+      "path": "/api/v1/admin/settings-policy-map",
+      "action_class": "read_only",
+      "permission": "analytics:read",
+      "idempotency": "not required",
+      "approval": "not required",
+      "caps": "read-only settings/policy classification only",
+      "audit": "optional read audit",
+      "shared_method": "build_settings_policy_map",
+      "parity_test": "safe settings map classifies editable, read-only, secret, unsupported, and not-modeled surfaces without exposing secrets or enabling Coinbase execution",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
+      "module_id": "admin_system_health",
       "surface": "GET /api/v1/admin/account-market-inventory",
       "method": "GET",
       "path": "/api/v1/admin/account-market-inventory",
