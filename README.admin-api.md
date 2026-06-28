@@ -38,10 +38,16 @@ exact approval snapshot, admission audit, cap/guard decision, reconciliation
 plan, manual live acknowledgement, and completed backend live-execution
 service all match this route, actor, idempotency key, payload hash, and
 operator intent. The default disabled service still returns blocked/no-live
-evidence. The route does not reach the live branch that checks Spot wallet
-inventory, no-short sell authority, product capability, event-stream audit, or
-REST submission until those backend gates and the Coinbase adapter explicitly
-pass. The UI label "operator" names a human workflow role; backend order
+evidence. When `COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED=true` and the
+backend has configured Coinbase REST credentials/client plus durable
+order-event publishing, the manual-order route may use the configured backend
+live-service posture and reach the existing shared command-service live branch
+for an admitted manual Spot order. That branch still performs the backend
+wallet, no-short sell-authority, product capability, event-stream, REST
+submission, and response checks. The current Admin API dependency boundary
+does not yet provide a Spot lot-authority evaluator or planned-budget source,
+so SELL authority and internal planned-commitment accounting remain release
+blockers. The UI label "operator" names a human workflow role; backend order
 creation still requires `trader` or `admin` RBAC authority.
 
 The generated OpenAPI contract documents the eventual `200` accepted/replayed
@@ -1812,10 +1818,15 @@ identity. `POST /api/v1/orders` and
 backend admission decision into their shared command-service command objects as
 `allow_live_execution`. Manual order admission can now pass when exact backend
 approval, admission-audit, cap/guard, reconciliation, manual acknowledgement,
-and completed live-service evidence are all present. The default disabled live
-service still keeps ordinary requests blocked/no-live, and the cancel route
-remains fail-closed until it has an explicit acknowledgement/live-service
-contract. Blocked commands return `501` without Coinbase submission.
+and completed live-service evidence are all present. `POST /api/v1/orders`
+has a manual-order-specific configured live-service dependency that is disabled
+by default and completed only when `COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED`
+is enabled with a configured REST client and durable order-event publisher.
+The generic Admin API live-service dependency remains disabled for cancel,
+campaign, recovery, and proof routes until each route has its own explicit
+live contract. The cancel route remains fail-closed until it has an explicit
+acknowledgement/live-service contract. Blocked commands return `501` without
+Coinbase submission.
 
 Current read-only HTTP surfaces include:
 

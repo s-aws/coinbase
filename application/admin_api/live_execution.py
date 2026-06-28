@@ -31,6 +31,7 @@ from core.enums import (
 
 
 DISABLED_LIVE_EXECUTION_SERVICE_SOURCE = "disabled_backend_service"
+CONFIGURED_LIVE_EXECUTION_SERVICE_SOURCE = "configured_backend_live_execution_service"
 DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE = (
     "disabled_stealth_command_live_adapter"
 )
@@ -1834,10 +1835,71 @@ class DisabledAdminApiLiveExecutionService:
         )
 
 
+class ConfiguredAdminApiLiveExecutionService:
+    """Backend-owned live service posture for configured Admin API routes."""
+
+    def __init__(
+        self,
+        *,
+        enabled: bool,
+        rest_client_available: bool,
+        order_event_stream_available: bool,
+        source: str = CONFIGURED_LIVE_EXECUTION_SERVICE_SOURCE,
+    ) -> None:
+        self.enabled = enabled
+        self.rest_client_available = rest_client_available
+        self.order_event_stream_available = order_event_stream_available
+        self.source = source
+
+    def admission_state(self) -> AdminApiLiveExecutionServiceState:
+        if not self.enabled:
+            return get_disabled_live_execution_service().admission_state()
+
+        missing: list[str] = []
+        if not self.rest_client_available:
+            missing.append("rest_client_unavailable")
+        if not self.order_event_stream_available:
+            missing.append("durable_order_event_stream_unavailable")
+
+        if missing:
+            return AdminApiLiveExecutionServiceState(
+                required=True,
+                present=True,
+                status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+                source=self.source,
+                missing_reason=",".join(missing),
+            )
+
+        return AdminApiLiveExecutionServiceState(
+            required=True,
+            present=True,
+            status=AdminApiLiveExecutionStatus.COMPLETED,
+            source=self.source,
+            missing_reason=None,
+        )
+
+
 def get_disabled_live_execution_service() -> DisabledAdminApiLiveExecutionService:
     """Return the default backend-owned disabled live execution service."""
 
     return DisabledAdminApiLiveExecutionService()
+
+
+def get_configured_live_execution_service(
+    *,
+    enabled: bool,
+    rest_client_available: bool,
+    order_event_stream_available: bool,
+) -> AdminApiLiveExecutionService:
+    """Return backend live-service posture without constructing route executors."""
+
+    if not enabled:
+        return get_disabled_live_execution_service()
+    return ConfiguredAdminApiLiveExecutionService(
+        enabled=enabled,
+        rest_client_available=rest_client_available,
+        order_event_stream_available=order_event_stream_available,
+    )
 
 
 def read_latest_live_service_decision(

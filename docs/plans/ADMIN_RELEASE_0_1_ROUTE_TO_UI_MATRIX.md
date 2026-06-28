@@ -59,7 +59,7 @@ The current generated route inventory
 | --- | --- | --- | --- | --- | --- |
 | Admin shell | `/api/v1/admin/bootstrap`, `/health`, `/session`, `/capabilities`, `/live-enablement`, `/enterprise-readiness`, `/release-gate` | Overview, Lifecycle, Modules, Settings, Admin Evidence | `blocked` | Read posture and lifecycle classification are usable, but lifecycle command execution remains `unsupported` or `not_modeled`. | Do not add lifecycle controls until backend-owned command contracts exist; move next release work to the highest-impact remaining blocked workflow. |
 | Account inventory | `/api/v1/admin/account-market-inventory`, `/api/v1/orders`, `/api/v1/orders/{client_order_id}`, `/api/v1/futures/account`, `/api/v1/futures/positions`, spot readiness/cost-basis/sweep/campaign reads | Inventory, Orders, Spot Operations, Futures/Perpetuals | `ready_with_data_gate` | First-class coverage exists for product catalog, spot wallets, spot balances, and spot fills. Coinbase reads are backend-only, bounded, and disabled unless explicitly enabled, so the frontend must render `data_status` instead of inventing browser reads. | Keep the frontend display-only, surface blocked data clearly, and use this route as the account/market source of truth. |
-| Spot commands | `/api/v1/orders`, `/api/v1/orders/{client_order_id}/cancel`, `/api/v1/spot/command-suite`, `/api/v1/spot/campaign/executions`, `/api/v1/spot/sweep/automation-runs` | Command Workflows, Spot Operations, Campaigns | `blocked` | Command routes exist, `GET /api/v1/spot/command-suite` exposes Buy/Sell/Cancel readiness, and manual order/cancel route adapters now pass backend admission decisions into the shared command-service `allow_live_execution` flag. Manual order admission can pass when exact backend approval, admission-audit, cap/guard, reconciliation, manual acknowledgement, and completed live-service evidence all match; default runtime remains blocked by the disabled service, wallet/no-shorting, adapter, and post-submit reconciliation gates. Cancel remains blocked until an explicit acknowledgement/live-service contract exists. | Make one spot manual-order path operator-completable by wiring backend live-service/adapter execution and post-submit reconciliation without browser or BFF authority. |
+| Spot commands | `/api/v1/orders`, `/api/v1/orders/{client_order_id}/cancel`, `/api/v1/spot/command-suite`, `/api/v1/spot/campaign/executions`, `/api/v1/spot/sweep/automation-runs` | Command Workflows, Spot Operations, Campaigns | `blocked` | Command routes exist, `GET /api/v1/spot/command-suite` exposes Buy/Sell/Cancel readiness, and manual order/cancel route adapters now pass backend admission decisions into the shared command-service `allow_live_execution` flag. Manual order admission can pass when exact backend approval, admission-audit, cap/guard, reconciliation, manual acknowledgement, and completed live-service evidence all match. The manual-order route now has a route-scoped configured backend live-service dependency that can reach the existing command-service live branch when backend env/config/event-stream gates pass; default runtime remains blocked. SELL authority, internal planned-budget accounting, post-submit reconciliation, live Coinbase validation, frontend operator controls, and cancel acknowledgement/live-service contract remain blocked. | Make one Spot manual BUY path operator-completable through backend-owned configured service, post-submit reconciliation, and frontend controls before broadening to SELL/cancel. |
 | Stealth commands | `/api/v1/stealth/orders`, reveal, move, cancel, recovery, reconciliation, command suite, proof routes | Stealth Orders, Command Workflows | `blocked` | Evidence is rich, but operator completion is blocked by exchange-reality, lifecycle-write, live-disabled, and reconciliation gates. | Surface every stealth command as usable or blocked by exact gate; do not add hide-again shortcuts. |
 | Movement/repricing | `/api/v1/movement-repricing/evidence`, order detail, stealth detail, stealth reprice | Movement/Repricing, Command Workflows | `blocked` | Reprice exists as a live-disabled command route; move, premark, cooldown, claim, and cancel/replace workflows are not complete. | Add a movement action-state matrix before adding controls. |
 | Automation/campaigns | Spot campaign status, campaign executions, sweep status, sweep P/L, sweep automation runs | Campaigns, Spot Operations, Command Workflows | `blocked` | Scheduler/run-limit/retry/pause-resume behavior is not operator-complete; execution routes remain gated. | Inventory campaign/sweep scheduler state and represent missing controls as `not_modeled`. |
@@ -128,17 +128,20 @@ What this clears:
 The next implementation slice should come from the still-blocked spot command
 workflow, not from more lifecycle classification or inventory read modeling.
 Inventory read coverage is now `ready_with_data_gate`; the remaining Release
-0.1 spot blocker is no longer route-local command flag binding. Manual order
-and cancel route adapters now source `allow_live_execution` from backend live
-admission. Manual order admission can now pass with exact backend records,
-manual acknowledgement, and a completed backend live-service state. The
-remaining blocker is concrete backend live-service/adapter enablement,
-wallet/no-shorting guard execution, and post-submit reconciliation for one
-backend-owned buy/sell path. Cancel should stay out of the operator-completable
-slice until it has an explicit acknowledgement contract. Any implementation
-must keep auth, RBAC, operator intent, idempotency, audit, approval snapshot,
-cap/guard, reconciliation, wallet/no-shorting, direct acknowledgement,
-live-service, and Coinbase adapter authority in the backend.
+0.1 spot blocker is no longer route-local command flag binding or generic
+live-service dependency wiring. Manual order and cancel route adapters now
+source `allow_live_execution` from backend live admission, and manual order has
+a route-scoped configured backend live-service dependency. Manual order
+admission can now pass with exact backend records, manual acknowledgement, and
+a completed backend live-service state. The remaining blocker is making one
+manual Spot BUY path operator-completable through post-submit reconciliation,
+live Coinbase validation under the approved notional cap, and frontend
+operator controls that use backend evidence only. SELL must wait for Admin API
+lot-authority and planned-budget sources; cancel should stay out of the
+operator-completable slice until it has an explicit acknowledgement contract.
+Any implementation must keep auth, RBAC, operator intent, idempotency, audit,
+approval snapshot, cap/guard, reconciliation, wallet/no-shorting, direct
+acknowledgement, live-service, and Coinbase adapter authority in the backend.
 
 ## Live Coinbase Execution
 

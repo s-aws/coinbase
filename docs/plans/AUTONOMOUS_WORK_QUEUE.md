@@ -192,16 +192,22 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
   admission decision into the shared command-service command objects as
   `allow_live_execution`. Manual order admission can pass when exact backend
   approval, admission-audit, cap/guard, reconciliation, manual
-  acknowledgement, and completed live-service evidence all match. The default
-  disabled service remains blocked/no-live, cancel remains blocked pending an
-  explicit acknowledgement/live-service contract, and no live Coinbase
-  execution is enabled.
-- Remaining release-linked selection: spot command live admission and live
-  execution remain blocked by concrete backend live-service/adapter enablement,
-  post-submit reconciliation, wallet/no-shorting guard execution, and the
-  cancel acknowledgement contract. Product catalog, spot wallet, spot balance,
-  and spot fill read contracts now belong to the account-market-inventory
-  `ready_with_data_gate` surface, not a missing-contract blocker.
+  acknowledgement, and completed live-service evidence all match. Manual order
+  now has a route-scoped configured backend live-service dependency that can
+  reach the existing command-service live branch when backend env, REST client,
+  and durable order-event publisher gates pass. The default disabled service
+  remains blocked/no-live, the generic live-service dependency remains disabled
+  for other routes, cancel remains blocked pending an explicit
+  acknowledgement/live-service contract, and no live Coinbase execution is
+  enabled by default.
+- Remaining release-linked selection: one manual Spot BUY path still needs
+  post-submit reconciliation, live Coinbase validation under the approved
+  notional cap, and frontend operator controls. SELL remains blocked until the
+  Admin API has lot-authority and planned-budget sources; cancel remains
+  blocked until it has an explicit acknowledgement/live-service contract.
+  Product catalog, spot wallet, spot balance, and spot fill read contracts now
+  belong to the account-market-inventory `ready_with_data_gate` surface, not a
+  missing-contract blocker.
 
 ### Phase 7994 - Operator Runbook Update
 

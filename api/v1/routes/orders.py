@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import uuid
 from typing import Annotated, Callable
 
@@ -17,6 +18,7 @@ from application.admin_api.approval import (
 from application.admin_api.auth import get_authenticated_actor, require_permission
 from application.admin_api.cap_guard import FileAdminApiCapGuardStore
 from application.admin_api.command_service import AdminApiCommandService
+from application.admin_api.command_service import AdminApiCommandDependencies
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
     IdempotencyRecord,
@@ -24,6 +26,7 @@ from application.admin_api.idempotency import (
 )
 from application.admin_api.live_execution import (
     AdminApiLiveExecutionService,
+    get_configured_live_execution_service,
     get_disabled_live_execution_service,
 )
 from application.admin_api.reconciliation import FileAdminApiReconciliationStore
@@ -105,9 +108,12 @@ from core.enums import (
     AdminApiPermission,
     AdminApiStealthAdmissionContextField,
 )
+from core.runtime_controller import get_runtime_controller
 
 
 router = APIRouter()
+
+ADMIN_API_LIVE_EXECUTION_ENABLED_ENV = "COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED"
 
 COMMAND_ROUTE_RESPONSES = {
     200: {
@@ -199,10 +205,61 @@ READ_ROUTE_RESPONSES = {
 }
 
 
+def _env_flag_enabled(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _get_admin_api_rest_client_dependency() -> tuple[object | None, bool]:
+    try:
+        import configuration
+    except Exception:
+        return None, False
+
+    rest_client = getattr(configuration, "REST_CLIENT", None)
+    api_key = getattr(configuration, "API_KEY", None)
+    api_secret = getattr(configuration, "API_SECRET", None)
+    available = bool(rest_client is not None and api_key and api_secret)
+    return (rest_client if available else None), available
+
+
+def _get_admin_api_order_event_stream_publisher() -> object | None:
+    try:
+        import database.order as order_db
+        from business.order_event_stream import OrderEventStreamPublisher
+    except Exception:
+        return None
+    publisher = OrderEventStreamPublisher(order_db)
+    return publisher if getattr(publisher, "enabled", False) else None
+
+
+def _admin_api_order_event_stream_available() -> bool:
+    publisher = _get_admin_api_order_event_stream_publisher()
+    return bool(publisher is not None and getattr(publisher, "enabled", False))
+
+
+def _get_admin_api_spot_planned_budget_commitments() -> dict[str, float]:
+    return {}
+
+
+def _get_admin_api_spot_lot_authority_evaluator() -> object | None:
+    return None
+
+
 def get_command_service() -> AdminApiCommandService:
     """Return the shared command service boundary."""
 
-    return AdminApiCommandService()
+    rest_client, rest_client_available = _get_admin_api_rest_client_dependency()
+    return AdminApiCommandService(
+        AdminApiCommandDependencies(
+            rest_client=rest_client,
+            rest_client_available=rest_client_available,
+            runtime_controller_factory=get_runtime_controller,
+            order_event_publisher_getter=_get_admin_api_order_event_stream_publisher,
+            planned_budget_fetcher=_get_admin_api_spot_planned_budget_commitments,
+            lot_authority_evaluator_getter=_get_admin_api_spot_lot_authority_evaluator,
+            uuid_factory=lambda: str(uuid.uuid4()),
+        )
+    )
 
 
 def get_idempotency_store() -> FileIdempotencyStore:
@@ -239,6 +296,20 @@ def get_live_execution_service() -> AdminApiLiveExecutionService:
     """Return the backend-owned disabled live execution service boundary."""
 
     return get_disabled_live_execution_service()
+
+
+def get_manual_order_live_execution_service() -> AdminApiLiveExecutionService:
+    """Return the manual-order live service, disabled unless configured."""
+
+    live_enabled = _env_flag_enabled(ADMIN_API_LIVE_EXECUTION_ENABLED_ENV)
+    if not live_enabled:
+        return get_disabled_live_execution_service()
+    _rest_client, rest_client_available = _get_admin_api_rest_client_dependency()
+    return get_configured_live_execution_service(
+        enabled=True,
+        rest_client_available=rest_client_available,
+        order_event_stream_available=_admin_api_order_event_stream_available(),
+    )
 
 
 def get_read_service() -> AdminApiReadService:
@@ -890,7 +961,7 @@ def create_manual_order(
     ],
     live_execution_service: Annotated[
         AdminApiLiveExecutionService,
-        Depends(get_live_execution_service),
+        Depends(get_manual_order_live_execution_service),
     ],
 ) -> JSONResponse:
     """Route adapter for manual placement.

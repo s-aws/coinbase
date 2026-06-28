@@ -6,7 +6,7 @@ work. Historical milestone detail belongs in
 
 ## Metadata
 
-- Last updated (ET): 2026-06-27
+- Last updated (ET): 2026-06-28
 - Updated by: Codex
 - Backend branch: `codex/stealth-live-service-decision-3501`
 - Frontend branch: `codex/stealth-live-service-decision-3501`
@@ -31,25 +31,35 @@ work. Historical milestone detail belongs in
   product. Every new phase must either clear a named Release 0.1 blocker from
   `docs/plans/ADMIN_RELEASE_0_1_BURNDOWN.md` or directly improve the frontend's
   ability to manage backend-supported workflows.
-- Backend implementation status: pivot docs and validators are being updated
-  so active work is `7981-8000`, unsupported backend behavior is surfaced as
-  `unsupported` or `not_modeled`, and no missing behavior is implemented in
-  route-local FastAPI handlers or a second trading path.
-- Frontend implementation status: pivot docs, quality artifacts, and validators
-  are being updated so active work is `7981-8000`, unsupported backend behavior
-  is surfaced as `unsupported` or `not_modeled`, and no missing behavior is
-  implemented in browser code, BFF code, local frontend services, or a second
-  trading path.
+- Backend implementation status: active Release 0.1 work is focused on making
+  one Spot manual order path usable through backend-owned contracts. Manual
+  order and cancel route adapters source `allow_live_execution` from backend
+  admission; manual order now has a route-scoped configured backend
+  live-service dependency that can reach the existing shared command-service
+  live branch when backend env, Coinbase REST client, and durable order-event
+  publisher gates pass. The generic live-service dependency remains disabled
+  for other Admin API routes. Unsupported backend behavior must still be
+  surfaced as `unsupported` or `not_modeled`. No missing behavior may be
+  filled in route-local FastAPI handlers or a second trading path.
+- Frontend implementation status: active Release 0.1 work remains display and
+  forward-only. The frontend may show Spot command readiness and dry-submit
+  evidence, but it must not implement browser wallet checks, guard checks,
+  Coinbase calls, live-service toggles, BFF execution authority, or a second
+  trading path. Unsupported backend behavior must still be surfaced as
+  `unsupported` or `not_modeled`.
 - Phase instruction review status: backend `AGENTS.md`, backend `agent.md`,
-  and frontend `AGENTS.md` were reviewed on 2026-06-27 for this phase. No
-  phase-direction change was required.
+  frontend `AGENTS.md`, and related agent contract docs were reviewed again on
+  2026-06-28 for this phase. No phase-direction change was required.
 - Release 0.1 matrix status:
   `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md` and frontend
-  `docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md` identify Account and
-  Market Inventory as the next implementation slice because products,
-  accounts, balances, fills, and wallet inventory are not yet complete as a
-  first-class operator management surface.
-- Exact next implementation slice: Account and Market Inventory.
+  `docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md` now identify the next
+  implementation slice as one operator-completable manual Spot BUY path.
+  Account and Market Inventory is already implemented as the
+  `ready_with_data_gate` read slice, not the next missing-contract blocker.
+  Remaining blockers are post-submit reconciliation, live Coinbase validation
+  under the approved notional cap, frontend operator controls, and later SELL
+  lot-authority/planned-budget sources.
+- Exact next implementation slice: manual Spot BUY operator-complete path.
 - Contextless review status: planned for `7981-8000`; reviewers must verify
   that the Release 0.1 pivot is understandable without chat history and that
   future work cannot drift back into proof-only expansion without a named

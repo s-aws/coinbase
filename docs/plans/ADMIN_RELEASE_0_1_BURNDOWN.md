@@ -152,10 +152,17 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
   admission decision into the shared command-service command objects as
   `allow_live_execution`. Manual order admission can pass when exact backend
   approval, admission-audit, cap/guard, reconciliation, manual
-  acknowledgement, and completed live-service evidence all match. The default
-  disabled service remains blocked/no-live, cancel remains blocked pending an
-  explicit acknowledgement/live-service contract, and no live Coinbase
-  execution is enabled.
+  acknowledgement, and completed live-service evidence all match. Manual order
+  now has a route-scoped configured backend live-service dependency that can
+  reach the existing command-service live branch when backend env, REST client,
+  and durable order-event publisher gates pass. The default disabled service
+  remains blocked/no-live, the generic live-service dependency remains disabled
+  for other routes, cancel remains blocked pending an explicit
+  acknowledgement/live-service contract, and no live Coinbase execution is
+  enabled by default. The next release-linked blocker is making one manual Spot
+  BUY path operator-completable through backend post-submit reconciliation,
+  live Coinbase validation under the approved notional cap, and frontend
+  controls; SELL waits for Admin API lot-authority and planned-budget sources.
 
 ### Phase 7994 - Operator Runbook Update
 

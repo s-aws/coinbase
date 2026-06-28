@@ -32,9 +32,14 @@ rejection evidence, not Coinbase submission.
   `allow_live_execution`. Manual order admission can pass only when exact
   backend approval, admission-audit, cap/guard, reconciliation, manual
   acknowledgement, and completed live-service evidence all match. The default
-  disabled live service remains blocked/no-live, and cancel remains fail-closed
-  until it has an explicit acknowledgement/live-service contract. This wiring
-  is not browser authority, BFF authority, Coinbase execution, or live-service
+  disabled live service remains blocked/no-live. `POST /api/v1/orders` has a
+  manual-order-specific configured live-service dependency that can report
+  completed only when backend runtime configuration enables it and Coinbase
+  REST plus durable order-event publishing are available. The shared/generic
+  live-service dependency remains disabled for cancel, campaign, recovery, and
+  proof routes until each route has an explicit live contract. Cancel remains
+  fail-closed until it has an explicit acknowledgement/live-service contract.
+  This wiring is not browser authority, BFF authority, or frontend live-service
   enablement.
 
 ## Spot Command Suite
