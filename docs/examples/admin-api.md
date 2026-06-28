@@ -22,6 +22,28 @@ usable operator admin product. Unsupported backend behavior must appear as
 `unsupported` or `not_modeled`; it must not be implemented in the browser, BFF,
 route-local FastAPI code, or a second trading path.
 
+## Capped Manual Spot BUY Live Validation
+
+Run the exact Admin API manual Spot BUY path without live submission:
+
+```powershell
+python tools\run_admin_api_manual_spot_buy_live.py --summary-only
+```
+
+Run one explicitly approved live Coinbase market BUY through
+`POST /api/v1/orders`:
+
+```powershell
+python tools\run_admin_api_manual_spot_buy_live.py --approved-live-orders --summary-only
+```
+
+The live run refuses to exceed `3.10` USDC submitted notional and `1.00` USDC
+executed notional, writes route-exact approval, admission-audit, cap/guard,
+and reconciliation records, then checks
+`GET /api/v1/spot/direct-orders/{client_order_id}/audit` evidence. This is the
+enterprise Admin API route path; do not substitute the direct Coinbase smoke
+tool when the goal is proving frontend/API manageability.
+
 ## Completed Futures/Perpetuals M57 Evidence
 
 Completed `GET /api/v1/futures/command-suite` examples for M57 used

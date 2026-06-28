@@ -58,6 +58,17 @@ so SELL authority and internal planned-commitment accounting remain release
 blockers. The UI label "operator" names a human workflow role; backend order
 creation still requires `trader` or `admin` RBAC authority.
 
+Use `python tools\run_admin_api_manual_spot_buy_live.py --summary-only` for a
+no-live preflight of the exact Admin API manual Spot BUY path. Use
+`python tools\run_admin_api_manual_spot_buy_live.py --approved-live-orders --summary-only`
+only when live Coinbase execution is explicitly approved for the phase. The
+tool selects the cheapest previewable Coinbase USDC spot product, refuses to
+exceed the approved `3.10` USDC submitted-notional and `1.00` USDC
+executed-notional caps, writes exact approval/admission-audit/cap/reconciliation
+evidence, calls `POST /api/v1/orders` through the FastAPI app route, and then
+checks the local direct-order audit readback. It is not the direct Coinbase
+smoke path and does not bypass the shared command service.
+
 The generated OpenAPI contract documents the eventual `200` accepted/replayed
 command response shape and the current `501` live-disabled response shape.
 The default runtime still returns `501` for create, order cancel, stealth

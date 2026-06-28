@@ -43,6 +43,10 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 - Live tests, if explicitly needed, must use the cheapest Coinbase `USDC` spot
   product available to US customers, but this active range is planned as
   no-live with `0` USDC submitted and `0` USDC executed.
+- Explicit user approval now allows one manual Spot BUY validation through the
+  enterprise Admin API route under the same caps. This approval is not blanket
+  live authority for other routes, products, phases, frontend/BFF execution, or
+  direct Coinbase smoke substitution.
 - Reconciliation gate must pass before any later live-cap-consuming phase can
   advance.
 - Frontend release, deployment, artifact, and smoke gates remain no-live.
@@ -56,8 +60,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
   directly tied to the Release 0.1 burn-down. If no release-aligned next gap
   exists, stop and request a new decision instead of inventing scope.
 - Phase `7981-8000` instruction review status: backend `AGENTS.md`, backend
-  `agent.md`, and frontend `AGENTS.md` were reviewed on 2026-06-27 before
-  matrix work. No phase-direction change was required.
+  `agent.md`, frontend `AGENTS.md`, and related owner contracts were reviewed
+  on 2026-06-28 before manual Spot BUY Admin API live-validation work. Release
+  0.1 product progress remains the controlling rule.
 - Phase `7981-8000` matrix-work subagent sweep status: no phase-scoped
   subagents were spawned, so no subagent cleanup was required.
 
@@ -200,14 +205,20 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
   for other routes, cancel remains blocked pending an explicit
   acknowledgement/live-service contract, and no live Coinbase execution is
   enabled by default.
-- Remaining release-linked selection: one manual Spot BUY path still needs
-  live Coinbase validation under the approved notional cap and eventual
+- Remaining release-linked selection: one manual Spot BUY path now has capped
+  live Coinbase validation through the Admin API route; it still needs eventual
   reconciliation execution proof. The frontend command workflow now renders
   and links the backend `post_submit_reconciliation` handoff without creating
   browser/BFF execution authority. SELL remains blocked until the Admin API
   has lot-authority and planned-budget sources; cancel remains blocked until
   it has an explicit
   acknowledgement/live-service contract.
+  Current manual Spot BUY validation must use
+  `python tools\run_admin_api_manual_spot_buy_live.py`, not the direct Coinbase
+  smoke script, so the proof covers the enterprise Admin API route and shared
+  command service. Latest live validation selected `MOG-USDC`, submitted
+  `1.00` USDC, executed `0.99935033` USDC, and found direct-order audit
+  submission evidence.
   Product catalog, spot wallet, spot balance, and spot fill read contracts now
   belong to the account-market-inventory `ready_with_data_gate` surface, not a
   missing-contract blocker.

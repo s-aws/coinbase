@@ -252,6 +252,7 @@ owners:
       - tests/unit/test_admin_api_*.py
       - tools/generate_admin_api_openapi.py
       - tools/run_admin_api.py
+      - tools/run_admin_api_manual_spot_buy_live.py
     test_owns:
       - tests/regression/test_admin_api_*.py
       - tests/unit/test_admin_api_*.py

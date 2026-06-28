@@ -84,6 +84,10 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
   and `python tools\run_spot_campaign.py --pnl-delta-report --summary-only`
 - Local Admin API runner:
   `python tools\run_admin_api.py --dev-token local-admin-token`
+- Capped Admin API manual Spot BUY preflight/live validation:
+  `python tools\run_admin_api_manual_spot_buy_live.py --summary-only`
+  and, only with explicit live approval,
+  `python tools\run_admin_api_manual_spot_buy_live.py --approved-live-orders --summary-only`
 - Process-parallel regression closeout:
   `python tools\run_parallel_regression.py --workers 4`
 - Stale test-process check before closeout and after interrupted tests:

@@ -49,9 +49,9 @@ work. Historical milestone detail belongs in
   `unsupported` or `not_modeled`.
 - Phase instruction review status: backend `AGENTS.md`, backend `agent.md`,
   frontend `AGENTS.md`, and related agent contract docs were reviewed again on
-  2026-06-28 for this phase, including the direct-order audit lookup slice.
-  No phase-direction change was required, but Release 0.1 product progress
-  remains the controlling rule.
+  2026-06-28 for this phase, including the manual Spot BUY Admin API
+  live-validation runner slice. Release 0.1 product progress remains the
+  controlling rule.
 - Release 0.1 matrix status:
   `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md` and frontend
   `docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md` now identify the next
@@ -68,20 +68,29 @@ work. Historical milestone detail belongs in
   `GET /api/v1/spot/direct-orders/{client_order_id}/audit`, clearing the
   frontend read-only audit handoff usability gap without adding browser/BFF
   execution authority, Coinbase calls, reconciliation execution, or state
-  mutation. Remaining blockers are live Coinbase validation under the approved
-  notional cap, eventual reconciliation execution proof, and later SELL
-  lot-authority/planned-budget sources.
-- Exact next implementation slice: manual Spot BUY operator-complete path.
+  mutation. Current backend work adds
+  `tools/run_admin_api_manual_spot_buy_live.py` so live validation uses the
+  enterprise Admin API route and shared command service, not the direct
+  Coinbase smoke script. Latest live validation selected `MOG-USDC`, submitted
+  `1.00` USDC, executed `0.99935033` USDC, and found direct-order audit
+  submission evidence. Remaining blockers are eventual reconciliation
+  execution proof and later SELL lot-authority/planned-budget sources.
+- Exact next implementation slice: add/clear the post-submit reconciliation
+  execution proof for the manual Spot BUY path without browser/BFF authority.
 - Contextless review status: planned for `7981-8000`; reviewers must verify
   that the Release 0.1 pivot is understandable without chat history and that
   future work cannot drift back into proof-only expansion without a named
   release blocker.
-- Focused validation status: pending for `7981-8000`; required checks are the
-  backend autonomous queue checker, frontend autonomous queue checker, frontend
-  typecheck/API checks when artifacts change, and focused tests covering changed
-  quality metadata.
+- Focused validation status: backend py_compile passed for the changed tools
+  and new regression test; focused pytest passed for
+  `tests/regression/test_admin_api_manual_spot_buy_live_runner.py` and
+  `tests/regression/test_spot_direct_order_audit.py`; ownership check passed;
+  autonomous work queue check passed; no-live Admin API manual Spot BUY
+  preflight passed; approved live Admin API manual Spot BUY validation passed
+  with submitted/executed notional `1.00`/`0.99935033` USDC.
 - Commit/push status: pending for `7981-8000` in backend and frontend repos.
-- Current phase-end subagent sweep: pending for `7981-8000`.
+- Current phase-end subagent sweep: no subagents were spawned for this phase;
+  no stale phase-scoped subagents are intentionally open.
 
 ## Phase Contract
 

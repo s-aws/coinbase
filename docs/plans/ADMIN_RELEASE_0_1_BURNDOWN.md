@@ -165,9 +165,14 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
   no-browser/BFF-authority flags. The frontend command workflow now renders
   and links that handoff without creating browser/BFF execution authority. The
   next release-linked blocker is making one manual Spot BUY path
-  operator-completable through live Coinbase validation under the approved
-  notional cap and eventual reconciliation execution proof; SELL waits for
-  Admin API lot-authority and planned-budget sources.
+  operator-completable through eventual reconciliation execution proof after
+  capped live Coinbase validation; SELL waits for Admin API lot-authority and
+  planned-budget sources. Current manual Spot BUY validation must use
+  `python tools\run_admin_api_manual_spot_buy_live.py`, not the direct Coinbase
+  smoke script, so the proof covers the enterprise Admin API route and shared
+  command service. Latest live validation selected `MOG-USDC`, submitted
+  `1.00` USDC, executed `0.99935033` USDC, and found direct-order audit
+  submission evidence.
 
 ### Phase 7994 - Operator Runbook Update
 
