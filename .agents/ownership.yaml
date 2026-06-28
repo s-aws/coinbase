@@ -110,6 +110,7 @@ owners:
       - tests/regression/test_codebase_intelligence.py
       - tests/regression/test_live_spot_usdc_smoke_runner.py
       - tests/regression/test_parallel_regression_runner.py
+      - tests/regression/test_autonomous_work_queue_check.py
       - tests/regression/test_stale_test_process_checker.py
       - tests/regression/test_runtime_artifact_checker.py
       - tests/regression/test_spot_contextless_agent_checklist.py

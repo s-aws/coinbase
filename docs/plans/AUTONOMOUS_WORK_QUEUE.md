@@ -63,8 +63,8 @@ result in the phase evidence, handoff, or closeout summary before advancing.
   `agent.md`, frontend `AGENTS.md`, and related owner contracts were reviewed
   on 2026-06-28 before manual Spot BUY Admin API live-validation work, before
   Admin API spot SELL authority source wiring, and before the operator runbook
-  update and documentation index update. Release 0.1 product progress remains
-  the controlling rule.
+  update, documentation index update, and autonomous validator pivot. Release
+  0.1 product progress remains the controlling rule.
 - Phase `7981-8000` matrix-work subagent sweep status: no phase-scoped
   subagents were spawned, so no subagent cleanup was required.
 - Phase `7994` operator-runbook subagent sweep status: blind/contextless
@@ -73,6 +73,8 @@ result in the phase evidence, handoff, or closeout summary before advancing.
   `019f0cd8-286f-7471-a7ff-ff13aac216af` passed with no blocking ambiguities
   and was closed. No stale phase-scoped subagents are intentionally open.
 - Phase `7995` documentation-index subagent sweep status: no phase-scoped
+  subagents were spawned, so no subagent cleanup was required.
+- Phase `7996` autonomous-validator subagent sweep status: no phase-scoped
   subagents were spawned, so no subagent cleanup was required.
 
 ## Current Progress Record
@@ -270,6 +272,12 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
 
 - Update autonomous validators and artifacts so active work is `7981-8000` and
   proof-only drift fails validation.
+- Current implementation result: backend
+  `tools/run_autonomous_work_queue_check.py` now validates the exact approved
+  Release 0.1 active phase titles and fails if an active phase is renamed into
+  proof-only futures/perpetual summary drift or if an unapproved active phase is
+  inserted. Focused regression coverage lives in
+  `tests/regression/test_autonomous_work_queue_check.py`.
 
 ### Phase 7997 - Backend Contextless Review
 

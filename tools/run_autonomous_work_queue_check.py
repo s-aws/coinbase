@@ -73,6 +73,37 @@ STALE_REGRESSION_POLICY_TEXT = (
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
 APPROVED_PHASE_RANGE = "7981-8000"
 APPROVED_PHASES = tuple(range(7981, 8001))
+EXPECTED_RELEASE_PHASE_TITLES = {
+    7981: "Close Proof Expansion",
+    7982: "Release Blocker Inventory",
+    7983: "Admin Shell Operability Map",
+    7984: "Account And Market Coverage Map",
+    7985: "Spot Command Usability Map",
+    7986: "Stealth Command Usability Map",
+    7987: "Movement/Repricing Usability Map",
+    7988: "Automation And Campaign Usability Map",
+    7989: "Audit, Reconciliation, And Settings Map",
+    7990: "Backend Route-To-UI Release Matrix",
+    7991: "Frontend Workflow Release Matrix",
+    7992: "Unsupported Gap Classification",
+    7993: "Next Implementation Slice Selection",
+    7994: "Operator Runbook Update",
+    7995: "Documentation Index Update",
+    7996: "Autonomous Validator Pivot",
+    7997: "Backend Contextless Review",
+    7998: "Frontend Contextless Review",
+    7999: "Focused Validation And Hygiene",
+    8000: "Commit And Push Evidence",
+}
+PROOF_ONLY_ACTIVE_PHASE_TITLE_PATTERNS = (
+    re.compile(r"Futures/Perpetuals", re.IGNORECASE),
+    re.compile(r"Request Payload", re.IGNORECASE),
+    re.compile(r"Validation Record", re.IGNORECASE),
+    re.compile(r"Risk-Proof", re.IGNORECASE),
+    re.compile(r"Proof[- ]Summary", re.IGNORECASE),
+    re.compile(r"Summary Evidence", re.IGNORECASE),
+    re.compile(r"Display Evidence", re.IGNORECASE),
+)
 PREVIOUS_COMPLETED_PHASE_RANGE = "7961-7980"
 RELEASE_PIVOT_PHRASE = (
     "Active Release 0.1 `7981-8000` pivots the admin platform to "
@@ -119,6 +150,7 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
     checks = [
         _check_doc_exists(body),
         _check_phase_range(body),
+        _check_release_phase_titles(body),
         _check_live_caps(body),
         _check_stop_conditions(body),
         _check_subagent_hygiene_policy(body),
@@ -232,6 +264,66 @@ def _check_stop_conditions(body: str) -> QueueCheck:
         passed=not missing,
         evidence={"missing_stop_condition_text": missing},
     )
+
+
+def _check_release_phase_titles(body: str) -> QueueCheck:
+    active_headings = _active_phase_headings(body)
+    heading_by_phase = {phase: title for phase, title in active_headings}
+    missing = [
+        phase
+        for phase in EXPECTED_RELEASE_PHASE_TITLES
+        if phase not in heading_by_phase
+    ]
+    mismatched = {
+        phase: {
+            "expected": expected_title,
+            "actual": heading_by_phase.get(phase),
+        }
+        for phase, expected_title in EXPECTED_RELEASE_PHASE_TITLES.items()
+        if phase in heading_by_phase and heading_by_phase[phase] != expected_title
+    }
+    unexpected = [
+        phase
+        for phase, _title in active_headings
+        if phase not in EXPECTED_RELEASE_PHASE_TITLES
+    ]
+    proof_only = {
+        phase: title
+        for phase, title in active_headings
+        if any(
+            pattern.search(title)
+            for pattern in PROOF_ONLY_ACTIVE_PHASE_TITLE_PATTERNS
+        )
+    }
+    return QueueCheck(
+        name="release_0_1_exact_phase_titles",
+        passed=not missing and not mismatched and not unexpected and not proof_only,
+        evidence={
+            "expected_phase_titles": EXPECTED_RELEASE_PHASE_TITLES,
+            "missing_phase_titles": missing,
+            "mismatched_phase_titles": mismatched,
+            "unexpected_active_phase_ids": unexpected,
+            "proof_only_active_phase_titles": proof_only,
+        },
+    )
+
+
+def _active_phase_headings(body: str) -> list[tuple[int, str]]:
+    active_section = _active_phase_section(body)
+    return [
+        (int(match.group(1)), match.group(2).strip())
+        for match in re.finditer(r"^### Phase (\d+) - (.+)$", active_section, re.M)
+    ]
+
+
+def _active_phase_section(body: str) -> str:
+    start_match = re.search(r"^## Active Phases 7981-8000\b.*$", body, re.M)
+    if not start_match:
+        return ""
+    next_heading = re.search(r"^## (?!Active Phases 7981-8000\b).*$", body[start_match.end():], re.M)
+    if not next_heading:
+        return body[start_match.start():]
+    return body[start_match.start(): start_match.end() + next_heading.start()]
 
 
 def _check_release_pivot_policy(body: str) -> QueueCheck:

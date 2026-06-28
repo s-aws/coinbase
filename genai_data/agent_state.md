@@ -52,14 +52,19 @@ work. Historical milestone detail belongs in
 - Phase instruction review status: backend `AGENTS.md`, backend `agent.md`,
   frontend `AGENTS.md`, and related agent contract docs were reviewed again on
   2026-06-28 for this phase, including the no-live Admin API manual Spot SELL
-  validation runner slice, the operator runbook update, and the documentation
-  index update. Release 0.1 product progress remains the controlling rule.
+  validation runner slice, the operator runbook update, the documentation
+  index update, and the autonomous validator pivot. Release 0.1 product
+  progress remains the controlling rule: every phase must clear a named
+  Release 0.1 blocker or directly improve usable admin management.
 - Release 0.1 matrix status:
   `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md` and frontend
   `docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md` now identify operator
   runbook, documentation index, autonomous validator, and contextless review
-  work as the next Release 0.1 closeout support slice. Account and Market Inventory
-  is already implemented as the `ready_with_data_gate` read slice,
+  work as the next Release 0.1 closeout support slice. Operator runbook,
+  documentation index, and autonomous validator slices are complete in this
+  range; backend and frontend contextless reviews are the next release-aligned
+  work. Account and Market Inventory is already implemented as the
+  `ready_with_data_gate` read slice,
   not the next missing-contract blocker.
   Accepted configured live manual BUY responses now expose a structured
   `post_submit_reconciliation` audit handoff with the direct-order audit route,
@@ -97,10 +102,10 @@ work. Historical milestone detail belongs in
   command service with fake REST, and reports live Coinbase execution as not
   run with submitted/executed notional `0`.
 - Exact next implementation slice: continue approved Release 0.1 closeout
-  support through autonomous validator and contextless review work. The
-  operator runbook and documentation index slices are complete for this range.
-  Do not create another spot proof slice unless it clears a named Release 0.1
-  blocker.
+  support through backend and frontend contextless review work
+  (`7997`/`7998`). The operator runbook, documentation index, and autonomous
+  validator slices are complete for this range. Do not create another spot
+  proof slice unless it clears a named Release 0.1 blocker.
 - Contextless review status: planned for `7981-8000`; reviewers must verify
   that the Release 0.1 pivot is understandable without chat history and that
   future work cannot drift back into proof-only expansion without a named
@@ -135,17 +140,25 @@ work. Historical milestone detail belongs in
   validation passed: backend ownership check, backend autonomous queue check,
   backend `git diff --check`, frontend release readiness check, frontend
   autonomous queue check, frontend `git diff --check`, and explicit
-  `Test-Path` checks for both cross-repo matrix links.
-- Commit/push status: previous backend commit `738af6d1` and frontend commit
-  `b790ac8` were pushed with the operator runbook/docs sync changes. Current
-  documentation index changes are pending validation, commit, and push in the
-  backend and frontend repos.
+  `Test-Path` checks for both cross-repo matrix links. Autonomous validator
+  pivot validation passed: backend focused regression
+  `pytest tests\regression\test_autonomous_work_queue_check.py -v --tb=short`,
+  backend `python -m py_compile tools\run_autonomous_work_queue_check.py`,
+  backend autonomous queue summary, backend architect ownership check,
+  frontend focused unit tests for autonomous queue policy and quality gates,
+  frontend `npm run autonomous:check`, frontend `npm run release:check`, and
+  frontend `npm run typecheck`.
+- Commit/push status: previous backend commit `b34074cc` and frontend commit
+  `ff98b89` were pushed with the documentation index changes. Current
+  autonomous validator pivot changes are pending final diff checks, commit,
+  and push in the backend and frontend repos.
 - Current phase-end subagent sweep: first blind/contextless reviewer
   `019f0cd4-c028-76a0-88c5-48f196541a1a` failed on startup/live-notional
   ambiguity and was closed after remediation; fresh reviewer
   `019f0cd8-286f-7471-a7ff-ff13aac216af` passed and was closed. No stale
   phase-scoped subagents are intentionally open. Documentation index phase did
-  not spawn subagents; no stale phase-scoped subagents are intentionally open.
+  not spawn subagents. Autonomous validator pivot did not spawn subagents; no
+  stale phase-scoped subagents are intentionally open.
 
 ## Phase Contract
 
@@ -547,6 +560,8 @@ work. Historical milestone detail belongs in
   `python tools\run_admin_api_manual_spot_sell_validation.py --summary-only`
   with fake REST only. Validated notional was `2.00` USDC; submitted notional
   was `0` USDC; executed notional was `0` USDC.
+- Phase 7996 autonomous validator pivot did not run live Coinbase execution;
+  submitted notional `0` USDC; executed notional `0` USDC.
 
 ## Regression Policy
 
@@ -560,8 +575,7 @@ work. Historical milestone detail belongs in
 ## Next Actions
 
 1. Continue Release 0.1 phases from the burn-down, prioritizing operator
-   runbook, documentation index, autonomous validator, and contextless review
-   work for the private operator MVP.
+   backend and frontend contextless reviews for the private operator MVP.
 2. Keep any future SELL work on the existing manual-order path and use focused
    validation evidence rather than adding a second spot sell path.
 3. Keep full regression reserved for durable milestone closeout unless

@@ -215,6 +215,12 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
 
 - Update autonomous validators and artifacts so active work is `7981-8000` and
   proof-only drift fails validation.
+- Current implementation result: backend
+  `tools/run_autonomous_work_queue_check.py` now validates the exact approved
+  Release 0.1 active phase titles and fails if an active phase is renamed into
+  proof-only futures/perpetual summary drift or if an unapproved active phase is
+  inserted. Focused regression coverage lives in
+  `tests/regression/test_autonomous_work_queue_check.py`.
 
 ### Phase 7997 - Backend Contextless Review
 
