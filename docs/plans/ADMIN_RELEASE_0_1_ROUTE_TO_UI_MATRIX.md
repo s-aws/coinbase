@@ -12,7 +12,8 @@ The governing question remains:
 
 ## Phase Instruction Review
 
-`AGENTS.md` and `agent.md` were reviewed for this phase on 2026-06-27. No
+`AGENTS.md` and `agent.md` were reviewed for this phase on 2026-06-27 and
+again on 2026-06-28 before the frontend Release Blockers implementation. No
 phase-direction change was required. The controlling instructions remain:
 
 - Release 0.1 work must clear a named blocker or directly improve the usable
@@ -61,7 +62,7 @@ The current generated route inventory
 | Automation/campaigns | Spot campaign status, campaign executions, sweep status, sweep P/L, sweep automation runs | Campaigns, Spot Operations, Command Workflows | `blocked` | Scheduler/run-limit/retry/pause-resume behavior is not operator-complete; execution routes remain gated. | Inventory campaign/sweep scheduler state and represent missing controls as `not_modeled`. |
 | Audit/reconciliation | Approval, admission audit, cap/guard decisions, reconciliation plans, audit workbench, direct-order audit | Approvals, Admission Audits, Cap/Guard, Reconciliation, Audit | `usable` | Inspection and record evidence are usable. Execution/reconciliation authority remains backend-only and not implied by records. | Keep as release support; link command attempts to these records in the selected command slice. |
 | Settings/policy | Guard/risk policy, capabilities, OIDC readiness, CSRF, live-execution decision reads/records | Guard/Risk, Settings, Admin | `blocked` | Read and disabled decision evidence exists, but safe operator editing of settings/policy is not modeled. | Add safe settings map: editable, read-only, secret, `unsupported`, `not_modeled`. |
-| Unsupported behavior | Enterprise readiness command gaps, route inventory, capability registry | Modules, nav posture, command evidence | `blocked` | Gaps exist in evidence, but Release 0.1 needs a direct operator-facing blocker matrix rather than implied absence. | Add Release 0.1 unsupported/not-modeled panel to the frontend. |
+| Unsupported behavior | Enterprise readiness command gaps, route inventory, capability registry | Modules, Release Blockers, nav posture, command evidence | `usable` | Direct operator-facing blocker matrix exists; underlying gaps still block their owning workflows. | Keep the panel aligned with enterprise-readiness while clearing the next owning workflow blocker. |
 | Validation | Focused backend checks, autonomous checker, stale process checker, full regression runner | Release gate and docs | `usable` | Focused validation is usable. Full regression is reserved for closeout. | Keep focused checks per slice; run full regression at Release 0.1 closeout. |
 
 ## Implemented Account/Market Coverage Slice
@@ -85,29 +86,49 @@ What this clears:
   surface `data_status`, `data_fetch_error`, and truncation metadata instead of
   browser-side inventory reads.
 
+## Implemented Unsupported/Not-Modeled Panel Slice
+
+The frontend Release Blockers panel now consumes
+`GET /api/v1/admin/enterprise-readiness` and renders unsupported modules,
+unsupported actions, `not_modeled` gaps, and live-disabled drafts as a direct
+operator-facing Release 0.1 blocker matrix.
+
+What this clears:
+
+- Unsupported behavior is no longer implied by missing controls or scattered
+  module catalog details.
+- The UI shows required backend contracts, frontend boundaries, live Coinbase
+  execution status, and USDC notional evidence from backend-owned readiness
+  rows.
+- Browser execution authority, BFF execution authority, route-local FastAPI
+  execution, dashboard WebSocket calls, guard/wallet/reconciliation logic, and
+  Coinbase calls remain absent.
+
 ## Follow-On Implementation Slice
 
-The next implementation slice should be **Inventory Workflow Drilldowns**.
+The next implementation slice should be **Admin Lifecycle Support
+Classification**.
 
-Reason: the account/market route now exposes backend-owned product, wallet,
-balance, and fill rows. Release 0.1 usability improves next by linking those
-rows into existing order, spot, futures, guard/risk, and audit views without
-adding frontend trading behavior.
+Reason: direct unsupported/not-modeled visibility now exists. The admin shell
+still reports lifecycle start/stop/pause/resume state as a Release 0.1 gap
+unless backend route evidence explicitly supports it or classifies it as
+`unsupported`/`not_modeled`.
 
 Expected backend result:
 
-- Backend-owned route filters or identifiers for navigating from inventory rows
-  to existing read surfaces.
-- Explicit `unsupported` or `not_modeled` evidence where a drilldown target does
-  not exist yet.
-- No frontend wallet authority and no direct Coinbase browser calls.
+- Backend-owned lifecycle support classification for
+  start/stop/pause/resume/drain/status.
+- Explicit `unsupported` or `not_modeled` evidence where lifecycle commands do
+  not exist.
+- No route-local lifecycle execution, dashboard WebSocket bridge, browser/BFF
+  process authority, or Coinbase call.
 
 Expected frontend result:
 
-- The Inventory section keeps rendering backend-provided records and adds only
-  safe navigation into existing backend read routes.
-- Rows continue linking to order, spot, futures, guard/risk, audit, and
-  reconciliation surfaces without adding browser-side trading behavior.
+- The admin shell renders lifecycle support classification and links supported
+  reads to existing backend-owned health/session/release evidence.
+- Missing lifecycle commands appear as `unsupported` or `not_modeled` without
+  adding local controls or a second execution path.
 
 ## Live Coinbase Execution
 
