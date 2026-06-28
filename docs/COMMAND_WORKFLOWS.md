@@ -29,9 +29,13 @@ rejection evidence, not Coinbase submission.
   adapter, and operator-intent gates.
 - Manual spot order and cancel route adapters pass the evaluated backend
   admission decision into their shared command-service command objects as
-  `allow_live_execution`. The default backend admission decision is still
-  blocked, so this is gate wiring only; it is not browser authority, BFF
-  authority, Coinbase execution, or live-service enablement.
+  `allow_live_execution`. Manual order admission can pass only when exact
+  backend approval, admission-audit, cap/guard, reconciliation, manual
+  acknowledgement, and completed live-service evidence all match. The default
+  disabled live service remains blocked/no-live, and cancel remains fail-closed
+  until it has an explicit acknowledgement/live-service contract. This wiring
+  is not browser authority, BFF authority, Coinbase execution, or live-service
+  enablement.
 
 ## Spot Command Suite
 
@@ -214,7 +218,10 @@ project-specific exception where the backend wrapper calls
 that operation. Do not replace this with an exchange-native `order_id` flow.
 The cancel route uses the same backend-admission-bound `allow_live_execution`
 handoff as manual order placement; it does not add an exchange `order_id`
-cancel path or make the default disabled live service executable.
+cancel path or make the default disabled live service executable. Because the
+cancel request does not yet carry an explicit manual live acknowledgement, its
+route-level admission remains blocked even if other synthetic evidence is
+complete.
 
 ## Stealth Command Suite
 

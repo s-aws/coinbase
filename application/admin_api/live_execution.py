@@ -16703,14 +16703,42 @@ def build_disabled_live_execution_intent(
     """
 
     adapter_reference = f"AdminApiCommandService.{service_method}"
+    live_status = getattr(
+        live_execution_state.status,
+        "value",
+        live_execution_state.status,
+    )
+    prepared = (
+        not blockers
+        and live_execution_state.present
+        and live_status == AdminApiLiveExecutionStatus.COMPLETED.value
+        and live_execution_state.missing_reason is None
+    )
+    execution_evidence = (
+        "Live execution service admission is complete before adapter invocation."
+        if prepared
+        else "Live execution service remains disabled before adapter invocation."
+    )
+    detail = (
+        f"{method} {route} produced a prepared execution intent for "
+        f"{adapter_reference}; backend command-service execution may proceed "
+        "only through the shared service boundary."
+        if prepared
+        else (
+            f"{method} {route} produced a disabled execution intent for "
+            f"{adapter_reference}; no live adapter may execute while "
+            f"{live_execution_state.missing_reason or LIVE_EXECUTION_DISABLED_REASON} "
+            "is present."
+        )
+    )
     return {
         "required": True,
-        "prepared": False,
+        "prepared": prepared,
         "backend_owned": True,
         "route_bound": True,
         "payload_bound": True,
         "idempotency_bound": True,
-        "executable": False,
+        "executable": prepared,
         "status": live_execution_state.status,
         "source": live_execution_state.source,
         "missing_reason": live_execution_state.missing_reason,
@@ -16734,12 +16762,7 @@ def build_disabled_live_execution_intent(
         "evidence": [
             "Execution intent is owned by backend command admission.",
             "Payload hash, idempotency key, actor, and operator intent are bound.",
-            "Live execution service remains disabled before adapter invocation.",
+            execution_evidence,
         ],
-        "detail": (
-            f"{method} {route} produced a disabled execution intent for "
-            f"{adapter_reference}; no live adapter may execute while "
-            f"{live_execution_state.missing_reason or LIVE_EXECUTION_DISABLED_REASON} "
-            "is present."
-        ),
+        "detail": detail,
     }

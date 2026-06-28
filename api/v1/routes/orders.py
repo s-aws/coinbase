@@ -629,6 +629,7 @@ def _execute_idempotent_command(
     cap_guard_store: FileAdminApiCapGuardStore,
     reconciliation_store: FileAdminApiReconciliationStore,
     live_execution_service: AdminApiLiveExecutionService,
+    manual_live_acknowledgement: bool = False,
     stealth_exchange_truth_proof_store: FileStealthExchangeTruthProofStore | None = None,
     stealth_mutation_claim_proof_store: FileStealthMutationClaimProofStore | None = None,
     stealth_manager_policy_proof_store: (
@@ -689,6 +690,7 @@ def _execute_idempotent_command(
         cap_guard_store=cap_guard_store,
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
+        manual_live_acknowledgement=manual_live_acknowledgement,
     )
     check = idempotency_store.evaluate(
         idempotency_key=idempotency_key,
@@ -937,6 +939,7 @@ def create_manual_order(
         cap_guard_store=cap_guard_store,
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
+        manual_live_acknowledgement=body.manual_live_acknowledgement,
         client_order_id=body.client_order_id,
         command_runner_with_admission=lambda admission_decision: (
             service.place_manual_order(

@@ -190,15 +190,18 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
 - Current spot command implementation result: backend manual order and
   cancel-by-`client_order_id` route adapters pass the evaluated backend
   admission decision into the shared command-service command objects as
-  `allow_live_execution`. The default decision remains blocked, so no live
-  Coinbase execution is enabled.
+  `allow_live_execution`. Manual order admission can pass when exact backend
+  approval, admission-audit, cap/guard, reconciliation, manual
+  acknowledgement, and completed live-service evidence all match. The default
+  disabled service remains blocked/no-live, cancel remains blocked pending an
+  explicit acknowledgement/live-service contract, and no live Coinbase
+  execution is enabled.
 - Remaining release-linked selection: spot command live admission and live
-  execution remain blocked by backend live-service/adapter enablement,
-  post-submit reconciliation, proof, approval, cap/guard, audit,
-  wallet/no-shorting, and direct acknowledgement gates. Product catalog, spot
-  wallet, spot balance, and spot fill read contracts now belong to the
-  account-market-inventory `ready_with_data_gate` surface, not a
-  missing-contract blocker.
+  execution remain blocked by concrete backend live-service/adapter enablement,
+  post-submit reconciliation, wallet/no-shorting guard execution, and the
+  cancel acknowledgement contract. Product catalog, spot wallet, spot balance,
+  and spot fill read contracts now belong to the account-market-inventory
+  `ready_with_data_gate` surface, not a missing-contract blocker.
 
 ### Phase 7994 - Operator Runbook Update
 

@@ -337,6 +337,7 @@ from application.admin_api.live_execution import (
     POST_WRITE_RECONCILIATION_ROUTE,
     POST_WRITE_RECONCILIATION_SOURCE,
     DisabledAdminApiLiveExecutionService,
+    AdminApiLiveExecutionServiceState,
     FileAdminApiLiveServiceDecisionStore,
     LiveAdapterDecisionRecord,
     LiveServiceDecisionRecord,
@@ -1041,6 +1042,19 @@ def _allowed_route_admission_decision(
         evidence=["synthetic backend-owned admission pass for route wiring test"],
         detail="Synthetic no-Coinbase decision used to prove route command binding.",
     )
+
+
+class _CompletedRouteAdmissionLiveExecutionService:
+    """Synthetic enabled service for route admission tests; it cannot execute."""
+
+    def admission_state(self) -> AdminApiLiveExecutionServiceState:
+        return AdminApiLiveExecutionServiceState(
+            required=True,
+            present=True,
+            status=AdminApiLiveExecutionStatus.COMPLETED,
+            source="synthetic_completed_backend_live_service",
+            missing_reason=None,
+        )
 
 
 def _append_manual_order_approval(
@@ -10161,6 +10175,99 @@ def test_admin_api_reconciliation_plan_resolution_is_evidence_only(monkeypatch):
     assert audit_rows[-1]["admission_decision"]["reconciliation_plan_id"] == (
         reconciliation_plan.plan_id
     )
+
+
+@pytest.mark.regression
+def test_admin_api_manual_order_admission_can_pass_with_completed_backend_live_service(
+    monkeypatch,
+):
+    from api.v1.routes import orders as order_routes
+
+    client = _client(monkeypatch)
+    client.app.dependency_overrides[order_routes.get_live_execution_service] = (
+        lambda: _CompletedRouteAdmissionLiveExecutionService()
+    )
+    now = datetime.now(timezone.utc)
+    client_order_id = "client-live-admitted"
+    idempotency_key = "idem-live-admitted"
+    approval = _append_manual_order_approval(
+        store=client.admin_api_test_approval_store,
+        now=now,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+    audit_event = _append_manual_order_admission_audit(
+        store=client.admin_api_test_audit_store,
+        approval=approval,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+    cap_guard = _append_manual_order_cap_guard_decision(
+        store=client.admin_api_test_cap_guard_store,
+        approval=approval,
+        audit_event=audit_event,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+    reconciliation_plan = _append_manual_order_reconciliation_plan(
+        store=client.admin_api_test_reconciliation_store,
+        approval=approval,
+        audit_event=audit_event,
+        cap_guard=cap_guard,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+    captured: dict[str, bool] = {}
+
+    def fake_place_manual_order(self, command):
+        captured["allow_live_execution"] = command.allow_live_execution
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            service_method="place_manual_order",
+            message="synthetic no-Coinbase admission pass proof",
+            client_order_id=command.request.client_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            failure_stage="synthetic_no_live",
+        )
+
+    monkeypatch.setattr(
+        AdminApiCommandService,
+        "place_manual_order",
+        fake_place_manual_order,
+    )
+
+    response = client.post(
+        "/api/v1/orders",
+        headers=_headers(idempotency_key=idempotency_key),
+        json=_manual_order_payload(client_order_id=client_order_id),
+    )
+
+    assert response.status_code == 501
+    payload = response.json()
+    admission = payload["admission_decision"]
+    assert captured["allow_live_execution"] is True
+    assert admission["status"] == AdminApiGateStatus.PASSED.value
+    assert admission["allowed"] is True
+    assert admission["approval_snapshot_id"] == approval.approval_id
+    assert admission["admission_audit_id"] == audit_event.audit_id
+    assert admission["cap_guard_decision_id"] == cap_guard.decision_id
+    assert admission["reconciliation_plan_id"] == reconciliation_plan.plan_id
+    assert admission["live_execution_service_status"] == "completed"
+    assert admission["live_execution_service_source"] == (
+        "synthetic_completed_backend_live_service"
+    )
+    assert admission["live_execution_service_missing_reason"] is None
+    assert admission["browser_authority"] == "display_only"
+    assert admission["blockers"] == []
+    assert admission["live_execution_intent"]["prepared"] is True
+    assert admission["live_execution_intent"]["executable"] is True
+    assert admission["live_execution_intent"]["blockers"] == []
+    assert payload["live_exchange_submitted"] is False
+    assert payload["failure_stage"] == "synthetic_no_live"
 
 
 @pytest.mark.regression
