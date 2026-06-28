@@ -1017,6 +1017,7 @@ def create_manual_order(
                 ManualOrderCommand(
                     envelope=envelope,
                     request=body,
+                    admission_decision=admission_decision,
                     allow_live_execution=admission_decision.allowed,
                 )
             )

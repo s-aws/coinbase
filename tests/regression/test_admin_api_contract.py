@@ -10358,7 +10358,7 @@ def test_admin_api_manual_order_configured_backend_service_reaches_live_branch(
         client_order_id=client_order_id,
         idempotency_key=idempotency_key,
     )
-    _append_manual_order_reconciliation_plan(
+    reconciliation_plan = _append_manual_order_reconciliation_plan(
         store=client.admin_api_test_reconciliation_store,
         approval=approval,
         audit_event=audit_event,
@@ -10382,6 +10382,48 @@ def test_admin_api_manual_order_configured_backend_service_reaches_live_branch(
     assert payload["live_exchange_submitted"] is True
     assert payload["submission_event_recorded"] is True
     assert payload["failure_stage"] is None
+    post_submit = payload["data"]["post_submit_reconciliation"]
+    assert post_submit["required"] is True
+    assert post_submit["status"] == AdminApiGateStatus.WARNING.value
+    assert post_submit["satisfied"] is False
+    assert post_submit["submission_event_recorded"] is True
+    assert post_submit["required_evidence"] == [
+        "order_event_stream_submission_evidence",
+        "direct_order_audit_readback",
+        "fill_ledger_reconciliation_when_filled",
+    ]
+    assert post_submit["missing_evidence"] == []
+    assert post_submit["direct_order_audit_route"] == (
+        f"/api/v1/spot/direct-orders/{client_order_id}/audit"
+    )
+    assert post_submit["direct_order_audit_route_template"] == (
+        "/api/v1/spot/direct-orders/{client_order_id}/audit"
+    )
+    assert post_submit["direct_order_audit_method"] == "GET"
+    assert post_submit["direct_order_audit_required_permission"] == (
+        AdminApiPermission.AUDIT_READ.value
+    )
+    assert post_submit["audit_command"] == (
+        "python tools\\run_spot_direct_order_audit.py "
+        f"--client-order-id {client_order_id}"
+    )
+    assert post_submit["client_order_id"] == client_order_id
+    assert post_submit["coinbase_order_id"] == "exchange-live-route-001"
+    assert post_submit["product_id"] == "BTC-USDC"
+    assert post_submit["side"] == "BUY"
+    assert post_submit["approval_snapshot_id"] == approval.approval_id
+    assert post_submit["admission_audit_id"] == audit_event.audit_id
+    assert post_submit["cap_guard_decision_id"] == cap_guard.decision_id
+    assert post_submit["reconciliation_plan_id"] == reconciliation_plan.plan_id
+    assert post_submit["live_exchange_submitted"] is True
+    assert post_submit["coinbase_order_submitted"] is True
+    assert post_submit["reconciliation_execution_ran"] is False
+    assert post_submit["reconciliation_executed"] is False
+    assert post_submit["order_state_mutated"] is False
+    assert post_submit["exchange_state_mutated"] is False
+    assert post_submit["browser_authority"] == "display_only"
+    assert post_submit["bff_authority"] == "forward_only_no_execution"
+    assert post_submit["next_operator_action"] == "read_direct_order_audit"
     assert admission["status"] == AdminApiGateStatus.PASSED.value
     assert admission["allowed"] is True
     assert admission["live_execution_service_status"] == "completed"

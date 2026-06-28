@@ -27,8 +27,10 @@ operator routes. Live-shaped trading command HTTP routes still return
 `not_implemented` after auth, permission, idempotency, and audit handling;
 they do not submit orders, cancel orders, or call Coinbase.
 
-`POST /api/v1/orders` is the enterprise manual Spot order command contract, but
-today it is a dry-submit/review path only. The route requires backend auth,
+`POST /api/v1/orders` is the enterprise manual Spot order command contract.
+The default runtime is a dry-submit/review path, while the configured backend
+live-service posture can reach the shared live branch only after exact
+backend admission passes. The route requires backend auth,
 RBAC, idempotency, correlation, and operator-intent headers, may derive a
 backend-owned `client_order_id` before admission when the request omits one,
 and then evaluates route-bound live admission. The route adapter now binds
@@ -44,7 +46,13 @@ order-event publishing, the manual-order route may use the configured backend
 live-service posture and reach the existing shared command-service live branch
 for an admitted manual Spot order. That branch still performs the backend
 wallet, no-short sell-authority, product capability, event-stream, REST
-submission, and response checks. The current Admin API dependency boundary
+submission, and response checks. A successful configured live response includes
+`data.post_submit_reconciliation` with the direct-order audit route
+`GET /api/v1/spot/direct-orders/{client_order_id}/audit`, admission/cap/
+reconciliation ids, audit command, submission-event evidence status, and
+explicit no-mutation/no-browser/BFF-authority flags. The response does not
+execute reconciliation or mutate order/exchange state. The current Admin API
+dependency boundary
 does not yet provide a Spot lot-authority evaluator or planned-budget source,
 so SELL authority and internal planned-commitment accounting remain release
 blockers. The UI label "operator" names a human workflow role; backend order
@@ -52,11 +60,13 @@ creation still requires `trader` or `admin` RBAC authority.
 
 The generated OpenAPI contract documents the eventual `200` accepted/replayed
 command response shape and the current `501` live-disabled response shape.
-The current runtime still returns `501` for create, order cancel, stealth
+The default runtime still returns `501` for create, order cancel, stealth
 create, stealth reveal, stealth move, stealth cancel, stealth recovery,
 stealth reconciliation, movement reprice,
 campaign execution, and spot sweep automation
-commands because HTTP live execution is not approved. Read routes document
+commands because HTTP live execution is not approved by default. The manual
+order create route is the route-scoped exception when backend live execution is
+explicitly configured and all backend admission evidence passes. Read routes document
 typed `200` payloads plus structured `401` and `403` errors.
 Enterprise-readiness evidence also includes structured per-module
 `command_gaps` and a top-level `command_gap_count` so unsupported, not

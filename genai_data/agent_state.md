@@ -56,8 +56,12 @@ work. Historical milestone detail belongs in
   implementation slice as one operator-completable manual Spot BUY path.
   Account and Market Inventory is already implemented as the
   `ready_with_data_gate` read slice, not the next missing-contract blocker.
-  Remaining blockers are post-submit reconciliation, live Coinbase validation
-  under the approved notional cap, frontend operator controls, and later SELL
+  Accepted configured live manual BUY responses now expose a structured
+  `post_submit_reconciliation` audit handoff with the direct-order audit route,
+  admission ids, submission-event status, and no-mutation/no-browser/BFF
+  authority flags. Remaining blockers are frontend controls that render/use
+  that backend handoff, live Coinbase validation under the approved notional
+  cap, eventual reconciliation execution proof, and later SELL
   lot-authority/planned-budget sources.
 - Exact next implementation slice: manual Spot BUY operator-complete path.
 - Contextless review status: planned for `7981-8000`; reviewers must verify

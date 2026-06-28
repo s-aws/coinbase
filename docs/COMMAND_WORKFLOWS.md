@@ -41,6 +41,15 @@ rejection evidence, not Coinbase submission.
   fail-closed until it has an explicit acknowledgement/live-service contract.
   This wiring is not browser authority, BFF authority, or frontend live-service
   enablement.
+- When a configured manual Spot order is accepted through the live branch, the
+  response includes `data.post_submit_reconciliation` with the direct-order
+  audit route, audit command, admission/cap/reconciliation ids, required
+  evidence names, submission-event status, and explicit
+  `reconciliation_execution_ran=false`, `order_state_mutated=false`,
+  `exchange_state_mutated=false`, `browser_authority=display_only`, and
+  `bff_authority=forward_only_no_execution` flags. Operators and frontend code
+  must treat that payload as the next audit handoff, not as reconciliation
+  execution or browser/BFF authority.
 
 ## Spot Command Suite
 

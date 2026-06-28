@@ -232,6 +232,12 @@ from .stealth_create_pre_execution import (
 )
 
 
+SPOT_DIRECT_ORDER_AUDIT_ROUTE_TEMPLATE = (
+    "/api/v1/spot/direct-orders/{client_order_id}/audit"
+)
+SPOT_DIRECT_ORDER_AUDIT_METHOD = "GET"
+
+
 def _noop_log(_level: str, _message: str) -> None:
     return None
 
@@ -540,6 +546,89 @@ def publish_direct_order_submission_event(
             status_to=OrderStatus.PENDING.value,
         )
     )
+
+
+def _manual_order_post_submit_reconciliation_data(
+    *,
+    command: ManualOrderCommand,
+    client_order_id: str,
+    coinbase_order_id: str | None,
+    product_id: str | None,
+    side: str | None,
+    submission_event_recorded: bool,
+    audit_command: str,
+) -> dict[str, Any]:
+    """Return operator-visible reconciliation guidance after live placement."""
+
+    admission = command.admission_decision
+    status = (
+        AdminApiGateStatus.WARNING
+        if submission_event_recorded
+        else AdminApiGateStatus.BLOCKED
+    )
+    audit_route = SPOT_DIRECT_ORDER_AUDIT_ROUTE_TEMPLATE.format(
+        client_order_id=client_order_id
+    )
+    missing_evidence = (
+        []
+        if submission_event_recorded
+        else ["order_event_stream_submission_evidence"]
+    )
+    return {
+        "post_submit_reconciliation": {
+            "required": True,
+            "status": status.value,
+            "satisfied": False,
+            "submission_event_recorded": submission_event_recorded,
+            "required_evidence": [
+                "order_event_stream_submission_evidence",
+                "direct_order_audit_readback",
+                "fill_ledger_reconciliation_when_filled",
+            ],
+            "missing_evidence": missing_evidence,
+            "direct_order_audit_route": audit_route,
+            "direct_order_audit_route_template": (
+                SPOT_DIRECT_ORDER_AUDIT_ROUTE_TEMPLATE
+            ),
+            "direct_order_audit_method": SPOT_DIRECT_ORDER_AUDIT_METHOD,
+            "direct_order_audit_required_permission": (
+                AdminApiPermission.AUDIT_READ.value
+            ),
+            "audit_command": audit_command,
+            "client_order_id": client_order_id,
+            "coinbase_order_id": coinbase_order_id,
+            "product_id": product_id,
+            "side": side,
+            "approval_snapshot_id": (
+                admission.approval_snapshot_id if admission else None
+            ),
+            "admission_audit_id": (
+                admission.admission_audit_id if admission else None
+            ),
+            "cap_guard_decision_id": (
+                admission.cap_guard_decision_id if admission else None
+            ),
+            "reconciliation_plan_id": (
+                admission.reconciliation_plan_id if admission else None
+            ),
+            "live_exchange_submitted": True,
+            "coinbase_order_submitted": True,
+            "reconciliation_execution_ran": False,
+            "reconciliation_executed": False,
+            "order_state_mutated": False,
+            "exchange_state_mutated": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "next_operator_action": "read_direct_order_audit",
+            "detail": (
+                "Manual Spot order was submitted through the backend live "
+                "path. Post-submit reconciliation remains an operator-visible "
+                "audit step through the direct-order audit route; this response "
+                "does not execute reconciliation, mutate order/exchange state, "
+                "or grant browser/BFF authority."
+            ),
+        }
+    }
 
 
 def _spot_recovery_proof_response_data(
@@ -1517,6 +1606,10 @@ class AdminApiCommandService:
                 "INFO",
                 f"Order created: {order_params.get('product_id')} {order_params.get('side')}",
             )
+            audit_command = (
+                "python tools\\run_spot_direct_order_audit.py "
+                f"--client-order-id {client_order_id}"
+            )
             return AdminApiCommandResponse(
                 status=AdminApiCommandStatus.ACCEPTED,
                 action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
@@ -1529,9 +1622,15 @@ class AdminApiCommandService:
                 idempotency_key=command.envelope.idempotency_key,
                 live_exchange_submitted=True,
                 submission_event_recorded=submission_event_recorded,
-                audit_command=(
-                    "python tools\\run_spot_direct_order_audit.py "
-                    f"--client-order-id {client_order_id}"
+                audit_command=audit_command,
+                data=_manual_order_post_submit_reconciliation_data(
+                    command=command,
+                    client_order_id=client_order_id,
+                    coinbase_order_id=order_id,
+                    product_id=product_id,
+                    side=order_params.get("side"),
+                    submission_event_recorded=submission_event_recorded,
+                    audit_command=audit_command,
                 ),
             )
         except CoinbaseAPIError as exc:

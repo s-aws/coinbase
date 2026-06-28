@@ -1184,6 +1184,7 @@ class ManualOrderCommand(BaseModel):
     envelope: AdminApiCommandEnvelope
     request: ManualOrderRequest
     order_configuration_override: dict[str, Any] | None = None
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     allow_live_execution: bool = False
 
 

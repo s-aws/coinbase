@@ -159,10 +159,14 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
   remains blocked/no-live, the generic live-service dependency remains disabled
   for other routes, cancel remains blocked pending an explicit
   acknowledgement/live-service contract, and no live Coinbase execution is
-  enabled by default. The next release-linked blocker is making one manual Spot
-  BUY path operator-completable through backend post-submit reconciliation,
-  live Coinbase validation under the approved notional cap, and frontend
-  controls; SELL waits for Admin API lot-authority and planned-budget sources.
+  enabled by default. Accepted configured live manual BUY responses now expose
+  a structured `post_submit_reconciliation` audit handoff with the direct-order
+  audit route, admission ids, submission-event status, and no-mutation/
+  no-browser/BFF-authority flags. The next release-linked blocker is making one
+  manual Spot BUY path operator-completable through frontend controls that
+  render/use that backend handoff, live Coinbase validation under the approved
+  notional cap, and eventual reconciliation execution proof; SELL waits for
+  Admin API lot-authority and planned-budget sources.
 
 ### Phase 7994 - Operator Runbook Update
 
