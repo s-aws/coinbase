@@ -2637,6 +2637,8 @@ class SpotSweepAutomationExecutionDecision(str, Enum):
     RETRY_EXECUTOR_SOURCE_NOT_READY = "retry_executor_source_not_ready"
     RETRY_EXECUTOR_ADMISSION_BLOCKED = "retry_executor_admission_blocked"
     RETRY_EXECUTOR_ADMISSION_READY = "retry_executor_admission_ready"
+    RECOVERY_GATE_PASSED = "recovery_gate_passed"
+    RECOVERY_GATE_BLOCKED = "recovery_gate_blocked"
     RECONCILIATION_EXECUTION_BOUNDARY_LIVE_DISABLED = (
         "reconciliation_execution_boundary_live_disabled"
     )
@@ -2667,6 +2669,7 @@ class SpotSweepAutomationExecutionBlocker(str, Enum):
     RETRY_EXECUTION_NO_READY_PLAN = "retry_execution_no_ready_plan"
     RETRY_INTENT_NOT_ACCEPTED = "retry_intent_not_accepted"
     RETRY_EXECUTION_LIVE_DISABLED = "retry_execution_live_disabled"
+    RECOVERY_GATE_PENDING = "sweep_recovery_gate_pending"
 
 
 class SpotPortfolioSweepOrderType(str, Enum):

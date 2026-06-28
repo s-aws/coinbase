@@ -52,6 +52,7 @@ from business.spot_portfolio_sweep import (
     load_sweep_run_records,
     summarize_sweep_order_statuses,
 )
+from business.spot_sweep_recovery_gate import build_sweep_recovery_gate_plan
 from core.enums import (
     SpotCampaignGateStatus,
     SpotCampaignRunMode,
@@ -72,7 +73,6 @@ from tools.run_spot_portfolio_sweep_live import (
     _load_public_products,
     _load_wallets,
 )
-from tools.run_spot_sweep_recovery_gate import build_sweep_recovery_gate_plan
 
 
 SUMMARY_PREFIX = "SPOT_CAMPAIGN "

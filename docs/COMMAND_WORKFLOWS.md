@@ -196,12 +196,16 @@ create a browser scheduler, or close the wider sweep automation gap until the
 durable live scheduler/retry executor, recovery, reconciliation, and live
 execution contracts exist. The route does model scheduler dispatch readiness,
 scheduler executor admission, retry execution readiness, and retry executor
-admission as no-live backend evidence, and it exposes reconciliation/live
-execution boundary objects that keep executor, state mutation, Coinbase, and
+admission as no-live backend evidence. It also exposes the shared sweep
+recovery gate as scoped command evidence for the requested `sweep_config_id`,
+including pass/block status, reconciliation/backfill counts, affected run ids,
+and no recovery/reconciliation/Coinbase execution flags. Reconciliation/live
+execution boundary objects keep executor, state mutation, Coinbase, and
 notional flags false. Executor-admission rows are sourced from the same route
 admission decision used by the command service; they do not create a second
-scheduler, retry runner, or live sweep path. The campaign execution route
-accepts the same no-live dry-run review posture keyed by `campaign_id`.
+scheduler, retry runner, recovery executor, or live sweep path. The campaign
+execution route accepts the same no-live dry-run review posture keyed by
+`campaign_id`.
 
 `POST /api/v1/spot/pnl/checkpoints` is a backend-owned local-state mutation
 for durable operator-review records sourced from

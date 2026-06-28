@@ -367,6 +367,7 @@ owners:
       - business/spot_fill_backfill.py
       - business/spot_fill_ledger_health.py
       - business/spot_portfolio_sweep.py
+      - business/spot_sweep_recovery_gate.py
       - business/profit_threshold_engine.py
       - business/order_interception_layer.py
       - business/conditional_execution.py

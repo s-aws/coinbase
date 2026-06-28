@@ -34321,6 +34321,36 @@ def test_admin_api_spot_sweep_automation_dry_run_is_accepted_no_live(
     assert retry_admission["sweep_runner_invoked"] is False
     assert retry_admission["coinbase_orders_submitted"] is False
     assert retry_admission["live_coinbase_orders_ran"] is False
+    assert payload["data"]["recovery_gate_contract_status"] == (
+        AdminApiModuleSupportStatus.READ_ONLY_READY.value
+    )
+    assert payload["data"]["recovery_gate_decision"] == (
+        SpotSweepAutomationExecutionDecision.RECOVERY_GATE_PASSED.value
+    )
+    recovery_gate_contract = payload["data"]["recovery_gate_contract"]
+    assert recovery_gate_contract["contract_status"] == (
+        AdminApiModuleSupportStatus.READ_ONLY_READY.value
+    )
+    assert recovery_gate_contract["decision"] == (
+        SpotSweepAutomationExecutionDecision.RECOVERY_GATE_PASSED.value
+    )
+    assert recovery_gate_contract["recovery_gate_status"] == (
+        AdminApiGateStatus.PASSED.value
+    )
+    assert recovery_gate_contract["recovery_gate_blocks_execution"] is False
+    assert recovery_gate_contract["planned_reconciliation_run_count"] == 0
+    assert recovery_gate_contract["planned_backfill_order_count"] == 0
+    assert recovery_gate_contract["runs_needing_reconciliation"] == []
+    assert recovery_gate_contract["runs_needing_backfill"] == []
+    assert recovery_gate_contract["recovery_gate_plan"][
+        "backfill_orders_included"
+    ] is False
+    assert recovery_gate_contract["recovery_executor_invoked"] is False
+    assert recovery_gate_contract["reconciliation_executor_invoked"] is False
+    assert recovery_gate_contract["reconciliation_executed"] is False
+    assert recovery_gate_contract["fill_backfill_executed"] is False
+    assert recovery_gate_contract["coinbase_read_attempted"] is False
+    assert recovery_gate_contract["coinbase_orders_submitted"] is False
     assert payload["data"]["reconciliation_execution_contract_status"] == (
         AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
     )
@@ -34619,10 +34649,40 @@ def test_admin_api_spot_sweep_automation_dry_run_reports_retry_ready_no_live(
     assert payload["data"]["retry_execution_contract"][
         "live_coinbase_orders_ran"
     ] is False
+    assert payload["data"]["recovery_gate_contract_status"] == (
+        AdminApiModuleSupportStatus.READ_ONLY_READY.value
+    )
+    assert payload["data"]["recovery_gate_decision"] == (
+        SpotSweepAutomationExecutionDecision.RECOVERY_GATE_BLOCKED.value
+    )
+    recovery_gate_contract = payload["data"]["recovery_gate_contract"]
+    assert recovery_gate_contract["recovery_gate_status"] == (
+        AdminApiGateStatus.BLOCKED.value
+    )
+    assert recovery_gate_contract["recovery_gate_blocks_execution"] is True
+    assert recovery_gate_contract["planned_reconciliation_run_count"] == 1
+    assert recovery_gate_contract["planned_backfill_order_count"] == 0
+    assert recovery_gate_contract["runs_needing_reconciliation"] == [
+        source_run_id
+    ]
+    assert recovery_gate_contract["runs_needing_backfill"] == [source_run_id]
+    assert recovery_gate_contract["blockers"] == [
+        SpotSweepAutomationExecutionBlocker.RECOVERY_GATE_PENDING.value
+    ]
+    assert recovery_gate_contract["recovery_gate_plan"][
+        "backfill_orders_included"
+    ] is False
+    assert recovery_gate_contract["recovery_executor_invoked"] is False
+    assert recovery_gate_contract["reconciliation_executor_invoked"] is False
+    assert recovery_gate_contract["reconciliation_executed"] is False
+    assert recovery_gate_contract["fill_backfill_executed"] is False
+    assert recovery_gate_contract["coinbase_read_attempted"] is False
+    assert recovery_gate_contract["coinbase_orders_submitted"] is False
     assert payload["data"]["automation_execution_blockers"] == [
         SpotSweepAutomationExecutionBlocker.DRY_RUN_REVIEW_ONLY.value,
         SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_LIVE_DISABLED.value,
         SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_LIVE_DISABLED.value,
+        SpotSweepAutomationExecutionBlocker.RECOVERY_GATE_PENDING.value,
         SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED.value,
         SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_CONTRACT_REQUIRED.value,
     ]
@@ -48071,7 +48131,7 @@ def test_admin_api_spot_recovery_preview_candidates_use_client_order_id(
     monkeypatch, tmp_path
 ):
     import business.spot_portfolio_sweep as spot_sweep_module
-    import tools.run_spot_sweep_recovery_gate as recovery_gate_module
+    import business.spot_sweep_recovery_gate as recovery_gate_module
 
     from application.admin_api.read_service import AdminApiReadService
 

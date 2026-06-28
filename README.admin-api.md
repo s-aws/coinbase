@@ -1319,7 +1319,12 @@ review requests with `200 accepted`, `live_exchange_submitted=false`, and zero
 `submitted_notional_usdc` / `executed_notional_usdc`. `dry_run=false` still
 returns `501 not_implemented` until durable scheduler, run-limit, recovery,
 reconciliation, and live execution gates pass, with explicit no scheduler,
-runner, Coinbase order, and zero-notional proof. The paired campaign execution
+runner, Coinbase order, and zero-notional proof. Accepted automation-run
+dry-reviews include scheduler dispatch, scheduler executor-admission, retry
+execution, retry executor-admission, scoped recovery-gate pass/block evidence,
+and reconciliation/live boundary objects; a blocked recovery gate is command
+evidence that future scheduler/retry execution must not advance until the
+backend recovery/reconciliation path clears it. The paired campaign execution
 route follows the same no-live review posture keyed by `campaign_id`.
 The same command-suite response exposes `automation_control_readiness` as the
 backend-owned control-state contract for campaign/sweep automation. It reports

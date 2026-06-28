@@ -15,6 +15,7 @@ from business.spot_portfolio_sweep import (
     evaluate_sweep_automation_due,
     load_sweep_run_records,
 )
+from business.spot_sweep_recovery_gate import build_sweep_recovery_gate_plan
 from core.enums import (
     AdminApiGateStatus,
     AdminApiModuleSupportStatus,
@@ -95,7 +96,14 @@ class AdminApiSpotSweepAutomationExecutionService:
             retry_contract=retry_contract,
             admission_decision=admission_decision,
         )
-        reconciliation_contract = _build_reconciliation_execution_contract()
+        recovery_gate_contract = _build_recovery_gate_contract(
+            request=request,
+            sweep_records=sweep_records,
+            sweep_state_file=sweep_state_file,
+        )
+        reconciliation_contract = _build_reconciliation_execution_contract(
+            recovery_gate_contract=recovery_gate_contract,
+        )
         live_contract = _build_live_execution_contract()
 
         dry_run = bool(request.dry_run)
@@ -113,6 +121,7 @@ class AdminApiSpotSweepAutomationExecutionService:
                 ),
                 *scheduler_contract["blocker_enums"],
                 *retry_contract["blocker_enums"],
+                *recovery_gate_contract["blocker_enums"],
                 (
                     SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED
                 ),
@@ -146,6 +155,11 @@ class AdminApiSpotSweepAutomationExecutionService:
                 retry_admission_contract["decision"].value
             ),
             "retry_executor_admission_contract": retry_admission_contract["data"],
+            "recovery_gate_contract_status": (
+                AdminApiModuleSupportStatus.READ_ONLY_READY.value
+            ),
+            "recovery_gate_decision": recovery_gate_contract["decision"].value,
+            "recovery_gate_contract": recovery_gate_contract["data"],
             "reconciliation_execution_contract_status": (
                 NO_LIVE_CONTRACT_STATUS.value
             ),
@@ -479,10 +493,106 @@ def _build_executor_admission_contract(
     return {"decision": decision, "data": data}
 
 
-def _build_reconciliation_execution_contract() -> dict[str, Any]:
+def _build_recovery_gate_contract(
+    *,
+    request: SpotSweepAutomationRunRequest,
+    sweep_records: list[dict[str, Any]],
+    sweep_state_file: str | Path,
+) -> dict[str, Any]:
+    raw_plan = build_sweep_recovery_gate_plan(
+        records=sweep_records,
+        state_file=Path(sweep_state_file),
+        config_id=request.sweep_config_id,
+    )
+    recovery_gate_plan = dict(raw_plan)
+    recovery_gate_plan.pop("backfill_orders", None)
+    recovery_gate_plan["backfill_orders_included"] = False
+    planned_reconciliation_run_count = int(
+        recovery_gate_plan.get("planned_reconciliation_run_count") or 0
+    )
+    candidate_backfill_order_count = int(
+        recovery_gate_plan.get("candidate_backfill_order_count") or 0
+    )
+    planned_backfill_order_count = int(
+        recovery_gate_plan.get("planned_backfill_order_count") or 0
+    )
+    runs_needing_reconciliation = _string_list(
+        recovery_gate_plan.get("runs_needing_reconciliation") or []
+    )
+    runs_needing_backfill = _string_list(
+        recovery_gate_plan.get("runs_needing_backfill") or []
+    )
+    recovery_gate_blocks_execution = bool(
+        planned_reconciliation_run_count or planned_backfill_order_count
+    )
+    decision = (
+        SpotSweepAutomationExecutionDecision.RECOVERY_GATE_BLOCKED
+        if recovery_gate_blocks_execution
+        else SpotSweepAutomationExecutionDecision.RECOVERY_GATE_PASSED
+    )
+    gate_status = (
+        AdminApiGateStatus.BLOCKED
+        if recovery_gate_blocks_execution
+        else AdminApiGateStatus.PASSED
+    )
+    blockers = (
+        [SpotSweepAutomationExecutionBlocker.RECOVERY_GATE_PENDING]
+        if recovery_gate_blocks_execution
+        else []
+    )
+
+    return {
+        "decision": decision,
+        "blocker_enums": blockers,
+        "data": {
+            "contract_status": AdminApiModuleSupportStatus.READ_ONLY_READY.value,
+            "decision": decision.value,
+            "route": SPOT_SWEEP_AUTOMATION_RUN_ROUTE,
+            "backend_owned": True,
+            "operator_action_available": False,
+            "sweep_config_id": request.sweep_config_id,
+            "recovery_gate_status": gate_status.value,
+            "recovery_gate_blocks_execution": recovery_gate_blocks_execution,
+            "planned_reconciliation_run_count": planned_reconciliation_run_count,
+            "candidate_backfill_order_count": candidate_backfill_order_count,
+            "planned_backfill_order_count": planned_backfill_order_count,
+            "runs_needing_reconciliation": runs_needing_reconciliation,
+            "runs_needing_backfill": runs_needing_backfill,
+            "recovery_gate_plan": recovery_gate_plan,
+            "blockers": [item.value for item in blockers],
+            "required_gate_chain": [
+                "sweep_recovery_gate_clear",
+                "scheduler_dispatch_review_contract",
+                "retry_execution_review_contract",
+                "sweep_reconciliation_execution_contract",
+                "post_live_reconciliation",
+                "audit_link",
+            ],
+            "recovery_executor_invoked": False,
+            "reconciliation_executor_invoked": False,
+            "reconciliation_executed": False,
+            "fill_backfill_executed": False,
+            "order_state_mutated": False,
+            "exchange_state_mutated": False,
+            "coinbase_read_attempted": False,
+            "coinbase_orders_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        },
+    }
+
+
+def _build_reconciliation_execution_contract(
+    *,
+    recovery_gate_contract: Mapping[str, Any],
+) -> dict[str, Any]:
     decision = (
         SpotSweepAutomationExecutionDecision.RECONCILIATION_EXECUTION_BOUNDARY_LIVE_DISABLED
     )
+    recovery_gate_data = recovery_gate_contract.get("data") or {}
     return {
         "decision": decision,
         "data": {
@@ -492,7 +602,12 @@ def _build_reconciliation_execution_contract() -> dict[str, Any]:
             "backend_owned": True,
             "operator_action_available": False,
             "reconciliation_execution_allowed": False,
+            "recovery_gate_status": recovery_gate_data.get("recovery_gate_status"),
+            "recovery_gate_blocks_execution": bool(
+                recovery_gate_data.get("recovery_gate_blocks_execution")
+            ),
             "required_gate_chain": [
+                "sweep_recovery_gate_clear",
                 "scheduler_dispatch_review_contract",
                 "retry_execution_review_contract",
                 "sweep_reconciliation_execution_contract",
@@ -599,6 +714,10 @@ def _retry_intent_accepted(
 
 def _operation_lock_busy(operation_lock_status: Mapping[str, Any]) -> bool:
     return bool(operation_lock_status.get("exists") and not operation_lock_status.get("stale"))
+
+
+def _string_list(values: list[Any]) -> list[str]:
+    return [text for text in (str(value or "").strip() for value in values) if text]
 
 
 def _unique_blockers(

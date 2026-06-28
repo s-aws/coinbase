@@ -1567,7 +1567,7 @@ def test_sweep_config_registry_flattens_latest_run_and_reconciliation():
 
 
 def test_sweep_recovery_gate_plan_finds_unreconciled_skipped_backfill_runs():
-    from tools.run_spot_sweep_recovery_gate import build_sweep_recovery_gate_plan
+    from business.spot_sweep_recovery_gate import build_sweep_recovery_gate_plan
 
     run_record = build_sweep_run_record(
         config_id="cfg-1",
