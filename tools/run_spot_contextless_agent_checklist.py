@@ -15,8 +15,22 @@ from pathlib import Path
 from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+PROJECT_ROOT_STR = str(PROJECT_ROOT)
+
+
+def _is_project_root_path(value: str) -> bool:
+    if not value:
+        return False
+    try:
+        return Path(value).resolve() == PROJECT_ROOT
+    except OSError:
+        return False
+
+
+sys.path[:] = [
+    path for path in sys.path if not _is_project_root_path(path)
+]
+sys.path.insert(0, PROJECT_ROOT_STR)
 
 from core.enums import SpotCampaignRunMode, SpotCampaignStatus
 

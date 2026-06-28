@@ -14,8 +14,8 @@ The repeatable local harness prints this prompt and rubric without editing
 files or calling Coinbase:
 
 ```powershell
-python tools/run_spot_contextless_agent_checklist.py --summary-only
-python tools/run_spot_contextless_agent_checklist.py
+py -3.13 -m tools.run_spot_contextless_agent_checklist --summary-only
+py -3.13 -m tools.run_spot_contextless_agent_checklist
 ```
 
 ## Blind Prompt
@@ -154,14 +154,19 @@ this gate passed and which docs/code were changed if it did not.
 - 2026-06-10, explorer agent, same Phase 193 prompt after the above fixes:
   passed. The agent identified direct dashboard spot gates, cancellation by
   `client_order_id`, live sweep BUY/SELL boundaries, mandatory live SELL
-  known-profit policy, Admin HTTP live-disabled status, direct-audit
-  `audited_order_*` evidence fields, and no remaining
-  `--disable-safety-policy --approved-live-orders` path.
+  known-profit policy, then-current Admin HTTP live-disabled status,
+  direct-audit `audited_order_*` evidence fields, and no remaining
+  `--disable-safety-policy --approved-live-orders` path. Current Admin HTTP
+  manual order/cancel posture is no-live by default with route-scoped
+  configured live gates documented in `README.admin-api.md` and
+  `docs/LIVE_ORDER_SURFACES.md`.
 - 2026-06-11, explorer agent, Admin frontend spot-order flow prompt: passed.
   The agent identified backend OpenAPI as the contract source, frontend
   `CommandWorkflowShell` dry-submit wrappers, BFF mode, backend
-  `POST /api/v1/orders`, `AdminApiCommandService`, live-disabled HTTP command
-  status, backend RBAC authority, `client_order_id` cancellation, and required
-  gates. It flagged missing full-gate proof commands in the frontend
-  spot-order flow doc; the doc was fixed to include `npm run release:gate` and
-  full backend regression.
+  `POST /api/v1/orders`, `AdminApiCommandService`, then-current
+  live-disabled HTTP command status, backend RBAC authority,
+  `client_order_id` cancellation, and required gates. Current Admin HTTP
+  manual order/cancel posture is no-live by default with route-scoped
+  configured live gates. The review flagged missing full-gate proof commands
+  in the frontend spot-order flow doc; the doc was fixed to include
+  `npm run release:gate` and full backend regression.

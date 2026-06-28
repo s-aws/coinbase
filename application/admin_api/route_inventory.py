@@ -18,11 +18,14 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         permission=AdminApiPermission.ORDER_CREATE,
         idempotency="required",
-        approval="required",
-        caps="required",
+        approval="required for route-scoped configured live gate",
+        caps="required for planning, guard, wallet, and lot authority",
         audit="required",
         shared_method="place_manual_order",
-        parity_test="HTTP vs place_order guard/result parity",
+        parity_test=(
+            "HTTP vs place_order guard/result parity; no-live by default, "
+            "REST only after exact backend admission"
+        ),
     ),
     AdminApiRouteInventoryItem(
         module_id="spot_operations",
@@ -976,11 +979,14 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
         permission=AdminApiPermission.ORDER_CANCEL,
         idempotency="required",
-        approval="required by current HTTP live-disabled gate",
-        caps="required for rate/session controls",
+        approval="required for route-scoped configured live gate",
+        caps="required for rate/session controls and reconciliation proof",
         audit="required",
         shared_method="cancel_order_by_client_order_id",
-        parity_test="HTTP vs cancel_order parity",
+        parity_test=(
+            "HTTP vs cancel_order parity; no-live by default, calls only "
+            "cancel_order(client_order_id) after exact backend admission"
+        ),
     ),
     AdminApiRouteInventoryItem(
         module_id="spot_operations",

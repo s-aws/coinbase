@@ -43,8 +43,8 @@ approved later, must still use `tools/run_spot_portfolio_sweep_live.py` with
 - Phase 193, Contextless Blind-Agent Rerun: passed after repository fixes. The
   final blind run identified the correct direct dashboard gates, cancellation
   by `client_order_id`, live sweep BUY/SELL boundaries, mandatory live SELL
-  known-profit policy, Admin HTTP live-disabled status, direct-audit
-  `audited_order_*` fields, and no remaining
+  known-profit policy, then-current Admin HTTP live-disabled status,
+  direct-audit `audited_order_*` fields, and no remaining
   `--disable-safety-policy --approved-live-orders` path.
 - Phase 194, Direct Manual Order Audit Backfill Review: older direct dashboard
   orders should be audited by `client_order_id` with the direct audit command

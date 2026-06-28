@@ -23,6 +23,25 @@ authority, no route-local FastAPI execution, and no second trading path.
 Exact unsupported phrase: unsupported` or `not_modeled`.
 Exact authority phrase: no browser/BFF execution authority.
 
+Phase 7997 backend contextless review: PASS after remediation. Initial
+reviewer `019f0ce9-fe23-75d2-b87b-7153779aca20` blocked on stale current
+Admin API command-authority wording in `genai_data/README.md`,
+`docs/agents/AGENT_ADMIN_API_CONTRACT.md`, route inventory wording, and the
+contextless checklist direct-script bootstrap. Remediation clarified that HTTP
+mutating routes are no-live by default while manual Spot order/cancel are
+route-scoped configured live exceptions only after exact backend gates, and
+fixed `tools/run_spot_contextless_agent_checklist.py` so direct script
+execution prefers repo imports. Fresh reviewer
+`019f0cf9-ce90-79e2-ac80-16efcf1749e5` then blocked on the same stale
+blanket no-live wording in `genai_data/API_REFERENCE.md`; that expanded
+context file now carries the Release 0.1 pivot and the manual Spot
+order/cancel exception model. Final fresh reviewer
+`019f0cfb-e2eb-7073-81a7-4fffd20d3ca0` passed, verifying manual Spot
+order/cancel live boundaries, frontend/BFF display-or-forward-only authority,
+`cancel_order(client_order_id)`, and the documented contextless checklist
+command. No live Coinbase execution ran in Phase 7997; submitted notional `0`
+USDC, executed notional `0` USDC.
+
 Fresh blind/contextless backend review: PASS after remediation. Reviewer
 `019f0b41-fae9-7c81-8617-3c366fede211` first blocked on stale M57-active
 wording in `genai_data/agent_state.md`, `README.futures-perpetuals.md`, and

@@ -9,16 +9,30 @@ This file covers active API surfaces in the codebase:
 ## Enterprise Admin API (`api/v1/app.py`)
 
 The backend owns the OpenAPI contract for the enterprise admin frontend.
-Read-only operator routes are active. Mutating HTTP routes are intentionally
-not a live trading path yet: they run auth/RBAC, idempotency, audit, and shared
-command-service parity logic, then stop at the fail-closed live execution gate.
+Read-only operator routes are active. Mutating HTTP routes are no-live by
+default: they run auth/RBAC, idempotency, audit, and shared command-service
+parity logic, then return blocked/not-implemented evidence unless a route has
+an explicit configured backend live-service exception and exact backend
+admission evidence. The current manual Spot exceptions are
+`POST /api/v1/orders` and
+`POST /api/v1/orders/{client_order_id}/cancel`; those routes may reach the
+shared backend live branch only after exact backend auth/RBAC, idempotency,
+approval, admission-audit, cap/guard, reconciliation, manual acknowledgement,
+live-service, REST-client, and event-stream gates pass. Other mutating HTTP
+routes remain live-disabled/fail-closed and must not call Coinbase.
 
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7961-7980` futures/perpetual risk-proof record validation
-remediation summary evidence for `GET /api/v1/futures/command-suite` is the
-active slice. It adds read-only
+Active Release 0.1 `7981-8000` pivots the admin platform to product-managing
+operator workflows while completed M57 `7961-7980` carries forward futures
+risk-proof record validation remediation summary evidence. The governing
+question for new work is: Does this make the frontend able to manage the
+project?
+
+Completed M57 `7961-7980` futures/perpetual risk-proof record validation
+remediation summary evidence for `GET /api/v1/futures/command-suite` is
+carried forward history. It added read-only
 `risk_proof_record_validation_remediation_summary_count`,
 `risk_proof_record_validation_remediation_summary_blocking_count`, and
 `risk_proof_record_validation_remediation_summaries` fields derived from

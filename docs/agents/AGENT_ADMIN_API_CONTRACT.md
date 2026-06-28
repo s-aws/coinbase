@@ -21,11 +21,19 @@ frontend request
 -> typed response
 ```
 
-Current HTTP command routes are authenticated, authorized, idempotent, audited,
-and live-disabled. They return typed `501` `not_implemented` responses until
-live HTTP approval, guard, cap, and audit gates are complete. The generated
-OpenAPI schema also includes typed `200` accepted/replayed response contracts
-for the future live-enabled state.
+Current HTTP command routes are authenticated, authorized, idempotent, and
+audited. They are no-live by default and return typed `501`
+`not_implemented` responses unless a route has an explicit configured backend
+live-service exception and exact backend admission evidence. The only current
+manual Spot exceptions are `POST /api/v1/orders` and
+`POST /api/v1/orders/{client_order_id}/cancel`; those routes may reach the
+shared backend live branch only after exact backend auth/RBAC, idempotency,
+approval, admission-audit, cap/guard, reconciliation, manual acknowledgement,
+live-service, REST-client, and event-stream gates pass. Other mutating HTTP
+command routes remain live-disabled/fail-closed. The generated OpenAPI schema
+includes typed `200` accepted/replayed response contracts for explicit
+live-enabled states and typed live-disabled response contracts for blocked
+states.
 `X-Operator-Intent` is required command evidence. It must be recorded in the
 durable command audit event and included in the idempotency payload hash.
 
@@ -223,8 +231,9 @@ fallback when `pytest-xdist` is unavailable.
 
 Focused tests must cover auth denial, RBAC denial, idempotent retry,
 idempotency conflict, approval/live-disabled gate evidence, no live REST call
-from HTTP command routes, cancel by `client_order_id`, audit creation,
-operator intent audit/idempotency evidence, WebSocket/HTTP shared-service
-parity, typed OpenAPI routes, and read-only route contracts. OIDC verifier
-changes must also keep the no-live OIDC readiness smoke covered by
+from HTTP command routes except the explicitly gated manual Spot order/cancel
+path, cancel by `client_order_id`, audit creation, operator intent
+audit/idempotency evidence, WebSocket/HTTP shared-service parity, typed
+OpenAPI routes, and read-only route contracts. OIDC verifier changes must also
+keep the no-live OIDC readiness smoke covered by
 `tests/regression/test_admin_api_contract.py`.

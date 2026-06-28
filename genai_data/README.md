@@ -35,9 +35,16 @@ This is a multithreaded Coinbase trading engine with:
 - Fill ledger + cross-source fill reconciliation (`business/fill_ledger.py`, `business/fill_reconciler.py`).
 - Dashboard WebSocket server (`dashboard_server.py`) plus browser/terminal consumers.
 - Enterprise Admin API (`api/v1/app.py`) with fail-closed auth/RBAC, durable
-  idempotency/audit stores, read-only spot routes, and a generated OpenAPI
-  contract at `openapi/coinbase-admin-api.yaml`. Mutating HTTP routes currently
-  return HTTP `501` / `not_implemented` and do not call Coinbase.
+  idempotency/audit stores, read-only spot routes, route-scoped manual Spot
+  order/cancel live gates, and a generated OpenAPI contract at
+  `openapi/coinbase-admin-api.yaml`. Mutating HTTP routes are no-live by
+  default. `POST /api/v1/orders` and
+  `POST /api/v1/orders/{client_order_id}/cancel` are the explicit configured
+  exceptions: they may reach the shared backend live branch only after exact
+  backend auth/RBAC, idempotency, approval, admission-audit, cap/guard,
+  reconciliation, manual acknowledgement, live-service, REST-client, and
+  event-stream gates pass. Other mutating HTTP routes remain
+  live-disabled/fail-closed and must not call Coinbase.
 - Market telemetry for slide calibration and charting (`market_tick`, `market_candle_1m`, `database/*_helpers.py`).
 - Optional cross-venue intelligence (`market_intel/*`, `ui_console.py`).
 

@@ -397,8 +397,10 @@ def evaluate_live_execution_gate(
 ) -> LiveExecutionGateDecision:
     """Return the current live-command gate decision.
 
-    The enterprise HTTP surface is intentionally fail-closed until approval
-    snapshots, cap evaluation, and audit enforcement are wired end to end.
+    The enterprise HTTP surface is no-live by default. Route-scoped manual
+    Spot order/cancel exceptions can reach live only after their exact backend
+    approval, cap/guard, audit, reconciliation, acknowledgement, live-service,
+    REST-client, and event-stream gates pass.
     """
 
     if allow_live_execution:
@@ -448,9 +450,10 @@ def evaluate_command_live_admission(
     """Return route-bound live admission evidence for one command attempt.
 
     This is decision evidence only. The function does not call Coinbase and
-    does not mutate command state. Current HTTP command routes remain blocked
-    until approval store, admission audit, cap/guard, and reconciliation
-    contracts are implemented end to end.
+    does not mutate command state. HTTP command routes are no-live by default;
+    manual Spot order/cancel can use this evidence only as one prerequisite in
+    their route-scoped configured live path. Other command routes remain
+    blocked/fail-closed unless they receive their own explicit live contract.
     """
 
     approval_snapshot = None

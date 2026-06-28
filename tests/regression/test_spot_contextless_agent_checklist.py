@@ -1,5 +1,7 @@
 """Regression tests for the spot contextless-agent checklist harness."""
 
+import subprocess
+import sys
 from datetime import datetime, timezone
 
 import pytest
@@ -30,3 +32,20 @@ def test_contextless_agent_checklist_cli_summary_runs(capsys):
     captured = capsys.readouterr()
     assert captured.out.startswith("SPOT_CONTEXTLESS_AGENT_CHECKLIST ")
     assert "pass_criteria_count" in captured.out
+
+
+def test_contextless_agent_checklist_direct_script_uses_repo_imports():
+    result = subprocess.run(
+        [
+            sys.executable,
+            "tools/run_spot_contextless_agent_checklist.py",
+            "--summary-only",
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.startswith("SPOT_CONTEXTLESS_AGENT_CHECKLIST ")
+    assert "contextless_agent_checklist" in result.stdout

@@ -9592,11 +9592,14 @@ def test_admin_api_route_inventory_export_file_matches_generated_contract():
         "action_class": AdminApiActionClass.LIVE_EXCHANGE_PLACE.value,
         "permission": AdminApiPermission.ORDER_CREATE.value,
         "idempotency": "required",
-        "approval": "required",
-        "caps": "required",
+        "approval": "required for route-scoped configured live gate",
+        "caps": "required for planning, guard, wallet, and lot authority",
         "audit": "required",
         "shared_method": "place_manual_order",
-        "parity_test": "HTTP vs place_order guard/result parity",
+        "parity_test": (
+            "HTTP vs place_order guard/result parity; no-live by default, REST "
+            "only after exact backend admission"
+        ),
         "compatibility_mode": None,
         "command_contract": True,
     }

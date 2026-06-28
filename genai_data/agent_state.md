@@ -44,8 +44,10 @@ work. Historical milestone detail belongs in
   surfaced as `unsupported` or `not_modeled`. No missing behavior may be
   filled in route-local FastAPI handlers or a second trading path.
 - Frontend implementation status: active Release 0.1 work remains display and
-  forward-only. The frontend may show Spot command readiness and dry-submit
-  evidence, but it must not implement browser wallet checks, guard checks,
+  forward-only. The frontend may show Spot command readiness, dry-submit
+  evidence, live-admission evidence, and direct-order audit handoffs, and it
+  may forward supported command requests through the generated backend client
+  or BFF allowlist. It must not implement browser wallet checks, guard checks,
   Coinbase calls, live-service toggles, BFF execution authority, or a second
   trading path. Unsupported backend behavior must still be surfaced as
   `unsupported` or `not_modeled`.
@@ -53,9 +55,10 @@ work. Historical milestone detail belongs in
   frontend `AGENTS.md`, and related agent contract docs were reviewed again on
   2026-06-28 for this phase, including the no-live Admin API manual Spot SELL
   validation runner slice, the operator runbook update, the documentation
-  index update, and the autonomous validator pivot. Release 0.1 product
-  progress remains the controlling rule: every phase must clear a named
-  Release 0.1 blocker or directly improve usable admin management.
+  index update, the autonomous validator pivot, and the backend contextless
+  review. Release 0.1 product progress remains the controlling rule: every
+  phase must clear a named Release 0.1 blocker or directly improve usable
+  admin management.
 - Release 0.1 matrix status:
   `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md` and frontend
   `docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md` now identify operator
@@ -102,14 +105,20 @@ work. Historical milestone detail belongs in
   command service with fake REST, and reports live Coinbase execution as not
   run with submitted/executed notional `0`.
 - Exact next implementation slice: continue approved Release 0.1 closeout
-  support through backend and frontend contextless review work
-  (`7997`/`7998`). The operator runbook, documentation index, and autonomous
-  validator slices are complete for this range. Do not create another spot
-  proof slice unless it clears a named Release 0.1 blocker.
-- Contextless review status: planned for `7981-8000`; reviewers must verify
-  that the Release 0.1 pivot is understandable without chat history and that
-  future work cannot drift back into proof-only expansion without a named
-  release blocker.
+  support through frontend contextless review work (`7998`). The operator
+  runbook, documentation index, autonomous validator, and backend contextless
+  review slices are complete for this range. Do not create another spot proof
+  slice unless it clears a named Release 0.1 blocker.
+- Contextless review status: backend Phase 7997 passed after remediation.
+  Initial blind reviews blocked on stale current Admin API command-authority
+  docs and `genai_data` references that still implied all HTTP mutating routes
+  were categorically live-disabled, plus a contextless checklist direct-script
+  import issue. Current docs now state no-live-by-default HTTP mutating routes,
+  route-scoped configured manual Spot order/cancel exceptions after exact
+  backend gates, frontend/BFF display-or-forward-only authority, and
+  `cancel_order(client_order_id)` for Coinbase cancellation. Final fresh
+  reviewer `019f0cfb-e2eb-7073-81a7-4fffd20d3ca0` passed. No live Coinbase
+  execution ran in Phase 7997; submitted/executed notional `0`/`0` USDC.
 - Focused validation status: focused pytest passed for
   `tests/regression/test_admin_api_manual_spot_buy_live_runner.py`,
   `tests/regression/test_spot_direct_order_audit.py`, and the targeted Admin
@@ -147,18 +156,25 @@ work. Historical milestone detail belongs in
   backend autonomous queue summary, backend architect ownership check,
   frontend focused unit tests for autonomous queue policy and quality gates,
   frontend `npm run autonomous:check`, frontend `npm run release:check`, and
-  frontend `npm run typecheck`.
-- Commit/push status: previous backend commit `b34074cc` and frontend commit
-  `ff98b89` were pushed with the documentation index changes. Current
-  autonomous validator pivot changes are pending final diff checks, commit,
-  and push in the backend and frontend repos.
-- Current phase-end subagent sweep: first blind/contextless reviewer
-  `019f0cd4-c028-76a0-88c5-48f196541a1a` failed on startup/live-notional
-  ambiguity and was closed after remediation; fresh reviewer
-  `019f0cd8-286f-7471-a7ff-ff13aac216af` passed and was closed. No stale
-  phase-scoped subagents are intentionally open. Documentation index phase did
-  not spawn subagents. Autonomous validator pivot did not spawn subagents; no
-  stale phase-scoped subagents are intentionally open.
+  frontend `npm run typecheck`. Backend contextless review remediation
+  validation passed:
+  `python tools\run_spot_contextless_agent_checklist.py --summary-only`,
+  `py -3.13 -m tools.run_spot_contextless_agent_checklist --summary-only`,
+  `pytest tests\regression\test_spot_contextless_agent_checklist.py -v --tb=short`,
+  targeted Admin API route-inventory contract tests,
+  `python tools\run_autonomous_work_queue_check.py --summary-only`,
+  `python tools\check_ownership.py`, and `git diff --check`.
+- Commit/push status: backend contextless review remediation/evidence changes
+  are included in the current backend commit on
+  `codex/stealth-live-service-decision-3501`. Previous backend commit
+  `ee72686f` and frontend commit `5392c2a` were pushed with the autonomous
+  validator pivot changes.
+- Current phase-end subagent sweep: backend contextless reviewers
+  `019f0ce9-fe23-75d2-b87b-7153779aca20` and
+  `019f0cf9-ce90-79e2-ac80-16efcf1749e5` blocked on stale docs/import
+  bootstrap and were closed after remediation was consumed. Fresh reviewer
+  `019f0cfb-e2eb-7073-81a7-4fffd20d3ca0` passed and was closed. No stale
+  phase-scoped subagents are intentionally open.
 
 ## Phase Contract
 

@@ -26,8 +26,13 @@ Frontend maintainer handoff lives in
   client, mocks, and browser tests.
 - New product UI must consume the HTTP Admin API contract generated from this
   repository. It must not call the legacy dashboard WebSocket.
-- HTTP mutating routes remain live-disabled until backend approval/cap/audit
-  gates are completed and tested.
+- HTTP mutating routes are no-live by default. `POST /api/v1/orders` and
+  `POST /api/v1/orders/{client_order_id}/cancel` are explicit manual Spot
+  exceptions that may reach the shared backend live branch only after exact
+  backend auth/RBAC, idempotency, approval, admission-audit, cap/guard,
+  reconciliation, manual acknowledgement, configured live-service, REST-client,
+  and event-stream gates pass. Other mutating routes remain live-disabled or
+  fail-closed until they receive their own backend-owned live contract.
 - The enterprise admin surface is a platform plus domain modules. Spot is the
   first complete module; futures/perpetuals, stealth orders, repricing, and
   other modules need their own backend-owned contracts before frontend UI
@@ -76,11 +81,11 @@ Only `NEXT_PUBLIC_ADMIN_API_MODE` is browser-visible in that configuration.
 The `ADMIN_API_*` values are server-only BFF authority and must not be exposed
 through `NEXT_PUBLIC_*`.
 
-## Read Model Interaction Scope
+## Frontend Interaction Scope
 
-The approved frontend interaction surface is read-only and uses this backend's
-Admin API contract as the source of truth. The frontend may provide local
-display affordances over already-loaded backend-shaped data:
+The approved frontend interaction surface uses this backend's Admin API
+contract as the source of truth. The frontend may provide local display
+affordances over already-loaded backend-shaped data:
 
 - filter and sort order rows already returned by the read route
 - select order detail evidence keyed by `client_order_id`
@@ -89,12 +94,17 @@ display affordances over already-loaded backend-shaped data:
 - switch campaign evidence tabs and filter evidence rows
 - show deterministic empty, loading, auth-blocked, and backend-error states
 - display Settings diagnostics and responsive table scroll regions
+- capture operator intent and forward supported command requests through the
+  generated backend client or BFF allowlist when the backend contract exposes
+  that route
 
 These are browser UX behaviors only. They are not wallet authority, guard
 authority, Coinbase execution approval, profitability validation, or cancel
-identity. Future mutations must still come from backend-owned command
-contracts with auth, RBAC, idempotency, approval, cap, guard, and audit
-evidence.
+identity. Mutations must come from backend-owned command contracts with auth,
+RBAC, idempotency, approval, cap, guard, audit, reconciliation, manual
+acknowledgement, and configured live-service evidence when live execution is
+allowed. Browser or BFF code must not compute, override, or replace those
+backend decisions.
 
 ## Release Rule
 

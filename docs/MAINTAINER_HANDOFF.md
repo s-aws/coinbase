@@ -143,8 +143,9 @@ notional, retained inventory, reconciliation result, and audit ids.
   `agent.md`, frontend `AGENTS.md`, and related agent contract docs were
   reviewed on 2026-06-27 before the Release 0.1 matrix work and again on
   2026-06-28 before the manual Spot BUY validation, SELL validation, and
-  operator runbook phases. No phase-direction change was required, but the
-  Release 0.1 product-progress rule remains controlling.
+  operator runbook, documentation index, autonomous validator pivot, and
+  backend contextless review phases. No phase-direction change was required,
+  but the Release 0.1 product-progress rule remains controlling.
 - Release 0.1 matrix status: `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md`
   treats Account and Market Inventory as a `ready_with_data_gate` read surface,
   not the next implementation slice. Manual Spot BUY has capped backend
@@ -159,9 +160,12 @@ notional, retained inventory, reconciliation result, and audit ids.
   REST, and can only reach `cancel_order(client_order_id)` when all backend
   gates pass.
 - Exact next implementation slice: continue approved Release 0.1 closeout
-  support through operator runbook, documentation index, autonomous validator,
-  and contextless review work. Do not create another spot proof slice unless it
-  clears a named Release 0.1 blocker.
+  support through frontend contextless review work (`7998`). Backend
+  contextless review (`7997`) passed after remediation of stale current Admin
+  API command-authority docs and contextless checklist bootstrap. Operator
+  runbook, documentation index, autonomous validator, and backend contextless
+  review work are complete for this active range. Do not create another spot
+  proof slice unless it clears a named Release 0.1 blocker.
 - Completed `7961-7980` added risk-proof record validation remediation summary
   evidence derived from existing per-command risk-proof record-validation
   remediation rows and remains carried-forward disabled, no-live,
@@ -487,14 +491,18 @@ notional, retained inventory, reconciliation result, and audit ids.
   only displayed backend contracts without browser/BFF/live execution
   authority, no spot-only wallet/cost-basis/sell-guard rule was imported into
   futures/perpetuals, and phase-end subagent cleanup was completed.
-- Current enterprise manual Spot order path is dry-submit/review only:
-  `POST /api/v1/orders` remains live-disabled, may derive backend-owned
-  `client_order_id`, and exits before Spot wallet, no-short sell authority,
-  product capability, event-stream audit, or REST submission checks unless a
-  future HTTP live-execution gate explicitly passes
-  `allow_live_execution=true`. Backend `trader` or `admin` RBAC authority is
-  required for order-create command tests; a frontend human "operator" label is
-  not enough backend authority.
+- Current enterprise manual Spot order path is no-live by default but
+  route-scoped live-capable when exact backend gates pass. `POST /api/v1/orders`
+  may derive a backend-owned `client_order_id` and can reach the shared command
+  service live branch only after backend auth/RBAC, idempotency, approval,
+  admission-audit, cap/guard, reconciliation, manual acknowledgement,
+  configured live-service, REST-client, event-stream, wallet/planned-budget,
+  no-short sell authority, product capability, and size/guard checks all pass.
+  `POST /api/v1/orders/{client_order_id}/cancel` is similarly no-live by
+  default and can reach only `cancel_order(client_order_id)` after exact
+  backend admission and acknowledgement gates pass. Backend `trader` or
+  `admin` RBAC authority is required for order-create command tests; a
+  frontend human "operator" label is not enough backend authority.
 - Active range adds futures request payload validation record
   execution-eligibility resolution-plan step evidence through
   `application/admin_api/futures_request_payload_validation_record_execution_eligibility_resolution_plan_steps.py`.

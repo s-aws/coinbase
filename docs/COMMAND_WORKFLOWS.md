@@ -11,8 +11,12 @@ reconciliation state, live adapter execution, and Coinbase calls.
 
 Dry-submit means an audited, idempotent command-shaped Admin API POST may be
 sent to the backend and may create backend audit/idempotency evidence. It is
-still no-live: the expected command result is live-disabled or prerequisite
-rejection evidence, not Coinbase submission.
+still no-live: it does not request Coinbase submission. For routes without an
+explicit configured live-service exception, the expected command result is
+live-disabled or prerequisite rejection evidence. Manual Spot order/cancel are
+route-scoped exceptions only when exact backend approval, admission-audit,
+cap/guard, reconciliation, manual acknowledgement, configured live-service,
+REST-client, and event-stream gates pass.
 
 ## Current Contract
 
@@ -35,10 +39,11 @@ rejection evidence, not Coinbase submission.
   disabled live service remains blocked/no-live. `POST /api/v1/orders` has a
   manual-order-specific configured live-service dependency that can report
   completed only when backend runtime configuration enables it and Coinbase
-  REST plus durable order-event publishing are available. The shared/generic
-  live-service dependency remains disabled for cancel, campaign, recovery, and
-  proof routes until each route has an explicit live contract. Cancel remains
-  fail-closed until it has an explicit acknowledgement/live-service contract.
+  REST plus durable order-event publishing are available. Cancel has its own
+  route-scoped live-service dependency and calls only the project wrapper
+  `cancel_order(client_order_id)` after exact backend admission. The
+  shared/generic live-service dependency remains disabled for campaign,
+  recovery, and proof routes until each route has an explicit live contract.
   This wiring is not browser authority, BFF authority, or frontend live-service
   enablement.
 - When a configured manual Spot order is accepted through the live branch, the

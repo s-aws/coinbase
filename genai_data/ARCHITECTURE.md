@@ -21,8 +21,13 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
 - Coinbase user/ticker websocket events flow into `OrderEngine.on_message`.
 - Dashboard websocket commands flow into `dashboard_server.handle_client_message`.
 - Enterprise Admin API routes flow through `api/v1/routes/*` into
-  `application.admin_api.command_service.AdminApiCommandService`. Current
-  HTTP mutating routes return `not_implemented` and do not call Coinbase.
+  `application.admin_api.command_service.AdminApiCommandService`. HTTP
+  mutating routes are no-live by default. Manual Spot order and cancel are
+  route-scoped configured exceptions that may reach the shared backend live
+  branch only after exact backend auth/RBAC, idempotency, approval,
+  admission-audit, cap/guard, reconciliation, manual acknowledgement,
+  live-service, REST-client, and event-stream gates pass; other mutating HTTP
+  routes remain live-disabled/fail-closed and do not call Coinbase.
 
 2. **Domain Layer**
 - `OrderEngine` handles parent/child lifecycle, follow-up creation, partial-fill state, and ownership classification.

@@ -6,6 +6,13 @@ then default to `not_implemented` unless a route-scoped backend live-service
 exception is explicitly configured and all admission gates pass. Read-only spot
 operator endpoints are available behind the same fail-closed auth dependency.
 
+Blocked-state examples below may say a route "remains live-disabled until" a
+specific prerequisite exists. Treat those strings as the evidence for that
+missing prerequisite, not as a blanket statement that manual Spot order/cancel
+can never reach live. The current manual Spot order/cancel source of truth is
+`README.admin-api.md` and `docs/LIVE_ORDER_SURFACES.md`: no-live by default,
+with route-scoped configured live execution only after exact backend gates pass.
+
 The Admin API is the backend contract layer for the enterprise admin platform.
 Spot is the first complete product module. Do not use spot wallet, USDC,
 cost-basis, or no-shorting rules as generic admin behavior for
