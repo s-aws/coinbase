@@ -349,6 +349,7 @@ from application.admin_api.live_execution import (
 )
 from application.admin_api.models import (
     AdminApiActor,
+    AdminApiCommandResponse,
     AdminApprovalRequestCreateRequest,
     AdminLiveAdmissionDecisionEvidence,
     ManualOrderRequest,
@@ -966,6 +967,80 @@ def _approval_request_payload(
         ),
         "request_reason": "operator wants a bounded manual order approval",
     }
+
+
+_ROUTE_ADMISSION_DECISION_KEYS = (
+    "route",
+    "method",
+    "module_id",
+    "identity_key",
+    "identity_value",
+    "action_class",
+    "required_permission",
+    "service_method",
+    "actor_id",
+    "idempotency_key",
+    "operator_intent",
+    "payload_hash",
+)
+
+
+def _route_admission_decision_fields(kwargs: dict) -> dict:
+    return {key: kwargs[key] for key in _ROUTE_ADMISSION_DECISION_KEYS}
+
+
+def _allowed_route_admission_decision(
+    *,
+    route: str,
+    method: str,
+    module_id: str,
+    identity_key: str,
+    identity_value: str | None,
+    action_class: AdminApiActionClass,
+    required_permission: AdminApiPermission,
+    service_method: str,
+    actor_id: str,
+    idempotency_key: str,
+    operator_intent: str,
+    payload_hash: str,
+) -> AdminLiveAdmissionDecisionEvidence:
+    return AdminLiveAdmissionDecisionEvidence(
+        status=AdminApiGateStatus.PASSED,
+        allowed=True,
+        route=route,
+        method=method,
+        module_id=module_id,
+        identity_key=identity_key,
+        identity_value=identity_value,
+        action_class=action_class,
+        required_permission=required_permission,
+        service_method=service_method,
+        actor_id=actor_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+        approval_snapshot_present=True,
+        approval_snapshot_id="approval-route-admission-test",
+        approval_snapshot_source="approval_store",
+        admission_audit_present=True,
+        admission_audit_id="audit-route-admission-test",
+        admission_audit_source="admin_api_audit_log",
+        cap_guard_present=True,
+        cap_guard_decision_id="cap-route-admission-test",
+        cap_guard_source="admin_api_cap_guard_log",
+        reconciliation_plan_present=True,
+        reconciliation_plan_id="reconciliation-route-admission-test",
+        reconciliation_plan_source="admin_api_reconciliation_plan_log",
+        live_execution_service_present=True,
+        live_execution_service_status=AdminApiLiveExecutionStatus.COMPLETED,
+        live_execution_service_source="synthetic_route_admission_test",
+        live_execution_service_missing_reason=None,
+        browser_authority="rejected",
+        live_exchange_submitted=False,
+        blockers=[],
+        evidence=["synthetic backend-owned admission pass for route wiring test"],
+        detail="Synthetic no-Coinbase decision used to prove route command binding.",
+    )
 
 
 def _append_manual_order_approval(
@@ -10089,6 +10164,60 @@ def test_admin_api_reconciliation_plan_resolution_is_evidence_only(monkeypatch):
 
 
 @pytest.mark.regression
+def test_admin_api_manual_order_route_binds_command_live_flag_to_admission(
+    monkeypatch,
+):
+    from api.v1.routes import orders as order_routes
+
+    client = _client(monkeypatch)
+    captured: dict[str, bool] = {}
+
+    def fake_evaluate_command_live_admission(**kwargs):
+        return _allowed_route_admission_decision(
+            **_route_admission_decision_fields(kwargs)
+        )
+
+    def fake_place_manual_order(self, command):
+        captured["allow_live_execution"] = command.allow_live_execution
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            service_method="place_manual_order",
+            message="synthetic no-live route binding proof",
+            client_order_id=command.request.client_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            failure_stage="synthetic_no_live",
+        )
+
+    monkeypatch.setattr(
+        order_routes,
+        "evaluate_command_live_admission",
+        fake_evaluate_command_live_admission,
+    )
+    monkeypatch.setattr(
+        AdminApiCommandService,
+        "place_manual_order",
+        fake_place_manual_order,
+    )
+
+    response = client.post(
+        "/api/v1/orders",
+        headers=_headers(idempotency_key="idem-route-admission"),
+        json=_manual_order_payload(client_order_id="client-route-admission"),
+    )
+
+    assert response.status_code == 501
+    payload = response.json()
+    assert captured["allow_live_execution"] is True
+    assert payload["admission_decision"]["allowed"] is True
+    assert payload["live_exchange_submitted"] is False
+    assert payload["failure_stage"] == "synthetic_no_live"
+
+
+@pytest.mark.regression
 def test_admin_api_cancel_contract_is_keyed_by_client_order_id(monkeypatch):
     client = _client(monkeypatch)
 
@@ -10121,6 +10250,59 @@ def test_admin_api_cancel_contract_is_keyed_by_client_order_id(monkeypatch):
     assert payload["admission_decision"]["service_method"] == (
         "cancel_order_by_client_order_id"
     )
+
+
+@pytest.mark.regression
+def test_admin_api_cancel_route_binds_command_live_flag_to_admission(monkeypatch):
+    from api.v1.routes import orders as order_routes
+
+    client = _client(monkeypatch)
+    captured: dict[str, bool] = {}
+
+    def fake_evaluate_command_live_admission(**kwargs):
+        return _allowed_route_admission_decision(
+            **_route_admission_decision_fields(kwargs)
+        )
+
+    def fake_cancel_order_by_client_order_id(self, command):
+        captured["allow_live_execution"] = command.allow_live_execution
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            required_permission=AdminApiPermission.ORDER_CANCEL,
+            service_method="cancel_order_by_client_order_id",
+            message="synthetic no-live route binding proof",
+            client_order_id=command.client_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            failure_stage="synthetic_no_live",
+        )
+
+    monkeypatch.setattr(
+        order_routes,
+        "evaluate_command_live_admission",
+        fake_evaluate_command_live_admission,
+    )
+    monkeypatch.setattr(
+        AdminApiCommandService,
+        "cancel_order_by_client_order_id",
+        fake_cancel_order_by_client_order_id,
+    )
+
+    response = client.post(
+        "/api/v1/orders/client-route-admission/cancel",
+        headers=_headers(idempotency_key="idem-route-admission-cancel"),
+        json={"reason": "operator_request"},
+    )
+
+    assert response.status_code == 501
+    payload = response.json()
+    assert captured["allow_live_execution"] is True
+    assert payload["admission_decision"]["allowed"] is True
+    assert payload["client_order_id"] == "client-route-admission"
+    assert payload["live_exchange_submitted"] is False
+    assert payload["failure_stage"] == "synthetic_no_live"
 
 
 def _assert_stealth_command_context_echo(

@@ -187,12 +187,18 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
 - Current spot command implementation result: frontend Spot Command Suite
   renders backend `GET /api/v1/spot/command-suite` Buy/Sell/Cancel readiness
   evidence for manual order and cancel-by-`client_order_id` routes.
+- Current spot command implementation result: backend manual order and
+  cancel-by-`client_order_id` route adapters pass the evaluated backend
+  admission decision into the shared command-service command objects as
+  `allow_live_execution`. The default decision remains blocked, so no live
+  Coinbase execution is enabled.
 - Remaining release-linked selection: spot command live admission and live
-  execution remain blocked by backend proof, approval, cap/guard,
-  reconciliation, audit, wallet/no-shorting, direct acknowledgement, and
-  live-service gates. Product catalog, spot wallet, spot balance, and spot
-  fill read contracts now belong to the account-market-inventory
-  `ready_with_data_gate` surface, not a missing-contract blocker.
+  execution remain blocked by backend live-service/adapter enablement,
+  post-submit reconciliation, proof, approval, cap/guard, audit,
+  wallet/no-shorting, and direct acknowledgement gates. Product catalog, spot
+  wallet, spot balance, and spot fill read contracts now belong to the
+  account-market-inventory `ready_with_data_gate` surface, not a
+  missing-contract blocker.
 
 ### Phase 7994 - Operator Runbook Update
 

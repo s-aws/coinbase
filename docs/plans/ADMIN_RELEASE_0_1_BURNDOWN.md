@@ -147,6 +147,11 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
   Command Suite. Live spot buy/sell and cancel remain blocked by backend
   admission, proof, approval, cap/guard, reconciliation, audit,
   wallet/no-shorting, direct acknowledgement, and live-service gates.
+- Current implementation result: backend manual order and
+  cancel-by-`client_order_id` route adapters now pass the evaluated backend
+  admission decision into the shared command-service command objects as
+  `allow_live_execution`. The default admission decision remains blocked and
+  no live Coinbase execution is enabled.
 
 ### Phase 7994 - Operator Runbook Update
 

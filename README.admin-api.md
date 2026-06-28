@@ -31,10 +31,13 @@ they do not submit orders, cancel orders, or call Coinbase.
 today it is a dry-submit/review path only. The route requires backend auth,
 RBAC, idempotency, correlation, and operator-intent headers, may derive a
 backend-owned `client_order_id` before admission when the request omits one,
-and then returns live-disabled evidence. It does not reach the live branch that
+and then returns live-disabled evidence. The route adapter now binds
+`ManualOrderCommand.allow_live_execution` to the backend-owned admission
+decision instead of a route-local constant, but the default admission service
+still returns blocked/no-live evidence. It does not reach the live branch that
 checks Spot wallet inventory, no-short sell authority, product capability,
-event-stream audit, or REST submission unless a future HTTP live-execution gate
-explicitly passes `allow_live_execution=true`. The UI label "operator" names a
+event-stream audit, or REST submission until the backend live-service and
+Coinbase adapter gates explicitly pass. The UI label "operator" names a
 human workflow role; backend order creation still requires `trader` or `admin`
 RBAC authority.
 
@@ -1801,7 +1804,11 @@ For `POST /api/v1/orders`, the route attaches a stable backend-owned
 `client_order_id` before admission when the request omits one. The id is
 derived from endpoint, actor, idempotency key, and the payload hash so replay
 evidence is stable while the browser still does not create or override order
-identity. The command remains live-disabled and returns `501`.
+identity. `POST /api/v1/orders` and
+`POST /api/v1/orders/{client_order_id}/cancel` both pass the evaluated
+backend admission decision into their shared command-service command objects as
+`allow_live_execution`. The default decision remains blocked, so the commands
+remain live-disabled and return `501` without Coinbase submission.
 
 Current read-only HTTP surfaces include:
 

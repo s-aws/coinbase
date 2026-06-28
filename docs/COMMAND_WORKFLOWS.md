@@ -27,6 +27,11 @@ rejection evidence, not Coinbase submission.
 - Live command execution stays disabled unless a backend route explicitly
   reports passing approval, cap/guard, admission audit, reconciliation, live
   adapter, and operator-intent gates.
+- Manual spot order and cancel route adapters pass the evaluated backend
+  admission decision into their shared command-service command objects as
+  `allow_live_execution`. The default backend admission decision is still
+  blocked, so this is gate wiring only; it is not browser authority, BFF
+  authority, Coinbase execution, or live-service enablement.
 
 ## Spot Command Suite
 
@@ -207,6 +212,9 @@ Spot cancel identity is `client_order_id`. Coinbase cancellation is the
 project-specific exception where the backend wrapper calls
 `cancel_order(client_order_id)` because the exchange accepts the client id for
 that operation. Do not replace this with an exchange-native `order_id` flow.
+The cancel route uses the same backend-admission-bound `allow_live_execution`
+handoff as manual order placement; it does not add an exchange `order_id`
+cancel path or make the default disabled live service executable.
 
 ## Stealth Command Suite
 
