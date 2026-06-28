@@ -63,7 +63,8 @@ result in the phase evidence, handoff, or closeout summary before advancing.
   `agent.md`, frontend `AGENTS.md`, and related owner contracts were reviewed
   on 2026-06-28 before manual Spot BUY Admin API live-validation work, before
   Admin API spot SELL authority source wiring, and before the operator runbook
-  update. Release 0.1 product progress remains the controlling rule.
+  update and documentation index update. Release 0.1 product progress remains
+  the controlling rule.
 - Phase `7981-8000` matrix-work subagent sweep status: no phase-scoped
   subagents were spawned, so no subagent cleanup was required.
 - Phase `7994` operator-runbook subagent sweep status: blind/contextless
@@ -71,6 +72,8 @@ result in the phase evidence, handoff, or closeout summary before advancing.
   notional ambiguities and was closed after remediation. Fresh reviewer
   `019f0cd8-286f-7471-a7ff-ff13aac216af` passed with no blocking ambiguities
   and was closed. No stale phase-scoped subagents are intentionally open.
+- Phase `7995` documentation-index subagent sweep status: no phase-scoped
+  subagents were spawned, so no subagent cleanup was required.
 
 ## Current Progress Record
 
@@ -258,6 +261,10 @@ Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platfor
   index.
 - Also link the Release 0.1 route-to-UI and workflow matrices from the ordered
   backend/frontend docs indexes.
+- Current implementation result: backend `docs/README.md` now links the local
+  Release 0.1 burn-down, maintainer handoff, durable milestones, autonomous
+  work queue, backend route-to-UI matrix, and sibling frontend workflow matrix
+  from ordered navigation sections.
 
 ### Phase 7996 - Autonomous Validator Pivot
 

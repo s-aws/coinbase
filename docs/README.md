@@ -47,6 +47,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Maintainer Handoff](MAINTAINER_HANDOFF.md)
 - [Admin Release 0.1 Burn-Down](plans/ADMIN_RELEASE_0_1_BURNDOWN.md)
 - [Admin Release 0.1 Route-To-UI Matrix](plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md)
+- [Admin Release 0.1 Frontend Workflow Matrix](../../coinbase-frontend/docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md)
 - [Admin Platform Durable Milestones](plans/ADMIN_PLATFORM_DURABLE_MILESTONES.md)
 - [Frontend Association](FRONTEND_ASSOCIATION.md)
 - [Admin API E2E Plan](plans/ADMIN_API_E2E_PLAN.md)
@@ -141,7 +142,12 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 ## State, Modes, And Roadmaps
 
 - [Public Roadmap](PUBLIC_ROADMAP.md)
+- [Maintainer Handoff](MAINTAINER_HANDOFF.md)
+- [Admin Release 0.1 Burn-Down](plans/ADMIN_RELEASE_0_1_BURNDOWN.md)
+- [Admin Release 0.1 Route-To-UI Matrix](plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md)
+- [Admin Release 0.1 Frontend Workflow Matrix](../../coinbase-frontend/docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md)
 - [Admin Platform Durable Milestones](plans/ADMIN_PLATFORM_DURABLE_MILESTONES.md)
+- [Autonomous Work Queue](plans/AUTONOMOUS_WORK_QUEUE.md)
 - [Spot Readiness Roadmap](SPOT_READINESS_ROADMAP.md)
 - [Agent State](../genai_data/agent_state.md)
 - [Debugging Strategy](../genai_data/DEBUGGING_STRATEGY.md)

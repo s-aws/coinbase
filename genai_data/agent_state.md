@@ -52,8 +52,8 @@ work. Historical milestone detail belongs in
 - Phase instruction review status: backend `AGENTS.md`, backend `agent.md`,
   frontend `AGENTS.md`, and related agent contract docs were reviewed again on
   2026-06-28 for this phase, including the no-live Admin API manual Spot SELL
-  validation runner slice and the operator runbook update. Release 0.1 product
-  progress remains the controlling rule.
+  validation runner slice, the operator runbook update, and the documentation
+  index update. Release 0.1 product progress remains the controlling rule.
 - Release 0.1 matrix status:
   `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md` and frontend
   `docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md` now identify operator
@@ -97,9 +97,10 @@ work. Historical milestone detail belongs in
   command service with fake REST, and reports live Coinbase execution as not
   run with submitted/executed notional `0`.
 - Exact next implementation slice: continue approved Release 0.1 closeout
-  support through operator runbook, docs index, autonomous validator, and
-  contextless review work. Do not create another spot proof slice unless it
-  clears a named Release 0.1 blocker.
+  support through autonomous validator and contextless review work. The
+  operator runbook and documentation index slices are complete for this range.
+  Do not create another spot proof slice unless it clears a named Release 0.1
+  blocker.
 - Contextless review status: planned for `7981-8000`; reviewers must verify
   that the Release 0.1 pivot is understandable without chat history and that
   future work cannot drift back into proof-only expansion without a named
@@ -127,16 +128,24 @@ work. Historical milestone detail belongs in
   queue check, and frontend `git diff --check`. Fresh blind/contextless review
   passed after remediation with no blocking ambiguities for startup, usable
   surfaces, non-operator-complete workflows, and Spot BUY/SELL/cancel backend
-  authority.
-- Commit/push status: previous backend commit `da937a15` was pushed with the
-  no-live Admin API manual Spot SELL validation runner. Current operator
-  runbook/docs sync changes are pending validation, commit, and push in the
+  authority. Documentation index update work added ordered navigation links in
+  backend and frontend `docs/README.md` for the local Release 0.1 burn-down,
+  maintainer handoff, durable milestones, autonomous work queue, local Release
+  0.1 matrix, and sibling repo Release 0.1 matrix. Documentation index phase
+  validation passed: backend ownership check, backend autonomous queue check,
+  backend `git diff --check`, frontend release readiness check, frontend
+  autonomous queue check, frontend `git diff --check`, and explicit
+  `Test-Path` checks for both cross-repo matrix links.
+- Commit/push status: previous backend commit `738af6d1` and frontend commit
+  `b790ac8` were pushed with the operator runbook/docs sync changes. Current
+  documentation index changes are pending validation, commit, and push in the
   backend and frontend repos.
 - Current phase-end subagent sweep: first blind/contextless reviewer
   `019f0cd4-c028-76a0-88c5-48f196541a1a` failed on startup/live-notional
   ambiguity and was closed after remediation; fresh reviewer
   `019f0cd8-286f-7471-a7ff-ff13aac216af` passed and was closed. No stale
-  phase-scoped subagents are intentionally open.
+  phase-scoped subagents are intentionally open. Documentation index phase did
+  not spawn subagents; no stale phase-scoped subagents are intentionally open.
 
 ## Phase Contract
 
