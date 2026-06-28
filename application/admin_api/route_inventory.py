@@ -1506,9 +1506,10 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         audit="optional read audit",
         shared_method="build_account_market_inventory",
         parity_test=(
-            "read-only Release 0.1 account/market inventory coverage and "
-            "explicit not_modeled gaps; no Coinbase read, browser fallback, "
-            "BFF execution, or trading mutation"
+            "read-only Release 0.1 account/market inventory coverage with "
+            "bounded product/wallet/balance/fill rows when backend Coinbase "
+            "reads are enabled; no browser fallback, BFF execution, or "
+            "trading mutation"
         ),
     ),
     AdminApiRouteInventoryItem(

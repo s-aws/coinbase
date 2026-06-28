@@ -54,7 +54,7 @@ The current generated route inventory
 | Release area | Backend route evidence | Frontend surface | Status | Release gap | Next slice |
 | --- | --- | --- | --- | --- | --- |
 | Admin shell | `/api/v1/admin/bootstrap`, `/health`, `/session`, `/capabilities`, `/live-enablement`, `/enterprise-readiness`, `/release-gate` | Overview, Modules, Settings, Admin Evidence | `blocked` | Read posture is usable, but lifecycle start/stop/pause/resume state is not modeled as backend-owned routes. | Add explicit lifecycle support classification: backend route if supported, otherwise `unsupported`/`not_modeled` UI evidence. |
-| Account inventory | `/api/v1/admin/account-market-inventory`, `/api/v1/orders`, `/api/v1/orders/{client_order_id}`, `/api/v1/futures/account`, `/api/v1/futures/positions`, spot readiness/cost-basis/sweep/campaign reads | Inventory, Orders, Spot Operations, Futures/Perpetuals | `blocked` | First-class coverage exists, but product catalog, spot wallets, spot balances, and spot fills are explicitly `not_modeled` and release-blocking. | Implement backend product/wallet/balance/fill read contracts and keep the frontend display-only. |
+| Account inventory | `/api/v1/admin/account-market-inventory`, `/api/v1/orders`, `/api/v1/orders/{client_order_id}`, `/api/v1/futures/account`, `/api/v1/futures/positions`, spot readiness/cost-basis/sweep/campaign reads | Inventory, Orders, Spot Operations, Futures/Perpetuals | `ready_with_data_gate` | First-class coverage exists for product catalog, spot wallets, spot balances, and spot fills. Coinbase reads are backend-only, bounded, and disabled unless explicitly enabled, so the frontend must render `data_status` instead of inventing browser reads. | Keep the frontend display-only, surface blocked data clearly, and use this route as the account/market source of truth. |
 | Spot commands | `/api/v1/orders`, `/api/v1/orders/{client_order_id}/cancel`, `/api/v1/spot/command-suite`, `/api/v1/spot/campaign/executions`, `/api/v1/spot/sweep/automation-runs` | Command Workflows, Spot Operations, Campaigns | `blocked` | Command routes exist, but frontend-visible command contracts are currently live-disabled. | After inventory, choose one spot command path and make backend gate results operator-completable without browser authority. |
 | Stealth commands | `/api/v1/stealth/orders`, reveal, move, cancel, recovery, reconciliation, command suite, proof routes | Stealth Orders, Command Workflows | `blocked` | Evidence is rich, but operator completion is blocked by exchange-reality, lifecycle-write, live-disabled, and reconciliation gates. | Surface every stealth command as usable or blocked by exact gate; do not add hide-again shortcuts. |
 | Movement/repricing | `/api/v1/movement-repricing/evidence`, order detail, stealth detail, stealth reprice | Movement/Repricing, Command Workflows | `blocked` | Reprice exists as a live-disabled command route; move, premark, cooldown, claim, and cancel/replace workflows are not complete. | Add a movement action-state matrix before adding controls. |
@@ -69,8 +69,8 @@ The current generated route inventory
 The Account and Market Inventory coverage slice is now represented by
 `GET /api/v1/admin/account-market-inventory` and the frontend Inventory
 section. It is a backend-owned, read-only contract that lists inventory
-families, their support status, release-blocking status, route linkage, and
-explicit `not_modeled` gaps.
+families, their support status, data status, bounded records, release-blocking
+status, and route linkage.
 
 What this clears:
 
@@ -80,35 +80,34 @@ What this clears:
 - Existing order, futures account, futures positions, guard/risk, audit,
   readiness, cost-basis, and campaign reads are linked from one inventory
   contract.
-- Product catalog, spot wallet, spot balance, and spot fill gaps are visible as
-  backend-owned `not_modeled` release blockers.
+- Product catalog, spot wallet, spot balance, and spot fill contracts are
+  read-only ready. Their Coinbase-backed data rows remain backend-gated and
+  surface `data_status`, `data_fetch_error`, and truncation metadata instead of
+  browser-side inventory reads.
 
-## Next Implementation Slice
+## Follow-On Implementation Slice
 
-The next implementation slice should be **Product, Wallet, Balance, And Fill
-Read Contracts**.
+The next implementation slice should be **Inventory Workflow Drilldowns**.
 
-Reason: the coverage surface is useful but not sufficient for Release 0.1
-operator management. The admin still cannot inspect the actual Coinbase product
-catalog, spot wallet inventory, balances, or fills through first-class backend
-contracts. Those gaps directly block account inventory completion and should be
-addressed before new command expansion.
+Reason: the account/market route now exposes backend-owned product, wallet,
+balance, and fill rows. Release 0.1 usability improves next by linking those
+rows into existing order, spot, futures, guard/risk, and audit views without
+adding frontend trading behavior.
 
 Expected backend result:
 
-- Backend-owned read contracts for product catalog, spot wallets, spot
-  balances, and spot fills.
-- Per-family status changes from `not_modeled` to loaded, empty, unsupported,
-  or blocked with exact evidence.
+- Backend-owned route filters or identifiers for navigating from inventory rows
+  to existing read surfaces.
+- Explicit `unsupported` or `not_modeled` evidence where a drilldown target does
+  not exist yet.
 - No frontend wallet authority and no direct Coinbase browser calls.
 
 Expected frontend result:
 
-- The Inventory section renders loaded and empty product/wallet/balance/fill
-  data from backend responses while preserving `unsupported` and `not_modeled`
-  states for missing pieces.
-- Rows continue linking to order, spot, futures, audit, and reconciliation
-  surfaces without adding browser-side trading behavior.
+- The Inventory section keeps rendering backend-provided records and adds only
+  safe navigation into existing backend read routes.
+- Rows continue linking to order, spot, futures, guard/risk, audit, and
+  reconciliation surfaces without adding browser-side trading behavior.
 
 ## Live Coinbase Execution
 

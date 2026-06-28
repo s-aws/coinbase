@@ -10225,6 +10225,37 @@ components:
           minimum: 0.0
           title: Record Count
           default: 0
+        data_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        data_source:
+          type: string
+          title: Data Source
+          default: not_loaded
+        data_record_limit:
+          type: integer
+          minimum: 0.0
+          title: Data Record Limit
+          default: 0
+        data_truncated:
+          type: boolean
+          title: Data Truncated
+          default: false
+        data_fetch_error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Data Fetch Error
+        data_summary:
+          additionalProperties: true
+          type: object
+          title: Data Summary
+        records:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Records
         required_for_release_0_1:
           type: boolean
           title: Required For Release 0 1
@@ -10265,6 +10296,10 @@ components:
         live_coinbase_execution:
           $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
           default: not_run
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
         notional_usdc:
           type: string
           pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
@@ -10346,6 +10381,10 @@ components:
           type: boolean
           title: Live Coinbase Orders Ran
           default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
       additionalProperties: false
       type: object
       required:
@@ -10380,6 +10419,26 @@ components:
           type: integer
           minimum: 0.0
           title: Release Blocking Family Count
+        data_ready_family_count:
+          type: integer
+          minimum: 0.0
+          title: Data Ready Family Count
+          default: 0
+        data_warning_family_count:
+          type: integer
+          minimum: 0.0
+          title: Data Warning Family Count
+          default: 0
+        data_blocked_family_count:
+          type: integer
+          minimum: 0.0
+          title: Data Blocked Family Count
+          default: 0
+        live_coinbase_read_family_count:
+          type: integer
+          minimum: 0.0
+          title: Live Coinbase Read Family Count
+          default: 0
       additionalProperties: false
       type: object
       required:

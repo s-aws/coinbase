@@ -4,11 +4,12 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Mapping
 import uuid
 
 from core.enums import (
@@ -725,6 +726,264 @@ LIVE_ENABLEMENT_MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 LIVE_ENABLEMENT_MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 LIVE_ENABLEMENT_CAP_POSTURE = "approved_ceiling_only_not_execution"
 LIVE_ENABLEMENT_NOTIONAL_POSTURE = "actual_submitted_and_executed_notional_remain_zero"
+ACCOUNT_MARKET_INVENTORY_READS_ENV = "COINBASE_ADMIN_API_ACCOUNT_MARKET_INVENTORY_READS"
+ACCOUNT_MARKET_INVENTORY_PRODUCT_LIMIT_ENV = (
+    "COINBASE_ADMIN_API_ACCOUNT_MARKET_PRODUCT_LIMIT"
+)
+ACCOUNT_MARKET_INVENTORY_WALLET_LIMIT_ENV = (
+    "COINBASE_ADMIN_API_ACCOUNT_MARKET_WALLET_LIMIT"
+)
+ACCOUNT_MARKET_INVENTORY_FILL_LIMIT_ENV = "COINBASE_ADMIN_API_ACCOUNT_MARKET_FILL_LIMIT"
+ACCOUNT_MARKET_INVENTORY_DEFAULT_PRODUCT_LIMIT = 500
+ACCOUNT_MARKET_INVENTORY_DEFAULT_WALLET_LIMIT = 500
+ACCOUNT_MARKET_INVENTORY_DEFAULT_FILL_LIMIT = 100
+ACCOUNT_MARKET_INVENTORY_MAX_RECORD_LIMIT = 1000
+
+
+def _env_truthy(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _int_env(
+    name: str,
+    default: int,
+    *,
+    min_value: int = 0,
+    max_value: int = ACCOUNT_MARKET_INVENTORY_MAX_RECORD_LIMIT,
+) -> int:
+    try:
+        value = int(os.environ.get(name, "").strip() or default)
+    except (TypeError, ValueError):
+        return default
+    return max(min_value, min(max_value, value))
+
+
+def _inventory_get(source: Any, *names: str, default: Any = None) -> Any:
+    if source is None:
+        return default
+    if isinstance(source, Mapping):
+        for name in names:
+            if name in source:
+                return source[name]
+        return default
+    for name in names:
+        if hasattr(source, name):
+            return getattr(source, name)
+    return default
+
+
+def _inventory_text(value: Any, fallback: str = "") -> str:
+    if value is None:
+        return fallback
+    if isinstance(value, Mapping):
+        nested = _inventory_get(value, "value", "amount", "balance")
+        if nested is not None and nested is not value:
+            return _inventory_text(nested, fallback=fallback)
+    text = str(value)
+    return text if text else fallback
+
+
+def _inventory_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, (int, float, Decimal)):
+        return value != 0
+    return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _inventory_decimal(value: Any) -> Decimal:
+    text = _inventory_text(value, fallback="0").replace(",", "")
+    try:
+        return Decimal(text)
+    except (InvalidOperation, ValueError):
+        return Decimal("0")
+
+
+def _inventory_decimal_text(value: Any) -> str:
+    return _inventory_format_decimal(_inventory_decimal(value))
+
+
+def _inventory_format_decimal(value: Decimal) -> str:
+    text = format(value.normalize(), "f")
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text or "0"
+
+
+def _inventory_balance_text(source: Any, *names: str) -> str:
+    for name in names:
+        value = _inventory_get(source, name)
+        if value is not None:
+            return _inventory_decimal_text(value)
+    return "0"
+
+
+def _inventory_product_id(product: Any) -> str:
+    return _inventory_text(_inventory_get(product, "product_id")).upper()
+
+
+def _inventory_base_currency(product: Any) -> str:
+    base = _inventory_text(
+        _inventory_get(product, "base_currency_id", "base_currency")
+    ).upper()
+    if base:
+        return base
+    product_id = _inventory_product_id(product)
+    return product_id.rsplit("-", 1)[0] if "-" in product_id else ""
+
+
+def _inventory_quote_currency(product: Any) -> str:
+    quote = _inventory_text(
+        _inventory_get(product, "quote_currency_id", "quote_currency")
+    ).upper()
+    if quote:
+        return quote
+    product_id = _inventory_product_id(product)
+    return product_id.rsplit("-", 1)[1] if "-" in product_id else ""
+
+
+def _bounded_inventory_rows(
+    rows: list[dict[str, Any]],
+    limit: int,
+) -> tuple[list[dict[str, Any]], bool, int]:
+    if limit <= 0:
+        return [], bool(rows), len(rows)
+    return rows[:limit], len(rows) > limit, len(rows)
+
+
+def _account_market_inventory_provider_limit(
+    payload: Mapping[str, Any],
+    key: str,
+    env_name: str,
+    default: int,
+) -> int:
+    limits = _inventory_get(payload, "limits", default={})
+    raw_value = _inventory_get(payload, key)
+    if raw_value is None:
+        raw_value = _inventory_get(limits, key)
+    if raw_value is not None:
+        try:
+            return max(
+                0,
+                min(ACCOUNT_MARKET_INVENTORY_MAX_RECORD_LIMIT, int(raw_value)),
+            )
+        except (TypeError, ValueError):
+            pass
+    return _int_env(env_name, default)
+
+
+def _account_market_inventory_disabled_payload() -> dict[str, Any]:
+    disabled_reason = (
+        f"Coinbase account/market inventory reads are disabled; set "
+        f"{ACCOUNT_MARKET_INVENTORY_READS_ENV}=true to enable read-only "
+        "backend Coinbase product, wallet, and fill reads."
+    )
+    return {
+        "enabled": False,
+        "data_source": "disabled",
+        "limits": {
+            "product_limit": _int_env(
+                ACCOUNT_MARKET_INVENTORY_PRODUCT_LIMIT_ENV,
+                ACCOUNT_MARKET_INVENTORY_DEFAULT_PRODUCT_LIMIT,
+            ),
+            "wallet_limit": _int_env(
+                ACCOUNT_MARKET_INVENTORY_WALLET_LIMIT_ENV,
+                ACCOUNT_MARKET_INVENTORY_DEFAULT_WALLET_LIMIT,
+            ),
+            "fill_limit": _int_env(
+                ACCOUNT_MARKET_INVENTORY_FILL_LIMIT_ENV,
+                ACCOUNT_MARKET_INVENTORY_DEFAULT_FILL_LIMIT,
+            ),
+        },
+        "products": [],
+        "wallets": {},
+        "fills": [],
+        "errors": {
+            "product_catalog": disabled_reason,
+            "spot_wallets": disabled_reason,
+            "spot_balances": disabled_reason,
+            "spot_fills": disabled_reason,
+        },
+        "read_only_coinbase_requests": [],
+        "live_coinbase_read_ran": False,
+    }
+
+
+def _account_market_inventory_default_provider() -> Mapping[str, Any]:
+    """Fetch read-only Coinbase inventory inputs when explicitly enabled."""
+
+    if not _env_truthy(ACCOUNT_MARKET_INVENTORY_READS_ENV):
+        return _account_market_inventory_disabled_payload()
+
+    product_limit = _int_env(
+        ACCOUNT_MARKET_INVENTORY_PRODUCT_LIMIT_ENV,
+        ACCOUNT_MARKET_INVENTORY_DEFAULT_PRODUCT_LIMIT,
+    )
+    wallet_limit = _int_env(
+        ACCOUNT_MARKET_INVENTORY_WALLET_LIMIT_ENV,
+        ACCOUNT_MARKET_INVENTORY_DEFAULT_WALLET_LIMIT,
+    )
+    fill_limit = _int_env(
+        ACCOUNT_MARKET_INVENTORY_FILL_LIMIT_ENV,
+        ACCOUNT_MARKET_INVENTORY_DEFAULT_FILL_LIMIT,
+    )
+    payload: dict[str, Any] = {
+        "enabled": True,
+        "data_source": "coinbase_read_only_rest",
+        "limits": {
+            "product_limit": product_limit,
+            "wallet_limit": wallet_limit,
+            "fill_limit": fill_limit,
+        },
+        "products": [],
+        "wallets": {},
+        "fills": [],
+        "errors": {},
+        "read_only_coinbase_requests": [],
+        "live_coinbase_read_ran": False,
+    }
+
+    try:
+        from external.coinbase_client import list_public_product_dicts
+
+        payload["read_only_coinbase_requests"].append("get_public_products")
+        payload["live_coinbase_read_ran"] = True
+        payload["products"] = list_public_product_dicts(product_type=ProductType.SPOT.value)
+    except Exception as exc:  # pragma: no cover - exercised through injected providers.
+        payload["errors"]["product_catalog"] = str(exc)
+        payload["errors"]["spot_balances"] = str(exc)
+
+    try:
+        from core.action_condition_guard import rest_credentials_configured
+
+        if rest_credentials_configured():
+            import configuration
+
+            payload["read_only_coinbase_requests"].append("get_accounts")
+            payload["live_coinbase_read_ran"] = True
+            payload["wallets"] = configuration.rest_get_account_wallets()
+            payload["read_only_coinbase_requests"].append("list_fills")
+            fills_response = configuration.get_rest_client().list_fills(
+                limit=fill_limit
+            )
+            if isinstance(fills_response, Mapping):
+                payload["fills"] = list(fills_response.get("fills") or [])
+            else:
+                payload["fills"] = list(fills_response or [])
+        else:
+            reason = "Coinbase REST credentials are not configured."
+            payload["errors"]["spot_wallets"] = reason
+            payload["errors"]["spot_balances"] = reason
+            payload["errors"]["spot_fills"] = reason
+    except Exception as exc:  # pragma: no cover - exercised through injected providers.
+        reason = str(exc)
+        payload["errors"]["spot_wallets"] = reason
+        payload["errors"]["spot_balances"] = reason
+        payload["errors"]["spot_fills"] = reason
+
+    return payload
 
 
 def _string_or_none(value: Any) -> str | None:
@@ -5712,6 +5971,9 @@ class AdminApiReadService:
             FileStealthPostWriteReconciliationVerificationStore | None
         ) = None,
         futures_risk_proof_store: FileFuturesRiskProofStore | None = None,
+        account_market_inventory_provider: (
+            Callable[[], Mapping[str, Any]] | None
+        ) = None,
     ) -> None:
         self.spot_recovery_proof_store = (
             spot_recovery_proof_store or FileSpotRecoveryProofStore()
@@ -5791,6 +6053,10 @@ class AdminApiReadService:
         )
         self.futures_risk_proof_store = (
             futures_risk_proof_store or FileFuturesRiskProofStore()
+        )
+        self.account_market_inventory_provider = (
+            account_market_inventory_provider
+            or _account_market_inventory_default_provider
         )
 
     def build_admin_bootstrap(self) -> AdminBootstrapResponse:
@@ -5927,13 +6193,291 @@ class AdminApiReadService:
         return AdminCapabilityRegistryResponse(capabilities=capabilities)
 
     def build_account_market_inventory(self) -> AdminAccountMarketInventoryResponse:
-        """Return Release 0.1 account/market inventory coverage and gaps."""
+        """Return Release 0.1 account/market inventory coverage and data."""
 
-        route_lookup: dict[str, tuple[str, str]] = {}
-        for item in ADMIN_API_ROUTE_INVENTORY:
-            method, path = _surface_method_and_path(item.surface)
+        route_lookup: dict[str, tuple[str | None, str]] = {}
+        for route_item in ADMIN_API_ROUTE_INVENTORY:
+            method, path = _surface_method_and_path(route_item.surface)
             if method and path:
-                route_lookup[path] = (method, item.module_id)
+                route_lookup[path] = (method, route_item.module_id)
+
+        provider_payload = self.account_market_inventory_provider()
+        if not isinstance(provider_payload, Mapping):
+            provider_payload = _account_market_inventory_disabled_payload()
+        errors = dict(_inventory_get(provider_payload, "errors", default={}) or {})
+        data_source = _inventory_text(
+            _inventory_get(provider_payload, "data_source"),
+            fallback="account_market_inventory_provider",
+        )
+        read_requests = {
+            _inventory_text(request)
+            for request in (
+                _inventory_get(
+                    provider_payload,
+                    "read_only_coinbase_requests",
+                    default=[],
+                )
+                or []
+            )
+            if _inventory_text(request)
+        }
+        provider_live_read_ran = _inventory_bool(
+            _inventory_get(provider_payload, "live_coinbase_read_ran")
+        )
+
+        product_limit = _account_market_inventory_provider_limit(
+            provider_payload,
+            "product_limit",
+            ACCOUNT_MARKET_INVENTORY_PRODUCT_LIMIT_ENV,
+            ACCOUNT_MARKET_INVENTORY_DEFAULT_PRODUCT_LIMIT,
+        )
+        wallet_limit = _account_market_inventory_provider_limit(
+            provider_payload,
+            "wallet_limit",
+            ACCOUNT_MARKET_INVENTORY_WALLET_LIMIT_ENV,
+            ACCOUNT_MARKET_INVENTORY_DEFAULT_WALLET_LIMIT,
+        )
+        fill_limit = _account_market_inventory_provider_limit(
+            provider_payload,
+            "fill_limit",
+            ACCOUNT_MARKET_INVENTORY_FILL_LIMIT_ENV,
+            ACCOUNT_MARKET_INVENTORY_DEFAULT_FILL_LIMIT,
+        )
+
+        raw_products = list(
+            _inventory_get(provider_payload, "products", default=[]) or []
+        )
+        product_error = _inventory_text(
+            _inventory_get(errors, AdminApiAccountMarketInventoryFamily.PRODUCT_CATALOG.value)
+        )
+        try:
+            from business.spot_portfolio_sweep import filter_usdc_spot_products
+
+            eligible_products = filter_usdc_spot_products(raw_products)
+        except Exception as exc:
+            eligible_products = []
+            product_error = product_error or str(exc)
+
+        product_rows: list[dict[str, Any]] = []
+        for product in eligible_products:
+            product_rows.append(
+                {
+                    "product_id": _inventory_product_id(product),
+                    "base_currency": _inventory_base_currency(product),
+                    "quote_currency": _inventory_quote_currency(product),
+                    "product_type": _inventory_text(
+                        _inventory_get(product, "product_type", "type"),
+                        fallback=ProductType.SPOT.value,
+                    ),
+                    "status": _inventory_text(
+                        _inventory_get(
+                            product,
+                            "status",
+                            "trading_status",
+                            "product_status",
+                        )
+                    ),
+                    "price": _inventory_decimal_text(
+                        _inventory_get(product, "price", "last_trade_price")
+                    ),
+                    "base_increment": _inventory_decimal_text(
+                        _inventory_get(product, "base_increment")
+                    ),
+                    "quote_increment": _inventory_decimal_text(
+                        _inventory_get(product, "quote_increment")
+                    ),
+                    "price_increment": _inventory_decimal_text(
+                        _inventory_get(product, "price_increment")
+                    ),
+                    "base_min_size": _inventory_decimal_text(
+                        _inventory_get(product, "base_min_size")
+                    ),
+                    "quote_min_size": _inventory_decimal_text(
+                        _inventory_get(product, "quote_min_size")
+                    ),
+                    "trading_disabled": _inventory_bool(
+                        _inventory_get(product, "trading_disabled")
+                    ),
+                    "cancel_only": _inventory_bool(
+                        _inventory_get(product, "cancel_only")
+                    ),
+                    "limit_only": _inventory_bool(
+                        _inventory_get(product, "limit_only")
+                    ),
+                    "post_only": _inventory_bool(
+                        _inventory_get(product, "post_only")
+                    ),
+                }
+            )
+        product_records, product_truncated, product_total = _bounded_inventory_rows(
+            product_rows,
+            product_limit,
+        )
+
+        wallet_source = _inventory_get(provider_payload, "wallets", default={}) or {}
+        if isinstance(wallet_source, Mapping):
+            wallet_values = list(wallet_source.values())
+        else:
+            wallet_values = list(wallet_source)
+        wallet_error = _inventory_text(
+            _inventory_get(errors, AdminApiAccountMarketInventoryFamily.SPOT_WALLETS.value)
+        )
+        wallet_rows: list[dict[str, Any]] = []
+        wallet_by_currency: dict[str, Any] = {}
+        for wallet in wallet_values:
+            currency = _inventory_text(
+                _inventory_get(wallet, "currency", "currency_code", "asset")
+            ).upper()
+            if not currency:
+                continue
+            deleted_at = _inventory_text(_inventory_get(wallet, "deleted_at"))
+            if deleted_at:
+                continue
+            wallet_by_currency[currency] = wallet
+            wallet_rows.append(
+                {
+                    "currency": currency,
+                    "account_uuid": _inventory_text(
+                        _inventory_get(wallet, "uuid", "id", "account_uuid")
+                    ),
+                    "name": _inventory_text(_inventory_get(wallet, "name")),
+                    "type": _inventory_text(_inventory_get(wallet, "type")),
+                    "available_balance": _inventory_balance_text(
+                        wallet,
+                        "available_balance",
+                        "available",
+                    ),
+                    "hold": _inventory_balance_text(
+                        wallet,
+                        "hold",
+                        "hold_balance",
+                        "locked",
+                    ),
+                    "total_balance": _inventory_balance_text(
+                        wallet,
+                        "balance",
+                        "total_balance",
+                        "total",
+                    ),
+                    "deleted_at": deleted_at,
+                }
+            )
+        wallet_rows.sort(key=lambda row: row["currency"])
+        wallet_records, wallet_truncated, wallet_total = _bounded_inventory_rows(
+            wallet_rows,
+            wallet_limit,
+        )
+
+        balance_error = _inventory_text(
+            _inventory_get(errors, AdminApiAccountMarketInventoryFamily.SPOT_BALANCES.value)
+        )
+        balance_error = balance_error or product_error or wallet_error
+        balance_rows: list[dict[str, Any]] = []
+        for product_row in product_rows:
+            base_currency = product_row["base_currency"]
+            quote_currency = product_row["quote_currency"]
+            base_wallet = wallet_by_currency.get(base_currency, {})
+            quote_wallet = wallet_by_currency.get(quote_currency, {})
+            base_total = _inventory_decimal(
+                _inventory_get(base_wallet, "balance", "total_balance", "total")
+            )
+            price = _inventory_decimal(product_row["price"])
+            balance_rows.append(
+                {
+                    "product_id": product_row["product_id"],
+                    "base_currency": base_currency,
+                    "quote_currency": quote_currency,
+                    "base_available": _inventory_balance_text(
+                        base_wallet,
+                        "available_balance",
+                        "available",
+                    ),
+                    "base_hold": _inventory_balance_text(
+                        base_wallet,
+                        "hold",
+                        "hold_balance",
+                        "locked",
+                    ),
+                    "base_total": _inventory_format_decimal(base_total),
+                    "quote_available": _inventory_balance_text(
+                        quote_wallet,
+                        "available_balance",
+                        "available",
+                    ),
+                    "quote_total": _inventory_balance_text(
+                        quote_wallet,
+                        "balance",
+                        "total_balance",
+                        "total",
+                    ),
+                    "price": product_row["price"],
+                    "estimated_mark_value": _inventory_format_decimal(
+                        base_total * price
+                    ),
+                }
+            )
+        balance_records, balance_truncated, balance_total = _bounded_inventory_rows(
+            balance_rows,
+            product_limit,
+        )
+
+        fill_error = _inventory_text(
+            _inventory_get(errors, AdminApiAccountMarketInventoryFamily.SPOT_FILLS.value)
+        )
+        fill_source = list(_inventory_get(provider_payload, "fills", default=[]) or [])
+        fill_rows: list[dict[str, Any]] = []
+        for fill in fill_source:
+            fill_rows.append(
+                {
+                    "product_id": _inventory_text(
+                        _inventory_get(fill, "product_id")
+                    ).upper(),
+                    "order_id": _inventory_text(_inventory_get(fill, "order_id")),
+                    "client_order_id": _inventory_text(
+                        _inventory_get(fill, "client_order_id")
+                    ),
+                    "trade_id": _inventory_text(_inventory_get(fill, "trade_id")),
+                    "entry_id": _inventory_text(_inventory_get(fill, "entry_id")),
+                    "side": _inventory_text(_inventory_get(fill, "side")).upper(),
+                    "price": _inventory_decimal_text(_inventory_get(fill, "price")),
+                    "size": _inventory_decimal_text(
+                        _inventory_get(fill, "size", "base_size")
+                    ),
+                    "quote_size": _inventory_decimal_text(
+                        _inventory_get(fill, "quote_size", "size_in_quote")
+                    ),
+                    "commission": _inventory_decimal_text(
+                        _inventory_get(fill, "commission", "commission_detail_total")
+                    ),
+                    "trade_time": _inventory_text(_inventory_get(fill, "trade_time")),
+                    "sequence_timestamp": _inventory_text(
+                        _inventory_get(fill, "sequence_timestamp")
+                    ),
+                    "liquidity_indicator": _inventory_text(
+                        _inventory_get(fill, "liquidity_indicator")
+                    ),
+                }
+            )
+        fill_rows.sort(
+            key=lambda row: row["trade_time"] or row["sequence_timestamp"],
+            reverse=True,
+        )
+        fill_records, fill_truncated, fill_total = _bounded_inventory_rows(
+            fill_rows,
+            fill_limit,
+        )
+
+        def data_status(error: str, total_count: int) -> AdminApiGateStatus:
+            if error:
+                return AdminApiGateStatus.BLOCKED
+            if total_count <= 0:
+                return AdminApiGateStatus.WARNING
+            return AdminApiGateStatus.PASSED
+
+        def live_read_for(*request_names: str) -> bool:
+            return provider_live_read_ran and any(
+                request_name in read_requests for request_name in request_names
+            )
 
         def item(
             *,
@@ -5946,6 +6490,14 @@ class AdminApiReadService:
             required_for_release_0_1: bool,
             route: str | None = None,
             record_count: int = 0,
+            data_status: AdminApiGateStatus = AdminApiGateStatus.PASSED,
+            data_source: str | None = None,
+            data_record_limit: int = 0,
+            data_truncated: bool = False,
+            data_fetch_error: str | None = None,
+            data_summary: dict[str, Any] | None = None,
+            records: list[dict[str, Any]] | None = None,
+            live_coinbase_read_ran: bool = False,
             backend_contract_refs: list[str] | None = None,
             frontend_contract_refs: list[str] | None = None,
             documentation_refs: list[str] | None = None,
@@ -5965,6 +6517,13 @@ class AdminApiReadService:
                 method=route_method,
                 source=source,
                 record_count=record_count,
+                data_status=data_status,
+                data_source=data_source or source,
+                data_record_limit=data_record_limit,
+                data_truncated=data_truncated,
+                data_fetch_error=data_fetch_error or None,
+                data_summary=data_summary or {},
+                records=records or [],
                 required_for_release_0_1=required_for_release_0_1,
                 release_blocking=release_blocking,
                 backend_contract_refs=backend_contract_refs or [],
@@ -5972,76 +6531,149 @@ class AdminApiReadService:
                 documentation_refs=documentation_refs or [],
                 detail=detail,
                 next_backend_contract=next_backend_contract,
+                live_coinbase_read_ran=live_coinbase_read_ran,
             )
 
         families = [
             item(
                 family=AdminApiAccountMarketInventoryFamily.PRODUCT_CATALOG,
                 label="Product catalog",
-                module_id="admin_system_health",
-                status=AdminApiModuleSupportStatus.NOT_MODELED,
-                source="release_0_1_gap_matrix",
+                module_id="spot_operations",
+                status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                source="coinbase_product_catalog_read_model",
                 detail=(
-                    "The Admin API does not yet expose a first-class Coinbase "
-                    "product catalog read for tradable USDC products."
+                    "Coinbase USDC spot product metadata is normalized by the "
+                    "backend account-market inventory route. Reads are bounded "
+                    "and disabled unless the backend read flag is enabled."
                 ),
                 required_for_release_0_1=True,
+                record_count=product_total,
+                data_status=data_status(product_error, product_total),
+                data_source=data_source,
+                data_record_limit=product_limit,
+                data_truncated=product_truncated,
+                data_fetch_error=product_error,
+                data_summary={
+                    "raw_product_count": len(raw_products),
+                    "eligible_usdc_spot_product_count": product_total,
+                    "quote_currency": LIVE_ENABLEMENT_QUOTE_CURRENCY,
+                    "read_only_coinbase_requests": sorted(read_requests),
+                },
+                records=product_records,
+                live_coinbase_read_ran=live_read_for("get_public_products"),
+                backend_contract_refs=[
+                    "external/coinbase_client.py::list_public_product_dicts",
+                    "application/admin_api/read_service.py::build_account_market_inventory",
+                ],
                 documentation_refs=[
                     "docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md",
                     "README.account-market-inventory.md",
                 ],
-                next_backend_contract="coinbase_product_catalog_read_model",
             ),
             item(
                 family=AdminApiAccountMarketInventoryFamily.SPOT_WALLETS,
                 label="Spot wallets",
-                module_id="admin_system_health",
-                status=AdminApiModuleSupportStatus.NOT_MODELED,
-                source="release_0_1_gap_matrix",
+                module_id="spot_operations",
+                status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                source="spot_wallet_inventory_read_model",
                 detail=(
-                    "Spot wallet inventory is not exposed as a backend-owned "
-                    "Admin API route yet; frontend code must not call Coinbase."
+                    "Active Coinbase spot wallets are normalized through the "
+                    "backend account-market inventory route. The browser and "
+                    "BFF do not call Coinbase directly."
                 ),
                 required_for_release_0_1=True,
+                record_count=wallet_total,
+                data_status=data_status(wallet_error, wallet_total),
+                data_source=data_source,
+                data_record_limit=wallet_limit,
+                data_truncated=wallet_truncated,
+                data_fetch_error=wallet_error,
+                data_summary={
+                    "active_wallet_count": wallet_total,
+                    "currency_count": len(wallet_by_currency),
+                    "read_only_coinbase_requests": sorted(read_requests),
+                },
+                records=wallet_records,
+                live_coinbase_read_ran=live_read_for("get_accounts"),
+                backend_contract_refs=[
+                    "configuration.py::rest_get_account_wallets",
+                    "application/admin_api/read_service.py::build_account_market_inventory",
+                ],
                 documentation_refs=[
                     "docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md",
                     "README.account-market-inventory.md",
                 ],
-                next_backend_contract="spot_wallet_inventory_read_model",
             ),
             item(
                 family=AdminApiAccountMarketInventoryFamily.SPOT_BALANCES,
                 label="Spot balances",
-                module_id="admin_system_health",
-                status=AdminApiModuleSupportStatus.NOT_MODELED,
-                source="release_0_1_gap_matrix",
+                module_id="spot_operations",
+                status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                source="spot_balance_inventory_read_model",
                 detail=(
-                    "Available and held spot balances are not yet normalized "
-                    "behind an Admin API read route."
+                    "Available, held, total, and estimated mark-value balances "
+                    "are derived by the backend from Coinbase product and wallet "
+                    "reads."
                 ),
                 required_for_release_0_1=True,
+                record_count=balance_total,
+                data_status=data_status(balance_error, balance_total),
+                data_source=data_source,
+                data_record_limit=product_limit,
+                data_truncated=balance_truncated,
+                data_fetch_error=balance_error,
+                data_summary={
+                    "balance_product_count": balance_total,
+                    "quote_currency": LIVE_ENABLEMENT_QUOTE_CURRENCY,
+                    "read_only_coinbase_requests": sorted(read_requests),
+                },
+                records=balance_records,
+                live_coinbase_read_ran=live_read_for(
+                    "get_public_products",
+                    "get_accounts",
+                ),
+                backend_contract_refs=[
+                    "business/spot_portfolio_sweep.py::filter_usdc_spot_products",
+                    "configuration.py::rest_get_account_wallets",
+                    "application/admin_api/read_service.py::build_account_market_inventory",
+                ],
                 documentation_refs=[
                     "docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md",
                     "README.account-market-inventory.md",
                 ],
-                next_backend_contract="spot_balance_inventory_read_model",
             ),
             item(
                 family=AdminApiAccountMarketInventoryFamily.SPOT_FILLS,
                 label="Spot fills",
-                module_id="admin_system_health",
-                status=AdminApiModuleSupportStatus.NOT_MODELED,
-                source="release_0_1_gap_matrix",
+                module_id="spot_operations",
+                status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                source="spot_fill_inventory_read_model",
                 detail=(
-                    "Fill-ledger health exists, but normalized fill rows and "
-                    "per-product fill history are not first-class Admin API reads."
+                    "Recent Coinbase fills are normalized as bounded read-only "
+                    "rows through the backend. Fill reads do not place, cancel, "
+                    "or reconcile orders."
                 ),
                 required_for_release_0_1=True,
+                record_count=fill_total,
+                data_status=data_status(fill_error, fill_total),
+                data_source=data_source,
+                data_record_limit=fill_limit,
+                data_truncated=fill_truncated,
+                data_fetch_error=fill_error,
+                data_summary={
+                    "fill_count": fill_total,
+                    "read_only_coinbase_requests": sorted(read_requests),
+                },
+                records=fill_records,
+                live_coinbase_read_ran=live_read_for("list_fills"),
+                backend_contract_refs=[
+                    "external/coinbase_client.py::CoinbaseRestClient.list_fills",
+                    "application/admin_api/read_service.py::build_account_market_inventory",
+                ],
                 documentation_refs=[
                     "README.audit-workbench.md",
                     "README.account-market-inventory.md",
                 ],
-                next_backend_contract="spot_fill_inventory_read_model",
             ),
             item(
                 family=AdminApiAccountMarketInventoryFamily.ORDER_READS,
@@ -6051,6 +6683,7 @@ class AdminApiReadService:
                 route="/api/v1/orders",
                 source="ADMIN_API_ROUTE_INVENTORY",
                 record_count=1,
+                data_summary={"contract_only": True},
                 detail=(
                     "Order list/detail reads are exposed through backend-owned "
                     "Admin API routes keyed by client_order_id."
@@ -6076,6 +6709,7 @@ class AdminApiReadService:
                 route="/api/v1/spot/readiness",
                 source="ADMIN_API_ROUTE_INVENTORY",
                 record_count=1,
+                data_summary={"contract_only": True},
                 detail=(
                     "Spot readiness exposes configured product and guard "
                     "evidence, but it is not a substitute for wallet inventory."
@@ -6098,6 +6732,7 @@ class AdminApiReadService:
                 route="/api/v1/spot/cost-basis/status",
                 source="ADMIN_API_ROUTE_INVENTORY",
                 record_count=1,
+                data_summary={"contract_only": True},
                 detail=(
                     "Coinbase average-cost and operational cost-basis status "
                     "are visible as read-only backend evidence."
@@ -6119,6 +6754,7 @@ class AdminApiReadService:
                 route="/api/v1/spot/campaign/status",
                 source="ADMIN_API_ROUTE_INVENTORY",
                 record_count=1,
+                data_summary={"contract_only": True},
                 detail=(
                     "Campaign status is readable and execution routes are "
                     "backend-owned command drafts with live execution disabled."
@@ -6140,6 +6776,7 @@ class AdminApiReadService:
                 route="/api/v1/futures/account",
                 source="ADMIN_API_ROUTE_INVENTORY",
                 record_count=1,
+                data_summary={"contract_only": True},
                 detail=(
                     "Futures/perpetual account, collateral, margin, liquidation, "
                     "and P/L evidence are exposed as read-only backend evidence."
@@ -6161,6 +6798,7 @@ class AdminApiReadService:
                 route="/api/v1/futures/positions",
                 source="ADMIN_API_ROUTE_INVENTORY",
                 record_count=1,
+                data_summary={"contract_only": True},
                 detail=(
                     "Futures/perpetual position list and detail reads are "
                     "available through backend-owned read routes."
@@ -6182,6 +6820,7 @@ class AdminApiReadService:
                 route="/api/v1/admin/guard-risk-policy",
                 source="ADMIN_API_ROUTE_INVENTORY",
                 record_count=1,
+                data_summary={"contract_only": True},
                 detail=(
                     "Guard/risk policy evidence is backend-owned and read-only; "
                     "the frontend does not evaluate trading guards."
@@ -6203,6 +6842,7 @@ class AdminApiReadService:
                 route="/api/v1/admin/audit-workbench",
                 source="ADMIN_API_ROUTE_INVENTORY",
                 record_count=1,
+                data_summary={"contract_only": True},
                 detail=(
                     "Audit workbench normalizes route, command, order, guard, "
                     "campaign, and futures evidence without replaying commands."
@@ -6247,16 +6887,40 @@ class AdminApiReadService:
             release_blocking_family_count=sum(
                 1 for family in families if family.release_blocking
             ),
+            data_ready_family_count=sum(
+                1
+                for family in families
+                if family.data_status == AdminApiGateStatus.PASSED
+            ),
+            data_warning_family_count=sum(
+                1
+                for family in families
+                if family.data_status == AdminApiGateStatus.WARNING
+            ),
+            data_blocked_family_count=sum(
+                1
+                for family in families
+                if family.data_status == AdminApiGateStatus.BLOCKED
+            ),
+            live_coinbase_read_family_count=sum(
+                1 for family in families if family.live_coinbase_read_ran
+            ),
+        )
+        has_data_problem = bool(
+            summary.data_warning_family_count or summary.data_blocked_family_count
         )
         return AdminAccountMarketInventoryResponse(
             schema_version=SCHEMA_VERSION,
             status=(
                 AdminApiGateStatus.WARNING
-                if summary.release_blocking_family_count
+                if summary.release_blocking_family_count or has_data_problem
                 else AdminApiGateStatus.PASSED
             ),
             summary=summary,
             families=families,
+            live_coinbase_read_ran=bool(
+                summary.live_coinbase_read_family_count
+            ),
         )
 
     def build_enterprise_readiness(self) -> AdminEnterpriseReadinessResponse:

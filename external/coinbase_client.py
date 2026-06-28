@@ -90,6 +90,26 @@ def list_all_account_dicts(
     return accounts
 
 
+def list_public_product_dicts(
+    *,
+    sdk_client: Optional[RESTClient] = None,
+    product_type: str = "SPOT",
+    get_all_products: bool = True,
+    get_tradability_status: bool = True,
+) -> List[Dict[str, Any]]:
+    """Return public Coinbase products through the canonical SDK wrapper."""
+
+    client = sdk_client or RESTClient(rate_limit_headers=True)
+    response = coinbase_sdk_response_to_dict(
+        client.get_public_products(
+            product_type=product_type,
+            get_all_products=get_all_products,
+            get_tradability_status=get_tradability_status,
+        )
+    )
+    return list(response.get("products") or [])
+
+
 class CoinbaseRestClient:
     """Wrapper around Coinbase REST SDK client.
     
@@ -225,6 +245,22 @@ class CoinbaseRestClient:
                 continue
         
         return products
+
+    def list_public_products(
+        self,
+        *,
+        product_type: str = "SPOT",
+        get_all_products: bool = True,
+        get_tradability_status: bool = True,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve public Coinbase products as raw dictionaries."""
+
+        return list_public_product_dicts(
+            sdk_client=self._client,
+            product_type=product_type,
+            get_all_products=get_all_products,
+            get_tradability_status=get_tradability_status,
+        )
     
     # ========================================================================
     # Order Methods

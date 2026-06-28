@@ -43207,6 +43207,115 @@ def test_admin_api_backend_rbac_matches_frontend_role_hints():
 
 
 @pytest.mark.regression
+def test_admin_api_account_market_inventory_normalizes_provider_rows():
+    from application.admin_api.read_service import AdminApiReadService
+
+    def fake_account_market_provider():
+        return {
+            "enabled": True,
+            "data_source": "fake_coinbase_read_only_rest",
+            "limits": {
+                "product_limit": 10,
+                "wallet_limit": 10,
+                "fill_limit": 10,
+            },
+            "products": [
+                {
+                    "product_id": "AAA-USDC",
+                    "product_type": "SPOT",
+                    "base_currency_id": "AAA",
+                    "quote_currency_id": "USDC",
+                    "status": "online",
+                    "price": "2",
+                    "base_increment": "0.01",
+                    "quote_increment": "0.01",
+                    "price_increment": "0.01",
+                    "base_min_size": "0.01",
+                    "quote_min_size": "1",
+                    "trading_disabled": False,
+                }
+            ],
+            "wallets": {
+                "AAA": {
+                    "currency": "AAA",
+                    "uuid": "wallet-aaa",
+                    "available_balance": {"value": "3"},
+                    "hold": {"value": "1"},
+                    "balance": {"value": "4"},
+                    "deleted_at": None,
+                },
+                "USDC": {
+                    "currency": "USDC",
+                    "uuid": "wallet-usdc",
+                    "available_balance": {"value": "12"},
+                    "hold": {"value": "0"},
+                    "balance": {"value": "12"},
+                    "deleted_at": None,
+                },
+            },
+            "fills": [
+                {
+                    "product_id": "AAA-USDC",
+                    "order_id": "exchange-order-1",
+                    "client_order_id": "client-order-1",
+                    "trade_id": "trade-1",
+                    "side": "BUY",
+                    "price": "2",
+                    "size": "1",
+                    "commission": "0.01",
+                    "trade_time": "2026-06-27T00:00:00Z",
+                }
+            ],
+            "read_only_coinbase_requests": [
+                "get_public_products",
+                "get_accounts",
+                "list_fills",
+            ],
+            "live_coinbase_read_ran": True,
+        }
+
+    service = AdminApiReadService(
+        account_market_inventory_provider=fake_account_market_provider
+    )
+    payload = service.build_account_market_inventory().model_dump(mode="json")
+    by_family = {item["family"]: item for item in payload["families"]}
+
+    product = by_family[AdminApiAccountMarketInventoryFamily.PRODUCT_CATALOG.value]
+    wallets = by_family[AdminApiAccountMarketInventoryFamily.SPOT_WALLETS.value]
+    balances = by_family[AdminApiAccountMarketInventoryFamily.SPOT_BALANCES.value]
+    fills = by_family[AdminApiAccountMarketInventoryFamily.SPOT_FILLS.value]
+
+    assert payload["status"] == AdminApiGateStatus.PASSED.value
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_read_ran"] is True
+    assert payload["summary"]["read_only_ready_family_count"] == 11
+    assert payload["summary"]["command_draft_family_count"] == 1
+    assert payload["summary"]["release_blocking_family_count"] == 0
+    assert payload["summary"]["not_modeled_family_count"] == 0
+    assert payload["summary"]["data_ready_family_count"] == 12
+    assert payload["summary"]["data_blocked_family_count"] == 0
+    assert payload["summary"]["live_coinbase_read_family_count"] == 4
+
+    assert product["data_status"] == AdminApiGateStatus.PASSED.value
+    assert product["record_count"] == 1
+    assert product["records"][0]["product_id"] == "AAA-USDC"
+    assert product["records"][0]["quote_currency"] == "USDC"
+
+    assert wallets["data_status"] == AdminApiGateStatus.PASSED.value
+    assert [row["currency"] for row in wallets["records"]] == ["AAA", "USDC"]
+    assert wallets["records"][0]["available_balance"] == "3"
+
+    assert balances["data_status"] == AdminApiGateStatus.PASSED.value
+    assert balances["records"][0]["base_available"] == "3"
+    assert balances["records"][0]["base_total"] == "4"
+    assert balances["records"][0]["estimated_mark_value"] == "8"
+
+    assert fills["data_status"] == AdminApiGateStatus.PASSED.value
+    assert fills["records"][0]["trade_id"] == "trade-1"
+    assert fills["records"][0]["client_order_id"] == "client-order-1"
+
+
+@pytest.mark.regression
 def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     client = _client(monkeypatch)
     headers = _headers(roles=AdminApiRole.VIEWER.value)
@@ -43398,28 +43507,42 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert inventory_payload["read_only"] is True
     assert inventory_payload["frontend_authority"] == "backend_contract_only"
     assert inventory_payload["live_coinbase_orders_ran"] is False
+    assert inventory_payload["live_coinbase_read_ran"] is False
     assert inventory_payload["submitted_notional_usdc"] == "0"
     assert inventory_payload["executed_notional_usdc"] == "0"
     inventory_by_family = {
         item["family"]: item for item in inventory_payload["families"]
     }
-    assert inventory_by_family[
-        AdminApiAccountMarketInventoryFamily.PRODUCT_CATALOG.value
-    ]["status"] == AdminApiModuleSupportStatus.NOT_MODELED.value
-    assert inventory_by_family[
-        AdminApiAccountMarketInventoryFamily.SPOT_BALANCES.value
-    ]["status"] == AdminApiModuleSupportStatus.NOT_MODELED.value
-    assert inventory_by_family[
-        AdminApiAccountMarketInventoryFamily.SPOT_FILLS.value
-    ]["status"] == AdminApiModuleSupportStatus.NOT_MODELED.value
+    for family in (
+        AdminApiAccountMarketInventoryFamily.PRODUCT_CATALOG,
+        AdminApiAccountMarketInventoryFamily.SPOT_WALLETS,
+        AdminApiAccountMarketInventoryFamily.SPOT_BALANCES,
+        AdminApiAccountMarketInventoryFamily.SPOT_FILLS,
+    ):
+        direct_read_family = inventory_by_family[family.value]
+        assert (
+            direct_read_family["status"]
+            == AdminApiModuleSupportStatus.READ_ONLY_READY.value
+        )
+        assert direct_read_family["data_status"] == AdminApiGateStatus.BLOCKED.value
+        assert direct_read_family["data_source"] == "disabled"
+        assert direct_read_family["record_count"] == 0
+        assert direct_read_family["records"] == []
+        assert direct_read_family["release_blocking"] is False
+        assert direct_read_family["live_coinbase_read_ran"] is False
     assert inventory_by_family[
         AdminApiAccountMarketInventoryFamily.ORDER_READS.value
     ]["route"] == "/api/v1/orders"
     assert inventory_by_family[
         AdminApiAccountMarketInventoryFamily.FUTURES_ACCOUNT.value
     ]["route"] == "/api/v1/futures/account"
-    assert inventory_payload["summary"]["release_blocking_family_count"] >= 3
-    assert inventory_payload["summary"]["not_modeled_family_count"] >= 3
+    assert inventory_payload["summary"]["read_only_ready_family_count"] == 11
+    assert inventory_payload["summary"]["command_draft_family_count"] == 1
+    assert inventory_payload["summary"]["release_blocking_family_count"] == 0
+    assert inventory_payload["summary"]["not_modeled_family_count"] == 0
+    assert inventory_payload["summary"]["data_ready_family_count"] == 8
+    assert inventory_payload["summary"]["data_blocked_family_count"] == 4
+    assert inventory_payload["summary"]["live_coinbase_read_family_count"] == 0
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
     assert "/api/v1/orders/{client_order_id}/cancel" in live_routes

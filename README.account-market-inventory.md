@@ -4,30 +4,35 @@
 account and market inventory coverage.
 
 The route is backend-owned, read-only, and authenticated with
-`analytics:read`. It does not call Coinbase, submit orders, inspect browser
-wallet state, or grant BFF execution authority. Its job is to tell the admin
-frontend which account/market inventory families are usable now and which
-families remain explicit `not_modeled` or `unsupported` gaps.
+`analytics:read`. It never submits orders, cancels orders, inspects browser
+wallet state, or grants BFF execution authority. Its job is to tell the admin
+frontend which account/market inventory families are usable now, which bounded
+records are currently loaded, and whether any data reads are blocked.
 
 ## Current Coverage
 
-- ready read evidence: orders, spot readiness, spot cost basis, futures account,
-  futures positions, guard/risk policy, and audit workbench
+- ready backend read contracts: product catalog, spot wallets, spot balances,
+  spot fills, orders, spot readiness, spot cost basis, futures account, futures
+  positions, guard/risk policy, and audit workbench
 - live-disabled command draft evidence: spot campaign status and execution
   posture
-- Release 0.1 blockers: product catalog, spot wallets, spot balances, and spot
-  fills remain `not_modeled`
+- data posture: Coinbase product, wallet, balance, and fill records are read
+  by the backend only when `COINBASE_ADMIN_API_ACCOUNT_MARKET_INVENTORY_READS`
+  is truthy; otherwise those families stay `read_only_ready` with
+  `data_status=blocked`
 
 Each family row includes the backend module id, route when available, source,
-record count, release-blocking flag, documentation refs, and the next backend
-contract needed to close a gap.
+record count, data status, data source, record limit, truncation flag, optional
+fetch error, bounded records, release-blocking flag, and documentation refs.
 
 ## Safety Rules
 
 - Frontend code must render this payload as evidence only.
-- Missing inventory families must stay visible as `not_modeled` or
-  `unsupported`; do not fill them from browser logic or dashboard calls.
-- Live Coinbase execution fields stay `not_run` and notional stays `0`.
+- Incomplete data must stay visible through `data_status`, `data_fetch_error`,
+  and empty `records`; do not fill it from browser logic or dashboard calls.
+- Live Coinbase order execution fields stay `not_run` and notional stays `0`.
+- `live_coinbase_read_ran` may be true only when the backend performed an
+  explicitly enabled read-only Coinbase product, account, or fill request.
 - The route inventory row lives under `admin_system_health`; domain-specific
   module ids are carried inside the family rows.
 

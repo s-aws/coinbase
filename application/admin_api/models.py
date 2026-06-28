@@ -2523,6 +2523,13 @@ class AdminAccountMarketInventoryFamilyItem(BaseModel):
     method: str | None = None
     source: str
     record_count: int = Field(default=0, ge=0)
+    data_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    data_source: str = "not_loaded"
+    data_record_limit: int = Field(default=0, ge=0)
+    data_truncated: bool = False
+    data_fetch_error: str | None = None
+    data_summary: FlexibleDict = Field(default_factory=dict)
+    records: list[FlexibleDict] = Field(default_factory=list)
     required_for_release_0_1: bool
     release_blocking: bool
     backend_contract_refs: list[str] = Field(default_factory=list)
@@ -2533,6 +2540,7 @@ class AdminAccountMarketInventoryFamilyItem(BaseModel):
     browser_authority: str = "display_only"
     bff_execution_authority: str = "forward_only_no_execution"
     live_coinbase_execution: AdminApiLiveExecutionStatus = AdminApiLiveExecutionStatus.NOT_RUN
+    live_coinbase_read_ran: bool = False
     notional_usdc: DecimalString = "0"
 
 
@@ -2547,6 +2555,10 @@ class AdminAccountMarketInventorySummary(BaseModel):
     not_modeled_family_count: int = Field(ge=0)
     unsupported_family_count: int = Field(ge=0)
     release_blocking_family_count: int = Field(ge=0)
+    data_ready_family_count: int = Field(default=0, ge=0)
+    data_warning_family_count: int = Field(default=0, ge=0)
+    data_blocked_family_count: int = Field(default=0, ge=0)
+    live_coinbase_read_family_count: int = Field(default=0, ge=0)
 
 
 class AdminAccountMarketInventoryResponse(BaseModel):
@@ -2567,6 +2579,7 @@ class AdminAccountMarketInventoryResponse(BaseModel):
     submitted_notional_usdc: DecimalString = "0"
     executed_notional_usdc: DecimalString = "0"
     live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
 
 
 class AdminEnterpriseCommandGapItem(BaseModel):

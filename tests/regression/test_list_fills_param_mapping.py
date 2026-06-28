@@ -170,6 +170,33 @@ def test_list_fills_omits_filter_kwargs_when_none():
 
 
 @pytest.mark.regression
+def test_list_public_product_dicts_uses_public_product_endpoint():
+    from external.coinbase_client import list_public_product_dicts
+
+    sdk = MagicMock()
+    response = MagicMock()
+    response.to_dict.return_value = {
+        "products": [
+            {"product_id": "AAA-USDC", "product_type": "SPOT"},
+            {"product_id": "BBB-USDC", "product_type": "SPOT"},
+        ]
+    }
+    sdk.get_public_products.return_value = response
+
+    products = list_public_product_dicts(sdk_client=sdk)
+
+    assert [product["product_id"] for product in products] == [
+        "AAA-USDC",
+        "BBB-USDC",
+    ]
+    sdk.get_public_products.assert_called_once_with(
+        product_type="SPOT",
+        get_all_products=True,
+        get_tradability_status=True,
+    )
+
+
+@pytest.mark.regression
 def test_list_fills_body_does_not_pass_user_facing_names_to_sdk():
     """Static-source guard: ensure the user-facing names ``product_id``,
     ``start_date``, ``end_date``, ``order_id`` are not assigned into
