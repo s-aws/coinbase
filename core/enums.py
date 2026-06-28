@@ -2598,6 +2598,7 @@ class SpotSweepAutomationSchedulerBindingStatus(str, Enum):
     """Read-only Admin API status for scheduler/run-limit binding evidence."""
 
     DUE_DISPATCH_NOT_MODELED = "due_dispatch_not_modeled"
+    DUE_DISPATCH_LIVE_DISABLED = "due_dispatch_live_disabled"
     BLOCKED_BY_PAUSE_CONTROL = "blocked_by_pause_control"
     BLOCKED_BY_OPERATION_LOCK = "blocked_by_operation_lock"
     NOT_DUE = "not_due"
@@ -2613,6 +2614,23 @@ class SpotSweepAutomationExecutionDecision(str, Enum):
     LIVE_EXECUTION_NOT_IMPLEMENTED = "live_execution_not_implemented"
     SCHEDULER_DISPATCH_NOT_MODELED = "scheduler_dispatch_not_modeled"
     RETRY_EXECUTION_NOT_MODELED = "retry_execution_not_modeled"
+    SCHEDULER_DISPATCH_NOT_REQUESTED = "scheduler_dispatch_not_requested"
+    SCHEDULER_DISPATCH_INPUT_REQUIRED = "scheduler_dispatch_input_required"
+    SCHEDULER_DISPATCH_NOT_DUE = "scheduler_dispatch_not_due"
+    SCHEDULER_DISPATCH_DISABLED = "scheduler_dispatch_disabled"
+    SCHEDULER_DISPATCH_MAX_RUNS_REACHED = "scheduler_dispatch_max_runs_reached"
+    SCHEDULER_DISPATCH_BLOCKED_BY_PAUSE_CONTROL = (
+        "scheduler_dispatch_blocked_by_pause_control"
+    )
+    SCHEDULER_DISPATCH_BLOCKED_BY_OPERATION_LOCK = (
+        "scheduler_dispatch_blocked_by_operation_lock"
+    )
+    SCHEDULER_DISPATCH_READY_LIVE_DISABLED = (
+        "scheduler_dispatch_ready_live_disabled"
+    )
+    RETRY_EXECUTION_NO_READY_PLAN = "retry_execution_no_ready_plan"
+    RETRY_EXECUTION_BLOCKED = "retry_execution_blocked"
+    RETRY_EXECUTION_READY_LIVE_DISABLED = "retry_execution_ready_live_disabled"
 
 
 class SpotSweepAutomationExecutionBlocker(str, Enum):
@@ -2628,6 +2646,17 @@ class SpotSweepAutomationExecutionBlocker(str, Enum):
         "sweep_reconciliation_execution_contract"
     )
     LIVE_EXECUTION_CONTRACT_REQUIRED = "sweep_live_execution_contract"
+    SCHEDULER_DISPATCH_NOT_REQUESTED = "scheduler_dispatch_not_requested"
+    SCHEDULER_DISPATCH_INPUT_REQUIRED = "scheduler_dispatch_input_required"
+    SCHEDULER_DISPATCH_NOT_DUE = "scheduler_dispatch_not_due"
+    SCHEDULER_DISPATCH_DISABLED = "sweep_automation_disabled"
+    SCHEDULER_DISPATCH_MAX_RUNS_REACHED = "sweep_run_limit_reached"
+    SCHEDULER_DISPATCH_PAUSED = "sweep_pause_resume_control_state_paused"
+    SCHEDULER_DISPATCH_OPERATION_LOCK_BUSY = "spot_sweep_operation_lock_busy"
+    SCHEDULER_DISPATCH_LIVE_DISABLED = "scheduler_dispatch_live_disabled"
+    RETRY_EXECUTION_NO_READY_PLAN = "retry_execution_no_ready_plan"
+    RETRY_INTENT_NOT_ACCEPTED = "retry_intent_not_accepted"
+    RETRY_EXECUTION_LIVE_DISABLED = "retry_execution_live_disabled"
 
 
 class SpotPortfolioSweepOrderType(str, Enum):

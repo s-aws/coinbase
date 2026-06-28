@@ -577,6 +577,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     spot_sweep_automation_control_store = FileSpotSweepAutomationControlStore(
         store_dir / "spot_sweep_automation_controls.jsonl"
     )
+    spot_campaign_state_file = store_dir / "spot_campaigns.jsonl"
+    spot_sweep_state_file = store_dir / "spot_portfolio_sweeps.jsonl"
+    spot_sweep_operation_lock_file = store_dir / "spot_portfolio_sweep.lock"
     spot_recovery_proof_store = FileSpotRecoveryProofStore(
         store_dir / "spot_recovery_proofs.jsonl"
     )
@@ -669,6 +672,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
             spot_sweep_automation_control_store_getter=lambda: (
                 spot_sweep_automation_control_store
             ),
+            spot_campaign_state_file=spot_campaign_state_file,
+            spot_sweep_state_file=spot_sweep_state_file,
+            spot_sweep_operation_lock_file=spot_sweep_operation_lock_file,
             stealth_exchange_truth_snapshot_store_getter=lambda: (
                 stealth_exchange_truth_snapshot_store
             ),
@@ -841,6 +847,11 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     client.admin_api_test_pnl_checkpoint_store = pnl_checkpoint_store
     client.admin_api_test_spot_sweep_automation_control_store = (
         spot_sweep_automation_control_store
+    )
+    client.admin_api_test_spot_campaign_state_file = spot_campaign_state_file
+    client.admin_api_test_spot_sweep_state_file = spot_sweep_state_file
+    client.admin_api_test_spot_sweep_operation_lock_file = (
+        spot_sweep_operation_lock_file
     )
     client.admin_api_test_runtime_controller = runtime_controller
     client.admin_api_test_spot_recovery_proof_store = spot_recovery_proof_store
@@ -34223,33 +34234,301 @@ def test_admin_api_spot_sweep_automation_dry_run_is_accepted_no_live(
         SpotSweepAutomationExecutionDecision.DRY_RUN_REVIEW_ONLY.value
     )
     assert payload["data"]["scheduler_dispatch_contract_status"] == (
-        AdminApiModuleSupportStatus.NOT_MODELED.value
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
     )
     assert payload["data"]["scheduler_dispatch_decision"] == (
-        SpotSweepAutomationExecutionDecision.SCHEDULER_DISPATCH_NOT_MODELED.value
+        SpotSweepAutomationExecutionDecision.SCHEDULER_DISPATCH_READY_LIVE_DISABLED.value
     )
-    assert payload["data"]["scheduler_dispatch_contract"]["missing_contract"] == (
-        SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_CONTRACT_REQUIRED.value
+    assert payload["data"]["scheduler_dispatch_contract"]["contract_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
     )
+    assert payload["data"]["scheduler_dispatch_contract"]["scheduler_decision"][
+        "decision"
+    ] == "due"
+    assert payload["data"]["scheduler_dispatch_contract"][
+        "would_dispatch_if_live_enabled"
+    ] is True
+    assert payload["data"]["scheduler_dispatch_contract"]["dispatch_blockers"] == [
+        SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_LIVE_DISABLED.value
+    ]
+    assert payload["data"]["scheduler_dispatch_contract"][
+        "scheduler_dispatchable"
+    ] is False
     assert payload["data"]["scheduler_dispatch_contract"]["scheduler_invoked"] is False
+    assert payload["data"]["scheduler_dispatch_contract"]["sweep_runner_invoked"] is False
+    assert payload["data"]["scheduler_dispatch_contract"][
+        "coinbase_orders_submitted"
+    ] is False
+    assert payload["data"]["scheduler_dispatch_contract"][
+        "live_coinbase_orders_ran"
+    ] is False
     assert payload["data"]["retry_execution_contract_status"] == (
-        AdminApiModuleSupportStatus.NOT_MODELED.value
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
     )
     assert payload["data"]["retry_execution_decision"] == (
-        SpotSweepAutomationExecutionDecision.RETRY_EXECUTION_NOT_MODELED.value
+        SpotSweepAutomationExecutionDecision.RETRY_EXECUTION_NO_READY_PLAN.value
     )
-    assert payload["data"]["retry_execution_contract"]["missing_contract"] == (
-        SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_CONTRACT_REQUIRED.value
+    assert payload["data"]["retry_execution_contract"]["contract_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
     )
+    assert payload["data"]["retry_execution_contract"]["retry_blockers"] == [
+        SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_NO_READY_PLAN.value
+    ]
+    assert payload["data"]["retry_execution_contract"]["retry_plan_ready"] is False
+    assert payload["data"]["retry_execution_contract"]["retry_intent_accepted"] is False
     assert payload["data"]["retry_execution_contract"]["retry_executor_invoked"] is False
+    assert payload["data"]["retry_execution_contract"]["sweep_runner_invoked"] is False
+    assert payload["data"]["retry_execution_contract"][
+        "coinbase_orders_submitted"
+    ] is False
+    assert payload["data"]["retry_execution_contract"][
+        "live_coinbase_orders_ran"
+    ] is False
+    assert payload["data"]["live_coinbase_orders_ran"] is False
+    assert payload["data"]["submitted_notional_usdc"] == "0"
+    assert payload["data"]["executed_notional_usdc"] == "0"
     assert payload["data"]["automation_execution_blockers"] == [
         SpotSweepAutomationExecutionBlocker.DRY_RUN_REVIEW_ONLY.value,
-        SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_CONTRACT_REQUIRED.value,
-        SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_CONTRACT_REQUIRED.value,
+        SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_LIVE_DISABLED.value,
+        SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_NO_READY_PLAN.value,
         SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED.value,
         SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_CONTRACT_REQUIRED.value,
     ]
     assert payload["audit_id"]
+
+
+@pytest.mark.regression
+def test_admin_api_spot_sweep_automation_dry_run_respects_pause_control_no_live(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    pause = client.post(
+        "/api/v1/spot/sweep/automation-controls",
+        headers=_headers(
+            idempotency_key="idem-sweep-automation-pause-before-run",
+            operator_intent="pause spot sweep automation",
+            roles=AdminApiRole.TRADER.value,
+        ),
+        json={
+            "sweep_config_id": "spot-sweep-usdc-hourly",
+            "campaign_id": "usdc-sweep-001",
+            "control_action": SpotSweepAutomationControlAction.PAUSE.value,
+            "operator_reason": "pause before scheduled run",
+        },
+    )
+    assert pause.status_code == 200
+
+    response = client.post(
+        "/api/v1/spot/sweep/automation-runs",
+        headers=_headers(idempotency_key="idem-sweep-automation-paused-dry-run"),
+        json={
+            "sweep_config_id": "spot-sweep-usdc-hourly",
+            "side": "BUY",
+            "quote_notional_per_product": "1.00",
+            "repeat_every_hours": "6",
+            "max_runs": 2,
+            "max_products": 3,
+            "max_total_notional_per_run": "3.00",
+            "max_notional_per_order": "1.00",
+            "max_planned_orders": 3,
+            "run_if_due": True,
+            "dry_run": True,
+            "manual_live_acknowledgement": False,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["data"]["scheduler_dispatch_contract_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert payload["data"]["scheduler_dispatch_decision"] == (
+        SpotSweepAutomationExecutionDecision.SCHEDULER_DISPATCH_BLOCKED_BY_PAUSE_CONTROL.value
+    )
+    assert payload["data"]["scheduler_dispatch_contract"][
+        "would_dispatch_if_live_enabled"
+    ] is False
+    assert payload["data"]["scheduler_dispatch_contract"]["dispatch_blockers"] == [
+        SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_PAUSED.value
+    ]
+    assert payload["data"]["scheduler_dispatch_contract"]["latest_control_state"][
+        "control_state_after"
+    ] == "paused"
+    assert payload["data"]["scheduler_invoked"] is False
+    assert payload["data"]["sweep_runner_invoked"] is False
+    assert payload["data"]["coinbase_orders_submitted"] is False
+    assert payload["data"]["live_coinbase_orders_ran"] is False
+    assert payload["data"]["submitted_notional_usdc"] == "0"
+    assert payload["data"]["executed_notional_usdc"] == "0"
+    assert payload["data"]["automation_execution_blockers"] == [
+        SpotSweepAutomationExecutionBlocker.DRY_RUN_REVIEW_ONLY.value,
+        SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_PAUSED.value,
+        SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_NO_READY_PLAN.value,
+        SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED.value,
+        SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_CONTRACT_REQUIRED.value,
+    ]
+
+
+@pytest.mark.regression
+def test_admin_api_spot_sweep_automation_dry_run_reports_retry_ready_no_live(
+    monkeypatch,
+):
+    from business.spot_campaign import (
+        append_spot_campaign_snapshot_record,
+        build_spot_campaign_snapshot_record,
+        spot_campaign_config_to_sweep_config,
+    )
+    from business.spot_portfolio_sweep import (
+        append_sweep_run_record,
+        build_sweep_run_record,
+    )
+    from core.enums import (
+        OrderSide,
+        SpotCampaignRunMode,
+        SpotCampaignStatus,
+        SpotPortfolioSweepExecutionStatus,
+        SpotPortfolioSweepRunStatus,
+    )
+
+    client = _client(monkeypatch)
+    config = {
+        "version": 1,
+        "campaign_name": "admin_retry_contract",
+        "side": OrderSide.BUY.value,
+        "quote_notional": "1",
+        "max_products": 2,
+        "order_type": "market_ioc",
+        "automation": {
+            "enabled": True,
+            "repeat_every_hours": "6",
+            "max_runs": 3,
+        },
+        "product_scope": {
+            "quote_currency": "USDC",
+            "us_customer_available": True,
+            "selection_rule": "all_coinbase_usdc_spot_us_customer_available",
+        },
+        "safety_policy": {
+            "max_total_notional_per_run": "2",
+            "max_notional_per_order": "1",
+            "max_planned_orders": 2,
+        },
+        "inventory_policy": {"retention": "retain"},
+        "cost_basis_authority": {
+            "allowed_sources": ["fill_ledger", "imported_baseline"],
+        },
+    }
+    campaign_record = build_spot_campaign_snapshot_record(
+        config=config,
+        mode=SpotCampaignRunMode.DRY_RUN,
+        status=SpotCampaignStatus.READY,
+        dry_run_matrix={
+            "plan": {"planned_count": 2},
+            "safety_evaluation": {"decision": "allowed"},
+        },
+        generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    sweep_config_id = campaign_record["sweep_config_id"]
+    source_run_id = "spot-sweep-retry-source"
+    sweep_record = build_sweep_run_record(
+        config_id=sweep_config_id,
+        run_id=source_run_id,
+        status=SpotPortfolioSweepRunStatus.PARTIAL.value,
+        started_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        completed_at=datetime(2026, 1, 1, 0, 1, tzinfo=timezone.utc),
+        config=spot_campaign_config_to_sweep_config(config),
+        execution={
+            "orders": [
+                {
+                    "product_id": "AAA-USDC",
+                    "status": SpotPortfolioSweepExecutionStatus.BLOCKED.value,
+                    "submitted_notional_usdc": "0",
+                    "executed_notional_usdc": "0",
+                }
+            ],
+            "live_coinbase_orders_ran": False,
+            "total_submitted_notional_usdc": "0",
+            "total_executed_notional_usdc": "0",
+        },
+    )
+    append_spot_campaign_snapshot_record(
+        client.admin_api_test_spot_campaign_state_file,
+        campaign_record,
+    )
+    append_sweep_run_record(
+        client.admin_api_test_spot_sweep_state_file,
+        sweep_record,
+    )
+    retry_plan_id = f"spot-sweep-retry:{sweep_config_id}:{source_run_id}"
+
+    accepted_retry = client.post(
+        "/api/v1/spot/sweep/automation-controls",
+        headers=_headers(
+            idempotency_key="idem-sweep-retry-accepted-before-run",
+            operator_intent="accept spot sweep retry",
+            roles=AdminApiRole.TRADER.value,
+        ),
+        json={
+            "sweep_config_id": sweep_config_id,
+            "campaign_id": campaign_record["campaign_id"],
+            "retry_plan_id": retry_plan_id,
+            "control_action": SpotSweepAutomationControlAction.ACCEPT_RETRY.value,
+            "operator_reason": "accept retry for blocked products",
+        },
+    )
+    assert accepted_retry.status_code == 200
+
+    response = client.post(
+        "/api/v1/spot/sweep/automation-runs",
+        headers=_headers(idempotency_key="idem-sweep-retry-ready-dry-run"),
+        json={
+            "sweep_config_id": sweep_config_id,
+            "side": "BUY",
+            "quote_notional_per_product": "1.00",
+            "repeat_every_hours": "6",
+            "max_runs": 3,
+            "max_products": 2,
+            "max_total_notional_per_run": "2.00",
+            "max_notional_per_order": "1.00",
+            "max_planned_orders": 2,
+            "run_if_due": True,
+            "dry_run": True,
+            "manual_live_acknowledgement": False,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["data"]["retry_execution_contract_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert payload["data"]["retry_execution_decision"] == (
+        SpotSweepAutomationExecutionDecision.RETRY_EXECUTION_READY_LIVE_DISABLED.value
+    )
+    assert payload["data"]["retry_execution_contract"]["retry_plan_ready"] is True
+    assert payload["data"]["retry_execution_contract"]["retry_intent_accepted"] is True
+    assert payload["data"]["retry_execution_contract"]["retry_plan_id"] == retry_plan_id
+    assert payload["data"]["retry_execution_contract"]["retryable_product_ids"] == [
+        "AAA-USDC"
+    ]
+    assert payload["data"]["retry_execution_contract"]["retry_blockers"] == [
+        SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_LIVE_DISABLED.value
+    ]
+    assert payload["data"]["retry_execution_contract"]["retry_executor_invoked"] is False
+    assert payload["data"]["retry_execution_contract"]["sweep_runner_invoked"] is False
+    assert payload["data"]["retry_execution_contract"][
+        "coinbase_orders_submitted"
+    ] is False
+    assert payload["data"]["retry_execution_contract"][
+        "live_coinbase_orders_ran"
+    ] is False
+    assert payload["data"]["automation_execution_blockers"] == [
+        SpotSweepAutomationExecutionBlocker.DRY_RUN_REVIEW_ONLY.value,
+        SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_LIVE_DISABLED.value,
+        SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_LIVE_DISABLED.value,
+        SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED.value,
+        SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_CONTRACT_REQUIRED.value,
+    ]
 
 
 @pytest.mark.regression
@@ -34312,21 +34591,26 @@ def test_admin_api_spot_sweep_automation_contract_is_not_implemented_and_not_liv
         SpotSweepAutomationExecutionDecision.LIVE_EXECUTION_NOT_IMPLEMENTED.value
     )
     assert payload["data"]["scheduler_dispatch_contract_status"] == (
-        AdminApiModuleSupportStatus.NOT_MODELED.value
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
     )
     assert payload["data"]["scheduler_dispatch_decision"] == (
-        SpotSweepAutomationExecutionDecision.SCHEDULER_DISPATCH_NOT_MODELED.value
+        SpotSweepAutomationExecutionDecision.SCHEDULER_DISPATCH_READY_LIVE_DISABLED.value
     )
     assert payload["data"]["retry_execution_contract_status"] == (
-        AdminApiModuleSupportStatus.NOT_MODELED.value
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
     )
     assert payload["data"]["retry_execution_decision"] == (
-        SpotSweepAutomationExecutionDecision.RETRY_EXECUTION_NOT_MODELED.value
+        SpotSweepAutomationExecutionDecision.RETRY_EXECUTION_NO_READY_PLAN.value
     )
+    assert payload["data"]["scheduler_dispatch_contract"][
+        "would_dispatch_if_live_enabled"
+    ] is True
+    assert payload["data"]["retry_execution_contract"]["retry_plan_ready"] is False
+    assert payload["data"]["live_coinbase_orders_ran"] is False
     assert payload["data"]["automation_execution_blockers"] == [
         SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_DISABLED.value,
-        SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_CONTRACT_REQUIRED.value,
-        SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_CONTRACT_REQUIRED.value,
+        SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_LIVE_DISABLED.value,
+        SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_NO_READY_PLAN.value,
         SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED.value,
         SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_CONTRACT_REQUIRED.value,
     ]
@@ -43841,6 +44125,15 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     assert "GET /api/v1/spot/sweep/status" in sweep_gap["current_read_evidence_routes"]
     assert (
         "enterprise_sweep_scheduler_dispatch_service_contract"
+        not in sweep_gap["missing_contracts"]
+    )
+    assert "sweep_retry_execution_contract" not in sweep_gap["missing_contracts"]
+    assert (
+        SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED.value
+        in sweep_gap["missing_contracts"]
+    )
+    assert (
+        SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_CONTRACT_REQUIRED.value
         in sweep_gap["missing_contracts"]
     )
     assert "sweep_run_limit_contract" not in sweep_gap["missing_contracts"]
@@ -43857,11 +44150,11 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
         AdminApiSpotAutomationControl.LIVE_EXECUTION.value,
     }
     draft_controls = {
+        AdminApiSpotAutomationControl.SCHEDULER.value,
         AdminApiSpotAutomationControl.PAUSE_RESUME.value,
         AdminApiSpotAutomationControl.RETRY_RECOVERY.value,
     }
     read_only_controls = {
-        AdminApiSpotAutomationControl.SCHEDULER.value,
         AdminApiSpotAutomationControl.RUN_LIMIT.value,
     }
     for control_name, control in automation_controls.items():
@@ -43913,7 +44206,7 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
         automation_controls[AdminApiSpotAutomationControl.SCHEDULER.value][
             "missing_contract"
         ]
-        == "enterprise_sweep_scheduler_dispatch_service_contract"
+        == SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_LIVE_DISABLED.value
     )
     assert (
         automation_controls[AdminApiSpotAutomationControl.RUN_LIMIT.value][
@@ -44358,7 +44651,7 @@ def test_admin_api_spot_sweep_automation_service_status_reads_ledgers_no_live(
     assert payload["type"] == "spot_sweep_automation_service_status"
     assert payload["status"] == AdminApiGateStatus.BLOCKED.value
     assert payload["service_contract_status"] == (
-        AdminApiModuleSupportStatus.NOT_MODELED.value
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
     )
     assert payload["campaign_count"] == 1
     assert payload["sweep_config_count"] == 1
@@ -44374,7 +44667,7 @@ def test_admin_api_spot_sweep_automation_service_status_reads_ledgers_no_live(
         AdminApiModuleSupportStatus.READ_ONLY_READY.value
     )
     assert payload["scheduler_dispatch_contract_status"] == (
-        AdminApiModuleSupportStatus.NOT_MODELED.value
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
     )
     assert payload["run_limit_contract_status"] == (
         AdminApiModuleSupportStatus.READ_ONLY_READY.value
@@ -44399,9 +44692,18 @@ def test_admin_api_spot_sweep_automation_service_status_reads_ledgers_no_live(
     assert "GET /api/v1/spot/sweep/status" in payload["current_read_evidence_routes"]
     assert "POST /api/v1/spot/sweep/automation-runs" in payload["command_routes"]
     assert "POST /api/v1/spot/sweep/automation-controls" in payload["command_routes"]
-    assert "enterprise_sweep_scheduler_dispatch_service_contract" in payload[
+    assert "enterprise_sweep_scheduler_dispatch_service_contract" not in payload[
         "missing_contracts"
     ]
+    assert "sweep_retry_execution_contract" not in payload["missing_contracts"]
+    assert (
+        SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED.value
+        in payload["missing_contracts"]
+    )
+    assert (
+        SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_CONTRACT_REQUIRED.value
+        in payload["missing_contracts"]
+    )
     assert "sweep_pause_resume_service_contract" not in payload["missing_contracts"]
     assert "sweep_retry_recovery_service_contract" not in payload["missing_contracts"]
     assert payload["scheduler_statuses"][0]["live_coinbase_orders_ran"] is False
@@ -44411,6 +44713,9 @@ def test_admin_api_spot_sweep_automation_service_status_reads_ledgers_no_live(
     assert payload["scheduler_statuses"][0]["scheduler_dispatchable"] is False
     assert payload["scheduler_statuses"][0][
         "would_dispatch_if_service_modeled"
+    ] is False
+    assert payload["scheduler_statuses"][0][
+        "would_dispatch_if_live_enabled"
     ] is False
     assert "spot_sweep_operation_lock_busy" in payload["scheduler_statuses"][0][
         "dispatch_blockers"
@@ -44463,7 +44768,7 @@ def test_admin_api_spot_sweep_automation_service_route_is_read_only(monkeypatch)
                 AdminApiModuleSupportStatus.READ_ONLY_READY.value
             ),
             "scheduler_dispatch_contract_status": (
-                AdminApiModuleSupportStatus.NOT_MODELED.value
+                AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
             ),
             "run_limit_contract_status": (
                 AdminApiModuleSupportStatus.READ_ONLY_READY.value
@@ -44471,7 +44776,8 @@ def test_admin_api_spot_sweep_automation_service_route_is_read_only(monkeypatch)
             "scheduler_decision_summary": {},
             "run_limit_statuses": [],
             "missing_contracts": [
-                "enterprise_sweep_scheduler_dispatch_service_contract"
+                SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED.value,
+                SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_CONTRACT_REQUIRED.value,
             ],
             "backend_owned": True,
             "read_only": True,

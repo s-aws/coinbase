@@ -25808,7 +25808,7 @@ class SpotSweepAutomationServiceStatusResponse(AdminApiReadPayload):
     approved_phase_range: str
     status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
     service_contract_status: AdminApiModuleSupportStatus = (
-        AdminApiModuleSupportStatus.NOT_MODELED
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
     )
     campaign_state_file: str
     sweep_state_file: str
@@ -25833,13 +25833,13 @@ class SpotSweepAutomationServiceStatusResponse(AdminApiReadPayload):
         AdminApiModuleSupportStatus.READ_ONLY_READY
     )
     scheduler_dispatch_contract_status: AdminApiModuleSupportStatus = (
-        AdminApiModuleSupportStatus.NOT_MODELED
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
     )
     run_limit_contract_status: AdminApiModuleSupportStatus = (
         AdminApiModuleSupportStatus.READ_ONLY_READY
     )
     control_contract_status: AdminApiModuleSupportStatus = (
-        AdminApiModuleSupportStatus.NOT_MODELED
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
     )
     operation_lock_status: AdminApiFlexibleObject = Field(
         default_factory=AdminApiFlexibleObject

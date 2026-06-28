@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any, Callable, Mapping
 import uuid
 
@@ -32,8 +33,6 @@ from core.enums import (
     OrderType,
     ProductCapability,
     ProductType,
-    SpotSweepAutomationExecutionBlocker,
-    SpotSweepAutomationExecutionDecision,
     StealthMutationKind,
     TargetMovementType,
 )
@@ -124,6 +123,9 @@ from .spot_sweep_automation_control import (
     FileSpotSweepAutomationControlStore,
     SpotSweepAutomationControlError,
     spot_sweep_automation_control_response_data,
+)
+from .spot_sweep_automation_execution_service import (
+    AdminApiSpotSweepAutomationExecutionService,
 )
 from .futures_risk_proof import (
     FileFuturesRiskProofStore,
@@ -311,6 +313,19 @@ class AdminApiCommandDependencies:
         [],
         FileSpotSweepAutomationControlStore,
     ] = FileSpotSweepAutomationControlStore
+    spot_campaign_state_file: Path | str = field(
+        default_factory=lambda: Path("runtime_state") / "spot_campaigns.jsonl"
+    )
+    spot_sweep_state_file: Path | str = field(
+        default_factory=lambda: Path("runtime_state") / "spot_portfolio_sweeps.jsonl"
+    )
+    spot_sweep_operation_lock_file: Path | str = field(
+        default_factory=lambda: Path("runtime_state") / "spot_portfolio_sweep.lock"
+    )
+    spot_sweep_operation_lock_stale_after_seconds: int = 3600
+    spot_sweep_automation_execution_service: (
+        AdminApiSpotSweepAutomationExecutionService
+    ) = field(default_factory=AdminApiSpotSweepAutomationExecutionService)
     futures_risk_proof_store_getter: Callable[
         [],
         FileFuturesRiskProofStore,
@@ -1349,85 +1364,6 @@ def runtime_lifecycle_permission(
     if action == AdminApiLifecycleAction.STOP:
         return AdminApiPermission.RUNTIME_SHUTDOWN
     raise ValueError(f"Unsupported runtime lifecycle action: {action.value}")
-
-
-def spot_sweep_automation_execution_contract_data(
-    *,
-    dry_run: bool,
-) -> dict[str, Any]:
-    """Return fail-closed dispatch/retry evidence for one automation request."""
-
-    automation_decision = (
-        SpotSweepAutomationExecutionDecision.DRY_RUN_REVIEW_ONLY
-        if dry_run
-        else SpotSweepAutomationExecutionDecision.LIVE_EXECUTION_NOT_IMPLEMENTED
-    )
-    blockers = [
-        SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_CONTRACT_REQUIRED,
-        SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_CONTRACT_REQUIRED,
-        SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED,
-        SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_CONTRACT_REQUIRED,
-    ]
-    if dry_run:
-        blockers.insert(0, SpotSweepAutomationExecutionBlocker.DRY_RUN_REVIEW_ONLY)
-    else:
-        blockers.insert(0, SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_DISABLED)
-
-    return {
-        "automation_execution_contract_status": (
-            AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
-        ),
-        "automation_execution_decision": automation_decision.value,
-        "automation_execution_blockers": [item.value for item in blockers],
-        "scheduler_dispatch_contract_status": (
-            AdminApiModuleSupportStatus.NOT_MODELED.value
-        ),
-        "scheduler_dispatch_decision": (
-            SpotSweepAutomationExecutionDecision.SCHEDULER_DISPATCH_NOT_MODELED.value
-        ),
-        "scheduler_dispatch_contract": {
-            "contract_status": AdminApiModuleSupportStatus.NOT_MODELED.value,
-            "decision": (
-                SpotSweepAutomationExecutionDecision.SCHEDULER_DISPATCH_NOT_MODELED.value
-            ),
-            "missing_contract": (
-                SpotSweepAutomationExecutionBlocker.SCHEDULER_DISPATCH_CONTRACT_REQUIRED.value
-            ),
-            "route": "/api/v1/spot/sweep/automation-runs",
-            "backend_owned": True,
-            "operator_action_available": False,
-            "scheduler_invoked": False,
-            "sweep_runner_invoked": False,
-            "coinbase_orders_submitted": False,
-            "live_coinbase_orders_ran": False,
-            "browser_authority": "display_only",
-            "bff_authority": "forward_only_no_execution",
-        },
-        "retry_execution_contract_status": (
-            AdminApiModuleSupportStatus.NOT_MODELED.value
-        ),
-        "retry_execution_decision": (
-            SpotSweepAutomationExecutionDecision.RETRY_EXECUTION_NOT_MODELED.value
-        ),
-        "retry_execution_contract": {
-            "contract_status": AdminApiModuleSupportStatus.NOT_MODELED.value,
-            "decision": (
-                SpotSweepAutomationExecutionDecision.RETRY_EXECUTION_NOT_MODELED.value
-            ),
-            "missing_contract": (
-                SpotSweepAutomationExecutionBlocker.RETRY_EXECUTION_CONTRACT_REQUIRED.value
-            ),
-            "route": "/api/v1/spot/sweep/automation-runs",
-            "backend_owned": True,
-            "operator_action_available": False,
-            "retry_executor_invoked": False,
-            "sweep_runner_invoked": False,
-            "coinbase_orders_submitted": False,
-            "live_coinbase_orders_ran": False,
-            "browser_authority": "display_only",
-            "bff_authority": "forward_only_no_execution",
-        },
-    }
 
 
 class AdminApiCommandService:
@@ -2598,7 +2534,22 @@ class AdminApiCommandService:
     ) -> AdminApiCommandResponse:
         """Evaluate a future spot sweep automation run through the live gate."""
 
+        deps = self.dependencies
         gate = evaluate_live_execution_gate(allow_live_execution=False)
+        execution_contract_data = (
+            deps.spot_sweep_automation_execution_service.build_contract_data(
+                request=command.request,
+                sweep_state_file=deps.spot_sweep_state_file,
+                campaign_state_file=deps.spot_campaign_state_file,
+                operation_lock_file=deps.spot_sweep_operation_lock_file,
+                automation_control_store=(
+                    deps.spot_sweep_automation_control_store_getter()
+                ),
+                lock_stale_after_seconds=(
+                    deps.spot_sweep_operation_lock_stale_after_seconds
+                ),
+            )
+        )
         if command.request.dry_run:
             return AdminApiCommandResponse(
                 status=AdminApiCommandStatus.ACCEPTED,
@@ -2645,9 +2596,7 @@ class AdminApiCommandService:
                     ),
                     "submitted_notional_usdc": "0",
                     "executed_notional_usdc": "0",
-                    **spot_sweep_automation_execution_contract_data(
-                        dry_run=True,
-                    ),
+                    **execution_contract_data,
                 },
             )
         return AdminApiCommandResponse(
@@ -2695,9 +2644,7 @@ class AdminApiCommandService:
                 ),
                 "submitted_notional_usdc": "0",
                 "executed_notional_usdc": "0",
-                **spot_sweep_automation_execution_contract_data(
-                    dry_run=False,
-                ),
+                **execution_contract_data,
             },
             failure_stage="approval",
         )

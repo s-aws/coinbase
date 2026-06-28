@@ -88,17 +88,18 @@ Use this when you want to inspect or explicitly run a portfolio-wide spot sweep:
   `501 not_implemented`. Responses include backend-owned
   `automation_execution_contract_status`, `automation_execution_decision`,
   scheduler dispatch contract evidence, retry execution contract evidence, and
-  blocker rows so operators can see why dispatch/retry/live execution remains
-  unavailable. The route must not run the live sweep CLI, create a browser
-  scheduler, or submit Coinbase orders until scheduler, run-limit, recovery,
-  reconciliation, and live execution gates pass.
+  blocker rows so operators can see whether dispatch/retry would be ready and
+  why live execution remains unavailable. The route must not run the live sweep
+  CLI, create a browser scheduler, or submit Coinbase orders until live
+  scheduler/retry execution, recovery, reconciliation, and live execution gates
+  pass.
 - The Admin API exposes `GET /api/v1/spot/sweep/automation-service` as
   backend-owned read evidence for the campaign ledger, sweep ledger, operation
   lock, scheduler due/not-due/disabled/max-run decisions, run-limit remaining
   counts, retry plans, local control ledger, and no-live proof. Due and
-  run-limit evaluation are read-only ready; scheduler dispatch, retry
-  execution, reconciliation execution, and live execution remain blocked or
-  not modeled.
+  run-limit evaluation are read-only ready; scheduler dispatch and retry
+  execution review are modeled as no-live command evidence; reconciliation
+  execution and live execution remain blocked or not modeled.
 - Automation is a durable run-if-due CLI mode, not a daemon. Each invocation
   reloads fresh Coinbase product/wallet state, checks the JSONL run ledger, runs
   at most one due sweep, records the outcome, and exits.
