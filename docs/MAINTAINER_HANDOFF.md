@@ -152,8 +152,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   `GET /api/v1/spot/campaign/status`: `campaign_inventory` rows describe
   campaign/sweep state, run limits, blockers, routes, unsupported behavior,
   browser/BFF authority, and no-live notional proof for the enterprise
-  Campaigns UI. Continue with Phase 8084 from this campaign inventory
-  baseline.
+  Campaigns UI.
+- Phase 8084 added the backend-owned sweep automation-service posture contract
+  to `GET /api/v1/spot/sweep/automation-service`: five `service_postures`
+  rows distinguish configured, paused, retryable, unsupported, and not-modeled
+  states with no scheduler, runner, reconciliation, Coinbase, browser/BFF,
+  route-local, or second-path authority. Continue with Phase 8085 from this
+  automation-service posture baseline.
 - Required boundary phrase: no second trading path.
 - Required checker phrase: usable admin product.
 - Required checker phrase: unsupported` or `not_modeled`.

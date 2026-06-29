@@ -30,6 +30,14 @@ authority boundaries. The rows improve operator manageability but do not
 change the blocked status of scheduler, retry, reconciliation, live Coinbase,
 browser/BFF execution, or any second automation path.
 
+Phase 8084 baseline: the spot sweep automation-service status route now
+returns `service_posture_count` and `service_postures` rows for configured,
+paused, retryable, unsupported, and not-modeled states. These rows summarize
+backend-owned campaign/sweep ledger evidence, local pause/retry control
+evidence, retry-plan readiness, unsupported browser/BFF/route-local behavior,
+and missing backend execution contracts without granting scheduler, runner,
+reconciliation, live Coinbase, browser/BFF execution, or second-path authority.
+
 Completed Release 0.1 scope: `8061-8080` added the Audit/Reconciliation
 Operator Correlation slice. Completed `8041-8060` added the Spot Command
 Operator E2E slice. Completed `8021-8040` added backend-owned

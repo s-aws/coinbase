@@ -81,6 +81,12 @@ behaviors, browser/BFF boundaries, and no-live notional proof. This is an
 operator inventory contract only; it does not execute scheduler, retry,
 reconciliation, Coinbase, browser, BFF, route-local, or second-path behavior.
 
+Phase 8084 status: `GET /api/v1/spot/sweep/automation-service` now exposes
+`service_posture_count` and backend-owned `service_postures` rows for
+configured, paused, retryable, unsupported, and not-modeled states. This is an
+operator posture contract only; it does not execute scheduler, retry,
+reconciliation, Coinbase, browser, BFF, route-local, or second-path behavior.
+
 ## Completed Phases 8061-8080
 
 Completed Release 0.1 `8061-8080` added the Audit/Reconciliation Operator

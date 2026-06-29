@@ -252,6 +252,18 @@ Exact autonomous phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Op
 - Verify or extend backend-owned sweep automation service status evidence so
   operators can distinguish configured, paused, retryable, unsupported, and
   not-modeled states without browser authority.
+- Current implementation result: `GET /api/v1/spot/sweep/automation-service`
+  now returns `service_posture_count` and `service_postures` rows for
+  configured, paused, retryable, unsupported, and not-modeled states. The rows
+  summarize backend-owned ledger/control/retry/missing-contract evidence and
+  preserve browser display-only, BFF forward-only, no-live Coinbase execution,
+  and zero submitted/executed notional boundaries.
+- Validation result: focused Admin API contract/OpenAPI tests, Python compile,
+  ownership, autonomous queue, whitespace, and stale-process checks passed.
+  Blind contextless review passed with no required fixes. Live Coinbase
+  execution was not run; submitted/executed notional was 0 USDC. The
+  phase-end subagent sweep closed the single review subagent and found no open
+  phase agents remaining.
 
 ### Phase 8085 - Sweep Control Command Contract Review
 

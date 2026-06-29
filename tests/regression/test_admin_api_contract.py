@@ -452,6 +452,7 @@ from core.enums import (
     SpotSweepAutomationExecutionDecision,
     SpotSweepAutomationOperatorScope,
     SpotSweepAutomationSchedulerBindingStatus,
+    SpotSweepAutomationServicePosture,
     StealthMutationKind,
     StealthCommandExecutionBlocker,
     StealthCommandExecutionPrerequisite,
@@ -45422,6 +45423,57 @@ def test_admin_api_spot_sweep_automation_service_status_reads_ledgers_no_live(
     assert operator_scope[
         SpotSweepAutomationOperatorScope.AUTHORITY_BOUNDARY.value
     ]["live_coinbase_orders_ran"] is False
+    assert payload["service_posture_count"] == 5
+    service_postures = {item["posture"]: item for item in payload["service_postures"]}
+    assert set(service_postures) == {
+        SpotSweepAutomationServicePosture.CONFIGURED.value,
+        SpotSweepAutomationServicePosture.PAUSED.value,
+        SpotSweepAutomationServicePosture.RETRYABLE.value,
+        SpotSweepAutomationServicePosture.UNSUPPORTED.value,
+        SpotSweepAutomationServicePosture.NOT_MODELED.value,
+    }
+    assert service_postures[
+        SpotSweepAutomationServicePosture.CONFIGURED.value
+    ]["support_status"] == AdminApiModuleSupportStatus.READ_ONLY_READY.value
+    assert service_postures[
+        SpotSweepAutomationServicePosture.CONFIGURED.value
+    ]["gate_status"] == AdminApiGateStatus.PASSED.value
+    assert "1 campaign" in service_postures[
+        SpotSweepAutomationServicePosture.CONFIGURED.value
+    ]["current_evidence"]
+    assert service_postures[
+        SpotSweepAutomationServicePosture.PAUSED.value
+    ]["operator_action_available"] is True
+    assert service_postures[
+        SpotSweepAutomationServicePosture.PAUSED.value
+    ]["live_coinbase_orders_ran"] is False
+    assert service_postures[
+        SpotSweepAutomationServicePosture.RETRYABLE.value
+    ]["gate_status"] == AdminApiGateStatus.WARNING.value
+    assert "1 ready" in service_postures[
+        SpotSweepAutomationServicePosture.RETRYABLE.value
+    ]["current_evidence"]
+    assert "browser scheduler authority" in service_postures[
+        SpotSweepAutomationServicePosture.UNSUPPORTED.value
+    ]["unsupported_behaviors"]
+    assert service_postures[
+        SpotSweepAutomationServicePosture.UNSUPPORTED.value
+    ]["support_status"] == AdminApiModuleSupportStatus.UNSUPPORTED.value
+    assert (
+        SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_CONTRACT_REQUIRED.value
+        in service_postures[
+            SpotSweepAutomationServicePosture.NOT_MODELED.value
+        ]["missing_contracts"]
+    )
+    assert service_postures[
+        SpotSweepAutomationServicePosture.NOT_MODELED.value
+    ]["support_status"] == AdminApiModuleSupportStatus.NOT_MODELED.value
+    assert service_postures[
+        SpotSweepAutomationServicePosture.NOT_MODELED.value
+    ]["submitted_notional_usdc"] == "0"
+    assert service_postures[
+        SpotSweepAutomationServicePosture.NOT_MODELED.value
+    ]["executed_notional_usdc"] == "0"
     assert "enterprise_sweep_scheduler_dispatch_service_contract" not in payload[
         "missing_contracts"
     ]

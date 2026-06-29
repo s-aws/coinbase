@@ -112,6 +112,7 @@ from core.enums import (
     SpotSweepAutomationExecutionBlocker,
     SpotSweepAutomationOperatorScope,
     SpotSweepAutomationSchedulerBindingStatus,
+    SpotSweepAutomationServicePosture,
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
     StealthOrderStatus,
@@ -381,6 +382,7 @@ from .models import (
     SpotRecoveryRollbackPlanResponse,
     SpotRecoveryStateRepairTaxonomyItem,
     SpotSweepAutomationOperatorScopeItem,
+    SpotSweepAutomationServicePostureItem,
     SpotSweepAutomationServiceStatusResponse,
     StealthCommandSuiteCommandItem,
     StealthSelectedOrderActionStateItem,
@@ -1250,6 +1252,186 @@ def _spot_sweep_scheduler_binding_evidence(
             "live_coinbase_orders_ran": False,
         },
     }
+
+
+def _plural(count: int, singular: str, plural: str | None = None) -> str:
+    return singular if count == 1 else (plural or f"{singular}s")
+
+
+def _spot_sweep_service_postures(
+    *,
+    campaign_count: int,
+    sweep_config_count: int,
+    retry_plan_count: int,
+    retry_ready_count: int,
+    scheduler_decision_summary: Mapping[str, Any],
+    latest_control_state: Mapping[str, Any],
+    current_read_evidence_routes: list[str],
+    command_routes: list[str],
+    missing_contracts: list[str],
+) -> list[SpotSweepAutomationServicePostureItem]:
+    blocked_by_control = int(
+        scheduler_decision_summary.get("scheduler_due_blocked_by_control_count") or 0
+    )
+    latest_control_value = str(
+        latest_control_state.get("control_state_after")
+        or latest_control_state.get("control_state")
+        or SpotSweepAutomationControlState.ACTIVE.value
+    )
+    paused = (
+        latest_control_value == SpotSweepAutomationControlState.PAUSED.value
+        or blocked_by_control > 0
+    )
+    configured_gate = (
+        AdminApiGateStatus.PASSED
+        if campaign_count > 0 or sweep_config_count > 0
+        else AdminApiGateStatus.WARNING
+    )
+    retry_gate = (
+        AdminApiGateStatus.WARNING
+        if retry_ready_count > 0
+        else (
+            AdminApiGateStatus.PASSED
+            if retry_plan_count > 0
+            else AdminApiGateStatus.NOT_APPLICABLE
+        )
+    )
+    not_modeled_gate = (
+        AdminApiGateStatus.BLOCKED
+        if missing_contracts
+        else AdminApiGateStatus.PASSED
+    )
+    configured_evidence = (
+        f"{campaign_count} {_plural(campaign_count, 'campaign')}; "
+        f"{sweep_config_count} {_plural(sweep_config_count, 'sweep config')}"
+    )
+    paused_evidence = (
+        f"{SpotSweepAutomationControlState.PAUSED.value if paused else SpotSweepAutomationControlState.ACTIVE.value}; "
+        f"{blocked_by_control} due {_plural(blocked_by_control, 'row')} "
+        "blocked by pause control"
+    )
+    retry_evidence = (
+        f"{retry_ready_count} ready / "
+        f"{retry_plan_count} {_plural(retry_plan_count, 'plan')}"
+    )
+    missing_evidence = (
+        f"{len(missing_contracts)} missing "
+        f"{_plural(len(missing_contracts), 'contract')}"
+    )
+    local_control_routes = [
+        route
+        for route in command_routes
+        if route == "POST /api/v1/spot/sweep/automation-controls"
+    ]
+    automation_run_routes = [
+        route
+        for route in command_routes
+        if route == "POST /api/v1/spot/sweep/automation-runs"
+    ]
+
+    return [
+        SpotSweepAutomationServicePostureItem(
+            posture=SpotSweepAutomationServicePosture.CONFIGURED,
+            label="Configured",
+            support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+            gate_status=configured_gate,
+            current_evidence=configured_evidence,
+            read_routes=current_read_evidence_routes,
+            backend_contracts=[
+                "business/spot_campaign.py",
+                "business/spot_portfolio_sweep.py",
+            ],
+            detail=(
+                "Campaign and sweep configuration posture is read from "
+                "backend-owned campaign snapshots and sweep ledgers."
+            ),
+        ),
+        SpotSweepAutomationServicePostureItem(
+            posture=SpotSweepAutomationServicePosture.PAUSED,
+            label="Paused",
+            support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+            gate_status=AdminApiGateStatus.WARNING if paused else AdminApiGateStatus.PASSED,
+            current_evidence=paused_evidence,
+            read_routes=["GET /api/v1/spot/sweep/automation-service"],
+            command_routes=local_control_routes,
+            unsupported_behaviors=[
+                "scheduler execution",
+                "sweep runner execution",
+                "Coinbase order submission",
+            ],
+            backend_contracts=[
+                "application/admin_api/spot_sweep_automation_control.py",
+                "application/admin_api/command_service.py::record_spot_sweep_automation_control",
+            ],
+            operator_action_available=True,
+            detail=(
+                "Pause/resume posture is backend local control evidence only; "
+                "it does not invoke a scheduler, runner, or Coinbase order."
+            ),
+        ),
+        SpotSweepAutomationServicePostureItem(
+            posture=SpotSweepAutomationServicePosture.RETRYABLE,
+            label="Retryable",
+            support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+            gate_status=retry_gate,
+            current_evidence=retry_evidence,
+            read_routes=["GET /api/v1/spot/sweep/automation-service"],
+            command_routes=local_control_routes,
+            unsupported_behaviors=[
+                "retry executor",
+                "sweep runner execution",
+                "Coinbase order submission",
+            ],
+            backend_contracts=[
+                "business/spot_campaign.py::build_spot_campaign_retry_plan",
+                "application/admin_api/command_service.py::record_spot_sweep_automation_control",
+            ],
+            operator_action_available=retry_ready_count > 0,
+            detail=(
+                "Retryable posture is review and local retry-intent evidence; "
+                "retry execution remains behind backend-owned execution gates."
+            ),
+        ),
+        SpotSweepAutomationServicePostureItem(
+            posture=SpotSweepAutomationServicePosture.UNSUPPORTED,
+            label="Unsupported",
+            support_status=AdminApiModuleSupportStatus.UNSUPPORTED,
+            gate_status=AdminApiGateStatus.BLOCKED,
+            current_evidence="browser display_only; BFF forward_only_no_execution",
+            unsupported_behaviors=[
+                "browser scheduler authority",
+                "BFF runner authority",
+                "direct Coinbase calls",
+                "route-local FastAPI execution",
+                "second automation path",
+            ],
+            backend_contracts=[
+                "AGENTS.md",
+                "docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md",
+            ],
+            detail=(
+                "Unsupported automation behavior must remain explicit and must "
+                "not be filled by browser code, BFF services, route-local "
+                "executors, or a second trading path."
+            ),
+        ),
+        SpotSweepAutomationServicePostureItem(
+            posture=SpotSweepAutomationServicePosture.NOT_MODELED,
+            label="Not modeled",
+            support_status=AdminApiModuleSupportStatus.NOT_MODELED,
+            gate_status=not_modeled_gate,
+            current_evidence=missing_evidence,
+            read_routes=["GET /api/v1/spot/sweep/automation-service"],
+            command_routes=automation_run_routes,
+            missing_contracts=missing_contracts,
+            backend_contracts=missing_contracts,
+            detail=(
+                "Unmodeled execution contracts are backend blockers. Operators "
+                "can inspect them here, but the frontend must not implement "
+                "scheduler, retry, reconciliation, or live Coinbase authority."
+            ),
+        ),
+    ]
 
 
 def _route_availability(surface: str, action_class: AdminApiActionClass) -> AdminApiRouteAvailability:
@@ -56692,6 +56874,19 @@ class AdminApiReadService:
                 ),
             ),
         ]
+        campaign_count = int(campaign_operator_status.get("campaign_count") or 0)
+        sweep_config_count = int(sweep_config_registry.get("config_count") or 0)
+        service_postures = _spot_sweep_service_postures(
+            campaign_count=campaign_count,
+            sweep_config_count=sweep_config_count,
+            retry_plan_count=len(retry_plans),
+            retry_ready_count=retry_ready_count,
+            scheduler_decision_summary=scheduler_decision_summary,
+            latest_control_state=latest_control_state,
+            current_read_evidence_routes=current_read_evidence_routes,
+            command_routes=command_routes,
+            missing_contracts=missing_contracts,
+        )
 
         payload = SpotSweepAutomationServiceStatusResponse(
             approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
@@ -56702,8 +56897,8 @@ class AdminApiReadService:
             sweep_state_file=str(sweep_path),
             operation_lock_file=str(lock_path),
             automation_control_file=str(control_store.path),
-            campaign_count=int(campaign_operator_status.get("campaign_count") or 0),
-            sweep_config_count=int(sweep_config_registry.get("config_count") or 0),
+            campaign_count=campaign_count,
+            sweep_config_count=sweep_config_count,
             automation_control_count=len(control_records),
             scheduler_status_count=len(scheduler_statuses),
             scheduler_due_count=scheduler_due_count,
@@ -56769,6 +56964,8 @@ class AdminApiReadService:
             missing_contracts=missing_contracts,
             operator_scope_count=len(operator_scope),
             operator_scope=operator_scope,
+            service_posture_count=len(service_postures),
+            service_postures=service_postures,
             operator_action_available=True,
             pause_resume_control_available=True,
             retry_control_available=True,

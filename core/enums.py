@@ -2713,6 +2713,16 @@ class SpotSweepAutomationOperatorScope(str, Enum):
     AUTHORITY_BOUNDARY = "authority_boundary"
 
 
+class SpotSweepAutomationServicePosture(str, Enum):
+    """Operator-visible posture rows for spot sweep automation service status."""
+
+    CONFIGURED = "configured"
+    PAUSED = "paused"
+    RETRYABLE = "retryable"
+    UNSUPPORTED = "unsupported"
+    NOT_MODELED = "not_modeled"
+
+
 class SpotSweepAutomationSchedulerBindingStatus(str, Enum):
     """Read-only Admin API status for scheduler/run-limit binding evidence."""
 

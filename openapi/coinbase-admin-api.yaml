@@ -143326,6 +143326,112 @@ components:
       - side
       title: SpotSweepAutomationRunRequest
       description: Spot sweep automation request shape for future gated sweep runs.
+    SpotSweepAutomationServicePosture:
+      type: string
+      enum:
+      - configured
+      - paused
+      - retryable
+      - unsupported
+      - not_modeled
+      title: SpotSweepAutomationServicePosture
+      description: Operator-visible posture rows for spot sweep automation service
+        status.
+    SpotSweepAutomationServicePostureItem:
+      properties:
+        posture:
+          $ref: '#/components/schemas/SpotSweepAutomationServicePosture'
+        label:
+          type: string
+          title: Label
+        support_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+        gate_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        current_evidence:
+          type: string
+          title: Current Evidence
+        read_routes:
+          items:
+            type: string
+          type: array
+          title: Read Routes
+        command_routes:
+          items:
+            type: string
+          type: array
+          title: Command Routes
+        missing_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Contracts
+        unsupported_behaviors:
+          items:
+            type: string
+          type: array
+          title: Unsupported Behaviors
+        backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Backend Contracts
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        operator_action_available:
+          type: boolean
+          title: Operator Action Available
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - posture
+      - label
+      - support_status
+      - gate_status
+      - current_evidence
+      - detail
+      title: SpotSweepAutomationServicePostureItem
+      description: One operator-visible posture row for campaign/sweep automation.
     SpotSweepAutomationServiceStatusResponse:
       properties:
         type:
@@ -143543,6 +143649,16 @@ components:
             $ref: '#/components/schemas/SpotSweepAutomationOperatorScopeItem'
           type: array
           title: Operator Scope
+        service_posture_count:
+          type: integer
+          minimum: 0.0
+          title: Service Posture Count
+          default: 0
+        service_postures:
+          items:
+            $ref: '#/components/schemas/SpotSweepAutomationServicePostureItem'
+          type: array
+          title: Service Postures
         backend_owned:
           type: boolean
           title: Backend Owned

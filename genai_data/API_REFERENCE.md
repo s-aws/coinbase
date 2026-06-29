@@ -47,6 +47,14 @@ authority counts, P/L, read/command routes, state sources, unsupported
 behavior, and browser/BFF authority. They do not execute scheduler, retry,
 reconciliation, Coinbase, browser, BFF, route-local, or second-path behavior.
 
+Phase 8084 adds `service_posture_count` and `service_postures` to the spot
+sweep automation-service status response. The posture rows explicitly classify
+configured, paused, retryable, unsupported, and not-modeled states so operators
+do not infer those states from scattered counts. They remain backend-owned
+no-live evidence with browser display-only, BFF forward-only, zero submitted
+and executed notional, and no scheduler, runner, reconciliation, Coinbase,
+route-local, or second automation path authority.
+
 Completed M57 `7961-7980` futures/perpetual risk-proof record validation
 remediation summary evidence for `GET /api/v1/futures/command-suite` is
 carried forward history. It added read-only

@@ -3768,6 +3768,41 @@ X-Admin-Roles: viewer
   "type": "spot_sweep_automation_service_status",
   "approved_phase_range": "8081-8100",
   "status": "blocked",
+  "service_posture_count": 5,
+  "service_postures": [
+    {
+      "posture": "configured",
+      "label": "Configured",
+      "support_status": "read_only_ready",
+      "gate_status": "passed",
+      "current_evidence": "1 campaign; 1 sweep config",
+      "read_routes": [
+        "GET /api/v1/spot/campaign/status",
+        "GET /api/v1/spot/sweep/status"
+      ],
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution",
+      "live_coinbase_orders_ran": false,
+      "submitted_notional_usdc": "0",
+      "executed_notional_usdc": "0"
+    },
+    {
+      "posture": "not_modeled",
+      "label": "Not modeled",
+      "support_status": "not_modeled",
+      "gate_status": "blocked",
+      "current_evidence": "2 missing contracts",
+      "missing_contracts": [
+        "sweep_reconciliation_execution_contract",
+        "sweep_live_execution_contract"
+      ],
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution",
+      "live_coinbase_orders_ran": false,
+      "submitted_notional_usdc": "0",
+      "executed_notional_usdc": "0"
+    }
+  ],
   "operator_scope_count": 5,
   "operator_scope": [
     {
