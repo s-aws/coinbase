@@ -475,6 +475,21 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Run blind/contextless backend/frontend review for the audit/reconciliation
   operator correlation path and remediate blocking ambiguity before advancing.
+- Evidence update 2026-06-29: backend/frontend `AGENTS.md` files were
+  re-read for this phase; no durable instruction change was required. Initial
+  blind review failed contextless clarity because Command Workflows had no
+  route-level permission hint, viewer access was asserted as enabled, and the
+  shell lacked role context. Remediation added explicit frontend
+  `order:create` route hinting, manual Spot create/cancel role-boundary
+  evidence for `trader`/`admin` only, AdminShell session-role wiring, focused
+  tests, and docs clarifying that backend-role `operator` can inspect evidence
+  but cannot initiate manual Spot order create/cancel. Fresh blind review
+  passed; minor time-in-force and admin-proof notes were remediated locally.
+  Focused frontend RBAC/command workflow tests passed with 48 tests. Reviewers
+  `019f12c6-81b2-7903-902b-e8f6987aaf52` and
+  `019f12d4-0f65-7163-bd27-5275cc8e17ec` were closed in the phase-end
+  stale-subagent sweep. Live Coinbase execution was not run and
+  submitted/executed notional stayed 0 USDC.
 
 ### Phase 8080 - Commit And Push Evidence
 

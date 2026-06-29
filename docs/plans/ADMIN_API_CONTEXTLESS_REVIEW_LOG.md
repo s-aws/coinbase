@@ -1,13 +1,13 @@
 ## Audit/Reconciliation Operator Correlation Review - Phases 8061-8080
 
-Result: planned. Scope: phases `8061-8080`, after completed history through
+Result: PASS after remediation. Scope: phases `8061-8080`, after completed history through
 `8041-8060`, adds an Audit/Reconciliation Operator Correlation slice so
 operators can correlate command attempts, approvals, admission audits,
 cap/guard decisions, exchange intent, fills, and reconciliation status through
 the enterprise frontend/API without browser/BFF trading authority.
 
-No live Coinbase execution is planned; actual submitted/executed notional
-remains `0` USDC.
+No live Coinbase execution is planned for this review range. No live Coinbase
+execution was run; actual submitted/executed notional remains `0` USDC.
 Required checker phrase: actual submitted/executed notional remains `0` USDC.
 
 Boundary evidence for current Release 0.1 review: this range must answer
@@ -23,6 +23,58 @@ Required checker phrase: Release 0.1 Operator Admin Pivot.
 Required checker phrase: usable private operator MVP.
 Required checker phrase: unsupported` or `not_modeled`.
 Required checker phrase: no browser/BFF execution authority.
+
+AGENTS review evidence: backend `AGENTS.md` and frontend `AGENTS.md` were
+re-read during Phase 8079. No direction change was required: Release 0.1
+usable private operator admin work remains the governing filter, backend owns
+trading authority, frontend/BFF code must not gain Coinbase, wallet, guard,
+reconciliation, or live execution authority, ordinary phases use focused
+validation, and phase-end subagent cleanup must be recorded.
+
+Blind/contextless review result: PASS after remediation. Initial reviewer
+`019f12c6-81b2-7903-902b-e8f6987aaf52` failed contextless clarity while
+passing backend authority boundaries because the Command Workflows route had
+no route-level permission hint, tests asserted viewer access as enabled, and
+`CommandWorkflowShell` was mounted without role context. That made the answer
+to "which UI role can initiate manual Spot order create/cancel" ambiguous even
+though backend RBAC correctly requires `trader` or `admin`.
+
+Remediation updated the frontend shared RBAC hint model so
+`#command-workflows` carries `order:create`, added
+`getCommandWorkflowOrderActionHint`, passed the AdminShell session role into
+`CommandWorkflowShell`, rendered a display-only role-boundary message, and
+updated focused tests and docs. The remediated UI hint now states that manual
+Spot order create/cancel initiation is hinted only for `trader` and `admin`;
+`viewer` and backend-role `operator` may inspect evidence but cannot initiate
+the order action. Backend RBAC, idempotency, approval, admission audit, caps,
+guards, audit, reconciliation, manual acknowledgement, live-service, and
+Coinbase execution gates remain authoritative.
+
+Fresh reviewer `019f12d4-0f65-7163-bd27-5275cc8e17ec` passed the remediated
+tree. It confirmed the frontend uses centralized command helpers and
+`BackendApiClient`, the backend owns `POST /api/v1/orders` and
+`POST /api/v1/orders/{client_order_id}/cancel`, acceptance/rejection evidence
+is carried by backend command responses and audit records, audit/reconciliation
+is traced by `client_order_id`, and browser/BFF/live Coinbase authority is
+absent. Two minor non-blocking clarity gaps were remediated locally: command
+workflow docs now state that `time_in_force` is request evidence while current
+backend live placement maps market-style manual orders to IOC and limit-style
+manual orders to GTC, and component tests now assert both `trader` and `admin`
+role-boundary rendering.
+
+Focused validation: PASS. Frontend RBAC and command workflow focused tests
+passed with `48` tests. Phase closeout validators are recorded in the
+roadmap evidence. Full backend regression and frontend release gate were not
+run because this was an ordinary phase, not a durable milestone closeout.
+
+Phase-end stale-subagent sweep completed: reviewers
+`019f12c6-81b2-7903-902b-e8f6987aaf52` and
+`019f12d4-0f65-7163-bd27-5275cc8e17ec` were closed after findings were
+consumed and remediated. No stale phase-scoped subagent remains intentionally
+open.
+
+Live Coinbase execution was not run for this review; submitted notional `0`
+USDC, executed notional `0` USDC.
 
 ## Spot Command Operator E2E Review - Phases 8041-8060
 
