@@ -230,6 +230,15 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Add or tighten operator search/filter affordances for command id,
   client_order_id, status, blocker type, and evidence family.
+- Evidence update 2026-06-29: frontend-only Audit Workbench filters now narrow
+  loaded command timeline, timeline adapter, approval/admission,
+  cap/guard-wallet, exchange/fill, reconciliation, and audit-event evidence by
+  command/client identity, status, blocker text, and evidence family. This
+  directly improves the operator path for correlating failed or blocked command
+  attempts while preserving backend ownership of queries, execution,
+  reconciliation, proof writing, Coinbase calls, and state mutation. No
+  phase-scoped subagents were spawned; live Coinbase execution was not run and
+  submitted/executed notional stayed 0 USDC.
 
 ### Phase 8074 - Unsupported Gap Surfacing
 
