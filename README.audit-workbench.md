@@ -25,6 +25,7 @@ The route is authenticated and RBAC-gated with `audit:read`.
 ## What It Shows
 
 - module route summaries
+- source inventory rows for backend evidence stores and read-service adapters
 - backend-owned correlation scope categories for command attempts, approvals,
   admission audits, cap/guard/wallet decisions, exchange intent, fills, and
   reconciliation status
@@ -50,6 +51,9 @@ The route is authenticated and RBAC-gated with `audit:read`.
 - `correlation_scope` describes what evidence the operator should expect. It
   is not an execution plan and carries no-browser, no-BFF-execution,
   no-reconciliation-execution, and no-state-mutation flags.
+- `source_inventory` describes where evidence can come from. It is not a
+  fallback command engine and carries the same no-authority posture plus
+  `live_coinbase_orders_ran=false` and `live_coinbase_read_ran=false`.
 - Exchange `order_id` values are evidence only. They are not internal tracking
   ids or cancellation keys.
 - Command acceptance, cancellation, movement, repricing, guard evaluation, and

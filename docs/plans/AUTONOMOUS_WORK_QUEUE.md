@@ -230,6 +230,17 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 - Inventory backend command attempts, approvals, admission audits, cap/guard,
   exchange intent, fills, and reconciliation sources without adding live
   execution or new mutation paths.
+- Evidence update 2026-06-29: added backend-owned Audit Workbench
+  `source_inventory` rows for route inventory, admin API audit log,
+  backend contract, order parent rows, stealth orders, movement/repricing,
+  futures positions, guard/risk policy, and runtime-unavailable posture.
+  Each row lists modules, correlation scopes, identity keys, route refs,
+  source refs, read-service refs, operator value, missing-evidence behavior,
+  no browser/BFF/reconciliation/state authority, and no live Coinbase read or
+  order execution. The OpenAPI artifact and frontend generated schema were
+  refreshed, and the frontend mock/runtime/read model renders source rows as
+  read-only evidence. Live Coinbase execution was not run and
+  submitted/executed notional stayed 0 USDC.
 
 ### Phase 8064 - Command Attempt Timeline Contract
 

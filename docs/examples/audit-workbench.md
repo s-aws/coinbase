@@ -68,6 +68,33 @@ browser or BFF execution authority:
 }
 ```
 
+The response also includes a backend-owned `source_inventory` list. It maps
+evidence labels to modules, identity keys, source refs, and read-service refs:
+
+```json
+{
+  "source_inventory": [
+    {
+      "source": "admin_api_audit_log",
+      "modules": ["admin", "spot", "orders", "stealth"],
+      "correlation_scopes": ["command_attempt", "approval", "admission_audit"],
+      "identity_keys": ["request_id", "correlation_id", "audit_id", "idempotency_key"],
+      "source_refs": ["application/admin_api/audit.py::FileAdminApiAuditStore"],
+      "read_service_refs": [
+        "application/admin_api/read_service.py::_audit_event_from_command_event"
+      ],
+      "read_only": true,
+      "live_coinbase_orders_ran": false,
+      "live_coinbase_read_ran": false,
+      "no_browser_authority": true,
+      "no_bff_execution_authority": true,
+      "no_reconciliation_execution": true,
+      "no_order_or_exchange_state_mutation": true
+    }
+  ]
+}
+```
+
 Command audit rows may include persisted admission evidence:
 
 ```json

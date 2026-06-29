@@ -131,6 +131,7 @@ from .models import (
     AdminAccountMarketInventorySummary,
     AdminAuditCorrelationScopeItem,
     AdminAuditModuleSummaryItem,
+    AdminAuditSourceInventoryItem,
     AdminAuditWorkbenchEventItem,
     AdminAuditWorkbenchReadResponse,
     AdminBootstrapResponse,
@@ -4936,6 +4937,270 @@ def _audit_correlation_scope() -> list[AdminAuditCorrelationScopeItem]:
                 "post-submit and recovery workflows without executing it."
             ),
             missing_behavior="Keep reconciliation unresolved and do not mutate order or exchange state.",
+        ),
+    ]
+
+
+def _audit_source_inventory() -> list[AdminAuditSourceInventoryItem]:
+    """Return backend evidence sources the audit workbench may inspect."""
+
+    all_command_modules = [
+        AdminAuditWorkbenchModule.ADMIN,
+        AdminAuditWorkbenchModule.SPOT,
+        AdminAuditWorkbenchModule.ORDERS,
+        AdminAuditWorkbenchModule.STEALTH,
+        AdminAuditWorkbenchModule.MOVEMENT_REPRICING,
+        AdminAuditWorkbenchModule.FUTURES_PERPETUALS,
+        AdminAuditWorkbenchModule.GUARD_RISK,
+        AdminAuditWorkbenchModule.CAMPAIGNS,
+    ]
+    return [
+        AdminAuditSourceInventoryItem(
+            source=AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG,
+            modules=all_command_modules,
+            correlation_scopes=[
+                AdminAuditCorrelationScopeKind.COMMAND_ATTEMPT,
+                AdminAuditCorrelationScopeKind.APPROVAL,
+                AdminAuditCorrelationScopeKind.ADMISSION_AUDIT,
+                AdminAuditCorrelationScopeKind.CAP_GUARD_WALLET,
+                AdminAuditCorrelationScopeKind.EXCHANGE_INTENT,
+                AdminAuditCorrelationScopeKind.RECONCILIATION,
+            ],
+            identity_keys=[
+                "request_id",
+                "correlation_id",
+                "audit_id",
+                "idempotency_key",
+                "actor_id",
+                "client_order_id",
+                "stealth_order_id",
+            ],
+            route_refs=[
+                "/api/v1/admin/audit-workbench",
+                "/api/v1/orders",
+                "/api/v1/orders/{client_order_id}/cancel",
+            ],
+            source_refs=["application/admin_api/audit.py::FileAdminApiAuditStore"],
+            read_service_refs=[
+                "application/admin_api/read_service.py::_audit_event_from_command_event",
+                "application/admin_api/read_service.py::AdminApiReadService.build_audit_workbench",
+            ],
+            operator_value=(
+                "Command attempts, approval/admission evidence, cap/guard "
+                "snapshots, live intent, and reconciliation plan references."
+            ),
+            missing_behavior=(
+                "Record source_errors and show missing evidence; do not replay "
+                "commands or call Coinbase."
+            ),
+        ),
+        AdminAuditSourceInventoryItem(
+            source=AdminAuditEvidenceSource.ROUTE_INVENTORY,
+            modules=all_command_modules,
+            correlation_scopes=[AdminAuditCorrelationScopeKind.COMMAND_ATTEMPT],
+            identity_keys=["route", "permission", "action_class", "shared_method"],
+            route_refs=["/api/v1/admin/audit-workbench"],
+            source_refs=["application/admin_api/route_inventory.py::ADMIN_API_ROUTE_INVENTORY"],
+            read_service_refs=[
+                "application/admin_api/read_service.py::_audit_module_summary",
+                "application/admin_api/read_service.py::_audit_module_for_surface",
+            ],
+            operator_value=(
+                "Static backend route ownership, read/command counts, "
+                "permissions, and module classification."
+            ),
+            missing_behavior="Report missing route evidence; do not infer a command route.",
+        ),
+        AdminAuditSourceInventoryItem(
+            source=AdminAuditEvidenceSource.BACKEND_CONTRACT,
+            modules=[
+                AdminAuditWorkbenchModule.ADMIN,
+                AdminAuditWorkbenchModule.SPOT,
+                AdminAuditWorkbenchModule.ORDERS,
+                AdminAuditWorkbenchModule.STEALTH,
+                AdminAuditWorkbenchModule.GUARD_RISK,
+            ],
+            correlation_scopes=[
+                AdminAuditCorrelationScopeKind.APPROVAL,
+                AdminAuditCorrelationScopeKind.RECONCILIATION,
+            ],
+            identity_keys=["route", "approval_snapshot_id", "reconciliation_plan_id"],
+            route_refs=[
+                "/api/v1/admin/approvals/requests",
+                "/api/v1/admin/reconciliation/plans",
+                "/api/v1/admin/audit-workbench",
+            ],
+            source_refs=[
+                "application/admin_api/models.py",
+                "openapi/coinbase-admin-api.yaml",
+            ],
+            read_service_refs=[
+                "application/admin_api/read_service.py::_audit_correlation_scope",
+                "application/admin_api/read_service.py::_audit_source_inventory",
+            ],
+            operator_value=(
+                "Backend contract fields that define approval and "
+                "reconciliation evidence expected by the operator UI."
+            ),
+            missing_behavior=(
+                "Surface unsupported or not_modeled contract gaps; do not fill "
+                "them with frontend behavior."
+            ),
+        ),
+        AdminAuditSourceInventoryItem(
+            source=AdminAuditEvidenceSource.ORDER_PARENT,
+            modules=[AdminAuditWorkbenchModule.SPOT, AdminAuditWorkbenchModule.ORDERS],
+            correlation_scopes=[
+                AdminAuditCorrelationScopeKind.EXCHANGE_INTENT,
+                AdminAuditCorrelationScopeKind.FILL,
+            ],
+            identity_keys=[
+                "client_order_id",
+                "product_id",
+                "correlation_id",
+                "audit_id",
+                "exchange_order_id",
+            ],
+            route_refs=[
+                "/api/v1/orders",
+                "/api/v1/orders/{client_order_id}",
+                "/api/v1/admin/audit-workbench",
+            ],
+            source_refs=["database/order.py::get_parent_orders"],
+            read_service_refs=[
+                "application/admin_api/read_service.py::AdminApiReadService.build_order_list",
+                "application/admin_api/read_service.py::_audit_event_from_order_item",
+            ],
+            operator_value=(
+                "Local parent order rows for client_order_id tracking, "
+                "exchange evidence, and fill correlation anchors."
+            ),
+            missing_behavior=(
+                "Show local order evidence absent; do not treat exchange_order_id "
+                "as internal identity or cancellation authority."
+            ),
+        ),
+        AdminAuditSourceInventoryItem(
+            source=AdminAuditEvidenceSource.STEALTH_ORDERS,
+            modules=[AdminAuditWorkbenchModule.STEALTH],
+            correlation_scopes=[
+                AdminAuditCorrelationScopeKind.EXCHANGE_INTENT,
+                AdminAuditCorrelationScopeKind.FILL,
+                AdminAuditCorrelationScopeKind.RECONCILIATION,
+            ],
+            identity_keys=[
+                "stealth_order_id",
+                "active_placement_client_order_id",
+                "product_id",
+                "active_exchange_order_id",
+            ],
+            route_refs=[
+                "/api/v1/stealth/orders",
+                "/api/v1/stealth/orders/{stealth_order_id}",
+                "/api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof",
+            ],
+            source_refs=["database/stealth_orders.py"],
+            read_service_refs=[
+                "application/admin_api/read_service.py::AdminApiReadService.build_stealth_order_list",
+                "application/admin_api/read_service.py::_audit_event_from_stealth_item",
+            ],
+            operator_value=(
+                "Stealth lifecycle and active-placement evidence for hidden and "
+                "revealed orders."
+            ),
+            missing_behavior=(
+                "Show stealth evidence absent; do not locally hide, cancel, "
+                "move, or mutate live placements."
+            ),
+        ),
+        AdminAuditSourceInventoryItem(
+            source=AdminAuditEvidenceSource.MOVEMENT_REPRICING,
+            modules=[AdminAuditWorkbenchModule.MOVEMENT_REPRICING],
+            correlation_scopes=[
+                AdminAuditCorrelationScopeKind.EXCHANGE_INTENT,
+                AdminAuditCorrelationScopeKind.FILL,
+            ],
+            identity_keys=[
+                "evidence_id",
+                "client_order_id",
+                "stealth_order_id",
+                "active_placement_client_order_id",
+            ],
+            route_refs=["/api/v1/movement-repricing/evidence"],
+            source_refs=["application/admin_api/read_service.py::build_movement_repricing_evidence"],
+            read_service_refs=[
+                "application/admin_api/read_service.py::_audit_event_from_movement_item"
+            ],
+            operator_value=(
+                "Read-only movement/repricing evidence tied to client and "
+                "stealth identities."
+            ),
+            missing_behavior=(
+                "Report movement evidence absent; do not mutate revealed "
+                "placements from the workbench."
+            ),
+        ),
+        AdminAuditSourceInventoryItem(
+            source=AdminAuditEvidenceSource.FUTURES_POSITIONS,
+            modules=[AdminAuditWorkbenchModule.FUTURES_PERPETUALS],
+            correlation_scopes=[AdminAuditCorrelationScopeKind.FILL],
+            identity_keys=["position_key", "product_id"],
+            route_refs=[
+                "/api/v1/futures/positions",
+                "/api/v1/futures/positions/{position_key}",
+            ],
+            source_refs=["application/admin_api/read_service.py::build_futures_positions"],
+            read_service_refs=[
+                "application/admin_api/read_service.py::_audit_event_from_futures_position"
+            ],
+            operator_value=(
+                "Futures/perpetual position evidence for position_key-linked "
+                "operator review."
+            ),
+            missing_behavior=(
+                "Show futures/perpetual evidence absent; do not apply spot "
+                "wallet or lot rules."
+            ),
+        ),
+        AdminAuditSourceInventoryItem(
+            source=AdminAuditEvidenceSource.GUARD_RISK_POLICY,
+            modules=[AdminAuditWorkbenchModule.GUARD_RISK],
+            correlation_scopes=[AdminAuditCorrelationScopeKind.CAP_GUARD_WALLET],
+            identity_keys=["product_id", "policy_id", "route"],
+            route_refs=["/api/v1/admin/guard-risk-policy"],
+            source_refs=[
+                "application/admin_api/read_service.py::AdminApiReadService.build_guard_risk_policy"
+            ],
+            read_service_refs=[
+                "application/admin_api/read_service.py::_audit_event_from_guard_risk_policy"
+            ],
+            operator_value=(
+                "Backend cap, guard, wallet, profitability, and live gate "
+                "policy evidence."
+            ),
+            missing_behavior=(
+                "Block or surface missing guard evidence; do not evaluate guard "
+                "policy in the browser."
+            ),
+        ),
+        AdminAuditSourceInventoryItem(
+            source=AdminAuditEvidenceSource.RUNTIME_UNAVAILABLE,
+            modules=all_command_modules,
+            correlation_scopes=[],
+            identity_keys=["source_errors", "backend_read_error"],
+            route_refs=["/api/v1/admin/audit-workbench"],
+            source_refs=["application/admin_api/read_service.py::AdminApiReadService.build_audit_workbench"],
+            read_service_refs=[
+                "application/admin_api/read_service.py::AdminApiReadService.build_audit_workbench"
+            ],
+            operator_value=(
+                "Explicit unavailable-source posture used when a backend read "
+                "cannot supply evidence."
+            ),
+            missing_behavior=(
+                "Report unavailable source evidence; do not synthesize rows or "
+                "fall back to dashboards."
+            ),
         ),
     ]
 
@@ -14332,6 +14597,7 @@ class AdminApiReadService:
         has_more = next_offset < len(filtered)
         return AdminAuditWorkbenchReadResponse(
             filters=filters,
+            source_inventory=_audit_source_inventory(),
             correlation_scope=_audit_correlation_scope(),
             module_summary=_audit_module_summary(),
             events=page_items,

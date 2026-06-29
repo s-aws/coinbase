@@ -126,6 +126,12 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 - Inventory backend command attempts, approvals, admission audits, cap/guard,
   exchange intent, fills, and reconciliation sources without adding live
   execution or new mutation paths.
+- Evidence update 2026-06-29: Audit Workbench now exposes
+  `source_inventory` so operators can see which backend evidence source owns
+  each correlation surface before interpreting events. The inventory keeps
+  read-only/no-live/no-authority flags on every row and includes explicit
+  runtime-unavailable handling instead of falling back to dashboard or
+  browser inference.
 
 ### Phase 8064 - Command Attempt Timeline Contract
 

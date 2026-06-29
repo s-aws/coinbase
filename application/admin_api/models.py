@@ -17015,6 +17015,29 @@ class AdminAuditCorrelationScopeItem(BaseModel):
     no_order_or_exchange_state_mutation: bool = True
 
 
+class AdminAuditSourceInventoryItem(BaseModel):
+    """One backend evidence source used by the audit workbench."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: AdminAuditEvidenceSource
+    modules: list[AdminAuditWorkbenchModule] = Field(default_factory=list)
+    correlation_scopes: list[AdminAuditCorrelationScopeKind] = Field(default_factory=list)
+    identity_keys: list[str] = Field(default_factory=list)
+    route_refs: list[str] = Field(default_factory=list)
+    source_refs: list[str] = Field(default_factory=list)
+    read_service_refs: list[str] = Field(default_factory=list)
+    operator_value: str
+    missing_behavior: str
+    read_only: bool = True
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    no_browser_authority: bool = True
+    no_bff_execution_authority: bool = True
+    no_reconciliation_execution: bool = True
+    no_order_or_exchange_state_mutation: bool = True
+
+
 class AdminAuditWorkbenchEventItem(BaseModel):
     """One normalized cross-module audit/correlation evidence row."""
 
@@ -17053,6 +17076,7 @@ class AdminAuditWorkbenchReadResponse(BaseModel):
 
     type: str = "admin_audit_workbench"
     filters: FlexibleDict = Field(default_factory=dict)
+    source_inventory: list[AdminAuditSourceInventoryItem] = Field(default_factory=list)
     correlation_scope: list[AdminAuditCorrelationScopeItem] = Field(default_factory=list)
     module_summary: list[AdminAuditModuleSummaryItem] = Field(default_factory=list)
     events: list[AdminAuditWorkbenchEventItem] = Field(default_factory=list)

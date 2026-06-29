@@ -9614,9 +9614,26 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
     audit_workbench_schema = written["components"]["schemas"][
         "AdminAuditWorkbenchReadResponse"
     ]
+    assert "source_inventory" in audit_workbench_schema["properties"]
     assert "correlation_scope" in audit_workbench_schema["properties"]
     assert "module_summary" in audit_workbench_schema["properties"]
     assert "events" in audit_workbench_schema["properties"]
+    source_inventory_schema = written["components"]["schemas"][
+        "AdminAuditSourceInventoryItem"
+    ]
+    assert "source" in source_inventory_schema["properties"]
+    assert "modules" in source_inventory_schema["properties"]
+    assert "correlation_scopes" in source_inventory_schema["properties"]
+    assert "source_refs" in source_inventory_schema["properties"]
+    assert "read_only" in source_inventory_schema["properties"]
+    assert "live_coinbase_orders_ran" in source_inventory_schema["properties"]
+    assert "live_coinbase_read_ran" in source_inventory_schema["properties"]
+    assert "no_browser_authority" in source_inventory_schema["properties"]
+    assert "no_bff_execution_authority" in source_inventory_schema["properties"]
+    assert "no_reconciliation_execution" in source_inventory_schema["properties"]
+    assert "no_order_or_exchange_state_mutation" in (
+        source_inventory_schema["properties"]
+    )
     correlation_scope_schema = written["components"]["schemas"][
         "AdminAuditCorrelationScopeItem"
     ]
@@ -60436,6 +60453,7 @@ def test_admin_api_audit_workbench_route_uses_read_service_without_commands(
         return {
             "type": "admin_audit_workbench",
             "filters": kwargs,
+            "source_inventory": [],
             "correlation_scope": [],
             "module_summary": [
                 {
@@ -60505,6 +60523,7 @@ def test_admin_api_audit_workbench_route_uses_read_service_without_commands(
     payload = response.json()
     assert payload["read_only"] is True
     assert payload["command_routes_mode"] == "evidence_only"
+    assert "source_inventory" in payload
     assert "correlation_scope" in payload
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_read_ran"] is False
@@ -60588,6 +60607,34 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
     assert response.read_only is True
     assert response.live_coinbase_orders_ran is False
     assert response.live_coinbase_read_ran is False
+    source_by_kind = {item.source: item for item in response.source_inventory}
+    assert set(source_by_kind) == {
+        AdminAuditEvidenceSource.ROUTE_INVENTORY,
+        AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG,
+        AdminAuditEvidenceSource.ORDER_PARENT,
+        AdminAuditEvidenceSource.STEALTH_ORDERS,
+        AdminAuditEvidenceSource.MOVEMENT_REPRICING,
+        AdminAuditEvidenceSource.FUTURES_POSITIONS,
+        AdminAuditEvidenceSource.GUARD_RISK_POLICY,
+        AdminAuditEvidenceSource.BACKEND_CONTRACT,
+        AdminAuditEvidenceSource.RUNTIME_UNAVAILABLE,
+    }
+    assert AdminAuditCorrelationScopeKind.COMMAND_ATTEMPT in source_by_kind[
+        AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG
+    ].correlation_scopes
+    assert AdminAuditWorkbenchModule.ORDERS in source_by_kind[
+        AdminAuditEvidenceSource.ORDER_PARENT
+    ].modules
+    assert source_by_kind[
+        AdminAuditEvidenceSource.GUARD_RISK_POLICY
+    ].identity_keys == ["product_id", "policy_id", "route"]
+    runtime_unavailable = source_by_kind[AdminAuditEvidenceSource.RUNTIME_UNAVAILABLE]
+    assert runtime_unavailable.live_coinbase_orders_ran is False
+    assert runtime_unavailable.live_coinbase_read_ran is False
+    assert runtime_unavailable.no_browser_authority is True
+    assert runtime_unavailable.no_bff_execution_authority is True
+    assert runtime_unavailable.no_reconciliation_execution is True
+    assert runtime_unavailable.no_order_or_exchange_state_mutation is True
     scope_by_kind = {item.scope: item for item in response.correlation_scope}
     assert set(scope_by_kind) == {
         AdminAuditCorrelationScopeKind.COMMAND_ATTEMPT,
