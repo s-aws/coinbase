@@ -109,6 +109,19 @@ reconciliation execution, Coinbase calls, browser/BFF execution, route-local
 execution, and second automation paths remain blocked or unsupported as
 already recorded in the Automation/campaigns row.
 
+## Phase 8090 Frontend Association Update
+
+The sibling frontend now renders a Sweep Automation Control Summary above the
+backend local-control form. It summarizes existing
+`GET /api/v1/spot/sweep/automation-service` evidence for pause/resume
+posture, retry-intent readiness, run-limit status, blockers, and no-live
+proof. This update does not change backend execution authority: disabled
+controls stay disabled unless existing backend/runtime context allows local
+control recording, and scheduler execution, retry execution, reconciliation
+execution, Coinbase calls, browser/BFF execution, route-local execution, and
+second automation paths remain blocked or unsupported as already recorded in
+the Automation/campaigns row.
+
 ## Implemented Account/Market Coverage Slice
 
 The Account and Market Inventory coverage slice is now represented by

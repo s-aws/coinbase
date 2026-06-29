@@ -91,6 +91,20 @@ Phase 8089 subagent sweep: review subagent
 `019f13bb-0409-7a33-9a9d-dabd74a65190` was closed after findings were consumed.
 No stale phase-scoped subagents remain intentionally open.
 
+Phase 8090 blind/contextless review result: PASS with no blockers. Reviewer
+`019f13c7-0823-7e32-ac85-db43d06af035` confirmed the sibling frontend Sweep
+Automation Control UX is a Spot campaign/sweep domain module, not a reusable
+admin platform primitive. The review verified canonical backend route/wrapper
+consumption for `GET /api/v1/spot/sweep/automation-service`, confirmed the
+summary derives pause/resume posture, retry-intent readiness, run-limit
+status, blockers, and no-live proof from backend-derived view models, and
+found no frontend scheduler, retry executor, route-local executor, BFF runner,
+Coinbase call, authorization bypass, or second automation path.
+
+Phase 8090 subagent sweep: review subagent
+`019f13c7-0823-7e32-ac85-db43d06af035` was closed after findings were consumed.
+No stale phase-scoped subagents remain intentionally open.
+
 ## Audit/Reconciliation Operator Correlation Review - Phases 8061-8080
 
 Result: PASS after remediation. Scope: phases `8061-8080`, after completed history through

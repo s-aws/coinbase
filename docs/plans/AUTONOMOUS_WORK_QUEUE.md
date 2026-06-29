@@ -370,6 +370,19 @@ Exact autonomous phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Op
 - Add or refine operator UI for sweep automation status, pause/resume/control
   readiness, limits, retry posture, and blockers without browser scheduler or
   runner authority.
+- Implementation update 2026-06-29: sibling frontend Campaigns now renders a
+  Sweep Automation Control Summary above the backend local-control form. It
+  summarizes pause/resume posture, retry-intent readiness, run-limit evidence,
+  blockers, and no-live proof from existing backend automation-service read
+  models. No backend execution path, scheduler executor, retry executor,
+  reconciliation executor, Coinbase call, browser authority, BFF authority,
+  route-local authority, or second automation path changed in this phase.
+- Validation update 2026-06-29: sibling frontend focused Campaigns
+  read-model/AdminShell tests and quality checks passed; focused backend
+  automation-service/control contract tests passed; backend ownership,
+  autonomous queue, stale-process, whitespace, and blind contextless review
+  passed. Full backend regression was not run for this ordinary phase. Live
+  Coinbase execution was not run; submitted/executed notional was 0 USDC.
 
 ### Phase 8091 - Command Workflow Campaign Handoffs
 

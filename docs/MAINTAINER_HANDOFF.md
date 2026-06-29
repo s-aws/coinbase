@@ -211,6 +211,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   display-only/no-live authority. Backend campaign execution, sweep execution,
   scheduler execution, retry execution, reconciliation execution, Coinbase,
   route-local, browser, BFF, and second-path authority did not change.
+- Phase 8090 is a sibling frontend UX association phase: frontend Campaigns
+  now renders a Sweep Automation Control Summary above the backend
+  local-control form. It summarizes pause/resume posture, retry-intent
+  readiness, run-limit evidence, blockers, and no-live proof from existing
+  backend automation-service evidence. Backend scheduler execution, retry
+  execution, reconciliation execution, Coinbase, route-local, browser, BFF,
+  and second-path authority did not change.
 - Required boundary phrase: no second trading path.
 - Required checker phrase: usable admin product.
 - Required checker phrase: unsupported` or `not_modeled`.
