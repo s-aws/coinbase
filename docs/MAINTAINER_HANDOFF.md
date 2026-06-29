@@ -244,9 +244,11 @@ notional, retained inventory, reconciliation result, and audit ids.
   closed during phase-end cleanup. The review confirmed no proof-only drift,
   clear route-to-UI traceability, backend-only authority, campaign/sweep
   identity boundaries, unsupported/not-modeled gaps, non-authoritative mocks,
-  and adequate Phase 8097/8098 validation. Continue with Phase 8100 evidence
-  commit/push; do not broaden into live scheduler, retry, reconciliation, or
-  Coinbase execution.
+  and adequate Phase 8097/8098 validation. Phase 8100 re-reviewed backend and
+  frontend `AGENTS.md`/owner instructions with no direction change and closes
+  the synchronized evidence commit/push path without live Coinbase execution.
+  Do not broaden into live scheduler, retry, reconciliation, or Coinbase
+  execution.
 - Required boundary phrase: no second trading path.
 - Required checker phrase: usable admin product.
 - Required checker phrase: unsupported` or `not_modeled`.
@@ -276,8 +278,11 @@ notional, retained inventory, reconciliation result, and audit ids.
   live-service dependency, service-level acknowledgement rejection before
   REST, and can only reach `cancel_order(client_order_id)` when all backend
   gates pass.
-- Exact next implementation slice: continue approved Release 0.1 blocker
-  clearing through active `8081-8100` Campaign/Sweep Operator Controls work.
+- Exact next implementation slice: close active `8081-8100` Campaign/Sweep
+  Operator Controls with Phase 8100 synchronized evidence commit/push, then
+  advance the next release-linked range only through an explicit active-range
+  transition that updates the autonomous validators and ties the new phases to
+  the highest-impact remaining Release 0.1 route-to-UI blocker.
   Completed `8061-8080` Audit/Reconciliation Operator Correlation work is
   pushed in backend commit `e53ea6c0` and frontend commit `f29eaa0`.
   Completed `8041-8060` Spot Command Operator E2E work is pushed in backend

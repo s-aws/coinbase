@@ -482,6 +482,17 @@ Exact autonomous phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Op
 
 - Commit and push synchronized backend/frontend evidence with no-live notional
   reporting.
+- Closeout update 2026-06-29: backend `AGENTS.md`, backend `agent.md`,
+  backend owner contracts, frontend `AGENTS.md`, and frontend owner contracts
+  were re-reviewed for this phase. No instruction change altered the Phase
+  8100 scope: Release 0.1 product progress, backend-only authority,
+  `unsupported`/`not_modeled` gap surfacing, no second trading path, and
+  milestone-only full regression remain controlling. Backend Phase 8097,
+  frontend Phase 8098, and blind/contextless Phase 8099 evidence is
+  synchronized for commit and push. No phase-scoped subagents were spawned
+  during this closeout phase, and the prior Phase 8099 reviewer was already
+  closed after findings were consumed. Live Coinbase execution was not run;
+  submitted/executed notional remained 0 USDC.
 
 ## Completed Phases 8061-8080
 

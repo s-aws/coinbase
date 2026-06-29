@@ -20,7 +20,9 @@ work, and scheduler/run-limit binding evidence, and again on 2026-06-29 before
 Phase 8087 frontend campaign status adapter work, Phase 8088 frontend
 sweep service adapter work, Phase 8091 command result handoff work, and
 Phase 8096 route-to-UI matrix alignment. No phase-direction change was
-required. The controlling instructions remain:
+required. The instructions were re-reviewed again on 2026-06-29 for Phase
+8100 synchronized evidence closeout; no direction change was required. The
+controlling instructions remain:
 
 - Release 0.1 work must clear a named blocker or directly improve the usable
   admin product.
