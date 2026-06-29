@@ -56,8 +56,9 @@ work. Historical milestone detail belongs in
 - Phase instruction review status: backend `AGENTS.md`, backend `agent.md`,
   backend owner contracts, frontend `AGENTS.md`, frontend owner contracts, and
   ordered frontend docs were reviewed again on 2026-06-29 for Phase 8021 and
-  again before activating `8061-8080`. Release 0.1 product progress remains
-  the controlling rule: every phase must clear a named Release 0.1 blocker or
+  again before activating `8061-8080`; they were re-reviewed during Phase
+  8068 with no direction change. Release 0.1 product progress remains the
+  controlling rule: every phase must clear a named Release 0.1 blocker or
   directly improve usable admin management. The current range must keep Spot
   command authority in the backend and make the audit/reconciliation operator
   path verifiable without adding browser/BFF trading authority.

@@ -171,6 +171,11 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Correlate reconciliation plans, post-submit audit handoffs, pending gaps,
   and unsupported/not_modeled states without executing reconciliation.
+- Evidence update 2026-06-29: Audit Workbench now exposes
+  `reconciliation_links`; plan/proof/handoff evidence is visible while
+  reconciliation execution remains disabled from the workbench. Backend and
+  frontend agent instructions were re-reviewed for this phase and did not
+  change the Release 0.1 no-browser/no-BFF-authority boundary.
 
 ### Phase 8069 - Frontend Audit Timeline Adapter
 

@@ -404,6 +404,7 @@ from core.enums import (
     AdminAuditEvidenceAvailabilityStatus,
     AdminAuditEvidenceSource,
     AdminAuditExchangeFillCorrelationStatus,
+    AdminAuditReconciliationCorrelationStatus,
     AdminAuditWorkbenchModule,
     AdminApiCommandRoutesMode,
     AdminApiCommandStatus,
@@ -9626,6 +9627,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
     assert "approval_admission_links" in audit_workbench_schema["properties"]
     assert "cap_guard_wallet_links" in audit_workbench_schema["properties"]
     assert "exchange_fill_links" in audit_workbench_schema["properties"]
+    assert "reconciliation_links" in audit_workbench_schema["properties"]
     assert "module_summary" in audit_workbench_schema["properties"]
     assert "events" in audit_workbench_schema["properties"]
     source_inventory_schema = written["components"]["schemas"][
@@ -9684,6 +9686,14 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
     assert "exchange_order_id_evidence_only" in exchange_fill_schema["properties"]
     assert "fill_evidence_status" in exchange_fill_schema["properties"]
     assert "fill_ledger_ref" in exchange_fill_schema["properties"]
+    reconciliation_schema = written["components"]["schemas"][
+        "AdminAuditReconciliationLinkItem"
+    ]
+    assert "correlation_status" in reconciliation_schema["properties"]
+    assert "reconciliation_plan_present" in reconciliation_schema["properties"]
+    assert "reconciliation_plan_id" in reconciliation_schema["properties"]
+    assert "reconciliation_proof_status" in reconciliation_schema["properties"]
+    assert "no_reconciliation_execution" in reconciliation_schema["properties"]
     correlation_scope_schema = written["components"]["schemas"][
         "AdminAuditCorrelationScopeItem"
     ]
@@ -60509,6 +60519,7 @@ def test_admin_api_audit_workbench_route_uses_read_service_without_commands(
             "approval_admission_links": [],
             "cap_guard_wallet_links": [],
             "exchange_fill_links": [],
+            "reconciliation_links": [],
             "module_summary": [
                 {
                     "module": "orders",
@@ -60583,6 +60594,7 @@ def test_admin_api_audit_workbench_route_uses_read_service_without_commands(
     assert "approval_admission_links" in payload
     assert "cap_guard_wallet_links" in payload
     assert "exchange_fill_links" in payload
+    assert "reconciliation_links" in payload
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_read_ran"] is False
     assert payload["events"][0]["client_order_id"] == "client-abc"
@@ -60833,6 +60845,25 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
     assert exchange_fill_link.no_bff_execution_authority is True
     assert exchange_fill_link.no_reconciliation_execution is True
     assert exchange_fill_link.no_order_or_exchange_state_mutation is True
+    assert len(response.reconciliation_links) == 1
+    reconciliation_link = response.reconciliation_links[0]
+    assert reconciliation_link.link_id == f"reconciliation:{command_timeline.audit_id}"
+    assert reconciliation_link.timeline_id == command_timeline.timeline_id
+    assert reconciliation_link.canonical_identity_key == "client_order_id"
+    assert reconciliation_link.canonical_identity_value == "client-abc"
+    assert (
+        reconciliation_link.correlation_status
+        == AdminAuditReconciliationCorrelationStatus.PLAN_MISSING
+    )
+    assert reconciliation_link.reconciliation_plan_present is False
+    assert (
+        reconciliation_link.reconciliation_proof_status
+        == AdminAuditEvidenceAvailabilityStatus.NOT_REPORTED
+    )
+    assert reconciliation_link.no_browser_authority is True
+    assert reconciliation_link.no_bff_execution_authority is True
+    assert reconciliation_link.no_reconciliation_execution is True
+    assert reconciliation_link.no_order_or_exchange_state_mutation is True
     assert response.pagination.total_matching_count == 2
     modules = {item.module for item in response.module_summary}
     assert AdminAuditWorkbenchModule.ORDERS in modules

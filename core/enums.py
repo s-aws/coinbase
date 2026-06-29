@@ -1197,6 +1197,15 @@ class AdminAuditExchangeFillCorrelationStatus(str, Enum):
     NOT_REPORTED = "not_reported"
 
 
+class AdminAuditReconciliationCorrelationStatus(str, Enum):
+    """Stable status labels for reconciliation evidence correlation."""
+
+    PLAN_LINKED = "plan_linked"
+    PLAN_MISSING = "plan_missing"
+    PROOF_NOT_REPORTED = "proof_not_reported"
+    NOT_REPORTED = "not_reported"
+
+
 class AdminAuditEvidenceAvailabilityStatus(str, Enum):
     """Stable availability labels for optional audit evidence."""
 

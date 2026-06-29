@@ -310,6 +310,20 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Correlate reconciliation plans, post-submit audit handoffs, pending gaps,
   and unsupported/not_modeled states without executing reconciliation.
+- Evidence update 2026-06-29: added enum-backed Audit Workbench
+  `reconciliation_links` derived from command-audit admission evidence. Link
+  rows correlate timeline id, command identity, reconciliation plan
+  presence/id/source/recorded time, reconciliation proof availability, post
+  submit audit route, recovery proof route, blockers, evidence, and
+  no-reconciliation-execution/no-state-mutation posture. Proof refs remain
+  `not_reported` unless backend command evidence explicitly carries them; this
+  route never executes reconciliation. OpenAPI and frontend generated schema
+  were refreshed; the frontend mock and read model render links as
+  display-only evidence. Backend `AGENTS.md`, backend `agent.md`, public
+  agent contracts, local expanded context, frontend `AGENTS.md`, and frontend
+  required docs were reviewed during this phase and did not change direction.
+  Live Coinbase execution was not run and submitted/executed notional stayed
+  0 USDC.
 
 ### Phase 8069 - Frontend Audit Timeline Adapter
 

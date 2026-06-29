@@ -27,6 +27,7 @@ from core.enums import (
     AdminAuditEvidenceAvailabilityStatus,
     AdminAuditEvidenceSource,
     AdminAuditExchangeFillCorrelationStatus,
+    AdminAuditReconciliationCorrelationStatus,
     AdminAuditWorkbenchModule,
     AdminApiActionState,
     AdminApiFunctionalityExposureStatus,
@@ -143,6 +144,7 @@ from .models import (
     AdminAuditCorrelationScopeItem,
     AdminAuditModuleSummaryItem,
     AdminAuditExchangeFillLinkItem,
+    AdminAuditReconciliationLinkItem,
     AdminAuditSourceInventoryItem,
     AdminAuditWorkbenchEventItem,
     AdminAuditWorkbenchReadResponse,
@@ -5682,6 +5684,80 @@ def _audit_exchange_fill_link_from_event(
             admission.get("imported_baseline_ref")
         ),
         local_order_evidence_ref=item.client_order_id,
+        blockers=[str(value) for value in _list_or_empty(admission.get("blockers"))],
+        evidence=[str(value) for value in _list_or_empty(admission.get("evidence"))],
+    )
+
+
+def _audit_reconciliation_correlation_status(
+    *,
+    reported: bool,
+    plan_present: bool,
+    proof_present: bool,
+) -> AdminAuditReconciliationCorrelationStatus:
+    if not reported:
+        return AdminAuditReconciliationCorrelationStatus.NOT_REPORTED
+    if not plan_present:
+        return AdminAuditReconciliationCorrelationStatus.PLAN_MISSING
+    if not proof_present:
+        return AdminAuditReconciliationCorrelationStatus.PROOF_NOT_REPORTED
+    return AdminAuditReconciliationCorrelationStatus.PLAN_LINKED
+
+
+def _audit_reconciliation_link_from_event(
+    item: AdminAuditWorkbenchEventItem,
+) -> AdminAuditReconciliationLinkItem:
+    admission = dict(item.admission_decision or {})
+    plan_present = _audit_admission_bool(admission, "reconciliation_plan_present")
+    proof_status = _audit_optional_evidence_status(
+        admission,
+        "reconciliation_proof_ref",
+        "reconciliation_proof_id",
+    )
+    proof_present = proof_status == AdminAuditEvidenceAvailabilityStatus.PRESENT
+    canonical_key, canonical_value = _audit_command_identity(item)
+    identifier = item.audit_id or item.request_id or item.event_id
+    return AdminAuditReconciliationLinkItem(
+        link_id=f"reconciliation:{identifier}",
+        timeline_id=f"command:{identifier}",
+        event_id=item.event_id,
+        module=item.module,
+        endpoint=item.endpoint,
+        route=_string_or_none(admission.get("route")),
+        status=_string_or_none(admission.get("status")) or item.status,
+        correlation_status=_audit_reconciliation_correlation_status(
+            reported=bool(admission),
+            plan_present=plan_present,
+            proof_present=proof_present,
+        ),
+        canonical_identity_key=canonical_key,
+        canonical_identity_value=canonical_value,
+        client_order_id=item.client_order_id,
+        stealth_order_id=item.stealth_order_id,
+        position_key=item.position_key,
+        product_id=item.product_id,
+        reconciliation_plan_present=plan_present,
+        reconciliation_plan_id=_string_or_none(
+            admission.get("reconciliation_plan_id")
+        ),
+        reconciliation_plan_source=_string_or_none(
+            admission.get("reconciliation_plan_source")
+        ),
+        reconciliation_plan_recorded_at=_string_or_none(
+            admission.get("reconciliation_plan_recorded_at")
+        ),
+        reconciliation_plan_missing_reason=_string_or_none(
+            admission.get("reconciliation_plan_missing_reason")
+        ),
+        reconciliation_proof_status=proof_status,
+        reconciliation_proof_ref=_string_or_none(
+            admission.get("reconciliation_proof_ref")
+        )
+        or _string_or_none(admission.get("reconciliation_proof_id")),
+        post_submit_audit_route=_string_or_none(
+            admission.get("post_submit_audit_route")
+        ),
+        recovery_proof_route=_string_or_none(admission.get("recovery_proof_route")),
         blockers=[str(value) for value in _list_or_empty(admission.get("blockers"))],
         evidence=[str(value) for value in _list_or_empty(admission.get("evidence"))],
     )
@@ -15098,6 +15174,11 @@ class AdminApiReadService:
             ],
             exchange_fill_links=[
                 _audit_exchange_fill_link_from_event(item)
+                for item in page_items
+                if item.source == AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG
+            ],
+            reconciliation_links=[
+                _audit_reconciliation_link_from_event(item)
                 for item in page_items
                 if item.source == AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG
             ],

@@ -187,6 +187,24 @@ Exchange intent and fill evidence are projected into `exchange_fill_links`:
 }
 ```
 
+Reconciliation plan/proof handoff evidence is projected into
+`reconciliation_links`:
+
+```json
+{
+  "reconciliation_links": [
+    {
+      "link_id": "reconciliation:audit-001",
+      "correlation_status": "proof_not_reported",
+      "reconciliation_plan_present": true,
+      "reconciliation_plan_id": "reconciliation-plan-001",
+      "reconciliation_proof_status": "not_reported",
+      "no_reconciliation_execution": true
+    }
+  ]
+}
+```
+
 Command audit rows may include persisted admission evidence:
 
 ```json
