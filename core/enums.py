@@ -2703,6 +2703,19 @@ class SpotSweepAutomationControlState(str, Enum):
     PAUSED = "paused"
 
 
+class SpotSweepAutomationControlContractCheck(str, Enum):
+    """Operator-visible contract checks for spot sweep automation controls."""
+
+    IDEMPOTENCY = "idempotency"
+    OPERATOR_INTENT = "operator_intent"
+    RBAC_PERMISSION = "rbac_permission"
+    ADMISSION_AUDIT = "admission_audit"
+    CAP_GUARD_BOUNDARY = "cap_guard_boundary"
+    LOCAL_CONTROL_LEDGER = "local_control_ledger"
+    NO_LIVE_EXECUTION = "no_live_execution"
+    FRONTEND_AUTHORITY = "frontend_authority"
+
+
 class SpotSweepAutomationOperatorScope(str, Enum):
     """Operator-visible scope rows for spot campaign/sweep automation."""
 

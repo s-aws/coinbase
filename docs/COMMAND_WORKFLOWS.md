@@ -66,6 +66,15 @@ configured live-service, REST-client, and event-stream gates pass.
   fake REST client so it can prove cap, wallet/planned-budget, and
   `known_inventory_available` lot-authority wiring without placing Coinbase
   orders or adding a second sell path.
+- `POST /api/v1/spot/sweep/automation-controls` records backend-owned
+  pause/resume/retry-intent local control evidence keyed by `sweep_config_id`.
+  Accepted and rejected service responses include `data.control_contract_checks`
+  rows for idempotency, operator intent, RBAC, admission evidence, cap/guard
+  boundary, local ledger persistence, no-live execution, and browser/BFF
+  authority. Those rows are operator evidence only: scheduler, sweep runner,
+  retry execution, reconciliation, Coinbase, browser, BFF, route-local, and
+  second-path execution remain false/unsupported unless a later backend-owned
+  contract explicitly replaces that boundary.
 
 ## Spot Command Suite
 

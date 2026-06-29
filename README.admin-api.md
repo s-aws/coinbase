@@ -1352,6 +1352,15 @@ blockers. All rows keep browser authority `display_only`, BFF authority
 Coinbase orders, and `0` submitted/executed USDC notional. They are not
 frontend scheduler jobs, retry loops, proof writers, reconciliation executors,
 or live-execution authority.
+`POST /api/v1/spot/sweep/automation-controls` records the actual backend-owned
+pause/resume/retry-intent local control row. Its service response now includes
+`data.control_contract_check_count` and `data.control_contract_checks` rows for
+idempotency, operator intent, RBAC permission, route-bound admission evidence,
+cap/guard boundary, local ledger persistence, no-live execution, and frontend
+authority. Accepted and rejected service responses share the same row shape so
+operators can see why a control was recorded or blocked without granting
+scheduler, runner, retry execution, reconciliation, Coinbase, browser/BFF,
+route-local, or second-path authority.
 `GET /api/v1/spot/sweep/automation-service` is the paired read-only
 automation-service status contract. It summarizes campaign ledger rows, sweep
 ledger rows, operation-lock state, scheduler due state, retry readiness,

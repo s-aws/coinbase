@@ -14,10 +14,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from core.enums import (
     AdminApiActionClass,
+    AdminApiGateStatus,
     AdminApiModuleSupportStatus,
     AdminApiMutationFamilyType,
     AdminApiPermission,
     SpotSweepAutomationControlAction,
+    SpotSweepAutomationControlContractCheck,
     SpotSweepAutomationControlState,
 )
 
@@ -85,6 +87,35 @@ class SpotSweepAutomationControlRecord(BaseModel):
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
     source: str = "admin_api_spot_sweep_automation_control_log"
+
+
+class SpotSweepAutomationControlContractCheckItem(BaseModel):
+    """Operator-visible control contract check returned with command results."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    check: SpotSweepAutomationControlContractCheck
+    label: str = Field(min_length=1)
+    status: AdminApiGateStatus
+    support_status: AdminApiModuleSupportStatus = (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+    )
+    route: str = SPOT_SWEEP_AUTOMATION_CONTROL_ROUTE
+    method: str = SPOT_SWEEP_AUTOMATION_CONTROL_METHOD
+    service_method: str = SPOT_SWEEP_AUTOMATION_CONTROL_SERVICE_METHOD
+    required_permission: AdminApiPermission = AdminApiPermission.SPOT_SWEEP_EXECUTE
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    scheduler_invoked: bool = False
+    sweep_runner_invoked: bool = False
+    coinbase_orders_submitted: bool = False
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    submitted_notional_usdc: str = "0"
+    executed_notional_usdc: str = "0"
+    current_evidence: str
+    detail: str
 
 
 class FileSpotSweepAutomationControlStore:
@@ -248,6 +279,8 @@ class AdminApiSpotSweepAutomationControlService:
 
 def spot_sweep_automation_control_response_data(
     record: SpotSweepAutomationControlRecord,
+    *,
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None,
 ) -> dict[str, Any]:
     """Return bounded operator-facing response data for one control record."""
 
@@ -258,10 +291,86 @@ def spot_sweep_automation_control_response_data(
             "route_bound": True,
             "idempotency_bound": True,
             "payload_bound": True,
+            "operator_intent_bound": True,
+            "rbac_permission_bound": True,
+            "admission_decision_bound": admission_decision is not None,
+            "cap_guard_boundary_bound": True,
             "control_contract_status": (
                 AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
             ),
         }
+    )
+    _attach_control_contract_checks(
+        data,
+        control_recorded=True,
+        sweep_config_id=record.sweep_config_id,
+        control_action=record.control_action,
+        actor_id=record.actor_id,
+        operator_intent=record.operator_intent,
+        idempotency_key=record.idempotency_key,
+        correlation_id=record.correlation_id,
+        payload_hash=record.payload_hash,
+        audit_id=record.audit_id,
+        admission_decision=admission_decision,
+        failure_stage=None,
+    )
+    return data
+
+
+def spot_sweep_automation_control_rejected_response_data(
+    *,
+    sweep_config_id: str,
+    control_action: SpotSweepAutomationControlAction,
+    actor_id: str,
+    operator_intent: str,
+    idempotency_key: str,
+    correlation_id: str,
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None,
+    failure_stage: str,
+) -> dict[str, Any]:
+    """Return bounded operator-facing response data for rejected controls."""
+
+    payload_hash = (
+        admission_decision.payload_hash if admission_decision is not None else None
+    )
+    data: dict[str, Any] = {
+        "sweep_config_id": sweep_config_id,
+        "control_action": control_action.value,
+        "control_recorded": False,
+        "scheduler_invoked": False,
+        "sweep_runner_invoked": False,
+        "coinbase_orders_submitted": False,
+        "live_exchange_submitted": False,
+        "live_coinbase_orders_ran": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "submitted_notional_usdc": "0",
+        "executed_notional_usdc": "0",
+        "backend_owned": True,
+        "route_bound": True,
+        "idempotency_bound": bool(idempotency_key),
+        "payload_bound": payload_hash is not None,
+        "operator_intent_bound": bool(operator_intent),
+        "rbac_permission_bound": True,
+        "admission_decision_bound": admission_decision is not None,
+        "cap_guard_boundary_bound": True,
+        "control_contract_status": (
+            AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+        ),
+    }
+    _attach_control_contract_checks(
+        data,
+        control_recorded=False,
+        sweep_config_id=sweep_config_id,
+        control_action=control_action,
+        actor_id=actor_id,
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        payload_hash=payload_hash,
+        audit_id=None,
+        admission_decision=admission_decision,
+        failure_stage=failure_stage,
     )
     return data
 
@@ -327,6 +436,221 @@ def build_spot_sweep_automation_control_state(
         "browser_authority": "display_only",
         "bff_authority": "forward_only_no_execution",
     }
+
+
+def _attach_control_contract_checks(
+    data: dict[str, Any],
+    *,
+    control_recorded: bool,
+    sweep_config_id: str,
+    control_action: SpotSweepAutomationControlAction,
+    actor_id: str,
+    operator_intent: str,
+    idempotency_key: str,
+    correlation_id: str,
+    payload_hash: str | None,
+    audit_id: str | None,
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None,
+    failure_stage: str | None,
+) -> None:
+    checks = _build_control_contract_checks(
+        control_recorded=control_recorded,
+        sweep_config_id=sweep_config_id,
+        control_action=control_action,
+        actor_id=actor_id,
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        payload_hash=payload_hash,
+        audit_id=audit_id,
+        admission_decision=admission_decision,
+        failure_stage=failure_stage,
+    )
+    data["control_contract_check_count"] = len(checks)
+    data["control_contract_checks"] = checks
+
+
+def _build_control_contract_checks(
+    *,
+    control_recorded: bool,
+    sweep_config_id: str,
+    control_action: SpotSweepAutomationControlAction,
+    actor_id: str,
+    operator_intent: str,
+    idempotency_key: str,
+    correlation_id: str,
+    payload_hash: str | None,
+    audit_id: str | None,
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None,
+    failure_stage: str | None,
+) -> list[dict[str, Any]]:
+    idempotency_bound = bool(idempotency_key and payload_hash)
+    operator_intent_bound = bool(operator_intent)
+    admission_bound = admission_decision is not None
+    admission_status = (
+        admission_decision.status.value if admission_decision is not None else "missing"
+    )
+    admission_allowed = (
+        admission_decision.allowed if admission_decision is not None else False
+    )
+    cap_guard_present = (
+        admission_decision.cap_guard_present
+        if admission_decision is not None
+        else False
+    )
+    scheduler_invoked = False
+    sweep_runner_invoked = False
+    coinbase_orders_submitted = False
+    no_live_passed = (
+        not scheduler_invoked
+        and not sweep_runner_invoked
+        and not coinbase_orders_submitted
+    )
+    no_live_status = (
+        AdminApiGateStatus.PASSED if no_live_passed else AdminApiGateStatus.BLOCKED
+    )
+    control_status = (
+        AdminApiGateStatus.PASSED if control_recorded else AdminApiGateStatus.BLOCKED
+    )
+    return [
+        _control_contract_check(
+            check=SpotSweepAutomationControlContractCheck.IDEMPOTENCY,
+            label="Idempotency",
+            status=(
+                AdminApiGateStatus.PASSED
+                if idempotency_bound
+                else AdminApiGateStatus.BLOCKED
+            ),
+            current_evidence=(
+                f"Idempotency-Key {idempotency_key}; payload hash "
+                f"{payload_hash or 'missing'}."
+            ),
+            detail=(
+                "The control id is derived from route, sweep_config_id, action, "
+                "idempotency key, and payload hash; replay is handled by the "
+                "shared Admin API idempotency store."
+            ),
+        ),
+        _control_contract_check(
+            check=SpotSweepAutomationControlContractCheck.OPERATOR_INTENT,
+            label="Operator intent",
+            status=(
+                AdminApiGateStatus.PASSED
+                if operator_intent_bound
+                else AdminApiGateStatus.BLOCKED
+            ),
+            current_evidence=(
+                f"actor {actor_id}; intent {operator_intent or 'missing'}; "
+                f"correlation {correlation_id}."
+            ),
+            detail=(
+                "Operator intent is supplied through X-Operator-Intent and is "
+                "included in the route-bound payload hash."
+            ),
+        ),
+        _control_contract_check(
+            check=SpotSweepAutomationControlContractCheck.RBAC_PERMISSION,
+            label="RBAC permission",
+            status=AdminApiGateStatus.PASSED,
+            current_evidence=(
+                f"Permission {AdminApiPermission.SPOT_SWEEP_EXECUTE.value}; "
+                "route adapter calls require_permission before recording control evidence."
+            ),
+            detail=(
+                "A missing role is rejected before the service records a control "
+                "row, so any service response has passed the route RBAC boundary."
+            ),
+        ),
+        _control_contract_check(
+            check=SpotSweepAutomationControlContractCheck.ADMISSION_AUDIT,
+            label="Admission evidence",
+            status=(
+                AdminApiGateStatus.PASSED
+                if admission_bound
+                else AdminApiGateStatus.BLOCKED
+            ),
+            current_evidence=(
+                f"admission {admission_status}; allowed {admission_allowed}; "
+                f"identity sweep_config_id={sweep_config_id}."
+            ),
+            detail=(
+                "The route binds the control to the shared admission decision "
+                "before invoking the backend command service."
+            ),
+        ),
+        _control_contract_check(
+            check=SpotSweepAutomationControlContractCheck.CAP_GUARD_BOUNDARY,
+            label="Cap/guard boundary",
+            status=AdminApiGateStatus.NOT_APPLICABLE,
+            current_evidence=(
+                f"cap_guard_present {cap_guard_present}; submitted/executed "
+                "notional 0/0 USDC."
+            ),
+            detail=(
+                "This control records local pause/resume/retry intent only. "
+                "Cap/guard execution gates remain part of live sweep execution, "
+                "not browser-side automation control authority."
+            ),
+        ),
+        _control_contract_check(
+            check=SpotSweepAutomationControlContractCheck.LOCAL_CONTROL_LEDGER,
+            label="Local control ledger",
+            status=control_status,
+            current_evidence=(
+                f"{control_action.value}; recorded {control_recorded}; "
+                f"audit {audit_id or 'not_recorded'}; "
+                f"failure_stage {failure_stage or 'none'}."
+            ),
+            detail=(
+                "Accepted controls append durable local evidence only; they do "
+                "not invoke scheduler dispatch, retry execution, reconciliation, "
+                "or Coinbase order placement."
+            ),
+        ),
+        _control_contract_check(
+            check=SpotSweepAutomationControlContractCheck.NO_LIVE_EXECUTION,
+            label="No-live execution",
+            status=no_live_status,
+            current_evidence=(
+                "scheduler false; runner false; coinbase false; notional "
+                "0/0 USDC."
+            ),
+            detail=(
+                "The command response is fail-closed for live exchange execution "
+                "and reports zero submitted and executed notional."
+            ),
+        ),
+        _control_contract_check(
+            check=SpotSweepAutomationControlContractCheck.FRONTEND_AUTHORITY,
+            label="Frontend authority",
+            status=AdminApiGateStatus.PASSED,
+            current_evidence=(
+                "browser display_only; BFF forward_only_no_execution; no second "
+                "automation path."
+            ),
+            detail=(
+                "The frontend may submit the canonical backend wrapper request "
+                "only; it must not schedule, retry, reconcile, or call Coinbase."
+            ),
+        ),
+    ]
+
+
+def _control_contract_check(
+    *,
+    check: SpotSweepAutomationControlContractCheck,
+    label: str,
+    status: AdminApiGateStatus,
+    current_evidence: str,
+    detail: str,
+) -> dict[str, Any]:
+    return SpotSweepAutomationControlContractCheckItem(
+        check=check,
+        label=label,
+        status=status,
+        current_evidence=current_evidence,
+        detail=detail,
+    ).model_dump(mode="json")
 
 
 def _latest_record_for_sweep(

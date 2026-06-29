@@ -448,6 +448,7 @@ from core.enums import (
     AdminApiStealthLiveReadinessDecision,
     AdminApiVerifierReadinessStatus,
     SpotSweepAutomationControlAction,
+    SpotSweepAutomationControlContractCheck,
     SpotSweepAutomationExecutionBlocker,
     SpotSweepAutomationExecutionDecision,
     SpotSweepAutomationOperatorScope,
@@ -35260,6 +35261,50 @@ def test_admin_api_spot_sweep_automation_control_records_pause_no_live(
     assert payload["data"]["bff_authority"] == "forward_only_no_execution"
     assert payload["data"]["submitted_notional_usdc"] == "0"
     assert payload["data"]["executed_notional_usdc"] == "0"
+    assert payload["data"]["control_contract_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert payload["data"]["operator_intent_bound"] is True
+    assert payload["data"]["rbac_permission_bound"] is True
+    assert payload["data"]["admission_decision_bound"] is True
+    assert payload["data"]["cap_guard_boundary_bound"] is True
+    assert payload["data"]["control_contract_check_count"] == 8
+    checks = {
+        item["check"]: item for item in payload["data"]["control_contract_checks"]
+    }
+    assert set(checks) == {
+        SpotSweepAutomationControlContractCheck.IDEMPOTENCY.value,
+        SpotSweepAutomationControlContractCheck.OPERATOR_INTENT.value,
+        SpotSweepAutomationControlContractCheck.RBAC_PERMISSION.value,
+        SpotSweepAutomationControlContractCheck.ADMISSION_AUDIT.value,
+        SpotSweepAutomationControlContractCheck.CAP_GUARD_BOUNDARY.value,
+        SpotSweepAutomationControlContractCheck.LOCAL_CONTROL_LEDGER.value,
+        SpotSweepAutomationControlContractCheck.NO_LIVE_EXECUTION.value,
+        SpotSweepAutomationControlContractCheck.FRONTEND_AUTHORITY.value,
+    }
+    assert checks[
+        SpotSweepAutomationControlContractCheck.IDEMPOTENCY.value
+    ]["status"] == AdminApiGateStatus.PASSED.value
+    assert checks[
+        SpotSweepAutomationControlContractCheck.RBAC_PERMISSION.value
+    ]["required_permission"] == AdminApiPermission.SPOT_SWEEP_EXECUTE.value
+    assert checks[
+        SpotSweepAutomationControlContractCheck.ADMISSION_AUDIT.value
+    ]["status"] == AdminApiGateStatus.PASSED.value
+    assert checks[
+        SpotSweepAutomationControlContractCheck.CAP_GUARD_BOUNDARY.value
+    ]["status"] == AdminApiGateStatus.NOT_APPLICABLE.value
+    assert checks[
+        SpotSweepAutomationControlContractCheck.LOCAL_CONTROL_LEDGER.value
+    ]["current_evidence"].startswith("pause; recorded True; audit ")
+    assert checks[
+        SpotSweepAutomationControlContractCheck.NO_LIVE_EXECUTION.value
+    ]["current_evidence"] == (
+        "scheduler false; runner false; coinbase false; notional 0/0 USDC."
+    )
+    assert "no second automation path" in checks[
+        SpotSweepAutomationControlContractCheck.FRONTEND_AUTHORITY.value
+    ]["current_evidence"]
     assert payload["audit_id"]
 
     records = (

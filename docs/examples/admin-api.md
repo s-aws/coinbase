@@ -41,6 +41,17 @@ unsupported behavior, browser/BFF boundaries, and no-live notional proof. The
 rows are operator evidence only and do not authorize scheduler, retry,
 reconciliation, Coinbase, browser, BFF, route-local, or second-path execution.
 
+Phase 8085 adds structured control contract checks to
+`POST /api/v1/spot/sweep/automation-controls`. Example accepted and rejected
+service responses may include `control_contract_check_count` and
+`control_contract_checks` rows for idempotency, operator intent, RBAC,
+admission evidence, cap/guard boundary, local control ledger persistence,
+no-live execution, and browser/BFF authority. These rows are readback evidence
+only; the route still records local pause/resume/retry intent and reports
+`submitted_notional_usdc=0`, `executed_notional_usdc=0`, and no scheduler,
+sweep runner, retry execution, reconciliation, Coinbase, browser, BFF,
+route-local, or second-path execution.
+
 ## Capped Manual Spot BUY Live Validation
 
 Run the exact Admin API manual Spot BUY path without live submission:

@@ -267,8 +267,22 @@ Exact autonomous phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Op
 
 ### Phase 8085 - Sweep Control Command Contract Review
 
-- Review sweep automation control command contracts for idempotency, operator
-  intent, RBAC, audit, cap/guard, and no-live execution boundaries.
+- Completed backend sweep automation control command review. Accepted and
+  rejected service responses for `POST /api/v1/spot/sweep/automation-controls`
+  now include enum-backed `control_contract_checks` rows for idempotency,
+  operator intent, RBAC permission, route-bound admission evidence, cap/guard
+  boundary, local control ledger persistence, no-live execution, and
+  frontend/BFF authority.
+- The command remains a backend-owned local-state mutation: no scheduler,
+  sweep runner, retry execution, reconciliation, Coinbase order submission,
+  browser/BFF execution authority, route-local executor, or second sweep path
+  is invoked, and submitted/executed notional remains 0/0 USDC.
+- Validation result: focused Admin API contract tests, core enum tests,
+  Python compile, ownership, autonomous queue, whitespace, stale-process
+  checks, and blind contextless review passed after mock parity remediation.
+  Live Coinbase execution was not run; submitted/executed notional was 0 USDC.
+  The phase-end subagent sweep closed the review subagent and found no open
+  phase agents remaining.
 
 ### Phase 8086 - Campaign Execution Dry-Run Readiness
 

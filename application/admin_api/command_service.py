@@ -122,6 +122,7 @@ from .spot_sweep_automation_control import (
     AdminApiSpotSweepAutomationControlService,
     FileSpotSweepAutomationControlStore,
     SpotSweepAutomationControlError,
+    spot_sweep_automation_control_rejected_response_data,
     spot_sweep_automation_control_response_data,
 )
 from .spot_sweep_automation_execution_service import (
@@ -2666,18 +2667,16 @@ class AdminApiCommandService:
                 correlation_id=command.envelope.correlation_id,
                 idempotency_key=command.envelope.idempotency_key,
                 live_exchange_submitted=False,
-                data={
-                    "sweep_config_id": command.request.sweep_config_id,
-                    "control_action": command.request.control_action.value,
-                    "control_recorded": False,
-                    "scheduler_invoked": False,
-                    "sweep_runner_invoked": False,
-                    "coinbase_orders_submitted": False,
-                    "browser_authority": "display_only",
-                    "bff_authority": "forward_only_no_execution",
-                    "submitted_notional_usdc": "0",
-                    "executed_notional_usdc": "0",
-                },
+                data=spot_sweep_automation_control_rejected_response_data(
+                    sweep_config_id=command.request.sweep_config_id,
+                    control_action=command.request.control_action,
+                    actor_id=command.envelope.actor.actor_id,
+                    operator_intent=command.envelope.operator_intent,
+                    idempotency_key=command.envelope.idempotency_key,
+                    correlation_id=command.envelope.correlation_id,
+                    admission_decision=None,
+                    failure_stage="admission",
+                ),
                 failure_stage="admission",
             )
 
@@ -2705,18 +2704,16 @@ class AdminApiCommandService:
                 correlation_id=command.envelope.correlation_id,
                 idempotency_key=command.envelope.idempotency_key,
                 live_exchange_submitted=False,
-                data={
-                    "sweep_config_id": command.request.sweep_config_id,
-                    "control_action": command.request.control_action.value,
-                    "control_recorded": False,
-                    "scheduler_invoked": False,
-                    "sweep_runner_invoked": False,
-                    "coinbase_orders_submitted": False,
-                    "browser_authority": "display_only",
-                    "bff_authority": "forward_only_no_execution",
-                    "submitted_notional_usdc": "0",
-                    "executed_notional_usdc": "0",
-                },
+                data=spot_sweep_automation_control_rejected_response_data(
+                    sweep_config_id=command.request.sweep_config_id,
+                    control_action=command.request.control_action,
+                    actor_id=command.envelope.actor.actor_id,
+                    operator_intent=command.envelope.operator_intent,
+                    idempotency_key=command.envelope.idempotency_key,
+                    correlation_id=command.envelope.correlation_id,
+                    admission_decision=command.admission_decision,
+                    failure_stage="control_validation",
+                ),
                 failure_stage="control_validation",
             )
 
@@ -2734,7 +2731,10 @@ class AdminApiCommandService:
             idempotency_key=command.envelope.idempotency_key,
             audit_id=record.audit_id,
             live_exchange_submitted=False,
-            data=spot_sweep_automation_control_response_data(record),
+            data=spot_sweep_automation_control_response_data(
+                record,
+                admission_decision=command.admission_decision,
+            ),
         )
 
     def _disabled_futures_command_response(

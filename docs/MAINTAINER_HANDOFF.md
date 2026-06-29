@@ -157,8 +157,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   to `GET /api/v1/spot/sweep/automation-service`: five `service_postures`
   rows distinguish configured, paused, retryable, unsupported, and not-modeled
   states with no scheduler, runner, reconciliation, Coinbase, browser/BFF,
-  route-local, or second-path authority. Continue with Phase 8085 from this
-  automation-service posture baseline.
+  route-local, or second-path authority.
+- Phase 8085 added backend-owned sweep automation control contract checks to
+  `POST /api/v1/spot/sweep/automation-controls`: accepted and rejected service
+  responses now include `control_contract_checks` rows for idempotency,
+  operator intent, RBAC, admission evidence, cap/guard boundary, local control
+  ledger persistence, no-live execution, and frontend/BFF authority. Continue
+  with Phase 8086 from this control-contract baseline.
 - Required boundary phrase: no second trading path.
 - Required checker phrase: usable admin product.
 - Required checker phrase: unsupported` or `not_modeled`.
