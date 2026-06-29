@@ -5,11 +5,12 @@ position evidence through the enterprise Admin API. It is a separate module,
 not a Spot variant.
 
 Current active work has pivoted to Release 0.1 operator-admin delivery.
-Active Release 0.1 `7981-8000` pivots the admin platform to product-managing
-operator workflows while completed M57 `7961-7980` carries forward futures
-risk-proof record validation remediation summary evidence.
+Active Release 0.1 `8001-8020` adds an M55 Stealth Action-State Matrix so
+operators can see each selected stealth order command as usable, blocked,
+unsupported, or not modeled from backend evidence while completed `7981-8000`
+carries the Release 0.1 operator pivot and sweep executor readiness evidence.
 
-Exact active release phrase: Active Release 0.1 `7981-8000` pivots the admin platform to product-managing operator workflows while completed M57 `7961-7980` carries forward futures risk-proof record validation remediation summary evidence.
+Exact active release phrase: Active Release 0.1 `8001-8020` adds an M55 Stealth Action-State Matrix so operators can see each selected stealth order command as usable, blocked, unsupported, or not modeled from backend evidence while completed `7981-8000` carries the Release 0.1 operator pivot and sweep executor readiness evidence.
 
 ## When To Use
 

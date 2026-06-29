@@ -129,16 +129,24 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `7961-7980` under M57.
+- Latest completed autonomous range: `7981-8000` under Release 0.1.
 - Latest completed and pushed range before the active Release 0.1 work:
-  `7961-7980`.
-- Active autonomous range: `7981-8000` under Release 0.1.
-- Current active range: `7981-8000` pivots the Admin API/frontend work to a
-  usable private operator MVP. Every new phase must either clear a named
-  Release 0.1 blocker or directly improve the usable admin product. Unsupported
-  backend behavior must be surfaced as `unsupported` or `not_modeled`; do not
-  implement missing behavior in the browser, BFF, route-local FastAPI handlers,
-  or any second trading path.
+  `7981-8000`.
+- Active autonomous range: `8001-8020` under Release 0.1.
+- Current active range: `8001-8020` adds an M55 Stealth Action-State Matrix so
+  selected stealth order commands are visible as usable, blocked,
+  `unsupported`, or `not_modeled` from backend evidence. Every new phase must
+  clear the Stealth commands Release 0.1 blocker or directly improve the usable
+  admin product. Unsupported backend behavior must be surfaced explicitly; do
+  not implement missing behavior in the browser, BFF, route-local FastAPI
+  handlers, or any second trading path.
+- Required checker phrase: usable admin product.
+- Required checker phrase: unsupported` or `not_modeled`.
+- Phase `8001` instruction review: backend `AGENTS.md`, backend `agent.md`,
+  backend owner contracts, frontend `AGENTS.md`, frontend owner contracts, and
+  ordered frontend docs were reviewed on 2026-06-28 before activating M55
+  stealth action-state work. No phase-direction change was required, but the
+  work must preserve stealth exchange-reality invariants and no-live authority.
 - Phase `7981-8000` instruction review: backend `AGENTS.md`, backend
   `agent.md`, frontend `AGENTS.md`, and related agent contract docs were
   reviewed on 2026-06-27 before the Release 0.1 matrix work and again on

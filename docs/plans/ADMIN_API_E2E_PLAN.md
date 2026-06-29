@@ -49,20 +49,29 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7981-8000
+## Current Active Phases 8001-8020
 
-Batch label: Release 0.1 Operator Admin Pivot.
+Batch label: M55 Stealth Action-State Matrix.
 
-Current Release 0.1 `7981-8000` pivots the Admin API plan to a usable private
-operator MVP. The active goal is no longer to add another futures/perpetual
-proof-summary field. The active goal is to make the frontend/API path able to
-manage backend-supported workflows, expose unsupported behavior as
-`unsupported` or `not_modeled`, and choose implementation slices by release
-impact.
+Current Release 0.1 `8001-8020` adds a backend-owned M55 Stealth
+Action-State Matrix so the frontend can show selected stealth order commands
+as usable, blocked, `unsupported`, or `not_modeled` from API evidence. The
+active goal is not another proof-summary table; it is operator clarity for a
+Release 0.1 Stealth commands blocker while preserving exchange-reality
+invariants and no-live authority boundaries.
 
 Every phase must answer: Does this make the frontend able to manage the project?
 
-Exact autonomous phrase: Active Release 0.1 `7981-8000` pivots the admin platform to product-managing operator workflows while completed M57 `7961-7980` carries forward futures risk-proof record validation remediation summary evidence.
+Exact autonomous phrase: Active Release 0.1 `8001-8020` adds an M55 Stealth Action-State Matrix so operators can see each selected stealth order command as usable, blocked, unsupported, or not modeled from backend evidence while completed `7981-8000` carries the Release 0.1 operator pivot and sweep executor readiness evidence.
+
+## Completed Phases 7981-8000
+
+Batch label: Release 0.1 Operator Admin Pivot.
+
+Completed Release 0.1 `7981-8000` pivoted Admin API/frontend work to a usable
+private operator MVP, produced the backend route-to-UI matrix, froze unrelated
+proof-summary expansion, and added sweep executor readiness evidence without
+live Coinbase execution.
 
 ## Completed Phases 7961-7980
 

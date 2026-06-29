@@ -1,4 +1,4 @@
-﻿# Admin API
+# Admin API
 
 This repository exposes the professional backend API for the separate
 enterprise admin platform at `C:\coinbase-frontend`.

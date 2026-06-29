@@ -4,14 +4,21 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current Release 0.1 scope: `7981-8000`.
+Current Release 0.1 scope: `8001-8020`.
 
-Current Release 0.1 scope details: `7981-8000` pivots the admin platform to a
-usable private operator MVP. Active work must clear named Release 0.1 blockers
-or directly improve the frontend/API path for managing backend-supported
-workflows. Unsupported or incomplete backend behavior must be surfaced as
-`unsupported` or `not_modeled`, not hidden and not implemented in browser,
-BFF, route-local FastAPI code, or a second trading path.
+Current Release 0.1 scope details: `8001-8020` adds an M55 Stealth
+Action-State Matrix so selected stealth order commands are visible as usable,
+blocked, `unsupported`, or `not_modeled` from backend evidence. Active work
+must clear the Stealth commands Release 0.1 blocker without adding hide-again
+shortcuts, browser/BFF authority, route-local FastAPI execution, manager
+invocation, Coinbase calls, reconciliation execution, or local state mutation.
+
+Completed Release 0.1 scope: `7981-8000` pivoted active work to a usable
+private operator MVP, produced route/workflow release matrices, and added
+sweep executor readiness evidence.
+
+Release 0.1 blockers remain controlling. Required checker phrase: usable private operator MVP. Required checker phrase: unsupported` or `not_modeled`.
+Required checker phrase: second trading path.
 
 Completed futures/perpetual M57 scope: `7961-7980` added futures risk-proof
 record validation remediation summary evidence on top of completed `7941-7960`

@@ -20,11 +20,11 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 
 ## Current Release 0.1 Pivot
 
-Active Release 0.1 `7981-8000` pivots the admin platform to product-managing
+Active Release 0.1 `8001-8020` pivots the admin platform to product-managing
 operator workflows while completed M57 `7961-7980` carries forward futures
 risk-proof record validation remediation summary evidence.
 
-Current active Admin API examples use `"approved_phase_range": "7981-8000"`.
+Current active Admin API examples use `"approved_phase_range": "8001-8020"`.
 New examples must clear a named Release 0.1 blocker or directly improve the
 usable operator admin product. Unsupported backend behavior must appear as
 `unsupported` or `not_modeled`; it must not be implemented in the browser, BFF,
@@ -76,7 +76,7 @@ passing summary must report `live_coinbase_orders_ran=false`,
 
 Completed `GET /api/v1/futures/command-suite` examples for M57 used
 `"approved_phase_range": "7961-7980"` as historical evidence. The current
-active release-control range is `"approved_phase_range": "7981-8000"`.
+active release-control range is `"approved_phase_range": "8001-8020"`.
 Futures/perpetual command-suite reads exposed backend-owned
 `risk_proof_record_validation_remediation_summary_count`,
 `risk_proof_record_validation_remediation_summary_blocking_count`, and
@@ -1793,7 +1793,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "7981-8000",
+  "approved_phase_range": "8001-8020",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -1812,9 +1812,9 @@ Expected current enterprise readiness posture:
   "recovery_workflow_count": 1,
   "automation_workflow_count": 1,
   "repair_workflow_count": 1,
-  "mutation_taxonomy_count": 45,
-  "route_bound_mutation_taxonomy_count": 44,
-  "live_disabled_mutation_count": 33,
+  "mutation_taxonomy_count": 46,
+  "route_bound_mutation_taxonomy_count": 45,
+  "live_disabled_mutation_count": 34,
   "backend_contract_required_mutation_count": 1,
   "compatibility_mutation_count": 3,
   "lifecycle_support": [

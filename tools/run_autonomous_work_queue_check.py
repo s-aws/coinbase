@@ -71,29 +71,29 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "7981-8000"
-APPROVED_PHASES = tuple(range(7981, 8001))
+APPROVED_PHASE_RANGE = "8001-8020"
+APPROVED_PHASES = tuple(range(8001, 8021))
 EXPECTED_RELEASE_PHASE_TITLES = {
-    7981: "Close Proof Expansion",
-    7982: "Release Blocker Inventory",
-    7983: "Admin Shell Operability Map",
-    7984: "Account And Market Coverage Map",
-    7985: "Spot Command Usability Map",
-    7986: "Stealth Command Usability Map",
-    7987: "Movement/Repricing Usability Map",
-    7988: "Automation And Campaign Usability Map",
-    7989: "Audit, Reconciliation, And Settings Map",
-    7990: "Backend Route-To-UI Release Matrix",
-    7991: "Frontend Workflow Release Matrix",
-    7992: "Unsupported Gap Classification",
-    7993: "Next Implementation Slice Selection",
-    7994: "Operator Runbook Update",
-    7995: "Documentation Index Update",
-    7996: "Autonomous Validator Pivot",
-    7997: "Backend Contextless Review",
-    7998: "Frontend Contextless Review",
-    7999: "Focused Validation And Hygiene",
-    8000: "Commit And Push Evidence",
+    8001: "Advance Active Queue Range",
+    8002: "M55 Stealth Action-State Scope",
+    8003: "Backend Stealth Action-State Contract",
+    8004: "Stealth Command Gate Source Map",
+    8005: "Selected Order Action-State Fixture",
+    8006: "Frontend Schema Sync",
+    8007: "Stealth Adapter Action-State Mapping",
+    8008: "Stealth Detail Action-State Matrix",
+    8009: "Command Handoff Gate Labels",
+    8010: "No-Live Authority Assertions",
+    8011: "Active Placement Boundary Rows",
+    8012: "Recovery/Reconciliation Boundary Rows",
+    8013: "Movement Reprice Boundary Row",
+    8014: "Mock Runtime Parity",
+    8015: "Focused Backend Tests",
+    8016: "Focused Frontend Tests",
+    8017: "Documentation Update",
+    8018: "Blind Contextless Review",
+    8019: "Focused Validation And Hygiene",
+    8020: "Commit And Push Evidence",
 }
 PROOF_ONLY_ACTIVE_PHASE_TITLE_PATTERNS = (
     re.compile(r"Futures/Perpetuals", re.IGNORECASE),
@@ -104,12 +104,13 @@ PROOF_ONLY_ACTIVE_PHASE_TITLE_PATTERNS = (
     re.compile(r"Summary Evidence", re.IGNORECASE),
     re.compile(r"Display Evidence", re.IGNORECASE),
 )
-PREVIOUS_COMPLETED_PHASE_RANGE = "7961-7980"
+PREVIOUS_COMPLETED_PHASE_RANGE = "7981-8000"
 RELEASE_PIVOT_PHRASE = (
-    "Active Release 0.1 `7981-8000` pivots the admin platform to "
-    "product-managing operator workflows while completed M57 `7961-7980` "
-    "carries forward futures risk-proof record validation remediation summary "
-    "evidence."
+    "Active Release 0.1 `8001-8020` adds an M55 Stealth Action-State "
+    "Matrix so operators can see each selected stealth order command as "
+    "usable, blocked, unsupported, or not modeled from backend evidence "
+    "while completed `7981-8000` carries the Release 0.1 operator pivot "
+    "and sweep executor readiness evidence."
 )
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
@@ -317,10 +318,13 @@ def _active_phase_headings(body: str) -> list[tuple[int, str]]:
 
 
 def _active_phase_section(body: str) -> str:
-    start_match = re.search(r"^## Active Phases 7981-8000\b.*$", body, re.M)
+    active_heading = re.escape(f"Active Phases {APPROVED_PHASE_RANGE}")
+    start_match = re.search(rf"^## {active_heading}\b.*$", body, re.M)
     if not start_match:
         return ""
-    next_heading = re.search(r"^## (?!Active Phases 7981-8000\b).*$", body[start_match.end():], re.M)
+    next_heading = re.search(
+        rf"^## (?!{active_heading}\b).*$", body[start_match.end():], re.M
+    )
     if not next_heading:
         return body[start_match.start():]
     return body[start_match.start(): start_match.end() + next_heading.start()]

@@ -1,3 +1,27 @@
+## M55 Stealth Action-State Matrix Review - Phases 8001-8020
+
+Result: pending. Scope: phases `8001-8020`, after completed history through
+`7981-8000`, adds an M55 Stealth Action-State Matrix so selected stealth order
+commands are visible as usable, blocked, `unsupported`, or `not_modeled` from
+backend evidence.
+
+No live Coinbase execution is planned; actual submitted/executed notional
+remains `0` USDC.
+Required checker phrase: actual submitted/executed notional remains `0` USDC.
+
+Boundary evidence for current Release 0.1 review: this range must answer
+"Does this make the frontend able to manage the project?" Future work must
+clear a named Release 0.1 blocker or directly improve the usable private
+operator MVP. Unsupported backend behavior must be visible as unsupported` or
+`not_modeled`. There must be no proof-only expansion, no browser/BFF execution
+authority, no route-local FastAPI execution, no manager invocation, no
+Coinbase calls, no reconciliation execution, no local stealth state mutation,
+and no second trading path.
+Required checker phrase: Release 0.1 Operator Admin Pivot.
+Required checker phrase: usable private operator MVP.
+Required checker phrase: unsupported` or `not_modeled`.
+Required checker phrase: no browser/BFF execution authority.
+
 ## Release 0.1 Operator Admin Pivot Review - Phases 7981-8000
 
 Result: PASS after remediation. Scope: phases `7981-8000`, after completed history through

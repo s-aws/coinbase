@@ -735,7 +735,7 @@ from .stealth_post_write_reconciliation import (
 ROOT = Path(__file__).resolve().parents[2]
 API_VERSION = "0.1.0"
 SCHEMA_VERSION = "0.1.0"
-AUTONOMOUS_APPROVED_PHASE_RANGE = "7981-8000"
+AUTONOMOUS_APPROVED_PHASE_RANGE = "8001-8020"
 LIVE_ENABLEMENT_QUOTE_CURRENCY = "USDC"
 LIVE_ENABLEMENT_PRODUCT_SCOPE = (
     "cheapest Coinbase USDC spot product available to US customers"
@@ -11061,6 +11061,58 @@ class AdminApiReadService:
                     "Sweep automation is spot-only and must keep USDC scope, "
                     "inventory, average-cost, and known-profitable sell authority "
                     "inside backend gates."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/spot/sweep/automation-controls",
+                mutation_id="spot.sweep_automation_controls",
+                mutation_family=AdminApiMutationFamilyType.SPOT_SWEEP_AUTOMATION,
+                workflow_id="spot.sweep_automation_and_live_executor",
+                related_workflow_ids=["spot.order_command_drafts"],
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "Spot sweep automation controls record pause, resume, and "
+                    "retry-intent operator decisions as append-only backend "
+                    "local-state evidence keyed by sweep_config_id; they do not "
+                    "invoke a scheduler, runner, retry executor, or Coinbase."
+                ),
+                identity_keys=["sweep_config_id", "control_action", "control_id"],
+                owning_backend_service="application/admin_api/command_service.py",
+                backend_contract_refs=[
+                    "api/v1/routes/orders.py::record_spot_sweep_automation_control",
+                    "application/admin_api/command_service.py::record_spot_sweep_automation_control",
+                    "application/admin_api/spot_sweep_automation_control.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts::recordSpotSweepAutomationControl",
+                    "src/features/operator-read-models/ReadOnlyOperatorModels.tsx",
+                ],
+                documentation_refs=[
+                    "README.admin-api.md",
+                    "docs/COMMAND_WORKFLOWS.md",
+                ],
+                required_next_contract=(
+                    "Durable scheduler, retry executor, recovery, reconciliation, "
+                    "approval, cap/guard, and live-service contracts must pass "
+                    "before local controls can become execution authority."
+                ),
+                blockers=[
+                    "live_execution_disabled",
+                    "scheduler_executor_contract_missing",
+                    "retry_executor_contract_missing",
+                    "reconciliation_execution_disabled",
+                ],
+                frontend_boundary=(
+                    "Do not treat local control records as scheduler execution, "
+                    "retry execution, browser jobs, BFF execution authority, or "
+                    "Coinbase submission authority."
+                ),
+                spot_rule_boundary=(
+                    "Spot sweep controls remain spot-only and must not become "
+                    "generic automation controls for futures, stealth, or "
+                    "movement modules without separate backend contracts."
                 ),
             ),
             mutation_taxonomy_from_surface(

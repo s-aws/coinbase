@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **7981-8000**.
+- Approved phase range: **8001-8020**.
 - Range status: active under Release 0.1 - Private Operator Admin MVP.
-- Previous completed range: `7961-7980`.
+- Previous completed range: `7981-8000`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -101,6 +101,14 @@ result in the phase evidence, handoff, or closeout summary before advancing.
   commit `b14d021` were pushed to
   `codex/stealth-live-service-decision-3501`. Live Coinbase execution was not
   run; submitted notional `0` USDC, executed notional `0` USDC.
+- Phase `8001` instruction review status: backend `AGENTS.md`, backend
+  `agent.md`, backend owner contracts, frontend `AGENTS.md`, frontend owner
+  contracts, and ordered frontend docs were reviewed on 2026-06-28 before
+  activating the M55 Stealth Action-State Matrix range. No phase-direction
+  change was required; the range must still clear the stealth command Release
+  0.1 blocker without adding browser/BFF execution authority, route-local
+  execution, Coinbase calls, hide-again shortcuts, or local stealth mutation
+  without exchange cancel/move/reconcile proof.
 
 ## Current Progress Record
 
@@ -112,7 +120,7 @@ baseline before the range, not the final phase id in the active range.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
-- `next_phase`: `advance_next_release_linked_range`.
+- `next_phase`: `start_m55_stealth_action_state_matrix`.
 
 ## Stop Conditions
 
@@ -129,7 +137,131 @@ baseline before the range, not the final phase id in the active range.
 - Work would add evidence-only roadmap expansion without tying it to a named Release 0.1 blocker.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 7981-8000
+## Active Phases 8001-8020
+
+Batch label: M55 Stealth Action-State Matrix.
+
+These phases clear the next concrete Release 0.1 blocker for Stealth Orders:
+operators can see each selected stealth order command as usable, blocked,
+`unsupported`, or `not_modeled` from backend evidence before choosing a
+handoff. The matrix must preserve exchange-reality invariants, mutation locks,
+and no-live authority boundaries. It must not add hide-again shortcuts,
+browser/BFF execution authority, route-local FastAPI execution, Coinbase
+calls, manager invocation, reconciliation execution, or local state mutation.
+
+Every phase must answer: Does this make the frontend able to manage the project?
+
+Active Release 0.1 `8001-8020` adds an M55 Stealth Action-State Matrix so
+operators can see each selected stealth order command as usable, blocked,
+unsupported, or not modeled from backend evidence while completed `7981-8000`
+carries the Release 0.1 operator pivot and sweep executor readiness evidence.
+
+Exact autonomous phrase: Active Release 0.1 `8001-8020` adds an M55 Stealth Action-State Matrix so operators can see each selected stealth order command as usable, blocked, unsupported, or not modeled from backend evidence while completed `7981-8000` carries the Release 0.1 operator pivot and sweep executor readiness evidence.
+
+### Phase 8001 - Advance Active Queue Range
+
+- Update autonomous validators, durable state, handoff docs, and phase records
+  so active work is `8001-8020` and completed `7981-8000` remains historical
+  Release 0.1 operator-pivot evidence.
+
+### Phase 8002 - M55 Stealth Action-State Scope
+
+- Define the selected-order stealth action matrix scope from the Release 0.1
+  blocker table and the backend route-to-UI matrix.
+
+### Phase 8003 - Backend Stealth Action-State Contract
+
+- Add or extend a backend-owned read contract that reports selected stealth
+  order command states without executing commands or mutating state.
+
+### Phase 8004 - Stealth Command Gate Source Map
+
+- Map each command state to exact backend evidence refs, missing contracts,
+  active-placement boundaries, mutation-claim boundaries, and reconciliation
+  gates.
+
+### Phase 8005 - Selected Order Action-State Fixture
+
+- Add deterministic selected-order action-state fixture rows for usable,
+  blocked, `unsupported`, and `not_modeled` cases as applicable.
+
+### Phase 8006 - Frontend Schema Sync
+
+- Regenerate frontend API schema from the backend OpenAPI contract without
+  hand-editing generated files.
+
+### Phase 8007 - Stealth Adapter Action-State Mapping
+
+- Map backend action-state rows through the canonical frontend adapter with
+  no feature-local fetches and no frontend authority inference.
+
+### Phase 8008 - Stealth Detail Action-State Matrix
+
+- Render the selected stealth-order action-state matrix in the existing detail
+  view so operators can see command state, blockers, gates, and handoff refs.
+
+### Phase 8009 - Command Handoff Gate Labels
+
+- Align command handoff links with the matrix states and gate labels so links
+  do not imply executable authority when backend gates are blocked.
+
+### Phase 8010 - No-Live Authority Assertions
+
+- Add focused assertions that the new surface does not add live Coinbase
+  execution, browser/BFF execution authority, manager invocation, or route-local
+  execution.
+
+### Phase 8011 - Active Placement Boundary Rows
+
+- Show active-placement and exchange-truth blockers explicitly for revealed or
+  exchange-coupled stealth states.
+
+### Phase 8012 - Recovery/Reconciliation Boundary Rows
+
+- Show recovery and reconciliation boundary rows as backend evidence only,
+  without repair, rollback, proof acceptance, or reconciliation execution.
+
+### Phase 8013 - Movement Reprice Boundary Row
+
+- Include the movement reprice handoff boundary for stealth orders without
+  invoking movement/repricing or treating reprice as a stealth local mutation.
+
+### Phase 8014 - Mock Runtime Parity
+
+- Keep mock backend and runtime fixtures in parity with the backend contract
+  while marking mock data as non-authoritative.
+
+### Phase 8015 - Focused Backend Tests
+
+- Run focused backend Admin API contract and ownership checks that cover the
+  stealth action-state contract and no-live assertions.
+
+### Phase 8016 - Focused Frontend Tests
+
+- Run focused frontend adapter, read-model, mock backend, generated API, and
+  quality checks that cover the action-state matrix.
+
+### Phase 8017 - Documentation Update
+
+- Update Stealth, Command Workflow, API Contract, Release 0.1, and examples
+  documentation so contextless humans and agents understand the boundary.
+
+### Phase 8018 - Blind Contextless Review
+
+- Run blind/contextless backend/frontend review for the new stealth
+  action-state surface and remediate blocking ambiguity before advancing.
+
+### Phase 8019 - Focused Validation And Hygiene
+
+- Run targeted validators, diff checks, stale-process checks if needed, and
+  phase-end subagent cleanup.
+
+### Phase 8020 - Commit And Push Evidence
+
+- Commit and push synchronized backend/frontend evidence after validation and
+  review pass, recording live Coinbase execution status and notional evidence.
+
+## Completed Phases 7981-8000
 
 Batch label: Release 0.1 Operator Admin Pivot.
 

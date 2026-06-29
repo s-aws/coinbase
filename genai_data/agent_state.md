@@ -24,44 +24,39 @@ work. Historical milestone detail belongs in
 
 ## Current Phase
 
-- Latest completed and pushed range before this work: `7961-7980`.
+- Latest completed and pushed range before this work: `7981-8000`.
 - Latest completed and pushed range before the active Release 0.1 work:
-  `7961-7980`.
-- Active approved range: `7981-8000`.
-- Scope: Release 0.1 Operator Admin Pivot. The project is moving away from
-  evidence-only roadmap expansion and toward a usable private operator admin
-  product. Every new phase must either clear a named Release 0.1 blocker from
-  `docs/plans/ADMIN_RELEASE_0_1_BURNDOWN.md` or directly improve the frontend's
-  ability to manage backend-supported workflows.
-- Backend implementation status: active Release 0.1 work is focused on making
-  one Spot manual order path usable through backend-owned contracts. Manual
-  order and cancel route adapters source `allow_live_execution` from backend
-  admission; manual order now has a route-scoped configured backend
-  live-service dependency that can reach the existing shared command-service
-  live branch when backend env, Coinbase REST client, and durable order-event
-  publisher gates pass. The generic live-service dependency remains disabled
-  for other Admin API routes. Unsupported backend behavior must still be
-  surfaced as `unsupported` or `not_modeled`. No missing behavior may be
-  filled in route-local FastAPI handlers or a second trading path.
-- Frontend implementation status: active Release 0.1 work remains display and
-  forward-only. The frontend may show Spot command readiness, dry-submit
-  evidence, live-admission evidence, and direct-order audit handoffs, and it
-  may forward supported command requests through the generated backend client
-  or BFF allowlist. It must not implement browser wallet checks, guard checks,
-  Coinbase calls, live-service toggles, BFF execution authority, or a second
-  trading path. Unsupported backend behavior must still be surfaced as
-  `unsupported` or `not_modeled`.
+  `7981-8000`.
+- Active approved range: `8001-8020`.
+- Scope: M55 Stealth Action-State Matrix under Release 0.1. The active range
+  must make selected stealth order commands understandable and operable from
+  backend evidence by showing each action as usable, blocked, `unsupported`, or
+  `not_modeled`. Every phase must either clear the Stealth commands Release 0.1
+  blocker from `docs/plans/ADMIN_RELEASE_0_1_BURNDOWN.md` or directly improve
+  the frontend's ability to manage backend-supported stealth workflows.
+- Governing pivot label: Release 0.1 Operator Admin Pivot.
+- Backend implementation status: active work should add or extend a
+  backend-owned read contract for selected-order stealth action states. It must
+  not execute commands, invoke `StealthOrderManager`, call Coinbase, execute
+  reconciliation, mutate order or stealth state, bypass mutation claims, or
+  introduce route-local FastAPI execution. Unsupported backend behavior must
+  still be surfaced as `unsupported` or `not_modeled`.
+- Frontend implementation status: active work should render the backend action
+  states in the existing Stealth Orders detail view using generated contracts
+  and canonical adapters. The frontend may show blockers, gate refs, command
+  handoff links, and audit/evidence refs. It must not implement browser wallet
+  checks, guard checks, Coinbase calls, live-service toggles, manager
+  invocation, reconciliation execution, BFF execution authority, or a second
+  trading path.
 - Phase instruction review status: backend `AGENTS.md`, backend `agent.md`,
-  frontend `AGENTS.md`, and related agent contract docs were reviewed again on
-  2026-06-28 for this phase, including the no-live Admin API manual Spot SELL
-  validation runner slice, the operator runbook update, the documentation
-  index update, the autonomous validator pivot, the backend contextless
-  review, and the campaign/sweep dry-run proof visibility slice. Release 0.1
-  product progress remains the controlling rule: every phase must clear a
-  named Release 0.1 blocker or directly improve usable admin management. The
-  review did not change the current phase direction; it reinforced that
-  campaign/sweep review evidence must stay backend-owned, no-live, and
-  display/forward-only in the frontend.
+  backend owner contracts, frontend `AGENTS.md`, frontend owner contracts, and
+  ordered frontend docs were reviewed again on 2026-06-28 for Phase 8001 before
+  activating this range. Release 0.1 product progress remains the controlling
+  rule: every phase must clear a named Release 0.1 blocker or directly improve
+  usable admin management. The review did not change the current phase
+  direction; it reinforced that stealth exchange-reality state must match live
+  exchange reality and that missing behavior must not be filled by browser/BFF
+  authority or route-local execution.
 - Release 0.1 matrix status:
   `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md` and frontend
   `docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md` now identify operator

@@ -60,7 +60,104 @@ operator admin.
 - Importing spot-only rules into stealth, futures/perpetuals, or movement
   modules.
 
-## Active Phases 7981-8000
+## Active Phases 8001-8020
+
+Batch label: M55 Stealth Action-State Matrix.
+
+Active Release 0.1 `8001-8020` adds an M55 Stealth Action-State Matrix so
+operators can see each selected stealth order command as usable, blocked,
+unsupported, or not modeled from backend evidence while completed `7981-8000`
+carries the Release 0.1 operator pivot and sweep executor readiness evidence.
+
+Exact autonomous phrase: Active Release 0.1 `8001-8020` adds an M55 Stealth Action-State Matrix so operators can see each selected stealth order command as usable, blocked, unsupported, or not modeled from backend evidence while completed `7981-8000` carries the Release 0.1 operator pivot and sweep executor readiness evidence.
+
+### Phase 8001 - Advance Active Queue Range
+
+- Move autonomous docs, validators, and durable state to active `8001-8020`
+  while preserving completed `7981-8000` release-pivot evidence.
+
+### Phase 8002 - M55 Stealth Action-State Scope
+
+- Scope the selected stealth-order action-state matrix against the Stealth
+  commands Release 0.1 blocker.
+
+### Phase 8003 - Backend Stealth Action-State Contract
+
+- Expose backend-owned selected-order action-state rows without command
+  execution, manager invocation, Coinbase calls, or state mutation.
+
+### Phase 8004 - Stealth Command Gate Source Map
+
+- Tie every action-state row to exact backend blockers, evidence refs, and
+  missing contracts.
+
+### Phase 8005 - Selected Order Action-State Fixture
+
+- Add deterministic backend fixture coverage for selected-order action states.
+
+### Phase 8006 - Frontend Schema Sync
+
+- Regenerate the frontend API client from backend OpenAPI.
+
+### Phase 8007 - Stealth Adapter Action-State Mapping
+
+- Map backend action-state rows through canonical frontend adapters.
+
+### Phase 8008 - Stealth Detail Action-State Matrix
+
+- Render selected stealth-order action states in the detail view.
+
+### Phase 8009 - Command Handoff Gate Labels
+
+- Align handoff links with backend gate labels and blocked-state language.
+
+### Phase 8010 - No-Live Authority Assertions
+
+- Prove the surface adds no browser/BFF, route-local, manager, reconciliation,
+  or Coinbase execution authority.
+
+### Phase 8011 - Active Placement Boundary Rows
+
+- Surface active-placement and exchange-truth blockers for revealed orders.
+
+### Phase 8012 - Recovery/Reconciliation Boundary Rows
+
+- Surface recovery and reconciliation blockers as evidence-only rows.
+
+### Phase 8013 - Movement Reprice Boundary Row
+
+- Surface movement reprice as a handoff boundary, not a stealth mutation.
+
+### Phase 8014 - Mock Runtime Parity
+
+- Keep mock frontend/backend fixtures in parity with the contract.
+
+### Phase 8015 - Focused Backend Tests
+
+- Run focused Admin API and ownership tests covering the backend contract.
+
+### Phase 8016 - Focused Frontend Tests
+
+- Run focused frontend adapter, read-model, API, and quality tests.
+
+### Phase 8017 - Documentation Update
+
+- Update Stealth, command workflow, release, and example docs.
+
+### Phase 8018 - Blind Contextless Review
+
+- Run blind/contextless review and remediate blocking ambiguity.
+
+### Phase 8019 - Focused Validation And Hygiene
+
+- Run targeted validators, diff checks, and phase-end subagent cleanup.
+
+### Phase 8020 - Commit And Push Evidence
+
+- Commit and push synchronized backend/frontend evidence with no-live notional
+  reporting.
+
+## Completed Phases 7981-8000
 
 Batch label: Release 0.1 Operator Admin Pivot.
 
