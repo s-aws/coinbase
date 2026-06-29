@@ -136,6 +136,12 @@ Exact autonomous phrase: Active Release 0.1 `8041-8060` adds a Spot Command Oper
 
 - Add or tighten a Playwright smoke path for the private operator command
   workflow using mock or local-backend no-live evidence.
+- Evidence update 2026-06-29: frontend Playwright now follows the browser
+  operator handoff from Orders to Command Workflows, verifies cancel draft
+  `client_order_id` prefill, verifies no `order_id` cancel input, confirms
+  disabled no-live command gates, and checks direct-order audit no-live
+  evidence. AGENTS.md was re-reviewed for this phase; live Coinbase execution
+  was not run and submitted/executed notional stayed 0 USDC.
 
 ### Phase 8053 - BFF Forwarding Boundary Assertions
 
