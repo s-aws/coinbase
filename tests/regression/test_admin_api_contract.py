@@ -392,6 +392,7 @@ from core.enums import (
     ActionConditionType,
     ActionGuardPhase,
     AdminApiActionClass,
+    AdminApiActionState,
     AdminApiApprovalLifecycleEventType,
     AdminApiApprovalLifecycleStatus,
     AdminApiAuthMode,
@@ -38290,6 +38291,66 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert candidate_summary["first_candidate_executable"] is False
     assert candidate_summary["live_coinbase_orders_ran"] is False
     assert candidate_summary["live_coinbase_read_ran"] is False
+    action_states = payload["selected_order_action_states"]
+    assert payload["selected_order_action_state_count"] == 7
+    assert len(action_states) == payload["command_count"]
+    assert {item["action_id"] for item in action_states} == {
+        AdminApiMutationFamilyType.STEALTH_CREATE.value,
+        AdminApiMutationFamilyType.STEALTH_REVEAL.value,
+        AdminApiMutationFamilyType.STEALTH_CANCEL.value,
+        AdminApiMutationFamilyType.STEALTH_MOVE.value,
+        AdminApiMutationFamilyType.MOVEMENT_REPRICE.value,
+        AdminApiMutationFamilyType.STEALTH_RECOVERY.value,
+        AdminApiMutationFamilyType.STEALTH_RECONCILIATION.value,
+    }
+    assert all(
+        item["action_state"] == AdminApiActionState.BLOCKED.value
+        for item in action_states
+    )
+    assert all(item["scope"] == "command_family_template" for item in action_states)
+    assert all(item["order_specific_adjudication"] is False for item in action_states)
+    assert all(item["selection_required"] is True for item in action_states)
+    assert all(item["identity_key"] == "stealth_order_id" for item in action_states)
+    assert all(
+        item["identity_value_source"] == "selected_stealth_order_id"
+        for item in action_states
+    )
+    assert all(
+        "not a backend adjudication of that specific order"
+        in item["identity_binding_detail"]
+        for item in action_states
+    )
+    assert all(item["backend_owned"] is True for item in action_states)
+    assert all(item["route_bound"] is True for item in action_states)
+    assert all(item["live_enabled"] is False for item in action_states)
+    assert all(item["executable"] is False for item in action_states)
+    assert all(item["browser_authority"] == "display_only" for item in action_states)
+    assert all(
+        item["bff_authority"] == "forward_only_no_execution"
+        for item in action_states
+    )
+    assert all(item["blockers"] for item in action_states)
+    assert all(item["missing_gate_chain"] for item in action_states)
+    assert all(
+        "Do not use exchange order_id as command identity."
+        in item["backend_evidence"]
+        for item in action_states
+    )
+    assert all(
+        "This is a command-family template, not order-specific acceptance."
+        in item["backend_evidence"]
+        for item in action_states
+    )
+    action_state_by_id = {item["action_id"]: item for item in action_states}
+    assert action_state_by_id[AdminApiMutationFamilyType.STEALTH_CREATE.value][
+        "active_placement_evidence_required"
+    ] is False
+    assert action_state_by_id[AdminApiMutationFamilyType.STEALTH_CANCEL.value][
+        "active_placement_evidence_required"
+    ] is True
+    assert action_state_by_id[AdminApiMutationFamilyType.MOVEMENT_REPRICE.value][
+        "route"
+    ] == "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
     selected_create_contract = payload["selected_create_pre_execution_contract"]
     assert selected_create_contract["type"] == "stealth_create_pre_execution_contract"
     assert selected_create_contract["source"] == (

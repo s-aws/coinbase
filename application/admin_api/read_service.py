@@ -20,6 +20,7 @@ from core.enums import (
     AdminApiAuthMode,
     AdminAuditEvidenceSource,
     AdminAuditWorkbenchModule,
+    AdminApiActionState,
     AdminApiFunctionalityExposureStatus,
     AdminApiFunctionalityWorkflowType,
     AdminFuturesCommandAction,
@@ -360,6 +361,7 @@ from .models import (
     SpotRecoveryStateRepairTaxonomyItem,
     SpotSweepAutomationServiceStatusResponse,
     StealthCommandSuiteCommandItem,
+    StealthSelectedOrderActionStateItem,
     StealthCommandSuiteAdmissionContextItem,
     StealthCommandSuiteAdmissionReadinessItem,
     StealthCommandSuiteAdmissionRequirementItem,
@@ -15647,6 +15649,107 @@ class AdminApiReadService:
                 )
             )
 
+        def selected_order_action_state_from_command(
+            command: StealthCommandSuiteCommandItem,
+        ) -> StealthSelectedOrderActionStateItem:
+            labels = {
+                AdminApiMutationFamilyType.STEALTH_CREATE: "Create stealth order",
+                AdminApiMutationFamilyType.STEALTH_REVEAL: "Reveal selected stealth order",
+                AdminApiMutationFamilyType.STEALTH_CANCEL: "Cancel selected stealth order",
+                AdminApiMutationFamilyType.STEALTH_MOVE: "Move selected stealth order",
+                AdminApiMutationFamilyType.MOVEMENT_REPRICE: "Reprice selected stealth order",
+                AdminApiMutationFamilyType.STEALTH_RECOVERY: "Recover selected stealth order",
+                AdminApiMutationFamilyType.STEALTH_RECONCILIATION: (
+                    "Reconcile selected stealth order"
+                ),
+            }
+            action_state = (
+                AdminApiActionState.USABLE
+                if command.executable and command.live_enabled
+                else AdminApiActionState.NOT_MODELED
+                if not command.route_bound
+                else AdminApiActionState.BLOCKED
+            )
+            blockers = list(
+                dict.fromkeys(
+                    [
+                        *command.missing_gate_chain,
+                        (
+                            command.live_execution_status.value
+                            if not command.live_enabled
+                            else ""
+                        ),
+                    ]
+                )
+            )
+            blockers = [blocker for blocker in blockers if blocker]
+            next_required_contract = (
+                blockers[0]
+                if blockers
+                else "none; backend reports this selected-order action usable"
+            )
+            active_placement_boundary = (
+                "Active-placement client_order_id and exchange order_id are "
+                "evidence only until backend exchange-truth and cancel/replace "
+                "proofs pass."
+                if command.active_placement_evidence_required
+                else (
+                    "Create/reveal lifecycle writes require backend lifecycle "
+                    "guard proof and post-write reconciliation before state "
+                    "can change."
+                )
+            )
+            return StealthSelectedOrderActionStateItem(
+                action_id=command.mutation_family,
+                label=labels.get(command.mutation_family, command.mutation_family.value),
+                action_state=action_state,
+                route=command.route,
+                method=command.method,
+                identity_key=command.identity_key,
+                identity_binding_detail=(
+                    "This row is a backend command-family action-state template. "
+                    "The frontend may bind the displayed identity to the currently "
+                    "selected stealth_order_id, but this response is not a "
+                    "backend adjudication of that specific order."
+                ),
+                command_status=command.status,
+                live_execution_status=command.live_execution_status,
+                live_enabled=command.live_enabled,
+                executable=command.executable,
+                active_placement_evidence_required=(
+                    command.active_placement_evidence_required
+                ),
+                exchange_truth_required=command.exchange_truth_required,
+                backend_owned=command.backend_owned,
+                route_bound=command.route_bound,
+                browser_authority=command.browser_authority,
+                bff_authority=command.bff_authority,
+                required_gate_chain=list(command.required_gate_chain),
+                missing_gate_chain=list(command.missing_gate_chain),
+                blockers=blockers,
+                backend_evidence=[
+                    "Derived from build_stealth_command_suite.commands.",
+                    "This is a command-family template, not order-specific acceptance.",
+                    "Bind identity_value to the selected stealth_order_id only.",
+                    "Do not use exchange order_id as command identity.",
+                    *command.evidence,
+                ],
+                next_required_contract=next_required_contract,
+                boundary=(
+                    f"{active_placement_boundary} Browser and BFF authority "
+                    "remain display/forward only; no route-local, dashboard, "
+                    "or Coinbase execution authority is granted."
+                ),
+                detail=(
+                    f"{labels.get(command.mutation_family, command.mutation_family.value)} "
+                    "is evaluated from backend command-suite readiness evidence."
+                ),
+            )
+
+        selected_order_action_states = [
+            selected_order_action_state_from_command(command) for command in commands
+        ]
+
         stealth_boundary = _enterprise_module_spot_boundary("stealth_orders")
         gap_required_gate_chain = [
             "route_inventory_contract",
@@ -23176,6 +23279,8 @@ class AdminApiReadService:
             ),
             admission_readiness=admission_readiness,
             commands=commands,
+            selected_order_action_state_count=len(selected_order_action_states),
+            selected_order_action_states=selected_order_action_states,
             coverage_gap_count=len(coverage_gaps),
             coverage_gaps=coverage_gaps,
             blocker_closure_count=len(blocker_closures),

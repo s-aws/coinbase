@@ -11523,6 +11523,15 @@ components:
       - audit
       title: AdminApiActionClass
       description: Enterprise Admin API route risk/action classification.
+    AdminApiActionState:
+      type: string
+      enum:
+      - usable
+      - blocked
+      - unsupported
+      - not_modeled
+      title: AdminApiActionState
+      description: Operator-facing action state for enterprise admin workflow controls.
     AdminApiActor:
       properties:
         actor_id:
@@ -156859,6 +156868,15 @@ components:
             $ref: '#/components/schemas/StealthCommandSuiteCommandItem'
           type: array
           title: Commands
+        selected_order_action_state_count:
+          type: integer
+          title: Selected Order Action State Count
+          default: 0
+        selected_order_action_states:
+          items:
+            $ref: '#/components/schemas/StealthSelectedOrderActionStateItem'
+          type: array
+          title: Selected Order Action States
         coverage_gap_count:
           type: integer
           title: Coverage Gap Count
@@ -166959,6 +166977,130 @@ components:
       - cap_guard_decision_id
       title: StealthRevealTriggerProofRequest
       description: Stealth reveal-trigger proof keyed by path id.
+    StealthSelectedOrderActionStateItem:
+      properties:
+        action_id:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        label:
+          type: string
+          title: Label
+        action_state:
+          $ref: '#/components/schemas/AdminApiActionState'
+        scope:
+          type: string
+          title: Scope
+          default: command_family_template
+        order_specific_adjudication:
+          type: boolean
+          title: Order Specific Adjudication
+          default: false
+        selection_required:
+          type: boolean
+          title: Selection Required
+          default: true
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        identity_key:
+          type: string
+          title: Identity Key
+        identity_value_source:
+          type: string
+          title: Identity Value Source
+          default: selected_stealth_order_id
+        identity_binding_detail:
+          type: string
+          title: Identity Binding Detail
+        status_source:
+          type: string
+          title: Status Source
+          default: stealth_command_suite.commands
+        command_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        live_execution_status:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+        live_enabled:
+          type: boolean
+          title: Live Enabled
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        active_placement_evidence_required:
+          type: boolean
+          title: Active Placement Evidence Required
+          default: false
+        exchange_truth_required:
+          type: boolean
+          title: Exchange Truth Required
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        required_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Required Gate Chain
+        missing_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Missing Gate Chain
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        backend_evidence:
+          items:
+            type: string
+          type: array
+          title: Backend Evidence
+        next_required_contract:
+          type: string
+          title: Next Required Contract
+        boundary:
+          type: string
+          title: Boundary
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - action_id
+      - label
+      - action_state
+      - route
+      - method
+      - identity_key
+      - identity_binding_detail
+      - command_status
+      - live_execution_status
+      - next_required_contract
+      - boundary
+      - detail
+      title: StealthSelectedOrderActionStateItem
+      description: Backend-derived selected-order action template for the stealth
+        admin UI.
     StealthStateMutationPolicyEvidenceSource:
       type: string
       enum:

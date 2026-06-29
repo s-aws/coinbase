@@ -44,6 +44,7 @@ active phase metadata lives in `docs/plans/AUTONOMOUS_WORK_QUEUE.md`.
   "enablement_candidate_review_count": 7,
   "blocked_enablement_candidate_review_count": 7,
   "executable_enablement_candidate_review_count": 0,
+  "selected_order_action_state_count": 7,
   "browser_authority": "display_only",
   "bff_authority": "forward_only_no_execution",
   "submitted_notional_usdc": "0",
@@ -265,6 +266,40 @@ fields empty because it is planning evidence.
     "browser_authority": "display_only",
     "bff_authority": "forward_only_no_execution"
   }
+}
+```
+
+The current command-suite response also includes selected-order action-state
+rows. The frontend displays these rows beside the selected stealth order, but
+they remain backend evidence only:
+
+```json
+{
+  "selected_order_action_states": [
+    {
+      "action_id": "stealth_cancel",
+      "label": "Cancel selected stealth order",
+      "action_state": "blocked",
+      "scope": "command_family_template",
+      "order_specific_adjudication": false,
+      "selection_required": true,
+      "route": "/api/v1/stealth/orders/{stealth_order_id}/cancel",
+      "method": "POST",
+      "identity_key": "stealth_order_id",
+      "identity_value_source": "selected_stealth_order_id",
+      "identity_binding_detail": "This row is a backend command-family action-state template. The frontend may bind the displayed identity to the currently selected stealth_order_id, but this response is not a backend adjudication of that specific order.",
+      "live_execution_status": "live_disabled",
+      "active_placement_evidence_required": true,
+      "exchange_truth_required": true,
+      "blockers": [
+        "active_placement_exchange_truth",
+        "live_execution_disabled"
+      ],
+      "next_required_contract": "active_placement_exchange_truth",
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution"
+    }
+  ]
 }
 ```
 

@@ -308,6 +308,15 @@ class AdminApiFunctionalityExposureStatus(str, Enum):
     COMPATIBILITY_ONLY = "compatibility_only"
 
 
+class AdminApiActionState(str, Enum):
+    """Operator-facing action state for enterprise admin workflow controls."""
+
+    USABLE = "usable"
+    BLOCKED = "blocked"
+    UNSUPPORTED = "unsupported"
+    NOT_MODELED = "not_modeled"
+
+
 class AdminApiMutationFamilyType(str, Enum):
     """Enterprise admin mutation family classification."""
 

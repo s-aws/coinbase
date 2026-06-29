@@ -13,6 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from core.enums import (
     AdminApiAccountMarketInventoryFamily,
     AdminApiActionClass,
+    AdminApiActionState,
     AdminApiApprovalLifecycleStatus,
     AdminApiCommandStatus,
     AdminApiCommandRoutesMode,
@@ -27045,6 +27046,42 @@ class StealthCommandSuiteCommandItem(BaseModel):
     detail: str
 
 
+class StealthSelectedOrderActionStateItem(BaseModel):
+    """Backend-derived selected-order action template for the stealth admin UI."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action_id: AdminApiMutationFamilyType
+    label: str
+    action_state: AdminApiActionState
+    scope: str = "command_family_template"
+    order_specific_adjudication: bool = False
+    selection_required: bool = True
+    route: str
+    method: str
+    identity_key: str
+    identity_value_source: str = "selected_stealth_order_id"
+    identity_binding_detail: str
+    status_source: str = "stealth_command_suite.commands"
+    command_status: AdminApiGateStatus
+    live_execution_status: AdminApiLiveExecutionStatus
+    live_enabled: bool = False
+    executable: bool = False
+    active_placement_evidence_required: bool = False
+    exchange_truth_required: bool = False
+    backend_owned: bool = True
+    route_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    required_gate_chain: list[str] = Field(default_factory=list)
+    missing_gate_chain: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    backend_evidence: list[str] = Field(default_factory=list)
+    next_required_contract: str
+    boundary: str
+    detail: str
+
+
 class StealthCommandSuiteCoverageGapEvidenceRouteItem(BaseModel):
     """Read route that supplies evidence for a stealth command-suite coverage gap."""
 
@@ -32977,6 +33014,10 @@ class StealthCommandSuiteResponse(AdminApiReadPayload):
         default_factory=list
     )
     commands: list[StealthCommandSuiteCommandItem] = Field(default_factory=list)
+    selected_order_action_state_count: int = 0
+    selected_order_action_states: list[StealthSelectedOrderActionStateItem] = Field(
+        default_factory=list
+    )
     coverage_gap_count: int = 0
     coverage_gaps: list[StealthCommandSuiteCoverageGapItem] = Field(default_factory=list)
     blocker_closure_count: int = 0

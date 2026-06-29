@@ -92,6 +92,21 @@ The route requires Admin API authentication and `analytics:read`. It returns
   active-placement or Coinbase-facing blocker, but it remains blocked and
   non-executable. The review does not call managers, Coinbase,
   reconciliation, cancel/replace, proof resolvers, or state mutation paths.
+- `selected_order_action_states` on the read-only command-suite response.
+  These rows give the frontend one backend-derived command-family action-state
+  template per stealth command family: create, reveal, cancel, move, movement
+  reprice, recovery, and reconciliation. The command-suite route is not
+  parameterized by one selected order, so each row sets
+  `scope=command_family_template` and
+  `order_specific_adjudication=false`. The frontend may bind the displayed
+  identity to the selected `stealth_order_id`, but that is not backend
+  acceptance or rejection of that exact order. Each row reports
+  `action_state` using the enum vocabulary `usable`, `blocked`,
+  `unsupported`, or `not_modeled`, plus the command route, `stealth_order_id`
+  identity key, selected identity-value source, live execution status,
+  required/missing gate chains, blockers, next required contract, and a
+  no-browser/no-BFF boundary. Current Release 0.1 rows are blocked evidence
+  only and do not grant execution authority.
 - coverage gaps for missing stealth create, reveal, cancel exchange handling,
   move, reprice, recovery, and reconciliation contracts
 - typed `coverage_gaps.current_read_evidence` rows for existing read-only
@@ -229,6 +244,14 @@ candidate keeps `candidate_executable=false`,
 `coinbase_read_allowed=false`, `reconciliation_execution_allowed=false`,
 `state_mutation_allowed=false`, browser `display_only`, and BFF
 `forward_only_no_execution`.
+The command-suite response also exposes `selected_order_action_states` for
+the admin frontend's selected-row matrix. These rows are derived from the
+same backend `commands` evidence and are command-family templates, not
+order-specific adjudication. The frontend may bind display identity to the
+selected `stealth_order_id`; exchange `order_id` and active-placement client
+ids remain evidence only. The frontend may render these states and link to
+command drafts, but it must not decide action usability locally or execute
+from the browser/BFF.
 
 ## Safety Constraints
 
