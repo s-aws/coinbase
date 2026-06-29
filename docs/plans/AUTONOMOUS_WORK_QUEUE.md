@@ -306,6 +306,19 @@ Exact autonomous phrase: Active Release 0.1 `8041-8060` adds a Spot Command Oper
 
 - Run focused frontend command workflow, spot operations, backend runtime,
   API, browser-smoke, and quality tests.
+- Evidence update 2026-06-29: focused frontend validation passed for the Spot
+  Command Operator E2E slice. AGENTS.md was re-reviewed for this phase and did
+  not change the Release 0.1 usable-admin direction, frontend no-trading
+  authority boundary, or milestone-closeout regression policy. Unit/component
+  coverage passed for `CommandWorkflowShell`, `SpotReadOnlyViews`,
+  `backendRuntime`, `backendApiClient`, and `mockBackend` with 5 files and 132
+  tests. Generated API/schema route coverage, typecheck, lint, command
+  security, release check, autonomous check, and the Playwright
+  `admin-shell.spec.ts` browser smoke all passed. Playwright covered desktop
+  framing, mobile framing, and the order-to-`client_order_id` command/audit
+  handoff. No stale test processes remained. Live Coinbase execution was not
+  run and submitted/executed notional stayed 0 USDC. No phase-scoped subagents
+  were spawned or left open.
 
 ### Phase 8058 - Blind Contextless Review
 
