@@ -9014,6 +9014,69 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/route-inventory:
+    get:
+      tags:
+      - stealth
+      summary: Read stealth route inventory
+      description: Read backend-owned stealth route inventory without executing routes.
+      operationId: stealth_route_inventory_api_v1_stealth_route_inventory_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthRouteInventoryResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/stealth/orders/{stealth_order_id}/reveal:
     post:
       tags:
@@ -12644,6 +12707,23 @@ components:
       - authority_boundary
       title: AdminApiStealthOperatorScope
       description: Operator-visible stealth lifecycle management scope rows.
+    AdminApiStealthRouteInventoryFamily:
+      type: string
+      enum:
+      - lifecycle_reads
+      - command_readiness
+      - command_drafts
+      - exchange_reality
+      - lifecycle_write_guard
+      - mutation_claims
+      - reveal_trigger
+      - submission_adapter
+      - recovery_evidence
+      - cancel_replace
+      - post_write_reconciliation
+      - policy_boundaries
+      title: AdminApiStealthRouteInventoryFamily
+      description: Operator-facing stealth route inventory families.
     AdminApiVerifierReadinessStatus:
       type: string
       enum:
@@ -169291,6 +169371,440 @@ components:
       - cap_guard_decision_id
       title: StealthRevealTriggerProofRequest
       description: Stealth reveal-trigger proof keyed by path id.
+    StealthRouteInventoryFamilyItem:
+      properties:
+        family:
+          $ref: '#/components/schemas/AdminApiStealthRouteInventoryFamily'
+        label:
+          type: string
+          title: Label
+        support_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+        gate_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        action_state:
+          $ref: '#/components/schemas/AdminApiActionState'
+        route_count:
+          type: integer
+          minimum: 0.0
+          title: Route Count
+          default: 0
+        read_route_count:
+          type: integer
+          minimum: 0.0
+          title: Read Route Count
+          default: 0
+        command_draft_route_count:
+          type: integer
+          minimum: 0.0
+          title: Command Draft Route Count
+          default: 0
+        local_evidence_record_route_count:
+          type: integer
+          minimum: 0.0
+          title: Local Evidence Record Route Count
+          default: 0
+        live_exchange_classified_route_count:
+          type: integer
+          minimum: 0.0
+          title: Live Exchange Classified Route Count
+          default: 0
+        standalone_route_available:
+          type: boolean
+          title: Standalone Route Available
+          default: true
+        embedded_detail_evidence:
+          type: boolean
+          title: Embedded Detail Evidence
+          default: false
+        route_inventory_bound:
+          type: boolean
+          title: Route Inventory Bound
+          default: true
+        routes:
+          items:
+            type: string
+          type: array
+          title: Routes
+        backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Backend Contracts
+        unsupported_behaviors:
+          items:
+            type: string
+          type: array
+          title: Unsupported Behaviors
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_enabled:
+          type: boolean
+          title: Live Enabled
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - family
+      - label
+      - support_status
+      - gate_status
+      - action_state
+      - detail
+      title: StealthRouteInventoryFamilyItem
+      description: One operator-facing route family summary for stealth lifecycle
+        management.
+    StealthRouteInventoryItem:
+      properties:
+        family:
+          $ref: '#/components/schemas/AdminApiStealthRouteInventoryFamily'
+        label:
+          type: string
+          title: Label
+        surface:
+          type: string
+          title: Surface
+        method:
+          type: string
+          title: Method
+        route:
+          type: string
+          title: Route
+        module_id:
+          type: string
+          title: Module Id
+          default: stealth_orders
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        idempotency:
+          type: string
+          title: Idempotency
+        approval:
+          type: string
+          title: Approval
+        caps:
+          type: string
+          title: Caps
+        audit:
+          type: string
+          title: Audit
+        shared_method:
+          type: string
+          title: Shared Method
+        support_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+        gate_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        action_state:
+          $ref: '#/components/schemas/AdminApiActionState'
+        identity_keys:
+          items:
+            type: string
+          type: array
+          title: Identity Keys
+        read_only_route:
+          type: boolean
+          title: Read Only Route
+          default: false
+        command_draft_route:
+          type: boolean
+          title: Command Draft Route
+          default: false
+        local_evidence_record_route:
+          type: boolean
+          title: Local Evidence Record Route
+          default: false
+        live_exchange_classified_route:
+          type: boolean
+          title: Live Exchange Classified Route
+          default: false
+        live_enabled:
+          type: boolean
+          title: Live Enabled
+          default: false
+        route_inventory_bound:
+          type: boolean
+          title: Route Inventory Bound
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - family
+      - label
+      - surface
+      - method
+      - route
+      - action_class
+      - required_permission
+      - idempotency
+      - approval
+      - caps
+      - audit
+      - shared_method
+      - support_status
+      - gate_status
+      - action_state
+      - detail
+      title: StealthRouteInventoryItem
+      description: One backend route row in the operator-facing stealth route inventory.
+    StealthRouteInventoryResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: stealth_route_inventory
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        module_id:
+          type: string
+          title: Module Id
+          default: stealth_orders
+        approved_phase_range:
+          type: string
+          title: Approved Phase Range
+        support_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+          default: command_draft_live_disabled
+        route_inventory_source:
+          type: string
+          title: Route Inventory Source
+          default: ADMIN_API_ROUTE_INVENTORY
+        route_inventory_ref:
+          type: string
+          title: Route Inventory Ref
+          default: application/admin_api/route_inventory.py
+        route_count:
+          type: integer
+          minimum: 0.0
+          title: Route Count
+          default: 0
+        read_route_count:
+          type: integer
+          minimum: 0.0
+          title: Read Route Count
+          default: 0
+        command_draft_route_count:
+          type: integer
+          minimum: 0.0
+          title: Command Draft Route Count
+          default: 0
+        local_evidence_record_route_count:
+          type: integer
+          minimum: 0.0
+          title: Local Evidence Record Route Count
+          default: 0
+        live_exchange_classified_route_count:
+          type: integer
+          minimum: 0.0
+          title: Live Exchange Classified Route Count
+          default: 0
+        live_enabled_route_count:
+          type: integer
+          minimum: 0.0
+          title: Live Enabled Route Count
+          default: 0
+        blocked_route_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Route Count
+          default: 0
+        route_family_count:
+          type: integer
+          minimum: 0.0
+          title: Route Family Count
+          default: 0
+        route_inventory:
+          items:
+            $ref: '#/components/schemas/StealthRouteInventoryItem'
+          type: array
+          title: Route Inventory
+        route_families:
+          items:
+            $ref: '#/components/schemas/StealthRouteInventoryFamilyItem'
+          type: array
+          title: Route Families
+        read_routes:
+          items:
+            type: string
+          type: array
+          title: Read Routes
+        command_routes:
+          items:
+            type: string
+          type: array
+          title: Command Routes
+        local_evidence_record_routes:
+          items:
+            type: string
+          type: array
+          title: Local Evidence Record Routes
+        embedded_evidence_routes:
+          items:
+            type: string
+          type: array
+          title: Embedded Evidence Routes
+        missing_route_families:
+          items:
+            $ref: '#/components/schemas/AdminApiStealthRouteInventoryFamily'
+          type: array
+          title: Missing Route Families
+        unsupported_behaviors:
+          items:
+            type: string
+          type: array
+          title: Unsupported Behaviors
+        backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Backend Contracts
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        route_inventory_bound:
+          type: boolean
+          title: Route Inventory Bound
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - approved_phase_range
+      - detail
+      title: StealthRouteInventoryResponse
+      description: Read-only route inventory for stealth lifecycle operator controls.
     StealthSelectedOrderActionStateItem:
       properties:
         action_id:

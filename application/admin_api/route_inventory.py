@@ -436,6 +436,23 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="stealth_orders",
+        surface="GET /api/v1/stealth/route-inventory",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="read-only stealth route inventory evidence",
+        audit="optional read audit",
+        shared_method="build_stealth_route_inventory",
+        parity_test=(
+            "read-only stealth route inventory derived from "
+            "ADMIN_API_ROUTE_INVENTORY; no browser/BFF route inference, "
+            "dashboard fallback, Coinbase call, mutation claim acquisition, "
+            "reconciliation execution, or lifecycle mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
         surface="POST /api/v1/stealth/orders/{stealth_order_id}/reveal",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         permission=AdminApiPermission.ORDER_CREATE,

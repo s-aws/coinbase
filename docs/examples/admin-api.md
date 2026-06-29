@@ -2792,6 +2792,13 @@ X-Admin-Roles: viewer
 ```
 
 ```http
+GET /api/v1/stealth/route-inventory
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+```http
 GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof
 Authorization: Bearer <backend-verifiable-token>
 X-Admin-Actor: viewer-001

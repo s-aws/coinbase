@@ -47,6 +47,7 @@ from application.admin_api.models import (
     StealthMutationClaimSnapshotReadResponse,
     StealthCommandSuiteResponse,
     StealthOperatorScopeResponse,
+    StealthRouteInventoryResponse,
     StealthCancelCommand,
     StealthCancelRequest,
     StealthCreateCommand,
@@ -641,6 +642,25 @@ def stealth_operator_scope(
     return _read_model_response(
         StealthOperatorScopeResponse,
         service.build_stealth_operator_scope(),
+    )
+
+
+@router.get(
+    "/stealth/route-inventory",
+    response_model=StealthRouteInventoryResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="Read stealth route inventory",
+)
+def stealth_route_inventory(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+) -> JSONResponse:
+    """Read backend-owned stealth route inventory without executing routes."""
+
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    return _read_model_response(
+        StealthRouteInventoryResponse,
+        service.build_stealth_route_inventory(),
     )
 
 

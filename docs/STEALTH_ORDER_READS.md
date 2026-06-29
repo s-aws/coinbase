@@ -16,6 +16,7 @@ platform, not the legacy dashboard command plane.
 - `GET /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proof`
 - `GET /api/v1/stealth/command-suite`
 - `GET /api/v1/stealth/operator-scope`
+- `GET /api/v1/stealth/route-inventory`
 
 The list/detail routes read local stealth lifecycle rows and report active
 placement evidence, mutation-claim evidence, and reveal-trigger evidence when
@@ -27,6 +28,13 @@ command drafts are visible; exchange-reality checks, mutation-claim ownership,
 post-write reconciliation, unsupported gaps, and authority boundaries remain
 backend-owned blockers. It does not invoke managers, call Coinbase, execute
 reconciliation, mutate local or exchange state, or grant browser/BFF authority.
+The route-inventory route exposes the backend-owned stealth route map derived
+from Admin API route inventory. It reports 40 route rows, 12 route families,
+19 read routes, 6 live-disabled command draft routes, 15 local evidence
+record routes, 3 exchange-shaped routes, and zero live-enabled routes. The
+submission-adapter family is embedded in
+`GET /api/v1/stealth/orders/{stealth_order_id}` detail evidence and is not a
+standalone route or adapter invocation.
 For phases 4581-4600, the M55 blocker-closure ledger also reports partial
 proof/readback evidence for all concrete blocker rows. Partial evidence is
 readback only: it does not change blocker status, missing backend contracts,

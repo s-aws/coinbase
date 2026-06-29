@@ -162,6 +162,7 @@ from core.enums import (
     AdminApiStealthAdmissionEvidence,
     AdminApiStealthCommandSuiteGapFamily,
     AdminApiStealthOperatorScope,
+    AdminApiStealthRouteInventoryFamily,
     AdminApiStealthDecisionResolutionEvidenceType,
     AdminApiStealthLiveReadinessDecision,
     AdminApiVerifierReadinessStatus,
@@ -33487,6 +33488,122 @@ class StealthOperatorScopeResponse(AdminApiReadPayload):
     unsupported_behaviors: list[str] = Field(default_factory=list)
     backend_contracts: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    read_only: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    detail: str
+
+
+class StealthRouteInventoryItem(BaseModel):
+    """One backend route row in the operator-facing stealth route inventory."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    family: AdminApiStealthRouteInventoryFamily
+    label: str
+    surface: str
+    method: str
+    route: str
+    module_id: str = "stealth_orders"
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    idempotency: str
+    approval: str
+    caps: str
+    audit: str
+    shared_method: str
+    support_status: AdminApiModuleSupportStatus
+    gate_status: AdminApiGateStatus
+    action_state: AdminApiActionState
+    identity_keys: list[str] = Field(default_factory=list)
+    read_only_route: bool = False
+    command_draft_route: bool = False
+    local_evidence_record_route: bool = False
+    live_exchange_classified_route: bool = False
+    live_enabled: bool = False
+    route_inventory_bound: bool = True
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    detail: str
+
+
+class StealthRouteInventoryFamilyItem(BaseModel):
+    """One operator-facing route family summary for stealth lifecycle management."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    family: AdminApiStealthRouteInventoryFamily
+    label: str
+    support_status: AdminApiModuleSupportStatus
+    gate_status: AdminApiGateStatus
+    action_state: AdminApiActionState
+    route_count: int = Field(default=0, ge=0)
+    read_route_count: int = Field(default=0, ge=0)
+    command_draft_route_count: int = Field(default=0, ge=0)
+    local_evidence_record_route_count: int = Field(default=0, ge=0)
+    live_exchange_classified_route_count: int = Field(default=0, ge=0)
+    standalone_route_available: bool = True
+    embedded_detail_evidence: bool = False
+    route_inventory_bound: bool = True
+    routes: list[str] = Field(default_factory=list)
+    backend_contracts: list[str] = Field(default_factory=list)
+    unsupported_behaviors: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_enabled: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    detail: str
+
+
+class StealthRouteInventoryResponse(AdminApiReadPayload):
+    """Read-only route inventory for stealth lifecycle operator controls."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "stealth_route_inventory"
+    module_id: str = "stealth_orders"
+    approved_phase_range: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    support_status: AdminApiModuleSupportStatus = (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+    )
+    route_inventory_source: str = "ADMIN_API_ROUTE_INVENTORY"
+    route_inventory_ref: str = "application/admin_api/route_inventory.py"
+    route_count: int = Field(default=0, ge=0)
+    read_route_count: int = Field(default=0, ge=0)
+    command_draft_route_count: int = Field(default=0, ge=0)
+    local_evidence_record_route_count: int = Field(default=0, ge=0)
+    live_exchange_classified_route_count: int = Field(default=0, ge=0)
+    live_enabled_route_count: int = Field(default=0, ge=0)
+    blocked_route_count: int = Field(default=0, ge=0)
+    route_family_count: int = Field(default=0, ge=0)
+    route_inventory: list[StealthRouteInventoryItem] = Field(default_factory=list)
+    route_families: list[StealthRouteInventoryFamilyItem] = Field(default_factory=list)
+    read_routes: list[str] = Field(default_factory=list)
+    command_routes: list[str] = Field(default_factory=list)
+    local_evidence_record_routes: list[str] = Field(default_factory=list)
+    embedded_evidence_routes: list[str] = Field(default_factory=list)
+    missing_route_families: list[AdminApiStealthRouteInventoryFamily] = Field(
+        default_factory=list
+    )
+    unsupported_behaviors: list[str] = Field(default_factory=list)
+    backend_contracts: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    route_inventory_bound: bool = True
     backend_owned: bool = True
     read_only: bool = True
     browser_authority: str = "display_only"

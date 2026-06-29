@@ -446,6 +446,7 @@ from core.enums import (
     AdminApiStealthCommandSuiteGapFamily,
     AdminApiStealthDecisionResolutionEvidenceType,
     AdminApiStealthLiveReadinessDecision,
+    AdminApiStealthRouteInventoryFamily,
     AdminApiVerifierReadinessStatus,
     SpotCampaignExecutionReadinessCheck,
     SpotSweepAutomationControlAction,
@@ -3650,6 +3651,22 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
     assert "unsupported_behaviors" in stealth_operator_scope_schema["properties"]
     assert "command_routes" in stealth_operator_scope_schema["properties"]
     assert "read_routes" in stealth_operator_scope_schema["properties"]
+    stealth_route_inventory_operation = written["paths"][
+        "/api/v1/stealth/route-inventory"
+    ]["get"]
+    assert "200" in stealth_route_inventory_operation["responses"]
+    assert "content" in stealth_route_inventory_operation["responses"]["200"]
+    assert "401" in stealth_route_inventory_operation["responses"]
+    assert "403" in stealth_route_inventory_operation["responses"]
+    stealth_route_inventory_schema = written["components"]["schemas"][
+        "StealthRouteInventoryResponse"
+    ]
+    assert "route_inventory" in stealth_route_inventory_schema["properties"]
+    assert "route_families" in stealth_route_inventory_schema["properties"]
+    assert "local_evidence_record_routes" in (
+        stealth_route_inventory_schema["properties"]
+    )
+    assert "embedded_evidence_routes" in stealth_route_inventory_schema["properties"]
     movement_reprice_operation = written["paths"][
         "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
     ]["post"]
@@ -44921,6 +44938,120 @@ def test_admin_api_stealth_operator_scope_is_read_only_management_boundary(
 
 
 @pytest.mark.regression
+def test_admin_api_stealth_route_inventory_is_backend_owned_operator_map(
+    monkeypatch,
+):
+    from application.admin_api.read_service import AdminApiReadService
+
+    client = _client(monkeypatch)
+
+    response = client.get(
+        "/api/v1/stealth/route-inventory",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["type"] == "stealth_route_inventory"
+    assert payload["module_id"] == "stealth_orders"
+    assert payload["approved_phase_range"] == "8101-8120"
+    assert payload["status"] == AdminApiGateStatus.BLOCKED.value
+    assert payload["support_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert payload["route_inventory_source"] == "ADMIN_API_ROUTE_INVENTORY"
+    assert payload["route_inventory_ref"] == "application/admin_api/route_inventory.py"
+    assert payload["route_count"] == 40
+    assert payload["read_route_count"] == 19
+    assert payload["command_draft_route_count"] == 6
+    assert payload["local_evidence_record_route_count"] == 15
+    assert payload["live_exchange_classified_route_count"] == 3
+    assert payload["live_enabled_route_count"] == 0
+    assert payload["blocked_route_count"] == 21
+    assert payload["route_family_count"] == 12
+    assert payload["missing_route_families"] == []
+    assert payload["route_inventory_bound"] is True
+    assert payload["backend_owned"] is True
+    assert payload["read_only"] is True
+    assert payload["browser_authority"] == "display_only"
+    assert payload["bff_authority"] == "forward_only_no_execution"
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_read_ran"] is False
+    assert payload["submitted_notional_usdc"] == "0"
+    assert payload["executed_notional_usdc"] == "0"
+    assert "browser_route_inventory_inference" in payload["unsupported_behaviors"]
+    assert "standalone_submission_adapter_invocation" in payload[
+        "unsupported_behaviors"
+    ]
+    assert "GET /api/v1/stealth/route-inventory" in payload["read_routes"]
+    assert "GET /api/v1/stealth/orders/{stealth_order_id}" in payload[
+        "embedded_evidence_routes"
+    ]
+    assert "POST /api/v1/stealth/orders/{stealth_order_id}/reveal" in payload[
+        "command_routes"
+    ]
+
+    rows_by_surface = {item["surface"]: item for item in payload["route_inventory"]}
+    route_inventory_row = rows_by_surface["GET /api/v1/stealth/route-inventory"]
+    assert route_inventory_row["family"] == (
+        AdminApiStealthRouteInventoryFamily.COMMAND_READINESS.value
+    )
+    assert route_inventory_row["read_only_route"] is True
+    assert route_inventory_row["command_draft_route"] is False
+    assert route_inventory_row["live_enabled"] is False
+    reveal_row = rows_by_surface[
+        "POST /api/v1/stealth/orders/{stealth_order_id}/reveal"
+    ]
+    assert reveal_row["family"] == (
+        AdminApiStealthRouteInventoryFamily.COMMAND_DRAFTS.value
+    )
+    assert reveal_row["command_draft_route"] is True
+    assert reveal_row["live_exchange_classified_route"] is True
+    assert reveal_row["live_enabled"] is False
+    mutation_record_row = rows_by_surface[
+        "POST /api/v1/stealth/orders/{stealth_order_id}/mutation-claim-proofs"
+    ]
+    assert mutation_record_row["local_evidence_record_route"] is True
+    assert mutation_record_row["gate_status"] == AdminApiGateStatus.BLOCKED.value
+
+    family_by_id = {item["family"]: item for item in payload["route_families"]}
+    assert set(family_by_id) == {
+        family.value for family in AdminApiStealthRouteInventoryFamily
+    }
+    command_readiness = family_by_id[
+        AdminApiStealthRouteInventoryFamily.COMMAND_READINESS.value
+    ]
+    assert command_readiness["read_route_count"] == 3
+    assert command_readiness["gate_status"] == AdminApiGateStatus.PASSED.value
+    command_drafts = family_by_id[
+        AdminApiStealthRouteInventoryFamily.COMMAND_DRAFTS.value
+    ]
+    assert command_drafts["command_draft_route_count"] == 6
+    assert command_drafts["live_exchange_classified_route_count"] == 3
+    assert command_drafts["gate_status"] == AdminApiGateStatus.BLOCKED.value
+    submission_adapter = family_by_id[
+        AdminApiStealthRouteInventoryFamily.SUBMISSION_ADAPTER.value
+    ]
+    assert submission_adapter["standalone_route_available"] is False
+    assert submission_adapter["embedded_detail_evidence"] is True
+    assert submission_adapter["route_inventory_bound"] is True
+    assert submission_adapter["routes"] == [
+        "GET /api/v1/stealth/orders/{stealth_order_id}"
+    ]
+    assert "adapter_invocation" in submission_adapter["unsupported_behaviors"]
+    post_write = family_by_id[
+        AdminApiStealthRouteInventoryFamily.POST_WRITE_RECONCILIATION.value
+    ]
+    assert post_write["route_count"] == 10
+    assert post_write["local_evidence_record_route_count"] == 5
+
+    direct_response = AdminApiReadService().build_stealth_route_inventory()
+    assert direct_response.route_count == len(direct_response.route_inventory)
+    assert direct_response.live_enabled_route_count == 0
+    assert direct_response.missing_route_families == []
+
+
+@pytest.mark.regression
 def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch):
     client = _client(monkeypatch)
 
@@ -61456,6 +61587,24 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows["GET /api/v1/stealth/orders/{stealth_order_id}"].shared_method == (
         "build_stealth_order_detail"
     )
+    assert rows["GET /api/v1/stealth/operator-scope"].shared_method == (
+        "build_stealth_operator_scope"
+    )
+    assert rows["GET /api/v1/stealth/operator-scope"].action_class == (
+        AdminApiActionClass.READ_ONLY
+    )
+    assert rows["GET /api/v1/stealth/operator-scope"].permission == (
+        AdminApiPermission.ANALYTICS_READ
+    )
+    assert rows["GET /api/v1/stealth/route-inventory"].shared_method == (
+        "build_stealth_route_inventory"
+    )
+    assert rows["GET /api/v1/stealth/route-inventory"].action_class == (
+        AdminApiActionClass.READ_ONLY
+    )
+    assert rows["GET /api/v1/stealth/route-inventory"].permission == (
+        AdminApiPermission.ANALYTICS_READ
+    )
     assert rows["POST /api/v1/stealth/orders"].shared_method == (
         "create_stealth_order"
     )
@@ -61847,6 +61996,8 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "build_order_list" in doc
     assert "build_stealth_order_list" in doc
     assert "build_stealth_order_detail" in doc
+    assert "build_stealth_operator_scope" in doc
+    assert "build_stealth_route_inventory" in doc
     assert "cancel_stealth_order_by_stealth_order_id" in doc
     assert "build_movement_repricing_evidence" in doc
     assert "build_movement_repricing_order_detail" in doc

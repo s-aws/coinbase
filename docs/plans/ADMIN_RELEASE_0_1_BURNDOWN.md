@@ -132,6 +132,14 @@ Exact autonomous phrase: Active Release 0.1 `8101-8120` adds a Stealth Lifecycle
   mutation-claim, reveal-trigger, submission-adapter, recovery,
   cancel/replace, and post-write evidence contracts needed for operator
   management.
+- Evidence update 2026-06-29: added read-only
+  `GET /api/v1/stealth/route-inventory` as backend-owned operator evidence.
+  It derives rows from `ADMIN_API_ROUTE_INVENTORY`, classifies 40 stealth
+  route rows into 12 families, exposes 19 reads, 6 blocked command drafts,
+  15 local evidence record routes, 3 exchange-shaped routes, and zero
+  live-enabled routes, and names submission-adapter evidence as embedded in
+  stealth detail. The browser and BFF remain display/forward-only and no live
+  Coinbase orders or reads ran.
 
 ### Phase 8104 - Stealth Exchange-Reality Contract Map
 

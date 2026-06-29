@@ -189,10 +189,21 @@ work. Historical milestone detail belongs in
   API evidence. The route reports seven scope rows, unsupported behaviors,
   command/read route lists, display/forward-only authority, no live Coinbase
   order/read execution, and 0 USDC submitted/executed notional.
-- Exact next implementation slice: move to Phase 8103 Backend Stealth Route
-  Inventory. Do not add browser scheduler, BFF runner authority, retry loops,
-  route-local execution, direct Coinbase calls, reconciliation execution,
-  order/exchange state mutation, or a second trading path.
+- Phase 8103 implementation status: `GET /api/v1/stealth/route-inventory`
+  now exposes backend-owned stealth route inventory as read-only Admin API
+  evidence. The route is derived from `ADMIN_API_ROUTE_INVENTORY` and reports
+  40 stealth route rows, 12 route families, 19 reads, 6 blocked command
+  drafts, 15 local evidence record routes, 3 exchange-shaped routes, zero
+  live-enabled routes, embedded submission-adapter detail evidence, and no
+  live Coinbase order/read execution with 0 USDC submitted/executed notional.
+  The frontend consumes it through generated schema, `getStealthRouteInventory`,
+  mock fixtures, runtime snapshot loading, typed stealth adapters, and Stealth
+  Orders read-model rendering.
+- Exact next implementation slice after Phase 8103 validation: move to
+  Phase 8104 Stealth Exchange-Reality Contract Map. Do not add browser
+  scheduler, BFF runner authority, retry loops, route-local execution, direct
+  Coinbase calls, reconciliation execution, order/exchange state mutation, or
+  a second trading path.
 - Contextless review status: backend Phase 7997 passed after remediation.
   Initial blind reviews blocked on stale current Admin API command-authority
   docs and `genai_data` references that still implied all HTTP mutating routes

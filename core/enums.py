@@ -587,6 +587,23 @@ class AdminApiStealthOperatorScope(str, Enum):
     AUTHORITY_BOUNDARY = "authority_boundary"
 
 
+class AdminApiStealthRouteInventoryFamily(str, Enum):
+    """Operator-facing stealth route inventory families."""
+
+    LIFECYCLE_READS = "lifecycle_reads"
+    COMMAND_READINESS = "command_readiness"
+    COMMAND_DRAFTS = "command_drafts"
+    EXCHANGE_REALITY = "exchange_reality"
+    LIFECYCLE_WRITE_GUARD = "lifecycle_write_guard"
+    MUTATION_CLAIMS = "mutation_claims"
+    REVEAL_TRIGGER = "reveal_trigger"
+    SUBMISSION_ADAPTER = "submission_adapter"
+    RECOVERY_EVIDENCE = "recovery_evidence"
+    CANCEL_REPLACE = "cancel_replace"
+    POST_WRITE_RECONCILIATION = "post_write_reconciliation"
+    POLICY_BOUNDARIES = "policy_boundaries"
+
+
 class AdminApiStealthCommandSuiteBlockerClosure(str, Enum):
     """Concrete M55 blocker closures required before stealth live execution."""
 

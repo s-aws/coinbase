@@ -761,6 +761,7 @@ Current route adapters:
 - `GET /api/v1/stealth/orders/{stealth_order_id}`
 - `GET /api/v1/stealth/command-suite`
 - `GET /api/v1/stealth/operator-scope`
+- `GET /api/v1/stealth/route-inventory`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/lifecycle-write-guard-proof`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/mutation-claim-proof`
@@ -864,6 +865,15 @@ Current behavior:
   gaps, and browser/BFF authority limits. It does not invoke managers, acquire
   mutation claims, execute reconciliation, call Coinbase, mutate local or
   exchange state, route through the dashboard, or create a second trading path.
+- `GET /api/v1/stealth/route-inventory` exposes the backend-owned stealth
+  route map derived from `ADMIN_API_ROUTE_INVENTORY`. It reports 40 stealth
+  route rows grouped into 12 route families, including 19 read routes, 6
+  live-disabled command drafts, 15 local evidence record routes, 3
+  exchange-shaped routes, zero live-enabled routes, and embedded
+  submission-adapter detail evidence on
+  `GET /api/v1/stealth/orders/{stealth_order_id}`. It does not add browser
+  route inference, BFF execution, dashboard fallback, standalone adapter
+  invocation, Coinbase calls, reconciliation execution, or lifecycle mutation.
   `execution_live_readiness` also includes forbidden execution claim evidence
   and summary rows mapping each forbidden claim to the backend decision,
   clearance/work-queue refs, backend contract evidence, and disabled

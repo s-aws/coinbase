@@ -103,6 +103,7 @@ from core.enums import (
     AdminApiStealthCommandSuiteBlockerClosure,
     AdminApiStealthCommandSuiteGapFamily,
     AdminApiStealthOperatorScope,
+    AdminApiStealthRouteInventoryFamily,
     AdminApiVerifierReadinessStatus,
     OrderSide,
     ProductCapability,
@@ -387,6 +388,9 @@ from .models import (
     SpotSweepAutomationServiceStatusResponse,
     StealthOperatorScopeItem,
     StealthOperatorScopeResponse,
+    StealthRouteInventoryFamilyItem,
+    StealthRouteInventoryItem,
+    StealthRouteInventoryResponse,
     StealthCommandSuiteCommandItem,
     StealthSelectedOrderActionStateItem,
     StealthCommandSuiteAdmissionContextItem,
@@ -16881,6 +16885,413 @@ class AdminApiReadService:
                 "invoke managers, call Coinbase, mutate lifecycle/order/"
                 "exchange state, execute reconciliation, or satisfy live "
                 "execution service/adapter prerequisites."
+            ),
+        )
+
+    @staticmethod
+    def _admin_api_http_surface(surface: str) -> tuple[str, str]:
+        pieces = surface.split(" ", 1)
+        if len(pieces) != 2:
+            raise ValueError(f"Route inventory surface is not HTTP-shaped: {surface}")
+        return pieces[0], pieces[1]
+
+    @staticmethod
+    def _is_stealth_local_evidence_record_route(method: str, route: str) -> bool:
+        if method != "POST":
+            return False
+        evidence_tokens = (
+            "proofs",
+            "snapshots",
+            "journals",
+            "verifications",
+            "policy-proofs",
+        )
+        return any(token in route for token in evidence_tokens)
+
+    def _stealth_route_inventory_family(
+        self,
+        *,
+        method: str,
+        route: str,
+        local_evidence_record_route: bool,
+    ) -> AdminApiStealthRouteInventoryFamily:
+        if method == "POST" and not local_evidence_record_route:
+            return AdminApiStealthRouteInventoryFamily.COMMAND_DRAFTS
+        if route in {
+            "/api/v1/stealth/command-suite",
+            "/api/v1/stealth/operator-scope",
+            "/api/v1/stealth/route-inventory",
+        }:
+            return AdminApiStealthRouteInventoryFamily.COMMAND_READINESS
+        if "active-placement/exchange-truth" in route:
+            return AdminApiStealthRouteInventoryFamily.EXCHANGE_REALITY
+        if "lifecycle-write-guard" in route:
+            return AdminApiStealthRouteInventoryFamily.LIFECYCLE_WRITE_GUARD
+        if "mutation-claim" in route:
+            return AdminApiStealthRouteInventoryFamily.MUTATION_CLAIMS
+        if "reveal-trigger" in route:
+            return AdminApiStealthRouteInventoryFamily.REVEAL_TRIGGER
+        if "recovery" in route:
+            return AdminApiStealthRouteInventoryFamily.RECOVERY_EVIDENCE
+        if "cancel-replace" in route:
+            return AdminApiStealthRouteInventoryFamily.CANCEL_REPLACE
+        if "post-write" in route or "reconciliation-proof" in route:
+            return AdminApiStealthRouteInventoryFamily.POST_WRITE_RECONCILIATION
+        if (
+            "manager-invocation-policy" in route
+            or "coinbase-exchange-submission-policy" in route
+            or "state-mutation-policy" in route
+        ):
+            return AdminApiStealthRouteInventoryFamily.POLICY_BOUNDARIES
+        return AdminApiStealthRouteInventoryFamily.LIFECYCLE_READS
+
+    def build_stealth_route_inventory(self) -> StealthRouteInventoryResponse:
+        """Return backend-owned route inventory for stealth operator management."""
+
+        route_rows: list[StealthRouteInventoryItem] = []
+        for item in ADMIN_API_ROUTE_INVENTORY:
+            if item.module_id != "stealth_orders":
+                continue
+            method, route = self._admin_api_http_surface(item.surface)
+            read_only_route = item.action_class == AdminApiActionClass.READ_ONLY
+            local_evidence_record_route = self._is_stealth_local_evidence_record_route(
+                method,
+                route,
+            )
+            command_draft_route = method == "POST" and not local_evidence_record_route
+            live_exchange_classified_route = item.action_class in {
+                AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+                AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            }
+            family = self._stealth_route_inventory_family(
+                method=method,
+                route=route,
+                local_evidence_record_route=local_evidence_record_route,
+            )
+            route_rows.append(
+                StealthRouteInventoryItem(
+                    family=family,
+                    label=item.shared_method,
+                    surface=item.surface,
+                    method=method,
+                    route=route,
+                    module_id=item.module_id,
+                    action_class=item.action_class,
+                    required_permission=item.permission,
+                    idempotency=item.idempotency,
+                    approval=item.approval,
+                    caps=item.caps,
+                    audit=item.audit,
+                    shared_method=item.shared_method,
+                    support_status=(
+                        AdminApiModuleSupportStatus.READ_ONLY_READY
+                        if read_only_route
+                        else AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                    ),
+                    gate_status=(
+                        AdminApiGateStatus.PASSED
+                        if read_only_route
+                        else AdminApiGateStatus.BLOCKED
+                    ),
+                    action_state=(
+                        AdminApiActionState.USABLE
+                        if read_only_route
+                        else AdminApiActionState.BLOCKED
+                    ),
+                    identity_keys=(
+                        ["stealth_order_id"]
+                        if "{stealth_order_id}" in route or method == "POST"
+                        else []
+                    ),
+                    read_only_route=read_only_route,
+                    command_draft_route=command_draft_route,
+                    local_evidence_record_route=local_evidence_record_route,
+                    live_exchange_classified_route=live_exchange_classified_route,
+                    live_enabled=False,
+                    route_inventory_bound=True,
+                    backend_owned=True,
+                    browser_authority="display_only",
+                    bff_authority="forward_only_no_execution",
+                    live_coinbase_orders_ran=False,
+                    live_coinbase_read_ran=False,
+                    submitted_notional_usdc="0",
+                    executed_notional_usdc="0",
+                    detail=item.parity_test,
+                )
+            )
+
+        route_rows = sorted(route_rows, key=lambda row: (row.route, row.method))
+        route_by_surface = {row.surface: row for row in route_rows}
+
+        family_specs = (
+            (
+                AdminApiStealthRouteInventoryFamily.LIFECYCLE_READS,
+                "Lifecycle list and detail reads",
+                "Operators can inspect stealth list/detail state through backend reads.",
+                True,
+                False,
+                ["build_stealth_order_list", "build_stealth_order_detail"],
+            ),
+            (
+                AdminApiStealthRouteInventoryFamily.COMMAND_READINESS,
+                "Command readiness and route inventory",
+                "Operators can inspect command readiness, operator scope, and route inventory.",
+                True,
+                False,
+                [
+                    "build_stealth_command_suite",
+                    "build_stealth_operator_scope",
+                    "build_stealth_route_inventory",
+                ],
+            ),
+            (
+                AdminApiStealthRouteInventoryFamily.COMMAND_DRAFTS,
+                "Live-disabled lifecycle command drafts",
+                "Create, reveal, move, cancel, recovery, and reconciliation routes are modeled but blocked by backend gates.",
+                True,
+                False,
+                ["AdminApiCommandService stealth command routes"],
+            ),
+            (
+                AdminApiStealthRouteInventoryFamily.EXCHANGE_REALITY,
+                "Exchange-reality evidence",
+                "Active-placement exchange-truth routes remain evidence only and do not read or mutate Coinbase state.",
+                True,
+                False,
+                ["build_stealth_active_placement_exchange_truth"],
+            ),
+            (
+                AdminApiStealthRouteInventoryFamily.LIFECYCLE_WRITE_GUARD,
+                "Lifecycle-write guard evidence",
+                "Lifecycle-write guard rows show missing backend write prerequisites without invoking the manager.",
+                True,
+                False,
+                ["build_stealth_create_lifecycle_write_guard"],
+            ),
+            (
+                AdminApiStealthRouteInventoryFamily.MUTATION_CLAIMS,
+                "Mutation-claim evidence",
+                "Mutation-claim routes expose backend-owned claim posture without browser acquisition or release.",
+                True,
+                False,
+                ["build_stealth_mutation_claim_snapshot"],
+            ),
+            (
+                AdminApiStealthRouteInventoryFamily.REVEAL_TRIGGER,
+                "Reveal-trigger evidence",
+                "Reveal-trigger routes expose trigger proof posture without evaluating triggers or revealing orders.",
+                True,
+                False,
+                ["build_stealth_reveal_trigger_proof"],
+            ),
+            (
+                AdminApiStealthRouteInventoryFamily.SUBMISSION_ADAPTER,
+                "Reveal submission-adapter detail evidence",
+                "Submission-adapter audit is embedded in stealth detail reads; no standalone route or adapter invocation exists.",
+                False,
+                True,
+                ["build_stealth_order_detail.reveal_submission_adapter_audit"],
+            ),
+            (
+                AdminApiStealthRouteInventoryFamily.RECOVERY_EVIDENCE,
+                "Recovery evidence and command boundary",
+                "Recovery routes expose proof records and a blocked recovery command without repair, rollback, or Coinbase reads.",
+                True,
+                False,
+                ["build_stealth_recovery_proof"],
+            ),
+            (
+                AdminApiStealthRouteInventoryFamily.CANCEL_REPLACE,
+                "Cancel/replace evidence and command boundary",
+                "Cancel/replace routes expose proof records and blocked cancel/move commands without live active-placement handling.",
+                True,
+                False,
+                ["build_stealth_cancel_replace_proof"],
+            ),
+            (
+                AdminApiStealthRouteInventoryFamily.POST_WRITE_RECONCILIATION,
+                "Post-write reconciliation evidence",
+                "Post-write routes expose proof, journal, verification, and blocked reconciliation boundaries without execution.",
+                True,
+                False,
+                [
+                    "build_stealth_post_write_reconciliation_proof",
+                    "build_stealth_post_write_execution_journals",
+                    "build_stealth_post_write_reconciliation_verifications",
+                ],
+            ),
+            (
+                AdminApiStealthRouteInventoryFamily.POLICY_BOUNDARIES,
+                "Manager, Coinbase, and state-mutation policy evidence",
+                "Policy routes make backend authority boundaries visible without invoking managers, Coinbase, or state mutation.",
+                True,
+                False,
+                [
+                    "build_stealth_manager_invocation_policy",
+                    "build_stealth_coinbase_exchange_submission_policy",
+                    "build_stealth_state_mutation_policy",
+                ],
+            ),
+        )
+        route_families: list[StealthRouteInventoryFamilyItem] = []
+        missing_route_families: list[AdminApiStealthRouteInventoryFamily] = []
+        for (
+            family,
+            label,
+            detail,
+            standalone_route_available,
+            embedded_detail_evidence,
+            backend_contracts,
+        ) in family_specs:
+            family_rows = [row for row in route_rows if row.family == family]
+            routes = [row.surface for row in family_rows]
+            route_inventory_bound = bool(family_rows)
+            if family == AdminApiStealthRouteInventoryFamily.SUBMISSION_ADAPTER:
+                embedded_surface = "GET /api/v1/stealth/orders/{stealth_order_id}"
+                route_inventory_bound = embedded_surface in route_by_surface
+                routes = [embedded_surface] if route_inventory_bound else []
+            if not route_inventory_bound:
+                missing_route_families.append(family)
+            family_read_count = sum(1 for row in family_rows if row.read_only_route)
+            family_command_count = sum(
+                1 for row in family_rows if row.command_draft_route
+            )
+            family_record_count = sum(
+                1 for row in family_rows if row.local_evidence_record_route
+            )
+            family_live_classified_count = sum(
+                1 for row in family_rows if row.live_exchange_classified_route
+            )
+            blocked = (
+                family_command_count > 0
+                or family_record_count > 0
+                or family_live_classified_count > 0
+                or family
+                in {
+                    AdminApiStealthRouteInventoryFamily.COMMAND_DRAFTS,
+                    AdminApiStealthRouteInventoryFamily.SUBMISSION_ADAPTER,
+                    AdminApiStealthRouteInventoryFamily.RECOVERY_EVIDENCE,
+                    AdminApiStealthRouteInventoryFamily.CANCEL_REPLACE,
+                    AdminApiStealthRouteInventoryFamily.POST_WRITE_RECONCILIATION,
+                }
+            )
+            route_families.append(
+                StealthRouteInventoryFamilyItem(
+                    family=family,
+                    label=label,
+                    support_status=(
+                        AdminApiModuleSupportStatus.READ_ONLY_READY
+                        if not blocked
+                        else AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                    ),
+                    gate_status=(
+                        AdminApiGateStatus.BLOCKED
+                        if blocked
+                        else AdminApiGateStatus.PASSED
+                    ),
+                    action_state=(
+                        AdminApiActionState.BLOCKED
+                        if blocked
+                        else AdminApiActionState.USABLE
+                    ),
+                    route_count=(len(routes) if embedded_detail_evidence else len(family_rows)),
+                    read_route_count=family_read_count,
+                    command_draft_route_count=family_command_count,
+                    local_evidence_record_route_count=family_record_count,
+                    live_exchange_classified_route_count=family_live_classified_count,
+                    standalone_route_available=standalone_route_available,
+                    embedded_detail_evidence=embedded_detail_evidence,
+                    route_inventory_bound=route_inventory_bound,
+                    routes=routes,
+                    backend_contracts=backend_contracts,
+                    unsupported_behaviors=(
+                        [
+                            "standalone_submission_adapter_route",
+                            "adapter_invocation",
+                            "reveal_order_slice_call",
+                            "coinbase_order_submission",
+                        ]
+                        if family == AdminApiStealthRouteInventoryFamily.SUBMISSION_ADAPTER
+                        else []
+                    ),
+                    backend_owned=True,
+                    browser_authority="display_only",
+                    bff_authority="forward_only_no_execution",
+                    live_enabled=False,
+                    live_coinbase_orders_ran=False,
+                    live_coinbase_read_ran=False,
+                    submitted_notional_usdc="0",
+                    executed_notional_usdc="0",
+                    detail=detail,
+                )
+            )
+
+        read_routes = [row.surface for row in route_rows if row.read_only_route]
+        command_routes = [row.surface for row in route_rows if row.command_draft_route]
+        local_evidence_record_routes = [
+            row.surface for row in route_rows if row.local_evidence_record_route
+        ]
+        unsupported_behaviors = [
+            "browser_bff_trading_authority",
+            "dashboard_websocket_fallback",
+            "route_local_stealth_execution",
+            "direct_coinbase_calls",
+            "browser_route_inventory_inference",
+            "standalone_submission_adapter_invocation",
+            "exchange_order_id_command_identity",
+        ]
+        return StealthRouteInventoryResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            status=AdminApiGateStatus.BLOCKED,
+            support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+            route_inventory_source="ADMIN_API_ROUTE_INVENTORY",
+            route_inventory_ref="application/admin_api/route_inventory.py",
+            route_count=len(route_rows),
+            read_route_count=len(read_routes),
+            command_draft_route_count=len(command_routes),
+            local_evidence_record_route_count=len(local_evidence_record_routes),
+            live_exchange_classified_route_count=sum(
+                1 for row in route_rows if row.live_exchange_classified_route
+            ),
+            live_enabled_route_count=0,
+            blocked_route_count=sum(
+                1 for row in route_rows if row.gate_status == AdminApiGateStatus.BLOCKED
+            ),
+            route_family_count=len(route_families),
+            route_inventory=route_rows,
+            route_families=route_families,
+            read_routes=read_routes,
+            command_routes=command_routes,
+            local_evidence_record_routes=local_evidence_record_routes,
+            embedded_evidence_routes=["GET /api/v1/stealth/orders/{stealth_order_id}"],
+            missing_route_families=missing_route_families,
+            unsupported_behaviors=unsupported_behaviors,
+            backend_contracts=[
+                "ADMIN_API_ROUTE_INVENTORY",
+                "build_stealth_order_detail",
+                "build_stealth_command_suite",
+                "AdminApiCommandService stealth command routes",
+            ],
+            evidence=[
+                "Every route row is derived from ADMIN_API_ROUTE_INVENTORY.",
+                "Submission-adapter evidence is embedded in the stealth detail route.",
+                "POST rows remain backend-gated and no-live; frontend route inventory is display evidence only.",
+                "No browser, BFF, dashboard, route-local, or Coinbase authority is added.",
+            ],
+            route_inventory_bound=not missing_route_families,
+            backend_owned=True,
+            read_only=True,
+            browser_authority="display_only",
+            bff_authority="forward_only_no_execution",
+            live_coinbase_orders_ran=False,
+            live_coinbase_read_ran=False,
+            submitted_notional_usdc="0",
+            executed_notional_usdc="0",
+            detail=(
+                "Stealth route inventory maps backend-owned stealth routes into "
+                "operator-facing families so the enterprise admin can show "
+                "which reads, local evidence records, and blocked command "
+                "drafts exist without deriving route authority in the browser."
             ),
         )
 
