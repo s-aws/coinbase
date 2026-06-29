@@ -372,6 +372,18 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Link orders, fills, and direct-order audit views into reconciliation evidence
   using backend-owned read paths.
+- Evidence update 2026-06-29: frontend order list/detail audit links and
+  direct-order audit links now hand operators to Audit Workbench
+  reconciliation evidence by `client_order_id` through existing backend read
+  evidence anchors. Audit Workbench reconciliation evidence also exposes
+  duplicate-safe reconciliation-plan anchors when the backend reports a real
+  `reconciliation_plan_id`. No backend schema, Admin API route, command
+  execution, reconciliation execution, proof writing, order/exchange mutation,
+  Coinbase call, browser/BFF authority, or exchange `order_id` identity changed.
+  Backend and frontend `AGENTS.md` requirements were re-reviewed during this
+  phase and did not change direction. No phase-scoped subagents were spawned;
+  live Coinbase execution was not run and submitted/executed notional stayed
+  0 USDC.
 
 ### Phase 8073 - Audit Search And Filter Operator UX
 
