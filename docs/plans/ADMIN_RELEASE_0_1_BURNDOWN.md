@@ -253,6 +253,15 @@ Exact autonomous phrase: Active Release 0.1 `8041-8060` adds a Spot Command Oper
 
 - Commit and push synchronized backend/frontend evidence with no-live notional
   reporting.
+- Evidence update 2026-06-29: synchronized Phase 8058/8059 evidence was
+  committed and pushed on branch `codex/stealth-live-service-decision-3501`.
+  Backend commits: `8df450f9` (`Clarify spot live exception contract`) and
+  `1db42c23` (`Record phase 8059 validation hygiene`). Frontend commits:
+  `05b2fda` (`Refresh generated spot live exception schema`) and `b34862e`
+  (`Record phase 8059 frontend validation hygiene`). Both repositories were
+  clean after push. No phase-scoped subagents were spawned for this
+  commit-evidence phase. Live Coinbase execution was not run and
+  submitted/executed notional stayed 0 USDC.
 
 ## Completed Phases 8021-8040
 
