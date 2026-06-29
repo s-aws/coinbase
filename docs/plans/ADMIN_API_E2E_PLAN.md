@@ -66,6 +66,13 @@ Every phase must answer: Does this make the frontend able to manage the project?
 
 Exact autonomous phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Operator Controls slice so operators can inspect campaign and sweep automation state, review scheduler, retry, and control readiness, and use backend-owned no-live controls through the enterprise frontend/API without browser scheduler, BFF runner, or Coinbase execution authority while completed `8061-8080` carries the Audit/Reconciliation Operator Correlation evidence.
 
+Phase 8082 status: `GET /api/v1/spot/sweep/automation-service` now exposes
+`operator_scope_count` and backend-owned `operator_scope` rows for read
+evidence, local controls, dry-run command review, execution gaps, and
+authority boundaries. These rows are no-live scope evidence for the Campaigns
+UI and do not grant scheduler, runner, reconciliation, BFF, browser, direct
+Coinbase, or second-path execution authority.
+
 ## Completed Phases 8061-8080
 
 Completed Release 0.1 `8061-8080` added the Audit/Reconciliation Operator

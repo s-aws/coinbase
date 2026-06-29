@@ -32,6 +32,12 @@ execution authority while completed `8061-8080` carries the
 Audit/Reconciliation Operator Correlation evidence. The governing question for
 new work is: Does this make the frontend able to manage the project?
 
+Phase 8082 adds `operator_scope_count` and `operator_scope` to the spot sweep
+automation-service status response. The rows classify read evidence, local
+controls, dry-run review, execution gaps, and authority boundaries as
+backend-owned no-live evidence; they do not authorize scheduler, runner,
+reconciliation, browser/BFF, direct Coinbase, or second-path execution.
+
 Completed M57 `7961-7980` futures/perpetual risk-proof record validation
 remediation summary evidence for `GET /api/v1/futures/command-suite` is
 carried forward history. It added read-only

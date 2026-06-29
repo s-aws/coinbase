@@ -177,6 +177,7 @@ from core.enums import (
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
     SpotSweepAutomationControlAction,
+    SpotSweepAutomationOperatorScope,
     EngineState,
     StealthExchangeTruthEvidenceSource,
     StealthCommandExecutionBlocker,
@@ -26124,6 +26125,29 @@ class SpotCampaignStatusResponse(AdminApiReadPayload):
     message: str | None = None
 
 
+class SpotSweepAutomationOperatorScopeItem(BaseModel):
+    """One operator-visible scope row for campaign/sweep automation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scope: SpotSweepAutomationOperatorScope
+    label: str
+    support_status: AdminApiModuleSupportStatus
+    gate_status: AdminApiGateStatus
+    identity_keys: list[str] = Field(default_factory=list)
+    read_routes: list[str] = Field(default_factory=list)
+    command_routes: list[str] = Field(default_factory=list)
+    backend_contracts: list[str] = Field(default_factory=list)
+    unsupported_behaviors: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_orders_ran: bool = False
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    detail: str
+
+
 class SpotSweepAutomationServiceStatusResponse(AdminApiReadPayload):
     """Read-only status contract for backend-owned spot sweep automation."""
 
@@ -26207,6 +26231,10 @@ class SpotSweepAutomationServiceStatusResponse(AdminApiReadPayload):
     current_read_evidence_routes: list[str] = Field(default_factory=list)
     command_routes: list[str] = Field(default_factory=list)
     missing_contracts: list[str] = Field(default_factory=list)
+    operator_scope_count: int = Field(default=0, ge=0)
+    operator_scope: list[SpotSweepAutomationOperatorScopeItem] = Field(
+        default_factory=list
+    )
     backend_owned: bool = True
     read_only: bool = True
     operator_action_available: bool = False

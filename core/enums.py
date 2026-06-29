@@ -2703,6 +2703,16 @@ class SpotSweepAutomationControlState(str, Enum):
     PAUSED = "paused"
 
 
+class SpotSweepAutomationOperatorScope(str, Enum):
+    """Operator-visible scope rows for spot campaign/sweep automation."""
+
+    READ_EVIDENCE = "read_evidence"
+    LOCAL_CONTROL = "local_control"
+    COMMAND_REVIEW = "command_review"
+    EXECUTION_GAP = "execution_gap"
+    AUTHORITY_BOUNDARY = "authority_boundary"
+
+
 class SpotSweepAutomationSchedulerBindingStatus(str, Enum):
     """Read-only Admin API status for scheduler/run-limit binding evidence."""
 

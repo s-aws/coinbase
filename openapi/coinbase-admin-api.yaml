@@ -142838,6 +142838,99 @@ components:
       - control_action
       title: SpotSweepAutomationControlRequest
       description: Spot sweep automation pause/resume/retry control request.
+    SpotSweepAutomationOperatorScope:
+      type: string
+      enum:
+      - read_evidence
+      - local_control
+      - command_review
+      - execution_gap
+      - authority_boundary
+      title: SpotSweepAutomationOperatorScope
+      description: Operator-visible scope rows for spot campaign/sweep automation.
+    SpotSweepAutomationOperatorScopeItem:
+      properties:
+        scope:
+          $ref: '#/components/schemas/SpotSweepAutomationOperatorScope'
+        label:
+          type: string
+          title: Label
+        support_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+        gate_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        identity_keys:
+          items:
+            type: string
+          type: array
+          title: Identity Keys
+        read_routes:
+          items:
+            type: string
+          type: array
+          title: Read Routes
+        command_routes:
+          items:
+            type: string
+          type: array
+          title: Command Routes
+        backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Backend Contracts
+        unsupported_behaviors:
+          items:
+            type: string
+          type: array
+          title: Unsupported Behaviors
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - scope
+      - label
+      - support_status
+      - gate_status
+      - detail
+      title: SpotSweepAutomationOperatorScopeItem
+      description: One operator-visible scope row for campaign/sweep automation.
     SpotSweepAutomationRunRequest:
       properties:
         sweep_config_id:
@@ -143132,6 +143225,16 @@ components:
             type: string
           type: array
           title: Missing Contracts
+        operator_scope_count:
+          type: integer
+          minimum: 0.0
+          title: Operator Scope Count
+          default: 0
+        operator_scope:
+          items:
+            $ref: '#/components/schemas/SpotSweepAutomationOperatorScopeItem'
+          type: array
+          title: Operator Scope
         backend_owned:
           type: boolean
           title: Backend Owned

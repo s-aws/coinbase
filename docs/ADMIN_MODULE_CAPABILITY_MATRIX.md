@@ -16,6 +16,13 @@ direct Coinbase calls outside existing backend services, unbounded loops,
 reconciliation execution, order/exchange state mutation, or a second
 automation path.
 
+Phase 8082 baseline: the spot sweep automation-service status route now
+returns `operator_scope_count` and backend-owned `operator_scope` rows for
+read evidence, local controls, dry-run review, execution gaps, and authority
+boundaries. The matrix remains no-live and blocked for scheduler, retry,
+reconciliation, live Coinbase, browser/BFF execution, and any second
+automation path until backend contracts explicitly model those behaviors.
+
 Completed Release 0.1 scope: `8061-8080` added the Audit/Reconciliation
 Operator Correlation slice. Completed `8041-8060` added the Spot Command
 Operator E2E slice. Completed `8021-8040` added backend-owned

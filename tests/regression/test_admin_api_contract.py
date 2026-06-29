@@ -450,6 +450,7 @@ from core.enums import (
     SpotSweepAutomationControlAction,
     SpotSweepAutomationExecutionBlocker,
     SpotSweepAutomationExecutionDecision,
+    SpotSweepAutomationOperatorScope,
     SpotSweepAutomationSchedulerBindingStatus,
     StealthMutationKind,
     StealthCommandExecutionBlocker,
@@ -45266,6 +45267,44 @@ def test_admin_api_spot_sweep_automation_service_status_reads_ledgers_no_live(
     ]
     assert "POST /api/v1/spot/sweep/automation-runs" in payload["command_routes"]
     assert "POST /api/v1/spot/sweep/automation-controls" in payload["command_routes"]
+    assert payload["operator_scope_count"] == 5
+    operator_scope = {item["scope"]: item for item in payload["operator_scope"]}
+    assert set(operator_scope) == {
+        SpotSweepAutomationOperatorScope.READ_EVIDENCE.value,
+        SpotSweepAutomationOperatorScope.LOCAL_CONTROL.value,
+        SpotSweepAutomationOperatorScope.COMMAND_REVIEW.value,
+        SpotSweepAutomationOperatorScope.EXECUTION_GAP.value,
+        SpotSweepAutomationOperatorScope.AUTHORITY_BOUNDARY.value,
+    }
+    assert operator_scope[
+        SpotSweepAutomationOperatorScope.READ_EVIDENCE.value
+    ]["support_status"] == AdminApiModuleSupportStatus.READ_ONLY_READY.value
+    assert "campaign_id" in operator_scope[
+        SpotSweepAutomationOperatorScope.READ_EVIDENCE.value
+    ]["identity_keys"]
+    assert "GET /api/v1/spot/campaign/status" in operator_scope[
+        SpotSweepAutomationOperatorScope.READ_EVIDENCE.value
+    ]["read_routes"]
+    assert operator_scope[
+        SpotSweepAutomationOperatorScope.LOCAL_CONTROL.value
+    ]["support_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert "POST /api/v1/spot/sweep/automation-controls" in operator_scope[
+        SpotSweepAutomationOperatorScope.LOCAL_CONTROL.value
+    ]["command_routes"]
+    assert "scheduler executor" in operator_scope[
+        SpotSweepAutomationOperatorScope.EXECUTION_GAP.value
+    ]["unsupported_behaviors"]
+    assert operator_scope[
+        SpotSweepAutomationOperatorScope.AUTHORITY_BOUNDARY.value
+    ]["browser_authority"] == "display_only"
+    assert operator_scope[
+        SpotSweepAutomationOperatorScope.AUTHORITY_BOUNDARY.value
+    ]["bff_authority"] == "forward_only_no_execution"
+    assert operator_scope[
+        SpotSweepAutomationOperatorScope.AUTHORITY_BOUNDARY.value
+    ]["live_coinbase_orders_ran"] is False
     assert "enterprise_sweep_scheduler_dispatch_service_contract" not in payload[
         "missing_contracts"
     ]

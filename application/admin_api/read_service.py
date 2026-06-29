@@ -110,6 +110,7 @@ from core.enums import (
     SpotPortfolioSweepAutomationDecision,
     SpotSweepAutomationControlState,
     SpotSweepAutomationExecutionBlocker,
+    SpotSweepAutomationOperatorScope,
     SpotSweepAutomationSchedulerBindingStatus,
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
@@ -378,6 +379,7 @@ from .models import (
     SpotRecoveryRepairTargetItem,
     SpotRecoveryRollbackPlanResponse,
     SpotRecoveryStateRepairTaxonomyItem,
+    SpotSweepAutomationOperatorScopeItem,
     SpotSweepAutomationServiceStatusResponse,
     StealthCommandSuiteCommandItem,
     StealthSelectedOrderActionStateItem,
@@ -56283,6 +56285,135 @@ class AdminApiReadService:
         scheduler_statuses = scheduler_binding["scheduler_statuses"]
         scheduler_decision_summary = scheduler_binding["summary"]
         run_limit_statuses = scheduler_binding["run_limit_statuses"]
+        current_read_evidence_routes = [
+            "GET /api/v1/spot/campaign/status",
+            "GET /api/v1/spot/sweep/status",
+            "GET /api/v1/spot/sweep/pnl",
+            "GET /api/v1/spot/recovery/preview",
+            "GET /api/v1/spot/command-suite",
+        ]
+        command_routes = [
+            "POST /api/v1/spot/campaign/executions",
+            "POST /api/v1/spot/sweep/automation-runs",
+            "POST /api/v1/spot/sweep/automation-controls",
+        ]
+        missing_contracts = [
+            (
+                SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED.value
+            ),
+            SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_CONTRACT_REQUIRED.value,
+        ]
+        operator_scope = [
+            SpotSweepAutomationOperatorScopeItem(
+                scope=SpotSweepAutomationOperatorScope.READ_EVIDENCE,
+                label="Campaign and sweep evidence",
+                support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                gate_status=AdminApiGateStatus.PASSED,
+                identity_keys=["campaign_id", "sweep_config_id"],
+                read_routes=current_read_evidence_routes,
+                backend_contracts=[
+                    "business/spot_campaign.py",
+                    "business/spot_portfolio_sweep.py",
+                    "business/spot_sweep_recovery_gate.py",
+                ],
+                detail=(
+                    "Operators can inspect campaign snapshots, sweep ledgers, "
+                    "P/L evidence, recovery preview, and command-suite posture "
+                    "from backend-owned read contracts."
+                ),
+            ),
+            SpotSweepAutomationOperatorScopeItem(
+                scope=SpotSweepAutomationOperatorScope.LOCAL_CONTROL,
+                label="Pause/resume/retry-intent controls",
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                gate_status=AdminApiGateStatus.WARNING,
+                identity_keys=["sweep_config_id", "campaign_id", "retry_plan_id"],
+                command_routes=["POST /api/v1/spot/sweep/automation-controls"],
+                backend_contracts=[
+                    "application/admin_api/spot_sweep_automation_control.py",
+                    "application/admin_api/command_service.py::record_spot_sweep_automation_control",
+                ],
+                unsupported_behaviors=[
+                    "scheduler execution",
+                    "sweep runner execution",
+                    "Coinbase order submission",
+                ],
+                detail=(
+                    "Operators can record backend local pause, resume, and "
+                    "retry-intent evidence; the control ledger does not invoke "
+                    "a scheduler, runner, or Coinbase order."
+                ),
+            ),
+            SpotSweepAutomationOperatorScopeItem(
+                scope=SpotSweepAutomationOperatorScope.COMMAND_REVIEW,
+                label="Campaign/sweep dry-run review",
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                gate_status=AdminApiGateStatus.WARNING,
+                identity_keys=["campaign_id", "sweep_config_id"],
+                command_routes=[
+                    "POST /api/v1/spot/campaign/executions",
+                    "POST /api/v1/spot/sweep/automation-runs",
+                ],
+                backend_contracts=[
+                    "application/admin_api/command_service.py::execute_spot_campaign",
+                    "application/admin_api/command_service.py::run_spot_sweep_automation",
+                ],
+                unsupported_behaviors=[
+                    "non-dry campaign execution",
+                    "non-dry sweep automation execution",
+                ],
+                detail=(
+                    "Dry-run command review is route-bound and audited. "
+                    "Non-dry execution remains blocked unless backend gates "
+                    "and explicit live-service contracts pass."
+                ),
+            ),
+            SpotSweepAutomationOperatorScopeItem(
+                scope=SpotSweepAutomationOperatorScope.EXECUTION_GAP,
+                label="Scheduler/retry/reconciliation/live execution gaps",
+                support_status=AdminApiModuleSupportStatus.NOT_MODELED,
+                gate_status=AdminApiGateStatus.BLOCKED,
+                identity_keys=["sweep_config_id"],
+                command_routes=command_routes,
+                backend_contracts=missing_contracts,
+                unsupported_behaviors=[
+                    "scheduler executor",
+                    "retry executor",
+                    "reconciliation execution",
+                    "live Coinbase execution",
+                ],
+                detail=(
+                    "Execution gaps must remain explicit backend blockers; do "
+                    "not fill them with browser scheduling, BFF runners, "
+                    "route-local executors, or a second automation path."
+                ),
+            ),
+            SpotSweepAutomationOperatorScopeItem(
+                scope=SpotSweepAutomationOperatorScope.AUTHORITY_BOUNDARY,
+                label="Authority boundary",
+                support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                gate_status=AdminApiGateStatus.PASSED,
+                identity_keys=["campaign_id", "sweep_config_id", "client_order_id"],
+                read_routes=current_read_evidence_routes,
+                command_routes=command_routes,
+                backend_contracts=[
+                    "AGENTS.md",
+                    "docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md",
+                ],
+                unsupported_behaviors=[
+                    "browser scheduler authority",
+                    "BFF runner authority",
+                    "direct Coinbase calls",
+                    "second automation path",
+                ],
+                detail=(
+                    "The backend owns scheduling, runner, guard, audit, "
+                    "reconciliation, live-service, and Coinbase authority; "
+                    "the browser can display evidence and forward supported "
+                    "backend requests only."
+                ),
+            ),
+        ]
 
         payload = SpotSweepAutomationServiceStatusResponse(
             approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
@@ -56355,24 +56486,11 @@ class AdminApiReadService:
             automation_control_records=[
                 record.model_dump(mode="json") for record in control_records[:20]
             ],
-            current_read_evidence_routes=[
-                "GET /api/v1/spot/campaign/status",
-                "GET /api/v1/spot/sweep/status",
-                "GET /api/v1/spot/sweep/pnl",
-                "GET /api/v1/spot/recovery/preview",
-                "GET /api/v1/spot/command-suite",
-            ],
-            command_routes=[
-                "POST /api/v1/spot/campaign/executions",
-                "POST /api/v1/spot/sweep/automation-runs",
-                "POST /api/v1/spot/sweep/automation-controls",
-            ],
-            missing_contracts=[
-                (
-                    SpotSweepAutomationExecutionBlocker.RECONCILIATION_EXECUTION_CONTRACT_REQUIRED.value
-                ),
-                SpotSweepAutomationExecutionBlocker.LIVE_EXECUTION_CONTRACT_REQUIRED.value,
-            ],
+            current_read_evidence_routes=current_read_evidence_routes,
+            command_routes=command_routes,
+            missing_contracts=missing_contracts,
+            operator_scope_count=len(operator_scope),
+            operator_scope=operator_scope,
             operator_action_available=True,
             pause_resume_control_available=True,
             retry_control_available=True,

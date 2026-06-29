@@ -143,6 +143,11 @@ notional, retained inventory, reconciliation result, and audit ids.
   dashboard WebSockets, route-local FastAPI handlers, direct Coinbase calls,
   scheduler/runner execution, reconciliation execution, order/exchange state
   mutation, unbounded loops, or any second automation path.
+- Phase 8082 added the backend-owned campaign/sweep operator scope contract to
+  `GET /api/v1/spot/sweep/automation-service`: five `operator_scope` rows now
+  classify read evidence, local controls, dry-run review, execution gaps, and
+  authority boundaries with no-live Coinbase proof and zero submitted/executed
+  notional. Continue with Phase 8083 from this API baseline.
 - Required boundary phrase: no second trading path.
 - Required checker phrase: usable admin product.
 - Required checker phrase: unsupported` or `not_modeled`.

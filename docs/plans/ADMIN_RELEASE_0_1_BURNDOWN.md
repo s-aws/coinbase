@@ -105,6 +105,19 @@ Exact autonomous phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Op
 - Define the backend/frontend boundary for campaign and sweep operator
   controls, including no-live posture, scheduler/runner authority boundaries,
   and explicit unsupported or not-modeled gaps.
+- Evidence update 2026-06-29: the automation-service status response now
+  carries an operator scope matrix (`operator_scope_count` and
+  `operator_scope`) for campaign/sweep read evidence, local pause/resume and
+  retry-intent controls, dry-run command review, blocked execution gaps, and
+  authority boundaries. This makes unsupported scheduler, retry,
+  reconciliation, live Coinbase, browser scheduler, BFF runner, direct
+  Coinbase, and second automation path behavior explicit before UI enablement.
+  Live Coinbase execution was not run and submitted/executed notional stayed
+  0 USDC.
+- Validation update 2026-06-29: focused Admin API contract/OpenAPI checks,
+  autonomous queue validation, ownership check, stale-process check, and
+  `git diff --check` passed. No phase-scoped subagents were spawned; the
+  phase-end stale-subagent sweep found no open phase agents to close.
 
 ### Phase 8083 - Backend Campaign State Inventory
 

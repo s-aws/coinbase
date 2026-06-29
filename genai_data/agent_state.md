@@ -66,14 +66,14 @@ work. Historical milestone detail belongs in
   a second automation path.
 - Release 0.1 matrix status:
   `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md` and frontend
-  `docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md` now identify operator
-  runbook, documentation index, autonomous validator, and contextless review
-  work as the next Release 0.1 closeout support slice. Operator runbook,
-  documentation index, and autonomous validator slices are complete in this
-  range; backend and frontend contextless reviews are the next release-aligned
-  work. Account and Market Inventory is already implemented as the
-  `ready_with_data_gate` read slice,
-  not the next missing-contract blocker.
+  `docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md` now identify
+  Automation/campaigns as the active blocked Release 0.1 workflow. Phase 8082
+  added `operator_scope_count` and `operator_scope` to
+  `GET /api/v1/spot/sweep/automation-service`, classifying read evidence,
+  backend-local controls, dry-run review, execution gaps, and authority
+  boundaries before any UI enablement. Account and Market Inventory is already
+  implemented as the `ready_with_data_gate` read slice, not the next
+  missing-contract blocker.
   Accepted configured live manual BUY responses now expose a structured
   `post_submit_reconciliation` audit handoff with the direct-order audit route,
   admission ids, submission-event status, and no-mutation/no-browser/BFF
@@ -141,11 +141,12 @@ work. Historical milestone detail belongs in
   action-state matrix. Blind/contextless review passed after remediation.
   Live Coinbase execution was not run; submitted/executed notional remained
   `0`/`0` USDC.
-- Exact next implementation slice: continue Release 0.1 blocker clearing by
-  adding the Campaign/Sweep Operator Controls path from active `8081-8100`.
-  Do not add browser scheduler, BFF runner authority, retry
-  loops, route-local execution, direct Coinbase calls, reconciliation
-  execution, order/exchange state mutation, or a second trading path.
+- Exact next implementation slice: continue Release 0.1 blocker clearing with
+  Phase 8083 Backend Campaign State Inventory from active `8081-8100`, using
+  the Phase 8082 automation-service operator-scope contract as the baseline.
+  Do not add browser scheduler, BFF runner authority, retry loops,
+  route-local execution, direct Coinbase calls, reconciliation execution,
+  order/exchange state mutation, or a second trading path.
 - Contextless review status: backend Phase 7997 passed after remediation.
   Initial blind reviews blocked on stale current Admin API command-authority
   docs and `genai_data` references that still implied all HTTP mutating routes
@@ -667,12 +668,10 @@ work. Historical milestone detail belongs in
 
 ## Next Actions
 
-1. Continue Release 0.1 phases from the burn-down, prioritizing the next
-   Automation/campaigns blocker: define the first exact backend-owned
-   campaign/sweep automation service contract or closeout runbook for the
-   remaining `not_modeled` controls. Do not repeat gap inventory, and do not
-   add browser scheduler, BFF runner authority, or a second sweep execution
-   path.
+1. Continue Release 0.1 phases from the burn-down with Phase 8083 Backend
+   Campaign State Inventory. Use the Phase 8082 `operator_scope` contract as
+   the baseline and do not repeat generic gap inventory, browser scheduler
+   authority, BFF runner authority, or a second sweep execution path.
 2. Keep future Spot BUY/SELL/cancel work on the existing manual-order and
    cancel-by-`client_order_id` paths and use focused validation evidence rather
    than adding a second spot path.

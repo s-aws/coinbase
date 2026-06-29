@@ -1356,8 +1356,13 @@ or live-execution authority.
 automation-service status contract. It summarizes campaign ledger rows, sweep
 ledger rows, operation-lock state, scheduler due state, retry readiness,
 the append-only automation-control ledger, remaining backend control contracts,
-and no-live proof. It does not invoke a scheduler, run a sweep, submit Coinbase
-orders, grant browser/BFF execution authority, or create a second sweep path.
+and no-live proof. It also exposes `operator_scope_count` and `operator_scope`
+rows for the operator-visible scope matrix: campaign/sweep read evidence,
+backend-local pause/resume and retry-intent controls, dry-run command review,
+blocked scheduler/retry/reconciliation/live execution gaps, and the
+browser/BFF authority boundary. It does not invoke a scheduler, run a sweep,
+submit Coinbase orders, grant browser/BFF execution authority, or create a
+second sweep path.
 Spot P/L checkpoint records add a separate local-state mutation surface:
 `POST /api/v1/spot/pnl/checkpoints`, with read evidence at
 `GET /api/v1/spot/pnl/checkpoints` and

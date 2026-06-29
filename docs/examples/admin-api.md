@@ -3740,6 +3740,71 @@ Current response behavior:
 - include approval/cap guard evidence
 - never call Coinbase
 
+## Spot Sweep Automation Service Status
+
+`GET /api/v1/spot/sweep/automation-service` returns the backend-owned
+operator scope for campaign/sweep automation. The scope rows are display
+evidence for the enterprise frontend; they do not run a scheduler, execute a
+sweep, reconcile state, call Coinbase, or grant browser/BFF execution
+authority.
+
+```http
+GET /api/v1/spot/sweep/automation-service
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+```json
+{
+  "type": "spot_sweep_automation_service_status",
+  "approved_phase_range": "8081-8100",
+  "status": "blocked",
+  "operator_scope_count": 5,
+  "operator_scope": [
+    {
+      "scope": "read_evidence",
+      "label": "Campaign and sweep evidence",
+      "support_status": "read_only_ready",
+      "gate_status": "passed",
+      "identity_keys": ["campaign_id", "sweep_config_id"],
+      "read_routes": [
+        "GET /api/v1/spot/campaign/status",
+        "GET /api/v1/spot/sweep/status"
+      ],
+      "command_routes": [],
+      "unsupported_behaviors": [],
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution",
+      "live_coinbase_orders_ran": false,
+      "submitted_notional_usdc": "0",
+      "executed_notional_usdc": "0"
+    },
+    {
+      "scope": "execution_gap",
+      "label": "Scheduler/retry/reconciliation/live execution gaps",
+      "support_status": "not_modeled",
+      "gate_status": "blocked",
+      "identity_keys": ["sweep_config_id"],
+      "unsupported_behaviors": [
+        "scheduler executor",
+        "retry executor",
+        "reconciliation execution",
+        "live Coinbase execution"
+      ],
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution",
+      "live_coinbase_orders_ran": false,
+      "submitted_notional_usdc": "0",
+      "executed_notional_usdc": "0"
+    }
+  ],
+  "live_coinbase_orders_ran": false,
+  "submitted_notional_usdc": "0",
+  "executed_notional_usdc": "0"
+}
+```
+
 ## Spot Sweep Automation Command
 
 Spot sweep automation now has a backend-owned command route, but live
