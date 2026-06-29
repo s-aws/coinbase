@@ -30,6 +30,7 @@ from core.enums import (
     AdminAuditCommandTimelineStageStatus,
     AdminAuditCorrelationScopeKind,
     AdminAuditEvidenceAvailabilityStatus,
+    AdminAuditExchangeFillCorrelationStatus,
     AdminFuturesCommandAction,
     AdminFuturesCommandEnablementBlocker,
     AdminFuturesCommandEvidenceRoute,
@@ -17183,6 +17184,48 @@ class AdminAuditCapGuardWalletLinkItem(BaseModel):
     no_order_or_exchange_state_mutation: bool = True
 
 
+class AdminAuditExchangeFillLinkItem(BaseModel):
+    """Backend-owned exchange intent and fill evidence correlation for one command."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    link_id: str
+    timeline_id: str
+    event_id: str
+    module: AdminAuditWorkbenchModule
+    endpoint: str | None = None
+    route: str | None = None
+    status: str | None = None
+    correlation_status: AdminAuditExchangeFillCorrelationStatus
+    canonical_identity_key: str
+    canonical_identity_value: str | None = None
+    client_order_id: str | None = None
+    stealth_order_id: str | None = None
+    position_key: str | None = None
+    product_id: str | None = None
+    exchange_order_id: str | None = None
+    exchange_order_id_evidence_only: bool = True
+    live_exchange_submitted: bool = False
+    live_execution_intent_status: str | None = None
+    live_execution_intent_source: str | None = None
+    fill_evidence_status: AdminAuditEvidenceAvailabilityStatus = (
+        AdminAuditEvidenceAvailabilityStatus.NOT_REPORTED
+    )
+    fill_evidence_ref: str | None = None
+    fill_ledger_ref: str | None = None
+    imported_baseline_ref: str | None = None
+    local_order_evidence_ref: str | None = None
+    blockers: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    read_only: bool = True
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    no_browser_authority: bool = True
+    no_bff_execution_authority: bool = True
+    no_reconciliation_execution: bool = True
+    no_order_or_exchange_state_mutation: bool = True
+
+
 class AdminAuditWorkbenchEventItem(BaseModel):
     """One normalized cross-module audit/correlation evidence row."""
 
@@ -17226,6 +17269,7 @@ class AdminAuditWorkbenchReadResponse(BaseModel):
     command_timelines: list[AdminAuditCommandTimelineItem] = Field(default_factory=list)
     approval_admission_links: list[AdminAuditApprovalAdmissionLinkItem] = Field(default_factory=list)
     cap_guard_wallet_links: list[AdminAuditCapGuardWalletLinkItem] = Field(default_factory=list)
+    exchange_fill_links: list[AdminAuditExchangeFillLinkItem] = Field(default_factory=list)
     module_summary: list[AdminAuditModuleSummaryItem] = Field(default_factory=list)
     events: list[AdminAuditWorkbenchEventItem] = Field(default_factory=list)
     pagination: AdminOrderPagination

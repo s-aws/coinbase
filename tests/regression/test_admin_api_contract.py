@@ -403,6 +403,7 @@ from core.enums import (
     AdminAuditCorrelationScopeKind,
     AdminAuditEvidenceAvailabilityStatus,
     AdminAuditEvidenceSource,
+    AdminAuditExchangeFillCorrelationStatus,
     AdminAuditWorkbenchModule,
     AdminApiCommandRoutesMode,
     AdminApiCommandStatus,
@@ -9624,6 +9625,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
     assert "command_timelines" in audit_workbench_schema["properties"]
     assert "approval_admission_links" in audit_workbench_schema["properties"]
     assert "cap_guard_wallet_links" in audit_workbench_schema["properties"]
+    assert "exchange_fill_links" in audit_workbench_schema["properties"]
     assert "module_summary" in audit_workbench_schema["properties"]
     assert "events" in audit_workbench_schema["properties"]
     source_inventory_schema = written["components"]["schemas"][
@@ -9674,6 +9676,14 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
     assert "wallet_evidence_status" in cap_guard_wallet_schema["properties"]
     assert "lot_evidence_status" in cap_guard_wallet_schema["properties"]
     assert "budget_evidence_status" in cap_guard_wallet_schema["properties"]
+    exchange_fill_schema = written["components"]["schemas"][
+        "AdminAuditExchangeFillLinkItem"
+    ]
+    assert "correlation_status" in exchange_fill_schema["properties"]
+    assert "exchange_order_id" in exchange_fill_schema["properties"]
+    assert "exchange_order_id_evidence_only" in exchange_fill_schema["properties"]
+    assert "fill_evidence_status" in exchange_fill_schema["properties"]
+    assert "fill_ledger_ref" in exchange_fill_schema["properties"]
     correlation_scope_schema = written["components"]["schemas"][
         "AdminAuditCorrelationScopeItem"
     ]
@@ -60498,6 +60508,7 @@ def test_admin_api_audit_workbench_route_uses_read_service_without_commands(
             "command_timelines": [],
             "approval_admission_links": [],
             "cap_guard_wallet_links": [],
+            "exchange_fill_links": [],
             "module_summary": [
                 {
                     "module": "orders",
@@ -60571,6 +60582,7 @@ def test_admin_api_audit_workbench_route_uses_read_service_without_commands(
     assert "command_timelines" in payload
     assert "approval_admission_links" in payload
     assert "cap_guard_wallet_links" in payload
+    assert "exchange_fill_links" in payload
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_read_ran"] is False
     assert payload["events"][0]["client_order_id"] == "client-abc"
@@ -60800,6 +60812,27 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
     assert cap_guard_wallet_link.no_bff_execution_authority is True
     assert cap_guard_wallet_link.no_reconciliation_execution is True
     assert cap_guard_wallet_link.no_order_or_exchange_state_mutation is True
+    assert len(response.exchange_fill_links) == 1
+    exchange_fill_link = response.exchange_fill_links[0]
+    assert exchange_fill_link.link_id == f"exchange-fill:{command_timeline.audit_id}"
+    assert exchange_fill_link.timeline_id == command_timeline.timeline_id
+    assert exchange_fill_link.canonical_identity_key == "client_order_id"
+    assert exchange_fill_link.canonical_identity_value == "client-abc"
+    assert (
+        exchange_fill_link.correlation_status
+        == AdminAuditExchangeFillCorrelationStatus.EXCHANGE_EVIDENCE_ONLY
+    )
+    assert exchange_fill_link.exchange_order_id == "exchange-evidence-001"
+    assert exchange_fill_link.exchange_order_id_evidence_only is True
+    assert exchange_fill_link.live_exchange_submitted is False
+    assert (
+        exchange_fill_link.fill_evidence_status
+        == AdminAuditEvidenceAvailabilityStatus.NOT_REPORTED
+    )
+    assert exchange_fill_link.no_browser_authority is True
+    assert exchange_fill_link.no_bff_execution_authority is True
+    assert exchange_fill_link.no_reconciliation_execution is True
+    assert exchange_fill_link.no_order_or_exchange_state_mutation is True
     assert response.pagination.total_matching_count == 2
     modules = {item.module for item in response.module_summary}
     assert AdminAuditWorkbenchModule.ORDERS in modules

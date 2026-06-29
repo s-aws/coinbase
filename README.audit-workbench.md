@@ -35,6 +35,8 @@ The route is authenticated and RBAC-gated with `audit:read`.
   admission audit evidence for each command attempt
 - cap/guard-wallet links that correlate cap/guard evidence with wallet, lot,
   and budget evidence when those refs are present in backend command evidence
+- exchange/fill links that correlate exchange intent, exchange-native ids, and
+  fill/imported-baseline availability
 - read and command route counts
 - durable command audit events when available
 - persisted command admission decisions on command audit events when available,
@@ -67,6 +69,9 @@ The route is authenticated and RBAC-gated with `audit:read`.
 - `cap_guard_wallet_links` correlate cap/guard decision fields and explicitly
   report wallet, lot, or budget refs as `not_reported` when the backend command
   evidence does not carry them.
+- `exchange_fill_links` report exchange-native ids as evidence only and keep
+  fill-ledger/imported-baseline fields `not_reported` unless backend evidence
+  explicitly includes them.
 - Exchange `order_id` values are evidence only. They are not internal tracking
   ids or cancellation keys.
 - Command acceptance, cancellation, movement, repricing, guard evaluation, and

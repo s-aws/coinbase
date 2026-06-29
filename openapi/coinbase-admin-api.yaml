@@ -13570,6 +13570,169 @@ components:
       - runtime_unavailable
       title: AdminAuditEvidenceSource
       description: Source labels for cross-module audit workbench evidence.
+    AdminAuditExchangeFillCorrelationStatus:
+      type: string
+      enum:
+      - linked
+      - exchange_evidence_only
+      - fill_not_reported
+      - not_reported
+      title: AdminAuditExchangeFillCorrelationStatus
+      description: Stable status labels for exchange-intent and fill evidence correlation.
+    AdminAuditExchangeFillLinkItem:
+      properties:
+        link_id:
+          type: string
+          title: Link Id
+        timeline_id:
+          type: string
+          title: Timeline Id
+        event_id:
+          type: string
+          title: Event Id
+        module:
+          $ref: '#/components/schemas/AdminAuditWorkbenchModule'
+        endpoint:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Endpoint
+        route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Route
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+        correlation_status:
+          $ref: '#/components/schemas/AdminAuditExchangeFillCorrelationStatus'
+        canonical_identity_key:
+          type: string
+          title: Canonical Identity Key
+        canonical_identity_value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Canonical Identity Value
+        client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Order Id
+        stealth_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Stealth Order Id
+        position_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Position Key
+        product_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+        exchange_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Exchange Order Id
+        exchange_order_id_evidence_only:
+          type: boolean
+          title: Exchange Order Id Evidence Only
+          default: true
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_execution_intent_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Execution Intent Status
+        live_execution_intent_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Execution Intent Source
+        fill_evidence_status:
+          $ref: '#/components/schemas/AdminAuditEvidenceAvailabilityStatus'
+          default: not_reported
+        fill_evidence_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fill Evidence Ref
+        fill_ledger_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fill Ledger Ref
+        imported_baseline_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Imported Baseline Ref
+        local_order_evidence_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Local Order Evidence Ref
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        no_browser_authority:
+          type: boolean
+          title: No Browser Authority
+          default: true
+        no_bff_execution_authority:
+          type: boolean
+          title: No Bff Execution Authority
+          default: true
+        no_reconciliation_execution:
+          type: boolean
+          title: No Reconciliation Execution
+          default: true
+        no_order_or_exchange_state_mutation:
+          type: boolean
+          title: No Order Or Exchange State Mutation
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - link_id
+      - timeline_id
+      - event_id
+      - module
+      - correlation_status
+      - canonical_identity_key
+      title: AdminAuditExchangeFillLinkItem
+      description: Backend-owned exchange intent and fill evidence correlation for
+        one command.
     AdminAuditModuleSummaryItem:
       properties:
         module:
@@ -13855,6 +14018,11 @@ components:
             $ref: '#/components/schemas/AdminAuditCapGuardWalletLinkItem'
           type: array
           title: Cap Guard Wallet Links
+        exchange_fill_links:
+          items:
+            $ref: '#/components/schemas/AdminAuditExchangeFillLinkItem'
+          type: array
+          title: Exchange Fill Links
         module_summary:
           items:
             $ref: '#/components/schemas/AdminAuditModuleSummaryItem'

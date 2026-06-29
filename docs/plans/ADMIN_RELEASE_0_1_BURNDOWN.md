@@ -162,6 +162,10 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Correlate exchange intent, submission, Coinbase evidence ids, fill-ledger
   rows, and imported baselines as read-only evidence.
+- Evidence update 2026-06-29: Audit Workbench now exposes
+  `exchange_fill_links`; exchange ids remain evidence only, and fill/ledger/
+  imported-baseline refs stay explicit `not_reported` evidence unless backend
+  command evidence supplies them.
 
 ### Phase 8068 - Reconciliation Status Correlation Contract
 

@@ -26,6 +26,7 @@ from core.enums import (
     AdminAuditCorrelationScopeKind,
     AdminAuditEvidenceAvailabilityStatus,
     AdminAuditEvidenceSource,
+    AdminAuditExchangeFillCorrelationStatus,
     AdminAuditWorkbenchModule,
     AdminApiActionState,
     AdminApiFunctionalityExposureStatus,
@@ -141,6 +142,7 @@ from .models import (
     AdminAuditCommandTimelineStageItem,
     AdminAuditCorrelationScopeItem,
     AdminAuditModuleSummaryItem,
+    AdminAuditExchangeFillLinkItem,
     AdminAuditSourceInventoryItem,
     AdminAuditWorkbenchEventItem,
     AdminAuditWorkbenchReadResponse,
@@ -5611,6 +5613,75 @@ def _audit_cap_guard_wallet_link_from_event(
         budget_evidence_ref=_string_or_none(admission.get("budget_evidence_ref"))
         or _string_or_none(admission.get("budget_authority_ref"))
         or _string_or_none(admission.get("budget_snapshot_id")),
+        blockers=[str(value) for value in _list_or_empty(admission.get("blockers"))],
+        evidence=[str(value) for value in _list_or_empty(admission.get("evidence"))],
+    )
+
+
+def _audit_exchange_fill_correlation_status(
+    *,
+    exchange_present: bool,
+    fill_present: bool,
+    reported: bool,
+) -> AdminAuditExchangeFillCorrelationStatus:
+    if fill_present:
+        return AdminAuditExchangeFillCorrelationStatus.LINKED
+    if exchange_present:
+        return AdminAuditExchangeFillCorrelationStatus.EXCHANGE_EVIDENCE_ONLY
+    if reported:
+        return AdminAuditExchangeFillCorrelationStatus.FILL_NOT_REPORTED
+    return AdminAuditExchangeFillCorrelationStatus.NOT_REPORTED
+
+
+def _audit_exchange_fill_link_from_event(
+    item: AdminAuditWorkbenchEventItem,
+) -> AdminAuditExchangeFillLinkItem:
+    admission = dict(item.admission_decision or {})
+    intent = _dict_or_empty(admission.get("live_execution_intent"))
+    fill_status = _audit_optional_evidence_status(
+        admission,
+        "fill_evidence_ref",
+        "fill_ledger_ref",
+        "imported_baseline_ref",
+    )
+    fill_present = fill_status == AdminAuditEvidenceAvailabilityStatus.PRESENT
+    exchange_present = bool(item.exchange_order_id)
+    canonical_key, canonical_value = _audit_command_identity(item)
+    identifier = item.audit_id or item.request_id or item.event_id
+    return AdminAuditExchangeFillLinkItem(
+        link_id=f"exchange-fill:{identifier}",
+        timeline_id=f"command:{identifier}",
+        event_id=item.event_id,
+        module=item.module,
+        endpoint=item.endpoint,
+        route=_string_or_none(admission.get("route")),
+        status=_string_or_none(admission.get("status")) or item.status,
+        correlation_status=_audit_exchange_fill_correlation_status(
+            exchange_present=exchange_present,
+            fill_present=fill_present,
+            reported=bool(admission),
+        ),
+        canonical_identity_key=canonical_key,
+        canonical_identity_value=canonical_value,
+        client_order_id=item.client_order_id,
+        stealth_order_id=item.stealth_order_id,
+        position_key=item.position_key,
+        product_id=item.product_id,
+        exchange_order_id=item.exchange_order_id,
+        exchange_order_id_evidence_only=item.exchange_order_id_evidence_only,
+        live_exchange_submitted=_audit_admission_bool(
+            admission,
+            "live_exchange_submitted",
+        ),
+        live_execution_intent_status=_string_or_none(intent.get("status")),
+        live_execution_intent_source=_string_or_none(intent.get("source")),
+        fill_evidence_status=fill_status,
+        fill_evidence_ref=_string_or_none(admission.get("fill_evidence_ref")),
+        fill_ledger_ref=_string_or_none(admission.get("fill_ledger_ref")),
+        imported_baseline_ref=_string_or_none(
+            admission.get("imported_baseline_ref")
+        ),
+        local_order_evidence_ref=item.client_order_id,
         blockers=[str(value) for value in _list_or_empty(admission.get("blockers"))],
         evidence=[str(value) for value in _list_or_empty(admission.get("evidence"))],
     )
@@ -15022,6 +15093,11 @@ class AdminApiReadService:
             ],
             cap_guard_wallet_links=[
                 _audit_cap_guard_wallet_link_from_event(item)
+                for item in page_items
+                if item.source == AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG
+            ],
+            exchange_fill_links=[
+                _audit_exchange_fill_link_from_event(item)
                 for item in page_items
                 if item.source == AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG
             ],

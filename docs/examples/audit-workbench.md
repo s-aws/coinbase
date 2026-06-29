@@ -169,6 +169,24 @@ Cap/guard evidence is projected into `cap_guard_wallet_links`:
 }
 ```
 
+Exchange intent and fill evidence are projected into `exchange_fill_links`:
+
+```json
+{
+  "exchange_fill_links": [
+    {
+      "link_id": "exchange-fill:audit-001",
+      "correlation_status": "exchange_evidence_only",
+      "exchange_order_id": "exchange-evidence-001",
+      "exchange_order_id_evidence_only": true,
+      "fill_evidence_status": "not_reported",
+      "live_coinbase_orders_ran": false,
+      "live_coinbase_read_ran": false
+    }
+  ]
+}
+```
+
 Command audit rows may include persisted admission evidence:
 
 ```json

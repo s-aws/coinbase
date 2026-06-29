@@ -293,6 +293,18 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Correlate exchange intent, submission, Coinbase evidence ids, fill-ledger
   rows, and imported baselines as read-only evidence.
+- Evidence update 2026-06-29: added enum-backed Audit Workbench
+  `exchange_fill_links` derived from command-audit admission evidence and
+  exchange-native id evidence. Link rows correlate timeline id, command
+  identity, exchange order id as evidence only, live-submission posture,
+  live-execution-intent status/source, fill evidence refs, fill-ledger refs,
+  imported-baseline refs, local order evidence refs, blockers, evidence, and
+  no-authority posture. Fill, ledger, and imported-baseline refs remain
+  `not_reported` unless backend command evidence explicitly carries them; the
+  frontend does not infer fills from exchange ids. OpenAPI and frontend
+  generated schema were refreshed; the frontend mock and read model render
+  links as display-only evidence. Live Coinbase execution was not run and
+  submitted/executed notional stayed 0 USDC.
 
 ### Phase 8068 - Reconciliation Status Correlation Contract
 

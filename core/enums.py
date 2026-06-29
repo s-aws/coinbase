@@ -1188,6 +1188,15 @@ class AdminAuditCapGuardWalletCorrelationStatus(str, Enum):
     NOT_REPORTED = "not_reported"
 
 
+class AdminAuditExchangeFillCorrelationStatus(str, Enum):
+    """Stable status labels for exchange-intent and fill evidence correlation."""
+
+    LINKED = "linked"
+    EXCHANGE_EVIDENCE_ONLY = "exchange_evidence_only"
+    FILL_NOT_REPORTED = "fill_not_reported"
+    NOT_REPORTED = "not_reported"
+
+
 class AdminAuditEvidenceAvailabilityStatus(str, Enum):
     """Stable availability labels for optional audit evidence."""
 
