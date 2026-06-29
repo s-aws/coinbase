@@ -18,9 +18,9 @@ Lifecycle Support classification, Spot Buy/Sell/Cancel readiness, Admin API
 spot SELL authority source wiring, Spot Sweep Automation Service Contract read
 work, and scheduler/run-limit binding evidence, and again on 2026-06-29 before
 Phase 8087 frontend campaign status adapter work, Phase 8088 frontend
-sweep service adapter work, and Phase 8091 command result handoff work. No
-phase-direction change was required. The
-controlling instructions remain:
+sweep service adapter work, Phase 8091 command result handoff work, and
+Phase 8096 route-to-UI matrix alignment. No phase-direction change was
+required. The controlling instructions remain:
 
 - Release 0.1 work must clear a named blocker or directly improve the usable
   admin product.
@@ -136,6 +136,72 @@ identities, and scheduler execution, retry execution, reconciliation
 execution, Coinbase calls, browser/BFF execution, route-local execution, and
 second automation paths remain blocked or unsupported as already recorded in
 the Automation/campaigns row.
+
+## Phase 8092 Frontend Association Update
+
+The sibling frontend now renders an Automation Limits And Caps panel from
+`GET /api/v1/spot/sweep/automation-service` and
+`GET /api/v1/spot/command-suite` evidence. It maps run-limit remaining counts,
+max-run cap status, cap/guard gate presence, no-live notional, and
+`not_modeled` max-products gaps to the Campaigns surface. This update does not
+change backend execution authority: limits and caps remain backend evidence,
+not browser cap evaluation, product-cap inference, scheduler dispatch,
+Coinbase execution, or BFF authority.
+
+## Phase 8093 Frontend Association Update
+
+The sibling frontend now renders a Backend Action column in Campaigns
+Automation Control Readiness. Scheduler dispatch, scheduler executor,
+run-limit, pause/resume, retry/recovery, retry executor, reconciliation
+execution, and live execution rows now show the backend-owned required
+contract/detail plus explicit no-browser-fallback posture. This update does
+not add frontend remediation, scheduler/retry execution, reconciliation
+execution, route-local execution, Coinbase calls, BFF runner authority, or a
+second automation path.
+
+## Phase 8094 Frontend Association Update
+
+The sibling frontend command security guard now rejects feature-local command
+fetches, direct backend request calls, browser/BFF scheduler or timer loops,
+legacy dashboard or browser WebSocket/EventSource paths, and direct Coinbase
+endpoints in frontend `src/`. This is a source-policy guard for the existing
+route-to-UI boundaries; it does not create an execution path and does not
+change any backend route contract.
+
+## Phase 8095 Frontend Association Update
+
+The sibling frontend mock runtime now marks `GET /api/v1/spot/campaign/status`
+and `GET /api/v1/spot/sweep/automation-service` fixtures as
+`contract_parity=campaign_sweep_operator_controls` and
+`mock_data_authoritative=false` in happy and empty modes. Mock parity lets
+operators and tests inspect the same unsupported/not-modeled, no-live, and
+browser/BFF-boundary evidence shape locally without treating fixture data as
+backend acceptance, scheduler availability, retry execution, reconciliation
+execution, BFF execution, or Coinbase authority.
+
+## Phase 8096 Route-To-UI Trace Update
+
+The campaign/sweep route-to-UI trace is now explicit for contextless
+maintainers:
+
+| Backend route | Primary frontend surface | Operator use | Boundary |
+| --- | --- | --- | --- |
+| `GET /api/v1/spot/campaign/status` | Campaigns, Spot Operations, Command result owner links | Inspect campaign inventory, dry-run route evidence, unsupported behaviors, handoff identity, no-live notional, and mock parity metadata | Read-only evidence; no scheduler, runner, reconciliation, Coinbase, BFF execution, or route-local execution authority |
+| `GET /api/v1/spot/sweep/automation-service` | Campaigns Automation Service, Control Summary, Limits And Caps, Automation Rows | Inspect service posture, operator scope, operation lock, scheduler decisions, run limits, retry plans, recovery-gate blockers, control ledger, unsupported/not-modeled rows, and mock parity metadata | Read-only evidence; local controls remain backend-owned and no live scheduler/retry/reconciliation/Coinbase execution is implied |
+| `GET /api/v1/spot/command-suite` | Spot Operations, Command Workflows, Campaigns Automation Control Readiness | Inspect route-bound readiness, proof routes, coverage gaps, automation control readiness, backend action text, cap/guard gate evidence, and no-live proof | Backend evidence only; browser cannot satisfy approvals, cap/guard, admission, reconciliation, live-service, scheduler, or retry gates |
+| `POST /api/v1/spot/campaign/executions` | Command Workflows campaign draft/result, Campaigns owner links | Submit `dry_run=true` review through canonical backend/BFF forwarding and inspect no-live backend result evidence | No frontend live-submit control; no scheduler, runner, reconciliation, or Coinbase execution |
+| `POST /api/v1/spot/sweep/automation-runs` | Command Workflows sweep draft/result, Spot Operations owner links, Campaigns blocker rows | Submit `dry_run=true` review and inspect scheduler/retry/recovery/reconciliation/live execution blockers | No scheduler loop, retry executor, recovery execution, reconciliation execution, Coinbase call, BFF runner, or second sweep path |
+| `POST /api/v1/spot/sweep/automation-controls` | Command Workflows sweep local-control draft/result, Campaigns local control records | Record backend-owned pause/resume/retry-intent local-state evidence when backend gates accept it | Local control evidence only; it must not dispatch a scheduler, run retries, reconcile, mutate order/exchange state, or call Coinbase |
+
+Phase 8096 validation passed with focused documentation and ownership checks:
+frontend autonomous queue, generated API route coverage, command authority
+guard, stale-process check, backend ownership check, backend stale-process
+check, and backend/frontend diff whitespace checks. Blind reviewer
+`019f1412-908b-7120-9394-60ed8309690f` passed the route trace with no required
+remediation and confirmed that no browser/BFF execution, scheduler, retry,
+reconciliation, Coinbase, generated-client, or second automation path was
+introduced. The reviewer was closed during phase-end cleanup. Live Coinbase
+execution was not run; submitted/executed notional remained 0 USDC.
 
 ## Implemented Account/Market Coverage Slice
 
