@@ -103,6 +103,7 @@ from core.enums import (
     AdminApiStealthCommandSuiteBlockerClosure,
     AdminApiStealthCommandSuiteGapFamily,
     AdminApiStealthExchangeRealityContractScope,
+    AdminApiStealthMutationClaimContractScope,
     AdminApiStealthOperatorScope,
     AdminApiStealthRouteInventoryFamily,
     AdminApiVerifierReadinessStatus,
@@ -391,6 +392,8 @@ from .models import (
     StealthOperatorScopeResponse,
     StealthExchangeRealityContractMapItem,
     StealthExchangeRealityContractMapResponse,
+    StealthMutationClaimContractMapItem,
+    StealthMutationClaimContractMapResponse,
     StealthRouteInventoryFamilyItem,
     StealthRouteInventoryItem,
     StealthRouteInventoryResponse,
@@ -16931,6 +16934,8 @@ class AdminApiReadService:
             or "active-placement/exchange-truth" in route
         ):
             return AdminApiStealthRouteInventoryFamily.EXCHANGE_REALITY
+        if route == "/api/v1/stealth/mutation-claim-contract-map":
+            return AdminApiStealthRouteInventoryFamily.MUTATION_CLAIMS
         if "lifecycle-write-guard" in route:
             return AdminApiStealthRouteInventoryFamily.LIFECYCLE_WRITE_GUARD
         if "mutation-claim" in route:
@@ -17895,6 +17900,647 @@ class AdminApiReadService:
                 "rules an operator must inspect before reveal, move, cancel, "
                 "or reconciliation can ever become executable. It is not a "
                 "Coinbase read, command admission, or lifecycle mutation path."
+            ),
+        )
+
+    def build_stealth_mutation_claim_contract_map(
+        self,
+    ) -> StealthMutationClaimContractMapResponse:
+        """Return stealth mutation-claim boundaries for operator management."""
+
+        command_suite = self.build_stealth_command_suite()
+        inventory_by_surface = {
+            item.surface: item for item in ADMIN_API_ROUTE_INVENTORY
+        }
+
+        detail_surface = "GET /api/v1/stealth/orders/{stealth_order_id}"
+        mutation_read_surface = (
+            "GET /api/v1/stealth/orders/{stealth_order_id}/mutation-claim-proof"
+        )
+        mutation_record_surface = (
+            "POST /api/v1/stealth/orders/{stealth_order_id}/mutation-claim-proofs"
+        )
+        command_suite_surface = "GET /api/v1/stealth/command-suite"
+        operator_scope_surface = "GET /api/v1/stealth/operator-scope"
+        route_inventory_surface = "GET /api/v1/stealth/route-inventory"
+        contract_map_surface = "GET /api/v1/stealth/mutation-claim-contract-map"
+        move_command_surface = "POST /api/v1/stealth/orders/{stealth_order_id}/move"
+        reprice_command_surface = (
+            "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+        )
+        create_command_surface = "POST /api/v1/stealth/orders"
+        reveal_command_surface = "POST /api/v1/stealth/orders/{stealth_order_id}/reveal"
+        cancel_command_surface = "POST /api/v1/stealth/orders/{stealth_order_id}/cancel"
+        recovery_command_surface = (
+            "POST /api/v1/stealth/orders/{stealth_order_id}/recovery"
+        )
+        reconciliation_command_surface = (
+            "POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation"
+        )
+
+        def contract_item(
+            *,
+            scope: AdminApiStealthMutationClaimContractScope,
+            label: str,
+            primary_surface: str,
+            gate_status: AdminApiGateStatus,
+            action_state: AdminApiActionState,
+            support_status: AdminApiModuleSupportStatus,
+            identity_keys: list[str],
+            mutation_families: list[AdminApiMutationFamilyType],
+            mutation_kinds: list[StealthMutationKind],
+            current_read_evidence_routes: list[str],
+            guarded_command_routes: list[str],
+            proof_record_routes: list[str],
+            backend_contracts: list[str],
+            required_evidence: list[str],
+            missing_contracts: list[str],
+            unsupported_behaviors: list[str],
+            runtime_snapshot_required: bool = False,
+            runtime_claims_observed_required: bool = False,
+            zero_active_claims_required: bool = False,
+            exact_guarded_command_context_required: bool = False,
+            proof_readback_available: bool = False,
+            detail: str,
+        ) -> StealthMutationClaimContractMapItem:
+            inventory_item = inventory_by_surface[primary_surface]
+            method, route = self._admin_api_http_surface(inventory_item.surface)
+            route_inventory_surfaces = [
+                primary_surface,
+                *current_read_evidence_routes,
+                *guarded_command_routes,
+                *proof_record_routes,
+            ]
+            route_inventory_bound = all(
+                surface in inventory_by_surface for surface in route_inventory_surfaces
+            )
+            return StealthMutationClaimContractMapItem(
+                scope=scope,
+                label=label,
+                support_status=support_status,
+                gate_status=gate_status,
+                action_state=action_state,
+                surface=inventory_item.surface,
+                method=method,
+                route=route,
+                action_class=inventory_item.action_class,
+                required_permission=inventory_item.permission,
+                shared_method=inventory_item.shared_method,
+                route_inventory_bound=route_inventory_bound,
+                identity_keys=identity_keys,
+                mutation_families=mutation_families,
+                mutation_kinds=mutation_kinds,
+                current_read_evidence_routes=current_read_evidence_routes,
+                guarded_command_routes=guarded_command_routes,
+                proof_record_routes=proof_record_routes,
+                backend_contracts=backend_contracts,
+                required_evidence=required_evidence,
+                missing_contracts=missing_contracts,
+                unsupported_behaviors=unsupported_behaviors,
+                runtime_snapshot_required=runtime_snapshot_required,
+                runtime_claims_observed_required=runtime_claims_observed_required,
+                zero_active_claims_required=zero_active_claims_required,
+                exact_guarded_command_context_required=(
+                    exact_guarded_command_context_required
+                ),
+                proof_recording_allowed=False,
+                proof_recording_ran=False,
+                proof_readback_available=proof_readback_available,
+                claim_acquire_allowed=False,
+                claim_acquire_ran=False,
+                claim_release_allowed=False,
+                claim_release_ran=False,
+                manager_invocation_allowed=False,
+                manager_invocation_ran=False,
+                executable=False,
+                live_enabled=False,
+                local_lifecycle_mutation_allowed=False,
+                lifecycle_state_mutated=False,
+                order_state_mutated=False,
+                exchange_state_mutated=False,
+                active_placement_cancel_replace_allowed=False,
+                active_placement_cancel_replace_ran=False,
+                coinbase_read_allowed=False,
+                live_coinbase_read_ran=False,
+                coinbase_order_submitted=False,
+                coinbase_order_cancel_submitted=False,
+                reconciliation_execution_allowed=False,
+                reconciliation_executed=False,
+                backend_owned=True,
+                read_only=True,
+                browser_authority="display_only",
+                bff_authority="forward_only_no_execution",
+                live_coinbase_orders_ran=False,
+                submitted_notional_usdc="0",
+                executed_notional_usdc="0",
+                detail=detail,
+            )
+
+        common_unsupported = [
+            "browser_mutation_claim_acquisition",
+            "bff_mutation_claim_release",
+            "frontend_claim_locking",
+            "route_local_stealth_execution",
+            "dashboard_websocket_fallback",
+            "direct_coinbase_calls",
+            "parallel_stealth_lifecycle_path",
+        ]
+        guarded_move_reprice = [move_command_surface, reprice_command_surface]
+        contract_map = [
+            contract_item(
+                scope=AdminApiStealthMutationClaimContractScope.RUNTIME_CLAIM_SNAPSHOT,
+                label="Runtime mutation-claim snapshot",
+                primary_surface=detail_surface,
+                gate_status=AdminApiGateStatus.BLOCKED,
+                action_state=AdminApiActionState.BLOCKED,
+                support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                identity_keys=["stealth_order_id"],
+                mutation_families=[
+                    AdminApiMutationFamilyType.STEALTH_MOVE,
+                    AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+                ],
+                mutation_kinds=[StealthMutationKind.MOVE, StealthMutationKind.REPRICE],
+                current_read_evidence_routes=[
+                    detail_surface,
+                    mutation_read_surface,
+                    command_suite_surface,
+                ],
+                guarded_command_routes=guarded_move_reprice,
+                proof_record_routes=[mutation_record_surface],
+                backend_contracts=[
+                    "build_stealth_order_detail.mutation_claim_audit",
+                    "core/stealth_order_manager.py::snapshot_mutation_claims",
+                    "build_stealth_mutation_claim_snapshot",
+                ],
+                required_evidence=[
+                    "runtime_claims_observed",
+                    "runtime_claim_count",
+                    "active_claim_count_zero",
+                ],
+                missing_contracts=[
+                    "stealth_mutation_claim_acquire_contract",
+                    "stealth_mutation_claim_release_contract",
+                    "stealth_mutation_post_write_reconciliation_proof",
+                ],
+                unsupported_behaviors=[
+                    *common_unsupported,
+                    "browser_runtime_claim_snapshot",
+                ],
+                runtime_snapshot_required=True,
+                runtime_claims_observed_required=True,
+                zero_active_claims_required=True,
+                proof_readback_available=True,
+                detail=(
+                    "Runtime mutation-claim evidence is observable readback "
+                    "only. It may show whether move/reprice has active claims, "
+                    "but it cannot acquire, release, or bypass those claims."
+                ),
+            ),
+            contract_item(
+                scope=AdminApiStealthMutationClaimContractScope.PROOF_RECORD_BOUNDARY,
+                label="Mutation-claim proof record boundary",
+                primary_surface=mutation_read_surface,
+                gate_status=AdminApiGateStatus.BLOCKED,
+                action_state=AdminApiActionState.BLOCKED,
+                support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                identity_keys=["stealth_order_id"],
+                mutation_families=[
+                    AdminApiMutationFamilyType.STEALTH_MOVE,
+                    AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+                ],
+                mutation_kinds=[StealthMutationKind.MOVE, StealthMutationKind.REPRICE],
+                current_read_evidence_routes=[mutation_read_surface],
+                guarded_command_routes=guarded_move_reprice,
+                proof_record_routes=[mutation_record_surface],
+                backend_contracts=[
+                    "build_stealth_mutation_claim_snapshot",
+                    "record_stealth_mutation_claim_snapshot_proof",
+                    "AdminApiStealthMutationClaimProofService",
+                    "FileStealthMutationClaimProofStore",
+                ],
+                required_evidence=[
+                    "exact_guarded_command_context",
+                    "runtime_claims_observed",
+                    "active_claim_count_zero",
+                    "approval_snapshot",
+                    "admission_audit",
+                    "cap_guard_decision",
+                    "reconciliation_plan",
+                ],
+                missing_contracts=[
+                    "stealth_mutation_claim_acquire_contract",
+                    "stealth_mutation_claim_release_contract",
+                    "stealth_mutation_post_write_reconciliation_proof",
+                ],
+                unsupported_behaviors=[
+                    *common_unsupported,
+                    "proof_record_as_claim_lock",
+                    "proof_record_as_live_admission",
+                ],
+                runtime_snapshot_required=True,
+                runtime_claims_observed_required=True,
+                zero_active_claims_required=True,
+                exact_guarded_command_context_required=True,
+                proof_readback_available=True,
+                detail=(
+                    "Proof records are append-only local evidence for a "
+                    "specific guarded move or reprice command context. They do "
+                    "not acquire claims, release claims, or make a command "
+                    "live-executable."
+                ),
+            ),
+            contract_item(
+                scope=AdminApiStealthMutationClaimContractScope.CLAIM_ACQUIRE_BOUNDARY,
+                label="Claim acquire boundary",
+                primary_surface=contract_map_surface,
+                gate_status=AdminApiGateStatus.BLOCKED,
+                action_state=AdminApiActionState.NOT_MODELED,
+                support_status=AdminApiModuleSupportStatus.NOT_MODELED,
+                identity_keys=["stealth_order_id"],
+                mutation_families=[
+                    AdminApiMutationFamilyType.STEALTH_MOVE,
+                    AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+                ],
+                mutation_kinds=[StealthMutationKind.MOVE, StealthMutationKind.REPRICE],
+                current_read_evidence_routes=[
+                    contract_map_surface,
+                    operator_scope_surface,
+                    command_suite_surface,
+                ],
+                guarded_command_routes=guarded_move_reprice,
+                proof_record_routes=[],
+                backend_contracts=[
+                    "core/stealth_order_manager.py mutation claim paths",
+                    "build_stealth_operator_scope",
+                    "build_stealth_mutation_claim_contract_map",
+                ],
+                required_evidence=[
+                    "backend_claim_acquire_contract",
+                    "single_manager_lifecycle_path",
+                    "post_write_reconciliation",
+                ],
+                missing_contracts=["stealth_mutation_claim_acquire_contract"],
+                unsupported_behaviors=[
+                    *common_unsupported,
+                    "browser_claim_acquire",
+                    "bff_claim_acquire",
+                ],
+                detail=(
+                    "Claim acquisition is not an Admin API/browser/BFF "
+                    "operation. Future executable paths must acquire claims "
+                    "inside the backend manager path that owns lifecycle "
+                    "mutation."
+                ),
+            ),
+            contract_item(
+                scope=AdminApiStealthMutationClaimContractScope.CLAIM_RELEASE_BOUNDARY,
+                label="Claim release boundary",
+                primary_surface=contract_map_surface,
+                gate_status=AdminApiGateStatus.BLOCKED,
+                action_state=AdminApiActionState.NOT_MODELED,
+                support_status=AdminApiModuleSupportStatus.NOT_MODELED,
+                identity_keys=["stealth_order_id"],
+                mutation_families=[
+                    AdminApiMutationFamilyType.STEALTH_MOVE,
+                    AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+                ],
+                mutation_kinds=[StealthMutationKind.MOVE, StealthMutationKind.REPRICE],
+                current_read_evidence_routes=[
+                    contract_map_surface,
+                    operator_scope_surface,
+                    command_suite_surface,
+                ],
+                guarded_command_routes=guarded_move_reprice,
+                proof_record_routes=[],
+                backend_contracts=[
+                    "core/stealth_order_manager.py mutation claim paths",
+                    "build_stealth_operator_scope",
+                    "build_stealth_mutation_claim_contract_map",
+                ],
+                required_evidence=[
+                    "backend_claim_release_contract",
+                    "claim_release_on_success_failure_cancel",
+                    "post_write_reconciliation",
+                ],
+                missing_contracts=["stealth_mutation_claim_release_contract"],
+                unsupported_behaviors=[
+                    *common_unsupported,
+                    "browser_claim_release",
+                    "bff_claim_release",
+                ],
+                detail=(
+                    "Claim release is backend-owned cleanup for a manager-owned "
+                    "mutation. The frontend can display missing release "
+                    "contracts but cannot release locks."
+                ),
+            ),
+            contract_item(
+                scope=AdminApiStealthMutationClaimContractScope.MOVE_COMMAND_BOUNDARY,
+                label="Stealth move mutation-claim gate",
+                primary_surface=move_command_surface,
+                gate_status=AdminApiGateStatus.BLOCKED,
+                action_state=AdminApiActionState.BLOCKED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                identity_keys=["stealth_order_id"],
+                mutation_families=[AdminApiMutationFamilyType.STEALTH_MOVE],
+                mutation_kinds=[StealthMutationKind.MOVE],
+                current_read_evidence_routes=[
+                    detail_surface,
+                    mutation_read_surface,
+                    command_suite_surface,
+                ],
+                guarded_command_routes=[move_command_surface],
+                proof_record_routes=[mutation_record_surface],
+                backend_contracts=[
+                    "build_stealth_command_suite.commands[stealth_move]",
+                    "build_stealth_order_detail.mutation_claim_audit",
+                    "record_stealth_mutation_claim_snapshot_proof",
+                    "core/stealth_order_manager.py::build_stealth_move_plan",
+                    "core/stealth_order_manager.py::execute_stealth_move",
+                ],
+                required_evidence=[
+                    "mutation_claim_snapshot",
+                    "active_placement_exchange_truth",
+                    "cancel_replace_proof",
+                    "approval",
+                    "cap_guard",
+                    "post_write_reconciliation",
+                ],
+                missing_contracts=[
+                    "stealth_mutation_claim_acquire_contract",
+                    "stealth_mutation_claim_release_contract",
+                    "stealth_move_cancel_replace_adapter_missing",
+                ],
+                unsupported_behaviors=[
+                    *common_unsupported,
+                    "browser_move_claim_ownership",
+                    "move_without_mutation_claim",
+                ],
+                runtime_snapshot_required=True,
+                runtime_claims_observed_required=True,
+                zero_active_claims_required=True,
+                exact_guarded_command_context_required=True,
+                proof_readback_available=True,
+                detail=(
+                    "Stealth move remains a live-disabled cancel/replace-shaped "
+                    "draft. Mutation-claim proof is required evidence, but it "
+                    "does not run move planning or execute the move."
+                ),
+            ),
+            contract_item(
+                scope=AdminApiStealthMutationClaimContractScope.REPRICE_COMMAND_BOUNDARY,
+                label="Movement reprice mutation-claim gate",
+                primary_surface=reprice_command_surface,
+                gate_status=AdminApiGateStatus.BLOCKED,
+                action_state=AdminApiActionState.BLOCKED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                identity_keys=["stealth_order_id"],
+                mutation_families=[AdminApiMutationFamilyType.MOVEMENT_REPRICE],
+                mutation_kinds=[StealthMutationKind.REPRICE],
+                current_read_evidence_routes=[
+                    "GET /api/v1/movement-repricing/stealth/{stealth_order_id}",
+                    mutation_read_surface,
+                    command_suite_surface,
+                ],
+                guarded_command_routes=[reprice_command_surface],
+                proof_record_routes=[mutation_record_surface],
+                backend_contracts=[
+                    "movement/repricing action-state matrix",
+                    "record_stealth_mutation_claim_snapshot_proof",
+                    "core/stealth_order_manager.py mutation claim paths",
+                ],
+                required_evidence=[
+                    "mutation_claim_snapshot",
+                    "cooldown_gate",
+                    "active_placement_exchange_truth",
+                    "cancel_replace_proof",
+                    "post_write_reconciliation",
+                ],
+                missing_contracts=[
+                    "stealth_mutation_claim_acquire_contract",
+                    "stealth_mutation_claim_release_contract",
+                    "movement_reprice_cancel_replace_execution_contract",
+                ],
+                unsupported_behaviors=[
+                    *common_unsupported,
+                    "browser_reprice_claim_ownership",
+                    "dashboard_reprice_claim_bypass",
+                ],
+                runtime_snapshot_required=True,
+                runtime_claims_observed_required=True,
+                zero_active_claims_required=True,
+                exact_guarded_command_context_required=True,
+                proof_readback_available=True,
+                detail=(
+                    "Movement reprice is also guarded by stealth mutation "
+                    "claim evidence. The admin map only explains the gate; it "
+                    "does not clear cooldowns, claim locks, or call the legacy "
+                    "repricer."
+                ),
+            ),
+            contract_item(
+                scope=(
+                    AdminApiStealthMutationClaimContractScope
+                    .COMMAND_FAMILY_APPLICABILITY
+                ),
+                label="Command-family mutation-claim applicability",
+                primary_surface=command_suite_surface,
+                gate_status=AdminApiGateStatus.PASSED,
+                action_state=AdminApiActionState.USABLE,
+                support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                identity_keys=["stealth_order_id"],
+                mutation_families=[
+                    AdminApiMutationFamilyType.STEALTH_CREATE,
+                    AdminApiMutationFamilyType.STEALTH_REVEAL,
+                    AdminApiMutationFamilyType.STEALTH_CANCEL,
+                    AdminApiMutationFamilyType.STEALTH_MOVE,
+                    AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+                    AdminApiMutationFamilyType.STEALTH_RECOVERY,
+                    AdminApiMutationFamilyType.STEALTH_RECONCILIATION,
+                ],
+                mutation_kinds=[StealthMutationKind.MOVE, StealthMutationKind.REPRICE],
+                current_read_evidence_routes=[
+                    command_suite_surface,
+                    route_inventory_surface,
+                    operator_scope_surface,
+                ],
+                guarded_command_routes=[
+                    create_command_surface,
+                    reveal_command_surface,
+                    cancel_command_surface,
+                    move_command_surface,
+                    reprice_command_surface,
+                    recovery_command_surface,
+                    reconciliation_command_surface,
+                ],
+                proof_record_routes=[mutation_record_surface],
+                backend_contracts=[
+                    "build_stealth_command_suite",
+                    "build_stealth_operator_scope",
+                    "build_stealth_mutation_claim_contract_map",
+                ],
+                required_evidence=[
+                    "move_and_reprice_require_mutation_claim_snapshot",
+                    "other_stealth_commands_remain_blocked_by_their_own_gates",
+                ],
+                missing_contracts=[
+                    "stealth_mutation_claim_acquire_contract",
+                    "stealth_mutation_claim_release_contract",
+                ],
+                unsupported_behaviors=[
+                    *common_unsupported,
+                    "copying_mutation_claim_gate_to_unrelated_commands",
+                ],
+                proof_readback_available=True,
+                detail=(
+                    "Mutation-claim evidence is currently a move/reprice "
+                    "gate. Other stealth command families may be blocked, but "
+                    "the frontend must not infer claim ownership rules for "
+                    "them or copy spot rules into stealth behavior."
+                ),
+            ),
+            contract_item(
+                scope=(
+                    AdminApiStealthMutationClaimContractScope
+                    .BROWSER_BFF_AUTHORITY_BOUNDARY
+                ),
+                label="Browser/BFF mutation-claim authority boundary",
+                primary_surface=contract_map_surface,
+                gate_status=AdminApiGateStatus.PASSED,
+                action_state=AdminApiActionState.USABLE,
+                support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                identity_keys=["stealth_order_id"],
+                mutation_families=[
+                    AdminApiMutationFamilyType.STEALTH_MOVE,
+                    AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+                ],
+                mutation_kinds=[StealthMutationKind.MOVE, StealthMutationKind.REPRICE],
+                current_read_evidence_routes=[
+                    contract_map_surface,
+                    route_inventory_surface,
+                    operator_scope_surface,
+                    command_suite_surface,
+                ],
+                guarded_command_routes=guarded_move_reprice,
+                proof_record_routes=[],
+                backend_contracts=[
+                    "build_stealth_mutation_claim_contract_map",
+                    "ADMIN_API_ROUTE_INVENTORY",
+                    "build_stealth_command_suite",
+                    "core/stealth_order_manager.py mutation claim paths",
+                ],
+                required_evidence=[
+                    "backend_route_inventory",
+                    "backend_command_suite",
+                    "backend_manager_claim_ownership",
+                ],
+                missing_contracts=[],
+                unsupported_behaviors=common_unsupported,
+                detail=(
+                    "This map is read-only operator evidence. Browser and BFF "
+                    "code may display or forward backend-approved requests "
+                    "only; they cannot own mutation claims or mutate stealth "
+                    "lifecycle state."
+                ),
+            ),
+        ]
+
+        read_routes = sorted(
+            {
+                route
+                for item in contract_map
+                for route in item.current_read_evidence_routes
+            }
+        )
+        guarded_command_routes = sorted(
+            {
+                route
+                for item in contract_map
+                for route in item.guarded_command_routes
+            }
+        )
+        proof_record_routes = sorted(
+            {route for item in contract_map for route in item.proof_record_routes}
+        )
+        unsupported_behaviors = sorted(
+            {behavior for item in contract_map for behavior in item.unsupported_behaviors}
+        )
+        mutation_claim_rules = [
+            "Mutation-claim ownership remains backend manager authority, not browser or BFF authority.",
+            "Proof records are append-only local evidence and do not acquire or release claims.",
+            "Move and movement reprice are the current guarded command families for mutation-claim snapshot proof.",
+            "A safe mutation-claim proof requires exact guarded command context, observed runtime claims, and zero active claims.",
+            "Exchange order_id remains exchange evidence only and is not mutation-claim command identity.",
+        ]
+        return StealthMutationClaimContractMapResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            status=AdminApiGateStatus.BLOCKED,
+            support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+            route_inventory_source="ADMIN_API_ROUTE_INVENTORY",
+            route_inventory_ref="application/admin_api/route_inventory.py",
+            contract_map_count=len(contract_map),
+            blocking_contract_count=sum(
+                1 for item in contract_map if item.gate_status == AdminApiGateStatus.BLOCKED
+            ),
+            read_only_contract_count=sum(
+                1 for item in contract_map if item.action_class == AdminApiActionClass.READ_ONLY
+            ),
+            command_boundary_count=sum(
+                1 for item in contract_map if item.guarded_command_routes
+            ),
+            proof_record_boundary_count=sum(
+                1 for item in contract_map if item.proof_record_routes
+            ),
+            runtime_snapshot_boundary_count=sum(
+                1 for item in contract_map if item.runtime_snapshot_required
+            ),
+            claim_acquire_boundary_count=sum(
+                1 for item in contract_map if "acquire" in item.scope.value
+            ),
+            claim_release_boundary_count=sum(
+                1 for item in contract_map if "release" in item.scope.value
+            ),
+            guarded_command_count=len(guarded_command_routes),
+            live_enabled_contract_count=0,
+            mutation_claim_scope_status=AdminApiGateStatus.BLOCKED,
+            command_count=command_suite.command_count,
+            blocked_command_count=command_suite.blocked_command_count,
+            read_routes=read_routes,
+            guarded_command_routes=guarded_command_routes,
+            proof_record_routes=proof_record_routes,
+            mutation_claim_rules=mutation_claim_rules,
+            unsupported_behaviors=unsupported_behaviors,
+            backend_contracts=[
+                "ADMIN_API_ROUTE_INVENTORY",
+                "build_stealth_command_suite",
+                "build_stealth_order_detail.mutation_claim_audit",
+                "build_stealth_mutation_claim_snapshot",
+                "record_stealth_mutation_claim_snapshot_proof",
+                "AdminApiStealthMutationClaimProofService",
+                "build_stealth_mutation_claim_contract_map",
+            ],
+            evidence=[
+                "Derived from build_stealth_command_suite, ADMIN_API_ROUTE_INVENTORY, and mutation-claim proof contracts.",
+                "No manager invocation, claim acquire/release, Coinbase read/order/cancel, reconciliation execution, or state mutation is performed.",
+                "Move and movement reprice are the current guarded mutation-claim command families.",
+                "Browser and BFF authority remains display/forward only.",
+            ],
+            contract_map=contract_map,
+            route_inventory_bound=all(item.route_inventory_bound for item in contract_map),
+            backend_owned=True,
+            read_only=True,
+            browser_authority="display_only",
+            bff_authority="forward_only_no_execution",
+            live_coinbase_orders_ran=False,
+            live_coinbase_read_ran=False,
+            submitted_notional_usdc="0",
+            executed_notional_usdc="0",
+            detail=(
+                "Stealth mutation-claim contract map shows the backend-owned "
+                "claim evidence an operator must inspect before move or "
+                "reprice can ever become executable. It is not a claim "
+                "acquire/release path, Coinbase path, manager invocation path, "
+                "or lifecycle mutation path."
             ),
         )
 

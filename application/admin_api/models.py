@@ -162,6 +162,7 @@ from core.enums import (
     AdminApiStealthAdmissionEvidence,
     AdminApiStealthCommandSuiteGapFamily,
     AdminApiStealthExchangeRealityContractScope,
+    AdminApiStealthMutationClaimContractScope,
     AdminApiStealthOperatorScope,
     AdminApiStealthRouteInventoryFamily,
     AdminApiStealthDecisionResolutionEvidenceType,
@@ -33700,6 +33701,119 @@ class StealthExchangeRealityContractMapResponse(AdminApiReadPayload):
     backend_contracts: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
     contract_map: list[StealthExchangeRealityContractMapItem] = Field(
+        default_factory=list
+    )
+    route_inventory_bound: bool = True
+    backend_owned: bool = True
+    read_only: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    detail: str
+
+
+class StealthMutationClaimContractMapItem(BaseModel):
+    """One backend-owned mutation-claim contract boundary for stealth orders."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scope: AdminApiStealthMutationClaimContractScope
+    label: str
+    support_status: AdminApiModuleSupportStatus
+    gate_status: AdminApiGateStatus
+    action_state: AdminApiActionState
+    surface: str
+    method: str
+    route: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    shared_method: str
+    route_inventory_bound: bool = True
+    identity_keys: list[str] = Field(default_factory=list)
+    mutation_families: list[AdminApiMutationFamilyType] = Field(default_factory=list)
+    mutation_kinds: list[StealthMutationKind] = Field(default_factory=list)
+    current_read_evidence_routes: list[str] = Field(default_factory=list)
+    guarded_command_routes: list[str] = Field(default_factory=list)
+    proof_record_routes: list[str] = Field(default_factory=list)
+    backend_contracts: list[str] = Field(default_factory=list)
+    required_evidence: list[str] = Field(default_factory=list)
+    missing_contracts: list[str] = Field(default_factory=list)
+    unsupported_behaviors: list[str] = Field(default_factory=list)
+    runtime_snapshot_required: bool = False
+    runtime_claims_observed_required: bool = False
+    zero_active_claims_required: bool = False
+    exact_guarded_command_context_required: bool = False
+    proof_recording_allowed: bool = False
+    proof_recording_ran: bool = False
+    proof_readback_available: bool = False
+    claim_acquire_allowed: bool = False
+    claim_acquire_ran: bool = False
+    claim_release_allowed: bool = False
+    claim_release_ran: bool = False
+    manager_invocation_allowed: bool = False
+    manager_invocation_ran: bool = False
+    executable: bool = False
+    live_enabled: bool = False
+    local_lifecycle_mutation_allowed: bool = False
+    lifecycle_state_mutated: bool = False
+    order_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    active_placement_cancel_replace_allowed: bool = False
+    active_placement_cancel_replace_ran: bool = False
+    coinbase_read_allowed: bool = False
+    live_coinbase_read_ran: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    reconciliation_execution_allowed: bool = False
+    reconciliation_executed: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_orders_ran: bool = False
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    detail: str
+
+
+class StealthMutationClaimContractMapResponse(AdminApiReadPayload):
+    """Read-only mutation-claim contract map for stealth lifecycle controls."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "stealth_mutation_claim_contract_map"
+    module_id: str = "stealth_orders"
+    approved_phase_range: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    support_status: AdminApiModuleSupportStatus = (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+    )
+    route_inventory_source: str = "ADMIN_API_ROUTE_INVENTORY"
+    route_inventory_ref: str = "application/admin_api/route_inventory.py"
+    contract_map_count: int = Field(default=0, ge=0)
+    blocking_contract_count: int = Field(default=0, ge=0)
+    read_only_contract_count: int = Field(default=0, ge=0)
+    command_boundary_count: int = Field(default=0, ge=0)
+    proof_record_boundary_count: int = Field(default=0, ge=0)
+    runtime_snapshot_boundary_count: int = Field(default=0, ge=0)
+    claim_acquire_boundary_count: int = Field(default=0, ge=0)
+    claim_release_boundary_count: int = Field(default=0, ge=0)
+    guarded_command_count: int = Field(default=0, ge=0)
+    live_enabled_contract_count: int = Field(default=0, ge=0)
+    mutation_claim_scope_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    command_count: int = Field(default=0, ge=0)
+    blocked_command_count: int = Field(default=0, ge=0)
+    read_routes: list[str] = Field(default_factory=list)
+    guarded_command_routes: list[str] = Field(default_factory=list)
+    proof_record_routes: list[str] = Field(default_factory=list)
+    mutation_claim_rules: list[str] = Field(default_factory=list)
+    unsupported_behaviors: list[str] = Field(default_factory=list)
+    backend_contracts: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    contract_map: list[StealthMutationClaimContractMapItem] = Field(
         default_factory=list
     )
     route_inventory_bound: bool = True

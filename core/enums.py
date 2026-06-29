@@ -617,6 +617,19 @@ class AdminApiStealthExchangeRealityContractScope(str, Enum):
     BROWSER_BFF_AUTHORITY_BOUNDARY = "browser_bff_authority_boundary"
 
 
+class AdminApiStealthMutationClaimContractScope(str, Enum):
+    """Operator-facing stealth mutation-claim contract-map scopes."""
+
+    RUNTIME_CLAIM_SNAPSHOT = "runtime_claim_snapshot"
+    PROOF_RECORD_BOUNDARY = "proof_record_boundary"
+    CLAIM_ACQUIRE_BOUNDARY = "claim_acquire_boundary"
+    CLAIM_RELEASE_BOUNDARY = "claim_release_boundary"
+    MOVE_COMMAND_BOUNDARY = "move_command_boundary"
+    REPRICE_COMMAND_BOUNDARY = "reprice_command_boundary"
+    COMMAND_FAMILY_APPLICABILITY = "command_family_applicability"
+    BROWSER_BFF_AUTHORITY_BOUNDARY = "browser_bff_authority_boundary"
+
+
 class AdminApiStealthCommandSuiteBlockerClosure(str, Enum):
     """Concrete M55 blocker closures required before stealth live execution."""
 

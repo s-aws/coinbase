@@ -9140,6 +9140,69 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/mutation-claim-contract-map:
+    get:
+      tags:
+      - stealth
+      summary: Read stealth mutation-claim contract map
+      description: Read stealth mutation-claim boundaries without acquiring claims.
+      operationId: stealth_mutation_claim_contract_map_api_v1_stealth_mutation_claim_contract_map_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthMutationClaimContractMapResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/stealth/orders/{stealth_order_id}/reveal:
     post:
       tags:
@@ -12771,6 +12834,19 @@ components:
       - state_mutation_policy
       title: AdminApiStealthLiveReadinessDecision
       description: Backend decisions required before stealth live execution can exist.
+    AdminApiStealthMutationClaimContractScope:
+      type: string
+      enum:
+      - runtime_claim_snapshot
+      - proof_record_boundary
+      - claim_acquire_boundary
+      - claim_release_boundary
+      - move_command_boundary
+      - reprice_command_boundary
+      - command_family_applicability
+      - browser_bff_authority_boundary
+      title: AdminApiStealthMutationClaimContractScope
+      description: Operator-facing stealth mutation-claim contract-map scopes.
     AdminApiStealthOperatorScope:
       type: string
       enum:
@@ -164789,6 +164865,445 @@ components:
       - new_limit_price
       title: StealthMoveRequest
       description: Stealth move request body keyed by path ``stealth_order_id``.
+    StealthMutationClaimContractMapItem:
+      properties:
+        scope:
+          $ref: '#/components/schemas/AdminApiStealthMutationClaimContractScope'
+        label:
+          type: string
+          title: Label
+        support_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+        gate_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        action_state:
+          $ref: '#/components/schemas/AdminApiActionState'
+        surface:
+          type: string
+          title: Surface
+        method:
+          type: string
+          title: Method
+        route:
+          type: string
+          title: Route
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        shared_method:
+          type: string
+          title: Shared Method
+        route_inventory_bound:
+          type: boolean
+          title: Route Inventory Bound
+          default: true
+        identity_keys:
+          items:
+            type: string
+          type: array
+          title: Identity Keys
+        mutation_families:
+          items:
+            $ref: '#/components/schemas/AdminApiMutationFamilyType'
+          type: array
+          title: Mutation Families
+        mutation_kinds:
+          items:
+            $ref: '#/components/schemas/StealthMutationKind'
+          type: array
+          title: Mutation Kinds
+        current_read_evidence_routes:
+          items:
+            type: string
+          type: array
+          title: Current Read Evidence Routes
+        guarded_command_routes:
+          items:
+            type: string
+          type: array
+          title: Guarded Command Routes
+        proof_record_routes:
+          items:
+            type: string
+          type: array
+          title: Proof Record Routes
+        backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Backend Contracts
+        required_evidence:
+          items:
+            type: string
+          type: array
+          title: Required Evidence
+        missing_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Contracts
+        unsupported_behaviors:
+          items:
+            type: string
+          type: array
+          title: Unsupported Behaviors
+        runtime_snapshot_required:
+          type: boolean
+          title: Runtime Snapshot Required
+          default: false
+        runtime_claims_observed_required:
+          type: boolean
+          title: Runtime Claims Observed Required
+          default: false
+        zero_active_claims_required:
+          type: boolean
+          title: Zero Active Claims Required
+          default: false
+        exact_guarded_command_context_required:
+          type: boolean
+          title: Exact Guarded Command Context Required
+          default: false
+        proof_recording_allowed:
+          type: boolean
+          title: Proof Recording Allowed
+          default: false
+        proof_recording_ran:
+          type: boolean
+          title: Proof Recording Ran
+          default: false
+        proof_readback_available:
+          type: boolean
+          title: Proof Readback Available
+          default: false
+        claim_acquire_allowed:
+          type: boolean
+          title: Claim Acquire Allowed
+          default: false
+        claim_acquire_ran:
+          type: boolean
+          title: Claim Acquire Ran
+          default: false
+        claim_release_allowed:
+          type: boolean
+          title: Claim Release Allowed
+          default: false
+        claim_release_ran:
+          type: boolean
+          title: Claim Release Ran
+          default: false
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        manager_invocation_ran:
+          type: boolean
+          title: Manager Invocation Ran
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        live_enabled:
+          type: boolean
+          title: Live Enabled
+          default: false
+        local_lifecycle_mutation_allowed:
+          type: boolean
+          title: Local Lifecycle Mutation Allowed
+          default: false
+        lifecycle_state_mutated:
+          type: boolean
+          title: Lifecycle State Mutated
+          default: false
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        active_placement_cancel_replace_allowed:
+          type: boolean
+          title: Active Placement Cancel Replace Allowed
+          default: false
+        active_placement_cancel_replace_ran:
+          type: boolean
+          title: Active Placement Cancel Replace Ran
+          default: false
+        coinbase_read_allowed:
+          type: boolean
+          title: Coinbase Read Allowed
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        coinbase_order_submitted:
+          type: boolean
+          title: Coinbase Order Submitted
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        reconciliation_execution_allowed:
+          type: boolean
+          title: Reconciliation Execution Allowed
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - scope
+      - label
+      - support_status
+      - gate_status
+      - action_state
+      - surface
+      - method
+      - route
+      - action_class
+      - required_permission
+      - shared_method
+      - detail
+      title: StealthMutationClaimContractMapItem
+      description: One backend-owned mutation-claim contract boundary for stealth
+        orders.
+    StealthMutationClaimContractMapResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: stealth_mutation_claim_contract_map
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        module_id:
+          type: string
+          title: Module Id
+          default: stealth_orders
+        approved_phase_range:
+          type: string
+          title: Approved Phase Range
+        support_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+          default: command_draft_live_disabled
+        route_inventory_source:
+          type: string
+          title: Route Inventory Source
+          default: ADMIN_API_ROUTE_INVENTORY
+        route_inventory_ref:
+          type: string
+          title: Route Inventory Ref
+          default: application/admin_api/route_inventory.py
+        contract_map_count:
+          type: integer
+          minimum: 0.0
+          title: Contract Map Count
+          default: 0
+        blocking_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Blocking Contract Count
+          default: 0
+        read_only_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Read Only Contract Count
+          default: 0
+        command_boundary_count:
+          type: integer
+          minimum: 0.0
+          title: Command Boundary Count
+          default: 0
+        proof_record_boundary_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Record Boundary Count
+          default: 0
+        runtime_snapshot_boundary_count:
+          type: integer
+          minimum: 0.0
+          title: Runtime Snapshot Boundary Count
+          default: 0
+        claim_acquire_boundary_count:
+          type: integer
+          minimum: 0.0
+          title: Claim Acquire Boundary Count
+          default: 0
+        claim_release_boundary_count:
+          type: integer
+          minimum: 0.0
+          title: Claim Release Boundary Count
+          default: 0
+        guarded_command_count:
+          type: integer
+          minimum: 0.0
+          title: Guarded Command Count
+          default: 0
+        live_enabled_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Live Enabled Contract Count
+          default: 0
+        mutation_claim_scope_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        command_count:
+          type: integer
+          minimum: 0.0
+          title: Command Count
+          default: 0
+        blocked_command_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Command Count
+          default: 0
+        read_routes:
+          items:
+            type: string
+          type: array
+          title: Read Routes
+        guarded_command_routes:
+          items:
+            type: string
+          type: array
+          title: Guarded Command Routes
+        proof_record_routes:
+          items:
+            type: string
+          type: array
+          title: Proof Record Routes
+        mutation_claim_rules:
+          items:
+            type: string
+          type: array
+          title: Mutation Claim Rules
+        unsupported_behaviors:
+          items:
+            type: string
+          type: array
+          title: Unsupported Behaviors
+        backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Backend Contracts
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        contract_map:
+          items:
+            $ref: '#/components/schemas/StealthMutationClaimContractMapItem'
+          type: array
+          title: Contract Map
+        route_inventory_bound:
+          type: boolean
+          title: Route Inventory Bound
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - approved_phase_range
+      - detail
+      title: StealthMutationClaimContractMapResponse
+      description: Read-only mutation-claim contract map for stealth lifecycle controls.
     StealthMutationClaimEvidenceSource:
       type: string
       enum:

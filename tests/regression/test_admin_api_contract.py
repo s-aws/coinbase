@@ -446,6 +446,7 @@ from core.enums import (
     AdminApiStealthCommandSuiteGapFamily,
     AdminApiStealthDecisionResolutionEvidenceType,
     AdminApiStealthExchangeRealityContractScope,
+    AdminApiStealthMutationClaimContractScope,
     AdminApiStealthLiveReadinessDecision,
     AdminApiStealthRouteInventoryFamily,
     AdminApiVerifierReadinessStatus,
@@ -3682,6 +3683,18 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
     assert "active_placement_status_rules" in (
         stealth_exchange_reality_schema["properties"]
     )
+    stealth_mutation_claim_operation = written["paths"][
+        "/api/v1/stealth/mutation-claim-contract-map"
+    ]["get"]
+    assert "200" in stealth_mutation_claim_operation["responses"]
+    assert "content" in stealth_mutation_claim_operation["responses"]["200"]
+    assert "401" in stealth_mutation_claim_operation["responses"]
+    assert "403" in stealth_mutation_claim_operation["responses"]
+    stealth_mutation_claim_schema = written["components"]["schemas"][
+        "StealthMutationClaimContractMapResponse"
+    ]
+    assert "contract_map" in stealth_mutation_claim_schema["properties"]
+    assert "mutation_claim_rules" in stealth_mutation_claim_schema["properties"]
     movement_reprice_operation = written["paths"][
         "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
     ]["post"]
@@ -44976,8 +44989,8 @@ def test_admin_api_stealth_route_inventory_is_backend_owned_operator_map(
     )
     assert payload["route_inventory_source"] == "ADMIN_API_ROUTE_INVENTORY"
     assert payload["route_inventory_ref"] == "application/admin_api/route_inventory.py"
-    assert payload["route_count"] == 41
-    assert payload["read_route_count"] == 20
+    assert payload["route_count"] == 42
+    assert payload["read_route_count"] == 21
     assert payload["command_draft_route_count"] == 6
     assert payload["local_evidence_record_route_count"] == 15
     assert payload["live_exchange_classified_route_count"] == 3
@@ -45023,6 +45036,15 @@ def test_admin_api_stealth_route_inventory_is_backend_owned_operator_map(
     assert exchange_reality_row["read_only_route"] is True
     assert exchange_reality_row["command_draft_route"] is False
     assert exchange_reality_row["live_enabled"] is False
+    mutation_claim_contract_row = rows_by_surface[
+        "GET /api/v1/stealth/mutation-claim-contract-map"
+    ]
+    assert mutation_claim_contract_row["family"] == (
+        AdminApiStealthRouteInventoryFamily.MUTATION_CLAIMS.value
+    )
+    assert mutation_claim_contract_row["read_only_route"] is True
+    assert mutation_claim_contract_row["command_draft_route"] is False
+    assert mutation_claim_contract_row["live_enabled"] is False
     reveal_row = rows_by_surface[
         "POST /api/v1/stealth/orders/{stealth_order_id}/reveal"
     ]
@@ -45052,6 +45074,12 @@ def test_admin_api_stealth_route_inventory_is_backend_owned_operator_map(
     ]
     assert exchange_reality["read_route_count"] == 2
     assert exchange_reality["gate_status"] == AdminApiGateStatus.BLOCKED.value
+    mutation_claims = family_by_id[
+        AdminApiStealthRouteInventoryFamily.MUTATION_CLAIMS.value
+    ]
+    assert mutation_claims["read_route_count"] == 2
+    assert mutation_claims["local_evidence_record_route_count"] == 1
+    assert mutation_claims["gate_status"] == AdminApiGateStatus.BLOCKED.value
     command_drafts = family_by_id[
         AdminApiStealthRouteInventoryFamily.COMMAND_DRAFTS.value
     ]
@@ -45188,6 +45216,147 @@ def test_admin_api_stealth_exchange_reality_contract_map_is_backend_owned(
     assert authority["bff_authority"] == "forward_only_no_execution"
 
     direct_response = AdminApiReadService().build_stealth_exchange_reality_contract_map()
+    assert direct_response.contract_map_count == len(direct_response.contract_map)
+    assert direct_response.live_enabled_contract_count == 0
+    assert direct_response.route_inventory_bound is True
+    assert direct_response.live_coinbase_orders_ran is False
+
+
+@pytest.mark.regression
+def test_admin_api_stealth_mutation_claim_contract_map_is_backend_owned(
+    monkeypatch,
+):
+    from application.admin_api.read_service import AdminApiReadService
+
+    client = _client(monkeypatch)
+
+    response = client.get(
+        "/api/v1/stealth/mutation-claim-contract-map",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["type"] == "stealth_mutation_claim_contract_map"
+    assert payload["module_id"] == "stealth_orders"
+    assert payload["approved_phase_range"] == "8101-8120"
+    assert payload["status"] == AdminApiGateStatus.BLOCKED.value
+    assert payload["support_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert payload["route_inventory_source"] == "ADMIN_API_ROUTE_INVENTORY"
+    assert payload["route_inventory_ref"] == "application/admin_api/route_inventory.py"
+    assert payload["contract_map_count"] == 8
+    assert payload["blocking_contract_count"] == 6
+    assert payload["read_only_contract_count"] == 6
+    assert payload["command_boundary_count"] == 8
+    assert payload["proof_record_boundary_count"] == 5
+    assert payload["runtime_snapshot_boundary_count"] == 4
+    assert payload["claim_acquire_boundary_count"] == 1
+    assert payload["claim_release_boundary_count"] == 1
+    assert payload["guarded_command_count"] == 7
+    assert payload["live_enabled_contract_count"] == 0
+    assert payload["mutation_claim_scope_status"] == AdminApiGateStatus.BLOCKED.value
+    assert payload["command_count"] == 7
+    assert payload["blocked_command_count"] == 7
+    assert payload["route_inventory_bound"] is True
+    assert payload["backend_owned"] is True
+    assert payload["read_only"] is True
+    assert payload["browser_authority"] == "display_only"
+    assert payload["bff_authority"] == "forward_only_no_execution"
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_read_ran"] is False
+    assert payload["submitted_notional_usdc"] == "0"
+    assert payload["executed_notional_usdc"] == "0"
+    assert "browser_mutation_claim_acquisition" in payload["unsupported_behaviors"]
+    assert "bff_mutation_claim_release" in payload["unsupported_behaviors"]
+    assert "frontend_claim_locking" in payload["unsupported_behaviors"]
+    assert "GET /api/v1/stealth/mutation-claim-contract-map" in payload[
+        "read_routes"
+    ]
+    assert "POST /api/v1/stealth/orders/{stealth_order_id}/move" in payload[
+        "guarded_command_routes"
+    ]
+    assert (
+        "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+        in payload["guarded_command_routes"]
+    )
+    assert "POST /api/v1/stealth/orders/{stealth_order_id}/mutation-claim-proofs" in (
+        payload["proof_record_routes"]
+    )
+    assert any(
+        "Proof records are append-only local evidence" in rule
+        for rule in payload["mutation_claim_rules"]
+    )
+    assert any(
+        "Move and movement reprice" in rule for rule in payload["mutation_claim_rules"]
+    )
+
+    map_by_scope = {item["scope"]: item for item in payload["contract_map"]}
+    assert set(map_by_scope) == {
+        scope.value for scope in AdminApiStealthMutationClaimContractScope
+    }
+    runtime_snapshot = map_by_scope[
+        AdminApiStealthMutationClaimContractScope.RUNTIME_CLAIM_SNAPSHOT.value
+    ]
+    assert runtime_snapshot["surface"] == "GET /api/v1/stealth/orders/{stealth_order_id}"
+    assert runtime_snapshot["runtime_snapshot_required"] is True
+    assert runtime_snapshot["runtime_claims_observed_required"] is True
+    assert runtime_snapshot["zero_active_claims_required"] is True
+    assert runtime_snapshot["claim_acquire_allowed"] is False
+    assert runtime_snapshot["claim_release_allowed"] is False
+    proof_boundary = map_by_scope[
+        AdminApiStealthMutationClaimContractScope.PROOF_RECORD_BOUNDARY.value
+    ]
+    assert proof_boundary["proof_readback_available"] is True
+    assert proof_boundary["proof_recording_allowed"] is False
+    assert proof_boundary["exact_guarded_command_context_required"] is True
+    assert "proof_record_as_claim_lock" in proof_boundary["unsupported_behaviors"]
+    acquire_boundary = map_by_scope[
+        AdminApiStealthMutationClaimContractScope.CLAIM_ACQUIRE_BOUNDARY.value
+    ]
+    assert acquire_boundary["support_status"] == (
+        AdminApiModuleSupportStatus.NOT_MODELED.value
+    )
+    assert acquire_boundary["action_state"] == AdminApiActionState.NOT_MODELED.value
+    assert acquire_boundary["claim_acquire_allowed"] is False
+    release_boundary = map_by_scope[
+        AdminApiStealthMutationClaimContractScope.CLAIM_RELEASE_BOUNDARY.value
+    ]
+    assert release_boundary["claim_release_allowed"] is False
+    move_boundary = map_by_scope[
+        AdminApiStealthMutationClaimContractScope.MOVE_COMMAND_BOUNDARY.value
+    ]
+    assert move_boundary["action_class"] == AdminApiActionClass.LIVE_EXCHANGE_CANCEL.value
+    assert move_boundary["manager_invocation_allowed"] is False
+    assert move_boundary["active_placement_cancel_replace_allowed"] is False
+    assert move_boundary["lifecycle_state_mutated"] is False
+    reprice_boundary = map_by_scope[
+        AdminApiStealthMutationClaimContractScope.REPRICE_COMMAND_BOUNDARY.value
+    ]
+    assert reprice_boundary["action_class"] == (
+        AdminApiActionClass.LIVE_EXCHANGE_CANCEL.value
+    )
+    assert reprice_boundary["coinbase_order_cancel_submitted"] is False
+    applicability = map_by_scope[
+        AdminApiStealthMutationClaimContractScope.COMMAND_FAMILY_APPLICABILITY.value
+    ]
+    assert applicability["gate_status"] == AdminApiGateStatus.PASSED.value
+    assert AdminApiMutationFamilyType.STEALTH_CREATE.value in applicability[
+        "mutation_families"
+    ]
+    assert "copying_mutation_claim_gate_to_unrelated_commands" in applicability[
+        "unsupported_behaviors"
+    ]
+    authority = map_by_scope[
+        AdminApiStealthMutationClaimContractScope.BROWSER_BFF_AUTHORITY_BOUNDARY.value
+    ]
+    assert authority["surface"] == "GET /api/v1/stealth/mutation-claim-contract-map"
+    assert authority["gate_status"] == AdminApiGateStatus.PASSED.value
+    assert authority["browser_authority"] == "display_only"
+    assert authority["bff_authority"] == "forward_only_no_execution"
+
+    direct_response = AdminApiReadService().build_stealth_mutation_claim_contract_map()
     assert direct_response.contract_map_count == len(direct_response.contract_map)
     assert direct_response.live_enabled_contract_count == 0
     assert direct_response.route_inventory_bound is True
@@ -61756,6 +61925,15 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     ].action_class == AdminApiActionClass.READ_ONLY
     assert rows[
         "GET /api/v1/stealth/exchange-reality-contract-map"
+    ].permission == AdminApiPermission.ANALYTICS_READ
+    assert rows[
+        "GET /api/v1/stealth/mutation-claim-contract-map"
+    ].shared_method == "build_stealth_mutation_claim_contract_map"
+    assert rows[
+        "GET /api/v1/stealth/mutation-claim-contract-map"
+    ].action_class == AdminApiActionClass.READ_ONLY
+    assert rows[
+        "GET /api/v1/stealth/mutation-claim-contract-map"
     ].permission == AdminApiPermission.ANALYTICS_READ
     assert rows["POST /api/v1/stealth/orders"].shared_method == (
         "create_stealth_order"

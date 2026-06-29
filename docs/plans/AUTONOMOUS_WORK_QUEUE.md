@@ -271,6 +271,27 @@ Exact autonomous phrase: Active Release 0.1 `8101-8120` adds a Stealth Lifecycle
   show why create/reveal/move/cancel/recovery/reconciliation actions are
   usable, blocked, unsupported, or not modeled without acquiring claims in the
   browser.
+- Evidence update 2026-06-29: added read-only
+  `GET /api/v1/stealth/mutation-claim-contract-map` through backend route
+  inventory, OpenAPI models, read service, Admin API routing, generated
+  contracts, and focused contract tests. The response reports 8 backend-owned
+  mutation-claim contract rows: runtime claim snapshot, proof-record boundary,
+  claim acquire boundary, claim release boundary, move command boundary,
+  reprice command boundary, command-family applicability, and browser/BFF
+  authority boundary. It reports 6 blocked rows, 6 read-only rows, 8
+  command-boundary rows, 5 proof-record boundaries, 4 runtime snapshot
+  boundaries, 1 acquire boundary, 1 release boundary, 7 guarded commands,
+  zero live-enabled rows, no Coinbase reads/orders/cancellations, and 0 USDC
+  submitted/executed notional. Backend/frontend `AGENTS.md` instructions were
+  re-reviewed with no direction change. Blind/contextless reviewer
+  `019f14f0-e0b4-7721-94bb-827c5d9c0858` passed after tracing backend
+  authority, frontend consumption, no browser/BFF claim acquire/release,
+  append-only proof semantics, move/reprice guarded-command rules, and
+  `stealth_order_id` identity with exchange `order_id` as evidence only.
+  Phase-end subagent sweep closed the reviewer after findings were consumed.
+  No browser/BFF mutation-claim ownership, manager invocation,
+  route-local execution, Coinbase call, reconciliation execution, lifecycle
+  mutation, or second trading path was added.
 
 ### Phase 8106 - Stealth Command-Suite Action-State Audit
 

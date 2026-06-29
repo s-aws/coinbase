@@ -48,6 +48,7 @@ from application.admin_api.models import (
     StealthCommandSuiteResponse,
     StealthOperatorScopeResponse,
     StealthExchangeRealityContractMapResponse,
+    StealthMutationClaimContractMapResponse,
     StealthRouteInventoryResponse,
     StealthCancelCommand,
     StealthCancelRequest,
@@ -681,6 +682,25 @@ def stealth_exchange_reality_contract_map(
     return _read_model_response(
         StealthExchangeRealityContractMapResponse,
         service.build_stealth_exchange_reality_contract_map(),
+    )
+
+
+@router.get(
+    "/stealth/mutation-claim-contract-map",
+    response_model=StealthMutationClaimContractMapResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="Read stealth mutation-claim contract map",
+)
+def stealth_mutation_claim_contract_map(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+) -> JSONResponse:
+    """Read stealth mutation-claim boundaries without acquiring claims."""
+
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    return _read_model_response(
+        StealthMutationClaimContractMapResponse,
+        service.build_stealth_mutation_claim_contract_map(),
     )
 
 

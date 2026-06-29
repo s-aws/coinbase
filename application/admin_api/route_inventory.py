@@ -471,6 +471,24 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="stealth_orders",
+        surface="GET /api/v1/stealth/mutation-claim-contract-map",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="read-only stealth mutation-claim contract-map evidence",
+        audit="optional read audit",
+        shared_method="build_stealth_mutation_claim_contract_map",
+        parity_test=(
+            "read-only stealth mutation-claim contract map derived from "
+            "ADMIN_API_ROUTE_INVENTORY, mutation-claim proof contracts, and "
+            "build_stealth_command_suite; no browser/BFF claim acquisition or "
+            "release, manager invocation, dashboard fallback, Coinbase call, "
+            "cancel/replace, reconciliation execution, or lifecycle mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
         surface="POST /api/v1/stealth/orders/{stealth_order_id}/reveal",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         permission=AdminApiPermission.ORDER_CREATE,
