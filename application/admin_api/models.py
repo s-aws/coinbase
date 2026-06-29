@@ -1494,6 +1494,7 @@ class CampaignExecutionCommand(BaseModel):
 
     envelope: AdminApiCommandEnvelope
     request: CampaignExecutionRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     allow_live_execution: bool = False
 
 

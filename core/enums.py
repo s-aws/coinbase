@@ -2716,6 +2716,20 @@ class SpotSweepAutomationControlContractCheck(str, Enum):
     FRONTEND_AUTHORITY = "frontend_authority"
 
 
+class SpotCampaignExecutionReadinessCheck(str, Enum):
+    """Operator-visible readiness checks for spot campaign dry-run review."""
+
+    IDEMPOTENCY = "idempotency"
+    OPERATOR_INTENT = "operator_intent"
+    RBAC_PERMISSION = "rbac_permission"
+    ROUTE_ADMISSION = "route_admission"
+    DRY_RUN_REQUIREMENT = "dry_run_requirement"
+    REQUEST_SCOPE = "request_scope"
+    RUNNER_BOUNDARY = "runner_boundary"
+    NO_LIVE_EXECUTION = "no_live_execution"
+    FRONTEND_AUTHORITY = "frontend_authority"
+
+
 class SpotSweepAutomationOperatorScope(str, Enum):
     """Operator-visible scope rows for spot campaign/sweep automation."""
 

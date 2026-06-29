@@ -176,6 +176,26 @@ Exact autonomous phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Op
 
 - Verify campaign execution dry-run readiness and make rejection/acceptance
   evidence operator-visible without enabling live Coinbase execution.
+- Instruction review 2026-06-29: backend `AGENTS.md` and frontend
+  `AGENTS.md` were re-reviewed. No scope direction changed; focused checks are
+  the ordinary phase gate and blind contextless review applies.
+- Current implementation result: campaign execution responses now expose
+  backend-owned `campaign_execution_readiness_checks` rows and readiness
+  counts. Accepted dry-run review reports the dry-run requirement as passed
+  while route-bound live admission remains blocked; non-dry requests report the
+  dry-run requirement as blocked. Both paths keep scheduler, runner, retry,
+  reconciliation, Coinbase order submission, browser/BFF authority, and
+  submitted/executed notional disabled.
+- Validation result: focused backend Python compile, campaign execution Admin
+  API contract tests, enum/model signature tests, ownership check, autonomous
+  queue check, stale-process check, and whitespace check passed. Focused
+  frontend typecheck, command dry-submit/UI/mock tests, API freshness, lint,
+  command-security, autonomous queue, stale-process, and whitespace checks
+  passed. Blind contextless review passed after stale-doc cleanup. Live
+  Coinbase execution was not run; submitted/executed notional was 0 USDC. The
+  phase-end subagent sweep closed reviewer
+  `019f1382-9c62-7130-88a5-6f06da6609ad` and found no open phase agents
+  remaining.
 
 ### Phase 8087 - Frontend Campaign Status Adapter
 

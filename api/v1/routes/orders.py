@@ -1248,8 +1248,14 @@ def execute_spot_campaign(
         cap_guard_store=cap_guard_store,
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
-        command_runner=lambda: service.execute_spot_campaign(
-            CampaignExecutionCommand(envelope=envelope, request=body)
+        command_runner_with_admission=lambda admission_decision: (
+            service.execute_spot_campaign(
+                CampaignExecutionCommand(
+                    envelope=envelope,
+                    request=body,
+                    admission_decision=admission_decision,
+                )
+            )
         ),
     )
 

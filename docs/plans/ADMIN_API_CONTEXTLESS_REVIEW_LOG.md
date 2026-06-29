@@ -28,6 +28,25 @@ Required checker phrase: no browser scheduler.
 Required checker phrase: no browser/BFF execution authority.
 Required checker phrase: second trading path.
 
+Phase 8086 blind/contextless review result: PASS after stale-doc cleanup.
+Reviewer `019f1382-9c62-7130-88a5-6f06da6609ad` confirmed campaign execution
+dry-run readiness is a backend-owned command evidence path, not a frontend
+execution path. The canonical frontend path is
+`BackendApiClient.executeSpotCampaign` to
+`POST /api/v1/spot/campaign/executions`. The proving rows are
+`route_admission` blocked with `allowed=False` and
+`dry_run_requirement` passed with `dry_run=True`, showing accepted dry-run
+review while live admission remains blocked. Scheduler, runner, retry,
+reconciliation, Coinbase, browser, and BFF execution authority remained
+clearly blocked. Two stale docs were remediated before closeout: backend Spot
+Operations identities now include `campaign_id`, and frontend command response
+posture now distinguishes manual Spot order/cancel live exceptions from routes
+that still return `501`.
+
+Phase 8086 subagent sweep: review subagent
+`019f1382-9c62-7130-88a5-6f06da6609ad` was closed after findings were consumed
+and remediated. No stale phase-scoped subagents remain intentionally open.
+
 ## Audit/Reconciliation Operator Correlation Review - Phases 8061-8080
 
 Result: PASS after remediation. Scope: phases `8061-8080`, after completed history through

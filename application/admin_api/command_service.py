@@ -33,6 +33,7 @@ from core.enums import (
     OrderType,
     ProductCapability,
     ProductType,
+    SpotCampaignExecutionReadinessCheck,
     StealthMutationKind,
     TargetMovementType,
 )
@@ -49,6 +50,7 @@ from .approval import evaluate_live_execution_gate
 from .audit import FileAdminApiAuditStore
 from .models import (
     AdminApiCommandResponse,
+    AdminLiveAdmissionDecisionEvidence,
     AdminLifecycleCommandRequest,
     CampaignExecutionCommand,
     CancelOrderCommand,
@@ -1367,6 +1369,202 @@ def runtime_lifecycle_permission(
     raise ValueError(f"Unsupported runtime lifecycle action: {action.value}")
 
 
+SPOT_CAMPAIGN_EXECUTION_ROUTE = "/api/v1/spot/campaign/executions"
+SPOT_CAMPAIGN_EXECUTION_METHOD = "POST"
+SPOT_CAMPAIGN_EXECUTION_SERVICE_METHOD = "execute_spot_campaign"
+
+
+def _spot_campaign_execution_readiness_data(
+    command: CampaignExecutionCommand,
+    *,
+    dry_run_review_accepted: bool,
+) -> dict[str, Any]:
+    checks = _spot_campaign_execution_readiness_checks(
+        command,
+        dry_run_review_accepted=dry_run_review_accepted,
+    )
+    blocked_checks = [
+        check for check in checks if check["status"] == AdminApiGateStatus.BLOCKED.value
+    ]
+    return {
+        "campaign_execution_dry_run_ready": dry_run_review_accepted,
+        "campaign_execution_live_blocked": True,
+        "campaign_execution_readiness_check_count": len(checks),
+        "campaign_execution_blocked_check_count": len(blocked_checks),
+        "campaign_execution_readiness_checks": checks,
+    }
+
+
+def _spot_campaign_execution_readiness_checks(
+    command: CampaignExecutionCommand,
+    *,
+    dry_run_review_accepted: bool,
+) -> list[dict[str, Any]]:
+    request = command.request
+    admission_decision = command.admission_decision
+    product_count = len(request.product_ids or [])
+    live_requested = not request.dry_run
+    admission_status = (
+        admission_decision.status.value
+        if admission_decision is not None
+        else AdminApiGateStatus.BLOCKED.value
+    )
+    admission_allowed = (
+        admission_decision.allowed if admission_decision is not None else False
+    )
+    admission_blockers = (
+        ", ".join(blocker.value for blocker in admission_decision.blockers)
+        if admission_decision is not None and admission_decision.blockers
+        else "none"
+    )
+
+    def item(
+        check: SpotCampaignExecutionReadinessCheck,
+        *,
+        label: str,
+        status: AdminApiGateStatus,
+        current_evidence: str,
+        detail: str,
+    ) -> dict[str, Any]:
+        return {
+            "check": check.value,
+            "label": label,
+            "status": status.value,
+            "support_status": (
+                AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+            ),
+            "route": SPOT_CAMPAIGN_EXECUTION_ROUTE,
+            "method": SPOT_CAMPAIGN_EXECUTION_METHOD,
+            "service_method": SPOT_CAMPAIGN_EXECUTION_SERVICE_METHOD,
+            "required_permission": AdminApiPermission.CAMPAIGN_EXECUTE.value,
+            "backend_owned": True,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "campaign_runner_invoked": False,
+            "sweep_runner_invoked": False,
+            "scheduler_invoked": False,
+            "coinbase_orders_submitted": False,
+            "live_exchange_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
+            "current_evidence": current_evidence,
+            "detail": detail,
+        }
+
+    return [
+        item(
+            SpotCampaignExecutionReadinessCheck.IDEMPOTENCY,
+            label="Idempotency",
+            status=AdminApiGateStatus.PASSED,
+            current_evidence=f"idempotency_key={command.envelope.idempotency_key}",
+            detail=(
+                "The shared Admin API idempotency wrapper evaluated the campaign "
+                "request before service handling."
+            ),
+        ),
+        item(
+            SpotCampaignExecutionReadinessCheck.OPERATOR_INTENT,
+            label="Operator intent",
+            status=AdminApiGateStatus.PASSED,
+            current_evidence=f"operator_intent={command.envelope.operator_intent}",
+            detail="The route required X-Operator-Intent before accepting review.",
+        ),
+        item(
+            SpotCampaignExecutionReadinessCheck.RBAC_PERMISSION,
+            label="RBAC permission",
+            status=AdminApiGateStatus.PASSED,
+            current_evidence=AdminApiPermission.CAMPAIGN_EXECUTE.value,
+            detail=(
+                "The backend route enforces campaign:execute before the command "
+                "service is called."
+            ),
+        ),
+        item(
+            SpotCampaignExecutionReadinessCheck.ROUTE_ADMISSION,
+            label="Live admission boundary",
+            status=AdminApiGateStatus(admission_status),
+            current_evidence=(
+                f"allowed={admission_allowed}; blockers={admission_blockers}"
+            ),
+            detail=(
+                "Route-bound live admission evidence is attached to the command "
+                "response. Dry-run review can be accepted while live admission "
+                "remains blocked."
+            ),
+        ),
+        item(
+            SpotCampaignExecutionReadinessCheck.DRY_RUN_REQUIREMENT,
+            label="Dry-run requirement",
+            status=(
+                AdminApiGateStatus.PASSED
+                if request.dry_run
+                else AdminApiGateStatus.BLOCKED
+            ),
+            current_evidence=(
+                f"dry_run={request.dry_run}; "
+                f"dry_run_review_accepted={dry_run_review_accepted}; "
+                f"live_execution_requested={live_requested}"
+            ),
+            detail=(
+                "Release 0.1 campaign execution is a no-live dry-run review "
+                "contract. Non-dry execution remains disabled."
+            ),
+        ),
+        item(
+            SpotCampaignExecutionReadinessCheck.REQUEST_SCOPE,
+            label="Request scope",
+            status=AdminApiGateStatus.PASSED,
+            current_evidence=(
+                f"side={request.side.value}; product_count={product_count}; "
+                f"quote_notional_per_product={request.quote_notional_per_product}; "
+                f"max_products={request.max_products}"
+            ),
+            detail=(
+                "The backend echoes the campaign scope for operator review; this "
+                "does not create product selection or sizing authority in the "
+                "frontend."
+            ),
+        ),
+        item(
+            SpotCampaignExecutionReadinessCheck.RUNNER_BOUNDARY,
+            label="Runner boundary",
+            status=AdminApiGateStatus.PASSED,
+            current_evidence=(
+                "scheduler_invoked=false; campaign_runner_invoked=false; "
+                "sweep_runner_invoked=false"
+            ),
+            detail=(
+                "The dry-run review path does not dispatch the scheduler, campaign "
+                "runner, sweep runner, retry runner, or reconciliation executor."
+            ),
+        ),
+        item(
+            SpotCampaignExecutionReadinessCheck.NO_LIVE_EXECUTION,
+            label="No live execution",
+            status=AdminApiGateStatus.PASSED,
+            current_evidence=(
+                "live_exchange_submitted=false; coinbase_orders_submitted=false; "
+                "submitted_notional_usdc=0; executed_notional_usdc=0"
+            ),
+            detail="No Coinbase order was submitted and no live notional was executed.",
+        ),
+        item(
+            SpotCampaignExecutionReadinessCheck.FRONTEND_AUTHORITY,
+            label="Frontend/BFF authority",
+            status=AdminApiGateStatus.PASSED,
+            current_evidence=(
+                "browser_authority=display_only; "
+                "bff_authority=forward_only_no_execution"
+            ),
+            detail=(
+                "The frontend may display and forward the request only; backend "
+                "contracts own execution, guards, audit, and Coinbase authority."
+            ),
+        ),
+    ]
+
+
 class AdminApiCommandService:
     """Shared command-service boundary for enterprise API work."""
 
@@ -2488,6 +2686,10 @@ class AdminApiCommandService:
                     ),
                     "submitted_notional_usdc": "0",
                     "executed_notional_usdc": "0",
+                    **_spot_campaign_execution_readiness_data(
+                        command,
+                        dry_run_review_accepted=True,
+                    ),
                 },
             )
         return AdminApiCommandResponse(
@@ -2525,6 +2727,10 @@ class AdminApiCommandService:
                 ),
                 "submitted_notional_usdc": "0",
                 "executed_notional_usdc": "0",
+                **_spot_campaign_execution_readiness_data(
+                    command,
+                    dry_run_review_accepted=False,
+                ),
             },
             failure_stage="approval",
         )

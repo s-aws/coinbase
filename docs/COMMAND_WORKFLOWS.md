@@ -229,6 +229,13 @@ backend executor contracts and keep executor, runner, recovery, reconciliation,
 Coinbase, and notional flags false. They do not create a second scheduler,
 retry runner, recovery executor, or live sweep path. The campaign execution
 route accepts the same no-live dry-run review posture keyed by `campaign_id`.
+Campaign execution responses now include
+`campaign_execution_readiness_checks` rows for idempotency, operator intent,
+RBAC, route-bound live admission, the dry-run requirement, request scope,
+runner boundary, no-live execution, and frontend/BFF authority. A dry-run can
+be accepted while the live admission boundary remains `blocked`; that blocked
+row is evidence that live execution stayed disabled, not browser authority to
+override the backend gate.
 
 `POST /api/v1/spot/pnl/checkpoints` is a backend-owned local-state mutation
 for durable operator-review records sourced from

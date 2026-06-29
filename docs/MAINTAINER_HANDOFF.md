@@ -56,6 +56,14 @@ phase-end or milestone-closeout sweep result before advancing.
 - Do not mutate stealth local state unless the corresponding live exchange
   handling has gone through the existing cancel, move, or reconcile path.
 
+## Campaign/Sweep Operator Notes
+
+Phase 8086 campaign execution dry-run readiness is backend-owned command
+evidence. `POST /api/v1/spot/campaign/executions` may return
+`campaign_execution_readiness_checks` for accepted dry-run review or rejected
+non-dry requests, but those rows do not permit scheduler, runner, retry,
+reconciliation, Coinbase, browser, or BFF execution authority.
+
 ## Adding An Admin Module
 
 1. Define the backend read or command contract first.
@@ -164,6 +172,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   operator intent, RBAC, admission evidence, cap/guard boundary, local control
   ledger persistence, no-live execution, and frontend/BFF authority. Continue
   with Phase 8086 from this control-contract baseline.
+- Phase 8086 added backend-owned campaign execution dry-run readiness checks to
+  `POST /api/v1/spot/campaign/executions`: accepted dry-runs and rejected
+  non-dry requests now include `campaign_execution_readiness_checks` rows for
+  idempotency, operator intent, RBAC, live admission boundary, dry-run
+  requirement, request scope, runner boundary, no-live execution, and
+  frontend/BFF authority. Live campaign execution remains blocked with zero
+  submitted/executed notional.
 - Required boundary phrase: no second trading path.
 - Required checker phrase: usable admin product.
 - Required checker phrase: unsupported` or `not_modeled`.

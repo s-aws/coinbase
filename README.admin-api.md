@@ -1335,6 +1335,11 @@ block future execution. Scheduler/retry executor boundary contracts also name
 the missing backend executor services and keep executor, runner, recovery,
 reconciliation, Coinbase, and notional flags false. The paired campaign
 execution route follows the same no-live review posture keyed by `campaign_id`.
+Campaign execution responses include `campaign_execution_readiness_checks` for
+idempotency, operator intent, RBAC, live admission boundary, dry-run
+requirement, request scope, runner boundary, no-live execution, and
+frontend/BFF authority; accepted dry-runs still show live admission blocked and
+zero submitted/executed notional.
 The same command-suite response exposes `automation_control_readiness` as the
 backend-owned control-state contract for campaign/sweep automation. It reports
 eight explicit controls: scheduler dispatch, scheduler executor, run limit,

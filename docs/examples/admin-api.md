@@ -4069,6 +4069,10 @@ local-state evidence requirements only; they do not execute the command.
 Each command row also includes backend-owned `readiness_preconditions` copied
 from live-enablement evidence so operators can see which gates are configured,
 blocking, or passed without treating the browser as a gate evaluator.
+`POST /api/v1/spot/campaign/executions` dry-run responses also return
+`campaign_execution_readiness_checks` so command workflow results can show
+dry-run acceptance, blocked live admission, runner non-invocation, no Coinbase
+orders, zero notional, and display/forward-only browser/BFF authority.
 The response also includes `coverage_gaps` for remaining M54 spot families
 that are not command-complete. Gap rows are read-only planning evidence, not
 mutation routes or browser authority. Each gap row may include typed

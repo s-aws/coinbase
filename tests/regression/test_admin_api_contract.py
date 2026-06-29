@@ -447,6 +447,7 @@ from core.enums import (
     AdminApiStealthDecisionResolutionEvidenceType,
     AdminApiStealthLiveReadinessDecision,
     AdminApiVerifierReadinessStatus,
+    SpotCampaignExecutionReadinessCheck,
     SpotSweepAutomationControlAction,
     SpotSweepAutomationControlContractCheck,
     SpotSweepAutomationExecutionBlocker,
@@ -34284,6 +34285,32 @@ def test_admin_api_campaign_execution_dry_run_is_accepted_no_live(
     )
     assert payload["data"]["submitted_notional_usdc"] == "0"
     assert payload["data"]["executed_notional_usdc"] == "0"
+    assert payload["data"]["campaign_execution_dry_run_ready"] is True
+    assert payload["data"]["campaign_execution_live_blocked"] is True
+    assert payload["data"]["campaign_execution_readiness_check_count"] == 9
+    assert payload["data"]["campaign_execution_blocked_check_count"] == 1
+    readiness_checks = payload["data"]["campaign_execution_readiness_checks"]
+    assert {item["check"] for item in readiness_checks} == {
+        check.value for check in SpotCampaignExecutionReadinessCheck
+    }
+    readiness_by_check = {item["check"]: item for item in readiness_checks}
+    assert readiness_by_check[
+        SpotCampaignExecutionReadinessCheck.ROUTE_ADMISSION.value
+    ]["status"] == AdminApiGateStatus.BLOCKED.value
+    assert "live_execution_disabled" in readiness_by_check[
+        SpotCampaignExecutionReadinessCheck.ROUTE_ADMISSION.value
+    ]["current_evidence"]
+    assert readiness_by_check[
+        SpotCampaignExecutionReadinessCheck.DRY_RUN_REQUIREMENT.value
+    ]["status"] == AdminApiGateStatus.PASSED.value
+    assert readiness_by_check[
+        SpotCampaignExecutionReadinessCheck.NO_LIVE_EXECUTION.value
+    ]["status"] == AdminApiGateStatus.PASSED.value
+    assert readiness_by_check[
+        SpotCampaignExecutionReadinessCheck.FRONTEND_AUTHORITY.value
+    ]["current_evidence"] == (
+        "browser_authority=display_only; bff_authority=forward_only_no_execution"
+    )
     assert payload["audit_id"]
 
 
@@ -34333,6 +34360,36 @@ def test_admin_api_campaign_execution_contract_is_not_implemented_and_not_live(
     )
     assert payload["data"]["submitted_notional_usdc"] == "0"
     assert payload["data"]["executed_notional_usdc"] == "0"
+    assert payload["data"]["campaign_execution_dry_run_ready"] is False
+    assert payload["data"]["campaign_execution_live_blocked"] is True
+    assert payload["data"]["campaign_execution_readiness_check_count"] == 9
+    assert payload["data"]["campaign_execution_blocked_check_count"] == 2
+    readiness_checks = payload["data"]["campaign_execution_readiness_checks"]
+    assert {item["check"] for item in readiness_checks} == {
+        check.value for check in SpotCampaignExecutionReadinessCheck
+    }
+    readiness_by_check = {item["check"]: item for item in readiness_checks}
+    assert readiness_by_check[
+        SpotCampaignExecutionReadinessCheck.ROUTE_ADMISSION.value
+    ]["status"] == AdminApiGateStatus.BLOCKED.value
+    assert readiness_by_check[
+        SpotCampaignExecutionReadinessCheck.DRY_RUN_REQUIREMENT.value
+    ]["status"] == AdminApiGateStatus.BLOCKED.value
+    assert readiness_by_check[
+        SpotCampaignExecutionReadinessCheck.DRY_RUN_REQUIREMENT.value
+    ]["current_evidence"] == (
+        "dry_run=False; dry_run_review_accepted=False; "
+        "live_execution_requested=True"
+    )
+    assert readiness_by_check[
+        SpotCampaignExecutionReadinessCheck.RUNNER_BOUNDARY.value
+    ]["status"] == AdminApiGateStatus.PASSED.value
+    assert readiness_by_check[
+        SpotCampaignExecutionReadinessCheck.NO_LIVE_EXECUTION.value
+    ]["current_evidence"] == (
+        "live_exchange_submitted=false; coinbase_orders_submitted=false; "
+        "submitted_notional_usdc=0; executed_notional_usdc=0"
+    )
     assert payload["audit_id"]
 
 
