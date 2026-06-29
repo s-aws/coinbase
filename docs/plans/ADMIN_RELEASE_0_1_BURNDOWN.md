@@ -237,6 +237,19 @@ Exact autonomous phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Op
 
 - Add or refine operator UI for campaign status, dry-run review, blockers,
   audit references, and handoffs without browser execution authority.
+- Implementation update 2026-06-29: sibling frontend Campaigns now has a
+  first-read Campaign Control Panel that summarizes backend campaign/sweep
+  state, campaign execution dry-run route evidence, blocker/control counts,
+  prefill-only handoff count, and display-only/no-live authority. This is a
+  frontend UX association only; backend route authority, scheduler/retry/
+  reconciliation/live execution boundaries, and zero-notional no-live posture
+  are unchanged.
+- Validation update 2026-06-29: sibling frontend focused Campaigns
+  read-model/AdminShell tests and quality checks passed; backend ownership,
+  autonomous queue, stale-process, whitespace, and blind contextless review
+  passed. Full backend regression was not run because this phase changed
+  backend docs only and is not a milestone closeout. Live Coinbase execution
+  was not run; submitted/executed notional was 0 USDC.
 
 ### Phase 8090 - Sweep Automation Control UX
 

@@ -204,6 +204,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   direction did not change: Release 0.1 product progress, no second trading
   path, generated-wrapper frontend consumption, and explicit
   unsupported/not-modeled behavior remain controlling.
+- Phase 8089 is a sibling frontend UX association phase: frontend Campaigns
+  now renders a first-read Campaign Control Panel from existing backend route
+  evidence. It summarizes campaign/sweep state, campaign execution dry-run
+  route evidence, blocker/control counts, prefill-only handoffs, and
+  display-only/no-live authority. Backend campaign execution, sweep execution,
+  scheduler execution, retry execution, reconciliation execution, Coinbase,
+  route-local, browser, BFF, and second-path authority did not change.
 - Required boundary phrase: no second trading path.
 - Required checker phrase: usable admin product.
 - Required checker phrase: unsupported` or `not_modeled`.

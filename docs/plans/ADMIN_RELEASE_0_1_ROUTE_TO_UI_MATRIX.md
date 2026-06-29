@@ -95,6 +95,20 @@ retry execution, reconciliation execution, Coinbase calls, browser/BFF
 execution, route-local execution, and second automation paths remain blocked
 or unsupported as already recorded in the Automation/campaigns row.
 
+## Phase 8089 Frontend Association Update
+
+The sibling frontend now renders a Campaign Control Panel above the Campaigns
+detail tabs. It summarizes existing backend route evidence from
+`GET /api/v1/spot/campaign/status`, `GET /api/v1/spot/sweep/status`,
+`GET /api/v1/spot/command-suite`, and campaign/sweep command route metadata
+into campaign/sweep state, campaign execution dry-run route evidence,
+blocker/control counts, prefill-only handoff count, and display-only/no-live
+authority. This update does not change backend execution authority: campaign
+execution, sweep execution, scheduler execution, retry execution,
+reconciliation execution, Coinbase calls, browser/BFF execution, route-local
+execution, and second automation paths remain blocked or unsupported as
+already recorded in the Automation/campaigns row.
+
 ## Implemented Account/Market Coverage Slice
 
 The Account and Market Inventory coverage slice is now represented by
