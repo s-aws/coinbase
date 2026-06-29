@@ -24,18 +24,18 @@ work. Historical milestone detail belongs in
 
 ## Current Phase
 
-- Latest completed and pushed range before this work: `8041-8060`.
+- Latest completed and pushed range before this work: `8061-8080`.
 - Latest completed and pushed range before the active Release 0.1 work:
-  `8041-8060`.
-- Active approved range: `8061-8080`.
-- Scope: Audit/Reconciliation Operator Correlation under Release 0.1. The
-  active range must make command attempts, approvals, admission audits,
-  cap/guard decisions, exchange intent, fills, and reconciliation status
-  correlatable through the enterprise frontend/API without relying on
-  proof-of-concept dashboards. Every phase must either clear the Audit and
-  Reconciliation Release 0.1 blocker from
+  `8061-8080`.
+- Active approved range: `8081-8100`.
+- Scope: Campaign/Sweep Operator Controls under Release 0.1. The active range
+  must make campaign and sweep automation state, scheduler posture, retry
+  posture, controls, limits, blockers, and no-live proof inspectable and usable
+  through the enterprise frontend/API without relying on proof-of-concept
+  dashboards. Every phase must either clear the Automation and Campaigns
+  Release 0.1 blocker from
   `docs/plans/ADMIN_RELEASE_0_1_BURNDOWN.md` or directly improve the
-  frontend's ability to manage backend-supported audit/reconciliation
+  frontend's ability to manage backend-supported campaign/sweep automation
   workflows.
 - Unsupported backend behavior must remain explicit as `unsupported` or `not_modeled`; it must not be hidden by browser/BFF behavior.
 - Governing pivot label: Release 0.1 Operator Admin Pivot.
@@ -57,11 +57,13 @@ work. Historical milestone detail belongs in
   backend owner contracts, frontend `AGENTS.md`, frontend owner contracts, and
   ordered frontend docs were reviewed again on 2026-06-29 for Phase 8021 and
   again before activating `8061-8080`; they were re-reviewed during Phase
-  8068 with no direction change. Release 0.1 product progress remains the
+  8068 and again during Phase 8081 with no direction change. Release 0.1 product progress remains the
   controlling rule: every phase must clear a named Release 0.1 blocker or
-  directly improve usable admin management. The current range must keep Spot
-  command authority in the backend and make the audit/reconciliation operator
-  path verifiable without adding browser/BFF trading authority.
+  directly improve usable admin management. The current range must keep
+  campaign/sweep automation authority in the backend and make the operator
+  controls path verifiable without adding browser scheduler, BFF runner
+  authority, route-local execution, direct Coinbase calls, unbounded loops, or
+  a second automation path.
 - Release 0.1 matrix status:
   `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md` and frontend
   `docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md` now identify operator
@@ -140,8 +142,8 @@ work. Historical milestone detail belongs in
   Live Coinbase execution was not run; submitted/executed notional remained
   `0`/`0` USDC.
 - Exact next implementation slice: continue Release 0.1 blocker clearing by
-  adding the Audit/Reconciliation Operator Correlation path from active
-  `8061-8080`. Do not add browser scheduler, BFF runner authority, retry
+  adding the Campaign/Sweep Operator Controls path from active `8081-8100`.
+  Do not add browser scheduler, BFF runner authority, retry
   loops, route-local execution, direct Coinbase calls, reconciliation
   execution, order/exchange state mutation, or a second trading path.
 - Contextless review status: backend Phase 7997 passed after remediation.

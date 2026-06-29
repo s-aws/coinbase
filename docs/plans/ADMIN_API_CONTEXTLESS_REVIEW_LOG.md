@@ -1,3 +1,33 @@
+## Campaign/Sweep Operator Controls Review - Phases 8081-8100
+
+Result: planned. Scope: phases `8081-8100`, after completed history through
+`8061-8080`, adds a Campaign/Sweep Operator Controls slice so operators can
+inspect campaign and sweep automation state, review scheduler, retry, and
+control readiness, and use backend-owned no-live controls through the
+enterprise frontend/API without browser scheduler, BFF runner, or Coinbase
+execution authority.
+
+No live Coinbase execution is planned for this review range. No live Coinbase
+execution was run; actual submitted/executed notional remains `0` USDC.
+Required checker phrase: actual submitted/executed notional remains `0` USDC.
+
+Boundary evidence for current Release 0.1 review: this range must answer
+"Does this make the frontend able to manage the project?" Future work must
+clear the Automation and Campaigns Release 0.1 blocker or directly improve
+the usable private operator MVP. Unsupported backend behavior must be visible
+as unsupported` or `not_modeled`. There must be no proof-only expansion, no
+browser scheduler, no BFF runner authority, no dashboard WebSocket execution,
+no route-local FastAPI execution, no Coinbase calls, no unbounded loops, no
+reconciliation execution, no order/exchange state mutation, and no second
+automation path.
+Required checker phrase: named Release 0.1 blocker.
+Required checker phrase: Release 0.1 Operator Admin Pivot.
+Required checker phrase: usable private operator MVP.
+Required checker phrase: unsupported` or `not_modeled`.
+Required checker phrase: no browser scheduler.
+Required checker phrase: no browser/BFF execution authority.
+Required checker phrase: second trading path.
+
 ## Audit/Reconciliation Operator Correlation Review - Phases 8061-8080
 
 Result: PASS after remediation. Scope: phases `8061-8080`, after completed history through

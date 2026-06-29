@@ -181,10 +181,10 @@ not independent roadmaps.
 | M55 - Stealth Full Admin Command Suite | In Progress; latest completed range 8001-8020 | Complete stealth create/cancel/reveal/move/reprice/recovery workflows while preserving exchange-reality invariants and mutation locks. |
 | M56 - Movement/Repricing Full Admin Command Suite | In Progress; latest completed range 8021-8040 | Complete move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows through existing mutation claims and exchange handling. |
 | M57 - Futures/Perpetuals Contract Foundation And Commands | Evidence expansion frozen; latest completed range 7961-7980 | Add futures/perpetual command contracts only after backend-owned position, margin, liquidation, reduce-only, close-only, funding, and collateral semantics exist. |
-| M58 - Automation, Campaign, Scheduler, And Retry Suite | Approved; not started | Complete durable scheduling, run limits, pause/resume, retries, operator status, and recovery for automation without browser schedulers or parallel live paths. |
+| M58 - Automation, Campaign, Scheduler, And Retry Suite | In Progress; active range 8081-8100 | Complete durable scheduling, run limits, pause/resume, retries, operator status, and recovery for automation without browser schedulers or parallel live paths. |
 | M59 - Recovery, Repair, Policy, And Operations Admin | Approved; not started | Add backend-owned repair, policy/configuration, role, deployment, observability, and operator runbook administration without exposing secrets or browser-held authority. |
 | M60 - Full Functionality Release Candidate | Approved; not started | Prove all supported backend functionality through security review, regression, release gates, live-cap evidence, contextless reviews, and public maintainer handoff. |
-| M61 - Release 0.1 Private Operator Admin MVP | In Progress; active range 8061-8080 | Release a usable private operator admin product that can manage backend-supported workflows while explicit gaps appear as `unsupported` or `not_modeled`. |
+| M61 - Release 0.1 Private Operator Admin MVP | In Progress; active range 8081-8100 | Release a usable private operator admin product that can manage backend-supported workflows while explicit gaps appear as `unsupported` or `not_modeled`. |
 
 ## Remaining Milestone Dependency Ledger
 

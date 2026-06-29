@@ -71,29 +71,29 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "8061-8080"
-APPROVED_PHASES = tuple(range(8061, 8081))
+APPROVED_PHASE_RANGE = "8081-8100"
+APPROVED_PHASES = tuple(range(8081, 8101))
 EXPECTED_RELEASE_PHASE_TITLES = {
-    8061: "Advance Active Queue Range",
-    8062: "Audit/Reconciliation Operator Scope",
-    8063: "Backend Audit Source Inventory",
-    8064: "Command Attempt Timeline Contract",
-    8065: "Approval And Admission Correlation Contract",
-    8066: "Cap Guard And Wallet Correlation Contract",
-    8067: "Exchange Intent And Fill Correlation Contract",
-    8068: "Reconciliation Status Correlation Contract",
-    8069: "Frontend Audit Timeline Adapter",
-    8070: "Frontend Reconciliation Evidence Panel",
-    8071: "Spot Command Result To Audit Timeline Handoff",
-    8072: "Orders/Fills To Reconciliation Handoff",
-    8073: "Audit Search And Filter Operator UX",
-    8074: "Unsupported Gap Surfacing",
-    8075: "Mock Runtime Parity",
-    8076: "No-Live Authority Assertions",
-    8077: "Focused Backend Tests",
-    8078: "Focused Frontend Tests",
-    8079: "Blind Contextless Review",
-    8080: "Commit And Push Evidence",
+    8081: "Advance Active Queue Range",
+    8082: "Campaign/Sweep Operator Scope",
+    8083: "Backend Campaign State Inventory",
+    8084: "Sweep Automation Service Status Contract",
+    8085: "Sweep Control Command Contract Review",
+    8086: "Campaign Execution Dry-Run Readiness",
+    8087: "Frontend Campaign Status Adapter",
+    8088: "Frontend Sweep Service Adapter",
+    8089: "Campaigns Control Panel UX",
+    8090: "Sweep Automation Control UX",
+    8091: "Command Workflow Campaign Handoffs",
+    8092: "Automation Limits And Caps Visibility",
+    8093: "Scheduler/Retry Unsupported Gap Surfacing",
+    8094: "No Browser/BFF Scheduler Authority Assertions",
+    8095: "Mock Runtime Parity",
+    8096: "Route-To-UI Matrix Campaign Update",
+    8097: "Focused Backend Tests",
+    8098: "Focused Frontend Tests",
+    8099: "Blind Contextless Review",
+    8100: "Commit And Push Evidence",
 }
 PROOF_ONLY_ACTIVE_PHASE_TITLE_PATTERNS = (
     re.compile(r"Futures/Perpetuals", re.IGNORECASE),
@@ -104,14 +104,15 @@ PROOF_ONLY_ACTIVE_PHASE_TITLE_PATTERNS = (
     re.compile(r"Summary Evidence", re.IGNORECASE),
     re.compile(r"Display Evidence", re.IGNORECASE),
 )
-PREVIOUS_COMPLETED_PHASE_RANGE = "8041-8060"
+PREVIOUS_COMPLETED_PHASE_RANGE = "8061-8080"
 RELEASE_PIVOT_PHRASE = (
-    "Active Release 0.1 `8061-8080` adds an Audit/Reconciliation Operator "
-    "Correlation slice so operators can correlate command attempts, "
-    "approvals, admission audits, cap/guard decisions, exchange intent, "
-    "fills, and reconciliation status through the enterprise frontend/API "
-    "without browser/BFF trading authority while completed `8041-8060` "
-    "carries the Spot Command Operator E2E evidence."
+    "Active Release 0.1 `8081-8100` adds a Campaign/Sweep Operator Controls "
+    "slice so operators can inspect campaign and sweep automation state, "
+    "review scheduler, retry, and control readiness, and use backend-owned "
+    "no-live controls through the enterprise frontend/API without browser "
+    "scheduler, BFF runner, or Coinbase execution authority while completed "
+    "`8061-8080` carries the Audit/Reconciliation Operator Correlation "
+    "evidence."
 )
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"

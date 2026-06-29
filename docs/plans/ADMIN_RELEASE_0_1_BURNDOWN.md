@@ -60,7 +60,147 @@ operator admin.
 - Importing spot-only rules into stealth, futures/perpetuals, or movement
   modules.
 
-## Active Phases 8061-8080
+## Active Phases 8081-8100
+
+Batch label: Campaign/Sweep Operator Controls.
+
+These phases clear the next concrete Release 0.1 blocker for Automation and
+Campaigns: operators must be able to inspect campaign and sweep automation
+state, review scheduler/retry/control readiness, and use backend-owned
+no-live controls through the enterprise frontend/API without falling back to
+proof-of-concept dashboards. This range is no-live by default: it may add or
+tighten read models, adapters, command readiness, handoffs, mocks, and focused
+validation, but it must not add browser scheduler authority, BFF runner
+authority, direct Coinbase calls, unbounded automation loops, order execution,
+or a second campaign/sweep execution path.
+
+Every phase must answer: Does this make the frontend able to manage the project?
+
+Active Release 0.1 `8081-8100` adds a Campaign/Sweep Operator Controls slice
+so operators can inspect campaign and sweep automation state, review
+scheduler, retry, and control readiness, and use backend-owned no-live
+controls through the enterprise frontend/API without browser scheduler, BFF
+runner, or Coinbase execution authority while completed `8061-8080` carries
+the Audit/Reconciliation Operator Correlation evidence.
+
+Exact autonomous phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Operator Controls slice so operators can inspect campaign and sweep automation state, review scheduler, retry, and control readiness, and use backend-owned no-live controls through the enterprise frontend/API without browser scheduler, BFF runner, or Coinbase execution authority while completed `8061-8080` carries the Audit/Reconciliation Operator Correlation evidence.
+
+### Phase 8081 - Advance Active Queue Range
+
+- Update autonomous validators, durable state, handoff docs, and phase records
+  so active work is `8081-8100` and completed `8061-8080` remains historical
+  Audit/Reconciliation Operator Correlation evidence.
+- Evidence update 2026-06-29: active range advanced to `8081-8100`
+  Campaign/Sweep Operator Controls. This clears planning drift by tying the
+  next work directly to the Automation and Campaigns Release 0.1 blocker and
+  M58. AGENTS/owner instructions were re-reviewed in both repositories with no
+  direction change. Focused backend/frontend metadata, ownership, quality,
+  runtime, API, security, lint, diff, and stale-process checks passed. No
+  phase-scoped subagents were spawned; the phase-end stale-subagent sweep
+  found no open phase agents to close. Live Coinbase execution was not run and
+  submitted/executed notional stayed 0 USDC.
+
+### Phase 8082 - Campaign/Sweep Operator Scope
+
+- Define the backend/frontend boundary for campaign and sweep operator
+  controls, including no-live posture, scheduler/runner authority boundaries,
+  and explicit unsupported or not-modeled gaps.
+
+### Phase 8083 - Backend Campaign State Inventory
+
+- Inventory backend campaign status, sweep status, command-suite, and
+  automation-control contracts needed for operator management.
+
+### Phase 8084 - Sweep Automation Service Status Contract
+
+- Verify or extend backend-owned sweep automation service status evidence so
+  operators can distinguish configured, paused, retryable, unsupported, and
+  not-modeled states without browser authority.
+
+### Phase 8085 - Sweep Control Command Contract Review
+
+- Review sweep automation control command contracts for idempotency, operator
+  intent, RBAC, audit, cap/guard, and no-live execution boundaries.
+
+### Phase 8086 - Campaign Execution Dry-Run Readiness
+
+- Verify campaign execution dry-run readiness and make rejection/acceptance
+  evidence operator-visible without enabling live Coinbase execution.
+
+### Phase 8087 - Frontend Campaign Status Adapter
+
+- Tighten frontend adapters for backend campaign status and execution-review
+  evidence through generated API wrappers only.
+
+### Phase 8088 - Frontend Sweep Service Adapter
+
+- Tighten frontend adapters for sweep service, scheduler, retry, and control
+  evidence through generated API wrappers only.
+
+### Phase 8089 - Campaigns Control Panel UX
+
+- Add or refine operator UI for campaign status, dry-run review, blockers,
+  audit references, and handoffs without browser execution authority.
+
+### Phase 8090 - Sweep Automation Control UX
+
+- Add or refine operator UI for sweep automation status, pause/resume/control
+  readiness, limits, retry posture, and blockers without browser scheduler or
+  runner authority.
+
+### Phase 8091 - Command Workflow Campaign Handoffs
+
+- Ensure Campaigns and Sweep panels hand off to command workflows with
+  campaign/sweep identity only and no client_order_id or exchange order_id
+  substitution.
+
+### Phase 8092 - Automation Limits And Caps Visibility
+
+- Surface automation run limits, notional caps, max-products controls, and
+  backend guard/cap evidence as operator-visible blockers.
+
+### Phase 8093 - Scheduler/Retry Unsupported Gap Surfacing
+
+- Show scheduler, retry, runner, and recovery gaps as `unsupported` or
+  `not_modeled` with owning backend modules and no browser fallback.
+
+### Phase 8094 - No Browser/BFF Scheduler Authority Assertions
+
+- Add or tighten assertions that Campaigns/Sweep UI and BFF code do not
+  schedule, retry, loop, place Coinbase orders, or mutate backend state outside
+  backend-owned Admin API contracts.
+
+### Phase 8095 - Mock Runtime Parity
+
+- Align mock runtime fixtures with backend campaign/sweep response shapes,
+  no-live flags, unsupported/not-modeled rows, and authority boundaries.
+
+### Phase 8096 - Route-To-UI Matrix Campaign Update
+
+- Update route-to-UI and capability matrices so contextless maintainers can
+  trace campaign/sweep routes to operator surfaces and unsupported gaps.
+
+### Phase 8097 - Focused Backend Tests
+
+- Run focused backend tests and validators covering campaign/sweep status,
+  control contracts, route inventory, OpenAPI, and no-live authority.
+
+### Phase 8098 - Focused Frontend Tests
+
+- Run focused frontend adapter, UI, command-security, generated API, and
+  quality checks covering campaign/sweep operator controls.
+
+### Phase 8099 - Blind Contextless Review
+
+- Run blind/contextless backend/frontend review for campaign/sweep operator
+  controls and remediate blocking ambiguity before advancing.
+
+### Phase 8100 - Commit And Push Evidence
+
+- Commit and push synchronized backend/frontend evidence with no-live notional
+  reporting.
+
+## Completed Phases 8061-8080
 
 Batch label: Audit/Reconciliation Operator Correlation.
 
@@ -76,7 +216,7 @@ exchange state, or create a second order path.
 
 Every phase must answer: Does this make the frontend able to manage the project?
 
-Active Release 0.1 `8061-8080` adds an Audit/Reconciliation Operator
+Completed Release 0.1 `8061-8080` added an Audit/Reconciliation Operator
 Correlation slice so operators can correlate command attempts, approvals,
 admission audits, cap/guard decisions, exchange intent, fills, and
 reconciliation status through the enterprise frontend/API without browser/BFF

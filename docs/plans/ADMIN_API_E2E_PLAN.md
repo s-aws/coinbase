@@ -49,22 +49,31 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 8061-8080
+## Current Active Phases 8081-8100
 
-Batch label: Audit/Reconciliation Operator Correlation.
+Batch label: Campaign/Sweep Operator Controls.
 
-Current Release 0.1 `8061-8080` adds a backend-owned Audit/Reconciliation
-Operator Correlation slice so operators can correlate command attempts,
-approvals, admission audits, cap/guard decisions, exchange intent, fills, and
-reconciliation status through the enterprise frontend/API. The slice must keep
-backend-owned evidence as the source of truth, surface unsupported behavior as
-`unsupported` or `not_modeled`, and avoid browser/BFF trading authority,
-route-local execution, reconciliation execution, order/exchange state mutation,
-and second trading paths.
+Current Release 0.1 `8081-8100` adds a backend-owned Campaign/Sweep Operator
+Controls slice so operators can inspect campaign and sweep automation state,
+review scheduler, retry, and control readiness, and use backend-owned no-live
+controls through the enterprise frontend/API. The slice must keep campaign and
+sweep authority in existing backend services, surface unsupported behavior as
+`unsupported` or `not_modeled`, and avoid browser schedulers, BFF runner
+authority, route-local executors, unbounded loops, Coinbase execution, and
+second automation paths.
 
 Every phase must answer: Does this make the frontend able to manage the project?
 
-Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconciliation Operator Correlation slice so operators can correlate command attempts, approvals, admission audits, cap/guard decisions, exchange intent, fills, and reconciliation status through the enterprise frontend/API without browser/BFF trading authority while completed `8041-8060` carries the Spot Command Operator E2E evidence.
+Exact autonomous phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Operator Controls slice so operators can inspect campaign and sweep automation state, review scheduler, retry, and control readiness, and use backend-owned no-live controls through the enterprise frontend/API without browser scheduler, BFF runner, or Coinbase execution authority while completed `8061-8080` carries the Audit/Reconciliation Operator Correlation evidence.
+
+## Completed Phases 8061-8080
+
+Completed Release 0.1 `8061-8080` added the Audit/Reconciliation Operator
+Correlation slice for command attempts, approvals, admission audits,
+cap/guard decisions, exchange intent, fills, and reconciliation status through
+the enterprise frontend/API. The range completed and pushed in backend commit
+`e53ea6c0` and frontend commit `f29eaa0`; live Coinbase execution was not run
+and submitted/executed notional remained `0` USDC.
 
 ## Completed Phases 8041-8060
 

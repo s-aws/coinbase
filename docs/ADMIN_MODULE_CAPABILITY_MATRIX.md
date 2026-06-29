@@ -4,20 +4,21 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current Release 0.1 scope: `8061-8080`.
+Current Release 0.1 scope: `8081-8100`.
 
-Current Release 0.1 scope details: `8061-8080` adds an
-Audit/Reconciliation Operator Correlation slice so operators can correlate
-command attempts, approvals, admission audits, cap/guard decisions, exchange
-intent, fills, and reconciliation status through the enterprise frontend/API.
-Active work must clear the Audit and Reconciliation Release 0.1 blocker
-without adding browser/BFF authority, route-local FastAPI execution, dashboard
-WebSocket calls, direct Coinbase calls outside the existing backend
-command-service path, reconciliation execution, order/exchange state
-mutation, or a second trading path.
+Current Release 0.1 scope details: `8081-8100` adds a Campaign/Sweep Operator
+Controls slice so operators can inspect campaign and sweep automation state,
+review scheduler, retry, and control readiness, and use backend-owned no-live
+controls through the enterprise frontend/API. Active work must clear the
+Automation and Campaigns Release 0.1 blocker without adding browser scheduler,
+BFF runner authority, route-local FastAPI execution, dashboard WebSocket calls,
+direct Coinbase calls outside existing backend services, unbounded loops,
+reconciliation execution, order/exchange state mutation, or a second
+automation path.
 
-Completed Release 0.1 scope: `8041-8060` added the Spot Command Operator E2E
-slice. Completed `8021-8040` added backend-owned
+Completed Release 0.1 scope: `8061-8080` added the Audit/Reconciliation
+Operator Correlation slice. Completed `8041-8060` added the Spot Command
+Operator E2E slice. Completed `8021-8040` added backend-owned
 movement/repricing action-state rows and the frontend action-state matrix.
 Completed `8001-8020` added backend-derived selected stealth command-family
 action-state templates and the frontend selected stealth action-state matrix.

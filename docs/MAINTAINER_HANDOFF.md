@@ -129,20 +129,20 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `8041-8060` under Release 0.1.
+- Latest completed autonomous range: `8061-8080` under Release 0.1.
 - Latest completed and pushed range before the active Release 0.1 work:
-  `8041-8060`.
-- Active autonomous range: `8061-8080` under Release 0.1.
-- Current active range: `8061-8080` adds an Audit/Reconciliation Operator
-  Correlation slice so command attempts, approvals, admission audits,
-  cap/guard decisions, exchange intent, fills, and reconciliation status are
-  correlatable through the enterprise frontend/API. Every new phase must clear
-  the Audit and Reconciliation Release 0.1 blocker or directly
+  `8061-8080`.
+- Active autonomous range: `8081-8100` under Release 0.1.
+- Current active range: `8081-8100` adds a Campaign/Sweep Operator Controls
+  slice so campaign and sweep automation state, scheduler posture, retry
+  posture, controls, limits, blockers, and no-live proof are usable through
+  the enterprise frontend/API. Every new phase must clear the Automation and
+  Campaigns Release 0.1 blocker or directly
   improve the usable admin product. Unsupported backend behavior must be
   surfaced explicitly; do not implement missing behavior in the browser, BFF,
   dashboard WebSockets, route-local FastAPI handlers, direct Coinbase calls,
-  reconciliation execution, order/exchange state mutation, or any second
-  trading path.
+  scheduler/runner execution, reconciliation execution, order/exchange state
+  mutation, unbounded loops, or any second automation path.
 - Required boundary phrase: no second trading path.
 - Required checker phrase: usable admin product.
 - Required checker phrase: unsupported` or `not_modeled`.
@@ -173,9 +173,11 @@ notional, retained inventory, reconciliation result, and audit ids.
   REST, and can only reach `cancel_order(client_order_id)` when all backend
   gates pass.
 - Exact next implementation slice: continue approved Release 0.1 blocker
-  clearing through active `8061-8080` Audit/Reconciliation Operator
-  Correlation work. Completed `8041-8060` Spot Command Operator E2E work is
-  pushed in backend commit `05093483` and frontend commit `6f86b37`.
+  clearing through active `8081-8100` Campaign/Sweep Operator Controls work.
+  Completed `8061-8080` Audit/Reconciliation Operator Correlation work is
+  pushed in backend commit `e53ea6c0` and frontend commit `f29eaa0`.
+  Completed `8041-8060` Spot Command Operator E2E work is pushed in backend
+  commit `05093483` and frontend commit `6f86b37`.
   Completed `8021-8040` movement/repricing action-state work is pushed in
   backend commit `9edf7b29` and frontend commit `f0feb44`; completed
   `8001-8020` M55 action-state work is pushed in backend commit `bab25737` and

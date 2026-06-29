@@ -5,12 +5,17 @@ position evidence through the enterprise Admin API. It is a separate module,
 not a Spot variant.
 
 Current active work has pivoted to Release 0.1 operator-admin delivery.
-Active Release 0.1 `8061-8080` adds an Audit/Reconciliation Operator
+Active Release 0.1 `8081-8100` adds a Campaign/Sweep Operator Controls slice
+so operators can inspect campaign and sweep automation state, review scheduler,
+retry, and control readiness, and use backend-owned no-live controls through
+the enterprise frontend/API without browser scheduler, BFF runner, or Coinbase
+execution authority.
+Exact active release phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Operator Controls slice so operators can inspect campaign and sweep automation state, review scheduler, retry, and control readiness, and use backend-owned no-live controls through the enterprise frontend/API without browser scheduler, BFF runner, or Coinbase execution authority while completed `8061-8080` carries the Audit/Reconciliation Operator Correlation evidence.
+Completed Release 0.1 `8061-8080` added an Audit/Reconciliation Operator
 Correlation slice so operators can correlate command attempts, approvals,
 admission audits, cap/guard decisions, exchange intent, fills, and
 reconciliation status through the enterprise frontend/API without browser/BFF
 trading authority.
-Exact active release phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconciliation Operator Correlation slice so operators can correlate command attempts, approvals, admission audits, cap/guard decisions, exchange intent, fills, and reconciliation status through the enterprise frontend/API without browser/BFF trading authority while completed `8041-8060` carries the Spot Command Operator E2E evidence.
 Completed Release 0.1 `8041-8060` added a Spot Command Operator E2E slice so
 operators can verify manual spot order, cancel-by-client_order_id,
 direct-order audit, and command handoff workflows through the enterprise
