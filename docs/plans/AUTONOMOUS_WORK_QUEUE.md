@@ -329,6 +329,13 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Map generated backend timeline evidence into typed frontend adapters using
   canonical runtime clients only.
+- Evidence update 2026-06-29: frontend-only adapter work grouped existing
+  backend `command_timelines`, approval/admission, cap/guard-wallet,
+  exchange/fill, and reconciliation link evidence by backend `timeline_id`.
+  No backend schema, command execution, reconciliation execution,
+  order/exchange mutation, Coinbase call, browser authority, or BFF execution
+  authority was added. No phase-scoped subagents were spawned; live Coinbase
+  execution was not run and submitted/executed notional stayed 0 USDC.
 
 ### Phase 8070 - Frontend Reconciliation Evidence Panel
 
