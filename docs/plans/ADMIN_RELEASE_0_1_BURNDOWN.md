@@ -185,6 +185,18 @@ Exact autonomous phrase: Active Release 0.1 `8041-8060` adds a Spot Command Oper
 
 - Run focused Admin API, spot command, direct-order audit, and ownership tests
   covering the backend contracts.
+- Evidence update 2026-06-29: the initial broad focused backend pytest command
+  timed out; the stale-process checker found no stale backend/frontend test
+  processes. Splitting the set exposed and fixed a stale
+  `test_spot_readiness_gate.py` expectation for the old `6781-6800` active
+  range. Passing focused backend evidence after remediation:
+  `test_spot_direct_order_audit.py` 4 passed,
+  `test_spot_readiness_gate.py` 8 passed,
+  `test_admin_api_spot_sell_authority.py` 3 passed, and the selected Admin API
+  contract subset for manual order, cancel-by-`client_order_id`, spot
+  command-suite, direct-order audit, and order read identity had 7 passed.
+  Live Coinbase execution was not run and submitted/executed notional stayed
+  0 USDC.
 
 ### Phase 8057 - Focused Frontend Tests
 

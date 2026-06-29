@@ -14,6 +14,7 @@ from tools.run_spot_release_gate import (
 )
 from tools.run_autonomous_work_queue_check import (
     APPROVED_PHASES as AUTONOMOUS_APPROVED_PHASES,
+    APPROVED_PHASE_RANGE as AUTONOMOUS_APPROVED_PHASE_RANGE,
     MAX_EXECUTED_NOTIONAL_USDC as AUTONOMOUS_MAX_EXECUTED_NOTIONAL_USDC,
     MAX_SUBMITTED_NOTIONAL_USDC as AUTONOMOUS_MAX_SUBMITTED_NOTIONAL_USDC,
     SUMMARY_PREFIX as AUTONOMOUS_WORK_QUEUE_SUMMARY_PREFIX,
@@ -73,7 +74,8 @@ def test_autonomous_work_queue_check_covers_approved_20_phase_batch():
     assert AUTONOMOUS_WORK_QUEUE_SUMMARY_PREFIX == (
         "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
     )
-    assert AUTONOMOUS_APPROVED_PHASES == tuple(range(6781, 6801))
+    assert AUTONOMOUS_APPROVED_PHASE_RANGE == "8041-8060"
+    assert AUTONOMOUS_APPROVED_PHASES == tuple(range(8041, 8061))
     check_results = {check["name"]: check for check in summary["checks"]}
     failed_checks = {
         name: check for name, check in check_results.items() if not check["passed"]
@@ -86,16 +88,15 @@ def test_autonomous_work_queue_check_covers_approved_20_phase_batch():
             "evidence"
         ]
         assert review_evidence["first_review_heading"] == (
-            "## M57 Futures/Perpetual Request Payload Validation Record "
-            "Semantic Artifact Runtime Evidence Acceptance - Phases 6781-6800"
+            "## Spot Command Operator E2E Review - Phases 8041-8060"
         )
         assert (
-            "Result: PASS or PASS-after-remediation"
+            "Fresh blind/contextless backend re-review"
             in review_evidence["missing_current_review_text"]
         )
     else:
         assert summary["status"] == "passed"
-    assert summary["approved_phase_range"] == "6781-6800"
+    assert summary["approved_phase_range"] == AUTONOMOUS_APPROVED_PHASE_RANGE
     assert summary["approved_phase_count"] == 20
     assert summary["live_coinbase_orders_ran"] is False
     assert summary["live_order_notional_usdc"] == "0"
