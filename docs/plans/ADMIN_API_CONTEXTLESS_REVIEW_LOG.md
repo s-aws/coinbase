@@ -172,6 +172,28 @@ stale-subagent sweep completed: reviewer findings were consumed and the agent
 was closed. Live Coinbase execution was not run; actual submitted/executed
 notional remains `0` USDC.
 
+Phase 8109 recovery/reconciliation gap-surfacing evidence: blind/contextless
+reviewer `019f1571-eb72-7da1-a8b5-346de0bd34fd` passed with no actionable
+gaps. The reviewer verified backend `GET /api/v1/stealth/command-suite`
+exposes exactly two `recovery_reconciliation_gap_surfacing` rows:
+`stealth_recovery` and `stealth_reconciliation`, plus
+`recovery_reconciliation_gap_surfacing_summary`; verified rows are blocked,
+classified `unsupported`, non-executable, not live-enabled,
+`stealth_order_id` keyed, and exchange `order_id` evidence-only; and verified
+the rows are read-only operator triage over existing command, action-state,
+handoff, coverage-gap, exchange-truth, and admission evidence. The reviewer
+traced frontend consumption through generated schema, canonical backend
+client/runtime, typed stealth adapters, mock fixtures, runtime snapshots, and
+the Stealth Orders Phase 8109 panel. No browser/BFF trading authority,
+route-local execution, recovery repair, rollback, proof writing, Coinbase
+read/write authority, reconciliation execution, local state mutation,
+exchange `order_id` command identity, or second trading path was found.
+Docs/handoff/queue evidence clearly points future contextless agents to Phase
+8110 instead of repeating Phase 8109. Phase-end stale-subagent sweep
+completed: reviewer findings were consumed and the agent was closed. Live
+Coinbase execution was not run; actual submitted/executed notional remains
+`0` USDC.
+
 ## Campaign/Sweep Operator Controls Review - Phases 8081-8100
 
 Result: planned. Closeout ready. Scope: phases `8081-8100`, after completed history through

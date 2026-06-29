@@ -7835,6 +7835,71 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
         "executable_reveal_move_reprice_draft_readiness_count"
         in stealth_command_suite_schema["properties"]
     )
+    assert (
+        "recovery_reconciliation_gap_surfacing"
+        in stealth_command_suite_schema["properties"]
+    )
+    assert (
+        "recovery_reconciliation_gap_surfacing_summary"
+        in stealth_command_suite_schema["properties"]
+    )
+    assert (
+        "recovery_reconciliation_gap_surfacing_count"
+        in stealth_command_suite_schema["properties"]
+    )
+    assert (
+        "blocked_recovery_reconciliation_gap_surfacing_count"
+        in stealth_command_suite_schema["properties"]
+    )
+    assert (
+        "executable_recovery_reconciliation_gap_surfacing_count"
+        in stealth_command_suite_schema["properties"]
+    )
+    assert (
+        "StealthCommandSuiteRecoveryReconciliationGapSurfacingItem"
+        in written["components"]["schemas"]
+    )
+    assert (
+        "StealthCommandSuiteRecoveryReconciliationGapSurfacingSummary"
+        in written["components"]["schemas"]
+    )
+    recovery_reconciliation_gap_schema = written["components"]["schemas"][
+        "StealthCommandSuiteRecoveryReconciliationGapSurfacingItem"
+    ]
+    for property_name in (
+        "gap_classification",
+        "coverage_gap_row_present",
+        "exchange_truth_check_present",
+        "admission_readiness_row_present",
+        "recovery_proof_required",
+        "reconciliation_proof_required",
+        "recovery_execution_supported",
+        "reconciliation_execution_supported",
+        "reconciliation_executor_available",
+        "first_missing_contract",
+        "first_exchange_reality_contract",
+        "first_admission_missing_evidence",
+        "current_read_evidence_routes",
+        "exchange_reality_contracts",
+        "admission_missing_evidence",
+    ):
+        assert property_name in recovery_reconciliation_gap_schema["properties"]
+    recovery_reconciliation_gap_summary_schema = written["components"]["schemas"][
+        "StealthCommandSuiteRecoveryReconciliationGapSurfacingSummary"
+    ]
+    for property_name in (
+        "recovery_gap_count",
+        "reconciliation_gap_count",
+        "unsupported_gap_count",
+        "not_modeled_gap_count",
+        "coverage_gap_row_count",
+        "exchange_truth_check_count",
+        "admission_readiness_count",
+        "all_coverage_gap_rows_present",
+        "all_exchange_truth_rows_present",
+        "all_admission_readiness_rows_present",
+    ):
+        assert property_name in recovery_reconciliation_gap_summary_schema["properties"]
     assert "selected_create_pre_execution_contract" in (
         stealth_command_suite_schema["properties"]
     )
@@ -39347,6 +39412,225 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert reveal_move_reprice_summary["all_exchange_order_id_evidence_only"] is True
     assert reveal_move_reprice_summary["submitted_notional_usdc"] == "0"
     assert reveal_move_reprice_summary["executed_notional_usdc"] == "0"
+    recovery_reconciliation_gaps = payload[
+        "recovery_reconciliation_gap_surfacing"
+    ]
+    assert payload["recovery_reconciliation_gap_surfacing_count"] == 2
+    assert payload["blocked_recovery_reconciliation_gap_surfacing_count"] == 2
+    assert payload["executable_recovery_reconciliation_gap_surfacing_count"] == 0
+    assert len(recovery_reconciliation_gaps) == 2
+    assert {
+        item["mutation_family"] for item in recovery_reconciliation_gaps
+    } == {
+        AdminApiMutationFamilyType.STEALTH_RECOVERY.value,
+        AdminApiMutationFamilyType.STEALTH_RECONCILIATION.value,
+    }
+    assert all(
+        item["status"] == AdminApiGateStatus.BLOCKED.value
+        for item in recovery_reconciliation_gaps
+    )
+    assert all(
+        item["gap_classification"] == AdminApiActionState.UNSUPPORTED.value
+        for item in recovery_reconciliation_gaps
+    )
+    assert all(
+        item["action_state"] == AdminApiActionState.BLOCKED.value
+        for item in recovery_reconciliation_gaps
+    )
+    assert all(
+        item["command_status"] == AdminApiGateStatus.BLOCKED.value
+        for item in recovery_reconciliation_gaps
+    )
+    assert all(
+        item["exposure_status"]
+        == AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
+        for item in recovery_reconciliation_gaps
+    )
+    assert all(item["command_row_present"] is True for item in recovery_reconciliation_gaps)
+    assert all(
+        item["action_state_row_present"] is True
+        for item in recovery_reconciliation_gaps
+    )
+    assert all(
+        item["handoff_audit_row_present"] is True
+        for item in recovery_reconciliation_gaps
+    )
+    assert all(
+        item["coverage_gap_row_present"] is True
+        for item in recovery_reconciliation_gaps
+    )
+    assert all(
+        item["exchange_truth_check_present"] is True
+        for item in recovery_reconciliation_gaps
+    )
+    assert all(
+        item["admission_readiness_row_present"] is True
+        for item in recovery_reconciliation_gaps
+    )
+    assert all(
+        item["selected_order_handoff_required"] is True
+        for item in recovery_reconciliation_gaps
+    )
+    assert all(
+        item["selected_order_handoff_available"] is True
+        for item in recovery_reconciliation_gaps
+    )
+    assert all(item["draft_prefill_only"] is True for item in recovery_reconciliation_gaps)
+    assert all(item["identity_key"] == "stealth_order_id" for item in recovery_reconciliation_gaps)
+    assert all(
+        item["exchange_order_id_identity_allowed"] is False
+        for item in recovery_reconciliation_gaps
+    )
+    assert all(item["manager_invocation_allowed"] is False for item in recovery_reconciliation_gaps)
+    assert all(item["coinbase_submit_allowed"] is False for item in recovery_reconciliation_gaps)
+    assert all(item["coinbase_cancel_allowed"] is False for item in recovery_reconciliation_gaps)
+    assert all(item["coinbase_read_allowed"] is False for item in recovery_reconciliation_gaps)
+    assert all(
+        item["reconciliation_execution_allowed"] is False
+        for item in recovery_reconciliation_gaps
+    )
+    assert all(
+        item["reconciliation_execution_supported"] is False
+        for item in recovery_reconciliation_gaps
+    )
+    assert all(item["state_mutation_allowed"] is False for item in recovery_reconciliation_gaps)
+    assert all(item["live_enabled"] is False for item in recovery_reconciliation_gaps)
+    assert all(item["executable"] is False for item in recovery_reconciliation_gaps)
+    assert all(
+        item["browser_authority"] == "display_only"
+        for item in recovery_reconciliation_gaps
+    )
+    assert all(
+        item["bff_authority"] == "forward_only_no_execution"
+        for item in recovery_reconciliation_gaps
+    )
+    recovery_reconciliation_by_id = {
+        item["mutation_family"]: item for item in recovery_reconciliation_gaps
+    }
+    recovery_gap = recovery_reconciliation_by_id[
+        AdminApiMutationFamilyType.STEALTH_RECOVERY.value
+    ]
+    assert recovery_gap["workflow_family"] == (
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_RECOVERY_WORKFLOW.value
+    )
+    assert recovery_gap["command_workflow"] == (
+        AdminApiStealthCommandWorkflowSurface.STEALTH_RECOVERY.value
+    )
+    assert (
+        recovery_gap["route"]
+        == "/api/v1/stealth/orders/{stealth_order_id}/recovery"
+    )
+    assert recovery_gap["recovery_gap"] is True
+    assert recovery_gap["reconciliation_gap"] is False
+    assert recovery_gap["recovery_proof_required"] is True
+    assert recovery_gap["reconciliation_proof_required"] is False
+    assert recovery_gap["recovery_execution_supported"] is False
+    assert recovery_gap["repair_execution_supported"] is False
+    assert recovery_gap["rollback_execution_supported"] is False
+    assert recovery_gap["active_placement_evidence_required"] is True
+    assert recovery_gap["active_placement_exchange_truth_resolved"] is False
+    assert recovery_gap["next_required_contract"] == "active_placement_exchange_truth"
+    assert recovery_gap["first_missing_contract"] == "stealth_recovery_preview_contract"
+    assert (
+        recovery_gap["first_exchange_reality_contract"]
+        == "stealth_active_placement_exchange_truth_snapshot_contract"
+    )
+    assert recovery_gap["first_admission_missing_evidence"] == "approval_request"
+    assert "stealth_recovery_proof_writer" in recovery_gap["missing_contracts"]
+    assert "active_placement_exchange_truth" in recovery_gap["admission_missing_evidence"]
+    assert "GET /api/v1/admin/recovery-gate" in (
+        recovery_gap["current_read_evidence_routes"]
+    )
+    assert (
+        "This is recovery/reconciliation gap surfacing only; it is not repair, rollback, reconciliation execution, proof writing, Coinbase read, or state mutation authority."
+        in recovery_gap["evidence"]
+    )
+    reconciliation_gap = recovery_reconciliation_by_id[
+        AdminApiMutationFamilyType.STEALTH_RECONCILIATION.value
+    ]
+    assert reconciliation_gap["workflow_family"] == (
+        AdminApiStealthCommandSuiteGapFamily.STEALTH_RECONCILIATION_WORKFLOW.value
+    )
+    assert reconciliation_gap["command_workflow"] == (
+        AdminApiStealthCommandWorkflowSurface.STEALTH_RECONCILIATION.value
+    )
+    assert (
+        reconciliation_gap["route"]
+        == "/api/v1/stealth/orders/{stealth_order_id}/reconciliation"
+    )
+    assert reconciliation_gap["recovery_gap"] is False
+    assert reconciliation_gap["reconciliation_gap"] is True
+    assert reconciliation_gap["recovery_proof_required"] is False
+    assert reconciliation_gap["reconciliation_proof_required"] is True
+    assert reconciliation_gap["reconciliation_execution_supported"] is False
+    assert reconciliation_gap["reconciliation_executor_available"] is False
+    assert (
+        reconciliation_gap["next_required_contract"]
+        == "active_placement_exchange_truth"
+    )
+    assert (
+        reconciliation_gap["first_missing_contract"]
+        == "stealth_reconciliation_plan_contract"
+    )
+    assert (
+        reconciliation_gap["first_exchange_reality_contract"]
+        == "stealth_reconciliation_plan_contract"
+    )
+    assert (
+        "stealth_reconciliation_executor"
+        in reconciliation_gap["missing_contracts"]
+    )
+    assert "GET /api/v1/admin/reconciliation/plans" in (
+        reconciliation_gap["current_read_evidence_routes"]
+    )
+    recovery_reconciliation_summary = payload[
+        "recovery_reconciliation_gap_surfacing_summary"
+    ]
+    assert recovery_reconciliation_summary["source"] == (
+        "phase_8109_stealth_recovery_reconciliation_gap_surfacing"
+    )
+    assert recovery_reconciliation_summary["status"] == AdminApiGateStatus.BLOCKED.value
+    assert recovery_reconciliation_summary["gap_count"] == 2
+    assert recovery_reconciliation_summary["blocked_gap_count"] == 2
+    assert recovery_reconciliation_summary["executable_gap_count"] == 0
+    assert recovery_reconciliation_summary["recovery_gap_count"] == 1
+    assert recovery_reconciliation_summary["reconciliation_gap_count"] == 1
+    assert recovery_reconciliation_summary["unsupported_gap_count"] == 2
+    assert recovery_reconciliation_summary["not_modeled_gap_count"] == 0
+    assert recovery_reconciliation_summary["command_row_count"] == 2
+    assert recovery_reconciliation_summary["action_state_row_count"] == 2
+    assert recovery_reconciliation_summary["handoff_audit_row_count"] == 2
+    assert recovery_reconciliation_summary["coverage_gap_row_count"] == 2
+    assert recovery_reconciliation_summary["exchange_truth_check_count"] == 2
+    assert recovery_reconciliation_summary["admission_readiness_count"] == 2
+    assert recovery_reconciliation_summary["selected_order_handoff_required_count"] == 2
+    assert recovery_reconciliation_summary["recovery_proof_required_count"] == 1
+    assert recovery_reconciliation_summary["reconciliation_proof_required_count"] == 1
+    assert recovery_reconciliation_summary["recovery_execution_supported_count"] == 0
+    assert (
+        recovery_reconciliation_summary[
+            "reconciliation_execution_supported_count"
+        ]
+        == 0
+    )
+    assert recovery_reconciliation_summary["all_command_rows_present"] is True
+    assert recovery_reconciliation_summary["all_action_state_rows_present"] is True
+    assert recovery_reconciliation_summary["all_handoff_rows_present"] is True
+    assert recovery_reconciliation_summary["all_coverage_gap_rows_present"] is True
+    assert recovery_reconciliation_summary["all_exchange_truth_rows_present"] is True
+    assert (
+        recovery_reconciliation_summary[
+            "all_admission_readiness_rows_present"
+        ]
+        is True
+    )
+    assert recovery_reconciliation_summary["all_browser_bff_display_only"] is True
+    assert recovery_reconciliation_summary["all_live_disabled"] is True
+    assert recovery_reconciliation_summary["all_exchange_order_id_evidence_only"] is True
+    assert recovery_reconciliation_summary["live_coinbase_orders_ran"] is False
+    assert recovery_reconciliation_summary["live_coinbase_read_ran"] is False
+    assert recovery_reconciliation_summary["submitted_notional_usdc"] == "0"
+    assert recovery_reconciliation_summary["executed_notional_usdc"] == "0"
     move_handoff = action_state_handoff_by_id[
         AdminApiMutationFamilyType.STEALTH_MOVE.value
     ]

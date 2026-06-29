@@ -298,6 +298,19 @@ movement reprice also carries the cooldown/claim requirement. The rows may
 name `cancel_order(client_order_id)` as the backend cancel/replace method,
 but they are still read-only, prefill-only, non-executable, live-disabled,
 keyed by `stealth_order_id`, and treat exchange `order_id` as evidence only.
+The command-suite response also exposes
+`recovery_reconciliation_gap_surfacing` and
+`recovery_reconciliation_gap_surfacing_summary` for Phase 8109. These rows
+narrow recovery/reconciliation gap visibility to `stealth_recovery` and
+`stealth_reconciliation`. Both rows are explicitly `unsupported`, selected-
+order prefill only, non-executable, live-disabled, keyed by
+`stealth_order_id`, and exchange `order_id` evidence only. Recovery surfaces
+missing preview/proof/repair/rollback contracts; reconciliation surfaces
+missing plan/snapshot/executor contracts. These rows are operator triage
+evidence only and must not be converted into recovery repair, rollback,
+proof-writing, reconciliation execution, Coinbase read/write, state mutation,
+browser/BFF execution authority, route-local execution, or a second trading
+path.
 
 ## Safety Constraints
 

@@ -270,12 +270,28 @@ work. Historical milestone detail belongs in
   reconciliation execution, order/exchange state mutation, exchange
   `order_id` command identity, or second trading path was added. Live Coinbase
   execution was not run and submitted/executed notional stayed 0 USDC.
-- Exact next implementation slice after Phase 8108 validation: move to
-  Phase 8109 Stealth Recovery/Reconciliation Gap Surfacing. Do not add browser
+- Phase 8109 implementation status: `GET /api/v1/stealth/command-suite`
+  now exposes backend-owned `recovery_reconciliation_gap_surfacing` and
+  `recovery_reconciliation_gap_surfacing_summary` for `stealth_recovery` and
+  `stealth_reconciliation`. Both rows are classified `unsupported`, remain
+  blocked, selected-order prefill only, not live-enabled, non-executable, and
+  keyed by `stealth_order_id`. Recovery aggregates missing active-placement
+  exchange truth plus recovery preview/proof/repair/rollback contracts.
+  Reconciliation aggregates missing active-placement exchange truth plus
+  plan/snapshot/executor contracts. Frontend generated schema, mock fixtures,
+  runtime tests, typed stealth adapters, and the Stealth Orders command-suite
+  panel consume the same fields. No browser/BFF execution authority,
+  route-local execution, direct Coinbase calls, manager invocation, recovery
+  repair, rollback, proof writing, reconciliation execution, order/exchange
+  state mutation, exchange `order_id` command identity, or second trading path
+  was added. Live Coinbase execution was not run and submitted/executed
+  notional stayed 0 USDC.
+- Exact next implementation slice after Phase 8109 validation: move to
+  Phase 8110 Post-Write Evidence Contract Review. Do not add browser
   scheduler, BFF runner authority, retry loops, route-local execution, direct
-  Coinbase calls, manager invocation, reconciliation execution, order/exchange
-  state mutation, exchange `order_id` command identity, or a second trading
-  path.
+  Coinbase calls, manager invocation, recovery repair, rollback, proof writing,
+  reconciliation execution, order/exchange state mutation, exchange `order_id`
+  command identity, or a second trading path.
 - Contextless review status: backend Phase 7997 passed after remediation.
   Initial blind reviews blocked on stale current Admin API command-authority
   docs and `genai_data` references that still implied all HTTP mutating routes

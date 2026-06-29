@@ -407,6 +407,8 @@ from .models import (
     StealthCommandSuiteCreateCancelDraftReadinessSummary,
     StealthCommandSuiteRevealMoveRepriceDraftReadinessItem,
     StealthCommandSuiteRevealMoveRepriceDraftReadinessSummary,
+    StealthCommandSuiteRecoveryReconciliationGapSurfacingItem,
+    StealthCommandSuiteRecoveryReconciliationGapSurfacingSummary,
     StealthCommandSuiteAdmissionContextItem,
     StealthCommandSuiteAdmissionReadinessItem,
     StealthCommandSuiteAdmissionRequirementItem,
@@ -21173,6 +21175,382 @@ class AdminApiReadService:
             ),
         ]
 
+        coverage_gap_by_family = {gap.family: gap for gap in coverage_gaps}
+        admission_readiness_by_route_for_gaps = {
+            readiness.route: readiness for readiness in admission_readiness
+        }
+        exchange_truth_checks_by_route_for_gaps = {
+            check.route: check for check in exchange_truth_checks
+        }
+        recovery_reconciliation_gap_specs = [
+            (
+                AdminApiMutationFamilyType.STEALTH_RECOVERY,
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_RECOVERY_WORKFLOW,
+                AdminApiStealthCommandWorkflowSurface.STEALTH_RECOVERY,
+                True,
+                False,
+            ),
+            (
+                AdminApiMutationFamilyType.STEALTH_RECONCILIATION,
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_RECONCILIATION_WORKFLOW,
+                AdminApiStealthCommandWorkflowSurface.STEALTH_RECONCILIATION,
+                False,
+                True,
+            ),
+        ]
+
+        def build_recovery_reconciliation_gap_surfacing(
+            mutation_family: AdminApiMutationFamilyType,
+            workflow_family: AdminApiStealthCommandSuiteGapFamily,
+            command_workflow: AdminApiStealthCommandWorkflowSurface,
+            recovery_gap: bool,
+            reconciliation_gap: bool,
+        ) -> StealthCommandSuiteRecoveryReconciliationGapSurfacingItem:
+            command = command_by_family.get(mutation_family)
+            action_state = action_state_by_family.get(mutation_family)
+            handoff = action_state_handoff_by_family.get(mutation_family)
+            coverage_gap = coverage_gap_by_family.get(workflow_family)
+            metadata = command_metadata.get(mutation_family, {})
+            route = (
+                command.route
+                if command is not None
+                else str(metadata.get("surface", "")).split(" ", 1)[-1]
+            )
+            method = command.method if command is not None else "POST"
+            truth_check = exchange_truth_checks_by_route_for_gaps.get(route)
+            readiness = admission_readiness_by_route_for_gaps.get(route)
+            missing_gate_chain = (
+                list(command.missing_gate_chain)
+                if command is not None
+                else ["command_row_missing"]
+            )
+            missing_contracts = (
+                list(coverage_gap.missing_contracts)
+                if coverage_gap is not None
+                else ["coverage_gap_row_missing"]
+            )
+            exchange_reality_contracts = (
+                list(truth_check.missing_contracts)
+                if truth_check is not None
+                else ["exchange_truth_check_row_missing"]
+            )
+            admission_missing_evidence = (
+                list(readiness.missing_evidence)
+                if readiness is not None
+                else ["admission_readiness_row_missing"]
+            )
+            next_required_contract = (
+                "active_placement_exchange_truth"
+                if "active_placement_exchange_truth" in missing_gate_chain
+                else missing_contracts[0]
+                if missing_contracts
+                else missing_gate_chain[0]
+            )
+            blockers = list(
+                dict.fromkeys(
+                    [
+                        *(
+                            action_state.blockers
+                            if action_state is not None
+                            else ["action_state_row_missing"]
+                        ),
+                        *missing_contracts,
+                        *exchange_reality_contracts,
+                        *admission_missing_evidence,
+                    ]
+                )
+            )
+            label = (
+                action_state.label
+                if action_state is not None
+                else str(mutation_family.value).replace("_", " ").title()
+            )
+            recovery_proof_required = recovery_gap
+            reconciliation_proof_required = reconciliation_gap
+            return StealthCommandSuiteRecoveryReconciliationGapSurfacingItem(
+                mutation_family=mutation_family,
+                workflow_family=workflow_family,
+                command_workflow=command_workflow,
+                label=label,
+                route=route,
+                method=method,
+                identity_key=(
+                    command.identity_key if command is not None else "stealth_order_id"
+                ),
+                identity_value_source="selected_stealth_order_id",
+                gap_classification=AdminApiActionState.UNSUPPORTED,
+                exposure_status=(
+                    coverage_gap.exposure_status
+                    if coverage_gap is not None
+                    else AdminApiFunctionalityExposureStatus.BACKEND_CONTRACT_REQUIRED
+                ),
+                status=AdminApiGateStatus.BLOCKED,
+                action_state=(
+                    action_state.action_state
+                    if action_state is not None
+                    else AdminApiActionState.NOT_MODELED
+                ),
+                command_status=(
+                    command.status
+                    if command is not None
+                    else AdminApiGateStatus.BLOCKED
+                ),
+                live_execution_status=(
+                    command.live_execution_status
+                    if command is not None
+                    else AdminApiLiveExecutionStatus.LIVE_DISABLED
+                ),
+                command_row_present=command is not None,
+                action_state_row_present=action_state is not None,
+                handoff_audit_row_present=handoff is not None,
+                coverage_gap_row_present=coverage_gap is not None,
+                exchange_truth_check_present=truth_check is not None,
+                admission_readiness_row_present=readiness is not None,
+                selected_order_handoff_required=True,
+                selected_order_handoff_available=(
+                    handoff.selected_order_handoff_available
+                    if handoff is not None
+                    else False
+                ),
+                draft_prefill_only=True,
+                order_specific_adjudication=False,
+                recovery_gap=recovery_gap,
+                reconciliation_gap=reconciliation_gap,
+                recovery_proof_required=recovery_proof_required,
+                reconciliation_proof_required=reconciliation_proof_required,
+                recovery_execution_supported=False,
+                repair_execution_supported=False,
+                rollback_execution_supported=False,
+                reconciliation_execution_supported=False,
+                reconciliation_executor_available=False,
+                active_placement_evidence_required=(
+                    truth_check.active_placement_evidence_required
+                    if truth_check is not None
+                    else True
+                ),
+                active_placement_exchange_truth_resolved=(
+                    truth_check.active_placement_exchange_truth_resolved
+                    if truth_check is not None
+                    else False
+                ),
+                backend_contract_required=True,
+                next_required_contract=next_required_contract,
+                first_missing_contract=(
+                    missing_contracts[0] if missing_contracts else None
+                ),
+                first_exchange_reality_contract=(
+                    exchange_reality_contracts[0]
+                    if exchange_reality_contracts
+                    else None
+                ),
+                first_admission_missing_evidence=(
+                    admission_missing_evidence[0]
+                    if admission_missing_evidence
+                    else None
+                ),
+                current_read_evidence_routes=(
+                    list(coverage_gap.current_read_evidence_routes)
+                    if coverage_gap is not None
+                    else []
+                ),
+                missing_contracts=missing_contracts,
+                exchange_reality_contracts=exchange_reality_contracts,
+                admission_missing_evidence=admission_missing_evidence,
+                backend_contract_refs=list(metadata.get("backend_contract_refs", [])),
+                frontend_contract_refs=list(
+                    metadata.get("frontend_contract_refs", [])
+                ),
+                documentation_refs=list(metadata.get("documentation_refs", [])),
+                evidence=[
+                    "Derived from build_stealth_command_suite.commands.",
+                    "Derived from selected_order_action_states and Phase 8106 action-state handoff audit rows.",
+                    "Derived from coverage_gaps for recovery/reconciliation workflow coverage.",
+                    "Derived from exchange_truth_checks and admission_readiness for active-placement and proof blockers.",
+                    "This is recovery/reconciliation gap surfacing only; it is not repair, rollback, reconciliation execution, proof writing, Coinbase read, or state mutation authority.",
+                    "stealth_order_id remains the command identity; active placement ids and exchange order_id are evidence only.",
+                ],
+                backend_owned=True,
+                route_bound=command.route_bound if command is not None else False,
+                browser_authority=(
+                    command.browser_authority
+                    if command is not None
+                    else "display_only"
+                ),
+                bff_authority=(
+                    command.bff_authority
+                    if command is not None
+                    else "forward_only_no_execution"
+                ),
+                live_enabled=False,
+                executable=False,
+                manager_invocation_allowed=False,
+                coinbase_submit_allowed=False,
+                coinbase_cancel_allowed=False,
+                coinbase_read_allowed=False,
+                reconciliation_execution_allowed=False,
+                state_mutation_allowed=False,
+                exchange_order_id_identity_allowed=False,
+                required_gate_chain=(
+                    list(command.required_gate_chain) if command is not None else []
+                ),
+                missing_gate_chain=missing_gate_chain,
+                blockers=blockers,
+                detail=(
+                    f"{label} is an unsupported execution gap until backend "
+                    f"contract {next_required_contract} and the listed "
+                    "route-bound proof/admission evidence are complete. The "
+                    "admin frontend may surface this row for operator triage "
+                    "but cannot repair, roll back, reconcile, read Coinbase, "
+                    "or mutate stealth/order/exchange state."
+                ),
+            )
+
+        recovery_reconciliation_gap_surfacing = [
+            build_recovery_reconciliation_gap_surfacing(*spec)
+            for spec in recovery_reconciliation_gap_specs
+        ]
+        recovery_reconciliation_gap_surfacing_summary = (
+            StealthCommandSuiteRecoveryReconciliationGapSurfacingSummary(
+                status=AdminApiGateStatus.BLOCKED,
+                gap_count=len(recovery_reconciliation_gap_surfacing),
+                blocked_gap_count=sum(
+                    1
+                    for item in recovery_reconciliation_gap_surfacing
+                    if item.status == AdminApiGateStatus.BLOCKED
+                ),
+                executable_gap_count=sum(
+                    1 for item in recovery_reconciliation_gap_surfacing if item.executable
+                ),
+                recovery_gap_count=sum(
+                    1 for item in recovery_reconciliation_gap_surfacing if item.recovery_gap
+                ),
+                reconciliation_gap_count=sum(
+                    1
+                    for item in recovery_reconciliation_gap_surfacing
+                    if item.reconciliation_gap
+                ),
+                unsupported_gap_count=sum(
+                    1
+                    for item in recovery_reconciliation_gap_surfacing
+                    if item.gap_classification == AdminApiActionState.UNSUPPORTED
+                ),
+                not_modeled_gap_count=sum(
+                    1
+                    for item in recovery_reconciliation_gap_surfacing
+                    if item.gap_classification == AdminApiActionState.NOT_MODELED
+                ),
+                command_row_count=sum(
+                    1
+                    for item in recovery_reconciliation_gap_surfacing
+                    if item.command_row_present
+                ),
+                action_state_row_count=sum(
+                    1
+                    for item in recovery_reconciliation_gap_surfacing
+                    if item.action_state_row_present
+                ),
+                handoff_audit_row_count=sum(
+                    1
+                    for item in recovery_reconciliation_gap_surfacing
+                    if item.handoff_audit_row_present
+                ),
+                coverage_gap_row_count=sum(
+                    1
+                    for item in recovery_reconciliation_gap_surfacing
+                    if item.coverage_gap_row_present
+                ),
+                exchange_truth_check_count=sum(
+                    1
+                    for item in recovery_reconciliation_gap_surfacing
+                    if item.exchange_truth_check_present
+                ),
+                admission_readiness_count=sum(
+                    1
+                    for item in recovery_reconciliation_gap_surfacing
+                    if item.admission_readiness_row_present
+                ),
+                selected_order_handoff_required_count=sum(
+                    1
+                    for item in recovery_reconciliation_gap_surfacing
+                    if item.selected_order_handoff_required
+                ),
+                recovery_proof_required_count=sum(
+                    1
+                    for item in recovery_reconciliation_gap_surfacing
+                    if item.recovery_proof_required
+                ),
+                reconciliation_proof_required_count=sum(
+                    1
+                    for item in recovery_reconciliation_gap_surfacing
+                    if item.reconciliation_proof_required
+                ),
+                recovery_execution_supported_count=sum(
+                    1
+                    for item in recovery_reconciliation_gap_surfacing
+                    if item.recovery_execution_supported
+                ),
+                reconciliation_execution_supported_count=sum(
+                    1
+                    for item in recovery_reconciliation_gap_surfacing
+                    if item.reconciliation_execution_supported
+                ),
+                all_command_rows_present=all(
+                    item.command_row_present
+                    for item in recovery_reconciliation_gap_surfacing
+                ),
+                all_action_state_rows_present=all(
+                    item.action_state_row_present
+                    for item in recovery_reconciliation_gap_surfacing
+                ),
+                all_handoff_rows_present=all(
+                    item.handoff_audit_row_present
+                    for item in recovery_reconciliation_gap_surfacing
+                ),
+                all_coverage_gap_rows_present=all(
+                    item.coverage_gap_row_present
+                    for item in recovery_reconciliation_gap_surfacing
+                ),
+                all_exchange_truth_rows_present=all(
+                    item.exchange_truth_check_present
+                    for item in recovery_reconciliation_gap_surfacing
+                ),
+                all_admission_readiness_rows_present=all(
+                    item.admission_readiness_row_present
+                    for item in recovery_reconciliation_gap_surfacing
+                ),
+                all_browser_bff_display_only=all(
+                    item.browser_authority == "display_only"
+                    and item.bff_authority == "forward_only_no_execution"
+                    for item in recovery_reconciliation_gap_surfacing
+                ),
+                all_live_disabled=all(
+                    not item.live_enabled and not item.executable
+                    for item in recovery_reconciliation_gap_surfacing
+                ),
+                all_exchange_order_id_evidence_only=all(
+                    not item.exchange_order_id_identity_allowed
+                    for item in recovery_reconciliation_gap_surfacing
+                ),
+                backend_owned=True,
+                browser_authority="display_only",
+                bff_authority="forward_only_no_execution",
+                live_coinbase_orders_ran=False,
+                live_coinbase_read_ran=False,
+                submitted_notional_usdc="0",
+                executed_notional_usdc="0",
+                detail=(
+                    "Phase 8109 surfaces stealth recovery and reconciliation "
+                    "as unsupported execution gaps in the operator command "
+                    "suite. The rows are derived from existing backend evidence "
+                    "and remain blocked until route-bound backend contracts, "
+                    "proof records, exchange-truth checks, and admission "
+                    "evidence are complete."
+                ),
+            )
+            if recovery_reconciliation_gap_surfacing
+            else None
+        )
+
         def blocker_closure(
             *,
             closure_id: str,
@@ -27947,6 +28325,23 @@ class AdminApiReadService:
             reveal_move_reprice_draft_readiness=reveal_move_reprice_draft_readiness,
             reveal_move_reprice_draft_readiness_summary=(
                 reveal_move_reprice_draft_readiness_summary
+            ),
+            recovery_reconciliation_gap_surfacing_count=len(
+                recovery_reconciliation_gap_surfacing
+            ),
+            blocked_recovery_reconciliation_gap_surfacing_count=sum(
+                1
+                for item in recovery_reconciliation_gap_surfacing
+                if item.status == AdminApiGateStatus.BLOCKED
+            ),
+            executable_recovery_reconciliation_gap_surfacing_count=sum(
+                1 for item in recovery_reconciliation_gap_surfacing if item.executable
+            ),
+            recovery_reconciliation_gap_surfacing=(
+                recovery_reconciliation_gap_surfacing
+            ),
+            recovery_reconciliation_gap_surfacing_summary=(
+                recovery_reconciliation_gap_surfacing_summary
             ),
             coverage_gap_count=len(coverage_gaps),
             coverage_gaps=coverage_gaps,

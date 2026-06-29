@@ -159720,6 +159720,460 @@ components:
       - detail
       title: StealthCommandSuiteProofRouteItem
       description: Backend proof route required before a stealth command can be executable.
+    StealthCommandSuiteRecoveryReconciliationGapSurfacingItem:
+      properties:
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        workflow_family:
+          $ref: '#/components/schemas/AdminApiStealthCommandSuiteGapFamily'
+        command_workflow:
+          $ref: '#/components/schemas/AdminApiStealthCommandWorkflowSurface'
+        label:
+          type: string
+          title: Label
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        identity_key:
+          type: string
+          title: Identity Key
+          default: stealth_order_id
+        identity_value_source:
+          type: string
+          title: Identity Value Source
+          default: selected_stealth_order_id
+        gap_classification:
+          $ref: '#/components/schemas/AdminApiActionState'
+          default: unsupported
+        exposure_status:
+          $ref: '#/components/schemas/AdminApiFunctionalityExposureStatus'
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        action_state:
+          $ref: '#/components/schemas/AdminApiActionState'
+        command_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        live_execution_status:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+        command_row_present:
+          type: boolean
+          title: Command Row Present
+          default: true
+        action_state_row_present:
+          type: boolean
+          title: Action State Row Present
+          default: true
+        handoff_audit_row_present:
+          type: boolean
+          title: Handoff Audit Row Present
+          default: true
+        coverage_gap_row_present:
+          type: boolean
+          title: Coverage Gap Row Present
+          default: true
+        exchange_truth_check_present:
+          type: boolean
+          title: Exchange Truth Check Present
+          default: true
+        admission_readiness_row_present:
+          type: boolean
+          title: Admission Readiness Row Present
+          default: true
+        selected_order_handoff_required:
+          type: boolean
+          title: Selected Order Handoff Required
+          default: true
+        selected_order_handoff_available:
+          type: boolean
+          title: Selected Order Handoff Available
+          default: true
+        draft_prefill_only:
+          type: boolean
+          title: Draft Prefill Only
+          default: true
+        order_specific_adjudication:
+          type: boolean
+          title: Order Specific Adjudication
+          default: false
+        recovery_gap:
+          type: boolean
+          title: Recovery Gap
+        reconciliation_gap:
+          type: boolean
+          title: Reconciliation Gap
+        recovery_proof_required:
+          type: boolean
+          title: Recovery Proof Required
+        reconciliation_proof_required:
+          type: boolean
+          title: Reconciliation Proof Required
+        recovery_execution_supported:
+          type: boolean
+          title: Recovery Execution Supported
+          default: false
+        repair_execution_supported:
+          type: boolean
+          title: Repair Execution Supported
+          default: false
+        rollback_execution_supported:
+          type: boolean
+          title: Rollback Execution Supported
+          default: false
+        reconciliation_execution_supported:
+          type: boolean
+          title: Reconciliation Execution Supported
+          default: false
+        reconciliation_executor_available:
+          type: boolean
+          title: Reconciliation Executor Available
+          default: false
+        active_placement_evidence_required:
+          type: boolean
+          title: Active Placement Evidence Required
+          default: true
+        active_placement_exchange_truth_resolved:
+          type: boolean
+          title: Active Placement Exchange Truth Resolved
+          default: false
+        backend_contract_required:
+          type: boolean
+          title: Backend Contract Required
+          default: true
+        next_required_contract:
+          type: string
+          title: Next Required Contract
+        first_missing_contract:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Missing Contract
+        first_exchange_reality_contract:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Exchange Reality Contract
+        first_admission_missing_evidence:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Admission Missing Evidence
+        current_read_evidence_routes:
+          items:
+            type: string
+          type: array
+          title: Current Read Evidence Routes
+        missing_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Contracts
+        exchange_reality_contracts:
+          items:
+            type: string
+          type: array
+          title: Exchange Reality Contracts
+        admission_missing_evidence:
+          items:
+            type: string
+          type: array
+          title: Admission Missing Evidence
+        backend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Backend Contract Refs
+        frontend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Frontend Contract Refs
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_enabled:
+          type: boolean
+          title: Live Enabled
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        coinbase_submit_allowed:
+          type: boolean
+          title: Coinbase Submit Allowed
+          default: false
+        coinbase_cancel_allowed:
+          type: boolean
+          title: Coinbase Cancel Allowed
+          default: false
+        coinbase_read_allowed:
+          type: boolean
+          title: Coinbase Read Allowed
+          default: false
+        reconciliation_execution_allowed:
+          type: boolean
+          title: Reconciliation Execution Allowed
+          default: false
+        state_mutation_allowed:
+          type: boolean
+          title: State Mutation Allowed
+          default: false
+        exchange_order_id_identity_allowed:
+          type: boolean
+          title: Exchange Order Id Identity Allowed
+          default: false
+        required_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Required Gate Chain
+        missing_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Missing Gate Chain
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - mutation_family
+      - workflow_family
+      - command_workflow
+      - label
+      - route
+      - method
+      - exposure_status
+      - action_state
+      - command_status
+      - live_execution_status
+      - recovery_gap
+      - reconciliation_gap
+      - recovery_proof_required
+      - reconciliation_proof_required
+      - next_required_contract
+      - detail
+      title: StealthCommandSuiteRecoveryReconciliationGapSurfacingItem
+      description: Phase 8109 recovery/reconciliation gap row for operator triage.
+    StealthCommandSuiteRecoveryReconciliationGapSurfacingSummary:
+      properties:
+        source:
+          type: string
+          title: Source
+          default: phase_8109_stealth_recovery_reconciliation_gap_surfacing
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        gap_count:
+          type: integer
+          minimum: 0.0
+          title: Gap Count
+        blocked_gap_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Gap Count
+        executable_gap_count:
+          type: integer
+          minimum: 0.0
+          title: Executable Gap Count
+        recovery_gap_count:
+          type: integer
+          minimum: 0.0
+          title: Recovery Gap Count
+        reconciliation_gap_count:
+          type: integer
+          minimum: 0.0
+          title: Reconciliation Gap Count
+        unsupported_gap_count:
+          type: integer
+          minimum: 0.0
+          title: Unsupported Gap Count
+        not_modeled_gap_count:
+          type: integer
+          minimum: 0.0
+          title: Not Modeled Gap Count
+        command_row_count:
+          type: integer
+          minimum: 0.0
+          title: Command Row Count
+        action_state_row_count:
+          type: integer
+          minimum: 0.0
+          title: Action State Row Count
+        handoff_audit_row_count:
+          type: integer
+          minimum: 0.0
+          title: Handoff Audit Row Count
+        coverage_gap_row_count:
+          type: integer
+          minimum: 0.0
+          title: Coverage Gap Row Count
+        exchange_truth_check_count:
+          type: integer
+          minimum: 0.0
+          title: Exchange Truth Check Count
+        admission_readiness_count:
+          type: integer
+          minimum: 0.0
+          title: Admission Readiness Count
+        selected_order_handoff_required_count:
+          type: integer
+          minimum: 0.0
+          title: Selected Order Handoff Required Count
+        recovery_proof_required_count:
+          type: integer
+          minimum: 0.0
+          title: Recovery Proof Required Count
+        reconciliation_proof_required_count:
+          type: integer
+          minimum: 0.0
+          title: Reconciliation Proof Required Count
+        recovery_execution_supported_count:
+          type: integer
+          minimum: 0.0
+          title: Recovery Execution Supported Count
+        reconciliation_execution_supported_count:
+          type: integer
+          minimum: 0.0
+          title: Reconciliation Execution Supported Count
+        all_command_rows_present:
+          type: boolean
+          title: All Command Rows Present
+          default: false
+        all_action_state_rows_present:
+          type: boolean
+          title: All Action State Rows Present
+          default: false
+        all_handoff_rows_present:
+          type: boolean
+          title: All Handoff Rows Present
+          default: false
+        all_coverage_gap_rows_present:
+          type: boolean
+          title: All Coverage Gap Rows Present
+          default: false
+        all_exchange_truth_rows_present:
+          type: boolean
+          title: All Exchange Truth Rows Present
+          default: false
+        all_admission_readiness_rows_present:
+          type: boolean
+          title: All Admission Readiness Rows Present
+          default: false
+        all_browser_bff_display_only:
+          type: boolean
+          title: All Browser Bff Display Only
+          default: false
+        all_live_disabled:
+          type: boolean
+          title: All Live Disabled
+          default: false
+        all_exchange_order_id_evidence_only:
+          type: boolean
+          title: All Exchange Order Id Evidence Only
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - gap_count
+      - blocked_gap_count
+      - executable_gap_count
+      - recovery_gap_count
+      - reconciliation_gap_count
+      - unsupported_gap_count
+      - not_modeled_gap_count
+      - command_row_count
+      - action_state_row_count
+      - handoff_audit_row_count
+      - coverage_gap_row_count
+      - exchange_truth_check_count
+      - admission_readiness_count
+      - selected_order_handoff_required_count
+      - recovery_proof_required_count
+      - reconciliation_proof_required_count
+      - recovery_execution_supported_count
+      - reconciliation_execution_supported_count
+      - detail
+      title: StealthCommandSuiteRecoveryReconciliationGapSurfacingSummary
+      description: Aggregate Phase 8109 recovery/reconciliation gap surfacing evidence.
     StealthCommandSuiteResponse:
       properties:
         type:
@@ -159909,6 +160363,27 @@ components:
         reveal_move_reprice_draft_readiness_summary:
           anyOf:
           - $ref: '#/components/schemas/StealthCommandSuiteRevealMoveRepriceDraftReadinessSummary'
+          - type: 'null'
+        recovery_reconciliation_gap_surfacing_count:
+          type: integer
+          title: Recovery Reconciliation Gap Surfacing Count
+          default: 0
+        blocked_recovery_reconciliation_gap_surfacing_count:
+          type: integer
+          title: Blocked Recovery Reconciliation Gap Surfacing Count
+          default: 0
+        executable_recovery_reconciliation_gap_surfacing_count:
+          type: integer
+          title: Executable Recovery Reconciliation Gap Surfacing Count
+          default: 0
+        recovery_reconciliation_gap_surfacing:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteRecoveryReconciliationGapSurfacingItem'
+          type: array
+          title: Recovery Reconciliation Gap Surfacing
+        recovery_reconciliation_gap_surfacing_summary:
+          anyOf:
+          - $ref: '#/components/schemas/StealthCommandSuiteRecoveryReconciliationGapSurfacingSummary'
           - type: 'null'
         coverage_gap_count:
           type: integer

@@ -1665,6 +1665,19 @@ the backend cancellation method for cancel/replace evidence, but they are
 still read-only evidence: no manager invocation, Coinbase submit/cancel/read,
 reconciliation execution, state mutation, exchange `order_id` command identity,
 browser/BFF authority, route-local execution, or second trading path is added.
+The same command-suite response also exposes Phase 8109
+`recovery_reconciliation_gap_surfacing` and
+`recovery_reconciliation_gap_surfacing_summary`. These rows are limited to
+`stealth_recovery` and `stealth_reconciliation`, are classified
+`unsupported`, and aggregate existing command rows, selected action-state rows,
+handoff audits, coverage gaps, exchange-truth checks, and admission-readiness
+evidence. Recovery names missing preview/proof/repair/rollback contracts.
+Reconciliation names missing plan/snapshot/executor contracts. Both rows stay
+blocked, selected-order prefill only, non-executable, live-disabled, keyed by
+`stealth_order_id`, and exchange `order_id` evidence only. They do not repair,
+roll back, execute reconciliation, write proofs, read Coinbase, mutate state,
+grant browser/BFF authority, add route-local execution, or create a second
+trading path.
 Concrete live-disabled stealth command responses may include
 `stealth_admission_context`. That response echo is different from the
 read-only command-suite row: the command path has route, identity, actor,

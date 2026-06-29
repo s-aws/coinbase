@@ -27828,6 +27828,122 @@ class StealthCommandSuiteRevealMoveRepriceDraftReadinessSummary(BaseModel):
     detail: str
 
 
+class StealthCommandSuiteRecoveryReconciliationGapSurfacingItem(BaseModel):
+    """Phase 8109 recovery/reconciliation gap row for operator triage."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mutation_family: AdminApiMutationFamilyType
+    workflow_family: AdminApiStealthCommandSuiteGapFamily
+    command_workflow: AdminApiStealthCommandWorkflowSurface
+    label: str
+    route: str
+    method: str
+    identity_key: str = "stealth_order_id"
+    identity_value_source: str = "selected_stealth_order_id"
+    gap_classification: AdminApiActionState = AdminApiActionState.UNSUPPORTED
+    exposure_status: AdminApiFunctionalityExposureStatus
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    action_state: AdminApiActionState
+    command_status: AdminApiGateStatus
+    live_execution_status: AdminApiLiveExecutionStatus
+    command_row_present: bool = True
+    action_state_row_present: bool = True
+    handoff_audit_row_present: bool = True
+    coverage_gap_row_present: bool = True
+    exchange_truth_check_present: bool = True
+    admission_readiness_row_present: bool = True
+    selected_order_handoff_required: bool = True
+    selected_order_handoff_available: bool = True
+    draft_prefill_only: bool = True
+    order_specific_adjudication: bool = False
+    recovery_gap: bool
+    reconciliation_gap: bool
+    recovery_proof_required: bool
+    reconciliation_proof_required: bool
+    recovery_execution_supported: bool = False
+    repair_execution_supported: bool = False
+    rollback_execution_supported: bool = False
+    reconciliation_execution_supported: bool = False
+    reconciliation_executor_available: bool = False
+    active_placement_evidence_required: bool = True
+    active_placement_exchange_truth_resolved: bool = False
+    backend_contract_required: bool = True
+    next_required_contract: str
+    first_missing_contract: str | None = None
+    first_exchange_reality_contract: str | None = None
+    first_admission_missing_evidence: str | None = None
+    current_read_evidence_routes: list[str] = Field(default_factory=list)
+    missing_contracts: list[str] = Field(default_factory=list)
+    exchange_reality_contracts: list[str] = Field(default_factory=list)
+    admission_missing_evidence: list[str] = Field(default_factory=list)
+    backend_contract_refs: list[str] = Field(default_factory=list)
+    frontend_contract_refs: list[str] = Field(default_factory=list)
+    documentation_refs: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    route_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_enabled: bool = False
+    executable: bool = False
+    manager_invocation_allowed: bool = False
+    coinbase_submit_allowed: bool = False
+    coinbase_cancel_allowed: bool = False
+    coinbase_read_allowed: bool = False
+    reconciliation_execution_allowed: bool = False
+    state_mutation_allowed: bool = False
+    exchange_order_id_identity_allowed: bool = False
+    required_gate_chain: list[str] = Field(default_factory=list)
+    missing_gate_chain: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    detail: str
+
+
+class StealthCommandSuiteRecoveryReconciliationGapSurfacingSummary(BaseModel):
+    """Aggregate Phase 8109 recovery/reconciliation gap surfacing evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: str = "phase_8109_stealth_recovery_reconciliation_gap_surfacing"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    gap_count: int = Field(ge=0)
+    blocked_gap_count: int = Field(ge=0)
+    executable_gap_count: int = Field(ge=0)
+    recovery_gap_count: int = Field(ge=0)
+    reconciliation_gap_count: int = Field(ge=0)
+    unsupported_gap_count: int = Field(ge=0)
+    not_modeled_gap_count: int = Field(ge=0)
+    command_row_count: int = Field(ge=0)
+    action_state_row_count: int = Field(ge=0)
+    handoff_audit_row_count: int = Field(ge=0)
+    coverage_gap_row_count: int = Field(ge=0)
+    exchange_truth_check_count: int = Field(ge=0)
+    admission_readiness_count: int = Field(ge=0)
+    selected_order_handoff_required_count: int = Field(ge=0)
+    recovery_proof_required_count: int = Field(ge=0)
+    reconciliation_proof_required_count: int = Field(ge=0)
+    recovery_execution_supported_count: int = Field(ge=0)
+    reconciliation_execution_supported_count: int = Field(ge=0)
+    all_command_rows_present: bool = False
+    all_action_state_rows_present: bool = False
+    all_handoff_rows_present: bool = False
+    all_coverage_gap_rows_present: bool = False
+    all_exchange_truth_rows_present: bool = False
+    all_admission_readiness_rows_present: bool = False
+    all_browser_bff_display_only: bool = False
+    all_live_disabled: bool = False
+    all_exchange_order_id_evidence_only: bool = True
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    detail: str
+
+
 class StealthCommandSuiteCoverageGapEvidenceRouteItem(BaseModel):
     """Read route that supplies evidence for a stealth command-suite coverage gap."""
 
@@ -34184,6 +34300,15 @@ class StealthCommandSuiteResponse(AdminApiReadPayload):
     ] = Field(default_factory=list)
     reveal_move_reprice_draft_readiness_summary: (
         StealthCommandSuiteRevealMoveRepriceDraftReadinessSummary | None
+    ) = None
+    recovery_reconciliation_gap_surfacing_count: int = 0
+    blocked_recovery_reconciliation_gap_surfacing_count: int = 0
+    executable_recovery_reconciliation_gap_surfacing_count: int = 0
+    recovery_reconciliation_gap_surfacing: list[
+        StealthCommandSuiteRecoveryReconciliationGapSurfacingItem
+    ] = Field(default_factory=list)
+    recovery_reconciliation_gap_surfacing_summary: (
+        StealthCommandSuiteRecoveryReconciliationGapSurfacingSummary | None
     ) = None
     coverage_gap_count: int = 0
     coverage_gaps: list[StealthCommandSuiteCoverageGapItem] = Field(default_factory=list)

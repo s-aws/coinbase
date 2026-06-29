@@ -558,6 +558,70 @@ and cooldown contracts pass:
 }
 ```
 
+Phase 8109 adds recovery/reconciliation gap surfacing rows. These rows remain
+operator triage evidence only; they do not write proof records, execute
+recovery repair, execute rollback, execute reconciliation, read Coinbase, or
+mutate local/exchange state.
+
+```json
+{
+  "recovery_reconciliation_gap_surfacing_count": 2,
+  "blocked_recovery_reconciliation_gap_surfacing_count": 2,
+  "executable_recovery_reconciliation_gap_surfacing_count": 0,
+  "recovery_reconciliation_gap_surfacing": [
+    {
+      "mutation_family": "stealth_recovery",
+      "command_workflow": "stealth-recovery",
+      "route": "/api/v1/stealth/orders/{stealth_order_id}/recovery",
+      "gap_classification": "unsupported",
+      "recovery_gap": true,
+      "reconciliation_gap": false,
+      "recovery_proof_required": true,
+      "next_required_contract": "active_placement_exchange_truth",
+      "first_missing_contract": "stealth_recovery_preview_contract",
+      "first_exchange_reality_contract": "stealth_active_placement_exchange_truth_snapshot_contract",
+      "first_admission_missing_evidence": "approval_request",
+      "live_enabled": false,
+      "executable": false,
+      "exchange_order_id_identity_allowed": false
+    },
+    {
+      "mutation_family": "stealth_reconciliation",
+      "command_workflow": "stealth-reconciliation",
+      "route": "/api/v1/stealth/orders/{stealth_order_id}/reconciliation",
+      "gap_classification": "unsupported",
+      "recovery_gap": false,
+      "reconciliation_gap": true,
+      "reconciliation_proof_required": true,
+      "reconciliation_execution_supported": false,
+      "reconciliation_executor_available": false,
+      "next_required_contract": "active_placement_exchange_truth",
+      "first_missing_contract": "stealth_reconciliation_plan_contract",
+      "first_exchange_reality_contract": "stealth_reconciliation_plan_contract",
+      "live_enabled": false,
+      "executable": false,
+      "exchange_order_id_identity_allowed": false
+    }
+  ],
+  "recovery_reconciliation_gap_surfacing_summary": {
+    "source": "phase_8109_stealth_recovery_reconciliation_gap_surfacing",
+    "status": "blocked",
+    "gap_count": 2,
+    "blocked_gap_count": 2,
+    "executable_gap_count": 0,
+    "recovery_gap_count": 1,
+    "reconciliation_gap_count": 1,
+    "unsupported_gap_count": 2,
+    "not_modeled_gap_count": 0,
+    "all_browser_bff_display_only": true,
+    "all_live_disabled": true,
+    "all_exchange_order_id_evidence_only": true,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0"
+  }
+}
+```
+
 The selected candidate is a backend work-sequencing target only. It does not
 authorize create execution, lifecycle writes, proof lookup, manager
 invocation, Coinbase reads/submits/cancels, reconciliation execution, or state

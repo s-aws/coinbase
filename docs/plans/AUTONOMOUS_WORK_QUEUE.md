@@ -370,6 +370,30 @@ Exact autonomous phrase: Active Release 0.1 `8101-8120` adds a Stealth Lifecycle
 - Surface recovery and reconciliation blockers with exact backend evidence and
   `unsupported` or `not_modeled` status instead of browser repair or
   reconciliation logic.
+- Evidence update 2026-06-29: added backend-owned
+  `recovery_reconciliation_gap_surfacing` and
+  `recovery_reconciliation_gap_surfacing_summary` to
+  `GET /api/v1/stealth/command-suite`, OpenAPI, generated frontend
+  contracts, frontend mock/runtime fixtures, and the Stealth Orders
+  command-suite panel. The two rows are `stealth_recovery` and
+  `stealth_reconciliation`; both are classified `unsupported`, remain
+  blocked, selected-order prefill only, non-executable, not live-enabled,
+  keyed by `stealth_order_id`, and derived from existing command,
+  action-state, handoff, coverage-gap, exchange-truth, and admission-readiness
+  evidence. Recovery remains blocked on active-placement exchange truth plus
+  recovery preview/proof/repair/rollback contracts. Reconciliation remains
+  blocked on active-placement exchange truth plus plan/snapshot/executor
+  contracts. No repair, rollback, reconciliation execution, proof writing,
+  Coinbase read, manager invocation, state mutation, browser/BFF execution
+  authority, exchange `order_id` command identity, route-local execution, or
+  second trading path was added. Backend and frontend `AGENTS.md`
+  instructions were re-reviewed with no direction change.
+  Blind/contextless reviewer `019f1571-eb72-7da1-a8b5-346de0bd34fd` passed
+  with no required remediation, verified the backend/frontend contract from
+  repository context only, and confirmed Phase 8110 is the next slice.
+  Phase-end stale-subagent sweep completed: reviewer findings were consumed
+  and the agent was closed. Live Coinbase execution was not run; submitted
+  notional `0` USDC, executed notional `0` USDC.
 
 ### Phase 8110 - Post-Write Evidence Contract Review
 
