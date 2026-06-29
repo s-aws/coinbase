@@ -403,6 +403,15 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 - Ensure missing correlation behavior is visible as `unsupported` or
   `not_modeled` with owning module and next action, not hidden by browser
   fallbacks.
+- Evidence update 2026-06-29: frontend Audit Workbench now surfaces backend
+  `unsupported` and `not_modeled` audit/reconciliation evidence as explicit
+  Unsupported Correlation Gap rows with owning module, identity, blockers,
+  evidence, next backend action, and no-authority flags. This is a frontend
+  display improvement over existing backend evidence only; it does not change
+  backend schema, backend query scope, command execution, reconciliation
+  execution, proof writing, order/exchange mutation, Coinbase calls, or
+  browser/BFF authority. No phase-scoped subagents were spawned; live Coinbase
+  execution was not run and submitted/executed notional stayed 0 USDC.
 
 ### Phase 8075 - Mock Runtime Parity
 
