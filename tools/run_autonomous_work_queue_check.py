@@ -71,29 +71,29 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "8001-8020"
-APPROVED_PHASES = tuple(range(8001, 8021))
+APPROVED_PHASE_RANGE = "8021-8040"
+APPROVED_PHASES = tuple(range(8021, 8041))
 EXPECTED_RELEASE_PHASE_TITLES = {
-    8001: "Advance Active Queue Range",
-    8002: "M55 Stealth Action-State Scope",
-    8003: "Backend Stealth Action-State Contract",
-    8004: "Stealth Command Gate Source Map",
-    8005: "Selected Order Action-State Fixture",
-    8006: "Frontend Schema Sync",
-    8007: "Stealth Adapter Action-State Mapping",
-    8008: "Stealth Detail Action-State Matrix",
-    8009: "Command Handoff Gate Labels",
-    8010: "No-Live Authority Assertions",
-    8011: "Active Placement Boundary Rows",
-    8012: "Recovery/Reconciliation Boundary Rows",
-    8013: "Movement Reprice Boundary Row",
-    8014: "Mock Runtime Parity",
-    8015: "Focused Backend Tests",
-    8016: "Focused Frontend Tests",
-    8017: "Documentation Update",
-    8018: "Blind Contextless Review",
-    8019: "Focused Validation And Hygiene",
-    8020: "Commit And Push Evidence",
+    8021: "Advance Active Queue Range",
+    8022: "Blind Contextless Preflight Review",
+    8023: "Movement/Repricing Action-State Scope",
+    8024: "Backend Movement Action-State Contract",
+    8025: "Move And Premark Gate Source Map",
+    8026: "Reprice Cooldown Claim Source Map",
+    8027: "Cancel Replace Boundary Rows",
+    8028: "Audit Recovery Boundary Rows",
+    8029: "Frontend Schema Sync",
+    8030: "Movement Adapter Action-State Mapping",
+    8031: "Movement Read Model Action-State Matrix",
+    8032: "Command Handoff Gate Labels",
+    8033: "Unsupported Not-Modeled Visibility",
+    8034: "No-Live Authority Assertions",
+    8035: "Mock Runtime Parity",
+    8036: "Focused Backend Tests",
+    8037: "Focused Frontend Tests",
+    8038: "Documentation Update",
+    8039: "Focused Validation And Hygiene",
+    8040: "Commit And Push Evidence",
 }
 PROOF_ONLY_ACTIVE_PHASE_TITLE_PATTERNS = (
     re.compile(r"Futures/Perpetuals", re.IGNORECASE),
@@ -104,13 +104,14 @@ PROOF_ONLY_ACTIVE_PHASE_TITLE_PATTERNS = (
     re.compile(r"Summary Evidence", re.IGNORECASE),
     re.compile(r"Display Evidence", re.IGNORECASE),
 )
-PREVIOUS_COMPLETED_PHASE_RANGE = "7981-8000"
+PREVIOUS_COMPLETED_PHASE_RANGE = "8001-8020"
 RELEASE_PIVOT_PHRASE = (
-    "Active Release 0.1 `8001-8020` adds an M55 Stealth Action-State "
-    "Matrix so operators can see each selected stealth order command as "
+    "Active Release 0.1 `8021-8040` adds a Movement/Repricing "
+    "Action-State Matrix so operators can see move, premark, reprice, "
+    "cooldown, claim, cancel/replace, audit, and recovery workflows as "
     "usable, blocked, unsupported, or not modeled from backend evidence "
-    "while completed `7981-8000` carries the Release 0.1 operator pivot "
-    "and sweep executor readiness evidence."
+    "while completed `8001-8020` carries the M55 Stealth Action-State "
+    "Matrix evidence."
 )
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"

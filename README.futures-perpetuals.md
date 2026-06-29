@@ -5,12 +5,17 @@ position evidence through the enterprise Admin API. It is a separate module,
 not a Spot variant.
 
 Current active work has pivoted to Release 0.1 operator-admin delivery.
-Active Release 0.1 `8001-8020` adds an M55 Stealth Action-State Matrix so
+Active Release 0.1 `8021-8040` adds a Movement/Repricing Action-State Matrix
+so operators can see move, premark, reprice, cooldown, claim, cancel/replace,
+audit, and recovery workflows as usable, blocked, unsupported, or not modeled
+from backend evidence.
+Exact active release phrase: Active Release 0.1 `8021-8040` adds a Movement/Repricing Action-State Matrix so operators can see move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows as usable, blocked, unsupported, or not modeled from backend evidence while completed `8001-8020` carries the M55 Stealth Action-State Matrix evidence.
+Completed Release 0.1 `8001-8020` added an M55 Stealth Action-State Matrix so
 operators can see each selected stealth order command as usable, blocked,
 unsupported, or not modeled from backend evidence while completed `7981-8000`
 carries the Release 0.1 operator pivot and sweep executor readiness evidence.
 
-Exact active release phrase: Active Release 0.1 `8001-8020` adds an M55 Stealth Action-State Matrix so operators can see each selected stealth order command as usable, blocked, unsupported, or not modeled from backend evidence while completed `7981-8000` carries the Release 0.1 operator pivot and sweep executor readiness evidence.
+Exact completed release phrase: Completed Release 0.1 `8001-8020` added an M55 Stealth Action-State Matrix so operators can see each selected stealth order command as usable, blocked, unsupported, or not modeled from backend evidence while completed `7981-8000` carries the Release 0.1 operator pivot and sweep executor readiness evidence.
 
 ## When To Use
 

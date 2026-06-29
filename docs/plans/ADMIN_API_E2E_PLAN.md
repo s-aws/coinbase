@@ -49,20 +49,30 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 8001-8020
+## Current Active Phases 8021-8040
 
-Batch label: M55 Stealth Action-State Matrix.
+Batch label: Movement/Repricing Action-State Matrix.
 
-Current Release 0.1 `8001-8020` adds a backend-owned M55 Stealth
-Action-State Matrix so the frontend can show selected stealth order commands
-as usable, blocked, `unsupported`, or `not_modeled` from API evidence. The
-active goal is not another proof-summary table; it is operator clarity for a
-Release 0.1 Stealth commands blocker while preserving exchange-reality
-invariants and no-live authority boundaries.
+Current Release 0.1 `8021-8040` adds a backend-owned Movement/Repricing
+Action-State Matrix so the frontend can show move, premark, reprice,
+cooldown, claim, cancel/replace, audit, and recovery workflows as usable,
+blocked, `unsupported`, or `not_modeled` from API evidence. The active goal is
+not another proof-summary table; it is operator clarity for a Release 0.1
+Movement and Repricing blocker while preserving mutation locks,
+replacement-slot invariants, cooldown semantics, and no-live authority
+boundaries.
 
 Every phase must answer: Does this make the frontend able to manage the project?
 
-Exact autonomous phrase: Active Release 0.1 `8001-8020` adds an M55 Stealth Action-State Matrix so operators can see each selected stealth order command as usable, blocked, unsupported, or not modeled from backend evidence while completed `7981-8000` carries the Release 0.1 operator pivot and sweep executor readiness evidence.
+Exact autonomous phrase: Active Release 0.1 `8021-8040` adds a Movement/Repricing Action-State Matrix so operators can see move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows as usable, blocked, unsupported, or not modeled from backend evidence while completed `8001-8020` carries the M55 Stealth Action-State Matrix evidence.
+
+## Completed Phases 8001-8020
+
+Batch label: M55 Stealth Action-State Matrix.
+
+Completed Release 0.1 `8001-8020` added backend-derived selected stealth
+command-family action-state templates and the frontend selected stealth
+action-state matrix. Blind/contextless review passed after remediation.
 
 ## Completed Phases 7981-8000
 

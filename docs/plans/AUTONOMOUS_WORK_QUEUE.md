@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **8001-8020**.
+- Approved phase range: **8021-8040**.
 - Range status: active under Release 0.1 - Private Operator Admin MVP.
-- Previous completed range: `7981-8000`.
+- Previous completed range: `8001-8020`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -109,6 +109,14 @@ result in the phase evidence, handoff, or closeout summary before advancing.
   0.1 blocker without adding browser/BFF execution authority, route-local
   execution, Coinbase calls, hide-again shortcuts, or local stealth mutation
   without exchange cancel/move/reconcile proof.
+- Phase `8001-8020` completion status: completed and pushed in backend commit
+  `bab25737` and frontend commit `65de74a`. The range added backend-derived
+  selected stealth command-family action-state templates and the frontend
+  selected stealth action-state matrix. Blind/contextless review passed after
+  remediation clarified `scope=command_family_template`,
+  `order_specific_adjudication=false`, and no browser/BFF execution authority.
+  Live Coinbase execution was not run; submitted notional `0` USDC, executed
+  notional `0` USDC.
 
 ## Current Progress Record
 
@@ -116,11 +124,11 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `8000`.
+- `current_phase`: `8020`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
-- `next_phase`: `start_m55_stealth_action_state_matrix`.
+- `next_phase`: `start_movement_repricing_action_state_matrix`.
 
 ## Stop Conditions
 
@@ -137,11 +145,137 @@ baseline before the range, not the final phase id in the active range.
 - Work would add evidence-only roadmap expansion without tying it to a named Release 0.1 blocker.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 8001-8020
+## Active Phases 8021-8040
+
+Batch label: Movement/Repricing Action-State Matrix.
+
+These phases clear the next concrete Release 0.1 blocker for
+Movement/Repricing: operators can see move, premark, reprice, cooldown, claim,
+cancel/replace, audit, and recovery workflows as usable, blocked,
+`unsupported`, or `not_modeled` from backend evidence before any controls are
+added. The matrix must preserve existing mutation locks, replacement-slot
+rules, cooldown semantics, and no-live authority boundaries. It must not add
+browser/BFF execution authority, route-local FastAPI execution, dashboard
+WebSocket calls, Coinbase calls, reconciliation execution, movement state
+mutation, or a second order movement path.
+
+Every phase must answer: Does this make the frontend able to manage the project?
+
+Active Release 0.1 `8021-8040` adds a Movement/Repricing Action-State Matrix
+so operators can see move, premark, reprice, cooldown, claim, cancel/replace,
+audit, and recovery workflows as usable, blocked, unsupported, or not modeled
+from backend evidence while completed `8001-8020` carries the M55 Stealth
+Action-State Matrix evidence.
+
+Exact autonomous phrase: Active Release 0.1 `8021-8040` adds a Movement/Repricing Action-State Matrix so operators can see move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows as usable, blocked, unsupported, or not modeled from backend evidence while completed `8001-8020` carries the M55 Stealth Action-State Matrix evidence.
+
+### Phase 8021 - Advance Active Queue Range
+
+- Update autonomous validators, durable state, handoff docs, and phase records
+  so active work is `8021-8040` and completed `8001-8020` remains historical
+  M55 action-state evidence.
+
+### Phase 8022 - Blind Contextless Preflight Review
+
+- Run the required blind/contextless review before broadening
+  movement/repricing UI behavior, then remediate blocking ambiguity before
+  implementation proceeds.
+
+### Phase 8023 - Movement/Repricing Action-State Scope
+
+- Define the movement/repricing action-state matrix scope from the Release 0.1
+  blocker table and the backend route-to-UI matrix.
+
+### Phase 8024 - Backend Movement Action-State Contract
+
+- Add or extend a backend-owned read contract that reports movement/repricing
+  action states without executing moves, reprices, cancellations,
+  reconciliation, Coinbase calls, or state mutation.
+
+### Phase 8025 - Move And Premark Gate Source Map
+
+- Map move and premark action-state rows to exact backend evidence refs,
+  missing contracts, mutation locks, and replacement-slot boundaries.
+
+### Phase 8026 - Reprice Cooldown Claim Source Map
+
+- Map reprice, cooldown, and claim action-state rows to exact backend evidence
+  refs, missing contracts, cooldown blockers, and claim ownership boundaries.
+
+### Phase 8027 - Cancel Replace Boundary Rows
+
+- Surface cancel/replace blocker rows as backend evidence only, preserving
+  exchange-reality and replacement-slot invariants.
+
+### Phase 8028 - Audit Recovery Boundary Rows
+
+- Surface movement audit and recovery blockers as backend evidence only, with
+  no reconciliation or state repair authority in the frontend/BFF.
+
+### Phase 8029 - Frontend Schema Sync
+
+- Regenerate frontend API schema from the backend OpenAPI contract without
+  hand-editing generated files.
+
+### Phase 8030 - Movement Adapter Action-State Mapping
+
+- Map backend movement/repricing action-state rows through canonical frontend
+  adapters with no feature-local fetches and no frontend authority inference.
+
+### Phase 8031 - Movement Read Model Action-State Matrix
+
+- Render the movement/repricing action-state matrix in the Movement/Repricing
+  read model so operators can see command state, blockers, gates, and handoff
+  refs.
+
+### Phase 8032 - Command Handoff Gate Labels
+
+- Align movement/repricing handoff links with backend gate labels and
+  blocked-state language so links do not imply executable authority.
+
+### Phase 8033 - Unsupported Not-Modeled Visibility
+
+- Ensure unsupported and not-modeled movement/repricing behaviors are visible
+  in both backend evidence and frontend UI.
+
+### Phase 8034 - No-Live Authority Assertions
+
+- Add focused assertions that the new surface does not add live Coinbase
+  execution, browser/BFF execution authority, dashboard WebSocket calls,
+  route-local execution, reconciliation, or movement state mutation.
+
+### Phase 8035 - Mock Runtime Parity
+
+- Keep mock frontend/backend fixtures in parity with the contract.
+
+### Phase 8036 - Focused Backend Tests
+
+- Run focused Admin API, movement/repricing, ownership, and autonomous tests
+  covering the backend contract.
+
+### Phase 8037 - Focused Frontend Tests
+
+- Run focused frontend adapter, read-model, API, and quality tests.
+
+### Phase 8038 - Documentation Update
+
+- Update Movement/Repricing, command workflow, release, and example docs.
+
+### Phase 8039 - Focused Validation And Hygiene
+
+- Run targeted validators, diff checks, stale-process checks where applicable,
+  and phase-end subagent cleanup.
+
+### Phase 8040 - Commit And Push Evidence
+
+- Commit and push synchronized backend/frontend evidence with no-live notional
+  reporting.
+
+## Completed Phases 8001-8020
 
 Batch label: M55 Stealth Action-State Matrix.
 
-These phases clear the next concrete Release 0.1 blocker for Stealth Orders:
+These phases cleared the Release 0.1 blocker for Stealth Orders:
 operators can see each selected stealth order command as usable, blocked,
 `unsupported`, or `not_modeled` from backend evidence before choosing a
 handoff. The matrix must preserve exchange-reality invariants, mutation locks,
@@ -151,12 +285,12 @@ calls, manager invocation, reconciliation execution, or local state mutation.
 
 Every phase must answer: Does this make the frontend able to manage the project?
 
-Active Release 0.1 `8001-8020` adds an M55 Stealth Action-State Matrix so
+Completed Release 0.1 `8001-8020` added an M55 Stealth Action-State Matrix so
 operators can see each selected stealth order command as usable, blocked,
 unsupported, or not modeled from backend evidence while completed `7981-8000`
 carries the Release 0.1 operator pivot and sweep executor readiness evidence.
 
-Exact autonomous phrase: Active Release 0.1 `8001-8020` adds an M55 Stealth Action-State Matrix so operators can see each selected stealth order command as usable, blocked, unsupported, or not modeled from backend evidence while completed `7981-8000` carries the Release 0.1 operator pivot and sweep executor readiness evidence.
+Exact autonomous phrase: Completed Release 0.1 `8001-8020` added an M55 Stealth Action-State Matrix so operators can see each selected stealth order command as usable, blocked, unsupported, or not modeled from backend evidence while completed `7981-8000` carries the Release 0.1 operator pivot and sweep executor readiness evidence.
 
 ### Phase 8001 - Advance Active Queue Range
 

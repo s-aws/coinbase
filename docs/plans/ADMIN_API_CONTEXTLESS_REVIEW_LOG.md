@@ -1,3 +1,29 @@
+## Movement/Repricing Action-State Matrix Review - Phases 8021-8040
+
+Result: pending. Scope: phases `8021-8040`, after completed history through
+`8001-8020`, adds a Movement/Repricing Action-State Matrix so move, premark,
+reprice, cooldown, claim, cancel/replace, audit, and recovery workflows are
+visible as usable, blocked, `unsupported`, or `not_modeled` from backend
+evidence.
+
+No live Coinbase execution is planned; actual submitted/executed notional
+remains `0` USDC.
+Required checker phrase: actual submitted/executed notional remains `0` USDC.
+
+Boundary evidence for current Release 0.1 review: this range must answer
+"Does this make the frontend able to manage the project?" Future work must
+clear the Movement and Repricing Release 0.1 blocker or directly improve the
+usable private operator MVP. Unsupported backend behavior must be visible as
+unsupported` or `not_modeled`. There must be no proof-only expansion, no
+browser/BFF execution authority, no dashboard WebSocket execution, no
+route-local FastAPI execution, no Coinbase calls, no reconciliation execution,
+no movement/order/exchange state mutation, and no second trading path.
+Required checker phrase: named Release 0.1 blocker.
+Required checker phrase: Release 0.1 Operator Admin Pivot.
+Required checker phrase: usable private operator MVP.
+Required checker phrase: unsupported` or `not_modeled`.
+Required checker phrase: no browser/BFF execution authority.
+
 ## M55 Stealth Action-State Matrix Review - Phases 8001-8020
 
 Result: PASS after remediation. Scope: phases `8001-8020`, after completed history through

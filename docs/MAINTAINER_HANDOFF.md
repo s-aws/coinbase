@@ -129,24 +129,28 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `7981-8000` under Release 0.1.
+- Latest completed autonomous range: `8001-8020` under Release 0.1.
 - Latest completed and pushed range before the active Release 0.1 work:
-  `7981-8000`.
-- Active autonomous range: `8001-8020` under Release 0.1.
-- Current active range: `8001-8020` adds an M55 Stealth Action-State Matrix so
-  selected stealth order commands are visible as usable, blocked,
-  `unsupported`, or `not_modeled` from backend evidence. Every new phase must
-  clear the Stealth commands Release 0.1 blocker or directly improve the usable
-  admin product. Unsupported backend behavior must be surfaced explicitly; do
-  not implement missing behavior in the browser, BFF, route-local FastAPI
-  handlers, or any second trading path.
+  `8001-8020`.
+- Active autonomous range: `8021-8040` under Release 0.1.
+- Current active range: `8021-8040` adds a Movement/Repricing Action-State
+  Matrix so move, premark, reprice, cooldown, claim, cancel/replace, audit,
+  and recovery workflows are visible as usable, blocked, `unsupported`, or
+  `not_modeled` from backend evidence. Every new phase must clear the Movement
+  and Repricing Release 0.1 blocker or directly improve the usable admin
+  product. Unsupported backend behavior must be surfaced explicitly; do not
+  implement missing behavior in the browser, BFF, dashboard WebSockets,
+  route-local FastAPI handlers, Coinbase calls, or any second trading path.
 - Required checker phrase: usable admin product.
 - Required checker phrase: unsupported` or `not_modeled`.
-- Phase `8001` instruction review: backend `AGENTS.md`, backend `agent.md`,
+- Phase `8021` instruction review: backend `AGENTS.md`, backend `agent.md`,
   backend owner contracts, frontend `AGENTS.md`, frontend owner contracts, and
-  ordered frontend docs were reviewed on 2026-06-28 before activating M55
-  stealth action-state work. No phase-direction change was required, but the
-  work must preserve stealth exchange-reality invariants and no-live authority.
+  ordered frontend docs were reviewed on 2026-06-29 before activating
+  Movement/Repricing action-state work. The review changed the phase order:
+  the frontend contextless-agent gate requires a blind/contextless preflight
+  before broadening non-spot movement/repricing UI behavior, so phase `8022`
+  is now the pre-implementation review. The work must preserve mutation locks,
+  replacement-slot invariants, and no-live authority.
 - Phase `7981-8000` instruction review: backend `AGENTS.md`, backend
   `agent.md`, frontend `AGENTS.md`, and related agent contract docs were
   reviewed on 2026-06-27 before the Release 0.1 matrix work and again on
@@ -167,13 +171,11 @@ notional, retained inventory, reconciliation result, and audit ids.
   live-service dependency, service-level acknowledgement rejection before
   REST, and can only reach `cancel_order(client_order_id)` when all backend
   gates pass.
-- Exact next implementation slice: continue approved Release 0.1 closeout
-  support through frontend contextless review work (`7998`). Backend
-  contextless review (`7997`) passed after remediation of stale current Admin
-  API command-authority docs and contextless checklist bootstrap. Operator
-  runbook, documentation index, autonomous validator, and backend contextless
-  review work are complete for this active range. Do not create another spot
-  proof slice unless it clears a named Release 0.1 blocker.
+- Exact next implementation slice: continue approved Release 0.1 blocker
+  clearing through active `8021-8040` Movement/Repricing Action-State Matrix
+  work. Completed `8001-8020` M55 action-state work is pushed in backend commit
+  `bab25737` and frontend commit `65de74a`. Do not create another proof slice
+  unless it clears a named Release 0.1 blocker.
 - Completed `7961-7980` added risk-proof record validation remediation summary
   evidence derived from existing per-command risk-proof record-validation
   remediation rows and remains carried-forward disabled, no-live,

@@ -11,11 +11,14 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 8001-8020 range is the Release 0.1 operator-admin pivot. Active
-Release 0.1 `8001-8020` pivots the admin platform to product-managing operator
-workflows while completed M57 `7961-7980` carries forward futures risk-proof
-record validation remediation summary evidence. Current examples use
-`"approved_phase_range": "8001-8020"` for active release-control metadata.
+The active 8021-8040 range is the Release 0.1 Movement/Repricing
+Action-State Matrix. Active Release 0.1 `8021-8040` adds a
+Movement/Repricing Action-State Matrix so operators can see move, premark,
+reprice, cooldown, claim, cancel/replace, audit, and recovery workflows as
+usable, blocked, unsupported, or not modeled from backend evidence while
+completed `8001-8020` carries the M55 Stealth Action-State Matrix evidence.
+Current examples use `"approved_phase_range": "8021-8040"` for active
+release-control metadata.
 
 The completed 7961-7980 range targeted explicit M57 futures/perpetual
 risk-proof record validation remediation summary evidence.
