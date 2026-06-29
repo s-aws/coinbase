@@ -417,6 +417,15 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Keep mock runtime fixtures in parity with the backend audit/reconciliation
   correlation contract and mark mock data non-authoritative.
+- Evidence update 2026-06-29: reviewed backend and frontend `AGENTS.md`; no
+  phase constraints changed. Frontend mock Audit Workbench fixtures now carry
+  non-authoritative parity markers and a backend-shaped `not_modeled`
+  reconciliation row for local unsupported-gap coverage. This is fixture
+  parity only; no backend schema, backend execution path, reconciliation
+  execution, proof writing, Coinbase call, browser/BFF authority, or
+  order/exchange mutation changed. No phase-scoped subagents were spawned; live
+  Coinbase execution was not run and submitted/executed notional stayed
+  0 USDC.
 
 ### Phase 8076 - No-Live Authority Assertions
 
