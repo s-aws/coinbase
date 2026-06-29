@@ -71,29 +71,29 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "8041-8060"
-APPROVED_PHASES = tuple(range(8041, 8061))
+APPROVED_PHASE_RANGE = "8061-8080"
+APPROVED_PHASES = tuple(range(8061, 8081))
 EXPECTED_RELEASE_PHASE_TITLES = {
-    8041: "Advance Active Queue Range",
-    8042: "Spot Command Operator E2E Scope",
-    8043: "Backend Spot Command Happy-Path Contract Audit",
-    8044: "Manual Order Request Evidence Fixtures",
-    8045: "Cancel By Client Order Handoff Evidence",
-    8046: "Direct Order Audit Handoff Parity",
-    8047: "Frontend Command Runtime State Audit",
-    8048: "Spot Operations Audit Lookup E2E",
-    8049: "Orders To Cancel Handoff E2E",
-    8050: "Spot Sell Authority Visibility E2E",
-    8051: "Backend Association Smoke Script",
-    8052: "Frontend Browser Smoke Path",
-    8053: "BFF Forwarding Boundary Assertions",
-    8054: "No-Live Authority Assertions",
-    8055: "Mock Runtime Parity",
-    8056: "Focused Backend Tests",
-    8057: "Focused Frontend Tests",
-    8058: "Blind Contextless Review",
-    8059: "Validation And Hygiene",
-    8060: "Commit And Push Evidence",
+    8061: "Advance Active Queue Range",
+    8062: "Audit/Reconciliation Operator Scope",
+    8063: "Backend Audit Source Inventory",
+    8064: "Command Attempt Timeline Contract",
+    8065: "Approval And Admission Correlation Contract",
+    8066: "Cap Guard And Wallet Correlation Contract",
+    8067: "Exchange Intent And Fill Correlation Contract",
+    8068: "Reconciliation Status Correlation Contract",
+    8069: "Frontend Audit Timeline Adapter",
+    8070: "Frontend Reconciliation Evidence Panel",
+    8071: "Spot Command Result To Audit Timeline Handoff",
+    8072: "Orders/Fills To Reconciliation Handoff",
+    8073: "Audit Search And Filter Operator UX",
+    8074: "Unsupported Gap Surfacing",
+    8075: "Mock Runtime Parity",
+    8076: "No-Live Authority Assertions",
+    8077: "Focused Backend Tests",
+    8078: "Focused Frontend Tests",
+    8079: "Blind Contextless Review",
+    8080: "Commit And Push Evidence",
 }
 PROOF_ONLY_ACTIVE_PHASE_TITLE_PATTERNS = (
     re.compile(r"Futures/Perpetuals", re.IGNORECASE),
@@ -104,14 +104,14 @@ PROOF_ONLY_ACTIVE_PHASE_TITLE_PATTERNS = (
     re.compile(r"Summary Evidence", re.IGNORECASE),
     re.compile(r"Display Evidence", re.IGNORECASE),
 )
-PREVIOUS_COMPLETED_PHASE_RANGE = "8021-8040"
+PREVIOUS_COMPLETED_PHASE_RANGE = "8041-8060"
 RELEASE_PIVOT_PHRASE = (
-    "Active Release 0.1 `8041-8060` adds a Spot Command Operator E2E "
-    "slice so operators can verify manual spot order, cancel-by-"
-    "client_order_id, direct-order audit, and command handoff workflows "
-    "through the enterprise frontend/API without browser/BFF trading "
-    "authority while completed `8021-8040` carries the Movement/Repricing "
-    "Action-State Matrix evidence."
+    "Active Release 0.1 `8061-8080` adds an Audit/Reconciliation Operator "
+    "Correlation slice so operators can correlate command attempts, "
+    "approvals, admission audits, cap/guard decisions, exchange intent, "
+    "fills, and reconciliation status through the enterprise frontend/API "
+    "without browser/BFF trading authority while completed `8041-8060` "
+    "carries the Spot Command Operator E2E evidence."
 )
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"

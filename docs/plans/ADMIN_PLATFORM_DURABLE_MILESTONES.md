@@ -184,7 +184,7 @@ not independent roadmaps.
 | M58 - Automation, Campaign, Scheduler, And Retry Suite | Approved; not started | Complete durable scheduling, run limits, pause/resume, retries, operator status, and recovery for automation without browser schedulers or parallel live paths. |
 | M59 - Recovery, Repair, Policy, And Operations Admin | Approved; not started | Add backend-owned repair, policy/configuration, role, deployment, observability, and operator runbook administration without exposing secrets or browser-held authority. |
 | M60 - Full Functionality Release Candidate | Approved; not started | Prove all supported backend functionality through security review, regression, release gates, live-cap evidence, contextless reviews, and public maintainer handoff. |
-| M61 - Release 0.1 Private Operator Admin MVP | In Progress; active range 8041-8060 | Release a usable private operator admin product that can manage backend-supported workflows while explicit gaps appear as `unsupported` or `not_modeled`. |
+| M61 - Release 0.1 Private Operator Admin MVP | In Progress; active range 8061-8080 | Release a usable private operator admin product that can manage backend-supported workflows while explicit gaps appear as `unsupported` or `not_modeled`. |
 
 ## Remaining Milestone Dependency Ledger
 

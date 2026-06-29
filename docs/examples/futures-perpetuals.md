@@ -11,13 +11,14 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 8041-8060 range is the Release 0.1 Spot Command Operator E2E
-slice. Active Release 0.1 `8041-8060` adds a spot command operator path so
-operators can verify manual spot order, cancel-by-client_order_id,
-direct-order audit, and command handoff workflows through the enterprise
-frontend/API without browser/BFF trading authority while completed `8021-8040`
-carries the Movement/Repricing Action-State Matrix evidence.
-Current examples use `"approved_phase_range": "8041-8060"` for active
+The active 8061-8080 range is the Release 0.1 Audit/Reconciliation Operator
+Correlation slice. Active Release 0.1 `8061-8080` adds an audit/reconciliation
+operator correlation path so operators can correlate command attempts,
+approvals, admission audits, cap/guard decisions, exchange intent, fills, and
+reconciliation status through the enterprise frontend/API without browser/BFF
+trading authority while completed `8041-8060` carries the Spot Command
+Operator E2E evidence.
+Current examples use `"approved_phase_range": "8061-8080"` for active
 release-control metadata.
 
 The completed 7961-7980 range targeted explicit M57 futures/perpetual

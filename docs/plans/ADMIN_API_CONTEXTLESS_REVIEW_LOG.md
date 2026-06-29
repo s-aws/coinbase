@@ -1,3 +1,29 @@
+## Audit/Reconciliation Operator Correlation Review - Phases 8061-8080
+
+Result: planned. Scope: phases `8061-8080`, after completed history through
+`8041-8060`, adds an Audit/Reconciliation Operator Correlation slice so
+operators can correlate command attempts, approvals, admission audits,
+cap/guard decisions, exchange intent, fills, and reconciliation status through
+the enterprise frontend/API without browser/BFF trading authority.
+
+No live Coinbase execution is planned; actual submitted/executed notional
+remains `0` USDC.
+Required checker phrase: actual submitted/executed notional remains `0` USDC.
+
+Boundary evidence for current Release 0.1 review: this range must answer
+"Does this make the frontend able to manage the project?" Future work must
+clear the Audit and Reconciliation Release 0.1 blocker or directly improve
+the usable private operator MVP. Unsupported backend behavior must be visible
+as unsupported` or `not_modeled`. There must be no proof-only expansion, no
+browser/BFF execution authority, no dashboard WebSocket execution, no
+route-local FastAPI execution, no Coinbase calls by default, no reconciliation
+execution, no order/exchange state mutation, and no second trading path.
+Required checker phrase: named Release 0.1 blocker.
+Required checker phrase: Release 0.1 Operator Admin Pivot.
+Required checker phrase: usable private operator MVP.
+Required checker phrase: unsupported` or `not_modeled`.
+Required checker phrase: no browser/BFF execution authority.
+
 ## Spot Command Operator E2E Review - Phases 8041-8060
 
 Result: PASS after remediation. Scope: phases `8041-8060`, after completed history

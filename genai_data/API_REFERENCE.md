@@ -24,13 +24,13 @@ routes remain live-disabled/fail-closed and must not call Coinbase.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Active Release 0.1 `8041-8060` adds a Spot Command Operator E2E slice so
-operators can verify manual spot order, cancel-by-client_order_id,
-direct-order audit, and command handoff workflows through the enterprise
-frontend/API without browser/BFF trading authority while completed `8021-8040`
-carries the Movement/Repricing Action-State Matrix evidence. The governing
-question for new work is: Does this make the frontend able to manage the
-project?
+Active Release 0.1 `8061-8080` adds an Audit/Reconciliation Operator
+Correlation slice so operators can correlate command attempts, approvals,
+admission audits, cap/guard decisions, exchange intent, fills, and
+reconciliation status through the enterprise frontend/API without browser/BFF
+trading authority while completed `8041-8060` carries the Spot Command
+Operator E2E evidence. The governing question for new work is: Does this make
+the frontend able to manage the project?
 
 Completed M57 `7961-7980` futures/perpetual risk-proof record validation
 remediation summary evidence for `GET /api/v1/futures/command-suite` is

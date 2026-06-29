@@ -24,17 +24,19 @@ work. Historical milestone detail belongs in
 
 ## Current Phase
 
-- Latest completed and pushed range before this work: `8021-8040`.
+- Latest completed and pushed range before this work: `8041-8060`.
 - Latest completed and pushed range before the active Release 0.1 work:
-  `8021-8040`.
-- Active approved range: `8041-8060`.
-- Scope: Spot Command Operator E2E under Release 0.1. The active range must
-  make manual spot order, cancel-by-`client_order_id`, direct-order audit, and
-  command handoff workflows verifiable through the enterprise frontend/API
-  without relying on proof-of-concept dashboards. Every phase must either
-  clear the Spot Command Release 0.1 blocker from
+  `8041-8060`.
+- Active approved range: `8061-8080`.
+- Scope: Audit/Reconciliation Operator Correlation under Release 0.1. The
+  active range must make command attempts, approvals, admission audits,
+  cap/guard decisions, exchange intent, fills, and reconciliation status
+  correlatable through the enterprise frontend/API without relying on
+  proof-of-concept dashboards. Every phase must either clear the Audit and
+  Reconciliation Release 0.1 blocker from
   `docs/plans/ADMIN_RELEASE_0_1_BURNDOWN.md` or directly improve the
-  frontend's ability to manage backend-supported spot command workflows.
+  frontend's ability to manage backend-supported audit/reconciliation
+  workflows.
 - Unsupported backend behavior must remain explicit as `unsupported` or `not_modeled`; it must not be hidden by browser/BFF behavior.
 - Governing pivot label: Release 0.1 Operator Admin Pivot.
 - Backend implementation status: active work should audit and tighten the
@@ -54,11 +56,11 @@ work. Historical milestone detail belongs in
 - Phase instruction review status: backend `AGENTS.md`, backend `agent.md`,
   backend owner contracts, frontend `AGENTS.md`, frontend owner contracts, and
   ordered frontend docs were reviewed again on 2026-06-29 for Phase 8021 and
-  again before activating `8041-8060`. Release 0.1 product progress remains
+  again before activating `8061-8080`. Release 0.1 product progress remains
   the controlling rule: every phase must clear a named Release 0.1 blocker or
   directly improve usable admin management. The current range must keep Spot
-  command authority in the backend and make the operator path verifiable
-  without adding browser/BFF trading authority.
+  command authority in the backend and make the audit/reconciliation operator
+  path verifiable without adding browser/BFF trading authority.
 - Release 0.1 matrix status:
   `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md` and frontend
   `docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md` now identify operator
@@ -115,6 +117,15 @@ work. Historical milestone detail belongs in
   execution, and live execution. The frontend Campaigns panel consumes those
   rows as no-live blocker evidence with no browser/BFF scheduler, runner, or
   Coinbase authority.
+- Completed Spot Command Operator slice: backend commit `05093483` and
+  frontend commit `6f86b37` completed `8041-8060` by adding manual spot order,
+  cancel-by-client_order_id, direct-order audit, and command handoff
+  verification through the enterprise frontend/API. Blind/contextless review
+  passed after remediation clarified the two route-scoped manual Spot live
+  exceptions, stamped all other mutating OpenAPI routes as no-live/fail-closed
+  for Coinbase execution, and confirmed no frontend/BFF trading authority.
+  Live Coinbase execution was not run for this range; submitted/executed
+  notional remained `0`/`0` USDC.
 - Completed Movement/Repricing slice: backend commit `9edf7b29` and frontend
   commit `f0feb44` completed `8021-8040` by adding backend-owned movement/
   repricing action-state rows and the frontend action-state matrix. Blind/
@@ -128,10 +139,10 @@ work. Historical milestone detail belongs in
   Live Coinbase execution was not run; submitted/executed notional remained
   `0`/`0` USDC.
 - Exact next implementation slice: continue Release 0.1 blocker clearing by
-  adding the Spot Command Operator E2E path from active `8041-8060`. Do not
-  add browser scheduler, BFF runner authority, retry loops, route-local
-  execution, direct Coinbase calls, reconciliation execution, order/exchange
-  state mutation, or a second trading path.
+  adding the Audit/Reconciliation Operator Correlation path from active
+  `8061-8080`. Do not add browser scheduler, BFF runner authority, retry
+  loops, route-local execution, direct Coinbase calls, reconciliation
+  execution, order/exchange state mutation, or a second trading path.
 - Contextless review status: backend Phase 7997 passed after remediation.
   Initial blind reviews blocked on stale current Admin API command-authority
   docs and `genai_data` references that still implied all HTTP mutating routes

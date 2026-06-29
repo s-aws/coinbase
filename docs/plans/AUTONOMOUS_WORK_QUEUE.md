@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **8041-8060**.
+- Approved phase range: **8061-8080**.
 - Range status: active under Release 0.1 - Private Operator Admin MVP.
-- Previous completed range: `8021-8040`.
+- Previous completed range: `8041-8060`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -125,6 +125,13 @@ result in the phase evidence, handoff, or closeout summary before advancing.
   matrix out of frontend-local states and into backend `AdminApiActionState`
   rows. Live Coinbase execution was not run; submitted notional `0` USDC,
   executed notional `0` USDC.
+- Phase `8041-8060` completion status: completed and pushed in backend commit
+  `05093483` and frontend commit `6f86b37`. The range added the Spot Command
+  Operator E2E slice for manual spot order review, cancel-by-client_order_id
+  handoff, direct-order audit lookup, no-live SELL authority visibility,
+  BFF/browser authority assertions, focused validation, and blind/contextless
+  review remediation. Live Coinbase execution was not run for this range;
+  submitted notional `0` USDC, executed notional `0` USDC.
 
 ## Current Progress Record
 
@@ -132,11 +139,11 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `8040`.
+- `current_phase`: `8060`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
-- `next_phase`: `start_spot_command_operator_e2e`.
+- `next_phase`: `start_audit_reconciliation_operator_correlation`.
 
 ## Stop Conditions
 
@@ -153,221 +160,163 @@ baseline before the range, not the final phase id in the active range.
 - Work would add evidence-only roadmap expansion without tying it to a named Release 0.1 blocker.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 8041-8060
+## Active Phases 8061-8080
 
-Batch label: Spot Command Operator E2E.
+Batch label: Audit/Reconciliation Operator Correlation.
 
-These phases clear the next concrete Release 0.1 blocker for Spot commands:
-operators must be able to verify manual spot order, cancel-by-`client_order_id`,
-direct-order audit, and command handoff workflows through the enterprise
-frontend/API without falling back to proof-of-concept dashboards. This range
-is no-live by default: it may improve dry-run, BFF forwarding, local backend
-association, mock parity, browser smoke, and audit handoff evidence, but it
-must not add browser/BFF trading authority, bypass backend gates, call
-Coinbase directly, or create a second order path.
+These phases clear the next concrete Release 0.1 blocker for audit and
+reconciliation: operators must be able to correlate command attempts,
+approvals, admission audits, cap/guard decisions, exchange intent, fills, and
+reconciliation status through the enterprise frontend/API without falling back
+to proof-of-concept dashboards. This range is no-live by default: it may add or
+tighten read models, adapters, UI timelines, filters, handoffs, mocks, and
+focused validation, but it must not add browser/BFF trading authority, bypass
+backend gates, call Coinbase directly, execute reconciliation, mutate order or
+exchange state, or create a second order path.
 
 Every phase must answer: Does this make the frontend able to manage the project?
 
-Active Release 0.1 `8041-8060` adds a Spot Command Operator E2E slice so
-operators can verify manual spot order, cancel-by-client_order_id,
-direct-order audit, and command handoff workflows through the enterprise
-frontend/API without browser/BFF trading authority while completed `8021-8040`
-carries the Movement/Repricing Action-State Matrix evidence.
+Active Release 0.1 `8061-8080` adds an Audit/Reconciliation Operator
+Correlation slice so operators can correlate command attempts, approvals,
+admission audits, cap/guard decisions, exchange intent, fills, and
+reconciliation status through the enterprise frontend/API without browser/BFF
+trading authority while completed `8041-8060` carries the Spot Command Operator
+E2E evidence.
 
-Exact autonomous phrase: Active Release 0.1 `8041-8060` adds a Spot Command Operator E2E slice so operators can verify manual spot order, cancel-by-client_order_id, direct-order audit, and command handoff workflows through the enterprise frontend/API without browser/BFF trading authority while completed `8021-8040` carries the Movement/Repricing Action-State Matrix evidence.
+Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconciliation Operator Correlation slice so operators can correlate command attempts, approvals, admission audits, cap/guard decisions, exchange intent, fills, and reconciliation status through the enterprise frontend/API without browser/BFF trading authority while completed `8041-8060` carries the Spot Command Operator E2E evidence.
 
-### Phase 8041 - Advance Active Queue Range
+### Phase 8061 - Advance Active Queue Range
 
 - Update autonomous validators, durable state, handoff docs, and phase records
-  so active work is `8041-8060` and completed `8021-8040` remains historical
-  Movement/Repricing Action-State Matrix evidence.
-
-### Phase 8042 - Spot Command Operator E2E Scope
-
-- Scope the manual Spot order/cancel operator happy path against the Release
-  0.1 spot-command blocker and existing backend route gates.
-
-### Phase 8043 - Backend Spot Command Happy-Path Contract Audit
-
-- Audit backend manual order, cancel-by-`client_order_id`, direct-order audit,
-  admission, cap/guard, reconciliation, live-service, and event-stream
-  evidence without changing live execution posture.
-
-### Phase 8044 - Manual Order Request Evidence Fixtures
-
-- Add or tighten deterministic request/response fixtures for manual BUY/SELL
-  dry-run and backend-mediated live-disabled review paths.
-
-### Phase 8045 - Cancel By Client Order Handoff Evidence
-
-- Prove cancel handoffs remain keyed by `client_order_id`, never exchange
-  `order_id`, and preserve the backend `cancel_order(client_order_id)`
-  wrapper boundary.
-
-### Phase 8046 - Direct Order Audit Handoff Parity
-
-- Ensure accepted manual-order responses, frontend links, and Spot Operations
-  audit lookup all point to the same direct-order audit evidence.
-
-### Phase 8047 - Frontend Command Runtime State Audit
-
-- Audit command workflow runtime state so order/cancel drafts, acknowledgements,
-  disabled buttons, and result panels are understandable and do not imply
-  browser authority.
-
-### Phase 8048 - Spot Operations Audit Lookup E2E
-
-- Add or tighten operator-level tests for loading direct-order audit evidence
-  from Spot Operations through the canonical backend runtime client.
-
-### Phase 8049 - Orders To Cancel Handoff E2E
-
-- Add or tighten operator-level tests for Orders-to-Command-Workflows cancel
-  handoff, preserving `client_order_id` identity and no automatic submit.
-
-### Phase 8050 - Spot Sell Authority Visibility E2E
-
-- Make no-live SELL authority, lot authority, planned-budget evidence, and
-  guard blockers visible in the operator flow without adding a sell guard in
-  the browser.
-
-### Phase 8051 - Backend Association Smoke Script
-
-- Add or tighten a no-live backend association smoke that exercises the
-  enterprise Admin API command/read path expected by the frontend.
-
-### Phase 8052 - Frontend Browser Smoke Path
-
-- Add or tighten a Playwright smoke path for the private operator command
-  workflow using mock or local-backend no-live evidence.
-- Evidence update 2026-06-29: frontend Playwright now follows the browser
-  operator handoff from Orders to Command Workflows, verifies cancel draft
-  `client_order_id` prefill, verifies no `order_id` cancel input, confirms
-  disabled no-live command gates, and checks direct-order audit no-live
-  evidence. AGENTS.md was re-reviewed for this phase; live Coinbase execution
-  was not run and submitted/executed notional stayed 0 USDC.
-
-### Phase 8053 - BFF Forwarding Boundary Assertions
-
-- Assert the BFF forwards only allowed Admin API routes and never becomes
-  command execution authority.
-- Evidence update 2026-06-29: frontend BFF unit coverage now proves browser
-  actor, live-execution, Coinbase, and browser CSRF authority headers are not
-  forwarded as backend authority, and backend responses expose only documented
-  evidence headers back to the browser. Live Coinbase execution was not run
+  so active work is `8061-8080` and completed `8041-8060` remains historical
+  Spot Command Operator E2E evidence.
+- Evidence update 2026-06-29: active range advanced to `8061-8080`
+  Audit/Reconciliation Operator Correlation, directly tied to the Release 0.1
+  Audit and Reconciliation blocker. AGENTS.md, `agent.md`, agent ownership
+  docs, and frontend AGENTS/ownership docs were re-reviewed for this phase and
+  did not change direction. Backend runtime metadata, autonomous checker,
+  OpenAPI artifact, docs, examples, handoff, and focused regression
+  expectations now report `8061-8080` with `current_phase=8060`.
+  Frontend autonomous policy, artifact contract, deployment readiness,
+  mock/runtime fixtures, generated schema, docs, and unit expectations now
+  report `8061-8080`. Focused backend phase-range tests passed with `5`
+  selected tests; frontend metadata unit coverage passed with `7` files and
+  `145` tests. Backend and frontend autonomous checks, frontend API check,
+  frontend typecheck, stale-process checks, ownership, and diff checks passed.
+  No phase-scoped subagents were spawned. Live Coinbase execution was not run
   and submitted/executed notional stayed 0 USDC.
 
-### Phase 8054 - No-Live Authority Assertions
+### Phase 8062 - Audit/Reconciliation Operator Scope
 
-- Add focused assertions that this slice does not add live Coinbase execution,
-  browser/BFF execution authority, dashboard WebSocket calls, route-local
-  execution, reconciliation execution, or order/exchange state mutation.
-- Evidence update 2026-06-29: AGENTS.md was re-reviewed for this phase.
-  Frontend release evidence now includes a machine-readable
-  `noLiveAuthorityBoundary` contract, and focused quality/autonomous checks
-  require live Coinbase execution `not_run`, submitted/executed notional `0`
-  USDC, display-only browser authority, forward-only/no-execution BFF
-  authority, no local frontend services, no dashboard WebSocket calls, no
-  route-local execution, no reconciliation execution, and no order/exchange
-  state mutation. Live Coinbase execution was not run and submitted/executed
-  notional stayed 0 USDC.
+- Scope the operator correlation path against the Release 0.1 audit and
+  reconciliation blocker and existing backend-owned evidence sources.
 
-### Phase 8055 - Mock Runtime Parity
+### Phase 8063 - Backend Audit Source Inventory
 
-- Keep mock frontend/backend fixtures in parity with the spot command
-  operator E2E contract.
-- Evidence update 2026-06-29: frontend mock runtime fixtures now label the
-  Spot command-suite and direct-order audit mock surfaces with
-  `contract_parity=spot_command_operator_e2e` and
-  `mock_data_authoritative=false`. Focused mock backend unit coverage proves
-  the mock command suite preserves `client_order_id` identity, manual
-  order/cancel no-live posture, display/forward-only authority, direct-order
-  audit parity, and non-authoritative fixture evidence. Live Coinbase
-  execution was not run and submitted/executed notional stayed 0 USDC.
+- Inventory backend command attempts, approvals, admission audits, cap/guard,
+  exchange intent, fills, and reconciliation sources without adding live
+  execution or new mutation paths.
 
-### Phase 8056 - Focused Backend Tests
+### Phase 8064 - Command Attempt Timeline Contract
 
-- Run focused Admin API, spot command, direct-order audit, ownership, and
-  autonomous tests covering the backend contracts.
-- Evidence update 2026-06-29: the initial broad focused backend pytest command
-  timed out; the stale-process checker found no stale backend/frontend test
-  processes. Splitting the set exposed and fixed a stale
-  `test_spot_readiness_gate.py` expectation for the old `6781-6800` active
-  range. Passing focused backend evidence after remediation:
-  `test_spot_direct_order_audit.py` 4 passed,
-  `test_spot_readiness_gate.py` 8 passed,
-  `test_admin_api_spot_sell_authority.py` 3 passed, and the selected Admin API
-  contract subset for manual order, cancel-by-`client_order_id`, spot
-  command-suite, direct-order audit, and order read identity had 7 passed.
-  Live Coinbase execution was not run and submitted/executed notional stayed
-  0 USDC.
+- Add or tighten backend-owned timeline contract fields that let an operator
+  trace a command attempt from request through result evidence.
 
-### Phase 8057 - Focused Frontend Tests
+### Phase 8065 - Approval And Admission Correlation Contract
 
-- Run focused frontend command workflow, spot operations, backend runtime,
-  API, browser-smoke, and quality tests.
-- Evidence update 2026-06-29: focused frontend validation passed for the Spot
-  Command Operator E2E slice. AGENTS.md was re-reviewed for this phase and did
-  not change the Release 0.1 usable-admin direction, frontend no-trading
-  authority boundary, or milestone-closeout regression policy. Unit/component
-  coverage passed for `CommandWorkflowShell`, `SpotReadOnlyViews`,
-  `backendRuntime`, `backendApiClient`, and `mockBackend` with 5 files and 132
-  tests. Generated API/schema route coverage, typecheck, lint, command
-  security, release check, autonomous check, and the Playwright
-  `admin-shell.spec.ts` browser smoke all passed. Playwright covered desktop
-  framing, mobile framing, and the order-to-`client_order_id` command/audit
-  handoff. No stale test processes remained. Live Coinbase execution was not
-  run and submitted/executed notional stayed 0 USDC. No phase-scoped subagents
-  were spawned or left open.
+- Correlate approval records and admission-audit records by backend-owned ids
+  and status fields for operator inspection.
 
-### Phase 8058 - Blind Contextless Review
+### Phase 8066 - Cap Guard And Wallet Correlation Contract
 
-- Run blind/contextless backend/frontend review for the spot command operator
-  E2E path and remediate blocking ambiguity before advancing.
-- Evidence update 2026-06-29: AGENTS.md and required linked agent docs were
-  re-reviewed for this phase with no direction change. Blind/contextless
-  review initially found stale current-facing no-live blanket docs, shortened
-  manual Spot gate lists, route-level OpenAPI ambiguity for non-exception
-  mutating routes, and artifact tests that could overwrite committed files
-  before comparison. Remediation updated backend docs, route docstrings,
-  OpenAPI generation, route inventory, generated frontend schema, and
-  regression tests. Fresh reviewer `019f11fe-19e6-7c31-8ed9-5ac5e53182ae`
-  passed with no blockers and confirmed the two current manual Spot live
-  exceptions, all other mutating route no-live/fail-closed boundaries, temp
-  artifact comparison tests, and no frontend/BFF trading authority. Focused
-  backend and frontend validation passed. Phase-end stale-subagent sweep
-  closed all phase reviewers after findings were consumed and no stale
-  phase-scoped subagent remains intentionally open. Live Coinbase execution
-  was not run and submitted/executed notional stayed 0 USDC.
+- Correlate cap/guard, wallet, lot, and budget evidence with the command
+  attempt timeline without moving guard logic into the frontend.
 
-### Phase 8059 - Validation And Hygiene
+### Phase 8067 - Exchange Intent And Fill Correlation Contract
 
-- Run targeted validators, diff checks, stale-process checks where applicable,
-  and phase-end subagent cleanup.
-- Evidence update 2026-06-29: Phase 8059 validation/hygiene passed after the
-  Phase 8058 commits. Backend stale-process check with sibling frontend scope
-  found no stale test processes. Backend autonomous queue check passed and
-  ownership check reported no changed files. Frontend generated API freshness,
-  Admin API route coverage, TypeScript typecheck, autonomous queue check,
-  frontend stale-process check, backend `git diff --check`, frontend
-  `git diff --check`, and clean-tree checks all passed. No phase-scoped
-  subagents were spawned for this validation-only phase. Live Coinbase
-  execution was not run and submitted/executed notional stayed 0 USDC.
+- Correlate exchange intent, submission, Coinbase evidence ids, fill-ledger
+  rows, and imported baselines as read-only evidence.
 
-### Phase 8060 - Commit And Push Evidence
+### Phase 8068 - Reconciliation Status Correlation Contract
+
+- Correlate reconciliation plans, post-submit audit handoffs, pending gaps,
+  and unsupported/not_modeled states without executing reconciliation.
+
+### Phase 8069 - Frontend Audit Timeline Adapter
+
+- Map generated backend timeline evidence into typed frontend adapters using
+  canonical runtime clients only.
+
+### Phase 8070 - Frontend Reconciliation Evidence Panel
+
+- Render reconciliation status, blockers, handoff ids, unsupported states, and
+  next owning module in the operator UI.
+
+### Phase 8071 - Spot Command Result To Audit Timeline Handoff
+
+- Link manual Spot command results into the audit timeline by client_order_id
+  and backend evidence ids without automatic resubmission.
+
+### Phase 8072 - Orders/Fills To Reconciliation Handoff
+
+- Link orders, fills, and direct-order audit views into reconciliation evidence
+  using backend-owned read paths.
+
+### Phase 8073 - Audit Search And Filter Operator UX
+
+- Add or tighten operator search/filter affordances for command id,
+  client_order_id, status, blocker type, and evidence family.
+
+### Phase 8074 - Unsupported Gap Surfacing
+
+- Ensure missing correlation behavior is visible as `unsupported` or
+  `not_modeled` with owning module and next action, not hidden by browser
+  fallbacks.
+
+### Phase 8075 - Mock Runtime Parity
+
+- Keep mock runtime fixtures in parity with the backend audit/reconciliation
+  correlation contract and mark mock data non-authoritative.
+
+### Phase 8076 - No-Live Authority Assertions
+
+- Prove this slice adds no live Coinbase execution, browser/BFF execution
+  authority, dashboard WebSocket calls, route-local execution,
+  reconciliation execution, or order/exchange state mutation.
+
+### Phase 8077 - Focused Backend Tests
+
+- Run focused backend Admin API, audit, reconciliation, autonomous, ownership,
+  and generated-contract checks that cover the correlation path.
+
+### Phase 8078 - Focused Frontend Tests
+
+- Run focused frontend adapter, UI, runtime, generated API, browser-smoke, and
+  quality checks that cover the operator correlation path.
+
+### Phase 8079 - Blind Contextless Review
+
+- Run blind/contextless backend/frontend review for the audit/reconciliation
+  operator correlation path and remediate blocking ambiguity before advancing.
+
+### Phase 8080 - Commit And Push Evidence
 
 - Commit and push synchronized backend/frontend evidence with no-live notional
   reporting.
-- Evidence update 2026-06-29: synchronized Phase 8058/8059 evidence was
-  committed and pushed on branch `codex/stealth-live-service-decision-3501`.
-  Backend commits: `8df450f9` (`Clarify spot live exception contract`) and
-  `1db42c23` (`Record phase 8059 validation hygiene`). Frontend commits:
-  `05b2fda` (`Refresh generated spot live exception schema`) and `b34862e`
-  (`Record phase 8059 frontend validation hygiene`). Both repositories were
-  clean after push. No phase-scoped subagents were spawned for this
-  commit-evidence phase. Live Coinbase execution was not run and
-  submitted/executed notional stayed 0 USDC.
 
+## Completed Phases 8041-8060
+
+Batch label: Spot Command Operator E2E.
+
+Completed Release 0.1 `8041-8060` added a Spot Command Operator E2E slice so
+operators can verify manual spot order, cancel-by-client_order_id,
+direct-order audit, and command handoff workflows through the enterprise
+frontend/API without browser/BFF trading authority. The range completed and
+pushed in backend commit `05093483` and frontend commit `6f86b37`. Live
+Coinbase execution was not run for this range; submitted notional `0` USDC,
+executed notional `0` USDC.
+
+Exact historical phrase: Completed Release 0.1 `8041-8060` added a Spot Command Operator E2E slice so operators can verify manual spot order, cancel-by-client_order_id, direct-order audit, and command handoff workflows through the enterprise frontend/API without browser/BFF trading authority while completed `8021-8040` carries the Movement/Repricing Action-State Matrix evidence.
 ## Completed Phases 8021-8040
 
 Batch label: Movement/Repricing Action-State Matrix.

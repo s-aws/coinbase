@@ -49,23 +49,31 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 8041-8060
+## Current Active Phases 8061-8080
 
-Batch label: Spot Command Operator E2E.
+Batch label: Audit/Reconciliation Operator Correlation.
 
-Current Release 0.1 `8041-8060` adds a backend-owned Spot Command Operator
-E2E slice so operators can verify manual spot order,
-cancel-by-client_order_id, direct-order audit, and command handoff workflows
-through the enterprise frontend/API without browser/BFF trading authority. The
-active goal is not another proof-summary table; it is operator confidence for
-the Release 0.1 Spot Command blocker while preserving backend-owned command
-authority, `client_order_id` identity, no-live default posture, and BFF/browser
-display-or-forward-only boundaries.
+Current Release 0.1 `8061-8080` adds a backend-owned Audit/Reconciliation
+Operator Correlation slice so operators can correlate command attempts,
+approvals, admission audits, cap/guard decisions, exchange intent, fills, and
+reconciliation status through the enterprise frontend/API. The slice must keep
+backend-owned evidence as the source of truth, surface unsupported behavior as
+`unsupported` or `not_modeled`, and avoid browser/BFF trading authority,
+route-local execution, reconciliation execution, order/exchange state mutation,
+and second trading paths.
 
 Every phase must answer: Does this make the frontend able to manage the project?
 
-Exact autonomous phrase: Active Release 0.1 `8041-8060` adds a Spot Command Operator E2E slice so operators can verify manual spot order, cancel-by-client_order_id, direct-order audit, and command handoff workflows through the enterprise frontend/API without browser/BFF trading authority while completed `8021-8040` carries the Movement/Repricing Action-State Matrix evidence.
+Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconciliation Operator Correlation slice so operators can correlate command attempts, approvals, admission audits, cap/guard decisions, exchange intent, fills, and reconciliation status through the enterprise frontend/API without browser/BFF trading authority while completed `8041-8060` carries the Spot Command Operator E2E evidence.
 
+## Completed Phases 8041-8060
+
+Completed Release 0.1 `8041-8060` added the Spot Command Operator E2E slice
+for manual spot order review, cancel-by-client_order_id handoff,
+direct-order audit lookup, no-live SELL authority visibility, BFF/browser
+authority assertions, focused validation, and blind/contextless review
+remediation. The range completed and pushed in backend commit `05093483` and
+frontend commit `6f86b37`.
 ## Completed Phases 8021-8040
 
 Batch label: Movement/Repricing Action-State Matrix.
