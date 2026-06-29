@@ -1132,6 +1132,18 @@ class AdminAuditWorkbenchModule(str, Enum):
     CAMPAIGNS = "campaigns"
 
 
+class AdminAuditCorrelationScopeKind(str, Enum):
+    """Stable operator trace categories for the audit workbench."""
+
+    COMMAND_ATTEMPT = "command_attempt"
+    APPROVAL = "approval"
+    ADMISSION_AUDIT = "admission_audit"
+    CAP_GUARD_WALLET = "cap_guard_wallet"
+    EXCHANGE_INTENT = "exchange_intent"
+    FILL = "fill"
+    RECONCILIATION = "reconciliation"
+
+
 class AdminAuditEvidenceSource(str, Enum):
     """Source labels for cross-module audit workbench evidence."""
 

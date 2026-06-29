@@ -110,6 +110,16 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Scope the operator correlation path against the Release 0.1 audit and
   reconciliation blocker and existing backend-owned evidence sources.
+- Evidence update 2026-06-29: added backend-owned Audit Workbench
+  `correlation_scope` contract rows for command attempts, approvals,
+  admission audits, cap/guard wallet evidence, exchange intent, fills, and
+  reconciliation. This gives operators a stable view of what evidence should
+  correlate while preserving no browser authority, no BFF execution authority,
+  no reconciliation execution, and no order/exchange state mutation. The
+  OpenAPI artifact and frontend generated schema were refreshed, focused
+  backend and frontend checks passed, no phase-scoped subagents were spawned,
+  and live Coinbase execution was not run with 0 USDC submitted/executed
+  notional.
 
 ### Phase 8063 - Backend Audit Source Inventory
 

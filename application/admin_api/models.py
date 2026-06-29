@@ -24,6 +24,7 @@ from core.enums import (
     AdminApiAuthMode,
     AdminApiFunctionalityExposureStatus,
     AdminApiFunctionalityWorkflowType,
+    AdminAuditCorrelationScopeKind,
     AdminFuturesCommandAction,
     AdminFuturesCommandEnablementBlocker,
     AdminFuturesCommandEvidenceRoute,
@@ -16996,6 +16997,24 @@ class AdminAuditModuleSummaryItem(BaseModel):
     notes: str | None = None
 
 
+class AdminAuditCorrelationScopeItem(BaseModel):
+    """One backend-owned trace category the audit workbench can correlate."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scope: AdminAuditCorrelationScopeKind
+    required: bool = True
+    backend_sources: list[AdminAuditEvidenceSource] = Field(default_factory=list)
+    identity_keys: list[str] = Field(default_factory=list)
+    route_refs: list[str] = Field(default_factory=list)
+    operator_value: str
+    missing_behavior: str
+    no_browser_authority: bool = True
+    no_bff_execution_authority: bool = True
+    no_reconciliation_execution: bool = True
+    no_order_or_exchange_state_mutation: bool = True
+
+
 class AdminAuditWorkbenchEventItem(BaseModel):
     """One normalized cross-module audit/correlation evidence row."""
 
@@ -17034,6 +17053,7 @@ class AdminAuditWorkbenchReadResponse(BaseModel):
 
     type: str = "admin_audit_workbench"
     filters: FlexibleDict = Field(default_factory=dict)
+    correlation_scope: list[AdminAuditCorrelationScopeItem] = Field(default_factory=list)
     module_summary: list[AdminAuditModuleSummaryItem] = Field(default_factory=list)
     events: list[AdminAuditWorkbenchEventItem] = Field(default_factory=list)
     pagination: AdminOrderPagination

@@ -12943,6 +12943,71 @@ components:
       type: object
       title: AdminApprovalRevokeRequest
       description: Revoke an approved backend approval snapshot.
+    AdminAuditCorrelationScopeItem:
+      properties:
+        scope:
+          $ref: '#/components/schemas/AdminAuditCorrelationScopeKind'
+        required:
+          type: boolean
+          title: Required
+          default: true
+        backend_sources:
+          items:
+            $ref: '#/components/schemas/AdminAuditEvidenceSource'
+          type: array
+          title: Backend Sources
+        identity_keys:
+          items:
+            type: string
+          type: array
+          title: Identity Keys
+        route_refs:
+          items:
+            type: string
+          type: array
+          title: Route Refs
+        operator_value:
+          type: string
+          title: Operator Value
+        missing_behavior:
+          type: string
+          title: Missing Behavior
+        no_browser_authority:
+          type: boolean
+          title: No Browser Authority
+          default: true
+        no_bff_execution_authority:
+          type: boolean
+          title: No Bff Execution Authority
+          default: true
+        no_reconciliation_execution:
+          type: boolean
+          title: No Reconciliation Execution
+          default: true
+        no_order_or_exchange_state_mutation:
+          type: boolean
+          title: No Order Or Exchange State Mutation
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - scope
+      - operator_value
+      - missing_behavior
+      title: AdminAuditCorrelationScopeItem
+      description: One backend-owned trace category the audit workbench can correlate.
+    AdminAuditCorrelationScopeKind:
+      type: string
+      enum:
+      - command_attempt
+      - approval
+      - admission_audit
+      - cap_guard_wallet
+      - exchange_intent
+      - fill
+      - reconciliation
+      title: AdminAuditCorrelationScopeKind
+      description: Stable operator trace categories for the audit workbench.
     AdminAuditEvidenceSource:
       type: string
       enum:
@@ -13141,6 +13206,11 @@ components:
           additionalProperties: true
           type: object
           title: Filters
+        correlation_scope:
+          items:
+            $ref: '#/components/schemas/AdminAuditCorrelationScopeItem'
+          type: array
+          title: Correlation Scope
         module_summary:
           items:
             $ref: '#/components/schemas/AdminAuditModuleSummaryItem'

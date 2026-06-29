@@ -210,6 +210,20 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Scope the operator correlation path against the Release 0.1 audit and
   reconciliation blocker and existing backend-owned evidence sources.
+- Evidence update 2026-06-29: AGENTS.md, backend `agent.md`, public agent
+  docs, ownership, local expanded context, and frontend AGENTS/ownership docs
+  were re-reviewed for this phase and did not change direction. Backend added
+  the `AdminAuditCorrelationScopeKind` enum, `correlation_scope` response
+  model, read-service scope rows, regenerated OpenAPI, and focused regression
+  assertions for command attempts, approvals, admission audits, cap/guard
+  wallet evidence, exchange intent, fills, and reconciliation. Every scope row
+  is read-only and carries no-browser-authority, no-BFF-execution,
+  no-reconciliation-execution, and no-order/exchange-state-mutation posture.
+  Paired frontend work renders the generated contract as display evidence.
+  Focused backend contract tests passed with `3` selected tests; focused
+  frontend unit/API/type checks passed with `3` files and `40` tests. No
+  phase-scoped subagents were spawned. Live Coinbase execution was not run and
+  submitted/executed notional stayed 0 USDC.
 
 ### Phase 8063 - Backend Audit Source Inventory
 

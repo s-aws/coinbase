@@ -18,6 +18,7 @@ from core.enums import (
     AdminApiAccountMarketInventoryFamily,
     AdminApiActionClass,
     AdminApiAuthMode,
+    AdminAuditCorrelationScopeKind,
     AdminAuditEvidenceSource,
     AdminAuditWorkbenchModule,
     AdminApiActionState,
@@ -128,6 +129,7 @@ from .models import (
     AdminAccountMarketInventoryFamilyItem,
     AdminAccountMarketInventoryResponse,
     AdminAccountMarketInventorySummary,
+    AdminAuditCorrelationScopeItem,
     AdminAuditModuleSummaryItem,
     AdminAuditWorkbenchEventItem,
     AdminAuditWorkbenchReadResponse,
@@ -4810,6 +4812,132 @@ def _audit_module_note(module: AdminAuditWorkbenchModule) -> str:
         AdminAuditWorkbenchModule.GUARD_RISK: "Guard/risk rows are policy evidence, not browser authority.",
         AdminAuditWorkbenchModule.CAMPAIGNS: "Campaign command evidence remains live-disabled unless backend gates approve it.",
     }[module]
+
+
+def _audit_correlation_scope() -> list[AdminAuditCorrelationScopeItem]:
+    """Return backend-owned operator trace categories for the audit workbench."""
+
+    return [
+        AdminAuditCorrelationScopeItem(
+            scope=AdminAuditCorrelationScopeKind.COMMAND_ATTEMPT,
+            backend_sources=[
+                AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG,
+                AdminAuditEvidenceSource.ROUTE_INVENTORY,
+            ],
+            identity_keys=["request_id", "correlation_id", "idempotency_key"],
+            route_refs=[
+                "/api/v1/admin/audit-workbench",
+                "/api/v1/orders",
+                "/api/v1/orders/{client_order_id}/cancel",
+            ],
+            operator_value=(
+                "Shows whether a backend command attempt was accepted, rejected, "
+                "or replayed before any exchange activity."
+            ),
+            missing_behavior="Surface no matching command attempt; do not synthesize one.",
+        ),
+        AdminAuditCorrelationScopeItem(
+            scope=AdminAuditCorrelationScopeKind.APPROVAL,
+            backend_sources=[
+                AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG,
+                AdminAuditEvidenceSource.BACKEND_CONTRACT,
+            ],
+            identity_keys=["approval_snapshot_id", "actor_id", "route"],
+            route_refs=[
+                "/api/v1/admin/approvals/requests",
+                "/api/v1/admin/approvals/requests/{approval_request_id}",
+            ],
+            operator_value=(
+                "Shows the approval snapshot expected by command admission and "
+                "whether it is present, expired, or missing."
+            ),
+            missing_behavior="Keep admission blocked and report approval snapshot missing.",
+        ),
+        AdminAuditCorrelationScopeItem(
+            scope=AdminAuditCorrelationScopeKind.ADMISSION_AUDIT,
+            backend_sources=[AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG],
+            identity_keys=["admission_audit_id", "audit_id", "route", "payload_hash"],
+            route_refs=[
+                "/api/v1/admin/admission-audits",
+                "/api/v1/admin/admission-audits/{admission_audit_id}",
+            ],
+            operator_value=(
+                "Shows the append-only admission audit proof that matched the "
+                "route, payload hash, actor, idempotency key, and approval."
+            ),
+            missing_behavior="Keep admission blocked and report admission audit missing.",
+        ),
+        AdminAuditCorrelationScopeItem(
+            scope=AdminAuditCorrelationScopeKind.CAP_GUARD_WALLET,
+            backend_sources=[
+                AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG,
+                AdminAuditEvidenceSource.GUARD_RISK_POLICY,
+            ],
+            identity_keys=["cap_guard_decision_id", "product_id", "route"],
+            route_refs=[
+                "/api/v1/admin/cap-guard/decisions",
+                "/api/v1/admin/guard-risk-policy",
+            ],
+            operator_value=(
+                "Shows backend cap, guard, wallet, inventory, margin, or "
+                "profitability decisions without browser-side evaluation."
+            ),
+            missing_behavior="Keep admission blocked and report cap/guard or wallet evidence missing.",
+        ),
+        AdminAuditCorrelationScopeItem(
+            scope=AdminAuditCorrelationScopeKind.EXCHANGE_INTENT,
+            backend_sources=[AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG],
+            identity_keys=["client_order_id", "stealth_order_id", "position_key"],
+            route_refs=[
+                "/api/v1/orders",
+                "/api/v1/orders/{client_order_id}/cancel",
+                "/api/v1/stealth/orders/{stealth_order_id}/reveal",
+            ],
+            operator_value=(
+                "Shows backend live-execution intent and exchange-native evidence "
+                "while preserving client_order_id or module identity as canonical."
+            ),
+            missing_behavior="Display intent as missing or live-disabled; do not call Coinbase.",
+        ),
+        AdminAuditCorrelationScopeItem(
+            scope=AdminAuditCorrelationScopeKind.FILL,
+            backend_sources=[
+                AdminAuditEvidenceSource.ORDER_PARENT,
+                AdminAuditEvidenceSource.STEALTH_ORDERS,
+                AdminAuditEvidenceSource.FUTURES_POSITIONS,
+            ],
+            identity_keys=["client_order_id", "stealth_order_id", "position_key"],
+            route_refs=[
+                "/api/v1/orders/{client_order_id}",
+                "/api/v1/stealth/orders/{stealth_order_id}",
+                "/api/v1/futures/positions/{position_key}",
+            ],
+            operator_value=(
+                "Shows local order, stealth, and position evidence used to tie "
+                "fills or position changes back to operator-visible identities."
+            ),
+            missing_behavior="Show local evidence absent; do not infer fills from browser state.",
+        ),
+        AdminAuditCorrelationScopeItem(
+            scope=AdminAuditCorrelationScopeKind.RECONCILIATION,
+            backend_sources=[
+                AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG,
+                AdminAuditEvidenceSource.BACKEND_CONTRACT,
+            ],
+            identity_keys=["reconciliation_plan_id", "client_order_id", "stealth_order_id"],
+            route_refs=[
+                "/api/v1/admin/reconciliation/plans",
+                "/api/v1/admin/reconciliation/plans/{plan_id}",
+                "/api/v1/spot/recovery/reconciliation-proof",
+                "/api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof",
+            ],
+            operator_value=(
+                "Shows the backend reconciliation plan or proof expected for "
+                "post-submit and recovery workflows without executing it."
+            ),
+            missing_behavior="Keep reconciliation unresolved and do not mutate order or exchange state.",
+        ),
+    ]
 
 
 def _normalize_audit_module(
@@ -14204,6 +14332,7 @@ class AdminApiReadService:
         has_more = next_offset < len(filtered)
         return AdminAuditWorkbenchReadResponse(
             filters=filters,
+            correlation_scope=_audit_correlation_scope(),
             module_summary=_audit_module_summary(),
             events=page_items,
             pagination={

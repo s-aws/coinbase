@@ -25,6 +25,9 @@ The route is authenticated and RBAC-gated with `audit:read`.
 ## What It Shows
 
 - module route summaries
+- backend-owned correlation scope categories for command attempts, approvals,
+  admission audits, cap/guard/wallet decisions, exchange intent, fills, and
+  reconciliation status
 - read and command route counts
 - durable command audit events when available
 - persisted command admission decisions on command audit events when available,
@@ -44,6 +47,9 @@ The route is authenticated and RBAC-gated with `audit:read`.
 - The route reports `live_coinbase_read_ran=false`; it does not fetch Coinbase
   account, wallet, order, or fill data.
 - Command routes are represented as `command_routes_mode="evidence_only"`.
+- `correlation_scope` describes what evidence the operator should expect. It
+  is not an execution plan and carries no-browser, no-BFF-execution,
+  no-reconciliation-execution, and no-state-mutation flags.
 - Exchange `order_id` values are evidence only. They are not internal tracking
   ids or cancellation keys.
 - Command acceptance, cancellation, movement, repricing, guard evaluation, and

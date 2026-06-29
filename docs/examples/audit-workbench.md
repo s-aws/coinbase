@@ -35,6 +35,39 @@ Expected posture:
 }
 ```
 
+The response includes a backend-owned `correlation_scope` list. This tells an
+operator which evidence classes the workbench can correlate without giving the
+browser or BFF execution authority:
+
+```json
+{
+  "correlation_scope": [
+    {
+      "scope": "command_attempt",
+      "backend_sources": ["admin_api_audit_log", "route_inventory"],
+      "identity_keys": ["request_id", "correlation_id", "idempotency_key"],
+      "operator_value": "Shows whether a backend command attempt was accepted, rejected, or replayed before any exchange activity.",
+      "missing_behavior": "Surface no matching command attempt; do not synthesize one.",
+      "no_browser_authority": true,
+      "no_bff_execution_authority": true,
+      "no_reconciliation_execution": true,
+      "no_order_or_exchange_state_mutation": true
+    },
+    {
+      "scope": "reconciliation",
+      "backend_sources": ["admin_api_audit_log", "backend_contract"],
+      "identity_keys": ["reconciliation_plan_id", "client_order_id", "stealth_order_id"],
+      "operator_value": "Shows the backend reconciliation plan or proof expected for post-submit and recovery workflows without executing it.",
+      "missing_behavior": "Keep reconciliation unresolved and do not mutate order or exchange state.",
+      "no_browser_authority": true,
+      "no_bff_execution_authority": true,
+      "no_reconciliation_execution": true,
+      "no_order_or_exchange_state_mutation": true
+    }
+  ]
+}
+```
+
 Command audit rows may include persisted admission evidence:
 
 ```json

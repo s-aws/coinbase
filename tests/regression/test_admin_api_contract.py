@@ -396,6 +396,7 @@ from core.enums import (
     AdminApiApprovalLifecycleEventType,
     AdminApiApprovalLifecycleStatus,
     AdminApiAuthMode,
+    AdminAuditCorrelationScopeKind,
     AdminAuditEvidenceSource,
     AdminAuditWorkbenchModule,
     AdminApiCommandRoutesMode,
@@ -9613,8 +9614,20 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
     audit_workbench_schema = written["components"]["schemas"][
         "AdminAuditWorkbenchReadResponse"
     ]
+    assert "correlation_scope" in audit_workbench_schema["properties"]
     assert "module_summary" in audit_workbench_schema["properties"]
     assert "events" in audit_workbench_schema["properties"]
+    correlation_scope_schema = written["components"]["schemas"][
+        "AdminAuditCorrelationScopeItem"
+    ]
+    assert "scope" in correlation_scope_schema["properties"]
+    assert "backend_sources" in correlation_scope_schema["properties"]
+    assert "no_browser_authority" in correlation_scope_schema["properties"]
+    assert "no_bff_execution_authority" in correlation_scope_schema["properties"]
+    assert "no_reconciliation_execution" in correlation_scope_schema["properties"]
+    assert "no_order_or_exchange_state_mutation" in (
+        correlation_scope_schema["properties"]
+    )
     audit_event_schema = written["components"]["schemas"][
         "AdminAuditWorkbenchEventItem"
     ]
@@ -60423,6 +60436,7 @@ def test_admin_api_audit_workbench_route_uses_read_service_without_commands(
         return {
             "type": "admin_audit_workbench",
             "filters": kwargs,
+            "correlation_scope": [],
             "module_summary": [
                 {
                     "module": "orders",
@@ -60491,6 +60505,7 @@ def test_admin_api_audit_workbench_route_uses_read_service_without_commands(
     payload = response.json()
     assert payload["read_only"] is True
     assert payload["command_routes_mode"] == "evidence_only"
+    assert "correlation_scope" in payload
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_read_ran"] is False
     assert payload["events"][0]["client_order_id"] == "client-abc"
@@ -60573,6 +60588,32 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
     assert response.read_only is True
     assert response.live_coinbase_orders_ran is False
     assert response.live_coinbase_read_ran is False
+    scope_by_kind = {item.scope: item for item in response.correlation_scope}
+    assert set(scope_by_kind) == {
+        AdminAuditCorrelationScopeKind.COMMAND_ATTEMPT,
+        AdminAuditCorrelationScopeKind.APPROVAL,
+        AdminAuditCorrelationScopeKind.ADMISSION_AUDIT,
+        AdminAuditCorrelationScopeKind.CAP_GUARD_WALLET,
+        AdminAuditCorrelationScopeKind.EXCHANGE_INTENT,
+        AdminAuditCorrelationScopeKind.FILL,
+        AdminAuditCorrelationScopeKind.RECONCILIATION,
+    }
+    assert scope_by_kind[
+        AdminAuditCorrelationScopeKind.COMMAND_ATTEMPT
+    ].identity_keys == ["request_id", "correlation_id", "idempotency_key"]
+    assert scope_by_kind[
+        AdminAuditCorrelationScopeKind.CAP_GUARD_WALLET
+    ].backend_sources == [
+        AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG,
+        AdminAuditEvidenceSource.GUARD_RISK_POLICY,
+    ]
+    reconciliation_scope = scope_by_kind[
+        AdminAuditCorrelationScopeKind.RECONCILIATION
+    ]
+    assert reconciliation_scope.no_browser_authority is True
+    assert reconciliation_scope.no_bff_execution_authority is True
+    assert reconciliation_scope.no_reconciliation_execution is True
+    assert reconciliation_scope.no_order_or_exchange_state_mutation is True
     assert response.pagination.total_matching_count == 2
     modules = {item.module for item in response.module_summary}
     assert AdminAuditWorkbenchModule.ORDERS in modules
