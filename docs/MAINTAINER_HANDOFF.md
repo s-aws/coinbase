@@ -129,28 +129,28 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `8001-8020` under Release 0.1.
+- Latest completed autonomous range: `8021-8040` under Release 0.1.
 - Latest completed and pushed range before the active Release 0.1 work:
-  `8001-8020`.
-- Active autonomous range: `8021-8040` under Release 0.1.
-- Current active range: `8021-8040` adds a Movement/Repricing Action-State
-  Matrix so move, premark, reprice, cooldown, claim, cancel/replace, audit,
-  and recovery workflows are visible as usable, blocked, `unsupported`, or
-  `not_modeled` from backend evidence. Every new phase must clear the Movement
-  and Repricing Release 0.1 blocker or directly improve the usable admin
-  product. Unsupported backend behavior must be surfaced explicitly; do not
-  implement missing behavior in the browser, BFF, dashboard WebSockets,
-  route-local FastAPI handlers, Coinbase calls, or any second trading path.
+  `8021-8040`.
+- Active autonomous range: `8041-8060` under Release 0.1.
+- Current active range: `8041-8060` adds a Spot Command Operator E2E slice so
+  manual spot order, cancel-by-`client_order_id`, direct-order audit, and
+  command handoff workflows are verifiable through the enterprise frontend/API.
+  Every new phase must clear the Spot Command Release 0.1 blocker or directly
+  improve the usable admin product. Unsupported backend behavior must be
+  surfaced explicitly; do not implement missing behavior in the browser, BFF,
+  dashboard WebSockets, route-local FastAPI handlers, direct Coinbase calls,
+  reconciliation execution, order/exchange state mutation, or any second
+  trading path.
+- Required boundary phrase: no second trading path.
 - Required checker phrase: usable admin product.
 - Required checker phrase: unsupported` or `not_modeled`.
-- Phase `8021` instruction review: backend `AGENTS.md`, backend `agent.md`,
+- Phase `8041` instruction review: backend `AGENTS.md`, backend `agent.md`,
   backend owner contracts, frontend `AGENTS.md`, frontend owner contracts, and
-  ordered frontend docs were reviewed on 2026-06-29 before activating
-  Movement/Repricing action-state work. The review changed the phase order:
-  the frontend contextless-agent gate requires a blind/contextless preflight
-  before broadening non-spot movement/repricing UI behavior, so phase `8022`
-  is now the pre-implementation review. The work must preserve mutation locks,
-  replacement-slot invariants, and no-live authority.
+  ordered frontend docs were reviewed on 2026-06-29 before activating Spot
+  Command Operator E2E work. The work must preserve backend-only command
+  authority, `client_order_id` identity, no-live default posture, and
+  frontend/BFF display-or-forward-only boundaries.
 - Phase `7981-8000` instruction review: backend `AGENTS.md`, backend
   `agent.md`, frontend `AGENTS.md`, and related agent contract docs were
   reviewed on 2026-06-27 before the Release 0.1 matrix work and again on
@@ -172,10 +172,12 @@ notional, retained inventory, reconciliation result, and audit ids.
   REST, and can only reach `cancel_order(client_order_id)` when all backend
   gates pass.
 - Exact next implementation slice: continue approved Release 0.1 blocker
-  clearing through active `8021-8040` Movement/Repricing Action-State Matrix
-  work. Completed `8001-8020` M55 action-state work is pushed in backend commit
-  `bab25737` and frontend commit `65de74a`. Do not create another proof slice
-  unless it clears a named Release 0.1 blocker.
+  clearing through active `8041-8060` Spot Command Operator E2E work.
+  Completed `8021-8040` movement/repricing action-state work is pushed in
+  backend commit `9edf7b29` and frontend commit `f0feb44`; completed
+  `8001-8020` M55 action-state work is pushed in backend commit `bab25737` and
+  frontend commit `65de74a`. Do not create another proof slice unless it
+  clears a named Release 0.1 blocker.
 - Completed `7961-7980` added risk-proof record validation remediation summary
   evidence derived from existing per-command risk-proof record-validation
   remediation rows and remains carried-forward disabled, no-live,

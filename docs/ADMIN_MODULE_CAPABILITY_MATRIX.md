@@ -4,22 +4,24 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current Release 0.1 scope: `8021-8040`.
+Current Release 0.1 scope: `8041-8060`.
 
-Current Release 0.1 scope details: `8021-8040` adds a Movement/Repricing
-Action-State Matrix so move, premark, reprice, cooldown, claim,
-cancel/replace, audit, and recovery workflows are visible as usable, blocked,
-`unsupported`, or `not_modeled` from backend evidence. Active work must clear
-the Movement and Repricing Release 0.1 blocker without adding browser/BFF
-authority, route-local FastAPI execution, dashboard WebSocket calls, Coinbase
-calls, reconciliation execution, movement state mutation, or a second order
-movement path.
+Current Release 0.1 scope details: `8041-8060` adds a Spot Command Operator
+E2E slice so operators can verify manual spot order,
+cancel-by-client_order_id, direct-order audit, and command handoff workflows
+through the enterprise frontend/API. Active work must clear the Spot Command
+Release 0.1 blocker without adding browser/BFF authority, route-local FastAPI
+execution, dashboard WebSocket calls, direct Coinbase calls outside the
+existing backend command-service path, reconciliation execution,
+order/exchange state mutation, or a second trading path.
 
-Completed Release 0.1 scope: `8001-8020` added backend-derived selected
-stealth command-family action-state templates and the frontend selected
-stealth action-state matrix. Completed `7981-8000` pivoted active work to a
-usable private operator MVP, produced route/workflow release matrices, and
-added sweep executor readiness evidence.
+Completed Release 0.1 scope: `8021-8040` added backend-owned
+movement/repricing action-state rows and the frontend action-state matrix.
+Completed `8001-8020` added backend-derived selected stealth command-family
+action-state templates and the frontend selected stealth action-state matrix.
+Completed `7981-8000` pivoted active work to a usable private operator MVP,
+produced route/workflow release matrices, and added sweep executor readiness
+evidence.
 
 Release 0.1 blockers remain controlling. Required checker phrase: usable private operator MVP. Required checker phrase: unsupported` or `not_modeled`.
 Required checker phrase: second trading path.

@@ -24,42 +24,41 @@ work. Historical milestone detail belongs in
 
 ## Current Phase
 
-- Latest completed and pushed range before this work: `8001-8020`.
+- Latest completed and pushed range before this work: `8021-8040`.
 - Latest completed and pushed range before the active Release 0.1 work:
-  `8001-8020`.
-- Active approved range: `8021-8040`.
-- Scope: Movement/Repricing Action-State Matrix under Release 0.1. The active
-  range must make move, premark, reprice, cooldown, claim, cancel/replace,
-  audit, and recovery workflows understandable from backend evidence by
-  showing each action as usable, blocked, `unsupported`, or `not_modeled`.
-  Every phase must either clear the Movement and Repricing Release 0.1 blocker
-  from `docs/plans/ADMIN_RELEASE_0_1_BURNDOWN.md` or directly improve the
-  frontend's ability to manage backend-supported movement/repricing workflows.
+  `8021-8040`.
+- Active approved range: `8041-8060`.
+- Scope: Spot Command Operator E2E under Release 0.1. The active range must
+  make manual spot order, cancel-by-`client_order_id`, direct-order audit, and
+  command handoff workflows verifiable through the enterprise frontend/API
+  without relying on proof-of-concept dashboards. Every phase must either
+  clear the Spot Command Release 0.1 blocker from
+  `docs/plans/ADMIN_RELEASE_0_1_BURNDOWN.md` or directly improve the
+  frontend's ability to manage backend-supported spot command workflows.
+- Unsupported backend behavior must remain explicit as `unsupported` or `not_modeled`; it must not be hidden by browser/BFF behavior.
 - Governing pivot label: Release 0.1 Operator Admin Pivot.
-- Backend implementation status: active work should add or extend a
-  backend-owned read contract for movement/repricing action states. It must
-  not execute moves, premarks, reprices, cancel/replace, reconciliation,
-  Coinbase calls, movement state mutation, replacement-slot claims, or
-  route-local FastAPI execution. Unsupported backend behavior must still be
-  surfaced as `unsupported` or `not_modeled`.
-- Frontend implementation status: active work should render the backend
-  movement/repricing action states using generated contracts and canonical
-  adapters. The frontend may show blockers, gate refs, command handoff links,
-  and audit/evidence refs. It must not implement browser wallet checks, guard
-  checks, Coinbase calls, live-service toggles, movement logic, reconciliation
-  execution, BFF execution authority, or a second trading path.
+- Backend implementation status: active work should audit and tighten the
+  existing backend-owned manual spot order/cancel happy path, direct-order
+  audit readback, admission/cap/guard/reconciliation/live-service evidence,
+  and no-live association smoke. It must not add route-local FastAPI
+  execution, direct Coinbase calls outside the existing command-service path,
+  reconciliation execution, order/exchange state mutation, browser/BFF
+  authority, or a second spot order path.
+- Frontend implementation status: active work should make command workflow,
+  Orders-to-cancel handoff, Spot Operations direct-order audit lookup, SELL
+  authority visibility, BFF forwarding, and browser smoke understandable and
+  testable through generated contracts and canonical adapters. It must not
+  implement browser wallet checks, guard checks, Coinbase calls, live-service
+  toggles, reconciliation execution, BFF execution authority, or a second
+  trading path.
 - Phase instruction review status: backend `AGENTS.md`, backend `agent.md`,
   backend owner contracts, frontend `AGENTS.md`, frontend owner contracts, and
-  ordered frontend docs were reviewed again on 2026-06-29 for Phase 8021 before
-  activating this range. Release 0.1 product progress remains the controlling
-  rule: every phase must clear a named Release 0.1 blocker or directly improve
-  usable admin management. The review changed the current phase order: the
-  frontend contextless-agent gate requires a blind/contextless preflight before
-  broadening non-spot movement/repricing UI behavior, so phase `8022` is now
-  the pre-implementation review. It also reinforced that missing
-  movement/repricing behavior must not be filled by browser/BFF authority,
-  dashboard WebSockets, route-local execution, Coinbase calls, or a second
-  movement path.
+  ordered frontend docs were reviewed again on 2026-06-29 for Phase 8021 and
+  again before activating `8041-8060`. Release 0.1 product progress remains
+  the controlling rule: every phase must clear a named Release 0.1 blocker or
+  directly improve usable admin management. The current range must keep Spot
+  command authority in the backend and make the operator path verifiable
+  without adding browser/BFF trading authority.
 - Release 0.1 matrix status:
   `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md` and frontend
   `docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md` now identify operator
@@ -116,6 +115,12 @@ work. Historical milestone detail belongs in
   execution, and live execution. The frontend Campaigns panel consumes those
   rows as no-live blocker evidence with no browser/BFF scheduler, runner, or
   Coinbase authority.
+- Completed Movement/Repricing slice: backend commit `9edf7b29` and frontend
+  commit `f0feb44` completed `8021-8040` by adding backend-owned movement/
+  repricing action-state rows and the frontend action-state matrix. Blind/
+  contextless review passed after remediation moved non-canonical frontend
+  local states into backend `AdminApiActionState` rows. Live Coinbase
+  execution was not run; submitted/executed notional remained `0`/`0` USDC.
 - Completed M55 slice: backend commit `bab25737` and frontend commit
   `65de74a` completed `8001-8020` by adding backend-derived selected stealth
   command-family action-state templates and the frontend selected stealth
@@ -123,9 +128,10 @@ work. Historical milestone detail belongs in
   Live Coinbase execution was not run; submitted/executed notional remained
   `0`/`0` USDC.
 - Exact next implementation slice: continue Release 0.1 blocker clearing by
-  adding the Movement/Repricing Action-State Matrix from active `8021-8040`.
-  Do not add browser scheduler, BFF runner authority, retry loops, movement
-  execution, route-local execution, Coinbase calls, or a second trading path.
+  adding the Spot Command Operator E2E path from active `8041-8060`. Do not
+  add browser scheduler, BFF runner authority, retry loops, route-local
+  execution, direct Coinbase calls, reconciliation execution, order/exchange
+  state mutation, or a second trading path.
 - Contextless review status: backend Phase 7997 passed after remediation.
   Initial blind reviews blocked on stale current Admin API command-authority
   docs and `genai_data` references that still implied all HTTP mutating routes

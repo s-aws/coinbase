@@ -18,36 +18,36 @@ def test_release_0_1_phase_titles_match_approved_product_pivot() -> None:
 
 def test_release_0_1_phase_titles_reject_proof_summary_drift() -> None:
     body = _queue_body().replace(
-        "### Phase 8032 - Command Handoff Gate Labels",
-        "### Phase 8032 - Futures/Perpetuals Proof Summary Expansion",
+        "### Phase 8053 - BFF Forwarding Boundary Assertions",
+        "### Phase 8053 - Futures/Perpetuals Proof Summary Expansion",
     )
 
     result = checker._check_release_phase_titles(body)
 
     assert not result.passed
-    assert result.evidence["mismatched_phase_titles"][8032] == {
-        "expected": "Command Handoff Gate Labels",
+    assert result.evidence["mismatched_phase_titles"][8053] == {
+        "expected": "BFF Forwarding Boundary Assertions",
         "actual": "Futures/Perpetuals Proof Summary Expansion",
     }
-    assert result.evidence["proof_only_active_phase_titles"][8032] == (
+    assert result.evidence["proof_only_active_phase_titles"][8053] == (
         "Futures/Perpetuals Proof Summary Expansion"
     )
 
 
 def test_release_0_1_phase_titles_reject_unapproved_active_phase() -> None:
     body = _queue_body().replace(
-        "### Phase 8032 - Command Handoff Gate Labels",
+        "### Phase 8053 - BFF Forwarding Boundary Assertions",
         (
-            "### Phase 8041 - Futures/Perpetuals Request Payload Evidence\n\n"
+            "### Phase 8061 - Futures/Perpetuals Request Payload Evidence\n\n"
             "- This would reopen proof-only drift.\n\n"
-            "### Phase 8032 - Command Handoff Gate Labels"
+            "### Phase 8053 - BFF Forwarding Boundary Assertions"
         ),
     )
 
     result = checker._check_release_phase_titles(body)
 
     assert not result.passed
-    assert 8041 in result.evidence["unexpected_active_phase_ids"]
-    assert result.evidence["proof_only_active_phase_titles"][8041] == (
+    assert 8061 in result.evidence["unexpected_active_phase_ids"]
+    assert result.evidence["proof_only_active_phase_titles"][8061] == (
         "Futures/Perpetuals Request Payload Evidence"
     )

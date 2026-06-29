@@ -71,29 +71,29 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "8021-8040"
-APPROVED_PHASES = tuple(range(8021, 8041))
+APPROVED_PHASE_RANGE = "8041-8060"
+APPROVED_PHASES = tuple(range(8041, 8061))
 EXPECTED_RELEASE_PHASE_TITLES = {
-    8021: "Advance Active Queue Range",
-    8022: "Blind Contextless Preflight Review",
-    8023: "Movement/Repricing Action-State Scope",
-    8024: "Backend Movement Action-State Contract",
-    8025: "Move And Premark Gate Source Map",
-    8026: "Reprice Cooldown Claim Source Map",
-    8027: "Cancel Replace Boundary Rows",
-    8028: "Audit Recovery Boundary Rows",
-    8029: "Frontend Schema Sync",
-    8030: "Movement Adapter Action-State Mapping",
-    8031: "Movement Read Model Action-State Matrix",
-    8032: "Command Handoff Gate Labels",
-    8033: "Unsupported Not-Modeled Visibility",
-    8034: "No-Live Authority Assertions",
-    8035: "Mock Runtime Parity",
-    8036: "Focused Backend Tests",
-    8037: "Focused Frontend Tests",
-    8038: "Documentation Update",
-    8039: "Focused Validation And Hygiene",
-    8040: "Commit And Push Evidence",
+    8041: "Advance Active Queue Range",
+    8042: "Spot Command Operator E2E Scope",
+    8043: "Backend Spot Command Happy-Path Contract Audit",
+    8044: "Manual Order Request Evidence Fixtures",
+    8045: "Cancel By Client Order Handoff Evidence",
+    8046: "Direct Order Audit Handoff Parity",
+    8047: "Frontend Command Runtime State Audit",
+    8048: "Spot Operations Audit Lookup E2E",
+    8049: "Orders To Cancel Handoff E2E",
+    8050: "Spot Sell Authority Visibility E2E",
+    8051: "Backend Association Smoke Script",
+    8052: "Frontend Browser Smoke Path",
+    8053: "BFF Forwarding Boundary Assertions",
+    8054: "No-Live Authority Assertions",
+    8055: "Mock Runtime Parity",
+    8056: "Focused Backend Tests",
+    8057: "Focused Frontend Tests",
+    8058: "Blind Contextless Review",
+    8059: "Validation And Hygiene",
+    8060: "Commit And Push Evidence",
 }
 PROOF_ONLY_ACTIVE_PHASE_TITLE_PATTERNS = (
     re.compile(r"Futures/Perpetuals", re.IGNORECASE),
@@ -104,14 +104,14 @@ PROOF_ONLY_ACTIVE_PHASE_TITLE_PATTERNS = (
     re.compile(r"Summary Evidence", re.IGNORECASE),
     re.compile(r"Display Evidence", re.IGNORECASE),
 )
-PREVIOUS_COMPLETED_PHASE_RANGE = "8001-8020"
+PREVIOUS_COMPLETED_PHASE_RANGE = "8021-8040"
 RELEASE_PIVOT_PHRASE = (
-    "Active Release 0.1 `8021-8040` adds a Movement/Repricing "
-    "Action-State Matrix so operators can see move, premark, reprice, "
-    "cooldown, claim, cancel/replace, audit, and recovery workflows as "
-    "usable, blocked, unsupported, or not modeled from backend evidence "
-    "while completed `8001-8020` carries the M55 Stealth Action-State "
-    "Matrix evidence."
+    "Active Release 0.1 `8041-8060` adds a Spot Command Operator E2E "
+    "slice so operators can verify manual spot order, cancel-by-"
+    "client_order_id, direct-order audit, and command handoff workflows "
+    "through the enterprise frontend/API without browser/BFF trading "
+    "authority while completed `8021-8040` carries the Movement/Repricing "
+    "Action-State Matrix evidence."
 )
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"

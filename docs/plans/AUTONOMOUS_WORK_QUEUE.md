@@ -31,9 +31,9 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 
 ## Approved Range Status
 
-- Approved phase range: **8021-8040**.
+- Approved phase range: **8041-8060**.
 - Range status: active under Release 0.1 - Private Operator Admin MVP.
-- Previous completed range: `8001-8020`.
+- Previous completed range: `8021-8040`.
 - The approved range allows unattended work without asking for another
   approval when the work stays inside the phase scope and cap policy below.
 - The prior live Coinbase cap posture is carried forward, but live execution
@@ -117,6 +117,14 @@ result in the phase evidence, handoff, or closeout summary before advancing.
   `order_specific_adjudication=false`, and no browser/BFF execution authority.
   Live Coinbase execution was not run; submitted notional `0` USDC, executed
   notional `0` USDC.
+- Phase `8021-8040` completion status: completed and pushed in backend commit
+  `9edf7b29` and frontend commit `f0feb44`. The range added backend-owned
+  movement/repricing action-state rows and a frontend matrix for move,
+  premark, reprice, cooldown, claim, cancel/replace, audit, and recovery
+  workflows. Blind/contextless review passed after remediation moved the
+  matrix out of frontend-local states and into backend `AdminApiActionState`
+  rows. Live Coinbase execution was not run; submitted notional `0` USDC,
+  executed notional `0` USDC.
 
 ## Current Progress Record
 
@@ -124,11 +132,11 @@ This record mirrors the machine-readable artifact contract. While the
 approved range is active, `current_phase` records the last completed gated
 baseline before the range, not the final phase id in the active range.
 
-- `current_phase`: `8020`.
+- `current_phase`: `8040`.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
-- `next_phase`: `start_movement_repricing_action_state_matrix`.
+- `next_phase`: `start_spot_command_operator_e2e`.
 
 ## Stop Conditions
 
@@ -145,11 +153,140 @@ baseline before the range, not the final phase id in the active range.
 - Work would add evidence-only roadmap expansion without tying it to a named Release 0.1 blocker.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 8021-8040
+## Active Phases 8041-8060
+
+Batch label: Spot Command Operator E2E.
+
+These phases clear the next concrete Release 0.1 blocker for Spot commands:
+operators must be able to verify manual spot order, cancel-by-`client_order_id`,
+direct-order audit, and command handoff workflows through the enterprise
+frontend/API without falling back to proof-of-concept dashboards. This range
+is no-live by default: it may improve dry-run, BFF forwarding, local backend
+association, mock parity, browser smoke, and audit handoff evidence, but it
+must not add browser/BFF trading authority, bypass backend gates, call
+Coinbase directly, or create a second order path.
+
+Every phase must answer: Does this make the frontend able to manage the project?
+
+Active Release 0.1 `8041-8060` adds a Spot Command Operator E2E slice so
+operators can verify manual spot order, cancel-by-client_order_id,
+direct-order audit, and command handoff workflows through the enterprise
+frontend/API without browser/BFF trading authority while completed `8021-8040`
+carries the Movement/Repricing Action-State Matrix evidence.
+
+Exact autonomous phrase: Active Release 0.1 `8041-8060` adds a Spot Command Operator E2E slice so operators can verify manual spot order, cancel-by-client_order_id, direct-order audit, and command handoff workflows through the enterprise frontend/API without browser/BFF trading authority while completed `8021-8040` carries the Movement/Repricing Action-State Matrix evidence.
+
+### Phase 8041 - Advance Active Queue Range
+
+- Update autonomous validators, durable state, handoff docs, and phase records
+  so active work is `8041-8060` and completed `8021-8040` remains historical
+  Movement/Repricing Action-State Matrix evidence.
+
+### Phase 8042 - Spot Command Operator E2E Scope
+
+- Scope the manual Spot order/cancel operator happy path against the Release
+  0.1 spot-command blocker and existing backend route gates.
+
+### Phase 8043 - Backend Spot Command Happy-Path Contract Audit
+
+- Audit backend manual order, cancel-by-`client_order_id`, direct-order audit,
+  admission, cap/guard, reconciliation, live-service, and event-stream
+  evidence without changing live execution posture.
+
+### Phase 8044 - Manual Order Request Evidence Fixtures
+
+- Add or tighten deterministic request/response fixtures for manual BUY/SELL
+  dry-run and backend-mediated live-disabled review paths.
+
+### Phase 8045 - Cancel By Client Order Handoff Evidence
+
+- Prove cancel handoffs remain keyed by `client_order_id`, never exchange
+  `order_id`, and preserve the backend `cancel_order(client_order_id)`
+  wrapper boundary.
+
+### Phase 8046 - Direct Order Audit Handoff Parity
+
+- Ensure accepted manual-order responses, frontend links, and Spot Operations
+  audit lookup all point to the same direct-order audit evidence.
+
+### Phase 8047 - Frontend Command Runtime State Audit
+
+- Audit command workflow runtime state so order/cancel drafts, acknowledgements,
+  disabled buttons, and result panels are understandable and do not imply
+  browser authority.
+
+### Phase 8048 - Spot Operations Audit Lookup E2E
+
+- Add or tighten operator-level tests for loading direct-order audit evidence
+  from Spot Operations through the canonical backend runtime client.
+
+### Phase 8049 - Orders To Cancel Handoff E2E
+
+- Add or tighten operator-level tests for Orders-to-Command-Workflows cancel
+  handoff, preserving `client_order_id` identity and no automatic submit.
+
+### Phase 8050 - Spot Sell Authority Visibility E2E
+
+- Make no-live SELL authority, lot authority, planned-budget evidence, and
+  guard blockers visible in the operator flow without adding a sell guard in
+  the browser.
+
+### Phase 8051 - Backend Association Smoke Script
+
+- Add or tighten a no-live backend association smoke that exercises the
+  enterprise Admin API command/read path expected by the frontend.
+
+### Phase 8052 - Frontend Browser Smoke Path
+
+- Add or tighten a Playwright smoke path for the private operator command
+  workflow using mock or local-backend no-live evidence.
+
+### Phase 8053 - BFF Forwarding Boundary Assertions
+
+- Assert the BFF forwards only allowed Admin API routes and never becomes
+  command execution authority.
+
+### Phase 8054 - No-Live Authority Assertions
+
+- Add focused assertions that this slice does not add live Coinbase execution,
+  browser/BFF execution authority, dashboard WebSocket calls, route-local
+  execution, reconciliation execution, or order/exchange state mutation.
+
+### Phase 8055 - Mock Runtime Parity
+
+- Keep mock frontend/backend fixtures in parity with the spot command
+  operator E2E contract.
+
+### Phase 8056 - Focused Backend Tests
+
+- Run focused Admin API, spot command, direct-order audit, ownership, and
+  autonomous tests covering the backend contracts.
+
+### Phase 8057 - Focused Frontend Tests
+
+- Run focused frontend command workflow, spot operations, backend runtime,
+  API, browser-smoke, and quality tests.
+
+### Phase 8058 - Blind Contextless Review
+
+- Run blind/contextless backend/frontend review for the spot command operator
+  E2E path and remediate blocking ambiguity before advancing.
+
+### Phase 8059 - Validation And Hygiene
+
+- Run targeted validators, diff checks, stale-process checks where applicable,
+  and phase-end subagent cleanup.
+
+### Phase 8060 - Commit And Push Evidence
+
+- Commit and push synchronized backend/frontend evidence with no-live notional
+  reporting.
+
+## Completed Phases 8021-8040
 
 Batch label: Movement/Repricing Action-State Matrix.
 
-These phases clear the next concrete Release 0.1 blocker for
+These phases cleared the Release 0.1 blocker for
 Movement/Repricing: operators can see move, premark, reprice, cooldown, claim,
 cancel/replace, audit, and recovery workflows as usable, blocked,
 `unsupported`, or `not_modeled` from backend evidence before any controls are
@@ -161,13 +298,13 @@ mutation, or a second order movement path.
 
 Every phase must answer: Does this make the frontend able to manage the project?
 
-Active Release 0.1 `8021-8040` adds a Movement/Repricing Action-State Matrix
+Completed Release 0.1 `8021-8040` added a Movement/Repricing Action-State Matrix
 so operators can see move, premark, reprice, cooldown, claim, cancel/replace,
 audit, and recovery workflows as usable, blocked, unsupported, or not modeled
 from backend evidence while completed `8001-8020` carries the M55 Stealth
 Action-State Matrix evidence.
 
-Exact autonomous phrase: Active Release 0.1 `8021-8040` adds a Movement/Repricing Action-State Matrix so operators can see move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows as usable, blocked, unsupported, or not modeled from backend evidence while completed `8001-8020` carries the M55 Stealth Action-State Matrix evidence.
+Exact historical phrase: Completed Release 0.1 `8021-8040` added a Movement/Repricing Action-State Matrix so operators can see move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows as usable, blocked, unsupported, or not modeled from backend evidence while completed `8001-8020` carries the M55 Stealth Action-State Matrix evidence.
 
 ### Phase 8021 - Advance Active Queue Range
 

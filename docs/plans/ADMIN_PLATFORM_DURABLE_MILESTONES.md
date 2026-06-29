@@ -179,12 +179,12 @@ not independent roadmaps.
 | M53 - Controlled Execution Adapter Pilot | Complete | Enable one tightly capped backend live adapter only after M49-M52 pass, with no browser live switch and mandatory reconciliation proof. |
 | M54 - Spot Full Admin Command Suite | Complete; reconciliation executor remains future live-enablement work | Complete spot manual orders, cancels, campaigns, sweeps, P/L, recovery, and reconciliation through the approved backend gate chain. |
 | M55 - Stealth Full Admin Command Suite | In Progress; latest completed range 8001-8020 | Complete stealth create/cancel/reveal/move/reprice/recovery workflows while preserving exchange-reality invariants and mutation locks. |
-| M56 - Movement/Repricing Full Admin Command Suite | In Progress; active range 8021-8040 | Complete move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows through existing mutation claims and exchange handling. |
+| M56 - Movement/Repricing Full Admin Command Suite | In Progress; latest completed range 8021-8040 | Complete move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows through existing mutation claims and exchange handling. |
 | M57 - Futures/Perpetuals Contract Foundation And Commands | Evidence expansion frozen; latest completed range 7961-7980 | Add futures/perpetual command contracts only after backend-owned position, margin, liquidation, reduce-only, close-only, funding, and collateral semantics exist. |
 | M58 - Automation, Campaign, Scheduler, And Retry Suite | Approved; not started | Complete durable scheduling, run limits, pause/resume, retries, operator status, and recovery for automation without browser schedulers or parallel live paths. |
 | M59 - Recovery, Repair, Policy, And Operations Admin | Approved; not started | Add backend-owned repair, policy/configuration, role, deployment, observability, and operator runbook administration without exposing secrets or browser-held authority. |
 | M60 - Full Functionality Release Candidate | Approved; not started | Prove all supported backend functionality through security review, regression, release gates, live-cap evidence, contextless reviews, and public maintainer handoff. |
-| M61 - Release 0.1 Private Operator Admin MVP | In Progress; active range 8021-8040 | Release a usable private operator admin product that can manage backend-supported workflows while explicit gaps appear as `unsupported` or `not_modeled`. |
+| M61 - Release 0.1 Private Operator Admin MVP | In Progress; active range 8041-8060 | Release a usable private operator admin product that can manage backend-supported workflows while explicit gaps appear as `unsupported` or `not_modeled`. |
 
 ## Remaining Milestone Dependency Ledger
 

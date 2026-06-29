@@ -11,13 +11,13 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 8021-8040 range is the Release 0.1 Movement/Repricing
-Action-State Matrix. Active Release 0.1 `8021-8040` adds a
-Movement/Repricing Action-State Matrix so operators can see move, premark,
-reprice, cooldown, claim, cancel/replace, audit, and recovery workflows as
-usable, blocked, unsupported, or not modeled from backend evidence while
-completed `8001-8020` carries the M55 Stealth Action-State Matrix evidence.
-Current examples use `"approved_phase_range": "8021-8040"` for active
+The active 8041-8060 range is the Release 0.1 Spot Command Operator E2E
+slice. Active Release 0.1 `8041-8060` adds a spot command operator path so
+operators can verify manual spot order, cancel-by-client_order_id,
+direct-order audit, and command handoff workflows through the enterprise
+frontend/API without browser/BFF trading authority while completed `8021-8040`
+carries the Movement/Repricing Action-State Matrix evidence.
+Current examples use `"approved_phase_range": "8041-8060"` for active
 release-control metadata.
 
 The completed 7961-7980 range targeted explicit M57 futures/perpetual

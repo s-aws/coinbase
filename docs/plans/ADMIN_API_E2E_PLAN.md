@@ -49,22 +49,31 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 8021-8040
+## Current Active Phases 8041-8060
 
-Batch label: Movement/Repricing Action-State Matrix.
+Batch label: Spot Command Operator E2E.
 
-Current Release 0.1 `8021-8040` adds a backend-owned Movement/Repricing
-Action-State Matrix so the frontend can show move, premark, reprice,
-cooldown, claim, cancel/replace, audit, and recovery workflows as usable,
-blocked, `unsupported`, or `not_modeled` from API evidence. The active goal is
-not another proof-summary table; it is operator clarity for a Release 0.1
-Movement and Repricing blocker while preserving mutation locks,
-replacement-slot invariants, cooldown semantics, and no-live authority
-boundaries.
+Current Release 0.1 `8041-8060` adds a backend-owned Spot Command Operator
+E2E slice so operators can verify manual spot order,
+cancel-by-client_order_id, direct-order audit, and command handoff workflows
+through the enterprise frontend/API without browser/BFF trading authority. The
+active goal is not another proof-summary table; it is operator confidence for
+the Release 0.1 Spot Command blocker while preserving backend-owned command
+authority, `client_order_id` identity, no-live default posture, and BFF/browser
+display-or-forward-only boundaries.
 
 Every phase must answer: Does this make the frontend able to manage the project?
 
-Exact autonomous phrase: Active Release 0.1 `8021-8040` adds a Movement/Repricing Action-State Matrix so operators can see move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows as usable, blocked, unsupported, or not modeled from backend evidence while completed `8001-8020` carries the M55 Stealth Action-State Matrix evidence.
+Exact autonomous phrase: Active Release 0.1 `8041-8060` adds a Spot Command Operator E2E slice so operators can verify manual spot order, cancel-by-client_order_id, direct-order audit, and command handoff workflows through the enterprise frontend/API without browser/BFF trading authority while completed `8021-8040` carries the Movement/Repricing Action-State Matrix evidence.
+
+## Completed Phases 8021-8040
+
+Batch label: Movement/Repricing Action-State Matrix.
+
+Completed Release 0.1 `8021-8040` added backend-owned movement/repricing
+action-state rows and the frontend action-state matrix. Blind/contextless
+review passed after remediation moved non-canonical frontend local states into
+backend `AdminApiActionState` rows.
 
 ## Completed Phases 8001-8020
 

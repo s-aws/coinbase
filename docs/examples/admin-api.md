@@ -20,13 +20,13 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 
 ## Current Release 0.1 Pivot
 
-Active Release 0.1 `8021-8040` adds a Movement/Repricing Action-State Matrix
-so operators can see move, premark, reprice, cooldown, claim, cancel/replace,
-audit, and recovery workflows as usable, blocked, unsupported, or not modeled
-from backend evidence while completed `8001-8020` carries the M55 Stealth
-Action-State Matrix evidence.
+Active Release 0.1 `8041-8060` adds a Spot Command Operator E2E slice so
+operators can verify manual spot order, cancel-by-client_order_id,
+direct-order audit, and command handoff workflows through the enterprise
+frontend/API without browser/BFF trading authority while completed `8021-8040`
+carries the Movement/Repricing Action-State Matrix evidence.
 
-Current active Admin API examples use `"approved_phase_range": "8021-8040"`.
+Current active Admin API examples use `"approved_phase_range": "8041-8060"`.
 New examples must clear a named Release 0.1 blocker or directly improve the
 usable operator admin product. Unsupported backend behavior must appear as
 `unsupported` or `not_modeled`; it must not be implemented in the browser, BFF,
@@ -78,7 +78,7 @@ passing summary must report `live_coinbase_orders_ran=false`,
 
 Completed `GET /api/v1/futures/command-suite` examples for M57 used
 `"approved_phase_range": "7961-7980"` as historical evidence. The current
-active release-control range is `"approved_phase_range": "8021-8040"`.
+active release-control range is `"approved_phase_range": "8041-8060"`.
 Futures/perpetual command-suite reads exposed backend-owned
 `risk_proof_record_validation_remediation_summary_count`,
 `risk_proof_record_validation_remediation_summary_blocking_count`, and
@@ -1795,7 +1795,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "8021-8040",
+  "approved_phase_range": "8041-8060",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,

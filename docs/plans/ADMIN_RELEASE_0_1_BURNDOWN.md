@@ -60,17 +60,134 @@ operator admin.
 - Importing spot-only rules into stealth, futures/perpetuals, or movement
   modules.
 
-## Active Phases 8021-8040
+## Active Phases 8041-8060
+
+Batch label: Spot Command Operator E2E.
+
+Active Release 0.1 `8041-8060` adds a Spot Command Operator E2E slice so
+operators can verify manual spot order, cancel-by-client_order_id,
+direct-order audit, and command handoff workflows through the enterprise
+frontend/API without browser/BFF trading authority while completed `8021-8040`
+carries the Movement/Repricing Action-State Matrix evidence.
+
+Exact autonomous phrase: Active Release 0.1 `8041-8060` adds a Spot Command Operator E2E slice so operators can verify manual spot order, cancel-by-client_order_id, direct-order audit, and command handoff workflows through the enterprise frontend/API without browser/BFF trading authority while completed `8021-8040` carries the Movement/Repricing Action-State Matrix evidence.
+
+### Phase 8041 - Advance Active Queue Range
+
+- Move autonomous docs, validators, and durable state to active `8041-8060`
+  while preserving completed `8021-8040` Movement/Repricing Action-State
+  Matrix evidence.
+
+### Phase 8042 - Spot Command Operator E2E Scope
+
+- Scope the manual Spot order/cancel operator happy path against the Release
+  0.1 spot-command blocker and existing backend route gates.
+
+### Phase 8043 - Backend Spot Command Happy-Path Contract Audit
+
+- Audit backend manual order, cancel-by-`client_order_id`, direct-order audit,
+  admission, cap/guard, reconciliation, live-service, and event-stream
+  evidence without changing live execution posture.
+
+### Phase 8044 - Manual Order Request Evidence Fixtures
+
+- Add or tighten deterministic request/response fixtures for manual BUY/SELL
+  dry-run and backend-mediated live-disabled review paths.
+
+### Phase 8045 - Cancel By Client Order Handoff Evidence
+
+- Prove cancel handoffs remain keyed by `client_order_id`, never exchange
+  `order_id`, and preserve the backend `cancel_order(client_order_id)`
+  wrapper boundary.
+
+### Phase 8046 - Direct Order Audit Handoff Parity
+
+- Ensure accepted manual-order responses, frontend links, and Spot Operations
+  audit lookup all point to the same direct-order audit evidence.
+
+### Phase 8047 - Frontend Command Runtime State Audit
+
+- Audit command workflow runtime state so order/cancel drafts,
+  acknowledgements, disabled buttons, and result panels remain display or
+  forward-only evidence.
+
+### Phase 8048 - Spot Operations Audit Lookup E2E
+
+- Add or tighten operator-level tests for loading direct-order audit evidence
+  from Spot Operations through the canonical backend runtime client.
+
+### Phase 8049 - Orders To Cancel Handoff E2E
+
+- Add or tighten operator-level tests for Orders-to-Command-Workflows cancel
+  handoff, preserving `client_order_id` identity and no automatic submit.
+
+### Phase 8050 - Spot Sell Authority Visibility E2E
+
+- Make no-live SELL authority, lot authority, planned-budget evidence, and
+  guard blockers visible in the operator flow without adding a sell guard in
+  the browser.
+
+### Phase 8051 - Backend Association Smoke Script
+
+- Add or tighten a no-live backend association smoke that exercises the
+  enterprise Admin API command/read path expected by the frontend.
+
+### Phase 8052 - Frontend Browser Smoke Path
+
+- Add or tighten a Playwright smoke path for the private operator command
+  workflow using mock or local-backend no-live evidence.
+
+### Phase 8053 - BFF Forwarding Boundary Assertions
+
+- Assert the BFF forwards only allowed Admin API routes and never becomes
+  command execution authority.
+
+### Phase 8054 - No-Live Authority Assertions
+
+- Prove the surface adds no live Coinbase execution, browser/BFF execution
+  authority, dashboard WebSocket calls, route-local execution, reconciliation,
+  or order/exchange state mutation.
+
+### Phase 8055 - Mock Runtime Parity
+
+- Keep mock frontend/backend fixtures in parity with the spot command
+  operator E2E contract.
+
+### Phase 8056 - Focused Backend Tests
+
+- Run focused Admin API, spot command, direct-order audit, and ownership tests
+  covering the backend contracts.
+
+### Phase 8057 - Focused Frontend Tests
+
+- Run focused frontend command workflow, spot operations, backend runtime,
+  API, browser-smoke, and quality tests.
+
+### Phase 8058 - Blind Contextless Review
+
+- Run blind/contextless backend/frontend review for the spot command operator
+  E2E path and remediate blocking ambiguity before advancing.
+
+### Phase 8059 - Validation And Hygiene
+
+- Run targeted validators, diff checks, and phase-end subagent cleanup.
+
+### Phase 8060 - Commit And Push Evidence
+
+- Commit and push synchronized backend/frontend evidence with no-live notional
+  reporting.
+
+## Completed Phases 8021-8040
 
 Batch label: Movement/Repricing Action-State Matrix.
 
-Active Release 0.1 `8021-8040` adds a Movement/Repricing Action-State Matrix
+Completed Release 0.1 `8021-8040` added a Movement/Repricing Action-State Matrix
 so operators can see move, premark, reprice, cooldown, claim, cancel/replace,
 audit, and recovery workflows as usable, blocked, unsupported, or not modeled
 from backend evidence while completed `8001-8020` carries the M55 Stealth
 Action-State Matrix evidence.
 
-Exact autonomous phrase: Active Release 0.1 `8021-8040` adds a Movement/Repricing Action-State Matrix so operators can see move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows as usable, blocked, unsupported, or not modeled from backend evidence while completed `8001-8020` carries the M55 Stealth Action-State Matrix evidence.
+Exact historical phrase: Completed Release 0.1 `8021-8040` added a Movement/Repricing Action-State Matrix so operators can see move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows as usable, blocked, unsupported, or not modeled from backend evidence while completed `8001-8020` carries the M55 Stealth Action-State Matrix evidence.
 
 ### Phase 8021 - Advance Active Queue Range
 
