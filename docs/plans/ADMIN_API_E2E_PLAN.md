@@ -73,6 +73,14 @@ authority boundaries. These rows are no-live scope evidence for the Campaigns
 UI and do not grant scheduler, runner, reconciliation, BFF, browser, direct
 Coinbase, or second-path execution authority.
 
+Phase 8083 status: `GET /api/v1/spot/campaign/status` now exposes
+`campaign_inventory_count`, `campaign_inventory_status`, and backend-owned
+`campaign_inventory` rows for campaign/sweep identity, ledger/readiness/run
+limits, automation and recovery posture, command/read routes, unsupported
+behaviors, browser/BFF boundaries, and no-live notional proof. This is an
+operator inventory contract only; it does not execute scheduler, retry,
+reconciliation, Coinbase, browser, BFF, route-local, or second-path behavior.
+
 ## Completed Phases 8061-8080
 
 Completed Release 0.1 `8061-8080` added the Audit/Reconciliation Operator

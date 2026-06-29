@@ -142,8 +142,9 @@ work. Historical milestone detail belongs in
   Live Coinbase execution was not run; submitted/executed notional remained
   `0`/`0` USDC.
 - Exact next implementation slice: continue Release 0.1 blocker clearing with
-  Phase 8083 Backend Campaign State Inventory from active `8081-8100`, using
-  the Phase 8082 automation-service operator-scope contract as the baseline.
+  Phase 8084 Sweep Automation Service Status Contract from active
+  `8081-8100`, using the Phase 8082 automation-service operator-scope
+  contract and Phase 8083 campaign inventory contract as the baseline.
   Do not add browser scheduler, BFF runner authority, retry loops,
   route-local execution, direct Coinbase calls, reconciliation execution,
   order/exchange state mutation, or a second trading path.

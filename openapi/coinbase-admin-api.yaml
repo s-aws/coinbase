@@ -138521,6 +138521,252 @@ components:
       - FUTURE
       title: ProductType
       description: Type of trading product.
+    SpotCampaignInventoryItem:
+      properties:
+        campaign_id:
+          type: string
+          title: Campaign Id
+        sweep_config_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sweep Config Id
+        support_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+          default: read_only_ready
+        gate_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: not_applicable
+        readiness_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Readiness Status
+        latest_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Status
+        latest_mode:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Mode
+        snapshot_count:
+          type: integer
+          minimum: 0.0
+          title: Snapshot Count
+          default: 0
+        notional_snapshot_count:
+          type: integer
+          minimum: 0.0
+          title: Notional Snapshot Count
+          default: 0
+        planned_order_count:
+          type: integer
+          minimum: 0.0
+          title: Planned Order Count
+          default: 0
+        planned_skip_count:
+          type: integer
+          minimum: 0.0
+          title: Planned Skip Count
+          default: 0
+        run_count:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Run Count
+        max_runs:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Max Runs
+        automation_decision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Automation Decision
+        recovery_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recovery Status
+        planned_reconciliation_run_count:
+          type: integer
+          minimum: 0.0
+          title: Planned Reconciliation Run Count
+          default: 0
+        planned_backfill_order_count:
+          type: integer
+          minimum: 0.0
+          title: Planned Backfill Order Count
+          default: 0
+        operation_lock_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operation Lock Status
+        operation_lock_exists:
+          type: boolean
+          title: Operation Lock Exists
+          default: false
+        operation_lock_stale:
+          type: boolean
+          title: Operation Lock Stale
+          default: false
+        latest_live_run_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Live Run Id
+        latest_live_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Live Status
+        latest_live_recorded_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Live Recorded Status
+        latest_live_skipped_order_count:
+          type: integer
+          minimum: 0.0
+          title: Latest Live Skipped Order Count
+          default: 0
+        total_submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Total Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        total_executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Total Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        estimated_planned_quote_notional:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Estimated Planned Quote Notional
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        sell_authority_allowlist_count:
+          type: integer
+          minimum: 0.0
+          title: Sell Authority Allowlist Count
+          default: 0
+        sell_authority_blocked_count:
+          type: integer
+          minimum: 0.0
+          title: Sell Authority Blocked Count
+          default: 0
+        portfolio_total_pnl:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Portfolio Total Pnl
+        latest_snapshot_generated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Snapshot Generated At
+        latest_readiness_generated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Readiness Generated At
+        latest_live_generated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Live Generated At
+        read_routes:
+          items:
+            type: string
+          type: array
+          title: Read Routes
+        command_routes:
+          items:
+            type: string
+          type: array
+          title: Command Routes
+        state_sources:
+          items:
+            type: string
+          type: array
+          title: State Sources
+        unsupported_behaviors:
+          items:
+            type: string
+          type: array
+          title: Unsupported Behaviors
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - campaign_id
+      - detail
+      title: SpotCampaignInventoryItem
+      description: One backend-owned campaign inventory row for operator review.
     SpotCampaignStatusResponse:
       properties:
         type:
@@ -138551,6 +138797,68 @@ components:
           - type: string
           - type: 'null'
           title: Message
+        campaign_inventory_count:
+          type: integer
+          minimum: 0.0
+          title: Campaign Inventory Count
+          default: 0
+        campaign_inventory_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: not_applicable
+        campaign_inventory:
+          items:
+            $ref: '#/components/schemas/SpotCampaignInventoryItem'
+          type: array
+          title: Campaign Inventory
+        campaign_inventory_read_routes:
+          items:
+            type: string
+          type: array
+          title: Campaign Inventory Read Routes
+        campaign_inventory_command_routes:
+          items:
+            type: string
+          type: array
+          title: Campaign Inventory Command Routes
+        campaign_inventory_unsupported_behaviors:
+          items:
+            type: string
+          type: array
+          title: Campaign Inventory Unsupported Behaviors
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
       additionalProperties: true
       type: object
       title: SpotCampaignStatusResponse

@@ -33,6 +33,14 @@ usable operator admin product. Unsupported backend behavior must appear as
 `unsupported` or `not_modeled`; it must not be implemented in the browser, BFF,
 route-local FastAPI code, or a second trading path.
 
+Phase 8083 adds campaign inventory evidence to
+`GET /api/v1/spot/campaign/status`. Example responses may include
+`campaign_inventory_count`, `campaign_inventory_status`, and
+`campaign_inventory` rows for backend-owned campaign/sweep state, routes,
+unsupported behavior, browser/BFF boundaries, and no-live notional proof. The
+rows are operator evidence only and do not authorize scheduler, retry,
+reconciliation, Coinbase, browser, BFF, route-local, or second-path execution.
+
 ## Capped Manual Spot BUY Live Validation
 
 Run the exact Admin API manual Spot BUY path without live submission:

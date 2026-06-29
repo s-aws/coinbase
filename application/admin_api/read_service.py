@@ -361,6 +361,7 @@ from .models import (
     SpotCommandSuiteCoverageGapItem,
     SpotCommandSuiteProofRouteItem,
     SpotCommandSuiteResponse,
+    SpotCampaignInventoryItem,
     SpotRecoveryApplyReviewResponse,
     SpotRecoveryCompletionRecordItem,
     SpotRecoveryCompletionStateItem,
@@ -7412,6 +7413,239 @@ def _stealth_post_write_reconciliation_policy_item_from_record(
             "replace placements, or mutate stealth/order/exchange state."
         ),
     )
+
+
+def _campaign_inventory_mapping(value: Any) -> dict[str, Any]:
+    if isinstance(value, Mapping):
+        return dict(value)
+    return {}
+
+
+def _campaign_inventory_int(value: Any) -> int:
+    try:
+        return max(0, int(value or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _campaign_inventory_optional_int(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    return _campaign_inventory_int(value)
+
+
+def _campaign_inventory_decimal(value: Any, fallback: str = "0") -> str:
+    if value is None or value == "":
+        return fallback
+    try:
+        return str(Decimal(str(value)))
+    except (InvalidOperation, ValueError):
+        return fallback
+
+
+def _campaign_inventory_optional_decimal(value: Any) -> str | None:
+    if value is None or value == "":
+        return None
+    try:
+        return str(Decimal(str(value)))
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _campaign_inventory_text(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _build_spot_campaign_inventory(
+    *,
+    operator_status: Mapping[str, Any],
+    state_file: str | None,
+) -> tuple[list[SpotCampaignInventoryItem], AdminApiGateStatus]:
+    campaigns = [
+        _campaign_inventory_mapping(row)
+        for row in operator_status.get("campaigns") or []
+        if isinstance(row, Mapping)
+    ]
+    read_routes = [
+        "GET /api/v1/spot/campaign/status",
+        "GET /api/v1/spot/sweep/status",
+        "GET /api/v1/spot/sweep/pnl",
+        "GET /api/v1/spot/command-suite",
+    ]
+    command_routes = [
+        "POST /api/v1/spot/campaign/executions",
+        "POST /api/v1/spot/sweep/automation-runs",
+        "POST /api/v1/spot/sweep/automation-controls",
+    ]
+    unsupported_behaviors = [
+        "browser scheduler authority",
+        "BFF runner authority",
+        "route-local campaign execution",
+        "reconciliation execution",
+        "direct Coinbase calls",
+        "second automation path",
+    ]
+    inventory: list[SpotCampaignInventoryItem] = []
+    blocked_count = 0
+    warning_count = 0
+    for campaign in campaigns:
+        campaign_id = _campaign_inventory_text(campaign.get("campaign_id"))
+        if not campaign_id:
+            continue
+        summary = _campaign_inventory_mapping(campaign.get("operator_summary"))
+        planned_reconciliation = _campaign_inventory_int(
+            summary.get("planned_reconciliation_run_count")
+        )
+        planned_backfill = _campaign_inventory_int(
+            summary.get("planned_backfill_order_count")
+        )
+        readiness_status = _campaign_inventory_text(
+            summary.get("readiness_status")
+        )
+        row_blocked = bool(
+            summary.get("blocked")
+            or readiness_status == SpotCampaignStatus.BLOCKED.value
+            or planned_reconciliation
+            or planned_backfill
+        )
+        row_warning = bool(
+            not row_blocked
+            and (
+                _campaign_inventory_int(summary.get("failure_count"))
+                or _campaign_inventory_int(summary.get("warning_count"))
+                or _campaign_inventory_int(
+                    summary.get("sell_authority_blocked_count")
+                )
+            )
+        )
+        if row_blocked:
+            blocked_count += 1
+        elif row_warning:
+            warning_count += 1
+        gate_status = (
+            AdminApiGateStatus.BLOCKED
+            if row_blocked
+            else AdminApiGateStatus.WARNING
+            if row_warning
+            else AdminApiGateStatus.PASSED
+        )
+        submitted_notional = _campaign_inventory_decimal(
+            summary.get("total_submitted_notional_usdc")
+            or campaign.get("total_submitted_notional_usdc")
+        )
+        executed_notional = _campaign_inventory_decimal(
+            summary.get("total_executed_notional_usdc")
+            or campaign.get("total_executed_notional_usdc")
+        )
+        live_coinbase_orders_ran = Decimal(submitted_notional) > 0
+        inventory.append(
+            SpotCampaignInventoryItem(
+                campaign_id=campaign_id,
+                sweep_config_id=_campaign_inventory_text(
+                    campaign.get("sweep_config_id")
+                ),
+                gate_status=gate_status,
+                readiness_status=readiness_status,
+                latest_status=_campaign_inventory_text(campaign.get("latest_status")),
+                latest_mode=_campaign_inventory_text(campaign.get("latest_mode")),
+                snapshot_count=_campaign_inventory_int(
+                    campaign.get("snapshot_count")
+                ),
+                notional_snapshot_count=_campaign_inventory_int(
+                    campaign.get("notional_snapshot_count")
+                ),
+                planned_order_count=_campaign_inventory_int(
+                    summary.get("planned_order_count")
+                ),
+                planned_skip_count=_campaign_inventory_int(
+                    summary.get("planned_skip_count")
+                ),
+                run_count=_campaign_inventory_optional_int(
+                    summary.get("run_count")
+                ),
+                max_runs=_campaign_inventory_optional_int(summary.get("max_runs")),
+                automation_decision=_campaign_inventory_text(
+                    summary.get("automation_decision")
+                ),
+                recovery_status=_campaign_inventory_text(
+                    summary.get("recovery_status")
+                ),
+                planned_reconciliation_run_count=planned_reconciliation,
+                planned_backfill_order_count=planned_backfill,
+                operation_lock_status=_campaign_inventory_text(
+                    summary.get("operation_lock_status")
+                ),
+                operation_lock_exists=bool(summary.get("operation_lock_exists")),
+                operation_lock_stale=bool(summary.get("operation_lock_stale")),
+                latest_live_run_id=_campaign_inventory_text(
+                    summary.get("latest_live_run_id")
+                ),
+                latest_live_status=_campaign_inventory_text(
+                    summary.get("latest_live_status")
+                ),
+                latest_live_recorded_status=_campaign_inventory_text(
+                    summary.get("latest_live_recorded_status")
+                ),
+                latest_live_skipped_order_count=_campaign_inventory_int(
+                    summary.get("latest_live_skipped_order_count")
+                ),
+                total_submitted_notional_usdc=submitted_notional,
+                total_executed_notional_usdc=executed_notional,
+                estimated_planned_quote_notional=_campaign_inventory_decimal(
+                    summary.get("estimated_planned_quote_notional")
+                ),
+                sell_authority_allowlist_count=_campaign_inventory_int(
+                    summary.get("sell_authority_allowlist_count")
+                ),
+                sell_authority_blocked_count=_campaign_inventory_int(
+                    summary.get("sell_authority_blocked_count")
+                ),
+                portfolio_total_pnl=_campaign_inventory_optional_decimal(
+                    summary.get("portfolio_total_pnl")
+                ),
+                latest_snapshot_generated_at=_campaign_inventory_text(
+                    summary.get("latest_snapshot_generated_at")
+                    or campaign.get("latest_generated_at")
+                ),
+                latest_readiness_generated_at=_campaign_inventory_text(
+                    summary.get("latest_readiness_generated_at")
+                ),
+                latest_live_generated_at=_campaign_inventory_text(
+                    summary.get("latest_live_generated_at")
+                ),
+                read_routes=read_routes,
+                command_routes=command_routes,
+                state_sources=[
+                    str(state_file or "runtime_state/spot_campaigns.jsonl"),
+                    "operator_status.campaigns",
+                    "operator_status.campaigns[].operator_summary",
+                ],
+                unsupported_behaviors=unsupported_behaviors,
+                live_coinbase_orders_ran=live_coinbase_orders_ran,
+                submitted_notional_usdc=submitted_notional,
+                executed_notional_usdc=executed_notional,
+                detail=(
+                    "Backend-owned campaign inventory row. It summarizes "
+                    "campaign ledger, readiness, limits, recovery blockers, "
+                    "latest live-run evidence, notional evidence, and source "
+                    "routes without executing scheduler, sweep, recovery, "
+                    "reconciliation, or Coinbase behavior."
+                ),
+            )
+        )
+    status = (
+        AdminApiGateStatus.NOT_APPLICABLE
+        if not inventory
+        else AdminApiGateStatus.BLOCKED
+        if blocked_count
+        else AdminApiGateStatus.WARNING
+        if warning_count
+        else AdminApiGateStatus.PASSED
+    )
+    return inventory, status
 
 
 class AdminApiReadService:
@@ -56140,7 +56374,51 @@ class AdminApiReadService:
     ) -> dict[str, Any]:
         from dashboard_server import _build_spot_campaign_payload
 
-        return _build_spot_campaign_payload(state_file=state_file)
+        payload = dict(_build_spot_campaign_payload(state_file=state_file))
+        operator_status = _campaign_inventory_mapping(payload.get("operator_status"))
+        inventory, inventory_status = _build_spot_campaign_inventory(
+            operator_status=operator_status,
+            state_file=payload.get("state_file") or state_file,
+        )
+        submitted_notional = _campaign_inventory_decimal(
+            operator_status.get("total_submitted_notional_usdc")
+        )
+        executed_notional = _campaign_inventory_decimal(
+            operator_status.get("total_executed_notional_usdc")
+        )
+        payload.update({
+            "campaign_inventory_count": len(inventory),
+            "campaign_inventory_status": inventory_status.value,
+            "campaign_inventory": [
+                item.model_dump(mode="json") for item in inventory
+            ],
+            "campaign_inventory_read_routes": [
+                "GET /api/v1/spot/campaign/status",
+                "GET /api/v1/spot/sweep/status",
+                "GET /api/v1/spot/sweep/pnl",
+                "GET /api/v1/spot/command-suite",
+            ],
+            "campaign_inventory_command_routes": [
+                "POST /api/v1/spot/campaign/executions",
+                "POST /api/v1/spot/sweep/automation-runs",
+                "POST /api/v1/spot/sweep/automation-controls",
+            ],
+            "campaign_inventory_unsupported_behaviors": [
+                "browser scheduler authority",
+                "BFF runner authority",
+                "route-local campaign execution",
+                "reconciliation execution",
+                "direct Coinbase calls",
+                "second automation path",
+            ],
+            "backend_owned": True,
+            "read_only": True,
+            "browser_authority": "display_only",
+            "bff_authority": "read_only_forward",
+            "submitted_notional_usdc": submitted_notional,
+            "executed_notional_usdc": executed_notional,
+        })
+        return payload
 
     def build_spot_sweep_automation_service_status(
         self,

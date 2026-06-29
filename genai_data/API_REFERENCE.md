@@ -38,6 +38,15 @@ controls, dry-run review, execution gaps, and authority boundaries as
 backend-owned no-live evidence; they do not authorize scheduler, runner,
 reconciliation, browser/BFF, direct Coinbase, or second-path execution.
 
+Phase 8083 adds `campaign_inventory_count`, `campaign_inventory_status`, and
+`campaign_inventory` to the spot campaign status response. Inventory rows are
+backend-owned no-live evidence for campaign/sweep identity, readiness, ledger
+counts, planned orders/skips, run limits, automation decision, recovery and
+operation-lock posture, latest live run status, notional totals, sell
+authority counts, P/L, read/command routes, state sources, unsupported
+behavior, and browser/BFF authority. They do not execute scheduler, retry,
+reconciliation, Coinbase, browser, BFF, route-local, or second-path behavior.
+
 Completed M57 `7961-7980` futures/perpetual risk-proof record validation
 remediation summary evidence for `GET /api/v1/futures/command-suite` is
 carried forward history. It added read-only

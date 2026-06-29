@@ -34698,6 +34698,123 @@ def test_admin_api_spot_sweep_automation_dry_run_respects_pause_control_no_live(
 
 
 @pytest.mark.regression
+def test_admin_api_spot_campaign_status_exposes_campaign_inventory(monkeypatch):
+    from business.spot_campaign import (
+        append_spot_campaign_snapshot_record,
+        build_spot_campaign_snapshot_record,
+    )
+    from core.enums import (
+        AdminApiGateStatus,
+        OrderSide,
+        SpotCampaignRunMode,
+        SpotCampaignStatus,
+        SpotPortfolioSweepAutomationDecision,
+    )
+
+    client = _client(monkeypatch)
+    config = {
+        "version": 1,
+        "campaign_id": "campaign-inventory-8083",
+        "sweep_config_id": "spot-sweep-inventory-8083",
+        "campaign_name": "admin_campaign_inventory",
+        "side": OrderSide.BUY.value,
+        "quote_notional": "1",
+        "max_products": 2,
+        "order_type": "market_ioc",
+        "automation": {
+            "enabled": True,
+            "repeat_every_hours": "6",
+            "max_runs": 3,
+        },
+        "product_scope": {
+            "quote_currency": "USDC",
+            "us_customer_available": True,
+            "selection_rule": "all_coinbase_usdc_spot_us_customer_available",
+        },
+        "safety_policy": {
+            "max_total_notional_per_run": "2",
+            "max_notional_per_order": "1",
+            "max_planned_orders": 2,
+        },
+        "inventory_policy": {"retention": "retain"},
+        "cost_basis_authority": {
+            "allowed_sources": ["fill_ledger", "imported_baseline"],
+        },
+    }
+    campaign_record = build_spot_campaign_snapshot_record(
+        config=config,
+        mode=SpotCampaignRunMode.DRY_RUN,
+        status=SpotCampaignStatus.READY,
+        dry_run_matrix={
+            "plan": {
+                "planned_count": 2,
+                "skipped_count": 1,
+                "estimated_planned_quote_notional": "2",
+            },
+            "safety_evaluation": {"decision": "allowed"},
+            "automation_due": {
+                "decision": SpotPortfolioSweepAutomationDecision.DUE.value,
+                "run_count": 1,
+                "max_runs": 3,
+            },
+            "pnl_snapshot": {"portfolio": {"total_pnl": "0.25"}},
+        },
+        sell_authority_allowlist={
+            "allowlist_count": 2,
+            "blocked_count": 1,
+        },
+        generated_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+    )
+    append_spot_campaign_snapshot_record(
+        client.admin_api_test_spot_campaign_state_file,
+        campaign_record,
+    )
+
+    response = client.get(
+        (
+            "/api/v1/spot/campaign/status"
+            f"?state_file={client.admin_api_test_spot_campaign_state_file}"
+        ),
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+    payload = response.json()
+
+    assert response.status_code == 200
+    assert payload["campaign_inventory_count"] == 1
+    assert payload["campaign_inventory_status"] == AdminApiGateStatus.WARNING.value
+    assert payload["backend_owned"] is True
+    assert payload["read_only"] is True
+    assert payload["browser_authority"] == "display_only"
+    assert payload["bff_authority"] == "read_only_forward"
+    assert payload["submitted_notional_usdc"] == "0"
+    assert payload["executed_notional_usdc"] == "0"
+    inventory = payload["campaign_inventory"][0]
+    assert inventory["campaign_id"] == "campaign-inventory-8083"
+    assert inventory["sweep_config_id"] == campaign_record["sweep_config_id"]
+    assert inventory["gate_status"] == AdminApiGateStatus.WARNING.value
+    assert inventory["planned_order_count"] == 2
+    assert inventory["planned_skip_count"] == 1
+    assert inventory["run_count"] == 1
+    assert inventory["max_runs"] == 3
+    assert inventory["automation_decision"] == (
+        SpotPortfolioSweepAutomationDecision.DUE.value
+    )
+    assert inventory["estimated_planned_quote_notional"] == "2"
+    assert inventory["sell_authority_allowlist_count"] == 2
+    assert inventory["sell_authority_blocked_count"] == 1
+    assert inventory["portfolio_total_pnl"] == "0.25"
+    assert inventory["live_coinbase_orders_ran"] is False
+    assert inventory["submitted_notional_usdc"] == "0"
+    assert inventory["executed_notional_usdc"] == "0"
+    assert "GET /api/v1/spot/campaign/status" in inventory["read_routes"]
+    assert "POST /api/v1/spot/campaign/executions" in inventory["command_routes"]
+    assert str(client.admin_api_test_spot_campaign_state_file) in inventory[
+        "state_sources"
+    ]
+    assert "second automation path" in inventory["unsupported_behaviors"]
+
+
+@pytest.mark.regression
 def test_admin_api_spot_sweep_automation_dry_run_reports_retry_ready_no_live(
     monkeypatch,
 ):

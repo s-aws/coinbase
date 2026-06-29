@@ -232,6 +232,20 @@ Exact autonomous phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Op
 
 - Inventory backend campaign status, sweep status, command-suite, and
   automation-control contracts needed for operator management.
+- Implementation update 2026-06-29: `GET /api/v1/spot/campaign/status` now
+  returns backend-owned `campaign_inventory_count`,
+  `campaign_inventory_status`, and `campaign_inventory` rows. Each row names
+  campaign/sweep identity, readiness, ledger counts, planned order/skipped
+  counts, run-limit evidence, automation/recovery/lock posture, latest live
+  run evidence, notional totals, sell-authority counts, P/L, read routes,
+  command routes, state sources, unsupported behavior, browser/BFF authority,
+  and explicit no-live Coinbase proof. Backend OpenAPI was regenerated.
+- Validation update 2026-06-29: focused Admin API campaign inventory/OpenAPI
+  checks, autonomous queue validation, ownership check, stale-process check,
+  and `git diff --check` passed. No live Coinbase execution was run;
+  submitted/executed notional stayed 0 USDC. No phase-scoped subagents were
+  spawned; the phase-end stale-subagent sweep found no open phase agents to
+  close.
 
 ### Phase 8084 - Sweep Automation Service Status Contract
 

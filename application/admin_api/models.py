@@ -26117,12 +26117,84 @@ class SpotCostBasisStatusResponse(AdminApiReadPayload):
     message: str | None = None
 
 
+class SpotCampaignInventoryItem(BaseModel):
+    """One backend-owned campaign inventory row for operator review."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    campaign_id: str
+    sweep_config_id: str | None = None
+    support_status: AdminApiModuleSupportStatus = (
+        AdminApiModuleSupportStatus.READ_ONLY_READY
+    )
+    gate_status: AdminApiGateStatus = AdminApiGateStatus.NOT_APPLICABLE
+    readiness_status: str | None = None
+    latest_status: str | None = None
+    latest_mode: str | None = None
+    snapshot_count: int = Field(default=0, ge=0)
+    notional_snapshot_count: int = Field(default=0, ge=0)
+    planned_order_count: int = Field(default=0, ge=0)
+    planned_skip_count: int = Field(default=0, ge=0)
+    run_count: int | None = Field(default=None, ge=0)
+    max_runs: int | None = Field(default=None, ge=0)
+    automation_decision: str | None = None
+    recovery_status: str | None = None
+    planned_reconciliation_run_count: int = Field(default=0, ge=0)
+    planned_backfill_order_count: int = Field(default=0, ge=0)
+    operation_lock_status: str | None = None
+    operation_lock_exists: bool = False
+    operation_lock_stale: bool = False
+    latest_live_run_id: str | None = None
+    latest_live_status: str | None = None
+    latest_live_recorded_status: str | None = None
+    latest_live_skipped_order_count: int = Field(default=0, ge=0)
+    total_submitted_notional_usdc: DecimalString = "0"
+    total_executed_notional_usdc: DecimalString = "0"
+    estimated_planned_quote_notional: DecimalString = "0"
+    sell_authority_allowlist_count: int = Field(default=0, ge=0)
+    sell_authority_blocked_count: int = Field(default=0, ge=0)
+    portfolio_total_pnl: DecimalString | None = None
+    latest_snapshot_generated_at: str | None = None
+    latest_readiness_generated_at: str | None = None
+    latest_live_generated_at: str | None = None
+    read_routes: list[str] = Field(default_factory=list)
+    command_routes: list[str] = Field(default_factory=list)
+    state_sources: list[str] = Field(default_factory=list)
+    unsupported_behaviors: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    read_only: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    live_coinbase_orders_ran: bool = False
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    detail: str
+
+
 class SpotCampaignStatusResponse(AdminApiReadPayload):
     """Spot campaign status response."""
 
     operator_status: AdminApiFlexibleObject | None = None
     state_file: str | None = None
     message: str | None = None
+    campaign_inventory_count: int = Field(default=0, ge=0)
+    campaign_inventory_status: AdminApiGateStatus = (
+        AdminApiGateStatus.NOT_APPLICABLE
+    )
+    campaign_inventory: list[SpotCampaignInventoryItem] = Field(
+        default_factory=list
+    )
+    campaign_inventory_read_routes: list[str] = Field(default_factory=list)
+    campaign_inventory_command_routes: list[str] = Field(default_factory=list)
+    campaign_inventory_unsupported_behaviors: list[str] = Field(
+        default_factory=list
+    )
+    backend_owned: bool = True
+    read_only: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
 
 
 class SpotSweepAutomationOperatorScopeItem(BaseModel):

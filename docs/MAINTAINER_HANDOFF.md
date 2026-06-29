@@ -147,7 +147,13 @@ notional, retained inventory, reconciliation result, and audit ids.
   `GET /api/v1/spot/sweep/automation-service`: five `operator_scope` rows now
   classify read evidence, local controls, dry-run review, execution gaps, and
   authority boundaries with no-live Coinbase proof and zero submitted/executed
-  notional. Continue with Phase 8083 from this API baseline.
+  notional.
+- Phase 8083 added the backend-owned campaign inventory contract to
+  `GET /api/v1/spot/campaign/status`: `campaign_inventory` rows describe
+  campaign/sweep state, run limits, blockers, routes, unsupported behavior,
+  browser/BFF authority, and no-live notional proof for the enterprise
+  Campaigns UI. Continue with Phase 8084 from this campaign inventory
+  baseline.
 - Required boundary phrase: no second trading path.
 - Required checker phrase: usable admin product.
 - Required checker phrase: unsupported` or `not_modeled`.

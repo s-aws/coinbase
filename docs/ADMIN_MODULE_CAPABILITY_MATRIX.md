@@ -23,6 +23,13 @@ boundaries. The matrix remains no-live and blocked for scheduler, retry,
 reconciliation, live Coinbase, browser/BFF execution, and any second
 automation path until backend contracts explicitly model those behaviors.
 
+Phase 8083 baseline: the spot campaign status route now returns
+`campaign_inventory` rows as backend-owned no-live inventory evidence for
+campaign/sweep state, run limits, blockers, routes, unsupported behavior, and
+authority boundaries. The rows improve operator manageability but do not
+change the blocked status of scheduler, retry, reconciliation, live Coinbase,
+browser/BFF execution, or any second automation path.
+
 Completed Release 0.1 scope: `8061-8080` added the Audit/Reconciliation
 Operator Correlation slice. Completed `8041-8060` added the Spot Command
 Operator E2E slice. Completed `8021-8040` added backend-owned
