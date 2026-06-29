@@ -1031,8 +1031,11 @@ def create_manual_order(
 ) -> JSONResponse:
     """Route adapter for manual placement.
 
-    The route is authenticated, idempotent, audited, and still live-disabled
-    until enterprise approval/cap gates are completed.
+    The route is authenticated, idempotent, audited, and no-live by default.
+    It reaches the shared backend live branch only when exact backend
+    auth/RBAC, idempotency, approval, admission-audit, cap/guard,
+    reconciliation, manual acknowledgement, live-service, REST-client, and
+    event-stream gates pass.
     """
 
     endpoint = f"{request.method} {request.url.path}"
@@ -1119,7 +1122,14 @@ def cancel_order_by_client_order_id(
         Depends(get_cancel_order_live_execution_service),
     ],
 ) -> JSONResponse:
-    """Route adapter for cancel-by-client-order-id."""
+    """Route adapter for cancel-by-client-order-id.
+
+    Cancellation identity is the internal ``client_order_id``. The route is
+    no-live by default and reaches the shared backend live branch only when
+    exact backend auth/RBAC, idempotency, approval, admission-audit, cap/guard,
+    reconciliation, manual acknowledgement, live-service, REST-client, and
+    event-stream gates pass.
+    """
 
     endpoint = f"{request.method} {request.url.path}"
     envelope = _build_envelope(

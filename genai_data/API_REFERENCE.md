@@ -798,15 +798,23 @@ Current route adapters:
 
 Current behavior:
 - mutating HTTP routes authenticate, authorize, evaluate idempotency, write
-  command audit records, then return HTTP `501` with `status:
-  "not_implemented"`
-- mutating HTTP routes do not submit orders, cancel orders, call Coinbase, or
-  mutate live exchange state
-- the generated OpenAPI contract includes eventual `200` accepted/replayed
-  command response schemas, but the current runtime still returns `501` for
-  create, order cancel, stealth create, stealth reveal, stealth move,
-  stealth cancel, movement reprice, and campaign execution commands because HTTP live
-  execution is not approved
+  command audit records, and fail closed unless their route has explicit
+  backend live-service admission
+- manual Spot order creation and cancel-by-`client_order_id` are the only
+  current configured live-service exceptions. They still require exact backend
+  auth/RBAC, idempotency, approval, admission-audit, cap/guard,
+  reconciliation, manual acknowledgement, live-service, REST-client, and
+  event-stream evidence before the shared command service may submit or cancel
+  through Coinbase.
+- other mutating HTTP routes return live-disabled or not-implemented evidence
+  and do not submit orders, cancel orders, call Coinbase, or mutate live
+  exchange state
+- the generated OpenAPI contract includes typed `200` accepted/replayed command
+  response schemas for explicit live-enabled states and typed blocked response
+  contracts for live-disabled states. Current stealth create/reveal/move/
+  cancel/recovery/reconciliation, movement reprice, campaign execution, and
+  other non-exception command routes still return blocked evidence because live
+  execution is not approved for those routes.
 - `X-Operator-Intent` is durable command audit evidence and part of the
   idempotency payload hash
 - `GET /api/v1/orders` and `GET /api/v1/orders/{client_order_id}` expose

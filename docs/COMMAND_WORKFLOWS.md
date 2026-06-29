@@ -14,9 +14,9 @@ sent to the backend and may create backend audit/idempotency evidence. It is
 still no-live: it does not request Coinbase submission. For routes without an
 explicit configured live-service exception, the expected command result is
 live-disabled or prerequisite rejection evidence. Manual Spot order/cancel are
-route-scoped exceptions only when exact backend approval, admission-audit,
-cap/guard, reconciliation, manual acknowledgement, configured live-service,
-REST-client, and event-stream gates pass.
+route-scoped exceptions only when exact backend auth/RBAC, idempotency,
+approval, admission-audit, cap/guard, reconciliation, manual acknowledgement,
+configured live-service, REST-client, and event-stream gates pass.
 
 ## Current Contract
 
@@ -29,19 +29,24 @@ REST-client, and event-stream gates pass.
   those routes exist, but it must not compute trading authority or call
   Coinbase.
 - Live command execution stays disabled unless a backend route explicitly
-  reports passing approval, cap/guard, admission audit, reconciliation, live
-  adapter, and operator-intent gates.
+  reports passing exact backend auth/RBAC, idempotency, approval,
+  admission-audit, cap/guard, reconciliation, manual acknowledgement,
+  route-scoped live-service, REST-client, event-stream, and operator-intent
+  gates.
 - Manual spot order and cancel route adapters pass the evaluated backend
   admission decision into their shared command-service command objects as
   `allow_live_execution`. Manual order admission can pass only when exact
-  backend approval, admission-audit, cap/guard, reconciliation, manual
-  acknowledgement, and completed live-service evidence all match. The default
-  disabled live service remains blocked/no-live. `POST /api/v1/orders` has a
-  manual-order-specific configured live-service dependency that can report
-  completed only when backend runtime configuration enables it and Coinbase
-  REST plus durable order-event publishing are available. Cancel has its own
-  route-scoped live-service dependency and calls only the project wrapper
-  `cancel_order(client_order_id)` after exact backend admission. The
+  backend auth/RBAC, idempotency, approval, admission-audit, cap/guard,
+  reconciliation, manual acknowledgement, completed live-service, REST-client,
+  and event-stream evidence all match. The default disabled live service
+  remains blocked/no-live. `POST /api/v1/orders` has a manual-order-specific
+  configured live-service dependency that can report completed only when
+  backend runtime configuration enables it and Coinbase REST plus durable
+  order-event publishing are available. Cancel has its own route-scoped
+  live-service dependency and calls only the project wrapper
+  `cancel_order(client_order_id)` after exact backend auth/RBAC, idempotency,
+  approval, admission-audit, cap/guard, reconciliation, manual acknowledgement,
+  live-service, REST-client, and event-stream gates pass. The
   shared/generic live-service dependency remains disabled for campaign,
   recovery, and proof routes until each route has an explicit live contract.
   This wiring is not browser authority, BFF authority, or frontend live-service
@@ -292,10 +297,11 @@ The cancel route uses the same backend-admission-bound `allow_live_execution`
 handoff as manual order placement; it does not add an exchange `order_id`
 cancel path or make the default disabled live service executable. The cancel
 request now carries `manual_live_acknowledgement`; route-level admission can
-pass only when that acknowledgement, the exact approval snapshot, admission
-audit, cap/guard decision, reconciliation plan, and configured backend
-live-service evidence all match. The shared command service also checks the
-acknowledgement before any REST cancellation branch, then calls only the
+pass only when exact backend auth/RBAC, idempotency,
+`manual_live_acknowledgement`, approval snapshot, admission audit, cap/guard
+decision, reconciliation plan, configured backend live-service, REST-client,
+and event-stream evidence all match. The shared command service also checks
+the acknowledgement before any REST cancellation branch, then calls only the
 project wrapper `cancel_order(client_order_id)`.
 
 ## Stealth Command Suite

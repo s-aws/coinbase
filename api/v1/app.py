@@ -41,6 +41,17 @@ _BOOTSTRAP_ACTOR_HEADERS = {
     ),
 }
 _CSRF_MUTATION_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+_OPENAPI_MUTATION_METHODS = {"post", "put", "patch", "delete"}
+_OPENAPI_LIVE_EXCEPTION_OPERATIONS = {
+    ("post", "/api/v1/orders"),
+    ("post", "/api/v1/orders/{client_order_id}/cancel"),
+}
+_OPENAPI_NON_EXCEPTION_MUTATION_NOTE = (
+    "Live-execution boundary: this route is not a current manual Spot live "
+    "exception; it remains no-live/fail-closed for Coinbase execution and "
+    "cannot grant browser/BFF execution authority or live order/exchange-state "
+    "mutation."
+)
 _TRUTHY_ENV_VALUES = {"1", "true", "yes"}
 
 
@@ -126,10 +137,21 @@ def _customize_openapi(app: FastAPI) -> dict:
         description=app.description,
         routes=app.routes,
     )
-    for path_item in schema.get("paths", {}).values():
-        for operation in path_item.values():
+    for path, path_item in schema.get("paths", {}).items():
+        for method, operation in path_item.items():
             if not isinstance(operation, dict):
                 continue
+            if (
+                method in _OPENAPI_MUTATION_METHODS
+                and (method, path) not in _OPENAPI_LIVE_EXCEPTION_OPERATIONS
+            ):
+                description = str(operation.get("description") or "").strip()
+                if _OPENAPI_NON_EXCEPTION_MUTATION_NOTE not in description:
+                    operation["description"] = (
+                        f"{description}\n\n{_OPENAPI_NON_EXCEPTION_MUTATION_NOTE}"
+                        if description
+                        else _OPENAPI_NON_EXCEPTION_MUTATION_NOTE
+                    )
             for parameter in operation.get("parameters", []):
                 if parameter.get("in") != "header":
                     continue
@@ -167,9 +189,13 @@ def _deduplicate_schema_enums(value: object) -> None:
 def create_app() -> FastAPI:
     """Create the Admin API app.
 
-    The app exposes read-only operator routes plus fail-closed mutating command
-    routes. Mutating HTTP routes already use shared command services for parity,
-    but live Coinbase execution remains disabled by the approval gate.
+    The app exposes read-only operator routes plus fail-closed mutating
+    command routes. Mutating HTTP routes are no-live by default. Manual Spot
+    order and cancel-by-client_order_id are route-scoped configured exceptions
+    that may reach the shared backend live branch only after exact backend
+    auth/RBAC, idempotency, approval, admission-audit, cap/guard,
+    reconciliation, manual acknowledgement, live-service, REST-client, and
+    event-stream gates pass.
     """
 
     app = FastAPI(
@@ -178,7 +204,13 @@ def create_app() -> FastAPI:
         description=(
             "Enterprise API for the Coinbase trading engine. Read-only operator "
             "routes are active; mutating HTTP routes use shared command "
-            "services but remain live-disabled by the approval gate."
+            "services and are no-live by default. Manual Spot order and "
+            "cancel-by-client_order_id are the only current route-scoped "
+            "configured exceptions, and only after exact backend auth/RBAC, "
+            "idempotency, approval, admission-audit, cap/guard, reconciliation, "
+            "manual acknowledgement, live-service, REST-client, and "
+            "event-stream gates pass. All other mutating routes remain "
+            "live-disabled or fail-closed."
         ),
     )
     cors_origins = [

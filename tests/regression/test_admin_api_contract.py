@@ -3448,12 +3448,12 @@ def _oidc_token(
 
 
 @pytest.mark.regression
-def test_admin_api_openapi_schema_file_matches_generated_contract():
+def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
     from application.admin_api.read_service import (
         FUTURES_RISK_PROOF_REQUIREMENT_API_EXCLUDE,
     )
 
-    generated = generate_openapi_schema(OPENAPI_PATH)
+    generated = generate_openapi_schema(tmp_path / "coinbase-admin-api.yaml")
     written = yaml.safe_load(OPENAPI_PATH.read_text(encoding="utf-8"))
 
     assert written == generated
@@ -3526,6 +3526,43 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     ]
     assert "200" in cancel_operation["responses"]
     assert "501" in cancel_operation["responses"]
+    api_description = written["info"]["description"]
+    assert "mutating HTTP routes use shared command services and are no-live by default" in api_description
+    assert (
+        "Manual Spot order and cancel-by-client_order_id are the only current "
+        "route-scoped configured exceptions"
+    ) in api_description
+    assert "exact backend auth/RBAC, idempotency, approval" in api_description
+    assert "REST-client, and event-stream gates pass" in api_description
+    assert "All other mutating routes remain live-disabled or fail-closed" in api_description
+    live_exception_operations = {
+        ("post", "/api/v1/orders"),
+        ("post", "/api/v1/orders/{client_order_id}/cancel"),
+    }
+    for path, path_item in written["paths"].items():
+        for method, operation in path_item.items():
+            if method not in {"post", "put", "patch", "delete"}:
+                continue
+            description = operation.get("description") or ""
+            normalized_description = " ".join(description.split())
+            context = f"{method.upper()} {path}"
+            if (method, path) in live_exception_operations:
+                assert "exact backend auth/RBAC" in normalized_description, context
+                assert (
+                    "idempotency, approval, admission-audit"
+                    in normalized_description
+                ), context
+                assert "manual acknowledgement, live-service" in normalized_description, context
+                assert "REST-client, and event-stream gates" in normalized_description, context
+                continue
+            assert (
+                "not a current manual Spot live exception" in normalized_description
+            ), context
+            assert (
+                "no-live/fail-closed for Coinbase execution" in normalized_description
+            ), context
+            assert "browser/BFF execution authority" in normalized_description, context
+            assert "live order/exchange-state mutation" in normalized_description, context
     stealth_cancel_operation = written["paths"][
         "/api/v1/stealth/orders/{stealth_order_id}/cancel"
     ]["post"]
@@ -9640,12 +9677,13 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
 
 
 @pytest.mark.regression
-def test_admin_api_route_inventory_export_file_matches_generated_contract():
-    generated = write_admin_api_route_inventory_export(ROUTE_INVENTORY_EXPORT_PATH)
+def test_admin_api_route_inventory_export_file_matches_generated_contract(tmp_path):
+    generated = build_admin_api_route_inventory_export()
     written = json.loads(ROUTE_INVENTORY_EXPORT_PATH.read_text(encoding="utf-8"))
 
     assert written == generated
-    assert generated == build_admin_api_route_inventory_export()
+    exported = write_admin_api_route_inventory_export(tmp_path / "route-inventory.json")
+    assert exported == generated
     command_routes = {
         (item["method"], item["path"]): item
         for item in written["routes"]
@@ -9665,7 +9703,9 @@ def test_admin_api_route_inventory_export_file_matches_generated_contract():
         "shared_method": "place_manual_order",
         "parity_test": (
             "HTTP vs place_order guard/result parity; no-live by default, REST "
-            "only after exact backend admission"
+            "only after exact backend auth/RBAC, idempotency, approval, "
+            "admission-audit, cap/guard, reconciliation, manual acknowledgement, "
+            "live-service, REST-client, and event-stream gates"
         ),
         "compatibility_mode": None,
         "command_contract": True,
@@ -9676,6 +9716,14 @@ def test_admin_api_route_inventory_export_file_matches_generated_contract():
     assert command_routes[
         ("POST", "/api/v1/orders/{client_order_id}/cancel")
     ]["module_id"] == "spot_operations"
+    assert command_routes[
+        ("POST", "/api/v1/orders/{client_order_id}/cancel")
+    ]["parity_test"] == (
+        "HTTP vs cancel_order parity; no-live by default, calls only "
+        "cancel_order(client_order_id) after exact backend auth/RBAC, "
+        "idempotency, approval, admission-audit, cap/guard, reconciliation, "
+        "manual acknowledgement, live-service, REST-client, and event-stream gates"
+    )
     assert command_routes[("POST", "/api/v1/stealth/orders")] == {
         "module_id": "stealth_orders",
         "surface": "POST /api/v1/stealth/orders",

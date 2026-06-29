@@ -24,8 +24,8 @@ frontend request
 Current HTTP command routes are authenticated, authorized, idempotent, and
 audited. They are no-live by default and return typed `501`
 `not_implemented` responses unless a route has an explicit configured backend
-live-service exception and exact backend admission evidence. The only current
-manual Spot exceptions are `POST /api/v1/orders` and
+live-service exception and the full route-scoped backend gate chain. The only
+current manual Spot exceptions are `POST /api/v1/orders` and
 `POST /api/v1/orders/{client_order_id}/cancel`; those routes may reach the
 shared backend live branch only after exact backend auth/RBAC, idempotency,
 approval, admission-audit, cap/guard, reconciliation, manual acknowledgement,

@@ -57,22 +57,24 @@ lot-authority evaluation from the shared `FillLedgerRepository` plus configured
 reconciliation ids, audit command, submission-event evidence status, and
 explicit no-mutation/no-browser/BFF-authority flags. The response does not
 execute reconciliation or mutate order/exchange state. Direct Spot SELL still
-requires the configured planning cap, `known_inventory_available`, wallet,
-durable audit, admission, reconciliation, manual acknowledgement, and
-live-service gates to pass before REST submission. The UI label "operator"
-names a human workflow role; backend order
-creation still requires `trader` or `admin` RBAC authority.
+requires exact backend auth/RBAC, idempotency, approval, admission-audit,
+cap/guard, reconciliation, manual acknowledgement, configured live-service,
+REST-client, event-stream, configured planning cap, wallet, and
+`known_inventory_available` lot-authority gates to pass before REST
+submission. The UI label "operator" names a human workflow role; backend
+order creation still requires `trader` or `admin` RBAC authority.
 
 `POST /api/v1/orders/{client_order_id}/cancel` is the enterprise cancel
 command contract. It is keyed only by path `client_order_id`; the request body
 does not accept `order_id` or body-level `client_order_id`. The route now uses
 a cancel-specific backend live-service dependency and passes
 `manual_live_acknowledgement` into backend live admission. When live execution
-is explicitly configured and exact approval, admission audit, cap/guard,
-reconciliation, live-service, and acknowledgement evidence all pass, the
-shared command service reaches the existing project wrapper
-`cancel_order(client_order_id)`. The generic disabled live-service dependency
-remains disabled for unrelated routes.
+is explicitly configured and exact backend auth/RBAC, idempotency, approval,
+admission-audit, cap/guard, reconciliation, manual acknowledgement,
+live-service, REST-client, and event-stream gates all pass, the shared command
+service reaches the existing project wrapper `cancel_order(client_order_id)`.
+The generic disabled live-service dependency remains disabled for unrelated
+routes.
 
 Use `python tools\run_admin_api_manual_spot_buy_live.py --summary-only` for a
 no-live preflight of the exact Admin API manual Spot BUY path. Use
@@ -102,13 +104,17 @@ must report `live_coinbase_orders_ran=false`, `submitted_notional_usdc=0`, and
 
 The generated OpenAPI contract documents the eventual `200` accepted/replayed
 command response shape and the current `501` live-disabled response shape.
-The default runtime still returns `501` for create, order cancel, stealth
-create, stealth reveal, stealth move, stealth cancel, stealth recovery,
-stealth reconciliation, movement reprice,
-campaign execution, and spot sweep automation
-commands because HTTP live execution is not approved by default. The manual
-order create and cancel routes are route-scoped exceptions when backend live
-execution is explicitly configured and all backend admission evidence passes.
+HTTP mutating routes are no-live by default. Manual order create and
+cancel-by-`client_order_id` are the only current route-scoped configured
+exceptions, and they may reach the shared backend live branch only when backend
+live execution is explicitly configured and exact backend auth/RBAC,
+idempotency, approval, admission-audit, cap/guard, reconciliation, manual
+acknowledgement, live-service, REST-client, and event-stream gates pass.
+Stealth create, stealth reveal, stealth move, stealth cancel, stealth recovery,
+stealth reconciliation, movement reprice, campaign execution, spot sweep
+automation, and other non-exception command routes still return live-disabled
+or not-implemented evidence because live execution is not approved for those
+routes.
 Read routes document
 typed `200` payloads plus structured `401` and `403` errors.
 Enterprise-readiness evidence also includes structured per-module
@@ -1888,8 +1894,9 @@ Mutating HTTP command responses include the current fail-closed live execution
 gate decision and M34 route-bound admission decision evidence. M35 persists
 that same admission decision in the existing append-only Admin API audit log
 and exposes it through the read-only Audit Workbench. M36 adds the
-backend-owned append-only approval-store foundation while approval snapshots
-remain absent and HTTP live execution remains disabled. M37 adds backend-only
+backend-owned append-only approval-store foundation; in that historical M36
+state approval snapshots remained absent and HTTP live execution was still
+disabled for the then-modeled command routes. M37 adds backend-only
 approval snapshot resolver infrastructure over that store without making the
 resolver an approval endpoint, browser approval, command authority, or live
 execution path. M38 wires existing command admission evidence to that resolver
@@ -1910,16 +1917,18 @@ identity. `POST /api/v1/orders` and
 backend admission decision into their shared command-service command objects as
 `allow_live_execution`. Manual order admission can now pass when exact backend
 approval, admission-audit, cap/guard, reconciliation, manual acknowledgement,
-and completed live-service evidence are all present. `POST /api/v1/orders`
-has a manual-order-specific configured live-service dependency that is disabled
-by default and completed only when `COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED`
-is enabled with a configured REST client and durable order-event publisher.
-The generic Admin API live-service dependency remains disabled for cancel,
-campaign, recovery, and proof routes until each route has its own explicit
-live contract. The cancel route now has that explicit route-scoped live
-contract: it requires `manual_live_acknowledgement`, exact backend admission,
-and the configured backend live-service gate before the shared command service
-can call `cancel_order(client_order_id)`. The manual-order dependency boundary
+completed live-service, REST-client, and event-stream evidence are all
+present. `POST /api/v1/orders` has a manual-order-specific configured
+live-service dependency that is disabled by default and completed only when
+`COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED` is enabled with a configured REST
+client and durable order-event publisher. The generic Admin API live-service
+dependency remains disabled for campaign, recovery, and proof routes until
+each route has its own explicit live contract. The cancel route now has that
+explicit route-scoped live contract: it requires exact backend auth/RBAC,
+idempotency, `manual_live_acknowledgement`, approval snapshot, admission audit,
+cap/guard decision, reconciliation plan, configured backend live-service,
+REST-client, and event-stream gates before the shared command service can call
+`cancel_order(client_order_id)`. The manual-order dependency boundary
 uses the existing action-condition guard with durable `stealth_orders`
 planned-budget reads and shared fill-ledger/imported-baseline spot SELL lot
 authority; it does not add a route-local sell guard or a second trading path.

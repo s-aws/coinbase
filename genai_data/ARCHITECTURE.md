@@ -194,8 +194,13 @@ Broadcast model:
 ## Enterprise Admin API
 
 The enterprise Admin API is the contract surface for the separate frontend
-repository at `C:\coinbase-frontend`. HTTP live execution remains disabled
-until approval and cap gates are complete.
+repository at `C:\coinbase-frontend`. HTTP mutating routes are no-live by
+default. Manual Spot order and cancel are the only current route-scoped
+configured exceptions, and they may reach the shared backend live branch only
+after exact backend auth/RBAC, idempotency, approval, admission-audit,
+cap/guard, reconciliation, manual acknowledgement, live-service, REST-client,
+and event-stream gates pass. Other mutating HTTP routes remain
+live-disabled/fail-closed.
 
 Current modules:
 - `api/v1/app.py`: FastAPI app factory.
@@ -226,13 +231,19 @@ Current modules:
 
 Current behavior:
 - Admin API mutating routes authenticate, authorize, evaluate idempotency, write
-  audit records, then return HTTP `501` with `status: "not_implemented"`.
+  audit records, and fail closed unless their route has explicit backend
+  live-service admission.
+- Manual Spot order creation and cancel-by-`client_order_id` are explicit
+  configured live-service exceptions. They still require exact backend
+  auth/RBAC, idempotency, approval, admission-audit, cap/guard,
+  reconciliation, manual acknowledgement, live-service, REST-client, and
+  event-stream evidence before calling the shared command-service live branch.
+- Other mutating HTTP routes return live-disabled or not-implemented evidence
+  and do not submit Coinbase orders, cancel Coinbase orders, or mutate live
+  exchange state.
 - Admin API OpenAPI includes typed `200` accepted/replayed command response
-  schemas for the future live-enabled state, but runtime HTTP create/cancel and
-  campaign execution still return `501` until live execution is explicitly
-  approved.
-- HTTP mutating routes do not submit Coinbase orders, cancel Coinbase orders,
-  or mutate live exchange state.
+  schemas for explicit live-enabled states and typed blocked response contracts
+  for live-disabled states.
 - Legacy dashboard `place_order` and `cancel_order` WebSocket messages delegate
   to `AdminApiCommandService` as compatibility adapters.
 - Order read routes are local-evidence reads keyed by `client_order_id`.

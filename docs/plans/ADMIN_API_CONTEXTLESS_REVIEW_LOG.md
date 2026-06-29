@@ -1,10 +1,10 @@
 ## Spot Command Operator E2E Review - Phases 8041-8060
 
-Result: planned. Scope: phases `8041-8060`, after completed history through
-`8021-8040`, adds a Spot Command Operator E2E slice so operators can verify
-manual spot order, cancel-by-client_order_id, direct-order audit, and command
-handoff workflows through the enterprise frontend/API without browser/BFF
-trading authority.
+Result: PASS after remediation. Scope: phases `8041-8060`, after completed history
+through `8021-8040`, adds a Spot Command Operator E2E slice so
+operators can verify manual spot order, cancel-by-client_order_id,
+direct-order audit, and command handoff workflows through the enterprise
+frontend/API without browser/BFF trading authority.
 
 No live Coinbase execution is planned; actual submitted/executed notional
 remains `0` USDC.
@@ -23,6 +23,57 @@ Required checker phrase: Release 0.1 Operator Admin Pivot.
 Required checker phrase: usable private operator MVP.
 Required checker phrase: unsupported` or `not_modeled`.
 Required checker phrase: no browser/BFF execution authority.
+
+AGENTS review evidence: backend `AGENTS.md`, `agent.md`,
+`docs/agents/README.md`, `.agents/ownership.yaml`, `ai-context.md`, frontend
+`AGENTS.md`, frontend owner contracts, ordered frontend docs, API contract,
+auth/RBAC contract, and testing contract were re-read for this phase. No
+direction change was required: Release 0.1 usable private operator admin work
+remains the governing filter, frontend/BFF code must not gain trading
+authority, and full regression remains a durable milestone closeout gate.
+
+Blind/contextless review result: PASS after remediation. Earlier backend
+reviewers found stale current-facing no-live blanket wording and shortened
+manual Spot gate lists. Remediation updated backend docs, route docstrings,
+OpenAPI, route inventory, generated frontend schema, and regression tests so
+`POST /api/v1/orders` and
+`POST /api/v1/orders/{client_order_id}/cancel` are the only current
+route-scoped manual Spot live exceptions, and only after exact backend
+auth/RBAC, idempotency, approval, admission-audit, cap/guard, reconciliation,
+manual acknowledgement, live-service, REST-client, and event-stream gates
+pass. The OpenAPI hook now stamps every other mutating route as not a current
+manual Spot live exception and no-live/fail-closed for Coinbase execution
+without browser/BFF execution authority or live order/exchange-state mutation.
+
+Fresh reviewer `019f11fe-19e6-7c31-8ed9-5ac5e53182ae` passed the remediated
+tree with no blockers. The reviewer confirmed the backend docs/schema/tests
+reflect the AGENTS contract, generated artifacts are protected by tests that
+write to temp paths before comparing committed files, frontend generated
+schema carries the same live-exception boundary, and frontend/BFF code does
+not gain trading authority.
+
+Focused validation: PASS. Backend selected Admin API contract coverage for
+manual order, cancel-by-client_order_id, route inventory, OpenAPI, and spot
+command-suite evidence passed with `14` selected tests. Backend ownership and
+autonomous queue checks passed. Frontend generated API freshness, Admin API
+route coverage, TypeScript typecheck, autonomous queue, and stale-process
+checks passed. Mechanical OpenAPI sweeps confirmed all `49` non-exception
+mutating operations carry the live-boundary note and both exception routes
+carry the full gate chain. `git diff --check` reported only CRLF warnings.
+
+Phase-end stale-subagent sweep completed: reviewers
+`019f11c8-e507-71e0-804d-40a78d01dfa7`,
+`019f11c8-f952-7dc3-b760-8ba3f95d9e2a`,
+`019f11d2-504e-7b53-abe4-1b7c999b6502`,
+`019f11d8-300b-7463-b3b5-c984b4e22bb9`,
+`019f11e4-ad65-7212-a7f7-0600265487f2`,
+`019f11ee-d28a-79b0-96de-a2241d58494c`, and
+`019f11fe-19e6-7c31-8ed9-5ac5e53182ae` were closed after findings were
+consumed, remediated, or superseded. No stale phase-scoped subagent remains
+intentionally open.
+
+Live Coinbase execution was not run for this review; submitted notional `0`
+USDC, executed notional `0` USDC.
 
 ## Movement/Repricing Action-State Matrix Review - Phases 8021-8040
 

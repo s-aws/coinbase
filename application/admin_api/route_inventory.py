@@ -24,7 +24,9 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         shared_method="place_manual_order",
         parity_test=(
             "HTTP vs place_order guard/result parity; no-live by default, "
-            "REST only after exact backend admission"
+            "REST only after exact backend auth/RBAC, idempotency, approval, "
+            "admission-audit, cap/guard, reconciliation, manual acknowledgement, "
+            "live-service, REST-client, and event-stream gates"
         ),
     ),
     AdminApiRouteInventoryItem(
@@ -1051,7 +1053,10 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         shared_method="cancel_order_by_client_order_id",
         parity_test=(
             "HTTP vs cancel_order parity; no-live by default, calls only "
-            "cancel_order(client_order_id) after exact backend admission"
+            "cancel_order(client_order_id) after exact backend auth/RBAC, "
+            "idempotency, approval, admission-audit, cap/guard, reconciliation, "
+            "manual acknowledgement, live-service, REST-client, and "
+            "event-stream gates"
         ),
     ),
     AdminApiRouteInventoryItem(

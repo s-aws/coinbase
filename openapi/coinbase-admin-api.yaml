@@ -2,8 +2,12 @@ openapi: 3.1.0
 info:
   title: Coinbase Admin API
   description: Enterprise API for the Coinbase trading engine. Read-only operator
-    routes are active; mutating HTTP routes use shared command services but remain
-    live-disabled by the approval gate.
+    routes are active; mutating HTTP routes use shared command services and are no-live
+    by default. Manual Spot order and cancel-by-client_order_id are the only current
+    route-scoped configured exceptions, and only after exact backend auth/RBAC, idempotency,
+    approval, admission-audit, cap/guard, reconciliation, manual acknowledgement,
+    live-service, REST-client, and event-stream gates pass. All other mutating routes
+    remain live-disabled or fail-closed.
   version: 0.1.0
 paths:
   /api/v1/admin/bootstrap:
@@ -135,7 +139,12 @@ paths:
       tags:
       - admin
       summary: Pause runtime order admission through the backend controller
-      description: Pause new runtime order admission without dashboard fallback.
+      description: 'Pause new runtime order admission without dashboard fallback.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: admin_lifecycle_pause_api_v1_admin_lifecycle_pause_post
       parameters:
       - name: Idempotency-Key
@@ -237,7 +246,12 @@ paths:
       tags:
       - admin
       summary: Resume runtime order admission through the backend controller
-      description: Resume runtime order admission without dashboard fallback.
+      description: 'Resume runtime order admission without dashboard fallback.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: admin_lifecycle_resume_api_v1_admin_lifecycle_resume_post
       parameters:
       - name: Idempotency-Key
@@ -339,7 +353,12 @@ paths:
       tags:
       - admin
       summary: Drain runtime in-flight work through the backend controller
-      description: Enter draining mode and wait for tracked in-flight work.
+      description: 'Enter draining mode and wait for tracked in-flight work.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: admin_lifecycle_drain_api_v1_admin_lifecycle_drain_post
       parameters:
       - name: Idempotency-Key
@@ -441,8 +460,13 @@ paths:
       tags:
       - admin
       summary: Drain and stop the runtime through the backend controller
-      description: Drain and stop the runtime without dashboard fallback or Coinbase
+      description: 'Drain and stop the runtime without dashboard fallback or Coinbase
         calls.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: admin_lifecycle_stop_api_v1_admin_lifecycle_stop_post
       parameters:
       - name: Idempotency-Key
@@ -1659,6 +1683,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      description: 'Live-execution boundary: this route is not a current manual Spot
+        live exception; it remains no-live/fail-closed for Coinbase execution and
+        cannot grant browser/BFF execution authority or live order/exchange-state
+        mutation.'
   /api/v1/admin/admission-audits/{admission_audit_id}:
     get:
       tags:
@@ -1983,6 +2011,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      description: 'Live-execution boundary: this route is not a current manual Spot
+        live exception; it remains no-live/fail-closed for Coinbase execution and
+        cannot grant browser/BFF execution authority or live order/exchange-state
+        mutation.'
   /api/v1/admin/approvals/requests/{approval_request_id}/decisions:
     post:
       tags:
@@ -2091,6 +2123,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      description: 'Live-execution boundary: this route is not a current manual Spot
+        live exception; it remains no-live/fail-closed for Coinbase execution and
+        cannot grant browser/BFF execution authority or live order/exchange-state
+        mutation.'
   /api/v1/admin/approvals/{approval_id}/revoke:
     post:
       tags:
@@ -2199,6 +2235,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      description: 'Live-execution boundary: this route is not a current manual Spot
+        live exception; it remains no-live/fail-closed for Coinbase execution and
+        cannot grant browser/BFF execution authority or live order/exchange-state
+        mutation.'
   /api/v1/admin/cap-guard/decisions:
     get:
       tags:
@@ -2384,6 +2424,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      description: 'Live-execution boundary: this route is not a current manual Spot
+        live exception; it remains no-live/fail-closed for Coinbase execution and
+        cannot grant browser/BFF execution authority or live order/exchange-state
+        mutation.'
   /api/v1/admin/cap-guard/decisions/{decision_id}:
     get:
       tags:
@@ -2644,6 +2688,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      description: 'Live-execution boundary: this route is not a current manual Spot
+        live exception; it remains no-live/fail-closed for Coinbase execution and
+        cannot grant browser/BFF execution authority or live order/exchange-state
+        mutation.'
   /api/v1/admin/reconciliation/plans/{plan_id}:
     get:
       tags:
@@ -2904,6 +2952,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      description: 'Live-execution boundary: this route is not a current manual Spot
+        live exception; it remains no-live/fail-closed for Coinbase execution and
+        cannot grant browser/BFF execution authority or live order/exchange-state
+        mutation.'
   /api/v1/admin/live-execution/service-decisions/{decision_id}:
     get:
       tags:
@@ -3164,6 +3216,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      description: 'Live-execution boundary: this route is not a current manual Spot
+        live exception; it remains no-live/fail-closed for Coinbase execution and
+        cannot grant browser/BFF execution authority or live order/exchange-state
+        mutation.'
   /api/v1/admin/live-execution/adapter-decisions/{decision_id}:
     get:
       tags:
@@ -3394,7 +3450,12 @@ paths:
       tags:
       - futures
       summary: Record futures and perpetual risk proof evidence
-      description: Route adapter for backend-owned no-live futures risk proofs.
+      description: 'Route adapter for backend-owned no-live futures risk proofs.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: record_futures_risk_proof_api_v1_futures_risk_proofs_post
       parameters:
       - name: Idempotency-Key
@@ -3573,7 +3634,12 @@ paths:
       - futures
       summary: Create a futures or perpetual order draft through the shared command
         service
-      description: Route-bound no-live futures/perpetual placement command draft.
+      description: 'Route-bound no-live futures/perpetual placement command draft.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: place_futures_order_api_v1_futures_orders_post
       parameters:
       - name: Idempotency-Key
@@ -3681,7 +3747,12 @@ paths:
       tags:
       - futures
       summary: Create a futures or perpetual close/reduce draft
-      description: Route-bound no-live futures/perpetual close/reduce command draft.
+      description: 'Route-bound no-live futures/perpetual close/reduce command draft.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: close_or_reduce_futures_position_api_v1_futures_positions__position_key__close_reduce_post
       parameters:
       - name: position_key
@@ -3796,7 +3867,12 @@ paths:
       tags:
       - futures
       summary: Create a futures or perpetual cancel draft by client_order_id
-      description: Route-bound no-live futures/perpetual cancel command draft.
+      description: 'Route-bound no-live futures/perpetual cancel command draft.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: cancel_futures_order_api_v1_futures_orders__client_order_id__cancel_post
       parameters:
       - name: client_order_id
@@ -3911,7 +3987,12 @@ paths:
       tags:
       - futures
       summary: Create a futures or perpetual reconciliation draft
-      description: Route-bound no-live futures/perpetual reconciliation command draft.
+      description: 'Route-bound no-live futures/perpetual reconciliation command draft.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: reconcile_futures_position_api_v1_futures_positions__position_key__reconciliation_post
       parameters:
       - name: position_key
@@ -4510,7 +4591,12 @@ paths:
       - movement-repricing
       summary: Reprice a stealth order by stealth_order_id through the shared command
         service
-      description: Route adapter for live-disabled movement repricing by ``stealth_order_id``.
+      description: 'Route adapter for live-disabled movement repricing by ``stealth_order_id``.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: reprice_stealth_order_by_stealth_order_id_api_v1_movement_repricing_stealth__stealth_order_id__reprice_post
       parameters:
       - name: stealth_order_id
@@ -4723,9 +4809,15 @@ paths:
       description: 'Route adapter for manual placement.
 
 
-        The route is authenticated, idempotent, audited, and still live-disabled
+        The route is authenticated, idempotent, audited, and no-live by default.
 
-        until enterprise approval/cap gates are completed.'
+        It reaches the shared backend live branch only when exact backend
+
+        auth/RBAC, idempotency, approval, admission-audit, cap/guard,
+
+        reconciliation, manual acknowledgement, live-service, REST-client, and
+
+        event-stream gates pass.'
       operationId: create_manual_order_api_v1_orders_post
       parameters:
       - name: Idempotency-Key
@@ -4903,7 +4995,18 @@ paths:
       tags:
       - orders
       summary: Cancel an order by client_order_id through the shared command service
-      description: Route adapter for cancel-by-client-order-id.
+      description: 'Route adapter for cancel-by-client-order-id.
+
+
+        Cancellation identity is the internal ``client_order_id``. The route is
+
+        no-live by default and reaches the shared backend live branch only when
+
+        exact backend auth/RBAC, idempotency, approval, admission-audit, cap/guard,
+
+        reconciliation, manual acknowledgement, live-service, REST-client, and
+
+        event-stream gates pass.'
       operationId: cancel_order_by_client_order_id_api_v1_orders__client_order_id__cancel_post
       parameters:
       - name: client_order_id
@@ -5025,7 +5128,12 @@ paths:
 
         live gate. Dry-run requests are accepted without invoking campaign runners
 
-        or submitting Coinbase orders; non-dry-run execution remains disabled.'
+        or submitting Coinbase orders; non-dry-run execution remains disabled.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: execute_spot_campaign_api_v1_spot_campaign_executions_post
       parameters:
       - name: Idempotency-Key
@@ -5140,7 +5248,12 @@ paths:
 
         live gate. Dry-run requests are accepted without invoking schedulers, sweep
 
-        runners, or submitting Coinbase orders; non-dry-run execution remains disabled.'
+        runners, or submitting Coinbase orders; non-dry-run execution remains disabled.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: run_spot_sweep_automation_api_v1_spot_sweep_automation_runs_post
       parameters:
       - name: Idempotency-Key
@@ -5248,7 +5361,13 @@ paths:
       tags:
       - orders
       summary: Record a backend-owned spot sweep automation control
-      description: Route adapter for backend-owned automation pause/resume/retry controls.
+      description: 'Route adapter for backend-owned automation pause/resume/retry
+        controls.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: record_spot_sweep_automation_control_api_v1_spot_sweep_automation_controls_post
       parameters:
       - name: Idempotency-Key
@@ -5356,7 +5475,12 @@ paths:
       tags:
       - orders
       summary: Apply a spot recovery plan through the shared command service
-      description: Route adapter for future spot recovery apply execution.
+      description: 'Route adapter for future spot recovery apply execution.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: execute_spot_recovery_apply_api_v1_spot_recovery_apply_executions_post
       parameters:
       - name: Idempotency-Key
@@ -5459,7 +5583,12 @@ paths:
       tags:
       - orders
       summary: Rollback a spot recovery apply through the shared command service
-      description: Route adapter for future spot recovery rollback execution.
+      description: 'Route adapter for future spot recovery rollback execution.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: execute_spot_recovery_rollback_api_v1_spot_recovery_rollback_executions_post
       parameters:
       - name: Idempotency-Key
@@ -5563,8 +5692,13 @@ paths:
       - orders
       summary: Attempt spot recovery reconciliation execution through the shared command
         service
-      description: Route-bound reconciliation execution boundary; executor remains
+      description: 'Route-bound reconciliation execution boundary; executor remains
         disabled.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: execute_spot_recovery_reconciliation_api_v1_spot_recovery_reconciliation_executions_post
       parameters:
       - name: Idempotency-Key
@@ -5668,7 +5802,12 @@ paths:
       - orders
       summary: Record spot recovery exchange-state proof through the shared command
         service
-      description: Route adapter for future spot recovery exchange-state proof writing.
+      description: 'Route adapter for future spot recovery exchange-state proof writing.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: record_spot_recovery_exchange_state_proof_api_v1_spot_recovery_exchange_state_proofs_post
       parameters:
       - name: Idempotency-Key
@@ -5772,7 +5911,12 @@ paths:
       - orders
       summary: Record spot recovery exchange-state snapshot through the shared command
         service
-      description: Route adapter for backend-owned no-live exchange-state snapshots.
+      description: 'Route adapter for backend-owned no-live exchange-state snapshots.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: record_spot_recovery_exchange_state_snapshot_api_v1_spot_recovery_exchange_state_snapshots_post
       parameters:
       - name: Idempotency-Key
@@ -5876,7 +6020,12 @@ paths:
       - orders
       summary: Record spot recovery reconciliation proof through the shared command
         service
-      description: Route adapter for future spot recovery reconciliation-proof writing.
+      description: 'Route adapter for future spot recovery reconciliation-proof writing.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: record_spot_recovery_reconciliation_proof_api_v1_spot_recovery_reconciliation_proofs_post
       parameters:
       - name: Idempotency-Key
@@ -6921,6 +7070,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+      description: 'Live-execution boundary: this route is not a current manual Spot
+        live exception; it remains no-live/fail-closed for Coinbase execution and
+        cannot grant browser/BFF execution authority or live order/exchange-state
+        mutation.'
   /api/v1/spot/pnl/checkpoints/{checkpoint_id}:
     get:
       tags:
@@ -7332,7 +7485,12 @@ paths:
       tags:
       - stealth
       summary: Create a stealth order through the shared command service
-      description: Route adapter for live-disabled stealth create by ``stealth_order_id``.
+      description: 'Route adapter for live-disabled stealth create by ``stealth_order_id``.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: create_stealth_order_api_v1_stealth_orders_post
       parameters:
       - name: Idempotency-Key
@@ -8426,7 +8584,12 @@ paths:
       tags:
       - stealth
       summary: Record stealth post-write execution-journal acceptance evidence
-      description: Route adapter for backend-owned no-live execution-journal acceptances.
+      description: 'Route adapter for backend-owned no-live execution-journal acceptances.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: record_stealth_post_write_execution_journal_api_v1_stealth_orders__stealth_order_id__post_write_execution_journals_post
       parameters:
       - name: stealth_order_id
@@ -8610,7 +8773,12 @@ paths:
       tags:
       - stealth
       summary: Record stealth post-write reconciliation verification evidence
-      description: Route adapter for backend-owned no-live post-write verification.
+      description: 'Route adapter for backend-owned no-live post-write verification.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: record_stealth_post_write_reconciliation_verification_api_v1_stealth_orders__stealth_order_id__post_write_reconciliation_verifications_post
       parameters:
       - name: stealth_order_id
@@ -8789,7 +8957,12 @@ paths:
       - stealth
       summary: Reveal a stealth order by stealth_order_id through the shared command
         service
-      description: Route adapter for live-disabled stealth reveal by ``stealth_order_id``.
+      description: 'Route adapter for live-disabled stealth reveal by ``stealth_order_id``.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: reveal_stealth_order_by_stealth_order_id_api_v1_stealth_orders__stealth_order_id__reveal_post
       parameters:
       - name: stealth_order_id
@@ -8905,7 +9078,12 @@ paths:
       - stealth
       summary: Move a revealed stealth order by stealth_order_id through the shared
         command service
-      description: Route adapter for live-disabled stealth move by ``stealth_order_id``.
+      description: 'Route adapter for live-disabled stealth move by ``stealth_order_id``.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: move_stealth_order_by_stealth_order_id_api_v1_stealth_orders__stealth_order_id__move_post
       parameters:
       - name: stealth_order_id
@@ -9021,7 +9199,12 @@ paths:
       - stealth
       summary: Cancel a stealth order by stealth_order_id through the shared command
         service
-      description: Route adapter for live-disabled stealth cancel by ``stealth_order_id``.
+      description: 'Route adapter for live-disabled stealth cancel by ``stealth_order_id``.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: cancel_stealth_order_by_stealth_order_id_api_v1_stealth_orders__stealth_order_id__cancel_post
       parameters:
       - name: stealth_order_id
@@ -9137,7 +9320,13 @@ paths:
       - stealth
       summary: Evaluate live-disabled stealth recovery prerequisites by stealth_order_id
         through the shared command service
-      description: Route adapter for live-disabled stealth recovery prerequisite evidence.
+      description: 'Route adapter for live-disabled stealth recovery prerequisite
+        evidence.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: recover_stealth_order_by_stealth_order_id_api_v1_stealth_orders__stealth_order_id__recovery_post
       parameters:
       - name: stealth_order_id
@@ -9253,7 +9442,12 @@ paths:
       - stealth
       summary: Reconcile stealth order state by stealth_order_id through the shared
         command service
-      description: Route adapter for live-disabled stealth reconciliation by ``stealth_order_id``.
+      description: 'Route adapter for live-disabled stealth reconciliation by ``stealth_order_id``.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: reconcile_stealth_order_by_stealth_order_id_api_v1_stealth_orders__stealth_order_id__reconciliation_post
       parameters:
       - name: stealth_order_id
@@ -9368,7 +9562,12 @@ paths:
       tags:
       - stealth
       summary: Record stealth active-placement exchange-truth snapshot evidence
-      description: Route adapter for backend-owned no-live active-placement snapshots.
+      description: 'Route adapter for backend-owned no-live active-placement snapshots.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: record_stealth_active_placement_exchange_truth_snapshot_api_v1_stealth_orders__stealth_order_id__active_placement_exchange_truth_snapshots_post
       parameters:
       - name: stealth_order_id
@@ -9483,7 +9682,12 @@ paths:
       tags:
       - stealth
       summary: Record stealth active-placement exchange-truth proof evidence
-      description: Route adapter for backend-owned no-live active-placement proofs.
+      description: 'Route adapter for backend-owned no-live active-placement proofs.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: record_stealth_active_placement_exchange_truth_proof_api_v1_stealth_orders__stealth_order_id__active_placement_exchange_truth_proofs_post
       parameters:
       - name: stealth_order_id
@@ -9598,7 +9802,13 @@ paths:
       tags:
       - stealth
       summary: Record stealth create lifecycle-write guard proof evidence
-      description: Route adapter for backend-owned no-live lifecycle-write guard proofs.
+      description: 'Route adapter for backend-owned no-live lifecycle-write guard
+        proofs.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: record_stealth_create_lifecycle_write_guard_proof_api_v1_stealth_orders__stealth_order_id__lifecycle_write_guard_proofs_post
       parameters:
       - name: stealth_order_id
@@ -9713,7 +9923,12 @@ paths:
       tags:
       - stealth
       summary: Record stealth mutation-claim snapshot proof evidence
-      description: Route adapter for backend-owned no-live mutation-claim proofs.
+      description: 'Route adapter for backend-owned no-live mutation-claim proofs.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: record_stealth_mutation_claim_snapshot_proof_api_v1_stealth_orders__stealth_order_id__mutation_claim_proofs_post
       parameters:
       - name: stealth_order_id
@@ -9828,7 +10043,12 @@ paths:
       tags:
       - stealth
       summary: Record stealth recovery proof evidence
-      description: Route adapter for backend-owned no-live recovery proofs.
+      description: 'Route adapter for backend-owned no-live recovery proofs.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: record_stealth_recovery_proof_api_v1_stealth_orders__stealth_order_id__recovery_proofs_post
       parameters:
       - name: stealth_order_id
@@ -9943,7 +10163,12 @@ paths:
       tags:
       - stealth
       summary: Record stealth reveal-trigger proof evidence
-      description: Route adapter for backend-owned no-live reveal-trigger proofs.
+      description: 'Route adapter for backend-owned no-live reveal-trigger proofs.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: record_stealth_reveal_trigger_proof_api_v1_stealth_orders__stealth_order_id__reveal_trigger_proofs_post
       parameters:
       - name: stealth_order_id
@@ -10058,7 +10283,12 @@ paths:
       tags:
       - stealth
       summary: Record stealth manager-invocation policy proof evidence
-      description: Route adapter for backend-owned no-live manager-policy proofs.
+      description: 'Route adapter for backend-owned no-live manager-policy proofs.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: record_stealth_manager_invocation_policy_proof_api_v1_stealth_orders__stealth_order_id__manager_invocation_policy_proofs_post
       parameters:
       - name: stealth_order_id
@@ -10173,8 +10403,13 @@ paths:
       tags:
       - stealth
       summary: Record stealth Coinbase exchange submission-policy proof evidence
-      description: Route adapter for backend-owned no-live Coinbase exchange policy
+      description: 'Route adapter for backend-owned no-live Coinbase exchange policy
         proofs.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: record_stealth_coinbase_exchange_submission_policy_proof_api_v1_stealth_orders__stealth_order_id__coinbase_exchange_submission_policy_proofs_post
       parameters:
       - name: stealth_order_id
@@ -10289,7 +10524,13 @@ paths:
       tags:
       - stealth
       summary: Record stealth state-mutation policy proof evidence
-      description: Route adapter for backend-owned no-live state-mutation policy proofs.
+      description: 'Route adapter for backend-owned no-live state-mutation policy
+        proofs.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: record_stealth_state_mutation_policy_proof_api_v1_stealth_orders__stealth_order_id__state_mutation_policy_proofs_post
       parameters:
       - name: stealth_order_id
@@ -10404,7 +10645,12 @@ paths:
       tags:
       - stealth
       summary: Record stealth reconciliation proof evidence
-      description: Route adapter for backend-owned no-live reconciliation proofs.
+      description: 'Route adapter for backend-owned no-live reconciliation proofs.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: record_stealth_reconciliation_proof_api_v1_stealth_orders__stealth_order_id__reconciliation_proofs_post
       parameters:
       - name: stealth_order_id
@@ -10519,7 +10765,12 @@ paths:
       tags:
       - stealth
       summary: Record stealth cancel/replace proof evidence
-      description: Route adapter for backend-owned no-live cancel/replace proofs.
+      description: 'Route adapter for backend-owned no-live cancel/replace proofs.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: record_stealth_cancel_replace_proof_api_v1_stealth_orders__stealth_order_id__cancel_replace_proofs_post
       parameters:
       - name: stealth_order_id
@@ -10634,7 +10885,12 @@ paths:
       tags:
       - stealth
       summary: Record stealth post-write reconciliation proof evidence
-      description: Route adapter for backend-owned no-live post-write proofs.
+      description: 'Route adapter for backend-owned no-live post-write proofs.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: record_stealth_post_write_reconciliation_proof_api_v1_stealth_orders__stealth_order_id__post_write_reconciliation_proofs_post
       parameters:
       - name: stealth_order_id
@@ -10749,7 +11005,12 @@ paths:
       tags:
       - stealth
       summary: Record stealth post-write reconciliation execution-policy proof evidence
-      description: Route adapter for no-live post-write reconciliation policy proofs.
+      description: 'Route adapter for no-live post-write reconciliation policy proofs.
+
+
+        Live-execution boundary: this route is not a current manual Spot live exception;
+        it remains no-live/fail-closed for Coinbase execution and cannot grant browser/BFF
+        execution authority or live order/exchange-state mutation.'
       operationId: record_stealth_post_write_reconciliation_execution_policy_proof_api_v1_stealth_orders__stealth_order_id__post_write_reconciliation_execution_policy_proofs_post
       parameters:
       - name: stealth_order_id

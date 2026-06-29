@@ -214,13 +214,20 @@ missing-reconciliation blocker; it must not remove live-disabled or
 browser-authority blockers by itself, and it must not execute reconciliation.
 Command admission live execution service boundary evidence may report whether
 the backend live execution service is required, present, and enabled for a
-live-shaped command. In the current contract it remains disabled and may not
-remove `live_execution_disabled`, bypass browser-authority rejection, or
-submit to Coinbase.
-The disabled live execution service descriptor is the current backend-owned
-service boundary. It is evidence-only and has no execution methods; command
-routes may consume its state, but they must still return no-live command
-responses until every live gate is explicitly wired.
+live-shaped command. HTTP mutating routes are no-live by default, and browser
+or BFF evidence may not remove `live_execution_disabled`, bypass
+browser-authority rejection, or submit to Coinbase. Manual Spot order and
+cancel-by-`client_order_id` are the only current route-scoped configured
+exceptions; they may reach the shared backend live branch only after exact
+backend auth/RBAC, idempotency, approval, admission-audit, cap/guard,
+reconciliation, manual acknowledgement, live-service, REST-client, and
+event-stream gates pass. Other command routes must still return no-live,
+live-disabled, or not-implemented responses until their own backend-owned live
+contract is explicitly wired.
+Disabled live execution service descriptors remain backend-owned boundary
+evidence. They are evidence-only and have no execution methods; command routes
+may consume their state, but only a route-specific configured live-service
+dependency can participate in live admission.
 Live execution adapter contract evidence is a read-only refinement of
 `GET /api/v1/admin/live-enablement`. It may map a live-shaped route to its
 shared `AdminApiCommandService` method and list forbidden execution methods,

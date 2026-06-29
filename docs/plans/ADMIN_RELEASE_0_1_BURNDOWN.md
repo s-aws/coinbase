@@ -220,6 +220,21 @@ Exact autonomous phrase: Active Release 0.1 `8041-8060` adds a Spot Command Oper
 
 - Run blind/contextless backend/frontend review for the spot command operator
   E2E path and remediate blocking ambiguity before advancing.
+- Evidence update 2026-06-29: AGENTS.md and required linked agent docs were
+  re-reviewed for this phase with no direction change. Blind/contextless
+  review initially found stale current-facing no-live blanket docs, shortened
+  manual Spot gate lists, route-level OpenAPI ambiguity for non-exception
+  mutating routes, and artifact tests that could overwrite committed files
+  before comparison. Remediation updated backend docs, route docstrings,
+  OpenAPI generation, route inventory, generated frontend schema, and
+  regression tests. Fresh reviewer `019f11fe-19e6-7c31-8ed9-5ac5e53182ae`
+  passed with no blockers and confirmed the two current manual Spot live
+  exceptions, all other mutating route no-live/fail-closed boundaries, temp
+  artifact comparison tests, and no frontend/BFF trading authority. Focused
+  backend and frontend validation passed. Phase-end stale-subagent sweep
+  closed all phase reviewers after findings were consumed and no stale
+  phase-scoped subagent remains intentionally open. Live Coinbase execution
+  was not run and submitted/executed notional stayed 0 USDC.
 
 ### Phase 8059 - Validation And Hygiene
 
