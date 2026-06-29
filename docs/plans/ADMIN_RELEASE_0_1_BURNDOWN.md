@@ -201,6 +201,19 @@ Exact autonomous phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Op
 
 - Tighten frontend adapters for backend campaign status and execution-review
   evidence through generated API wrappers only.
+- Implementation update 2026-06-29: sibling frontend maps backend
+  `GET /api/v1/spot/campaign/status` `campaign_inventory` rows into typed
+  campaign inventory table rows and maps status route, dry-run command route,
+  no-live notional, unsupported behavior, and browser/BFF authority evidence
+  into execution-review metrics. This is a frontend adapter/view association
+  only; backend route authority, scheduler/retry/reconciliation/live execution
+  boundaries, and zero-notional no-live posture are unchanged.
+- Validation update 2026-06-29: sibling frontend focused adapter/read-only
+  view/Campaigns read-model tests and quality checks passed; backend ownership,
+  autonomous queue, stale-process, whitespace, and blind contextless review
+  passed. Full backend regression was not run because this phase changed
+  backend docs only and is not a milestone closeout. Live Coinbase execution
+  was not run; submitted/executed notional was 0 USDC.
 
 ### Phase 8088 - Frontend Sweep Service Adapter
 

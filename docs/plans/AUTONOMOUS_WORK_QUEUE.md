@@ -315,6 +315,18 @@ Exact autonomous phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Op
 
 - Tighten frontend adapters for backend campaign status and execution-review
   evidence through generated API wrappers only.
+- Implementation update 2026-06-29: sibling frontend consumes generated
+  campaign status evidence as structured campaign inventory rows and
+  execution-review metrics for status routes, dry-run command routes,
+  no-live notional, unsupported behavior, and frontend/BFF authority. No
+  backend execution path, scheduler, retry runner, reconciliation executor,
+  Coinbase call, browser authority, BFF authority, or second automation path
+  changed in this phase.
+- Validation update 2026-06-29: backend ownership, autonomous queue,
+  stale-process, whitespace, and blind contextless review passed; sibling
+  frontend focused tests and quality checks passed. Full backend regression
+  was not run for this ordinary docs-only backend phase. Live Coinbase
+  execution was not run; submitted/executed notional was 0 USDC.
 
 ### Phase 8088 - Frontend Sweep Service Adapter
 

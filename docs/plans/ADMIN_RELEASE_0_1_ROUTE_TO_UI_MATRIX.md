@@ -12,11 +12,12 @@ The governing question remains:
 
 ## Phase Instruction Review
 
-`AGENTS.md` and `agent.md` were reviewed for this phase on 2026-06-27 and
-again on 2026-06-28 before the frontend Release Blockers implementation,
-Admin Lifecycle Support classification, Spot Buy/Sell/Cancel readiness, Admin
-API spot SELL authority source wiring, Spot Sweep Automation Service Contract
-read work, and scheduler/run-limit binding evidence. No phase-direction change
+`AGENTS.md` and `agent.md` were reviewed for this phase on 2026-06-27, again
+on 2026-06-28 before the frontend Release Blockers implementation, Admin
+Lifecycle Support classification, Spot Buy/Sell/Cancel readiness, Admin API
+spot SELL authority source wiring, Spot Sweep Automation Service Contract read
+work, and scheduler/run-limit binding evidence, and again on 2026-06-29 before
+Phase 8087 frontend campaign status adapter work. No phase-direction change
 was required. The controlling instructions remain:
 
 - Release 0.1 work must clear a named blocker or directly improve the usable
@@ -67,6 +68,18 @@ The current generated route inventory
 | Settings/policy | `/api/v1/admin/settings-policy-map`, guard/risk policy, capabilities, OIDC readiness, CSRF, live-execution decision reads/records | Guard/Risk, Settings, Admin | `blocked` | Safe backend-owned visibility now classifies settings and policy surfaces as read-only, secret, unsupported, or not modeled with `editable_count=0`; safe operator editing remains not modeled. | Design the first backend-owned editable setting only after an exact owning workflow, permission, audit, validation, rollback, and frontend UX contract exists. |
 | Unsupported behavior | Enterprise readiness command gaps, route inventory, capability registry | Modules, Release Blockers, nav posture, command evidence | `usable` | Direct operator-facing blocker matrix exists; underlying gaps still block their owning workflows. | Keep the panel aligned with enterprise-readiness while clearing the next owning workflow blocker. |
 | Validation | Focused backend checks, autonomous checker, stale process checker, full regression runner | Release gate and docs | `usable` | Focused validation is usable. Full regression is reserved for closeout. | Keep focused checks per slice; run full regression at Release 0.1 closeout. |
+
+## Phase 8087 Frontend Association Update
+
+The sibling frontend now consumes `GET /api/v1/spot/campaign/status`
+campaign inventory evidence through typed generated-wrapper adapters and
+renders it as Spot Campaign Status inventory rows plus Campaigns dry-run
+execution-review metrics. The associated metrics cover status routes, dry-run
+command routes, no-live notional, unsupported behavior, and browser/BFF
+authority. This update does not change backend execution authority: scheduler,
+retry runner, reconciliation executor, Coinbase calls, browser/BFF execution,
+route-local execution, and second automation paths remain blocked or
+unsupported as already recorded in the Automation/campaigns row.
 
 ## Implemented Account/Market Coverage Slice
 

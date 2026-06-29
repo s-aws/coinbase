@@ -87,6 +87,14 @@ configured, paused, retryable, unsupported, and not-modeled states. This is an
 operator posture contract only; it does not execute scheduler, retry,
 reconciliation, Coinbase, browser, BFF, route-local, or second-path behavior.
 
+Phase 8087 frontend association status: the sibling frontend now maps
+generated campaign status responses into typed campaign inventory table rows
+and execution-review metrics for campaign status routes, campaign dry-run
+command routes, no-live notional, unsupported behavior, and browser/BFF
+authority. This consumes existing backend evidence only; it does not change
+backend live execution, scheduler, retry, reconciliation, Coinbase, browser,
+BFF, route-local, or second-path authority.
+
 ## Completed Phases 8061-8080
 
 Completed Release 0.1 `8061-8080` added the Audit/Reconciliation Operator

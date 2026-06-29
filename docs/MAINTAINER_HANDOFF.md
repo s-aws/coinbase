@@ -179,6 +179,19 @@ notional, retained inventory, reconciliation result, and audit ids.
   requirement, request scope, runner boundary, no-live execution, and
   frontend/BFF authority. Live campaign execution remains blocked with zero
   submitted/executed notional.
+- Phase 8087 is a sibling frontend adapter association phase: frontend
+  campaign status mapping now renders backend `campaign_inventory` rows as
+  structured inventory table rows and renders campaign status/execution review
+  metrics for status routes, dry-run command routes, no-live notional,
+  unsupported behavior, and browser/BFF authority. Backend execution,
+  scheduler, retry, reconciliation, Coinbase, route-local, browser, BFF, and
+  second-path authority did not change.
+- Phase `8087` instruction review: backend `AGENTS.md`, backend `agent.md`,
+  backend owner contracts, frontend `AGENTS.md`, frontend owner contracts, and
+  ordered frontend docs were reviewed on 2026-06-29. The phase direction did
+  not change: Release 0.1 product progress, no second trading path,
+  generated-wrapper frontend consumption, and explicit unsupported/not-modeled
+  behavior remain controlling.
 - Required boundary phrase: no second trading path.
 - Required checker phrase: usable admin product.
 - Required checker phrase: unsupported` or `not_modeled`.
