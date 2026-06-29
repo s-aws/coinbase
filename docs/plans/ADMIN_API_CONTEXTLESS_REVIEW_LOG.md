@@ -1,10 +1,19 @@
 ## Movement/Repricing Action-State Matrix Review - Phases 8021-8040
 
-Result: pending. Scope: phases `8021-8040`, after completed history through
+Result: PASS after remediation. Initial blind reviewer
+`019f1129-f618-7850-8f8c-a9ac6479feec` blocked preflight because the backend
+movement/repricing response had no action-state contract while the frontend
+built a local matrix with non-canonical states such as `ready` and
+`live_disabled`. Remediation applied in this phase before implementation
+proceeds. Scope: phases `8021-8040`, after completed history through
 `8001-8020`, adds a Movement/Repricing Action-State Matrix so move, premark,
 reprice, cooldown, claim, cancel/replace, audit, and recovery workflows are
 visible as usable, blocked, `unsupported`, or `not_modeled` from backend
 evidence.
+
+Remediation added backend `action_states` rows using `AdminApiActionState`,
+included all eight row families, regenerated OpenAPI/frontend schema, and
+replaced frontend local state-building with adapter-rendered backend rows.
 
 No live Coinbase execution is planned; actual submitted/executed notional
 remains `0` USDC.
@@ -23,6 +32,19 @@ Required checker phrase: Release 0.1 Operator Admin Pivot.
 Required checker phrase: usable private operator MVP.
 Required checker phrase: unsupported` or `not_modeled`.
 Required checker phrase: no browser/BFF execution authority.
+
+Fresh blind/contextless review: PASS after remediation. Reviewer
+`019f114b-4a84-70a2-9090-5db392df043c` verified the backend owns the canonical
+eight-row action-state contract, `AdminApiActionState` remains limited to
+`usable`, `blocked`, `unsupported`, and `not_modeled`, `live_disabled` remains
+`live_execution_status` posture instead of an action state, reprice remains
+keyed by `stealth_order_id`, exchange `order_id` values remain evidence only,
+and frontend rendering consumes generated backend rows through the movement
+adapter instead of constructing local authority. The reviewer also confirmed
+the docs and tests explain no browser/BFF/dashboard/WebSocket trading
+authority, no Coinbase execution, no reconciliation execution, no movement,
+order, or exchange-state mutation, and no second trading path. Tests were not
+run by the reviewer; local focused validation is recorded in phase evidence.
 
 ## M55 Stealth Action-State Matrix Review - Phases 8001-8020
 

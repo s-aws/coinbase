@@ -23,7 +23,9 @@ movement/repricing behavior inspectable without granting frontend authority.
 
 Read routes require Admin API authentication and `audit:read` permission. They
 return `read_only=true`, `command_routes_mode=live_disabled`, and
-`live_coinbase_orders_ran=false`.
+`live_coinbase_orders_ran=false`. List and detail responses also return
+`action_state_count` and `action_states`, which are backend-owned rows for the
+Movement/Repricing action-state matrix.
 
 The reprice command draft requires Admin API authentication, `order:cancel`,
 idempotency headers, operator intent, and audit. The cancel-class permission
@@ -50,6 +52,36 @@ no-live evidence. It is not live repricing approval.
 Runtime claim evidence is marked with `runtime_observed`. If the runtime
 manager is unavailable, the response reports that instead of pretending the
 database proves no claim exists.
+
+## Action-State Rows
+
+Movement/Repricing action states are part of the backend contract. Frontend
+code must render these rows and must not infer movement eligibility locally.
+
+Rows use `AdminApiActionState` only:
+
+- `usable`: read-only audit/evidence inspection is available.
+- `blocked`: a route or workflow exists conceptually, but required backend
+  gates or proofs are missing.
+- `unsupported`: the workflow is intentionally not supported from the
+  enterprise admin frontend.
+- `not_modeled`: no enterprise admin command contract exists for the workflow.
+
+The backend currently returns eight row families:
+
+- `move`
+- `premark`
+- `reprice`
+- `cooldown`
+- `claim`
+- `cancel_replace`
+- `audit`
+- `recovery`
+
+`live_disabled` is a live-execution posture reported in
+`live_execution_status` or `command_routes_mode`; it is not an action-state
+value. The reprice row is `blocked` while the route remains a live-disabled
+HTTP `501` command draft.
 
 ## Identity Rules
 

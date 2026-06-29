@@ -50,7 +50,8 @@ Expected posture fields:
   "type": "admin_movement_repricing_evidence",
   "read_only": true,
   "command_routes_mode": "live_disabled",
-  "live_coinbase_orders_ran": false
+  "live_coinbase_orders_ran": false,
+  "action_state_count": 8
 }
 ```
 
@@ -70,6 +71,42 @@ Example evidence item:
       "state": "processing",
       "runtime_observed": true,
       "source": "stealth_manager.snapshot_mutation_claims"
+    }
+  ]
+}
+```
+
+Example action-state rows:
+
+```json
+{
+  "action_state_count": 8,
+  "action_states": [
+    {
+      "action_id": "reprice",
+      "label": "Reprice stealth placement",
+      "action_state": "blocked",
+      "route": "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
+      "identity_key": "stealth_order_id",
+      "live_execution_status": "live_disabled",
+      "backend_owned": true,
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution",
+      "blockers": [
+        "live_execution_status:live_disabled",
+        "stealth_manager_invoked:false",
+        "cooldown_cleared:false",
+        "live_exchange_submitted:false"
+      ]
+    },
+    {
+      "action_id": "audit",
+      "label": "Audit movement/repricing evidence",
+      "action_state": "usable",
+      "identity_key": "evidence_id",
+      "backend_owned": true,
+      "browser_authority": "display_only",
+      "bff_authority": "forward_only_no_execution"
     }
   ]
 }

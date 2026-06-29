@@ -128,6 +128,7 @@ from core.enums import (
     AdminApiLivePreflightCategory,
     AdminApiLiveReadinessPrecondition,
     AdminApiLifecycleAction,
+    AdminMovementRepricingActionStateId,
     AdminMovementRepricingEvidenceType,
     AdminApiMutationFamilyType,
     AdminApiModuleSupportStatus,
@@ -4196,6 +4197,42 @@ class AdminMovementRepricingEvidenceItem(BaseModel):
     source: str
 
 
+class AdminMovementRepricingActionStateItem(BaseModel):
+    """Backend-derived action-state row for the movement/repricing admin UI."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    action_id: AdminMovementRepricingActionStateId
+    label: str
+    action_state: AdminApiActionState
+    scope: str = "movement_repricing_module_template"
+    order_specific_adjudication: bool = False
+    selection_required: bool = False
+    route: str | None = None
+    method: str | None = None
+    identity_key: str
+    identity_value_source: str
+    identity_binding_detail: str
+    status_source: str
+    command_status: AdminApiGateStatus
+    live_execution_status: AdminApiLiveExecutionStatus
+    live_enabled: bool = False
+    executable: bool = False
+    active_placement_evidence_required: bool = False
+    exchange_truth_required: bool = False
+    backend_owned: bool = True
+    route_bound: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    required_gate_chain: list[str] = Field(default_factory=list)
+    missing_gate_chain: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    backend_evidence: list[str] = Field(default_factory=list)
+    next_required_contract: str
+    boundary: str
+    detail: str
+
+
 class AdminMovementRepricingListResponse(BaseModel):
     """Read-only movement/repricing evidence list response."""
 
@@ -4206,6 +4243,10 @@ class AdminMovementRepricingListResponse(BaseModel):
     count: int
     pagination: AdminOrderPagination
     items: list[AdminMovementRepricingEvidenceItem] = Field(default_factory=list)
+    action_state_count: int = 0
+    action_states: list[AdminMovementRepricingActionStateItem] = Field(
+        default_factory=list
+    )
     read_only: bool = True
     command_routes_mode: AdminApiCommandRoutesMode = AdminApiCommandRoutesMode.LIVE_DISABLED
     live_coinbase_orders_ran: bool = False
@@ -4222,6 +4263,10 @@ class AdminMovementRepricingDetailResponse(BaseModel):
     stealth_order_id: str | None = None
     found: bool
     items: list[AdminMovementRepricingEvidenceItem] = Field(default_factory=list)
+    action_state_count: int = 0
+    action_states: list[AdminMovementRepricingActionStateItem] = Field(
+        default_factory=list
+    )
     read_only: bool = True
     command_routes_mode: AdminApiCommandRoutesMode = AdminApiCommandRoutesMode.LIVE_DISABLED
     live_coinbase_orders_ran: bool = False

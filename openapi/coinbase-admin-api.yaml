@@ -133897,6 +133897,145 @@ components:
       - message
       title: AdminLiveServiceDecisionResponse
       description: Response for live-service decision mutations and detail reads.
+    AdminMovementRepricingActionStateId:
+      type: string
+      enum:
+      - move
+      - premark
+      - reprice
+      - cooldown
+      - claim
+      - cancel_replace
+      - audit
+      - recovery
+      title: AdminMovementRepricingActionStateId
+      description: Backend-owned action-state rows for movement/repricing admin views.
+    AdminMovementRepricingActionStateItem:
+      properties:
+        action_id:
+          $ref: '#/components/schemas/AdminMovementRepricingActionStateId'
+        label:
+          type: string
+          title: Label
+        action_state:
+          $ref: '#/components/schemas/AdminApiActionState'
+        scope:
+          type: string
+          title: Scope
+          default: movement_repricing_module_template
+        order_specific_adjudication:
+          type: boolean
+          title: Order Specific Adjudication
+          default: false
+        selection_required:
+          type: boolean
+          title: Selection Required
+          default: false
+        route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Route
+        method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Method
+        identity_key:
+          type: string
+          title: Identity Key
+        identity_value_source:
+          type: string
+          title: Identity Value Source
+        identity_binding_detail:
+          type: string
+          title: Identity Binding Detail
+        status_source:
+          type: string
+          title: Status Source
+        command_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        live_execution_status:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+        live_enabled:
+          type: boolean
+          title: Live Enabled
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        active_placement_evidence_required:
+          type: boolean
+          title: Active Placement Evidence Required
+          default: false
+        exchange_truth_required:
+          type: boolean
+          title: Exchange Truth Required
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        required_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Required Gate Chain
+        missing_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Missing Gate Chain
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        backend_evidence:
+          items:
+            type: string
+          type: array
+          title: Backend Evidence
+        next_required_contract:
+          type: string
+          title: Next Required Contract
+        boundary:
+          type: string
+          title: Boundary
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - action_id
+      - label
+      - action_state
+      - identity_key
+      - identity_value_source
+      - identity_binding_detail
+      - status_source
+      - command_status
+      - live_execution_status
+      - next_required_contract
+      - boundary
+      - detail
+      title: AdminMovementRepricingActionStateItem
+      description: Backend-derived action-state row for the movement/repricing admin
+        UI.
     AdminMovementRepricingDetailResponse:
       properties:
         type:
@@ -133924,6 +134063,15 @@ components:
             $ref: '#/components/schemas/AdminMovementRepricingEvidenceItem'
           type: array
           title: Items
+        action_state_count:
+          type: integer
+          title: Action State Count
+          default: 0
+        action_states:
+          items:
+            $ref: '#/components/schemas/AdminMovementRepricingActionStateItem'
+          type: array
+          title: Action States
         read_only:
           type: boolean
           title: Read Only
@@ -134175,6 +134323,15 @@ components:
             $ref: '#/components/schemas/AdminMovementRepricingEvidenceItem'
           type: array
           title: Items
+        action_state_count:
+          type: integer
+          title: Action State Count
+          default: 0
+        action_states:
+          items:
+            $ref: '#/components/schemas/AdminMovementRepricingActionStateItem'
+          type: array
+          title: Action States
         read_only:
           type: boolean
           title: Read Only

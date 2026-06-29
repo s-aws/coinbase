@@ -415,6 +415,7 @@ from core.enums import (
     AdminApiLiveReadinessPrecondition,
     AdminApiLifecycleAction,
     AdminApiAccountMarketInventoryFamily,
+    AdminMovementRepricingActionStateId,
     AdminApiMutationFamilyType,
     AdminApiModuleSupportStatus,
     AdminApiPermission,
@@ -7751,6 +7752,22 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         "AdminMovementRepricingListResponse"
     ]
     assert "command_routes_mode" in movement_list_schema["properties"]
+    assert "action_state_count" in movement_list_schema["properties"]
+    assert "action_states" in movement_list_schema["properties"]
+    movement_detail_schema = written["components"]["schemas"][
+        "AdminMovementRepricingDetailResponse"
+    ]
+    assert "action_state_count" in movement_detail_schema["properties"]
+    assert "action_states" in movement_detail_schema["properties"]
+    movement_action_state_schema = written["components"]["schemas"][
+        "AdminMovementRepricingActionStateItem"
+    ]
+    assert "action_id" in movement_action_state_schema["properties"]
+    assert "action_state" in movement_action_state_schema["properties"]
+    assert "backend_evidence" in movement_action_state_schema["properties"]
+    assert "browser_authority" in movement_action_state_schema["properties"]
+    assert "bff_authority" in movement_action_state_schema["properties"]
+    assert "order_id" not in movement_action_state_schema["properties"]
     futures_position_schema = written["components"]["schemas"][
         "AdminFuturesPositionReadItem"
     ]
@@ -51490,6 +51507,67 @@ def test_admin_api_movement_repricing_read_service_maps_durable_and_runtime_evid
     assert response.type == "admin_movement_repricing_evidence"
     assert response.command_routes_mode == AdminApiCommandRoutesMode.LIVE_DISABLED
     assert response.live_coinbase_orders_ran is False
+    assert response.action_state_count == 8
+    action_states = {item.action_id: item for item in response.action_states}
+    assert set(action_states) == set(AdminMovementRepricingActionStateId)
+    assert (
+        action_states[AdminMovementRepricingActionStateId.AUDIT].action_state
+        == AdminApiActionState.USABLE
+    )
+    assert (
+        action_states[AdminMovementRepricingActionStateId.REPRICE].action_state
+        == AdminApiActionState.BLOCKED
+    )
+    assert (
+        action_states[AdminMovementRepricingActionStateId.REPRICE].route
+        == "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+    )
+    assert (
+        action_states[AdminMovementRepricingActionStateId.REPRICE].identity_key
+        == "stealth_order_id"
+    )
+    assert (
+        action_states[AdminMovementRepricingActionStateId.REPRICE]
+        .live_execution_status
+        == AdminApiLiveExecutionStatus.LIVE_DISABLED
+    )
+    assert (
+        action_states[AdminMovementRepricingActionStateId.MOVE].action_state
+        == AdminApiActionState.NOT_MODELED
+    )
+    assert (
+        action_states[AdminMovementRepricingActionStateId.PREMARK].action_state
+        == AdminApiActionState.NOT_MODELED
+    )
+    assert (
+        action_states[AdminMovementRepricingActionStateId.COOLDOWN].action_state
+        == AdminApiActionState.UNSUPPORTED
+    )
+    assert (
+        action_states[AdminMovementRepricingActionStateId.CLAIM].action_state
+        == AdminApiActionState.UNSUPPORTED
+    )
+    assert (
+        action_states[AdminMovementRepricingActionStateId.CANCEL_REPLACE].action_state
+        == AdminApiActionState.BLOCKED
+    )
+    assert (
+        action_states[AdminMovementRepricingActionStateId.RECOVERY].action_state
+        == AdminApiActionState.BLOCKED
+    )
+    assert all(item.backend_owned for item in response.action_states)
+    assert all(item.browser_authority == "display_only" for item in response.action_states)
+    assert all(
+        item.bff_authority == "forward_only_no_execution"
+        for item in response.action_states
+    )
+    assert any(
+        "3 movement/repricing evidence rows matched current backend filters"
+        in evidence
+        for evidence in action_states[
+            AdminMovementRepricingActionStateId.AUDIT
+        ].backend_evidence
+    )
     evidence_by_type = {item.evidence_type.value: item for item in response.items}
     parent_move = evidence_by_type["parent_move"]
     assert parent_move.original_parent_client_order_id == "parent-old"

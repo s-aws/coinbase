@@ -24,11 +24,10 @@ routes remain live-disabled/fail-closed and must not call Coinbase.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Active Release 0.1 `7981-8000` pivots the admin platform to product-managing
-operator workflows while completed M57 `7961-7980` carries forward futures
-risk-proof record validation remediation summary evidence. The governing
-question for new work is: Does this make the frontend able to manage the
-project?
+Active Release 0.1 `8021-8040` adds a backend-owned
+Movement/Repricing Action-State Matrix while completed `8001-8020` carries
+the M55 Stealth Action-State Matrix evidence. The governing question for new
+work is: Does this make the frontend able to manage the project?
 
 Completed M57 `7961-7980` futures/perpetual risk-proof record validation
 remediation summary evidence for `GET /api/v1/futures/command-suite` is

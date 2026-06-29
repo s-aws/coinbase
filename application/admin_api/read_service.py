@@ -70,6 +70,7 @@ from core.enums import (
     AdminApiLivePreflightCategory,
     AdminApiLiveReadinessPrecondition,
     AdminApiModuleSupportStatus,
+    AdminMovementRepricingActionStateId,
     AdminMovementRepricingEvidenceType,
     AdminApiMutationFamilyType,
     AdminApiPermission,
@@ -281,6 +282,7 @@ from .models import (
     AdminLivePreflightCheckItem,
     AdminLiveReadinessPreconditionItem,
     AdminLiveEnablementReadResponse,
+    AdminMovementRepricingActionStateItem,
     AdminMovementRepricingDetailResponse,
     AdminMovementRepricingEvidenceItem,
     AdminMovementRepricingListResponse,
@@ -4244,6 +4246,349 @@ def _replacement_slots_for(
         if slot:
             slots.append(slot)
     return slots
+
+
+def _movement_repricing_action_states(
+    *,
+    items: list[AdminMovementRepricingEvidenceItem],
+    read_errors: list[str],
+) -> list[AdminMovementRepricingActionStateItem]:
+    """Return backend-owned movement/repricing action-state rows."""
+
+    evidence_count = len(items)
+    active_placement_count = sum(
+        1 for item in items if item.active_placement_client_order_id
+    )
+    exchange_evidence_count = sum(
+        1
+        for item in items
+        if item.active_exchange_order_id
+        or item.old_exchange_order_id
+        or item.new_exchange_order_id
+    )
+    mutation_claim_count = sum(len(item.mutation_claims) for item in items)
+    replacement_slot_count = sum(len(item.replacement_slots) for item in items)
+    common_evidence = [
+        "Derived from AdminApiReadService.build_movement_repricing_evidence.",
+        f"{evidence_count} movement/repricing evidence rows matched current backend filters.",
+        f"{active_placement_count} rows report active placement client_order_id evidence.",
+        f"{exchange_evidence_count} rows report exchange order_id evidence.",
+        f"{mutation_claim_count} runtime mutation claim evidence rows were observed.",
+        f"{replacement_slot_count} replacement-slot evidence rows were observed.",
+        "Live Coinbase execution was not run by this read contract.",
+    ]
+    if read_errors:
+        common_evidence.append(
+            "Backend read errors were reported instead of being converted into "
+            f"implicit action permission: {', '.join(read_errors)}."
+        )
+
+    def row(
+        *,
+        action_id: AdminMovementRepricingActionStateId,
+        label: str,
+        action_state: AdminApiActionState,
+        identity_key: str,
+        identity_value_source: str,
+        identity_binding_detail: str,
+        status_source: str,
+        next_required_contract: str,
+        boundary: str,
+        detail: str,
+        command_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED,
+        route: str | None = None,
+        method: str | None = None,
+        route_bound: bool = False,
+        selection_required: bool = False,
+        active_placement_evidence_required: bool = False,
+        exchange_truth_required: bool = False,
+        required_gate_chain: list[str] | None = None,
+        missing_gate_chain: list[str] | None = None,
+        blockers: list[str] | None = None,
+        backend_evidence: list[str] | None = None,
+    ) -> AdminMovementRepricingActionStateItem:
+        return AdminMovementRepricingActionStateItem(
+            action_id=action_id,
+            label=label,
+            action_state=action_state,
+            selection_required=selection_required,
+            route=route,
+            method=method,
+            identity_key=identity_key,
+            identity_value_source=identity_value_source,
+            identity_binding_detail=identity_binding_detail,
+            status_source=status_source,
+            command_status=command_status,
+            live_execution_status=AdminApiLiveExecutionStatus.LIVE_DISABLED,
+            live_enabled=False,
+            executable=False,
+            active_placement_evidence_required=active_placement_evidence_required,
+            exchange_truth_required=exchange_truth_required,
+            backend_owned=True,
+            route_bound=route_bound,
+            browser_authority="display_only",
+            bff_authority="forward_only_no_execution",
+            required_gate_chain=required_gate_chain or [],
+            missing_gate_chain=missing_gate_chain or [],
+            blockers=blockers or [],
+            backend_evidence=[*common_evidence, *(backend_evidence or [])],
+            next_required_contract=next_required_contract,
+            boundary=boundary,
+            detail=detail,
+        )
+
+    return [
+        row(
+            action_id=AdminMovementRepricingActionStateId.MOVE,
+            label="Move order or stealth placement",
+            action_state=AdminApiActionState.NOT_MODELED,
+            identity_key="client_order_id_or_stealth_order_id",
+            identity_value_source="selected movement/repricing evidence row",
+            identity_binding_detail=(
+                "Movement rows may bind to client_order_id or stealth_order_id, "
+                "but no enterprise move command route is modeled by this response."
+            ),
+            status_source="movement/repricing route inventory and evidence reads",
+            missing_gate_chain=[
+                "backend movement command route",
+                "RBAC action",
+                "idempotency contract",
+                "guard decision",
+                "audit correlation",
+            ],
+            blockers=["movement_command_contract_missing"],
+            next_required_contract="backend movement command contract",
+            boundary=(
+                "Do not create a browser, BFF, dashboard WebSocket, route-local, "
+                "or Coinbase movement path from this read evidence."
+            ),
+            detail=(
+                "Existing order_moves and stealth_order_moves rows are evidence "
+                "only; they do not grant move authority."
+            ),
+        ),
+        row(
+            action_id=AdminMovementRepricingActionStateId.PREMARK,
+            label="Premark movement",
+            action_state=AdminApiActionState.NOT_MODELED,
+            identity_key="client_order_id",
+            identity_value_source="selected order movement evidence row",
+            identity_binding_detail=(
+                "Premark state is not exposed as an enterprise admin command "
+                "contract in this module."
+            ),
+            status_source="movement/repricing route inventory",
+            missing_gate_chain=[
+                "premark route",
+                "admission contract",
+                "rollback contract",
+                "audit trail",
+            ],
+            blockers=["premark_contract_missing"],
+            next_required_contract="backend premark movement command contract",
+            boundary=(
+                "Frontend code must not prepare, stage, or roll back premark "
+                "movement locally."
+            ),
+            detail="Premark movement remains backend-owned and not modeled here.",
+        ),
+        row(
+            action_id=AdminMovementRepricingActionStateId.REPRICE,
+            label="Reprice stealth placement",
+            action_state=AdminApiActionState.BLOCKED,
+            route="/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
+            method="POST",
+            route_bound=True,
+            selection_required=True,
+            active_placement_evidence_required=True,
+            exchange_truth_required=True,
+            identity_key="stealth_order_id",
+            identity_value_source="selected stealth_order_id",
+            identity_binding_detail=(
+                "The reprice draft is keyed by stealth_order_id. Active "
+                "placement client_order_id and exchange order_id are evidence "
+                "only and must not replace the command identity."
+            ),
+            status_source=(
+                "application/admin_api/command_service.py::"
+                "reprice_stealth_order_by_stealth_order_id"
+            ),
+            required_gate_chain=[
+                "cooldown gate",
+                "mutation-claim gate",
+                "active-placement exchange truth",
+                "cancel/replace proof",
+                "post-write reconciliation proof",
+            ],
+            missing_gate_chain=[
+                "stealth_reprice_cooldown_claim_contract",
+                "stealth_reprice_active_placement_cancel_replace_proof",
+                "stealth_reprice_reconciliation_proof",
+            ],
+            blockers=[
+                "live_execution_status:live_disabled",
+                "stealth_manager_invoked:false",
+                "cooldown_cleared:false",
+                "live_exchange_submitted:false",
+            ],
+            backend_evidence=[
+                "The current route returns HTTP 501 not_implemented evidence.",
+                "The draft must not clear cooldowns, call the legacy dashboard "
+                "repricer, cancel/replace placements, or call Coinbase.",
+            ],
+            next_required_contract=(
+                "backend live reprice contract with cooldown, mutation-claim, "
+                "exchange-truth, cancel/replace, and reconciliation gates"
+            ),
+            boundary=(
+                "Dry-submit review only; no live repricing authority is exposed "
+                "by this matrix."
+            ),
+            detail=(
+                "Reprice is modeled as a live-disabled cancel/replace-shaped "
+                "draft for operator review."
+            ),
+        ),
+        row(
+            action_id=AdminMovementRepricingActionStateId.COOLDOWN,
+            label="Clear reprice cooldown",
+            action_state=AdminApiActionState.UNSUPPORTED,
+            identity_key="stealth_order_id",
+            identity_value_source="selected stealth_order_id",
+            identity_binding_detail=(
+                "Cooldown and next-reprice fields are display-only evidence."
+            ),
+            status_source="stealth_orders.anchor_repricing_state_json",
+            missing_gate_chain=["cooldown-clear route"],
+            blockers=["cooldown_clear_unsupported"],
+            next_required_contract="no enterprise cooldown-clear contract exists",
+            boundary=(
+                "Frontend and BFF code must not clear cooldowns or force anchor "
+                "repricing."
+            ),
+            detail="Cooldown clearing is intentionally unsupported in this module.",
+        ),
+        row(
+            action_id=AdminMovementRepricingActionStateId.CLAIM,
+            label="Acquire or release mutation claim",
+            action_state=AdminApiActionState.UNSUPPORTED,
+            identity_key="runtime_mutation_claim",
+            identity_value_source="runtime movement/repricing evidence",
+            identity_binding_detail=(
+                "Mutation claim rows are observed backend/runtime evidence only."
+            ),
+            status_source="runtime stealth manager mutation claims",
+            missing_gate_chain=["frontend claim ownership contract"],
+            blockers=["mutation_claim_frontend_ownership_unsupported"],
+            next_required_contract="no frontend claim ownership contract exists",
+            boundary=(
+                "Runtime locks stay backend-owned; the frontend only displays "
+                "observed claim state."
+            ),
+            detail="Claim acquisition and release are not operator UI actions.",
+        ),
+        row(
+            action_id=AdminMovementRepricingActionStateId.CANCEL_REPLACE,
+            label="Cancel/replace active placement",
+            action_state=AdminApiActionState.BLOCKED,
+            identity_key="active_placement_client_order_id",
+            identity_value_source="selected movement/repricing evidence row",
+            identity_binding_detail=(
+                "Active placement client_order_id identifies backend evidence; "
+                "exchange order_id remains exchange evidence only."
+            ),
+            status_source="movement/repricing evidence plus cancel/replace proof stores",
+            active_placement_evidence_required=True,
+            exchange_truth_required=True,
+            required_gate_chain=[
+                "active-placement exchange truth",
+                "cancel/replace proof",
+                "post-write reconciliation proof",
+            ],
+            missing_gate_chain=[
+                "stealth_reprice_active_placement_cancel_replace_proof",
+                "stealth_reprice_reconciliation_proof",
+            ],
+            blockers=["cancel_replace_completion_blocked"],
+            next_required_contract=(
+                "backend cancel/replace contract with exchange handling and "
+                "post-write reconciliation"
+            ),
+            boundary=(
+                "Do not mark revealed placements moved, hidden, cancelled, or "
+                "replaced without backend exchange handling."
+            ),
+            detail=(
+                "Future live repricing is cancel/replace-shaped, but this "
+                "matrix exposes no live cancel/replace control."
+            ),
+        ),
+        row(
+            action_id=AdminMovementRepricingActionStateId.AUDIT,
+            label="Audit movement/repricing evidence",
+            action_state=AdminApiActionState.USABLE,
+            command_status=AdminApiGateStatus.PASSED,
+            identity_key="evidence_id",
+            identity_value_source="selected movement/repricing evidence row",
+            identity_binding_detail=(
+                "Audit inspection is read-only and may use evidence_id, "
+                "client_order_id, or stealth_order_id as display anchors."
+            ),
+            status_source="GET /api/v1/movement-repricing/evidence",
+            backend_evidence=[
+                "Read routes require audit:read and return read_only=true.",
+                "Audit usability means evidence inspection only, not action "
+                "approval.",
+            ],
+            next_required_contract="none for read-only audit inspection",
+            boundary=(
+                "Audit usability does not imply move, reprice, cooldown, claim, "
+                "cancel/replace, recovery, or Coinbase authority."
+            ),
+            detail=(
+                "Operators may inspect backend movement/repricing evidence through "
+                "the existing read routes."
+            ),
+        ),
+        row(
+            action_id=AdminMovementRepricingActionStateId.RECOVERY,
+            label="Recover movement/repricing state",
+            action_state=AdminApiActionState.BLOCKED,
+            identity_key="client_order_id_or_stealth_order_id",
+            identity_value_source="selected movement/repricing evidence row",
+            identity_binding_detail=(
+                "Recovery would bind to backend order or stealth identity after "
+                "exchange truth and reconciliation evidence are present."
+            ),
+            status_source="movement/repricing recovery and reconciliation contracts",
+            active_placement_evidence_required=True,
+            exchange_truth_required=True,
+            required_gate_chain=[
+                "exchange truth",
+                "state repair plan",
+                "approval snapshot",
+                "post-repair reconciliation",
+            ],
+            missing_gate_chain=[
+                "movement_repricing_recovery_contract",
+                "movement_repricing_state_repair_plan",
+                "movement_repricing_reconciliation_verification",
+            ],
+            blockers=["movement_repricing_recovery_blocked"],
+            next_required_contract=(
+                "backend movement/repricing recovery contract with state-repair "
+                "and reconciliation proof"
+            ),
+            boundary=(
+                "Frontend and BFF code must not repair movement/repricing state "
+                "or reconcile live placements."
+            ),
+            detail=(
+                "Recovery is blocked until backend exchange-truth, repair, and "
+                "reconciliation contracts exist."
+            ),
+        ),
+    ]
 
 
 def _parent_move_item_from_row(row: dict[str, Any]) -> AdminMovementRepricingEvidenceItem:
@@ -23388,6 +23733,10 @@ class AdminApiReadService:
                 evidence_type=evidence_type,
             )
         ]
+        action_states = _movement_repricing_action_states(
+            items=filtered,
+            read_errors=read_errors,
+        )
         page_items = filtered[normalized_offset:normalized_offset + normalized_limit]
         next_offset = normalized_offset + len(page_items)
         has_more = next_offset < len(filtered)
@@ -23403,6 +23752,8 @@ class AdminApiReadService:
                 "has_more": has_more,
             },
             items=page_items,
+            action_state_count=len(action_states),
+            action_states=action_states,
         )
 
     def build_movement_repricing_order_detail(
@@ -23422,6 +23773,8 @@ class AdminApiReadService:
             client_order_id=client_order_id,
             found=bool(evidence.items),
             items=evidence.items,
+            action_state_count=evidence.action_state_count,
+            action_states=evidence.action_states,
         )
 
     def build_movement_repricing_stealth_detail(
@@ -23441,6 +23794,8 @@ class AdminApiReadService:
             stealth_order_id=stealth_order_id,
             found=bool(evidence.items),
             items=evidence.items,
+            action_state_count=evidence.action_state_count,
+            action_states=evidence.action_states,
         )
 
     def build_futures_command_suite(self) -> AdminFuturesCommandSuiteResponse:

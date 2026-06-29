@@ -1064,6 +1064,19 @@ class AdminMovementRepricingEvidenceType(str, Enum):
     STEALTH_REPRICING_STATE = "stealth_repricing_state"
 
 
+class AdminMovementRepricingActionStateId(str, Enum):
+    """Backend-owned action-state rows for movement/repricing admin views."""
+
+    MOVE = "move"
+    PREMARK = "premark"
+    REPRICE = "reprice"
+    COOLDOWN = "cooldown"
+    CLAIM = "claim"
+    CANCEL_REPLACE = "cancel_replace"
+    AUDIT = "audit"
+    RECOVERY = "recovery"
+
+
 class AdminFuturesEvidenceStatus(str, Enum):
     """Read-only evidence availability for futures/perpetual admin views."""
 
