@@ -445,6 +445,17 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Run focused backend Admin API, audit, reconciliation, autonomous, ownership,
   and generated-contract checks that cover the correlation path.
+- Evidence update 2026-06-29: ran focused backend checks for the Audit/
+  Reconciliation correlation path. `pytest -q --tb=short` passed 50 selected
+  tests covering generated Admin API OpenAPI parity, direct-order audit
+  dashboard isolation, reconciliation plan record/replay/fail-closed/exact
+  resolver behavior, Audit Workbench route/read-service normalization,
+  movement client-alias filters, route inventory/OpenAPI sync, spot direct
+  order audit, and cross-source reconciliation. `python tools\check_ownership.py`
+  and `python tools\run_autonomous_work_queue_check.py --summary-only` passed.
+  No full regression closeout gate was run in this ordinary phase. No
+  phase-scoped subagents were spawned; live Coinbase execution was not run and
+  submitted/executed notional stayed 0 USDC.
 
 ### Phase 8078 - Focused Frontend Tests
 
