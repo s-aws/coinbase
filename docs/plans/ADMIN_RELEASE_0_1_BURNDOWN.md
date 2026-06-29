@@ -333,6 +333,12 @@ Exact autonomous phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Op
 
 - Run focused frontend adapter, UI, command-security, generated API, and
   quality checks covering campaign/sweep operator controls.
+- Validation update 2026-06-29: sibling frontend campaign/sweep unit pack
+  passed with 165 tests; typecheck, lint, generated API route coverage,
+  command security guard, autonomous queue, dry read/command/BFF/spot-command
+  smoke, production build, scoped Playwright desktop admin shell browser
+  smoke, stale-process check, and diff whitespace check passed. No live
+  Coinbase execution was run; submitted/executed notional remained 0 USDC.
 
 ### Phase 8099 - Blind Contextless Review
 
