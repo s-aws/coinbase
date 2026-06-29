@@ -24,6 +24,8 @@ from core.enums import (
     AdminApiAuthMode,
     AdminApiFunctionalityExposureStatus,
     AdminApiFunctionalityWorkflowType,
+    AdminAuditCommandTimelineStage,
+    AdminAuditCommandTimelineStageStatus,
     AdminAuditCorrelationScopeKind,
     AdminFuturesCommandAction,
     AdminFuturesCommandEnablementBlocker,
@@ -17038,6 +17040,56 @@ class AdminAuditSourceInventoryItem(BaseModel):
     no_order_or_exchange_state_mutation: bool = True
 
 
+class AdminAuditCommandTimelineStageItem(BaseModel):
+    """One stage in a backend-owned command attempt timeline."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    stage: AdminAuditCommandTimelineStage
+    present: bool
+    stage_status: AdminAuditCommandTimelineStageStatus
+    status: str | None = None
+    evidence_source: AdminAuditEvidenceSource
+    evidence_ref: str | None = None
+    detail: str
+    recorded_at: str | None = None
+    blocking: bool = False
+    no_browser_authority: bool = True
+    no_bff_execution_authority: bool = True
+    no_reconciliation_execution: bool = True
+    no_order_or_exchange_state_mutation: bool = True
+
+
+class AdminAuditCommandTimelineItem(BaseModel):
+    """Backend-owned command attempt timeline for operator correlation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    timeline_id: str
+    event_id: str
+    module: AdminAuditWorkbenchModule
+    action_class: AdminApiActionClass | None = None
+    endpoint: str | None = None
+    status: str | None = None
+    canonical_identity_key: str
+    canonical_identity_value: str | None = None
+    actor_id: str | None = None
+    permission: AdminApiPermission | str | None = None
+    request_id: str | None = None
+    correlation_id: str | None = None
+    audit_id: str | None = None
+    idempotency_key: str | None = None
+    operator_intent: str | None = None
+    stages: list[AdminAuditCommandTimelineStageItem] = Field(default_factory=list)
+    read_only: bool = True
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    no_browser_authority: bool = True
+    no_bff_execution_authority: bool = True
+    no_reconciliation_execution: bool = True
+    no_order_or_exchange_state_mutation: bool = True
+
+
 class AdminAuditWorkbenchEventItem(BaseModel):
     """One normalized cross-module audit/correlation evidence row."""
 
@@ -17078,6 +17130,7 @@ class AdminAuditWorkbenchReadResponse(BaseModel):
     filters: FlexibleDict = Field(default_factory=dict)
     source_inventory: list[AdminAuditSourceInventoryItem] = Field(default_factory=list)
     correlation_scope: list[AdminAuditCorrelationScopeItem] = Field(default_factory=list)
+    command_timelines: list[AdminAuditCommandTimelineItem] = Field(default_factory=list)
     module_summary: list[AdminAuditModuleSummaryItem] = Field(default_factory=list)
     events: list[AdminAuditWorkbenchEventItem] = Field(default_factory=list)
     pagination: AdminOrderPagination

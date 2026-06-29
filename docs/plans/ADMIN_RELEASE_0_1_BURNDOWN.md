@@ -137,6 +137,9 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Add or tighten backend-owned timeline contract fields that let an operator
   trace a command attempt from request through result evidence.
+- Evidence update 2026-06-29: Audit Workbench now has `command_timelines`
+  derived from command-audit events. This removes guesswork from operator
+  tracing while keeping timelines read-only and no-live.
 
 ### Phase 8065 - Approval And Admission Correlation Contract
 

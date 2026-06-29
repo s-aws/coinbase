@@ -396,6 +396,8 @@ from core.enums import (
     AdminApiApprovalLifecycleEventType,
     AdminApiApprovalLifecycleStatus,
     AdminApiAuthMode,
+    AdminAuditCommandTimelineStage,
+    AdminAuditCommandTimelineStageStatus,
     AdminAuditCorrelationScopeKind,
     AdminAuditEvidenceSource,
     AdminAuditWorkbenchModule,
@@ -9616,6 +9618,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
     ]
     assert "source_inventory" in audit_workbench_schema["properties"]
     assert "correlation_scope" in audit_workbench_schema["properties"]
+    assert "command_timelines" in audit_workbench_schema["properties"]
     assert "module_summary" in audit_workbench_schema["properties"]
     assert "events" in audit_workbench_schema["properties"]
     source_inventory_schema = written["components"]["schemas"][
@@ -9634,6 +9637,20 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
     assert "no_order_or_exchange_state_mutation" in (
         source_inventory_schema["properties"]
     )
+    command_timeline_schema = written["components"]["schemas"][
+        "AdminAuditCommandTimelineItem"
+    ]
+    assert "timeline_id" in command_timeline_schema["properties"]
+    assert "canonical_identity_key" in command_timeline_schema["properties"]
+    assert "stages" in command_timeline_schema["properties"]
+    assert "no_browser_authority" in command_timeline_schema["properties"]
+    command_timeline_stage_schema = written["components"]["schemas"][
+        "AdminAuditCommandTimelineStageItem"
+    ]
+    assert "stage" in command_timeline_stage_schema["properties"]
+    assert "stage_status" in command_timeline_stage_schema["properties"]
+    assert "evidence_source" in command_timeline_stage_schema["properties"]
+    assert "blocking" in command_timeline_stage_schema["properties"]
     correlation_scope_schema = written["components"]["schemas"][
         "AdminAuditCorrelationScopeItem"
     ]
@@ -60455,6 +60472,7 @@ def test_admin_api_audit_workbench_route_uses_read_service_without_commands(
             "filters": kwargs,
             "source_inventory": [],
             "correlation_scope": [],
+            "command_timelines": [],
             "module_summary": [
                 {
                     "module": "orders",
@@ -60525,6 +60543,7 @@ def test_admin_api_audit_workbench_route_uses_read_service_without_commands(
     assert payload["command_routes_mode"] == "evidence_only"
     assert "source_inventory" in payload
     assert "correlation_scope" in payload
+    assert "command_timelines" in payload
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_read_ran"] is False
     assert payload["events"][0]["client_order_id"] == "client-abc"
@@ -60661,6 +60680,51 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
     assert reconciliation_scope.no_bff_execution_authority is True
     assert reconciliation_scope.no_reconciliation_execution is True
     assert reconciliation_scope.no_order_or_exchange_state_mutation is True
+    assert len(response.command_timelines) == 1
+    command_timeline = response.command_timelines[0]
+    assert command_timeline.timeline_id == f"command:{command_timeline.audit_id}"
+    assert command_timeline.canonical_identity_key == "client_order_id"
+    assert command_timeline.canonical_identity_value == "client-abc"
+    assert command_timeline.live_coinbase_orders_ran is False
+    assert command_timeline.live_coinbase_read_ran is False
+    stages_by_name = {stage.stage: stage for stage in command_timeline.stages}
+    assert set(stages_by_name) == {
+        AdminAuditCommandTimelineStage.REQUEST_RECEIVED,
+        AdminAuditCommandTimelineStage.APPROVAL_SNAPSHOT,
+        AdminAuditCommandTimelineStage.ADMISSION_AUDIT,
+        AdminAuditCommandTimelineStage.CAP_GUARD,
+        AdminAuditCommandTimelineStage.LIVE_EXECUTION_INTENT,
+        AdminAuditCommandTimelineStage.EXCHANGE_EVIDENCE,
+        AdminAuditCommandTimelineStage.RESULT_RECORDED,
+    }
+    assert stages_by_name[
+        AdminAuditCommandTimelineStage.REQUEST_RECEIVED
+    ].stage_status == AdminAuditCommandTimelineStageStatus.RECORDED
+    assert stages_by_name[
+        AdminAuditCommandTimelineStage.APPROVAL_SNAPSHOT
+    ].stage_status == AdminAuditCommandTimelineStageStatus.BLOCKED
+    assert stages_by_name[
+        AdminAuditCommandTimelineStage.ADMISSION_AUDIT
+    ].stage_status == AdminAuditCommandTimelineStageStatus.BLOCKED
+    assert stages_by_name[
+        AdminAuditCommandTimelineStage.CAP_GUARD
+    ].stage_status == AdminAuditCommandTimelineStageStatus.BLOCKED
+    assert stages_by_name[
+        AdminAuditCommandTimelineStage.LIVE_EXECUTION_INTENT
+    ].stage_status == AdminAuditCommandTimelineStageStatus.MISSING
+    assert stages_by_name[
+        AdminAuditCommandTimelineStage.EXCHANGE_EVIDENCE
+    ].stage_status == AdminAuditCommandTimelineStageStatus.EVIDENCE_ONLY
+    assert stages_by_name[
+        AdminAuditCommandTimelineStage.RESULT_RECORDED
+    ].stage_status == AdminAuditCommandTimelineStageStatus.RECORDED
+    assert all(stage.no_browser_authority for stage in command_timeline.stages)
+    assert all(stage.no_bff_execution_authority for stage in command_timeline.stages)
+    assert all(stage.no_reconciliation_execution for stage in command_timeline.stages)
+    assert all(
+        stage.no_order_or_exchange_state_mutation
+        for stage in command_timeline.stages
+    )
     assert response.pagination.total_matching_count == 2
     modules = {item.module for item in response.module_summary}
     assert AdminAuditWorkbenchModule.ORDERS in modules

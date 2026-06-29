@@ -12943,6 +12943,200 @@ components:
       type: object
       title: AdminApprovalRevokeRequest
       description: Revoke an approved backend approval snapshot.
+    AdminAuditCommandTimelineItem:
+      properties:
+        timeline_id:
+          type: string
+          title: Timeline Id
+        event_id:
+          type: string
+          title: Event Id
+        module:
+          $ref: '#/components/schemas/AdminAuditWorkbenchModule'
+        action_class:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiActionClass'
+          - type: 'null'
+        endpoint:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Endpoint
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+        canonical_identity_key:
+          type: string
+          title: Canonical Identity Key
+        canonical_identity_value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Canonical Identity Value
+        actor_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Actor Id
+        permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          - type: 'null'
+          title: Permission
+        request_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Request Id
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+        operator_intent:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Intent
+        stages:
+          items:
+            $ref: '#/components/schemas/AdminAuditCommandTimelineStageItem'
+          type: array
+          title: Stages
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        no_browser_authority:
+          type: boolean
+          title: No Browser Authority
+          default: true
+        no_bff_execution_authority:
+          type: boolean
+          title: No Bff Execution Authority
+          default: true
+        no_reconciliation_execution:
+          type: boolean
+          title: No Reconciliation Execution
+          default: true
+        no_order_or_exchange_state_mutation:
+          type: boolean
+          title: No Order Or Exchange State Mutation
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - timeline_id
+      - event_id
+      - module
+      - canonical_identity_key
+      title: AdminAuditCommandTimelineItem
+      description: Backend-owned command attempt timeline for operator correlation.
+    AdminAuditCommandTimelineStage:
+      type: string
+      enum:
+      - request_received
+      - approval_snapshot
+      - admission_audit
+      - cap_guard
+      - live_execution_intent
+      - exchange_evidence
+      - result_recorded
+      title: AdminAuditCommandTimelineStage
+      description: Stable stages for backend-owned command attempt timelines.
+    AdminAuditCommandTimelineStageItem:
+      properties:
+        stage:
+          $ref: '#/components/schemas/AdminAuditCommandTimelineStage'
+        present:
+          type: boolean
+          title: Present
+        stage_status:
+          $ref: '#/components/schemas/AdminAuditCommandTimelineStageStatus'
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+        evidence_source:
+          $ref: '#/components/schemas/AdminAuditEvidenceSource'
+        evidence_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Evidence Ref
+        detail:
+          type: string
+          title: Detail
+        recorded_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recorded At
+        blocking:
+          type: boolean
+          title: Blocking
+          default: false
+        no_browser_authority:
+          type: boolean
+          title: No Browser Authority
+          default: true
+        no_bff_execution_authority:
+          type: boolean
+          title: No Bff Execution Authority
+          default: true
+        no_reconciliation_execution:
+          type: boolean
+          title: No Reconciliation Execution
+          default: true
+        no_order_or_exchange_state_mutation:
+          type: boolean
+          title: No Order Or Exchange State Mutation
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - stage
+      - present
+      - stage_status
+      - evidence_source
+      - detail
+      title: AdminAuditCommandTimelineStageItem
+      description: One stage in a backend-owned command attempt timeline.
+    AdminAuditCommandTimelineStageStatus:
+      type: string
+      enum:
+      - present
+      - missing
+      - blocked
+      - allowed
+      - live_disabled
+      - evidence_only
+      - recorded
+      - not_reported
+      title: AdminAuditCommandTimelineStageStatus
+      description: Stable status labels for command attempt timeline stages.
     AdminAuditCorrelationScopeItem:
       properties:
         scope:
@@ -13292,6 +13486,11 @@ components:
             $ref: '#/components/schemas/AdminAuditCorrelationScopeItem'
           type: array
           title: Correlation Scope
+        command_timelines:
+          items:
+            $ref: '#/components/schemas/AdminAuditCommandTimelineItem'
+          type: array
+          title: Command Timelines
         module_summary:
           items:
             $ref: '#/components/schemas/AdminAuditModuleSummaryItem'

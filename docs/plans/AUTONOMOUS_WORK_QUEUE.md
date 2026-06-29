@@ -246,6 +246,18 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Add or tighten backend-owned timeline contract fields that let an operator
   trace a command attempt from request through result evidence.
+- Evidence update 2026-06-29: added enum-backed Audit Workbench
+  `command_timelines` derived from returned backend command-audit events. Each
+  timeline exposes canonical identity, request/correlation/audit/idempotency
+  ids, operator intent, and request, approval snapshot, admission audit,
+  cap/guard, live-execution-intent, exchange-evidence, and result-recorded
+  stages. Stage rows carry present/status/detail/evidence refs plus
+  no-browser, no-BFF, no-reconciliation-execution, and no-state-mutation
+  posture. The projection reuses existing audit/admission evidence and does
+  not add command replay, Coinbase reads, live execution, or state mutation.
+  OpenAPI and frontend generated schema were refreshed; the frontend mock and
+  read model render the timeline as display-only evidence. Live Coinbase
+  execution was not run and submitted/executed notional stayed 0 USDC.
 
 ### Phase 8065 - Approval And Admission Correlation Contract
 

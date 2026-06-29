@@ -18,6 +18,9 @@ from core.enums import (
     AdminApiAccountMarketInventoryFamily,
     AdminApiActionClass,
     AdminApiAuthMode,
+    AdminApiLiveExecutionStatus,
+    AdminAuditCommandTimelineStage,
+    AdminAuditCommandTimelineStageStatus,
     AdminAuditCorrelationScopeKind,
     AdminAuditEvidenceSource,
     AdminAuditWorkbenchModule,
@@ -129,6 +132,8 @@ from .models import (
     AdminAccountMarketInventoryFamilyItem,
     AdminAccountMarketInventoryResponse,
     AdminAccountMarketInventorySummary,
+    AdminAuditCommandTimelineItem,
+    AdminAuditCommandTimelineStageItem,
     AdminAuditCorrelationScopeItem,
     AdminAuditModuleSummaryItem,
     AdminAuditSourceInventoryItem,
@@ -5203,6 +5208,225 @@ def _audit_source_inventory() -> list[AdminAuditSourceInventoryItem]:
             ),
         ),
     ]
+
+
+def _audit_timeline_stage(
+    *,
+    stage: AdminAuditCommandTimelineStage,
+    present: bool,
+    stage_status: AdminAuditCommandTimelineStageStatus,
+    evidence_source: AdminAuditEvidenceSource,
+    detail: str,
+    status: str | None = None,
+    evidence_ref: str | None = None,
+    recorded_at: str | None = None,
+    blocking: bool = False,
+) -> AdminAuditCommandTimelineStageItem:
+    return AdminAuditCommandTimelineStageItem(
+        stage=stage,
+        present=present,
+        stage_status=stage_status,
+        status=status,
+        evidence_source=evidence_source,
+        evidence_ref=evidence_ref,
+        detail=detail,
+        recorded_at=recorded_at,
+        blocking=blocking,
+    )
+
+
+def _audit_presence_status(
+    present: bool,
+    *,
+    blocking: bool = False,
+) -> AdminAuditCommandTimelineStageStatus:
+    if present:
+        return AdminAuditCommandTimelineStageStatus.PRESENT
+    if blocking:
+        return AdminAuditCommandTimelineStageStatus.BLOCKED
+    return AdminAuditCommandTimelineStageStatus.MISSING
+
+
+def _audit_admission_bool(admission: dict[str, Any], key: str) -> bool:
+    value = _bool_or_none(admission.get(key))
+    return bool(value) if value is not None else False
+
+
+def _audit_missing_detail(
+    admission: dict[str, Any],
+    missing_key: str,
+    default: str,
+) -> str:
+    return _string_or_none(admission.get(missing_key)) or default
+
+
+def _audit_command_identity(
+    item: AdminAuditWorkbenchEventItem,
+) -> tuple[str, str | None]:
+    if item.client_order_id:
+        return "client_order_id", item.client_order_id
+    if item.stealth_order_id:
+        return "stealth_order_id", item.stealth_order_id
+    if item.position_key:
+        return "position_key", item.position_key
+    if item.request_id:
+        return "request_id", item.request_id
+    return "event_id", item.event_id
+
+
+def _audit_command_timeline_from_event(
+    item: AdminAuditWorkbenchEventItem,
+) -> AdminAuditCommandTimelineItem:
+    admission = dict(item.admission_decision or {})
+    intent = _dict_or_empty(admission.get("live_execution_intent"))
+    approval_present = _audit_admission_bool(admission, "approval_snapshot_present")
+    admission_audit_present = _audit_admission_bool(
+        admission,
+        "admission_audit_present",
+    )
+    cap_guard_present = _audit_admission_bool(admission, "cap_guard_present")
+    intent_status = _string_or_none(intent.get("status"))
+    intent_present = bool(intent)
+    intent_executable = _audit_admission_bool(intent, "executable")
+    exchange_present = bool(item.exchange_order_id)
+    canonical_key, canonical_value = _audit_command_identity(item)
+    stages = [
+        _audit_timeline_stage(
+            stage=AdminAuditCommandTimelineStage.REQUEST_RECEIVED,
+            present=True,
+            stage_status=AdminAuditCommandTimelineStageStatus.RECORDED,
+            status=item.status,
+            evidence_source=AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG,
+            evidence_ref=item.request_id or item.event_id,
+            recorded_at=item.recorded_at,
+            detail="Backend command audit event was recorded.",
+        ),
+        _audit_timeline_stage(
+            stage=AdminAuditCommandTimelineStage.APPROVAL_SNAPSHOT,
+            present=approval_present,
+            stage_status=_audit_presence_status(
+                approval_present,
+                blocking=not approval_present,
+            ),
+            status=_string_or_none(admission.get("status")),
+            evidence_source=AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG,
+            evidence_ref=_string_or_none(admission.get("approval_snapshot_id")),
+            detail=_audit_missing_detail(
+                admission,
+                "approval_snapshot_missing_reason",
+                "Approval snapshot evidence is present."
+                if approval_present
+                else "Approval snapshot evidence is missing.",
+            ),
+            blocking=not approval_present,
+        ),
+        _audit_timeline_stage(
+            stage=AdminAuditCommandTimelineStage.ADMISSION_AUDIT,
+            present=admission_audit_present,
+            stage_status=_audit_presence_status(
+                admission_audit_present,
+                blocking=not admission_audit_present,
+            ),
+            status=_string_or_none(admission.get("status")),
+            evidence_source=AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG,
+            evidence_ref=_string_or_none(admission.get("admission_audit_id")),
+            recorded_at=_string_or_none(admission.get("admission_audit_recorded_at")),
+            detail=_audit_missing_detail(
+                admission,
+                "admission_audit_missing_reason",
+                "Admission audit evidence is present."
+                if admission_audit_present
+                else "Admission audit evidence is missing.",
+            ),
+            blocking=not admission_audit_present,
+        ),
+        _audit_timeline_stage(
+            stage=AdminAuditCommandTimelineStage.CAP_GUARD,
+            present=cap_guard_present,
+            stage_status=_audit_presence_status(
+                cap_guard_present,
+                blocking=not cap_guard_present,
+            ),
+            status=_string_or_none(admission.get("status")),
+            evidence_source=AdminAuditEvidenceSource.GUARD_RISK_POLICY,
+            evidence_ref=_string_or_none(admission.get("cap_guard_decision_id")),
+            recorded_at=_string_or_none(admission.get("cap_guard_recorded_at")),
+            detail=_audit_missing_detail(
+                admission,
+                "cap_guard_missing_reason",
+                "Cap/guard evidence is present."
+                if cap_guard_present
+                else "Cap/guard evidence is missing.",
+            ),
+            blocking=not cap_guard_present,
+        ),
+        _audit_timeline_stage(
+            stage=AdminAuditCommandTimelineStage.LIVE_EXECUTION_INTENT,
+            present=intent_present,
+            stage_status=(
+                AdminAuditCommandTimelineStageStatus.ALLOWED
+                if intent_executable
+                else AdminAuditCommandTimelineStageStatus.LIVE_DISABLED
+                if intent_status == AdminApiLiveExecutionStatus.LIVE_DISABLED.value
+                else AdminAuditCommandTimelineStageStatus.BLOCKED
+                if intent_present
+                else AdminAuditCommandTimelineStageStatus.MISSING
+            ),
+            status=intent_status,
+            evidence_source=AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG,
+            evidence_ref=_string_or_none(intent.get("adapter_reference"))
+            or _string_or_none(intent.get("source")),
+            detail=_string_or_none(intent.get("detail"))
+            or "Live execution intent evidence is missing.",
+            blocking=not intent_executable,
+        ),
+        _audit_timeline_stage(
+            stage=AdminAuditCommandTimelineStage.EXCHANGE_EVIDENCE,
+            present=exchange_present,
+            stage_status=(
+                AdminAuditCommandTimelineStageStatus.EVIDENCE_ONLY
+                if exchange_present
+                else AdminAuditCommandTimelineStageStatus.MISSING
+            ),
+            status=item.status,
+            evidence_source=AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG,
+            evidence_ref=item.exchange_order_id,
+            recorded_at=item.recorded_at,
+            detail=(
+                "Exchange-native order id is evidence only."
+                if exchange_present
+                else "No exchange-native evidence was reported."
+            ),
+        ),
+        _audit_timeline_stage(
+            stage=AdminAuditCommandTimelineStage.RESULT_RECORDED,
+            present=True,
+            stage_status=AdminAuditCommandTimelineStageStatus.RECORDED,
+            status=item.status,
+            evidence_source=AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG,
+            evidence_ref=item.audit_id or item.event_id,
+            recorded_at=item.recorded_at,
+            detail=item.message or "Backend command result was recorded.",
+        ),
+    ]
+    return AdminAuditCommandTimelineItem(
+        timeline_id=f"command:{item.audit_id or item.request_id or item.event_id}",
+        event_id=item.event_id,
+        module=item.module,
+        action_class=item.action_class,
+        endpoint=item.endpoint,
+        status=item.status,
+        canonical_identity_key=canonical_key,
+        canonical_identity_value=canonical_value,
+        actor_id=item.actor_id,
+        permission=item.permission,
+        request_id=item.request_id,
+        correlation_id=item.correlation_id,
+        audit_id=item.audit_id,
+        idempotency_key=item.idempotency_key,
+        operator_intent=item.operator_intent,
+        stages=stages,
+    )
 
 
 def _normalize_audit_module(
@@ -14599,6 +14823,11 @@ class AdminApiReadService:
             filters=filters,
             source_inventory=_audit_source_inventory(),
             correlation_scope=_audit_correlation_scope(),
+            command_timelines=[
+                _audit_command_timeline_from_event(item)
+                for item in page_items
+                if item.source == AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG
+            ],
             module_summary=_audit_module_summary(),
             events=page_items,
             pagination={

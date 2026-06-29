@@ -1144,6 +1144,31 @@ class AdminAuditCorrelationScopeKind(str, Enum):
     RECONCILIATION = "reconciliation"
 
 
+class AdminAuditCommandTimelineStage(str, Enum):
+    """Stable stages for backend-owned command attempt timelines."""
+
+    REQUEST_RECEIVED = "request_received"
+    APPROVAL_SNAPSHOT = "approval_snapshot"
+    ADMISSION_AUDIT = "admission_audit"
+    CAP_GUARD = "cap_guard"
+    LIVE_EXECUTION_INTENT = "live_execution_intent"
+    EXCHANGE_EVIDENCE = "exchange_evidence"
+    RESULT_RECORDED = "result_recorded"
+
+
+class AdminAuditCommandTimelineStageStatus(str, Enum):
+    """Stable status labels for command attempt timeline stages."""
+
+    PRESENT = "present"
+    MISSING = "missing"
+    BLOCKED = "blocked"
+    ALLOWED = "allowed"
+    LIVE_DISABLED = "live_disabled"
+    EVIDENCE_ONLY = "evidence_only"
+    RECORDED = "recorded"
+    NOT_REPORTED = "not_reported"
+
+
 class AdminAuditEvidenceSource(str, Enum):
     """Source labels for cross-module audit workbench evidence."""
 

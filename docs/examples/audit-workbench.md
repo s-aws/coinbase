@@ -95,6 +95,39 @@ evidence labels to modules, identity keys, source refs, and read-service refs:
 }
 ```
 
+Command-audit events can also produce `command_timelines`:
+
+```json
+{
+  "command_timelines": [
+    {
+      "timeline_id": "command:audit-001",
+      "canonical_identity_key": "client_order_id",
+      "canonical_identity_value": "client-order-001",
+      "live_coinbase_orders_ran": false,
+      "live_coinbase_read_ran": false,
+      "stages": [
+        {
+          "stage": "request_received",
+          "stage_status": "recorded",
+          "evidence_source": "admin_api_audit_log",
+          "detail": "Backend command audit event was recorded.",
+          "no_browser_authority": true,
+          "no_bff_execution_authority": true
+        },
+        {
+          "stage": "live_execution_intent",
+          "stage_status": "live_disabled",
+          "evidence_source": "admin_api_audit_log",
+          "blocking": true,
+          "detail": "Backend live execution intent evidence."
+        }
+      ]
+    }
+  ]
+}
+```
+
 Command audit rows may include persisted admission evidence:
 
 ```json
