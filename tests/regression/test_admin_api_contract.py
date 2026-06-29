@@ -443,7 +443,9 @@ from core.enums import (
     AdminApiStealthCommandSuiteBlockerClosure,
     AdminApiStealthAdmissionContextField,
     AdminApiStealthAdmissionEvidence,
+    AdminApiStealthActionStateAuditSurface,
     AdminApiStealthCommandSuiteGapFamily,
+    AdminApiStealthCommandWorkflowSurface,
     AdminApiStealthDecisionResolutionEvidenceType,
     AdminApiStealthExchangeRealityContractScope,
     AdminApiStealthMutationClaimContractScope,
@@ -7788,6 +7790,11 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
     assert "cancel_replace_boundary_count" in stealth_command_suite_schema["properties"]
     assert "enablement_candidate_reviews" in stealth_command_suite_schema["properties"]
     assert "enablement_candidate_review_summary" in stealth_command_suite_schema["properties"]
+    assert "action_state_handoff_audits" in stealth_command_suite_schema["properties"]
+    assert (
+        "action_state_handoff_audit_summary"
+        in stealth_command_suite_schema["properties"]
+    )
     assert "selected_create_pre_execution_contract" in (
         stealth_command_suite_schema["properties"]
     )
@@ -7834,6 +7841,37 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
     assert "selected_candidate_id" in candidate_review_summary_schema["properties"]
     assert "ranking_policy" in candidate_review_summary_schema["properties"]
     assert "all_candidates_blocked" in candidate_review_summary_schema["properties"]
+    assert (
+        "StealthCommandSuiteActionStateHandoffAuditItem"
+        in written["components"]["schemas"]
+    )
+    assert (
+        "StealthCommandSuiteActionStateHandoffAuditSummary"
+        in written["components"]["schemas"]
+    )
+    action_state_handoff_schema = written["components"]["schemas"][
+        "StealthCommandSuiteActionStateHandoffAuditItem"
+    ]
+    assert "mutation_family" in action_state_handoff_schema["properties"]
+    assert "command_workflow" in action_state_handoff_schema["properties"]
+    assert "expected_frontend_surfaces" in action_state_handoff_schema["properties"]
+    assert "missing_frontend_surfaces" in action_state_handoff_schema["properties"]
+    assert "exchange_order_id_identity_allowed" in (
+        action_state_handoff_schema["properties"]
+    )
+    action_state_handoff_summary_schema = written["components"]["schemas"][
+        "StealthCommandSuiteActionStateHandoffAuditSummary"
+    ]
+    assert "expected_action_count" in action_state_handoff_summary_schema["properties"]
+    assert "selected_order_handoff_count" in (
+        action_state_handoff_summary_schema["properties"]
+    )
+    assert "all_browser_bff_display_only" in (
+        action_state_handoff_summary_schema["properties"]
+    )
+    assert "exchange_order_id_identity_allowed" in (
+        action_state_handoff_summary_schema["properties"]
+    )
     assert "StealthCommandSuiteCancelReplaceBoundaryItem" in written["components"][
         "schemas"
     ]
@@ -38786,6 +38824,209 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert action_state_by_id[AdminApiMutationFamilyType.MOVEMENT_REPRICE.value][
         "route"
     ] == "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+    expected_action_state_handoff_ids = {
+        AdminApiMutationFamilyType.STEALTH_CREATE.value,
+        AdminApiMutationFamilyType.STEALTH_REVEAL.value,
+        AdminApiMutationFamilyType.STEALTH_CANCEL.value,
+        AdminApiMutationFamilyType.STEALTH_MOVE.value,
+        AdminApiMutationFamilyType.MOVEMENT_REPRICE.value,
+        AdminApiMutationFamilyType.STEALTH_RECOVERY.value,
+        AdminApiMutationFamilyType.STEALTH_RECONCILIATION.value,
+    }
+    action_state_handoff_audits = payload["action_state_handoff_audits"]
+    assert payload["action_state_handoff_audit_count"] == 7
+    assert payload["action_state_handoff_audit_blocked_count"] == 7
+    assert payload["action_state_handoff_audit_missing_count"] == 0
+    assert len(action_state_handoff_audits) == 7
+    assert {
+        item["mutation_family"] for item in action_state_handoff_audits
+    } == expected_action_state_handoff_ids
+    assert all(
+        item["action_state"] == AdminApiActionState.BLOCKED.value
+        for item in action_state_handoff_audits
+    )
+    assert all(
+        item["command_status"] == AdminApiGateStatus.BLOCKED.value
+        for item in action_state_handoff_audits
+    )
+    assert all(item["command_row_present"] is True for item in action_state_handoff_audits)
+    assert all(
+        item["action_state_row_present"] is True
+        for item in action_state_handoff_audits
+    )
+    assert all(
+        item["command_workflow_available"] is True
+        for item in action_state_handoff_audits
+    )
+    assert all(item["handoff_prefill_only"] is True for item in action_state_handoff_audits)
+    assert all(item["backend_owned"] is True for item in action_state_handoff_audits)
+    assert all(item["route_bound"] is True for item in action_state_handoff_audits)
+    assert all(
+        item["browser_authority"] == "display_only"
+        for item in action_state_handoff_audits
+    )
+    assert all(
+        item["bff_authority"] == "forward_only_no_execution"
+        for item in action_state_handoff_audits
+    )
+    assert all(item["live_enabled"] is False for item in action_state_handoff_audits)
+    assert all(item["executable"] is False for item in action_state_handoff_audits)
+    assert all(
+        item["manager_invocation_allowed"] is False
+        for item in action_state_handoff_audits
+    )
+    assert all(
+        item["coinbase_submit_allowed"] is False
+        for item in action_state_handoff_audits
+    )
+    assert all(
+        item["coinbase_cancel_allowed"] is False
+        for item in action_state_handoff_audits
+    )
+    assert all(
+        item["coinbase_read_allowed"] is False
+        for item in action_state_handoff_audits
+    )
+    assert all(
+        item["reconciliation_execution_allowed"] is False
+        for item in action_state_handoff_audits
+    )
+    assert all(
+        item["state_mutation_allowed"] is False
+        for item in action_state_handoff_audits
+    )
+    assert all(
+        item["exchange_order_id_identity_allowed"] is False
+        for item in action_state_handoff_audits
+    )
+    assert all(item["missing_frontend_surfaces"] == [] for item in action_state_handoff_audits)
+    assert all(item["required_gate_chain"] for item in action_state_handoff_audits)
+    assert all(item["missing_gate_chain"] for item in action_state_handoff_audits)
+    assert all(item["blockers"] for item in action_state_handoff_audits)
+    action_state_handoff_by_id = {
+        item["mutation_family"]: item for item in action_state_handoff_audits
+    }
+    create_handoff = action_state_handoff_by_id[
+        AdminApiMutationFamilyType.STEALTH_CREATE.value
+    ]
+    assert create_handoff["route"] == "/api/v1/stealth/orders"
+    assert create_handoff["command_workflow"] == (
+        AdminApiStealthCommandWorkflowSurface.STEALTH_CREATE.value
+    )
+    assert create_handoff["selected_order_handoff_required"] is False
+    assert create_handoff["selected_order_handoff_available"] is False
+    assert (
+        AdminApiStealthActionStateAuditSurface.SELECTED_ORDER_HANDOFF_LINKS.value
+        not in create_handoff["expected_frontend_surfaces"]
+    )
+    reveal_handoff = action_state_handoff_by_id[
+        AdminApiMutationFamilyType.STEALTH_REVEAL.value
+    ]
+    assert reveal_handoff["live_execution_status"] == (
+        AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value
+    )
+    assert reveal_handoff["command_workflow"] == (
+        AdminApiStealthCommandWorkflowSurface.STEALTH_REVEAL.value
+    )
+    assert reveal_handoff["selected_order_handoff_required"] is True
+    assert reveal_handoff["selected_order_handoff_available"] is True
+    assert (
+        AdminApiStealthActionStateAuditSurface.SELECTED_ORDER_HANDOFF_LINKS.value
+        in reveal_handoff["expected_frontend_surfaces"]
+    )
+    assert all(
+        item["live_execution_status"]
+        == AdminApiLiveExecutionStatus.LIVE_DISABLED.value
+        for family, item in action_state_handoff_by_id.items()
+        if family != AdminApiMutationFamilyType.STEALTH_REVEAL.value
+    )
+    cancel_handoff = action_state_handoff_by_id[
+        AdminApiMutationFamilyType.STEALTH_CANCEL.value
+    ]
+    assert cancel_handoff["command_workflow"] == (
+        AdminApiStealthCommandWorkflowSurface.STEALTH_CANCEL.value
+    )
+    move_handoff = action_state_handoff_by_id[
+        AdminApiMutationFamilyType.STEALTH_MOVE.value
+    ]
+    assert move_handoff["command_workflow"] == (
+        AdminApiStealthCommandWorkflowSurface.STEALTH_MOVE.value
+    )
+    movement_handoff = action_state_handoff_by_id[
+        AdminApiMutationFamilyType.MOVEMENT_REPRICE.value
+    ]
+    assert movement_handoff["command_workflow"] == (
+        AdminApiStealthCommandWorkflowSurface.MOVEMENT_REPRICE.value
+    )
+    assert movement_handoff["route"] == (
+        "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+    )
+    recovery_handoff = action_state_handoff_by_id[
+        AdminApiMutationFamilyType.STEALTH_RECOVERY.value
+    ]
+    assert recovery_handoff["command_workflow"] == (
+        AdminApiStealthCommandWorkflowSurface.STEALTH_RECOVERY.value
+    )
+    reconciliation_handoff = action_state_handoff_by_id[
+        AdminApiMutationFamilyType.STEALTH_RECONCILIATION.value
+    ]
+    assert reconciliation_handoff["command_workflow"] == (
+        AdminApiStealthCommandWorkflowSurface.STEALTH_RECONCILIATION.value
+    )
+    assert all(
+        item["selected_order_handoff_required"] is True
+        and item["selected_order_handoff_available"] is True
+        for family, item in action_state_handoff_by_id.items()
+        if family != AdminApiMutationFamilyType.STEALTH_CREATE.value
+    )
+    action_state_handoff_summary = payload["action_state_handoff_audit_summary"]
+    assert action_state_handoff_summary["status"] == AdminApiGateStatus.BLOCKED.value
+    assert action_state_handoff_summary["expected_action_count"] == 7
+    assert action_state_handoff_summary["command_row_count"] == 7
+    assert action_state_handoff_summary["action_state_row_count"] == 7
+    assert action_state_handoff_summary["audit_row_count"] == 7
+    assert action_state_handoff_summary["blocked_action_count"] == 7
+    assert action_state_handoff_summary["usable_action_count"] == 0
+    assert action_state_handoff_summary["unsupported_action_count"] == 0
+    assert action_state_handoff_summary["not_modeled_action_count"] == 0
+    assert action_state_handoff_summary["missing_command_count"] == 0
+    assert action_state_handoff_summary["missing_action_state_count"] == 0
+    assert action_state_handoff_summary["missing_frontend_surface_count"] == 0
+    assert action_state_handoff_summary["command_workflow_count"] == 7
+    assert action_state_handoff_summary["selected_order_handoff_count"] == 6
+    assert set(action_state_handoff_summary["expected_mutation_families"]) == (
+        expected_action_state_handoff_ids
+    )
+    assert action_state_handoff_summary["missing_mutation_families"] == []
+    assert action_state_handoff_summary["all_expected_actions_present"] is True
+    assert action_state_handoff_summary["all_commands_present"] is True
+    assert action_state_handoff_summary["all_action_states_present"] is True
+    assert action_state_handoff_summary["all_command_workflows_available"] is True
+    assert (
+        action_state_handoff_summary[
+            "all_required_selected_order_handoffs_available"
+        ]
+        is True
+    )
+    assert action_state_handoff_summary["all_handoffs_prefill_only"] is True
+    assert action_state_handoff_summary["all_action_states_backend_owned"] is True
+    assert action_state_handoff_summary["all_action_states_route_bound"] is True
+    assert action_state_handoff_summary["all_browser_bff_display_only"] is True
+    assert action_state_handoff_summary["all_live_disabled"] is True
+    assert (
+        action_state_handoff_summary["exchange_order_id_identity_allowed"]
+        is False
+    )
+    assert action_state_handoff_summary["backend_owned"] is True
+    assert action_state_handoff_summary["browser_authority"] == "display_only"
+    assert (
+        action_state_handoff_summary["bff_authority"]
+        == "forward_only_no_execution"
+    )
+    assert action_state_handoff_summary["live_coinbase_orders_ran"] is False
+    assert action_state_handoff_summary["live_coinbase_read_ran"] is False
+    assert action_state_handoff_summary["submitted_notional_usdc"] == "0"
+    assert action_state_handoff_summary["executed_notional_usdc"] == "0"
     selected_create_contract = payload["selected_create_pre_execution_contract"]
     assert selected_create_contract["type"] == "stealth_create_pre_execution_contract"
     assert selected_create_contract["source"] == (

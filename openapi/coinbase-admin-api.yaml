@@ -12673,6 +12673,15 @@ components:
       - spot_reconciliation_workflow
       title: AdminApiSpotCommandSuiteGapFamily
       description: Spot command-suite families that still require admin contract work.
+    AdminApiStealthActionStateAuditSurface:
+      type: string
+      enum:
+      - backend_command_suite
+      - selected_action_state_matrix
+      - command_workflows_dry_submit
+      - selected_order_handoff_links
+      title: AdminApiStealthActionStateAuditSurface
+      description: Frontend surfaces that must consume stealth action-state evidence.
     AdminApiStealthAdmissionContextField:
       type: string
       enum:
@@ -12801,6 +12810,18 @@ components:
       title: AdminApiStealthCommandSuiteGapFamily
       description: Stealth command-suite families that still require admin contract
         work.
+    AdminApiStealthCommandWorkflowSurface:
+      type: string
+      enum:
+      - stealth-create
+      - stealth-reveal
+      - stealth-cancel
+      - stealth-move
+      - stealth-recovery
+      - stealth-reconciliation
+      - movement-reprice
+      title: AdminApiStealthCommandWorkflowSurface
+      description: Command Workflow tab ids for backend-owned stealth command drafts.
     AdminApiStealthDecisionResolutionEvidenceType:
       type: string
       enum:
@@ -146793,6 +146814,329 @@ components:
       - detail
       title: StealthCommandExecutionReadinessStageItem
       description: Ordered fail-closed stage evidence before stealth command execution.
+    StealthCommandSuiteActionStateHandoffAuditItem:
+      properties:
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        workflow_family:
+          $ref: '#/components/schemas/AdminApiStealthCommandSuiteGapFamily'
+        command_workflow:
+          $ref: '#/components/schemas/AdminApiStealthCommandWorkflowSurface'
+        label:
+          type: string
+          title: Label
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        identity_key:
+          type: string
+          title: Identity Key
+          default: stealth_order_id
+        action_state:
+          $ref: '#/components/schemas/AdminApiActionState'
+        command_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        live_execution_status:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+        command_row_present:
+          type: boolean
+          title: Command Row Present
+          default: true
+        action_state_row_present:
+          type: boolean
+          title: Action State Row Present
+          default: true
+        command_workflow_available:
+          type: boolean
+          title: Command Workflow Available
+          default: true
+        selected_order_handoff_required:
+          type: boolean
+          title: Selected Order Handoff Required
+          default: true
+        selected_order_handoff_available:
+          type: boolean
+          title: Selected Order Handoff Available
+          default: true
+        handoff_prefill_only:
+          type: boolean
+          title: Handoff Prefill Only
+          default: true
+        expected_frontend_surfaces:
+          items:
+            $ref: '#/components/schemas/AdminApiStealthActionStateAuditSurface'
+          type: array
+          title: Expected Frontend Surfaces
+        missing_frontend_surfaces:
+          items:
+            $ref: '#/components/schemas/AdminApiStealthActionStateAuditSurface'
+          type: array
+          title: Missing Frontend Surfaces
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_enabled:
+          type: boolean
+          title: Live Enabled
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        coinbase_submit_allowed:
+          type: boolean
+          title: Coinbase Submit Allowed
+          default: false
+        coinbase_cancel_allowed:
+          type: boolean
+          title: Coinbase Cancel Allowed
+          default: false
+        coinbase_read_allowed:
+          type: boolean
+          title: Coinbase Read Allowed
+          default: false
+        reconciliation_execution_allowed:
+          type: boolean
+          title: Reconciliation Execution Allowed
+          default: false
+        state_mutation_allowed:
+          type: boolean
+          title: State Mutation Allowed
+          default: false
+        exchange_order_id_identity_allowed:
+          type: boolean
+          title: Exchange Order Id Identity Allowed
+          default: false
+        required_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Required Gate Chain
+        missing_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Missing Gate Chain
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - mutation_family
+      - workflow_family
+      - command_workflow
+      - label
+      - route
+      - method
+      - action_state
+      - command_status
+      - live_execution_status
+      - detail
+      title: StealthCommandSuiteActionStateHandoffAuditItem
+      description: Audit row tying a stealth action-state row to operator handoff
+        surfaces.
+    StealthCommandSuiteActionStateHandoffAuditSummary:
+      properties:
+        source:
+          type: string
+          title: Source
+          default: phase_8106_stealth_action_state_handoff_audit
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        expected_action_count:
+          type: integer
+          minimum: 0.0
+          title: Expected Action Count
+        command_row_count:
+          type: integer
+          minimum: 0.0
+          title: Command Row Count
+        action_state_row_count:
+          type: integer
+          minimum: 0.0
+          title: Action State Row Count
+        audit_row_count:
+          type: integer
+          minimum: 0.0
+          title: Audit Row Count
+        blocked_action_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Action Count
+        usable_action_count:
+          type: integer
+          minimum: 0.0
+          title: Usable Action Count
+        unsupported_action_count:
+          type: integer
+          minimum: 0.0
+          title: Unsupported Action Count
+        not_modeled_action_count:
+          type: integer
+          minimum: 0.0
+          title: Not Modeled Action Count
+        missing_command_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Command Count
+        missing_action_state_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Action State Count
+        missing_frontend_surface_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Frontend Surface Count
+        command_workflow_count:
+          type: integer
+          minimum: 0.0
+          title: Command Workflow Count
+        selected_order_handoff_count:
+          type: integer
+          minimum: 0.0
+          title: Selected Order Handoff Count
+        expected_mutation_families:
+          items:
+            $ref: '#/components/schemas/AdminApiMutationFamilyType'
+          type: array
+          title: Expected Mutation Families
+        missing_mutation_families:
+          items:
+            $ref: '#/components/schemas/AdminApiMutationFamilyType'
+          type: array
+          title: Missing Mutation Families
+        all_expected_actions_present:
+          type: boolean
+          title: All Expected Actions Present
+          default: true
+        all_commands_present:
+          type: boolean
+          title: All Commands Present
+          default: true
+        all_action_states_present:
+          type: boolean
+          title: All Action States Present
+          default: true
+        all_command_workflows_available:
+          type: boolean
+          title: All Command Workflows Available
+          default: true
+        all_required_selected_order_handoffs_available:
+          type: boolean
+          title: All Required Selected Order Handoffs Available
+          default: true
+        all_handoffs_prefill_only:
+          type: boolean
+          title: All Handoffs Prefill Only
+          default: true
+        all_action_states_backend_owned:
+          type: boolean
+          title: All Action States Backend Owned
+          default: true
+        all_action_states_route_bound:
+          type: boolean
+          title: All Action States Route Bound
+          default: true
+        all_browser_bff_display_only:
+          type: boolean
+          title: All Browser Bff Display Only
+          default: true
+        all_live_disabled:
+          type: boolean
+          title: All Live Disabled
+          default: true
+        exchange_order_id_identity_allowed:
+          type: boolean
+          title: Exchange Order Id Identity Allowed
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - expected_action_count
+      - command_row_count
+      - action_state_row_count
+      - audit_row_count
+      - blocked_action_count
+      - usable_action_count
+      - unsupported_action_count
+      - not_modeled_action_count
+      - missing_command_count
+      - missing_action_state_count
+      - missing_frontend_surface_count
+      - command_workflow_count
+      - selected_order_handoff_count
+      - detail
+      title: StealthCommandSuiteActionStateHandoffAuditSummary
+      description: Aggregate coverage for Phase 8106 stealth action-state handoff
+        evidence.
     StealthCommandSuiteAdmissionContextItem:
       properties:
         field_name:
@@ -159174,6 +159518,27 @@ components:
             $ref: '#/components/schemas/StealthSelectedOrderActionStateItem'
           type: array
           title: Selected Order Action States
+        action_state_handoff_audit_count:
+          type: integer
+          title: Action State Handoff Audit Count
+          default: 0
+        action_state_handoff_audit_blocked_count:
+          type: integer
+          title: Action State Handoff Audit Blocked Count
+          default: 0
+        action_state_handoff_audit_missing_count:
+          type: integer
+          title: Action State Handoff Audit Missing Count
+          default: 0
+        action_state_handoff_audits:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteActionStateHandoffAuditItem'
+          type: array
+          title: Action State Handoff Audits
+        action_state_handoff_audit_summary:
+          anyOf:
+          - $ref: '#/components/schemas/StealthCommandSuiteActionStateHandoffAuditSummary'
+          - type: 'null'
         coverage_gap_count:
           type: integer
           title: Coverage Gap Count

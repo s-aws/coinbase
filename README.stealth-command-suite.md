@@ -107,6 +107,21 @@ The route requires Admin API authentication and `analytics:read`. It returns
   required/missing gate chains, blockers, next required contract, and a
   no-browser/no-BFF boundary. Current Release 0.1 rows are blocked evidence
   only and do not grant execution authority.
+- `action_state_handoff_audits` and
+  `action_state_handoff_audit_summary` on the read-only command-suite
+  response. These Phase 8106 rows prove that the seven expected stealth command
+  families are represented across backend command-suite rows, selected
+  action-state rows, and Command Workflows dry-submit tabs. Create is
+  Command-Workflow-only and does not require a selected-order handoff; reveal,
+  cancel, move, movement reprice, recovery, and reconciliation require
+  selected-order prefill handoffs. All rows remain blocked, prefill-only,
+  backend-owned, route-bound, not live-enabled, non-executable, and keyed by
+  `stealth_order_id`. Reveal preserves the backend command row's
+  `live_execution_status=approval_required` dry-run posture; the other six
+  rows report `live_disabled`. These rows do not grant browser/BFF execution,
+  manager invocation, Coinbase submit/cancel/read authority, reconciliation
+  execution, local state mutation, exchange `order_id` command identity, or
+  command enablement.
 - coverage gaps for missing stealth create, reveal, cancel exchange handling,
   move, reprice, recovery, and reconciliation contracts
 - typed `coverage_gaps.current_read_evidence` rows for existing read-only
@@ -252,6 +267,14 @@ selected `stealth_order_id`; exchange `order_id` and active-placement client
 ids remain evidence only. The frontend may render these states and link to
 command drafts, but it must not decide action usability locally or execute
 from the browser/BFF.
+The command-suite response also exposes `action_state_handoff_audits` and
+`action_state_handoff_audit_summary` for Phase 8106. This audit connects the
+backend command-suite rows, selected action-state matrix, and Command Workflows
+dry-submit tabs without making any command usable. Create is the only
+command-workflow-only row; the other six rows are selected-order prefill
+handoffs. Reveal may report `live_execution_status=approval_required` because
+it mirrors backend dry-run service posture, but it remains `live_enabled=false`
+and `executable=false`.
 
 ## Safety Constraints
 

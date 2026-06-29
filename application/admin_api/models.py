@@ -158,9 +158,11 @@ from core.enums import (
     AdminApiStealthClosureClearanceStepReviewInputStoreRequirementName,
     AdminApiStealthClosureClearanceStepReviewName,
     AdminApiStealthClosureDependencyClass,
+    AdminApiStealthActionStateAuditSurface,
     AdminApiStealthCommandSuiteBlockerClosure,
     AdminApiStealthAdmissionEvidence,
     AdminApiStealthCommandSuiteGapFamily,
+    AdminApiStealthCommandWorkflowSurface,
     AdminApiStealthExchangeRealityContractScope,
     AdminApiStealthMutationClaimContractScope,
     AdminApiStealthOperatorScope,
@@ -27542,6 +27544,99 @@ class StealthSelectedOrderActionStateItem(BaseModel):
     detail: str
 
 
+class StealthCommandSuiteActionStateHandoffAuditItem(BaseModel):
+    """Audit row tying a stealth action-state row to operator handoff surfaces."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mutation_family: AdminApiMutationFamilyType
+    workflow_family: AdminApiStealthCommandSuiteGapFamily
+    command_workflow: AdminApiStealthCommandWorkflowSurface
+    label: str
+    route: str
+    method: str
+    identity_key: str = "stealth_order_id"
+    action_state: AdminApiActionState
+    command_status: AdminApiGateStatus
+    live_execution_status: AdminApiLiveExecutionStatus
+    command_row_present: bool = True
+    action_state_row_present: bool = True
+    command_workflow_available: bool = True
+    selected_order_handoff_required: bool = True
+    selected_order_handoff_available: bool = True
+    handoff_prefill_only: bool = True
+    expected_frontend_surfaces: list[AdminApiStealthActionStateAuditSurface] = (
+        Field(default_factory=list)
+    )
+    missing_frontend_surfaces: list[AdminApiStealthActionStateAuditSurface] = (
+        Field(default_factory=list)
+    )
+    backend_owned: bool = True
+    route_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_enabled: bool = False
+    executable: bool = False
+    manager_invocation_allowed: bool = False
+    coinbase_submit_allowed: bool = False
+    coinbase_cancel_allowed: bool = False
+    coinbase_read_allowed: bool = False
+    reconciliation_execution_allowed: bool = False
+    state_mutation_allowed: bool = False
+    exchange_order_id_identity_allowed: bool = False
+    required_gate_chain: list[str] = Field(default_factory=list)
+    missing_gate_chain: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    detail: str
+
+
+class StealthCommandSuiteActionStateHandoffAuditSummary(BaseModel):
+    """Aggregate coverage for Phase 8106 stealth action-state handoff evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: str = "phase_8106_stealth_action_state_handoff_audit"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    expected_action_count: int = Field(ge=0)
+    command_row_count: int = Field(ge=0)
+    action_state_row_count: int = Field(ge=0)
+    audit_row_count: int = Field(ge=0)
+    blocked_action_count: int = Field(ge=0)
+    usable_action_count: int = Field(ge=0)
+    unsupported_action_count: int = Field(ge=0)
+    not_modeled_action_count: int = Field(ge=0)
+    missing_command_count: int = Field(ge=0)
+    missing_action_state_count: int = Field(ge=0)
+    missing_frontend_surface_count: int = Field(ge=0)
+    command_workflow_count: int = Field(ge=0)
+    selected_order_handoff_count: int = Field(ge=0)
+    expected_mutation_families: list[AdminApiMutationFamilyType] = Field(
+        default_factory=list
+    )
+    missing_mutation_families: list[AdminApiMutationFamilyType] = Field(
+        default_factory=list
+    )
+    all_expected_actions_present: bool = True
+    all_commands_present: bool = True
+    all_action_states_present: bool = True
+    all_command_workflows_available: bool = True
+    all_required_selected_order_handoffs_available: bool = True
+    all_handoffs_prefill_only: bool = True
+    all_action_states_backend_owned: bool = True
+    all_action_states_route_bound: bool = True
+    all_browser_bff_display_only: bool = True
+    all_live_disabled: bool = True
+    exchange_order_id_identity_allowed: bool = False
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    detail: str
+
+
 class StealthCommandSuiteCoverageGapEvidenceRouteItem(BaseModel):
     """Read route that supplies evidence for a stealth command-suite coverage gap."""
 
@@ -33872,6 +33967,15 @@ class StealthCommandSuiteResponse(AdminApiReadPayload):
     selected_order_action_states: list[StealthSelectedOrderActionStateItem] = Field(
         default_factory=list
     )
+    action_state_handoff_audit_count: int = 0
+    action_state_handoff_audit_blocked_count: int = 0
+    action_state_handoff_audit_missing_count: int = 0
+    action_state_handoff_audits: list[
+        StealthCommandSuiteActionStateHandoffAuditItem
+    ] = Field(default_factory=list)
+    action_state_handoff_audit_summary: (
+        StealthCommandSuiteActionStateHandoffAuditSummary | None
+    ) = None
     coverage_gap_count: int = 0
     coverage_gaps: list[StealthCommandSuiteCoverageGapItem] = Field(default_factory=list)
     blocker_closure_count: int = 0

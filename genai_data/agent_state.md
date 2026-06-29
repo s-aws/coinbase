@@ -57,8 +57,8 @@ work. Historical milestone detail belongs in
   backend owner contracts, frontend `AGENTS.md`, frontend owner contracts, and
   ordered frontend docs were reviewed again on 2026-06-29 for Phase 8021 and
   again before activating `8061-8080`; they were re-reviewed during Phase
-  8068, during Phase 8081, during Phase 8101, and during Phase 8104 with no
-  direction change.
+  8068, during Phase 8081, during Phase 8101, during Phase 8104, and during
+  Phase 8106 with no direction change.
   Release 0.1 product progress remains the
   controlling rule: every phase must clear a named Release 0.1 blocker or
   directly improve usable admin management. The current range must keep
@@ -209,11 +209,39 @@ work. Historical milestone detail belongs in
   schema, `getStealthExchangeRealityContractMap`, mock fixtures, runtime
   snapshot loading, typed stealth adapters, BFF GET allowlisting, and Stealth
   Orders read-model rendering.
-- Exact next implementation slice after Phase 8104 validation: move to
-  Phase 8105 Stealth Mutation-Claim Contract Map. Do not add browser
+- Phase 8105 implementation status: `GET /api/v1/stealth/mutation-claim-contract-map`
+  now exposes backend-owned mutation-claim contract evidence as read-only Admin
+  API evidence. It reports 8 contract rows, 6 blocked rows, 6 read-only rows,
+  8 command-boundary rows, 5 proof-record boundaries, 4 runtime snapshot
+  boundaries, 1 acquire boundary, 1 release boundary, 7 guarded commands,
+  zero live-enabled rows, no Coinbase reads/orders/cancellations, and 0 USDC
+  submitted/executed notional. The frontend consumes it through generated
+  schema, `getStealthMutationClaimContractMap`, mock fixtures, runtime
+  snapshot loading, typed stealth adapters, route coverage metadata, BFF GET
+  allowlisting, quality metadata, and Stealth Orders read-model rendering.
+- Phase 8106 implementation status: `GET /api/v1/stealth/command-suite`
+  now exposes backend-owned `action_state_handoff_audits` and
+  `action_state_handoff_audit_summary`. The audit covers create, reveal,
+  cancel, move, movement reprice, recovery, and reconciliation across backend
+  command-suite rows, selected action-state rows, and Command Workflows dry
+  submit tabs. Create is Command-Workflow-only; the other six rows require
+  selected-order prefill handoffs. Reveal preserves
+  `live_execution_status=approval_required` dry-run posture while all rows
+  remain not live-enabled and non-executable; the other six rows report
+  `live_disabled`. The frontend consumes the audit through generated schema,
+  mock fixtures, typed stealth adapters, runtime snapshot tests, and the
+  Stealth Orders command-suite panel. No browser/BFF execution authority,
+  route-local execution, direct Coinbase calls, manager invocation,
+  reconciliation execution, order/exchange state mutation, exchange `order_id`
+  command identity, or second trading path was added. Focused backend and
+  frontend validation passed; live Coinbase execution was not run and
+  submitted/executed notional stayed 0 USDC.
+- Exact next implementation slice after Phase 8106 validation: move to
+  Phase 8107 Stealth Create/Cancel Draft Readiness. Do not add browser
   scheduler, BFF runner authority, retry loops, route-local execution, direct
-  Coinbase calls, reconciliation execution, order/exchange state mutation, or
-  a second trading path.
+  Coinbase calls, manager invocation, reconciliation execution, order/exchange
+  state mutation, exchange `order_id` command identity, or a second trading
+  path.
 - Contextless review status: backend Phase 7997 passed after remediation.
   Initial blind reviews blocked on stale current Admin API command-authority
   docs and `genai_data` references that still implied all HTTP mutating routes

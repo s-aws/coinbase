@@ -102,6 +102,33 @@ blocker was found. Phase-end stale-subagent sweep completed: reviewer
 findings were consumed and the agent was closed. Live Coinbase execution was
 not run; actual submitted/executed notional remains `0` USDC.
 
+Phase 8106 command-suite action-state handoff audit evidence:
+blind/contextless reviewer `019f1518-1f2a-7c23-9e83-ca8cf6172fb9` verified the
+backend exposure through `GET /api/v1/stealth/command-suite`,
+`AdminApiReadService.build_stealth_command_suite`, and
+`StealthCommandSuiteResponse`; verified the seven expected families
+(`stealth_create`, `stealth_reveal`, `stealth_cancel`, `stealth_move`,
+`movement_reprice`, `stealth_recovery`, `stealth_reconciliation`); traced
+frontend consumption through generated schema, canonical client/runtime,
+typed adapters, mock fixtures, and the Stealth Orders command-suite panel; and
+found no browser/BFF trading authority, route-local execution, manager
+invocation, Coinbase submit/cancel/read authority, reconciliation execution,
+local state mutation, exchange `order_id` command identity, or second trading
+path. The reviewer confirmed create is Command-Workflow-only, the other six
+rows require selected-order prefill handoffs, reveal preserves
+`live_execution_status=approval_required` while remaining not live-enabled and
+non-executable, and the other six rows report `live_disabled`. Initial review
+found a contextless-doc blocker in the feature README/examples. Remediation
+updated `README.stealth-command-suite.md`,
+`docs/examples/stealth-command-suite.md`, and the sibling frontend
+`docs/examples/stealth-order-reads.md` with the exact audit fields and
+authority boundaries; the reviewer confirmed the blocker was resolved. A final
+frontend example nit was also remediated by naming Phase 8106,
+`action_state_handoff_audits`, and `action_state_handoff_audit_summary`.
+Phase-end stale-subagent sweep completed: reviewer findings were consumed and
+the agent was closed. Live Coinbase execution was not run; actual
+submitted/executed notional remains `0` USDC.
+
 ## Campaign/Sweep Operator Controls Review - Phases 8081-8100
 
 Result: planned. Closeout ready. Scope: phases `8081-8100`, after completed history through

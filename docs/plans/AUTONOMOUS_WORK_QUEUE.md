@@ -297,6 +297,25 @@ Exact autonomous phrase: Active Release 0.1 `8101-8120` adds a Stealth Lifecycle
 
 - Audit backend command-suite action-state rows for create, reveal, move,
   cancel, recovery, reconciliation, and movement reprice handoff coverage.
+- Evidence update 2026-06-29: added backend-owned
+  `action_state_handoff_audits` and `action_state_handoff_audit_summary` to
+  `GET /api/v1/stealth/command-suite`, OpenAPI, generated contracts, focused
+  backend contract tests, feature docs, and examples. The audit reports seven
+  blocked command families: create, reveal, cancel, move, movement reprice,
+  recovery, and reconciliation. Create is Command-Workflow-only; the other six
+  rows require selected-order prefill handoffs. All rows remain backend-owned,
+  route-bound, prefill-only, not live-enabled, non-executable, and keyed by
+  `stealth_order_id`. Reveal preserves
+  `live_execution_status=approval_required` dry-run posture while the other
+  six rows report `live_disabled`. No browser/BFF execution authority, manager
+  invocation, Coinbase submit/cancel/read, reconciliation execution, state
+  mutation, exchange `order_id` command identity, route-local execution, or
+  second trading path was added. Backend and frontend `AGENTS.md` instructions
+  were re-reviewed with no direction change. Focused backend validation passed:
+  Python compile, OpenAPI generation, two targeted Admin API regression tests,
+  autonomous queue check, ownership check, stale-process check, and
+  `git diff --check`. Live Coinbase execution was not run; submitted/executed
+  notional stayed 0 USDC.
 
 ### Phase 8107 - Stealth Create/Cancel Draft Readiness
 

@@ -1625,6 +1625,21 @@ metadata is present, but exact command-envelope fields remain missing:
 `stealth_order_id`, `actor_id`, `idempotency_key`, `operator_intent`, and
 `payload_hash`. Until those fields come from the backend mutating command
 path, resolver lookup and proof resolution remain disabled.
+The command-suite response also exposes Phase 8106
+`action_state_handoff_audits` and `action_state_handoff_audit_summary`. These
+rows prove the seven expected stealth command families have backend
+command-suite rows, selected action-state matrix rows, and Command Workflows
+dry-submit surfaces: create, reveal, cancel, move, movement reprice, recovery,
+and reconciliation. Create is Command-Workflow-only and does not require a
+selected-order handoff; the other six rows require selected-order prefill
+handoffs. All rows remain blocked, prefill-only, backend-owned, route-bound,
+display/forward-only, not live-enabled, non-executable, and keyed by
+`stealth_order_id`. Reveal preserves the backend command row's
+`live_execution_status=approval_required` dry-run posture; the other six audit
+rows report `live_disabled`. None of those statuses grant browser/BFF
+execution, manager invocation, Coinbase submit/cancel/read authority,
+reconciliation execution, local state mutation, exchange `order_id` command
+identity, or command enablement.
 Concrete live-disabled stealth command responses may include
 `stealth_admission_context`. That response echo is different from the
 read-only command-suite row: the command path has route, identity, actor,

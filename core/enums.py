@@ -575,6 +575,27 @@ class AdminApiStealthCommandSuiteGapFamily(str, Enum):
     STEALTH_RECONCILIATION_WORKFLOW = "stealth_reconciliation_workflow"
 
 
+class AdminApiStealthCommandWorkflowSurface(str, Enum):
+    """Command Workflow tab ids for backend-owned stealth command drafts."""
+
+    STEALTH_CREATE = "stealth-create"
+    STEALTH_REVEAL = "stealth-reveal"
+    STEALTH_CANCEL = "stealth-cancel"
+    STEALTH_MOVE = "stealth-move"
+    STEALTH_RECOVERY = "stealth-recovery"
+    STEALTH_RECONCILIATION = "stealth-reconciliation"
+    MOVEMENT_REPRICE = "movement-reprice"
+
+
+class AdminApiStealthActionStateAuditSurface(str, Enum):
+    """Frontend surfaces that must consume stealth action-state evidence."""
+
+    BACKEND_COMMAND_SUITE = "backend_command_suite"
+    SELECTED_ACTION_STATE_MATRIX = "selected_action_state_matrix"
+    COMMAND_WORKFLOWS_DRY_SUBMIT = "command_workflows_dry_submit"
+    SELECTED_ORDER_HANDOFF_LINKS = "selected_order_handoff_links"
+
+
 class AdminApiStealthOperatorScope(str, Enum):
     """Operator-visible stealth lifecycle management scope rows."""
 

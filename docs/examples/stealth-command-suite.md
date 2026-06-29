@@ -303,6 +303,108 @@ they remain backend evidence only:
 }
 ```
 
+Phase 8106 also adds action-state handoff audit rows and a summary. These rows
+tie the backend command-suite rows, selected action-state matrix, and Command
+Workflows dry-submit tabs together without making any command executable:
+
+```json
+{
+  "action_state_handoff_audit_count": 7,
+  "action_state_handoff_audit_blocked_count": 7,
+  "action_state_handoff_audit_missing_count": 0,
+  "action_state_handoff_audits": [
+    {
+      "mutation_family": "stealth_create",
+      "command_workflow": "stealth-create",
+      "route": "/api/v1/stealth/orders",
+      "identity_key": "stealth_order_id",
+      "action_state": "blocked",
+      "command_status": "blocked",
+      "live_execution_status": "live_disabled",
+      "selected_order_handoff_required": false,
+      "selected_order_handoff_available": false,
+      "handoff_prefill_only": true,
+      "expected_frontend_surfaces": [
+        "backend_command_suite",
+        "selected_action_state_matrix",
+        "command_workflows_dry_submit"
+      ],
+      "live_enabled": false,
+      "executable": false,
+      "manager_invocation_allowed": false,
+      "coinbase_submit_allowed": false,
+      "coinbase_cancel_allowed": false,
+      "coinbase_read_allowed": false,
+      "reconciliation_execution_allowed": false,
+      "state_mutation_allowed": false,
+      "exchange_order_id_identity_allowed": false
+    },
+    {
+      "mutation_family": "stealth_reveal",
+      "command_workflow": "stealth-reveal",
+      "route": "/api/v1/stealth/orders/{stealth_order_id}/reveal",
+      "identity_key": "stealth_order_id",
+      "action_state": "blocked",
+      "command_status": "blocked",
+      "live_execution_status": "approval_required",
+      "selected_order_handoff_required": true,
+      "selected_order_handoff_available": true,
+      "handoff_prefill_only": true,
+      "expected_frontend_surfaces": [
+        "backend_command_suite",
+        "selected_action_state_matrix",
+        "command_workflows_dry_submit",
+        "selected_order_handoff_links"
+      ],
+      "live_enabled": false,
+      "executable": false,
+      "manager_invocation_allowed": false,
+      "coinbase_submit_allowed": false,
+      "coinbase_cancel_allowed": false,
+      "coinbase_read_allowed": false,
+      "reconciliation_execution_allowed": false,
+      "state_mutation_allowed": false,
+      "exchange_order_id_identity_allowed": false
+    }
+  ],
+  "action_state_handoff_audit_summary": {
+    "status": "blocked",
+    "expected_action_count": 7,
+    "command_row_count": 7,
+    "action_state_row_count": 7,
+    "audit_row_count": 7,
+    "blocked_action_count": 7,
+    "usable_action_count": 0,
+    "missing_command_count": 0,
+    "missing_action_state_count": 0,
+    "missing_frontend_surface_count": 0,
+    "command_workflow_count": 7,
+    "selected_order_handoff_count": 6,
+    "all_expected_actions_present": true,
+    "all_commands_present": true,
+    "all_action_states_present": true,
+    "all_required_selected_order_handoffs_available": true,
+    "all_handoffs_prefill_only": true,
+    "all_live_disabled": true,
+    "exchange_order_id_identity_allowed": false,
+    "backend_owned": true,
+    "browser_authority": "display_only",
+    "bff_authority": "forward_only_no_execution",
+    "live_coinbase_orders_ran": false,
+    "live_coinbase_read_ran": false,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0"
+  }
+}
+```
+
+The create row is Command-Workflow-only. Reveal, cancel, move, movement
+reprice, recovery, and reconciliation require selected-order prefill handoffs.
+`approval_required` on reveal is dry-run posture only: every audit row remains
+not live-enabled and non-executable, with no manager, Coinbase,
+reconciliation, state-mutation, browser, BFF, or exchange `order_id` command
+identity authority.
+
 The selected candidate is a backend work-sequencing target only. It does not
 authorize create execution, lifecycle writes, proof lookup, manager
 invocation, Coinbase reads/submits/cancels, reconciliation execution, or state

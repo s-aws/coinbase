@@ -91,6 +91,7 @@ from core.enums import (
     AdminApiSpotCommandSuiteGapFamily,
     AdminApiStealthAdmissionContextField,
     AdminApiStealthAdmissionEvidence,
+    AdminApiStealthActionStateAuditSurface,
     AdminApiStealthClosureClearanceOwner,
     AdminApiStealthClosureClearanceStepName,
     AdminApiStealthClosureClearanceStepReviewInputName,
@@ -102,6 +103,7 @@ from core.enums import (
     AdminApiStealthClosureDependencyClass,
     AdminApiStealthCommandSuiteBlockerClosure,
     AdminApiStealthCommandSuiteGapFamily,
+    AdminApiStealthCommandWorkflowSurface,
     AdminApiStealthExchangeRealityContractScope,
     AdminApiStealthMutationClaimContractScope,
     AdminApiStealthOperatorScope,
@@ -399,6 +401,8 @@ from .models import (
     StealthRouteInventoryResponse,
     StealthCommandSuiteCommandItem,
     StealthSelectedOrderActionStateItem,
+    StealthCommandSuiteActionStateHandoffAuditItem,
+    StealthCommandSuiteActionStateHandoffAuditSummary,
     StealthCommandSuiteAdmissionContextItem,
     StealthCommandSuiteAdmissionReadinessItem,
     StealthCommandSuiteAdmissionRequirementItem,
@@ -19413,6 +19417,309 @@ class AdminApiReadService:
         selected_order_action_states = [
             selected_order_action_state_from_command(command) for command in commands
         ]
+        command_by_family = {command.mutation_family: command for command in commands}
+        action_state_by_family = {
+            action_state.action_id: action_state
+            for action_state in selected_order_action_states
+        }
+        action_state_handoff_specs = [
+            (
+                AdminApiMutationFamilyType.STEALTH_CREATE,
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_CREATE_WORKFLOW,
+                AdminApiStealthCommandWorkflowSurface.STEALTH_CREATE,
+                False,
+            ),
+            (
+                AdminApiMutationFamilyType.STEALTH_REVEAL,
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_REVEAL_WORKFLOW,
+                AdminApiStealthCommandWorkflowSurface.STEALTH_REVEAL,
+                True,
+            ),
+            (
+                AdminApiMutationFamilyType.STEALTH_CANCEL,
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_CANCEL_EXCHANGE_HANDLING,
+                AdminApiStealthCommandWorkflowSurface.STEALTH_CANCEL,
+                True,
+            ),
+            (
+                AdminApiMutationFamilyType.STEALTH_MOVE,
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_MOVE_REVEALED_WORKFLOW,
+                AdminApiStealthCommandWorkflowSurface.STEALTH_MOVE,
+                True,
+            ),
+            (
+                AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_REPRICE_WORKFLOW,
+                AdminApiStealthCommandWorkflowSurface.MOVEMENT_REPRICE,
+                True,
+            ),
+            (
+                AdminApiMutationFamilyType.STEALTH_RECOVERY,
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_RECOVERY_WORKFLOW,
+                AdminApiStealthCommandWorkflowSurface.STEALTH_RECOVERY,
+                True,
+            ),
+            (
+                AdminApiMutationFamilyType.STEALTH_RECONCILIATION,
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_RECONCILIATION_WORKFLOW,
+                AdminApiStealthCommandWorkflowSurface.STEALTH_RECONCILIATION,
+                True,
+            ),
+        ]
+
+        def build_action_state_handoff_audit(
+            mutation_family: AdminApiMutationFamilyType,
+            workflow_family: AdminApiStealthCommandSuiteGapFamily,
+            command_workflow: AdminApiStealthCommandWorkflowSurface,
+            selected_order_handoff_required: bool,
+        ) -> StealthCommandSuiteActionStateHandoffAuditItem:
+            command = command_by_family.get(mutation_family)
+            action_state = action_state_by_family.get(mutation_family)
+            metadata = command_metadata.get(mutation_family, {})
+            expected_surfaces = [
+                AdminApiStealthActionStateAuditSurface.BACKEND_COMMAND_SUITE,
+                AdminApiStealthActionStateAuditSurface.SELECTED_ACTION_STATE_MATRIX,
+                AdminApiStealthActionStateAuditSurface.COMMAND_WORKFLOWS_DRY_SUBMIT,
+            ]
+            if selected_order_handoff_required:
+                expected_surfaces.append(
+                    AdminApiStealthActionStateAuditSurface.SELECTED_ORDER_HANDOFF_LINKS
+                )
+            missing_surfaces = []
+            if command is None:
+                missing_surfaces.append(
+                    AdminApiStealthActionStateAuditSurface.BACKEND_COMMAND_SUITE
+                )
+            if action_state is None:
+                missing_surfaces.append(
+                    AdminApiStealthActionStateAuditSurface.SELECTED_ACTION_STATE_MATRIX
+                )
+            route = (
+                command.route
+                if command is not None
+                else _surface_method_and_path(
+                    inventory_by_surface[str(metadata["surface"])].surface
+                )[1]
+            )
+            method = command.method if command is not None else "POST"
+            label = (
+                action_state.label
+                if action_state is not None
+                else str(mutation_family.value).replace("_", " ").title()
+            )
+            selected_order_handoff_available = (
+                selected_order_handoff_required
+                and action_state is not None
+                and command is not None
+            )
+            return StealthCommandSuiteActionStateHandoffAuditItem(
+                mutation_family=mutation_family,
+                workflow_family=workflow_family,
+                command_workflow=command_workflow,
+                label=label,
+                route=route,
+                method=method,
+                identity_key=(
+                    command.identity_key
+                    if command is not None
+                    else str(metadata.get("identity_key", "stealth_order_id"))
+                ),
+                action_state=(
+                    action_state.action_state
+                    if action_state is not None
+                    else AdminApiActionState.NOT_MODELED
+                ),
+                command_status=(
+                    command.status
+                    if command is not None
+                    else AdminApiGateStatus.BLOCKED
+                ),
+                live_execution_status=(
+                    command.live_execution_status
+                    if command is not None
+                    else AdminApiLiveExecutionStatus.LIVE_DISABLED
+                ),
+                command_row_present=command is not None,
+                action_state_row_present=action_state is not None,
+                command_workflow_available=True,
+                selected_order_handoff_required=selected_order_handoff_required,
+                selected_order_handoff_available=(
+                    selected_order_handoff_available
+                    if selected_order_handoff_required
+                    else False
+                ),
+                handoff_prefill_only=True,
+                expected_frontend_surfaces=expected_surfaces,
+                missing_frontend_surfaces=missing_surfaces,
+                backend_owned=True,
+                route_bound=(
+                    command.route_bound
+                    if command is not None
+                    else False
+                ),
+                browser_authority=(
+                    command.browser_authority
+                    if command is not None
+                    else "display_only"
+                ),
+                bff_authority=(
+                    command.bff_authority
+                    if command is not None
+                    else "forward_only_no_execution"
+                ),
+                live_enabled=command.live_enabled if command is not None else False,
+                executable=command.executable if command is not None else False,
+                manager_invocation_allowed=False,
+                coinbase_submit_allowed=False,
+                coinbase_cancel_allowed=False,
+                coinbase_read_allowed=False,
+                reconciliation_execution_allowed=False,
+                state_mutation_allowed=False,
+                exchange_order_id_identity_allowed=False,
+                required_gate_chain=(
+                    list(command.required_gate_chain)
+                    if command is not None
+                    else []
+                ),
+                missing_gate_chain=(
+                    list(command.missing_gate_chain)
+                    if command is not None
+                    else ["command_row_missing"]
+                ),
+                blockers=(
+                    list(action_state.blockers)
+                    if action_state is not None
+                    else ["action_state_row_missing"]
+                ),
+                detail=(
+                    f"{label} is covered by backend command-suite evidence and "
+                    f"Command Workflows tab {command_workflow.value}. "
+                    "Handoffs are prefill-only; they do not adjudicate a "
+                    "selected order, use exchange order_id as command identity, "
+                    "invoke managers, call Coinbase, execute reconciliation, or "
+                    "mutate stealth/order/exchange state."
+                ),
+            )
+
+        action_state_handoff_audits = [
+            build_action_state_handoff_audit(*spec)
+            for spec in action_state_handoff_specs
+        ]
+        missing_mutation_families = [
+            mutation_family
+            for mutation_family, _, _, _ in action_state_handoff_specs
+            if mutation_family not in command_by_family
+            or mutation_family not in action_state_by_family
+        ]
+        action_state_handoff_audit_summary = (
+            StealthCommandSuiteActionStateHandoffAuditSummary(
+                status=AdminApiGateStatus.BLOCKED,
+                expected_action_count=len(action_state_handoff_specs),
+                command_row_count=len(command_by_family),
+                action_state_row_count=len(action_state_by_family),
+                audit_row_count=len(action_state_handoff_audits),
+                blocked_action_count=sum(
+                    1
+                    for item in action_state_handoff_audits
+                    if item.action_state == AdminApiActionState.BLOCKED
+                ),
+                usable_action_count=sum(
+                    1
+                    for item in action_state_handoff_audits
+                    if item.action_state == AdminApiActionState.USABLE
+                ),
+                unsupported_action_count=sum(
+                    1
+                    for item in action_state_handoff_audits
+                    if item.action_state == AdminApiActionState.UNSUPPORTED
+                ),
+                not_modeled_action_count=sum(
+                    1
+                    for item in action_state_handoff_audits
+                    if item.action_state == AdminApiActionState.NOT_MODELED
+                ),
+                missing_command_count=sum(
+                    1
+                    for item in action_state_handoff_audits
+                    if not item.command_row_present
+                ),
+                missing_action_state_count=sum(
+                    1
+                    for item in action_state_handoff_audits
+                    if not item.action_state_row_present
+                ),
+                missing_frontend_surface_count=sum(
+                    len(item.missing_frontend_surfaces)
+                    for item in action_state_handoff_audits
+                ),
+                command_workflow_count=sum(
+                    1
+                    for item in action_state_handoff_audits
+                    if item.command_workflow_available
+                ),
+                selected_order_handoff_count=sum(
+                    1
+                    for item in action_state_handoff_audits
+                    if item.selected_order_handoff_available
+                ),
+                expected_mutation_families=[
+                    mutation_family
+                    for mutation_family, _, _, _ in action_state_handoff_specs
+                ],
+                missing_mutation_families=missing_mutation_families,
+                all_expected_actions_present=not missing_mutation_families,
+                all_commands_present=all(
+                    item.command_row_present for item in action_state_handoff_audits
+                ),
+                all_action_states_present=all(
+                    item.action_state_row_present
+                    for item in action_state_handoff_audits
+                ),
+                all_command_workflows_available=all(
+                    item.command_workflow_available
+                    for item in action_state_handoff_audits
+                ),
+                all_required_selected_order_handoffs_available=all(
+                    item.selected_order_handoff_available
+                    for item in action_state_handoff_audits
+                    if item.selected_order_handoff_required
+                ),
+                all_handoffs_prefill_only=all(
+                    item.handoff_prefill_only
+                    for item in action_state_handoff_audits
+                ),
+                all_action_states_backend_owned=all(
+                    item.backend_owned for item in action_state_handoff_audits
+                ),
+                all_action_states_route_bound=all(
+                    item.route_bound for item in action_state_handoff_audits
+                ),
+                all_browser_bff_display_only=all(
+                    item.browser_authority == "display_only"
+                    and item.bff_authority == "forward_only_no_execution"
+                    for item in action_state_handoff_audits
+                ),
+                all_live_disabled=all(
+                    not item.live_enabled and not item.executable
+                    for item in action_state_handoff_audits
+                ),
+                exchange_order_id_identity_allowed=False,
+                backend_owned=True,
+                browser_authority="display_only",
+                bff_authority="forward_only_no_execution",
+                live_coinbase_orders_ran=False,
+                live_coinbase_read_ran=False,
+                submitted_notional_usdc="0",
+                executed_notional_usdc="0",
+                detail=(
+                    "Phase 8106 audits that the seven expected stealth command "
+                    "families are represented by backend command-suite rows, "
+                    "selected action-state matrix rows, and Command Workflows "
+                    "dry-submit tabs. This is coverage evidence only and does "
+                    "not make any action executable."
+                ),
+            )
+        )
 
         stealth_boundary = _enterprise_module_spot_boundary("stealth_orders")
         gap_required_gate_chain = [
@@ -26945,6 +27252,21 @@ class AdminApiReadService:
             commands=commands,
             selected_order_action_state_count=len(selected_order_action_states),
             selected_order_action_states=selected_order_action_states,
+            action_state_handoff_audit_count=len(action_state_handoff_audits),
+            action_state_handoff_audit_blocked_count=sum(
+                1
+                for item in action_state_handoff_audits
+                if item.action_state == AdminApiActionState.BLOCKED
+            ),
+            action_state_handoff_audit_missing_count=sum(
+                1
+                for item in action_state_handoff_audits
+                if not item.command_row_present
+                or not item.action_state_row_present
+                or item.missing_frontend_surfaces
+            ),
+            action_state_handoff_audits=action_state_handoff_audits,
+            action_state_handoff_audit_summary=action_state_handoff_audit_summary,
             coverage_gap_count=len(coverage_gaps),
             coverage_gaps=coverage_gaps,
             blocker_closure_count=len(blocker_closures),
