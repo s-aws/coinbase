@@ -149,6 +149,26 @@ Approval/admission evidence is also projected into `approval_admission_links`:
 }
 ```
 
+Cap/guard evidence is projected into `cap_guard_wallet_links`:
+
+```json
+{
+  "cap_guard_wallet_links": [
+    {
+      "link_id": "cap-guard-wallet:audit-001",
+      "timeline_id": "command:audit-001",
+      "correlation_status": "wallet_not_reported",
+      "cap_guard_present": true,
+      "cap_guard_decision_id": "cap-guard-001",
+      "wallet_evidence_status": "not_reported",
+      "lot_evidence_status": "not_reported",
+      "budget_evidence_status": "not_reported",
+      "read_only": true
+    }
+  ]
+}
+```
+
 Command audit rows may include persisted admission evidence:
 
 ```json

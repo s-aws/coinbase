@@ -33,6 +33,8 @@ The route is authenticated and RBAC-gated with `audit:read`.
   admission, cap/guard, live-intent, exchange-evidence, and result stages
 - approval/admission links that correlate approval snapshot evidence with
   admission audit evidence for each command attempt
+- cap/guard-wallet links that correlate cap/guard evidence with wallet, lot,
+  and budget evidence when those refs are present in backend command evidence
 - read and command route counts
 - durable command audit events when available
 - persisted command admission decisions on command audit events when available,
@@ -62,6 +64,9 @@ The route is authenticated and RBAC-gated with `audit:read`.
   are read-only operator trace projections, not replay instructions.
 - `approval_admission_links` correlate approval snapshot and admission audit
   fields already recorded by backend command admission.
+- `cap_guard_wallet_links` correlate cap/guard decision fields and explicitly
+  report wallet, lot, or budget refs as `not_reported` when the backend command
+  evidence does not carry them.
 - Exchange `order_id` values are evidence only. They are not internal tracking
   ids or cancellation keys.
 - Command acceptance, cancellation, movement, repricing, guard evaluation, and

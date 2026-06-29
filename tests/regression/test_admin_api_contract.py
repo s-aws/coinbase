@@ -397,9 +397,11 @@ from core.enums import (
     AdminApiApprovalLifecycleStatus,
     AdminApiAuthMode,
     AdminAuditApprovalAdmissionCorrelationStatus,
+    AdminAuditCapGuardWalletCorrelationStatus,
     AdminAuditCommandTimelineStage,
     AdminAuditCommandTimelineStageStatus,
     AdminAuditCorrelationScopeKind,
+    AdminAuditEvidenceAvailabilityStatus,
     AdminAuditEvidenceSource,
     AdminAuditWorkbenchModule,
     AdminApiCommandRoutesMode,
@@ -9621,6 +9623,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
     assert "correlation_scope" in audit_workbench_schema["properties"]
     assert "command_timelines" in audit_workbench_schema["properties"]
     assert "approval_admission_links" in audit_workbench_schema["properties"]
+    assert "cap_guard_wallet_links" in audit_workbench_schema["properties"]
     assert "module_summary" in audit_workbench_schema["properties"]
     assert "events" in audit_workbench_schema["properties"]
     source_inventory_schema = written["components"]["schemas"][
@@ -9662,6 +9665,15 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
     assert "admission_audit_present" in approval_admission_schema["properties"]
     assert "admission_audit_id" in approval_admission_schema["properties"]
     assert "blockers" in approval_admission_schema["properties"]
+    cap_guard_wallet_schema = written["components"]["schemas"][
+        "AdminAuditCapGuardWalletLinkItem"
+    ]
+    assert "correlation_status" in cap_guard_wallet_schema["properties"]
+    assert "cap_guard_present" in cap_guard_wallet_schema["properties"]
+    assert "cap_guard_decision_id" in cap_guard_wallet_schema["properties"]
+    assert "wallet_evidence_status" in cap_guard_wallet_schema["properties"]
+    assert "lot_evidence_status" in cap_guard_wallet_schema["properties"]
+    assert "budget_evidence_status" in cap_guard_wallet_schema["properties"]
     correlation_scope_schema = written["components"]["schemas"][
         "AdminAuditCorrelationScopeItem"
     ]
@@ -60485,6 +60497,7 @@ def test_admin_api_audit_workbench_route_uses_read_service_without_commands(
             "correlation_scope": [],
             "command_timelines": [],
             "approval_admission_links": [],
+            "cap_guard_wallet_links": [],
             "module_summary": [
                 {
                     "module": "orders",
@@ -60557,6 +60570,7 @@ def test_admin_api_audit_workbench_route_uses_read_service_without_commands(
     assert "correlation_scope" in payload
     assert "command_timelines" in payload
     assert "approval_admission_links" in payload
+    assert "cap_guard_wallet_links" in payload
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_read_ran"] is False
     assert payload["events"][0]["client_order_id"] == "client-abc"
@@ -60757,6 +60771,35 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
     assert approval_admission_link.no_bff_execution_authority is True
     assert approval_admission_link.no_reconciliation_execution is True
     assert approval_admission_link.no_order_or_exchange_state_mutation is True
+    assert len(response.cap_guard_wallet_links) == 1
+    cap_guard_wallet_link = response.cap_guard_wallet_links[0]
+    assert cap_guard_wallet_link.link_id == (
+        f"cap-guard-wallet:{command_timeline.audit_id}"
+    )
+    assert cap_guard_wallet_link.timeline_id == command_timeline.timeline_id
+    assert cap_guard_wallet_link.canonical_identity_key == "client_order_id"
+    assert cap_guard_wallet_link.canonical_identity_value == "client-abc"
+    assert (
+        cap_guard_wallet_link.correlation_status
+        == AdminAuditCapGuardWalletCorrelationStatus.CAP_GUARD_MISSING
+    )
+    assert cap_guard_wallet_link.cap_guard_present is False
+    assert (
+        cap_guard_wallet_link.wallet_evidence_status
+        == AdminAuditEvidenceAvailabilityStatus.NOT_REPORTED
+    )
+    assert (
+        cap_guard_wallet_link.lot_evidence_status
+        == AdminAuditEvidenceAvailabilityStatus.NOT_REPORTED
+    )
+    assert (
+        cap_guard_wallet_link.budget_evidence_status
+        == AdminAuditEvidenceAvailabilityStatus.NOT_REPORTED
+    )
+    assert cap_guard_wallet_link.no_browser_authority is True
+    assert cap_guard_wallet_link.no_bff_execution_authority is True
+    assert cap_guard_wallet_link.no_reconciliation_execution is True
+    assert cap_guard_wallet_link.no_order_or_exchange_state_mutation is True
     assert response.pagination.total_matching_count == 2
     modules = {item.module for item in response.module_summary}
     assert AdminAuditWorkbenchModule.ORDERS in modules

@@ -278,6 +278,16 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Correlate cap/guard, wallet, lot, and budget evidence with the command
   attempt timeline without moving guard logic into the frontend.
+- Evidence update 2026-06-29: added enum-backed Audit Workbench
+  `cap_guard_wallet_links` derived from command-audit admission evidence. Link
+  rows correlate timeline id, command identity, product id, cap/guard
+  presence/id/source/recorded time, wallet/lot/budget evidence availability,
+  blockers, evidence, and no-authority posture. Wallet, lot, and budget refs
+  remain `not_reported` unless the backend command evidence explicitly carries
+  them; the frontend does not infer balances, lots, budgets, or guard results.
+  OpenAPI and frontend generated schema were refreshed; the frontend mock and
+  read model render links as display-only evidence. Live Coinbase execution
+  was not run and submitted/executed notional stayed 0 USDC.
 
 ### Phase 8067 - Exchange Intent And Fill Correlation Contract
 

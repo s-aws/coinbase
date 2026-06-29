@@ -1179,6 +1179,24 @@ class AdminAuditApprovalAdmissionCorrelationStatus(str, Enum):
     NOT_REPORTED = "not_reported"
 
 
+class AdminAuditCapGuardWalletCorrelationStatus(str, Enum):
+    """Stable status labels for cap/guard and wallet evidence correlation."""
+
+    LINKED = "linked"
+    CAP_GUARD_MISSING = "cap_guard_missing"
+    WALLET_NOT_REPORTED = "wallet_not_reported"
+    NOT_REPORTED = "not_reported"
+
+
+class AdminAuditEvidenceAvailabilityStatus(str, Enum):
+    """Stable availability labels for optional audit evidence."""
+
+    PRESENT = "present"
+    NOT_REPORTED = "not_reported"
+    NOT_MODELED = "not_modeled"
+    UNSUPPORTED = "unsupported"
+
+
 class AdminAuditEvidenceSource(str, Enum):
     """Source labels for cross-module audit workbench evidence."""
 

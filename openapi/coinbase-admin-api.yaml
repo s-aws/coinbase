@@ -13123,6 +13123,171 @@ components:
       - canonical_identity_key
       title: AdminAuditApprovalAdmissionLinkItem
       description: Backend-owned approval/admission evidence correlation for one command.
+    AdminAuditCapGuardWalletCorrelationStatus:
+      type: string
+      enum:
+      - linked
+      - cap_guard_missing
+      - wallet_not_reported
+      - not_reported
+      title: AdminAuditCapGuardWalletCorrelationStatus
+      description: Stable status labels for cap/guard and wallet evidence correlation.
+    AdminAuditCapGuardWalletLinkItem:
+      properties:
+        link_id:
+          type: string
+          title: Link Id
+        timeline_id:
+          type: string
+          title: Timeline Id
+        event_id:
+          type: string
+          title: Event Id
+        module:
+          $ref: '#/components/schemas/AdminAuditWorkbenchModule'
+        endpoint:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Endpoint
+        route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Route
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+        correlation_status:
+          $ref: '#/components/schemas/AdminAuditCapGuardWalletCorrelationStatus'
+        canonical_identity_key:
+          type: string
+          title: Canonical Identity Key
+        canonical_identity_value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Canonical Identity Value
+        product_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+        actor_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Actor Id
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+        operator_intent:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Intent
+        cap_guard_present:
+          type: boolean
+          title: Cap Guard Present
+          default: false
+        cap_guard_decision_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Decision Id
+        cap_guard_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Source
+        cap_guard_recorded_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Recorded At
+        cap_guard_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Missing Reason
+        wallet_evidence_status:
+          $ref: '#/components/schemas/AdminAuditEvidenceAvailabilityStatus'
+          default: not_reported
+        wallet_evidence_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Wallet Evidence Ref
+        lot_evidence_status:
+          $ref: '#/components/schemas/AdminAuditEvidenceAvailabilityStatus'
+          default: not_reported
+        lot_evidence_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Lot Evidence Ref
+        budget_evidence_status:
+          $ref: '#/components/schemas/AdminAuditEvidenceAvailabilityStatus'
+          default: not_reported
+        budget_evidence_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Budget Evidence Ref
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        no_browser_authority:
+          type: boolean
+          title: No Browser Authority
+          default: true
+        no_bff_execution_authority:
+          type: boolean
+          title: No Bff Execution Authority
+          default: true
+        no_reconciliation_execution:
+          type: boolean
+          title: No Reconciliation Execution
+          default: true
+        no_order_or_exchange_state_mutation:
+          type: boolean
+          title: No Order Or Exchange State Mutation
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - link_id
+      - timeline_id
+      - event_id
+      - module
+      - correlation_status
+      - canonical_identity_key
+      title: AdminAuditCapGuardWalletLinkItem
+      description: Backend-owned cap/guard and wallet evidence correlation for one
+        command.
     AdminAuditCommandTimelineItem:
       properties:
         timeline_id:
@@ -13382,6 +13547,15 @@ components:
       - reconciliation
       title: AdminAuditCorrelationScopeKind
       description: Stable operator trace categories for the audit workbench.
+    AdminAuditEvidenceAvailabilityStatus:
+      type: string
+      enum:
+      - present
+      - not_reported
+      - not_modeled
+      - unsupported
+      title: AdminAuditEvidenceAvailabilityStatus
+      description: Stable availability labels for optional audit evidence.
     AdminAuditEvidenceSource:
       type: string
       enum:
@@ -13676,6 +13850,11 @@ components:
             $ref: '#/components/schemas/AdminAuditApprovalAdmissionLinkItem'
           type: array
           title: Approval Admission Links
+        cap_guard_wallet_links:
+          items:
+            $ref: '#/components/schemas/AdminAuditCapGuardWalletLinkItem'
+          type: array
+          title: Cap Guard Wallet Links
         module_summary:
           items:
             $ref: '#/components/schemas/AdminAuditModuleSummaryItem'

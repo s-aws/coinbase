@@ -25,9 +25,11 @@ from core.enums import (
     AdminApiFunctionalityExposureStatus,
     AdminApiFunctionalityWorkflowType,
     AdminAuditApprovalAdmissionCorrelationStatus,
+    AdminAuditCapGuardWalletCorrelationStatus,
     AdminAuditCommandTimelineStage,
     AdminAuditCommandTimelineStageStatus,
     AdminAuditCorrelationScopeKind,
+    AdminAuditEvidenceAvailabilityStatus,
     AdminFuturesCommandAction,
     AdminFuturesCommandEnablementBlocker,
     AdminFuturesCommandEvidenceRoute,
@@ -17134,6 +17136,53 @@ class AdminAuditApprovalAdmissionLinkItem(BaseModel):
     no_order_or_exchange_state_mutation: bool = True
 
 
+class AdminAuditCapGuardWalletLinkItem(BaseModel):
+    """Backend-owned cap/guard and wallet evidence correlation for one command."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    link_id: str
+    timeline_id: str
+    event_id: str
+    module: AdminAuditWorkbenchModule
+    endpoint: str | None = None
+    route: str | None = None
+    status: str | None = None
+    correlation_status: AdminAuditCapGuardWalletCorrelationStatus
+    canonical_identity_key: str
+    canonical_identity_value: str | None = None
+    product_id: str | None = None
+    actor_id: str | None = None
+    idempotency_key: str | None = None
+    operator_intent: str | None = None
+    cap_guard_present: bool = False
+    cap_guard_decision_id: str | None = None
+    cap_guard_source: str | None = None
+    cap_guard_recorded_at: str | None = None
+    cap_guard_missing_reason: str | None = None
+    wallet_evidence_status: AdminAuditEvidenceAvailabilityStatus = (
+        AdminAuditEvidenceAvailabilityStatus.NOT_REPORTED
+    )
+    wallet_evidence_ref: str | None = None
+    lot_evidence_status: AdminAuditEvidenceAvailabilityStatus = (
+        AdminAuditEvidenceAvailabilityStatus.NOT_REPORTED
+    )
+    lot_evidence_ref: str | None = None
+    budget_evidence_status: AdminAuditEvidenceAvailabilityStatus = (
+        AdminAuditEvidenceAvailabilityStatus.NOT_REPORTED
+    )
+    budget_evidence_ref: str | None = None
+    blockers: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    read_only: bool = True
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    no_browser_authority: bool = True
+    no_bff_execution_authority: bool = True
+    no_reconciliation_execution: bool = True
+    no_order_or_exchange_state_mutation: bool = True
+
+
 class AdminAuditWorkbenchEventItem(BaseModel):
     """One normalized cross-module audit/correlation evidence row."""
 
@@ -17176,6 +17225,7 @@ class AdminAuditWorkbenchReadResponse(BaseModel):
     correlation_scope: list[AdminAuditCorrelationScopeItem] = Field(default_factory=list)
     command_timelines: list[AdminAuditCommandTimelineItem] = Field(default_factory=list)
     approval_admission_links: list[AdminAuditApprovalAdmissionLinkItem] = Field(default_factory=list)
+    cap_guard_wallet_links: list[AdminAuditCapGuardWalletLinkItem] = Field(default_factory=list)
     module_summary: list[AdminAuditModuleSummaryItem] = Field(default_factory=list)
     events: list[AdminAuditWorkbenchEventItem] = Field(default_factory=list)
     pagination: AdminOrderPagination

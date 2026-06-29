@@ -154,6 +154,9 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Correlate cap/guard, wallet, lot, and budget evidence with the command
   attempt timeline without moving guard logic into the frontend.
+- Evidence update 2026-06-29: Audit Workbench now exposes
+  `cap_guard_wallet_links`; missing wallet, lot, or budget refs remain
+  explicit `not_reported` evidence instead of browser-side inference.
 
 ### Phase 8067 - Exchange Intent And Fill Correlation Contract
 

@@ -20,9 +20,11 @@ from core.enums import (
     AdminApiAuthMode,
     AdminApiLiveExecutionStatus,
     AdminAuditApprovalAdmissionCorrelationStatus,
+    AdminAuditCapGuardWalletCorrelationStatus,
     AdminAuditCommandTimelineStage,
     AdminAuditCommandTimelineStageStatus,
     AdminAuditCorrelationScopeKind,
+    AdminAuditEvidenceAvailabilityStatus,
     AdminAuditEvidenceSource,
     AdminAuditWorkbenchModule,
     AdminApiActionState,
@@ -134,6 +136,7 @@ from .models import (
     AdminAccountMarketInventoryResponse,
     AdminAccountMarketInventorySummary,
     AdminAuditApprovalAdmissionLinkItem,
+    AdminAuditCapGuardWalletLinkItem,
     AdminAuditCommandTimelineItem,
     AdminAuditCommandTimelineStageItem,
     AdminAuditCorrelationScopeItem,
@@ -5512,6 +5515,102 @@ def _audit_approval_admission_link_from_event(
         admission_audit_missing_reason=_string_or_none(
             admission.get("admission_audit_missing_reason")
         ),
+        blockers=[str(value) for value in _list_or_empty(admission.get("blockers"))],
+        evidence=[str(value) for value in _list_or_empty(admission.get("evidence"))],
+    )
+
+
+def _audit_cap_guard_wallet_correlation_status(
+    *,
+    reported: bool,
+    cap_guard_present: bool,
+    wallet_reported: bool,
+) -> AdminAuditCapGuardWalletCorrelationStatus:
+    if not reported:
+        return AdminAuditCapGuardWalletCorrelationStatus.NOT_REPORTED
+    if not cap_guard_present:
+        return AdminAuditCapGuardWalletCorrelationStatus.CAP_GUARD_MISSING
+    if not wallet_reported:
+        return AdminAuditCapGuardWalletCorrelationStatus.WALLET_NOT_REPORTED
+    return AdminAuditCapGuardWalletCorrelationStatus.LINKED
+
+
+def _audit_optional_evidence_status(
+    admission: dict[str, Any],
+    *keys: str,
+) -> AdminAuditEvidenceAvailabilityStatus:
+    if any(admission.get(key) is not None for key in keys):
+        return AdminAuditEvidenceAvailabilityStatus.PRESENT
+    return AdminAuditEvidenceAvailabilityStatus.NOT_REPORTED
+
+
+def _audit_cap_guard_wallet_link_from_event(
+    item: AdminAuditWorkbenchEventItem,
+) -> AdminAuditCapGuardWalletLinkItem:
+    admission = dict(item.admission_decision or {})
+    reported = bool(admission)
+    cap_guard_present = _audit_admission_bool(admission, "cap_guard_present")
+    wallet_status = _audit_optional_evidence_status(
+        admission,
+        "wallet_evidence_ref",
+        "wallet_balance_ref",
+        "wallet_snapshot_id",
+    )
+    lot_status = _audit_optional_evidence_status(
+        admission,
+        "lot_evidence_ref",
+        "lot_authority_ref",
+        "lot_snapshot_id",
+    )
+    budget_status = _audit_optional_evidence_status(
+        admission,
+        "budget_evidence_ref",
+        "budget_authority_ref",
+        "budget_snapshot_id",
+    )
+    canonical_key, canonical_value = _audit_command_identity(item)
+    identifier = item.audit_id or item.request_id or item.event_id
+    wallet_reported = wallet_status == AdminAuditEvidenceAvailabilityStatus.PRESENT
+    return AdminAuditCapGuardWalletLinkItem(
+        link_id=f"cap-guard-wallet:{identifier}",
+        timeline_id=f"command:{identifier}",
+        event_id=item.event_id,
+        module=item.module,
+        endpoint=item.endpoint,
+        route=_string_or_none(admission.get("route")),
+        status=_string_or_none(admission.get("status")) or item.status,
+        correlation_status=_audit_cap_guard_wallet_correlation_status(
+            reported=reported,
+            cap_guard_present=cap_guard_present,
+            wallet_reported=wallet_reported,
+        ),
+        canonical_identity_key=canonical_key,
+        canonical_identity_value=canonical_value,
+        product_id=item.product_id,
+        actor_id=_string_or_none(admission.get("actor_id")) or item.actor_id,
+        idempotency_key=_string_or_none(admission.get("idempotency_key"))
+        or item.idempotency_key,
+        operator_intent=_string_or_none(admission.get("operator_intent"))
+        or item.operator_intent,
+        cap_guard_present=cap_guard_present,
+        cap_guard_decision_id=_string_or_none(admission.get("cap_guard_decision_id")),
+        cap_guard_source=_string_or_none(admission.get("cap_guard_source")),
+        cap_guard_recorded_at=_string_or_none(admission.get("cap_guard_recorded_at")),
+        cap_guard_missing_reason=_string_or_none(
+            admission.get("cap_guard_missing_reason")
+        ),
+        wallet_evidence_status=wallet_status,
+        wallet_evidence_ref=_string_or_none(admission.get("wallet_evidence_ref"))
+        or _string_or_none(admission.get("wallet_balance_ref"))
+        or _string_or_none(admission.get("wallet_snapshot_id")),
+        lot_evidence_status=lot_status,
+        lot_evidence_ref=_string_or_none(admission.get("lot_evidence_ref"))
+        or _string_or_none(admission.get("lot_authority_ref"))
+        or _string_or_none(admission.get("lot_snapshot_id")),
+        budget_evidence_status=budget_status,
+        budget_evidence_ref=_string_or_none(admission.get("budget_evidence_ref"))
+        or _string_or_none(admission.get("budget_authority_ref"))
+        or _string_or_none(admission.get("budget_snapshot_id")),
         blockers=[str(value) for value in _list_or_empty(admission.get("blockers"))],
         evidence=[str(value) for value in _list_or_empty(admission.get("evidence"))],
     )
@@ -14918,6 +15017,11 @@ class AdminApiReadService:
             ],
             approval_admission_links=[
                 _audit_approval_admission_link_from_event(item)
+                for item in page_items
+                if item.source == AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG
+            ],
+            cap_guard_wallet_links=[
+                _audit_cap_guard_wallet_link_from_event(item)
                 for item in page_items
                 if item.source == AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG
             ],
