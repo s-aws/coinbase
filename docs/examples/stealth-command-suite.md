@@ -405,6 +405,74 @@ not live-enabled and non-executable, with no manager, Coinbase,
 reconciliation, state-mutation, browser, BFF, or exchange `order_id` command
 identity authority.
 
+Phase 8107 also adds create/cancel draft readiness rows. These rows are still
+read-only command-suite evidence, but they make the next backend-owned
+contract for create and cancel visible:
+
+```json
+{
+  "create_cancel_draft_readiness_count": 2,
+  "blocked_create_cancel_draft_readiness_count": 2,
+  "executable_create_cancel_draft_readiness_count": 0,
+  "create_cancel_draft_readiness": [
+    {
+      "mutation_family": "stealth_create",
+      "command_workflow": "stealth-create",
+      "route": "/api/v1/stealth/orders",
+      "identity_key": "stealth_order_id",
+      "identity_value_source": "new_stealth_order_id",
+      "selected_order_handoff_required": false,
+      "lifecycle_write_guard_required": true,
+      "active_placement_evidence_required": false,
+      "exchange_truth_required": false,
+      "next_required_contract": "lifecycle_write_guard",
+      "exchange_cancel_method": null,
+      "live_enabled": false,
+      "executable": false,
+      "exchange_order_id_identity_allowed": false
+    },
+    {
+      "mutation_family": "stealth_cancel",
+      "command_workflow": "stealth-cancel",
+      "route": "/api/v1/stealth/orders/{stealth_order_id}/cancel",
+      "identity_key": "stealth_order_id",
+      "identity_value_source": "selected_stealth_order_id",
+      "selected_order_handoff_required": true,
+      "lifecycle_write_guard_required": false,
+      "active_placement_evidence_required": true,
+      "exchange_truth_required": true,
+      "next_required_contract": "active_placement_exchange_truth",
+      "exchange_cancel_method": "cancel_order(client_order_id)",
+      "live_enabled": false,
+      "executable": false,
+      "exchange_order_id_identity_allowed": false
+    }
+  ],
+  "create_cancel_draft_readiness_summary": {
+    "source": "phase_8107_stealth_create_cancel_draft_readiness",
+    "status": "blocked",
+    "draft_count": 2,
+    "blocked_draft_count": 2,
+    "executable_draft_count": 0,
+    "create_ready": false,
+    "cancel_ready": false,
+    "selected_order_handoff_required_count": 1,
+    "lifecycle_write_guard_required_count": 1,
+    "active_placement_evidence_required_count": 1,
+    "all_browser_bff_display_only": true,
+    "all_live_disabled": true,
+    "all_exchange_order_id_evidence_only": true,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0"
+  }
+}
+```
+
+The cancel row names `cancel_order(client_order_id)` because Coinbase accepts
+the project client id for cancellation through the backend wrapper. The route
+identity remains `stealth_order_id`; active-placement client ids and exchange
+`order_id` stay evidence until backend active-placement exchange truth passes.
+
 The selected candidate is a backend work-sequencing target only. It does not
 authorize create execution, lifecycle writes, proof lookup, manager
 invocation, Coinbase reads/submits/cancels, reconciliation execution, or state

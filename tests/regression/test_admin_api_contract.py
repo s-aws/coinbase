@@ -7795,6 +7795,26 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
         "action_state_handoff_audit_summary"
         in stealth_command_suite_schema["properties"]
     )
+    assert (
+        "create_cancel_draft_readiness"
+        in stealth_command_suite_schema["properties"]
+    )
+    assert (
+        "create_cancel_draft_readiness_summary"
+        in stealth_command_suite_schema["properties"]
+    )
+    assert (
+        "create_cancel_draft_readiness_count"
+        in stealth_command_suite_schema["properties"]
+    )
+    assert (
+        "blocked_create_cancel_draft_readiness_count"
+        in stealth_command_suite_schema["properties"]
+    )
+    assert (
+        "executable_create_cancel_draft_readiness_count"
+        in stealth_command_suite_schema["properties"]
+    )
     assert "selected_create_pre_execution_contract" in (
         stealth_command_suite_schema["properties"]
     )
@@ -7849,6 +7869,14 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
         "StealthCommandSuiteActionStateHandoffAuditSummary"
         in written["components"]["schemas"]
     )
+    assert (
+        "StealthCommandSuiteCreateCancelDraftReadinessItem"
+        in written["components"]["schemas"]
+    )
+    assert (
+        "StealthCommandSuiteCreateCancelDraftReadinessSummary"
+        in written["components"]["schemas"]
+    )
     action_state_handoff_schema = written["components"]["schemas"][
         "StealthCommandSuiteActionStateHandoffAuditItem"
     ]
@@ -7871,6 +7899,24 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
     )
     assert "exchange_order_id_identity_allowed" in (
         action_state_handoff_summary_schema["properties"]
+    )
+    draft_readiness_schema = written["components"]["schemas"][
+        "StealthCommandSuiteCreateCancelDraftReadinessItem"
+    ]
+    assert "mutation_family" in draft_readiness_schema["properties"]
+    assert "command_workflow" in draft_readiness_schema["properties"]
+    assert "handoff_audit_row_present" in draft_readiness_schema["properties"]
+    assert "lifecycle_write_guard_required" in draft_readiness_schema["properties"]
+    assert "active_placement_evidence_required" in draft_readiness_schema["properties"]
+    assert "exchange_cancel_method" in draft_readiness_schema["properties"]
+    assert "exchange_order_id_identity_allowed" in draft_readiness_schema["properties"]
+    draft_readiness_summary_schema = written["components"]["schemas"][
+        "StealthCommandSuiteCreateCancelDraftReadinessSummary"
+    ]
+    assert "create_ready" in draft_readiness_summary_schema["properties"]
+    assert "cancel_ready" in draft_readiness_summary_schema["properties"]
+    assert "all_exchange_order_id_evidence_only" in (
+        draft_readiness_summary_schema["properties"]
     )
     assert "StealthCommandSuiteCancelReplaceBoundaryItem" in written["components"][
         "schemas"
@@ -38946,6 +38992,138 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert cancel_handoff["command_workflow"] == (
         AdminApiStealthCommandWorkflowSurface.STEALTH_CANCEL.value
     )
+    create_cancel_draft_readiness = payload["create_cancel_draft_readiness"]
+    assert payload["create_cancel_draft_readiness_count"] == 2
+    assert payload["blocked_create_cancel_draft_readiness_count"] == 2
+    assert payload["executable_create_cancel_draft_readiness_count"] == 0
+    assert len(create_cancel_draft_readiness) == 2
+    assert {
+        item["mutation_family"] for item in create_cancel_draft_readiness
+    } == {
+        AdminApiMutationFamilyType.STEALTH_CREATE.value,
+        AdminApiMutationFamilyType.STEALTH_CANCEL.value,
+    }
+    assert all(
+        item["status"] == AdminApiGateStatus.BLOCKED.value
+        for item in create_cancel_draft_readiness
+    )
+    assert all(
+        item["action_state"] == AdminApiActionState.BLOCKED.value
+        for item in create_cancel_draft_readiness
+    )
+    assert all(
+        item["command_status"] == AdminApiGateStatus.BLOCKED.value
+        for item in create_cancel_draft_readiness
+    )
+    assert all(
+        item["live_execution_status"] == AdminApiLiveExecutionStatus.LIVE_DISABLED.value
+        for item in create_cancel_draft_readiness
+    )
+    assert all(item["command_row_present"] is True for item in create_cancel_draft_readiness)
+    assert all(
+        item["action_state_row_present"] is True
+        for item in create_cancel_draft_readiness
+    )
+    assert all(
+        item["handoff_audit_row_present"] is True
+        for item in create_cancel_draft_readiness
+    )
+    assert all(item["command_workflow_available"] is True for item in create_cancel_draft_readiness)
+    assert all(item["draft_prefill_only"] is True for item in create_cancel_draft_readiness)
+    assert all(
+        item["order_specific_adjudication"] is False
+        for item in create_cancel_draft_readiness
+    )
+    assert all(
+        item["identity_key"] == "stealth_order_id"
+        for item in create_cancel_draft_readiness
+    )
+    assert all(
+        item["exchange_order_id_identity_allowed"] is False
+        for item in create_cancel_draft_readiness
+    )
+    assert all(item["manager_invocation_allowed"] is False for item in create_cancel_draft_readiness)
+    assert all(item["coinbase_submit_allowed"] is False for item in create_cancel_draft_readiness)
+    assert all(item["coinbase_cancel_allowed"] is False for item in create_cancel_draft_readiness)
+    assert all(item["coinbase_read_allowed"] is False for item in create_cancel_draft_readiness)
+    assert all(
+        item["reconciliation_execution_allowed"] is False
+        for item in create_cancel_draft_readiness
+    )
+    assert all(item["state_mutation_allowed"] is False for item in create_cancel_draft_readiness)
+    assert all(item["live_enabled"] is False for item in create_cancel_draft_readiness)
+    assert all(item["executable"] is False for item in create_cancel_draft_readiness)
+    assert all(
+        item["browser_authority"] == "display_only"
+        for item in create_cancel_draft_readiness
+    )
+    assert all(
+        item["bff_authority"] == "forward_only_no_execution"
+        for item in create_cancel_draft_readiness
+    )
+    draft_readiness_by_id = {
+        item["mutation_family"]: item for item in create_cancel_draft_readiness
+    }
+    create_draft_readiness = draft_readiness_by_id[
+        AdminApiMutationFamilyType.STEALTH_CREATE.value
+    ]
+    assert create_draft_readiness["route"] == "/api/v1/stealth/orders"
+    assert create_draft_readiness["selected_order_handoff_required"] is False
+    assert create_draft_readiness["selected_order_handoff_available"] is False
+    assert create_draft_readiness["lifecycle_write_guard_required"] is True
+    assert create_draft_readiness["active_placement_evidence_required"] is False
+    assert create_draft_readiness["exchange_truth_required"] is False
+    assert create_draft_readiness["next_required_contract"] == "lifecycle_write_guard"
+    assert create_draft_readiness["exchange_cancel_method"] is None
+    assert (
+        "lifecycle_write_guard"
+        in create_draft_readiness["missing_gate_chain"]
+    )
+    cancel_draft_readiness = draft_readiness_by_id[
+        AdminApiMutationFamilyType.STEALTH_CANCEL.value
+    ]
+    assert (
+        cancel_draft_readiness["route"]
+        == "/api/v1/stealth/orders/{stealth_order_id}/cancel"
+    )
+    assert cancel_draft_readiness["selected_order_handoff_required"] is True
+    assert cancel_draft_readiness["selected_order_handoff_available"] is True
+    assert cancel_draft_readiness["lifecycle_write_guard_required"] is False
+    assert cancel_draft_readiness["active_placement_evidence_required"] is True
+    assert cancel_draft_readiness["exchange_truth_required"] is True
+    assert (
+        cancel_draft_readiness["next_required_contract"]
+        == "active_placement_exchange_truth"
+    )
+    assert cancel_draft_readiness["exchange_cancel_method"] == "cancel_order(client_order_id)"
+    assert (
+        "active_placement_exchange_truth"
+        in cancel_draft_readiness["missing_gate_chain"]
+    )
+    create_cancel_draft_summary = payload["create_cancel_draft_readiness_summary"]
+    assert create_cancel_draft_summary["source"] == (
+        "phase_8107_stealth_create_cancel_draft_readiness"
+    )
+    assert create_cancel_draft_summary["status"] == AdminApiGateStatus.BLOCKED.value
+    assert create_cancel_draft_summary["draft_count"] == 2
+    assert create_cancel_draft_summary["blocked_draft_count"] == 2
+    assert create_cancel_draft_summary["executable_draft_count"] == 0
+    assert create_cancel_draft_summary["create_ready"] is False
+    assert create_cancel_draft_summary["cancel_ready"] is False
+    assert create_cancel_draft_summary["command_row_count"] == 2
+    assert create_cancel_draft_summary["action_state_row_count"] == 2
+    assert create_cancel_draft_summary["handoff_audit_row_count"] == 2
+    assert create_cancel_draft_summary["selected_order_handoff_required_count"] == 1
+    assert create_cancel_draft_summary["lifecycle_write_guard_required_count"] == 1
+    assert create_cancel_draft_summary["active_placement_evidence_required_count"] == 1
+    assert create_cancel_draft_summary["all_command_rows_present"] is True
+    assert create_cancel_draft_summary["all_action_state_rows_present"] is True
+    assert create_cancel_draft_summary["all_handoff_rows_present"] is True
+    assert create_cancel_draft_summary["all_browser_bff_display_only"] is True
+    assert create_cancel_draft_summary["all_live_disabled"] is True
+    assert create_cancel_draft_summary["all_exchange_order_id_evidence_only"] is True
+    assert create_cancel_draft_summary["submitted_notional_usdc"] == "0"
+    assert create_cancel_draft_summary["executed_notional_usdc"] == "0"
     move_handoff = action_state_handoff_by_id[
         AdminApiMutationFamilyType.STEALTH_MOVE.value
     ]

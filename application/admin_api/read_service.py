@@ -403,6 +403,8 @@ from .models import (
     StealthSelectedOrderActionStateItem,
     StealthCommandSuiteActionStateHandoffAuditItem,
     StealthCommandSuiteActionStateHandoffAuditSummary,
+    StealthCommandSuiteCreateCancelDraftReadinessItem,
+    StealthCommandSuiteCreateCancelDraftReadinessSummary,
     StealthCommandSuiteAdmissionContextItem,
     StealthCommandSuiteAdmissionReadinessItem,
     StealthCommandSuiteAdmissionRequirementItem,
@@ -19721,6 +19723,287 @@ class AdminApiReadService:
             )
         )
 
+        action_state_handoff_by_family = {
+            item.mutation_family: item for item in action_state_handoff_audits
+        }
+        create_cancel_readiness_specs = [
+            (
+                AdminApiMutationFamilyType.STEALTH_CREATE,
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_CREATE_WORKFLOW,
+                AdminApiStealthCommandWorkflowSurface.STEALTH_CREATE,
+                "new_stealth_order_id",
+                False,
+                True,
+                False,
+                None,
+            ),
+            (
+                AdminApiMutationFamilyType.STEALTH_CANCEL,
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_CANCEL_EXCHANGE_HANDLING,
+                AdminApiStealthCommandWorkflowSurface.STEALTH_CANCEL,
+                "selected_stealth_order_id",
+                True,
+                False,
+                True,
+                "cancel_order(client_order_id)",
+            ),
+        ]
+
+        def build_create_cancel_draft_readiness(
+            mutation_family: AdminApiMutationFamilyType,
+            workflow_family: AdminApiStealthCommandSuiteGapFamily,
+            command_workflow: AdminApiStealthCommandWorkflowSurface,
+            identity_value_source: str,
+            selected_order_handoff_required: bool,
+            lifecycle_write_guard_required: bool,
+            active_placement_evidence_required: bool,
+            exchange_cancel_method: str | None,
+        ) -> StealthCommandSuiteCreateCancelDraftReadinessItem:
+            command = command_by_family.get(mutation_family)
+            action_state = action_state_by_family.get(mutation_family)
+            handoff = action_state_handoff_by_family.get(mutation_family)
+            metadata = command_metadata.get(mutation_family, {})
+            missing_gate_chain = (
+                list(command.missing_gate_chain)
+                if command is not None
+                else ["command_row_missing"]
+            )
+            if lifecycle_write_guard_required:
+                next_required_contract = (
+                    "lifecycle_write_guard"
+                    if "lifecycle_write_guard" in missing_gate_chain
+                    else missing_gate_chain[0]
+                )
+            elif active_placement_evidence_required:
+                next_required_contract = (
+                    "active_placement_exchange_truth"
+                    if "active_placement_exchange_truth" in missing_gate_chain
+                    else missing_gate_chain[0]
+                )
+            else:
+                next_required_contract = missing_gate_chain[0]
+            blockers = (
+                list(action_state.blockers)
+                if action_state is not None
+                else ["action_state_row_missing"]
+            )
+            label = (
+                action_state.label
+                if action_state is not None
+                else str(mutation_family.value).replace("_", " ").title()
+            )
+            route = (
+                command.route
+                if command is not None
+                else str(metadata.get("surface", "")).split(" ", 1)[-1]
+            )
+            method = command.method if command is not None else "POST"
+            required_gate_chain = (
+                list(command.required_gate_chain) if command is not None else []
+            )
+            selected_order_handoff_available = (
+                handoff.selected_order_handoff_available
+                if handoff is not None
+                else False
+            )
+            return StealthCommandSuiteCreateCancelDraftReadinessItem(
+                mutation_family=mutation_family,
+                workflow_family=workflow_family,
+                command_workflow=command_workflow,
+                label=label,
+                route=route,
+                method=method,
+                identity_key=(
+                    command.identity_key if command is not None else "stealth_order_id"
+                ),
+                identity_value_source=identity_value_source,
+                status=AdminApiGateStatus.BLOCKED,
+                action_state=(
+                    action_state.action_state
+                    if action_state is not None
+                    else AdminApiActionState.NOT_MODELED
+                ),
+                command_status=(
+                    command.status
+                    if command is not None
+                    else AdminApiGateStatus.BLOCKED
+                ),
+                live_execution_status=(
+                    command.live_execution_status
+                    if command is not None
+                    else AdminApiLiveExecutionStatus.LIVE_DISABLED
+                ),
+                command_row_present=command is not None,
+                action_state_row_present=action_state is not None,
+                handoff_audit_row_present=handoff is not None,
+                command_workflow_available=(
+                    handoff.command_workflow_available
+                    if handoff is not None
+                    else False
+                ),
+                selected_order_handoff_required=selected_order_handoff_required,
+                selected_order_handoff_available=(
+                    selected_order_handoff_available
+                    if selected_order_handoff_required
+                    else False
+                ),
+                draft_prefill_only=True,
+                order_specific_adjudication=False,
+                lifecycle_write_guard_required=lifecycle_write_guard_required,
+                active_placement_evidence_required=(
+                    active_placement_evidence_required
+                ),
+                exchange_truth_required=(
+                    command.exchange_truth_required if command is not None else False
+                ),
+                backend_contract_required=True,
+                next_required_contract=next_required_contract,
+                exchange_cancel_method=exchange_cancel_method,
+                backend_owned=True,
+                route_bound=command.route_bound if command is not None else False,
+                browser_authority=(
+                    command.browser_authority
+                    if command is not None
+                    else "display_only"
+                ),
+                bff_authority=(
+                    command.bff_authority
+                    if command is not None
+                    else "forward_only_no_execution"
+                ),
+                live_enabled=False,
+                executable=False,
+                manager_invocation_allowed=False,
+                coinbase_submit_allowed=False,
+                coinbase_cancel_allowed=False,
+                coinbase_read_allowed=False,
+                reconciliation_execution_allowed=False,
+                state_mutation_allowed=False,
+                exchange_order_id_identity_allowed=False,
+                required_gate_chain=required_gate_chain,
+                missing_gate_chain=missing_gate_chain,
+                blockers=blockers,
+                backend_contract_refs=list(
+                    metadata.get("backend_contract_refs", [])
+                ),
+                frontend_contract_refs=list(
+                    metadata.get("frontend_contract_refs", [])
+                ),
+                documentation_refs=list(
+                    metadata.get("documentation_refs", [])
+                ),
+                evidence=[
+                    "Derived from build_stealth_command_suite.commands.",
+                    "Derived from selected_order_action_states and Phase 8106 action-state handoff audit rows.",
+                    "This is create/cancel draft readiness only; it is not order-specific execution acceptance.",
+                    "stealth_order_id remains the command identity; exchange order_id is evidence only.",
+                    "Coinbase cancellation must use the backend cancel_order(client_order_id) wrapper only after backend active-placement evidence passes.",
+                ],
+                detail=(
+                    f"{label} draft readiness is blocked until the backend "
+                    f"contract {next_required_contract} is satisfied. Browser "
+                    "and BFF surfaces may prefill a command draft but cannot "
+                    "invoke managers, call Coinbase, run reconciliation, or "
+                    "mutate stealth/order/exchange state."
+                ),
+            )
+
+        create_cancel_draft_readiness = [
+            build_create_cancel_draft_readiness(*spec)
+            for spec in create_cancel_readiness_specs
+        ]
+        create_cancel_draft_readiness_summary = (
+            StealthCommandSuiteCreateCancelDraftReadinessSummary(
+                status=AdminApiGateStatus.BLOCKED,
+                draft_count=len(create_cancel_draft_readiness),
+                blocked_draft_count=sum(
+                    1
+                    for item in create_cancel_draft_readiness
+                    if item.status == AdminApiGateStatus.BLOCKED
+                ),
+                executable_draft_count=sum(
+                    1 for item in create_cancel_draft_readiness if item.executable
+                ),
+                create_ready=any(
+                    item.mutation_family == AdminApiMutationFamilyType.STEALTH_CREATE
+                    and item.executable
+                    for item in create_cancel_draft_readiness
+                ),
+                cancel_ready=any(
+                    item.mutation_family == AdminApiMutationFamilyType.STEALTH_CANCEL
+                    and item.executable
+                    for item in create_cancel_draft_readiness
+                ),
+                command_row_count=sum(
+                    1 for item in create_cancel_draft_readiness if item.command_row_present
+                ),
+                action_state_row_count=sum(
+                    1
+                    for item in create_cancel_draft_readiness
+                    if item.action_state_row_present
+                ),
+                handoff_audit_row_count=sum(
+                    1
+                    for item in create_cancel_draft_readiness
+                    if item.handoff_audit_row_present
+                ),
+                selected_order_handoff_required_count=sum(
+                    1
+                    for item in create_cancel_draft_readiness
+                    if item.selected_order_handoff_required
+                ),
+                lifecycle_write_guard_required_count=sum(
+                    1
+                    for item in create_cancel_draft_readiness
+                    if item.lifecycle_write_guard_required
+                ),
+                active_placement_evidence_required_count=sum(
+                    1
+                    for item in create_cancel_draft_readiness
+                    if item.active_placement_evidence_required
+                ),
+                all_command_rows_present=all(
+                    item.command_row_present for item in create_cancel_draft_readiness
+                ),
+                all_action_state_rows_present=all(
+                    item.action_state_row_present
+                    for item in create_cancel_draft_readiness
+                ),
+                all_handoff_rows_present=all(
+                    item.handoff_audit_row_present
+                    for item in create_cancel_draft_readiness
+                ),
+                all_browser_bff_display_only=all(
+                    item.browser_authority == "display_only"
+                    and item.bff_authority == "forward_only_no_execution"
+                    for item in create_cancel_draft_readiness
+                ),
+                all_live_disabled=all(
+                    not item.live_enabled and not item.executable
+                    for item in create_cancel_draft_readiness
+                ),
+                all_exchange_order_id_evidence_only=all(
+                    not item.exchange_order_id_identity_allowed
+                    for item in create_cancel_draft_readiness
+                ),
+                backend_owned=True,
+                browser_authority="display_only",
+                bff_authority="forward_only_no_execution",
+                live_coinbase_orders_ran=False,
+                live_coinbase_read_ran=False,
+                submitted_notional_usdc="0",
+                executed_notional_usdc="0",
+                detail=(
+                    "Phase 8107 narrows operator draft readiness to stealth "
+                    "create and cancel. Create remains blocked on lifecycle "
+                    "write guard evidence. Cancel remains blocked on active "
+                    "placement exchange truth and must use cancel_order(client_order_id) "
+                    "only inside the backend-owned execution path after that "
+                    "evidence passes."
+                ),
+            )
+        )
+
         stealth_boundary = _enterprise_module_spot_boundary("stealth_orders")
         gap_required_gate_chain = [
             "route_inventory_contract",
@@ -27267,6 +27550,19 @@ class AdminApiReadService:
             ),
             action_state_handoff_audits=action_state_handoff_audits,
             action_state_handoff_audit_summary=action_state_handoff_audit_summary,
+            create_cancel_draft_readiness_count=len(create_cancel_draft_readiness),
+            blocked_create_cancel_draft_readiness_count=sum(
+                1
+                for item in create_cancel_draft_readiness
+                if item.status == AdminApiGateStatus.BLOCKED
+            ),
+            executable_create_cancel_draft_readiness_count=sum(
+                1 for item in create_cancel_draft_readiness if item.executable
+            ),
+            create_cancel_draft_readiness=create_cancel_draft_readiness,
+            create_cancel_draft_readiness_summary=(
+                create_cancel_draft_readiness_summary
+            ),
             coverage_gap_count=len(coverage_gaps),
             coverage_gaps=coverage_gaps,
             blocker_closure_count=len(blocker_closures),

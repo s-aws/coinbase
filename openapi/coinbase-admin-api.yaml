@@ -158766,6 +158766,335 @@ components:
       - detail
       title: StealthCommandSuiteCoverageGapItem
       description: Remaining stealth admin suite family that is not yet command-complete.
+    StealthCommandSuiteCreateCancelDraftReadinessItem:
+      properties:
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        workflow_family:
+          $ref: '#/components/schemas/AdminApiStealthCommandSuiteGapFamily'
+        command_workflow:
+          $ref: '#/components/schemas/AdminApiStealthCommandWorkflowSurface'
+        label:
+          type: string
+          title: Label
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        identity_key:
+          type: string
+          title: Identity Key
+          default: stealth_order_id
+        identity_value_source:
+          type: string
+          title: Identity Value Source
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        action_state:
+          $ref: '#/components/schemas/AdminApiActionState'
+        command_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        live_execution_status:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+        command_row_present:
+          type: boolean
+          title: Command Row Present
+          default: true
+        action_state_row_present:
+          type: boolean
+          title: Action State Row Present
+          default: true
+        handoff_audit_row_present:
+          type: boolean
+          title: Handoff Audit Row Present
+          default: true
+        command_workflow_available:
+          type: boolean
+          title: Command Workflow Available
+          default: true
+        selected_order_handoff_required:
+          type: boolean
+          title: Selected Order Handoff Required
+        selected_order_handoff_available:
+          type: boolean
+          title: Selected Order Handoff Available
+        draft_prefill_only:
+          type: boolean
+          title: Draft Prefill Only
+          default: true
+        order_specific_adjudication:
+          type: boolean
+          title: Order Specific Adjudication
+          default: false
+        lifecycle_write_guard_required:
+          type: boolean
+          title: Lifecycle Write Guard Required
+        active_placement_evidence_required:
+          type: boolean
+          title: Active Placement Evidence Required
+        exchange_truth_required:
+          type: boolean
+          title: Exchange Truth Required
+        backend_contract_required:
+          type: boolean
+          title: Backend Contract Required
+          default: true
+        next_required_contract:
+          type: string
+          title: Next Required Contract
+        exchange_cancel_method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Exchange Cancel Method
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_enabled:
+          type: boolean
+          title: Live Enabled
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        coinbase_submit_allowed:
+          type: boolean
+          title: Coinbase Submit Allowed
+          default: false
+        coinbase_cancel_allowed:
+          type: boolean
+          title: Coinbase Cancel Allowed
+          default: false
+        coinbase_read_allowed:
+          type: boolean
+          title: Coinbase Read Allowed
+          default: false
+        reconciliation_execution_allowed:
+          type: boolean
+          title: Reconciliation Execution Allowed
+          default: false
+        state_mutation_allowed:
+          type: boolean
+          title: State Mutation Allowed
+          default: false
+        exchange_order_id_identity_allowed:
+          type: boolean
+          title: Exchange Order Id Identity Allowed
+          default: false
+        required_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Required Gate Chain
+        missing_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Missing Gate Chain
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        backend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Backend Contract Refs
+        frontend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Frontend Contract Refs
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - mutation_family
+      - workflow_family
+      - command_workflow
+      - label
+      - route
+      - method
+      - identity_value_source
+      - action_state
+      - command_status
+      - live_execution_status
+      - selected_order_handoff_required
+      - selected_order_handoff_available
+      - lifecycle_write_guard_required
+      - active_placement_evidence_required
+      - exchange_truth_required
+      - next_required_contract
+      - detail
+      title: StealthCommandSuiteCreateCancelDraftReadinessItem
+      description: Phase 8107 readiness row for stealth create/cancel command drafts.
+    StealthCommandSuiteCreateCancelDraftReadinessSummary:
+      properties:
+        source:
+          type: string
+          title: Source
+          default: phase_8107_stealth_create_cancel_draft_readiness
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        draft_count:
+          type: integer
+          minimum: 0.0
+          title: Draft Count
+        blocked_draft_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Draft Count
+        executable_draft_count:
+          type: integer
+          minimum: 0.0
+          title: Executable Draft Count
+        create_ready:
+          type: boolean
+          title: Create Ready
+          default: false
+        cancel_ready:
+          type: boolean
+          title: Cancel Ready
+          default: false
+        command_row_count:
+          type: integer
+          minimum: 0.0
+          title: Command Row Count
+        action_state_row_count:
+          type: integer
+          minimum: 0.0
+          title: Action State Row Count
+        handoff_audit_row_count:
+          type: integer
+          minimum: 0.0
+          title: Handoff Audit Row Count
+        selected_order_handoff_required_count:
+          type: integer
+          minimum: 0.0
+          title: Selected Order Handoff Required Count
+        lifecycle_write_guard_required_count:
+          type: integer
+          minimum: 0.0
+          title: Lifecycle Write Guard Required Count
+        active_placement_evidence_required_count:
+          type: integer
+          minimum: 0.0
+          title: Active Placement Evidence Required Count
+        all_command_rows_present:
+          type: boolean
+          title: All Command Rows Present
+          default: false
+        all_action_state_rows_present:
+          type: boolean
+          title: All Action State Rows Present
+          default: false
+        all_handoff_rows_present:
+          type: boolean
+          title: All Handoff Rows Present
+          default: false
+        all_browser_bff_display_only:
+          type: boolean
+          title: All Browser Bff Display Only
+          default: false
+        all_live_disabled:
+          type: boolean
+          title: All Live Disabled
+          default: false
+        all_exchange_order_id_evidence_only:
+          type: boolean
+          title: All Exchange Order Id Evidence Only
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - draft_count
+      - blocked_draft_count
+      - executable_draft_count
+      - command_row_count
+      - action_state_row_count
+      - handoff_audit_row_count
+      - selected_order_handoff_required_count
+      - lifecycle_write_guard_required_count
+      - active_placement_evidence_required_count
+      - detail
+      title: StealthCommandSuiteCreateCancelDraftReadinessSummary
+      description: Aggregate Phase 8107 create/cancel draft readiness evidence.
     StealthCommandSuiteEnablementCandidateReviewItem:
       properties:
         candidate_id:
@@ -159538,6 +159867,27 @@ components:
         action_state_handoff_audit_summary:
           anyOf:
           - $ref: '#/components/schemas/StealthCommandSuiteActionStateHandoffAuditSummary'
+          - type: 'null'
+        create_cancel_draft_readiness_count:
+          type: integer
+          title: Create Cancel Draft Readiness Count
+          default: 0
+        blocked_create_cancel_draft_readiness_count:
+          type: integer
+          title: Blocked Create Cancel Draft Readiness Count
+          default: 0
+        executable_create_cancel_draft_readiness_count:
+          type: integer
+          title: Executable Create Cancel Draft Readiness Count
+          default: 0
+        create_cancel_draft_readiness:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteCreateCancelDraftReadinessItem'
+          type: array
+          title: Create Cancel Draft Readiness
+        create_cancel_draft_readiness_summary:
+          anyOf:
+          - $ref: '#/components/schemas/StealthCommandSuiteCreateCancelDraftReadinessSummary'
           - type: 'null'
         coverage_gap_count:
           type: integer

@@ -236,8 +236,24 @@ work. Historical milestone detail belongs in
   command identity, or second trading path was added. Focused backend and
   frontend validation passed; live Coinbase execution was not run and
   submitted/executed notional stayed 0 USDC.
-- Exact next implementation slice after Phase 8106 validation: move to
-  Phase 8107 Stealth Create/Cancel Draft Readiness. Do not add browser
+- Phase 8107 implementation status: `GET /api/v1/stealth/command-suite`
+  now exposes backend-owned `create_cancel_draft_readiness` and
+  `create_cancel_draft_readiness_summary` for `stealth_create` and
+  `stealth_cancel`. Both rows remain blocked, prefill-only, not live-enabled,
+  non-executable, and keyed by `stealth_order_id`. Create is blocked on
+  `lifecycle_write_guard` and does not require selected-order handoff. Cancel
+  is blocked on `active_placement_exchange_truth`, requires selected-order
+  handoff, and records that exchange cancellation must use the backend
+  `cancel_order(client_order_id)` wrapper only after backend active-placement
+  evidence passes. Frontend generated schema, mock fixtures, runtime tests,
+  typed stealth adapters, and the Stealth Orders command-suite panel consume
+  the same fields. No browser/BFF execution authority, route-local execution,
+  direct Coinbase calls, manager invocation, reconciliation execution,
+  order/exchange state mutation, exchange `order_id` command identity, or
+  second trading path was added. Live Coinbase execution was not run and
+  submitted/executed notional stayed 0 USDC.
+- Exact next implementation slice after Phase 8107 validation: move to
+  Phase 8108 Stealth Reveal/Move/Reprice Draft Readiness. Do not add browser
   scheduler, BFF runner authority, retry loops, route-local execution, direct
   Coinbase calls, manager invocation, reconciliation execution, order/exchange
   state mutation, exchange `order_id` command identity, or a second trading

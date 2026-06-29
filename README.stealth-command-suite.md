@@ -275,6 +275,17 @@ command-workflow-only row; the other six rows are selected-order prefill
 handoffs. Reveal may report `live_execution_status=approval_required` because
 it mirrors backend dry-run service posture, but it remains `live_enabled=false`
 and `executable=false`.
+The command-suite response also exposes `create_cancel_draft_readiness` and
+`create_cancel_draft_readiness_summary` for Phase 8107. These rows narrow the
+operator-facing draft handoff to stealth create and stealth cancel without
+changing execution authority. Create stays blocked on
+`lifecycle_write_guard`, does not require a selected-order handoff, and cannot
+submit Coinbase orders or mutate lifecycle state. Cancel stays blocked on
+`active_placement_exchange_truth`, requires selected-order prefill, and may
+only reach exchange cancellation through the backend-owned
+`cancel_order(client_order_id)` path after active-placement evidence passes.
+Both rows are read-only, prefill-only, non-executable, live-disabled, keyed by
+`stealth_order_id`, and treat exchange `order_id` as evidence only.
 
 ## Safety Constraints
 

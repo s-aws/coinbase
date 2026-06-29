@@ -129,6 +129,26 @@ Phase-end stale-subagent sweep completed: reviewer findings were consumed and
 the agent was closed. Live Coinbase execution was not run; actual
 submitted/executed notional remains `0` USDC.
 
+Phase 8107 create/cancel draft readiness evidence: blind/contextless reviewer
+`019f1534-a77a-7e63-9c61-560e040a4d58` passed with no actionable gaps. The
+reviewer verified backend `GET /api/v1/stealth/command-suite` exposes exactly
+two `create_cancel_draft_readiness` rows, `stealth_create` and
+`stealth_cancel`, plus `create_cancel_draft_readiness_summary`; verified both
+rows are blocked, read-only, prefill-only, non-executable, not live-enabled,
+`stealth_order_id` keyed, and exchange `order_id` evidence-only; verified
+create is blocked on `lifecycle_write_guard` with no selected-order handoff;
+and verified cancel is blocked on `active_placement_exchange_truth`, requires
+selected-order handoff, and names backend `cancel_order(client_order_id)`
+without granting Coinbase cancel authority. The reviewer traced frontend
+consumption through generated schema, canonical backend client/runtime, typed
+stealth adapters, mock fixtures, runtime snapshots, and the Stealth Orders
+Phase 8107 panel. No browser/BFF trading authority, route-local execution,
+manager invocation, Coinbase submit/cancel/read authority, reconciliation
+execution, local state mutation, exchange `order_id` command identity, or
+second trading path was found. Phase-end stale-subagent sweep completed:
+reviewer findings were consumed and the agent was closed. Live Coinbase
+execution was not run; actual submitted/executed notional remains `0` USDC.
+
 ## Campaign/Sweep Operator Controls Review - Phases 8081-8100
 
 Result: planned. Closeout ready. Scope: phases `8081-8100`, after completed history through

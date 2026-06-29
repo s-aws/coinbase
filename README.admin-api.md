@@ -1640,6 +1640,18 @@ rows report `live_disabled`. None of those statuses grant browser/BFF
 execution, manager invocation, Coinbase submit/cancel/read authority,
 reconciliation execution, local state mutation, exchange `order_id` command
 identity, or command enablement.
+The same command-suite response also exposes Phase 8107
+`create_cancel_draft_readiness` and
+`create_cancel_draft_readiness_summary`. These rows are limited to
+`stealth_create` and `stealth_cancel` so operators can see why those drafts
+remain blocked before any live action exists. Create is blocked on
+`lifecycle_write_guard` and has no selected-order handoff. Cancel is blocked on
+`active_placement_exchange_truth`, requires selected-order handoff, and records
+that exchange cancellation must use the backend `cancel_order(client_order_id)`
+wrapper after backend active-placement evidence passes. The rows are still
+read-only evidence: no manager invocation, Coinbase submit/cancel/read,
+reconciliation execution, state mutation, exchange `order_id` command identity,
+browser/BFF authority, route-local execution, or second trading path is added.
 Concrete live-disabled stealth command responses may include
 `stealth_admission_context`. That response echo is different from the
 read-only command-suite row: the command path has route, identity, actor,
