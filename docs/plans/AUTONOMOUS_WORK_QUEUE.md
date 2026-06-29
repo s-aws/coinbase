@@ -354,6 +354,19 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Link manual Spot command results into the audit timeline by client_order_id
   and backend evidence ids without automatic resubmission.
+- Evidence update 2026-06-29: completed as frontend-only command result
+  handoff over existing backend evidence. The frontend now labels the shared
+  command result panel and audit links as backend-result audit timeline
+  evidence for both dry-submit and backend-mediated manual Spot live-submit
+  responses. Accepted Spot responses with backend
+  `post_submit_reconciliation` evidence link `client_order_id`, correlation
+  id, audit id, and direct-order audit readback anchors without adding backend
+  schema, command execution, automatic resubmission, reconciliation execution,
+  order/exchange mutation, Coinbase calls, browser authority, or BFF execution
+  authority. Backend and frontend `AGENTS.md` requirements were re-reviewed
+  during this phase and did not change direction. No phase-scoped subagents
+  were spawned; live Coinbase execution was not run and submitted/executed
+  notional stayed 0 USDC.
 
 ### Phase 8072 - Orders/Fills To Reconciliation Handoff
 

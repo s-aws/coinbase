@@ -201,6 +201,13 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Link manual Spot command results into the audit timeline by client_order_id
   and backend evidence ids without automatic resubmission.
+- Evidence update 2026-06-29: completed as frontend-only command result
+  handoff over existing backend evidence. Manual Spot command result links now
+  point operators from backend response identities to Audit Workbench anchors
+  and direct-order audit readback anchors, while keeping backend command
+  admission, reconciliation, live execution, and Coinbase authority unchanged.
+  No phase-scoped subagents were spawned; live Coinbase execution was not run
+  and submitted/executed notional stayed 0 USDC.
 
 ### Phase 8072 - Orders/Fills To Reconciliation Handoff
 
