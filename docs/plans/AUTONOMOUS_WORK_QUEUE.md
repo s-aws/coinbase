@@ -495,6 +495,13 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Commit and push synchronized backend/frontend evidence with no-live notional
   reporting.
+- Evidence update 2026-06-29: synchronized Phase 8079 remediation and review
+  evidence was committed and pushed on branch
+  `codex/stealth-live-service-decision-3501`. Backend commit `b104f226`
+  recorded blind/contextless review evidence and roadmap updates. Frontend
+  commit `7016cca` clarified the Command Workflows role boundary, tests, and
+  docs. Live Coinbase execution was not run; submitted notional `0` USDC,
+  executed notional `0` USDC.
 
 ## Completed Phases 8041-8060
 
