@@ -191,6 +191,11 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Render reconciliation status, blockers, handoff ids, unsupported states, and
   next owning module in the operator UI.
+- Evidence update 2026-06-29: completed as a frontend-only evidence panel
+  over existing Audit Workbench reconciliation links; no backend live,
+  proof-writing, or reconciliation execution behavior changed. No
+  phase-scoped subagents were spawned; live Coinbase execution was not run and
+  submitted/executed notional stayed 0 USDC.
 
 ### Phase 8071 - Spot Command Result To Audit Timeline Handoff
 
