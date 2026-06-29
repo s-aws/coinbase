@@ -74,8 +74,8 @@ def test_autonomous_work_queue_check_covers_approved_20_phase_batch():
     assert AUTONOMOUS_WORK_QUEUE_SUMMARY_PREFIX == (
         "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
     )
-    assert AUTONOMOUS_APPROVED_PHASE_RANGE == "8061-8080"
-    assert AUTONOMOUS_APPROVED_PHASES == tuple(range(8061, 8081))
+    assert AUTONOMOUS_APPROVED_PHASE_RANGE == "8101-8120"
+    assert AUTONOMOUS_APPROVED_PHASES == tuple(range(8101, 8121))
     check_results = {check["name"]: check for check in summary["checks"]}
     failed_checks = {
         name: check for name, check in check_results.items() if not check["passed"]
@@ -88,7 +88,7 @@ def test_autonomous_work_queue_check_covers_approved_20_phase_batch():
             "evidence"
         ]
         assert review_evidence["first_review_heading"] == (
-            "## Audit/Reconciliation Operator Correlation Review - Phases 8061-8080"
+            "## Stealth Lifecycle Operator Controls Review - Phases 8101-8120"
         )
         assert (
             "Fresh blind/contextless backend re-review"

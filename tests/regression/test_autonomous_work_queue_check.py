@@ -18,36 +18,36 @@ def test_release_0_1_phase_titles_match_approved_product_pivot() -> None:
 
 def test_release_0_1_phase_titles_reject_proof_summary_drift() -> None:
     body = _queue_body().replace(
-        "### Phase 8053 - BFF Forwarding Boundary Assertions",
-        "### Phase 8053 - Futures/Perpetuals Proof Summary Expansion",
+        "### Phase 8116 - No Browser/BFF Stealth Authority Assertions",
+        "### Phase 8116 - Futures/Perpetuals Proof Summary Expansion",
     )
 
     result = checker._check_release_phase_titles(body)
 
     assert not result.passed
-    assert result.evidence["mismatched_phase_titles"][8053] == {
-        "expected": "BFF Forwarding Boundary Assertions",
+    assert result.evidence["mismatched_phase_titles"][8116] == {
+        "expected": "No Browser/BFF Stealth Authority Assertions",
         "actual": "Futures/Perpetuals Proof Summary Expansion",
     }
-    assert result.evidence["proof_only_active_phase_titles"][8053] == (
+    assert result.evidence["proof_only_active_phase_titles"][8116] == (
         "Futures/Perpetuals Proof Summary Expansion"
     )
 
 
 def test_release_0_1_phase_titles_reject_unapproved_active_phase() -> None:
     body = _queue_body().replace(
-        "### Phase 8053 - BFF Forwarding Boundary Assertions",
+        "### Phase 8116 - No Browser/BFF Stealth Authority Assertions",
         (
-            "### Phase 8061 - Futures/Perpetuals Request Payload Evidence\n\n"
+            "### Phase 8121 - Futures/Perpetuals Request Payload Evidence\n\n"
             "- This would reopen proof-only drift.\n\n"
-            "### Phase 8053 - BFF Forwarding Boundary Assertions"
+            "### Phase 8116 - No Browser/BFF Stealth Authority Assertions"
         ),
     )
 
     result = checker._check_release_phase_titles(body)
 
     assert not result.passed
-    assert 8061 in result.evidence["unexpected_active_phase_ids"]
-    assert result.evidence["proof_only_active_phase_titles"][8061] == (
+    assert 8121 in result.evidence["unexpected_active_phase_ids"]
+    assert result.evidence["proof_only_active_phase_titles"][8121] == (
         "Futures/Perpetuals Request Payload Evidence"
     )

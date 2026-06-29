@@ -24,13 +24,15 @@ routes remain live-disabled/fail-closed and must not call Coinbase.
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Active Release 0.1 `8081-8100` adds a Campaign/Sweep Operator Controls slice
-so operators can inspect campaign and sweep automation state, review scheduler,
-retry, and control readiness, and use backend-owned no-live controls through
-the enterprise frontend/API without browser scheduler, BFF runner, or Coinbase
-execution authority while completed `8061-8080` carries the
-Audit/Reconciliation Operator Correlation evidence. The governing question for
-new work is: Does this make the frontend able to manage the project?
+Active Release 0.1 `8101-8120` adds a Stealth Lifecycle Operator Controls
+slice so operators can inspect stealth lifecycle state, exchange-reality
+evidence, mutation-claim posture, command readiness, post-write evidence, and
+blocked create/reveal/move/cancel/recovery/reconciliation paths through the
+enterprise frontend/API without browser/BFF trading authority, route-local
+execution, Coinbase calls, state mutation, hide-again shortcuts, or a second
+trading path while completed `8081-8100` carries the Campaign/Sweep Operator
+Controls evidence. The governing question for new work is: Does this make the
+frontend able to manage the project?
 
 Phase 8082 adds `operator_scope_count` and `operator_scope` to the spot sweep
 automation-service status response. The rows classify read evidence, local

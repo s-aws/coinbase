@@ -4,17 +4,18 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current Release 0.1 scope: `8081-8100`.
+Current Release 0.1 scope: `8101-8120`.
 
-Current Release 0.1 scope details: `8081-8100` adds a Campaign/Sweep Operator
-Controls slice so operators can inspect campaign and sweep automation state,
-review scheduler, retry, and control readiness, and use backend-owned no-live
-controls through the enterprise frontend/API. Active work must clear the
-Automation and Campaigns Release 0.1 blocker without adding browser scheduler,
-BFF runner authority, route-local FastAPI execution, dashboard WebSocket calls,
-direct Coinbase calls outside existing backend services, unbounded loops,
-reconciliation execution, order/exchange state mutation, or a second
-automation path.
+Current Release 0.1 scope details: `8101-8120` adds a Stealth Lifecycle
+Operator Controls slice so operators can inspect stealth lifecycle state,
+exchange-reality evidence, mutation-claim posture, command readiness,
+post-write evidence, and blocked create/reveal/move/cancel/recovery/
+reconciliation paths through the enterprise frontend/API. Active work must
+clear the Stealth commands Release 0.1 blocker without adding browser/BFF
+trading authority, route-local FastAPI execution, dashboard WebSocket calls,
+direct Coinbase calls outside existing backend services, lifecycle/order/
+exchange state mutation, hide-again shortcuts, exchange-order id tracking, or
+a second trading path.
 
 Phase 8082 baseline: the spot sweep automation-service status route now
 returns `operator_scope_count` and backend-owned `operator_scope` rows for
@@ -38,7 +39,8 @@ evidence, retry-plan readiness, unsupported browser/BFF/route-local behavior,
 and missing backend execution contracts without granting scheduler, runner,
 reconciliation, live Coinbase, browser/BFF execution, or second-path authority.
 
-Completed Release 0.1 scope: `8061-8080` added the Audit/Reconciliation
+Completed Release 0.1 scope: `8081-8100` added the Campaign/Sweep Operator
+Controls slice. Completed `8061-8080` added the Audit/Reconciliation
 Operator Correlation slice. Completed `8041-8060` added the Spot Command
 Operator E2E slice. Completed `8021-8040` added backend-owned
 movement/repricing action-state rows and the frontend action-state matrix.

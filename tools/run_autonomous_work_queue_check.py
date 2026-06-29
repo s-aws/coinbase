@@ -71,29 +71,29 @@ STALE_REGRESSION_POLICY_TEXT = (
     "Backend regression is required only when backend files change",
 )
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-APPROVED_PHASE_RANGE = "8081-8100"
-APPROVED_PHASES = tuple(range(8081, 8101))
+APPROVED_PHASE_RANGE = "8101-8120"
+APPROVED_PHASES = tuple(range(8101, 8121))
 EXPECTED_RELEASE_PHASE_TITLES = {
-    8081: "Advance Active Queue Range",
-    8082: "Campaign/Sweep Operator Scope",
-    8083: "Backend Campaign State Inventory",
-    8084: "Sweep Automation Service Status Contract",
-    8085: "Sweep Control Command Contract Review",
-    8086: "Campaign Execution Dry-Run Readiness",
-    8087: "Frontend Campaign Status Adapter",
-    8088: "Frontend Sweep Service Adapter",
-    8089: "Campaigns Control Panel UX",
-    8090: "Sweep Automation Control UX",
-    8091: "Command Workflow Campaign Handoffs",
-    8092: "Automation Limits And Caps Visibility",
-    8093: "Scheduler/Retry Unsupported Gap Surfacing",
-    8094: "No Browser/BFF Scheduler Authority Assertions",
-    8095: "Mock Runtime Parity",
-    8096: "Route-To-UI Matrix Campaign Update",
-    8097: "Focused Backend Tests",
-    8098: "Focused Frontend Tests",
-    8099: "Blind Contextless Review",
-    8100: "Commit And Push Evidence",
+    8101: "Advance Active Queue Range",
+    8102: "Stealth Operator Scope",
+    8103: "Backend Stealth Route Inventory",
+    8104: "Stealth Exchange-Reality Contract Map",
+    8105: "Stealth Mutation-Claim Contract Map",
+    8106: "Stealth Command-Suite Action-State Audit",
+    8107: "Stealth Create/Cancel Draft Readiness",
+    8108: "Stealth Reveal/Move/Reprice Draft Readiness",
+    8109: "Stealth Recovery/Reconciliation Gap Surfacing",
+    8110: "Post-Write Evidence Contract Review",
+    8111: "Frontend Stealth Status Adapter",
+    8112: "Stealth Detail Action Matrix UX",
+    8113: "Command Workflow Stealth Handoffs",
+    8114: "Exchange Truth Evidence UX",
+    8115: "Mutation Claim And Post-Write Evidence UX",
+    8116: "No Browser/BFF Stealth Authority Assertions",
+    8117: "Mock Runtime Parity",
+    8118: "Route-To-UI Matrix Stealth Update",
+    8119: "Focused Backend And Frontend Tests",
+    8120: "Blind Review And Evidence Push",
 }
 PROOF_ONLY_ACTIVE_PHASE_TITLE_PATTERNS = (
     re.compile(r"Futures/Perpetuals", re.IGNORECASE),
@@ -104,14 +104,16 @@ PROOF_ONLY_ACTIVE_PHASE_TITLE_PATTERNS = (
     re.compile(r"Summary Evidence", re.IGNORECASE),
     re.compile(r"Display Evidence", re.IGNORECASE),
 )
-PREVIOUS_COMPLETED_PHASE_RANGE = "8061-8080"
+PREVIOUS_COMPLETED_PHASE_RANGE = "8081-8100"
 RELEASE_PIVOT_PHRASE = (
-    "Active Release 0.1 `8081-8100` adds a Campaign/Sweep Operator Controls "
-    "slice so operators can inspect campaign and sweep automation state, "
-    "review scheduler, retry, and control readiness, and use backend-owned "
-    "no-live controls through the enterprise frontend/API without browser "
-    "scheduler, BFF runner, or Coinbase execution authority while completed "
-    "`8061-8080` carries the Audit/Reconciliation Operator Correlation "
+    "Active Release 0.1 `8101-8120` adds a Stealth Lifecycle Operator "
+    "Controls slice so operators can inspect stealth lifecycle state, "
+    "exchange-reality evidence, mutation-claim posture, command readiness, "
+    "post-write evidence, and blocked create/reveal/move/cancel/recovery/"
+    "reconciliation paths through the enterprise frontend/API without "
+    "browser/BFF trading authority, route-local execution, Coinbase calls, "
+    "state mutation, hide-again shortcuts, or a second trading path while "
+    "completed `8081-8100` carries the Campaign/Sweep Operator Controls "
     "evidence."
 )
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"

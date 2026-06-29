@@ -5,12 +5,18 @@ position evidence through the enterprise Admin API. It is a separate module,
 not a Spot variant.
 
 Current active work has pivoted to Release 0.1 operator-admin delivery.
-Active Release 0.1 `8081-8100` adds a Campaign/Sweep Operator Controls slice
-so operators can inspect campaign and sweep automation state, review scheduler,
-retry, and control readiness, and use backend-owned no-live controls through
-the enterprise frontend/API without browser scheduler, BFF runner, or Coinbase
-execution authority.
-Exact active release phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Operator Controls slice so operators can inspect campaign and sweep automation state, review scheduler, retry, and control readiness, and use backend-owned no-live controls through the enterprise frontend/API without browser scheduler, BFF runner, or Coinbase execution authority while completed `8061-8080` carries the Audit/Reconciliation Operator Correlation evidence.
+Active Release 0.1 `8101-8120` adds a Stealth Lifecycle Operator Controls
+slice so operators can inspect stealth lifecycle state, exchange-reality
+evidence, mutation-claim posture, command readiness, post-write evidence, and
+blocked create/reveal/move/cancel/recovery/reconciliation paths through the
+enterprise frontend/API without browser/BFF trading authority, route-local
+execution, Coinbase calls, state mutation, hide-again shortcuts, or a second
+trading path.
+Exact active release phrase: Active Release 0.1 `8101-8120` adds a Stealth Lifecycle Operator Controls slice so operators can inspect stealth lifecycle state, exchange-reality evidence, mutation-claim posture, command readiness, post-write evidence, and blocked create/reveal/move/cancel/recovery/reconciliation paths through the enterprise frontend/API without browser/BFF trading authority, route-local execution, Coinbase calls, state mutation, hide-again shortcuts, or a second trading path while completed `8081-8100` carries the Campaign/Sweep Operator Controls evidence.
+Completed Release 0.1 `8081-8100` added a Campaign/Sweep Operator Controls
+slice so operators can inspect campaign and sweep automation state, scheduler
+posture, retry posture, controls, limits, blockers, and no-live proof through
+the enterprise frontend/API without browser/BFF execution authority.
 Completed Release 0.1 `8061-8080` added an Audit/Reconciliation Operator
 Correlation slice so operators can correlate command attempts, approvals,
 admission audits, cap/guard decisions, exchange intent, fills, and

@@ -147,20 +147,21 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- Latest completed autonomous range: `8061-8080` under Release 0.1.
+- Latest completed autonomous range: `8081-8100` under Release 0.1.
 - Latest completed and pushed range before the active Release 0.1 work:
-  `8061-8080`.
-- Active autonomous range: `8081-8100` under Release 0.1.
-- Current active range: `8081-8100` adds a Campaign/Sweep Operator Controls
-  slice so campaign and sweep automation state, scheduler posture, retry
-  posture, controls, limits, blockers, and no-live proof are usable through
-  the enterprise frontend/API. Every new phase must clear the Automation and
-  Campaigns Release 0.1 blocker or directly
-  improve the usable admin product. Unsupported backend behavior must be
-  surfaced explicitly; do not implement missing behavior in the browser, BFF,
-  dashboard WebSockets, route-local FastAPI handlers, direct Coinbase calls,
-  scheduler/runner execution, reconciliation execution, order/exchange state
-  mutation, unbounded loops, or any second automation path.
+  `8081-8100`.
+- Active autonomous range: `8101-8120` under Release 0.1.
+- Current active range: `8101-8120` adds a Stealth Lifecycle Operator Controls
+  slice so stealth lifecycle state, exchange-reality evidence, mutation-claim
+  posture, command readiness, post-write evidence, and blocked create/reveal/
+  move/cancel/recovery/reconciliation paths are usable through the enterprise
+  frontend/API. Every new phase must clear the Stealth commands Release 0.1
+  blocker or directly improve the usable admin product. Unsupported backend
+  behavior must be surfaced explicitly; do not implement missing behavior in
+  the browser, BFF, dashboard WebSockets, route-local FastAPI handlers, direct
+  Coinbase calls, lifecycle/order/exchange state mutation, hide-again
+  shortcuts, exchange-order id tracking, reconciliation execution, or any
+  second trading path.
 - Phase 8082 added the backend-owned campaign/sweep operator scope contract to
   `GET /api/v1/spot/sweep/automation-service`: five `operator_scope` rows now
   classify read evidence, local controls, dry-run review, execution gaps, and
@@ -278,11 +279,17 @@ notional, retained inventory, reconciliation result, and audit ids.
   live-service dependency, service-level acknowledgement rejection before
   REST, and can only reach `cancel_order(client_order_id)` when all backend
   gates pass.
-- Exact next implementation slice: close active `8081-8100` Campaign/Sweep
-  Operator Controls with Phase 8100 synchronized evidence commit/push, then
-  advance the next release-linked range only through an explicit active-range
-  transition that updates the autonomous validators and ties the new phases to
-  the highest-impact remaining Release 0.1 route-to-UI blocker.
+- Exact next implementation slice: continue active `8101-8120` Stealth
+  Lifecycle Operator Controls with Phase 8101 active-range transition until
+  backend/frontend docs, validators, runtime evidence, generated contracts,
+  and focused phase-range tests consistently report `8101-8120`; then move to
+  Phase 8102 Stealth Operator Scope. Current Phase 8101 validation has backend
+  autonomous, focused phase-range regressions, OpenAPI freshness, ownership,
+  frontend autonomous, generated API, typecheck, lint, focused unit tests, and
+  stale-process checks passing. The full Admin API contract file timed out in
+  this environment and should be rerun at a major closeout gate.
+  Completed `8081-8100` Campaign/Sweep Operator Controls work is pushed in
+  backend commit `b8fd1a20` and frontend commit `1dc0baa`.
   Completed `8061-8080` Audit/Reconciliation Operator Correlation work is
   pushed in backend commit `e53ea6c0` and frontend commit `f29eaa0`.
   Completed `8041-8060` Spot Command Operator E2E work is pushed in backend

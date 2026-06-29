@@ -1,3 +1,33 @@
+## Stealth Lifecycle Operator Controls Review - Phases 8101-8120
+
+Result: planned. Scope: phases `8101-8120`, after completed history through
+`8081-8100`, adds a Stealth Lifecycle Operator Controls slice so operators
+can inspect stealth lifecycle state, exchange-reality evidence, mutation-claim
+posture, command readiness, post-write evidence, and blocked create/reveal/
+move/cancel/recovery/reconciliation paths through the enterprise frontend/API
+without browser/BFF trading authority, route-local execution, Coinbase calls,
+state mutation, hide-again shortcuts, or a second trading path.
+
+No live Coinbase execution is planned; actual submitted/executed notional
+remains `0` USDC. Boundary evidence for current Release 0.1 review: Release
+0.1 Operator Admin Pivot; Does this make the frontend able to manage the
+project?; every phase must clear a named Release 0.1 blocker or directly
+improve the usable private operator MVP; unsupported` or `not_modeled` gaps
+must remain explicit; no proof-only expansion; no browser/BFF execution
+authority; no second trading path.
+Required exact checker text: actual submitted/executed notional remains `0` USDC; Release 0.1 Operator Admin Pivot; Does this make the frontend able to manage the project?; no browser/BFF execution authority.
+
+Phase 8101 range-selection evidence: blind/contextless reviewer
+`019f1438-6acf-70e2-aad2-fab95b575e99` passed the selection of `8101-8120`
+for Stealth Lifecycle Operator Controls. The reviewer found stealth commands
+are a P0 Release 0.1 blocker, route-to-UI/workflow matrices still mark stealth
+as blocked by exchange-reality, lifecycle-write, live-disabled, and
+reconciliation gates, and no other blocker is obviously higher impact after
+Campaign/Sweep Operator Controls. The pass is conditional on keeping this
+range to backend-owned operator management/gate surfacing, not live stealth
+execution. Phase-end stale-subagent sweep completed: reviewer findings were
+consumed and the agent was closed.
+
 ## Campaign/Sweep Operator Controls Review - Phases 8081-8100
 
 Result: planned. Closeout ready. Scope: phases `8081-8100`, after completed history through

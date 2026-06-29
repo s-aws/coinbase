@@ -24,46 +24,47 @@ work. Historical milestone detail belongs in
 
 ## Current Phase
 
-- Latest completed and pushed range before this work: `8061-8080`.
+- Latest completed and pushed range before this work: `8081-8100`.
 - Latest completed and pushed range before the active Release 0.1 work:
-  `8061-8080`.
-- Active approved range: `8081-8100`.
-- Scope: Campaign/Sweep Operator Controls under Release 0.1. The active range
-  must make campaign and sweep automation state, scheduler posture, retry
-  posture, controls, limits, blockers, and no-live proof inspectable and usable
-  through the enterprise frontend/API without relying on proof-of-concept
-  dashboards. Every phase must either clear the Automation and Campaigns
+  `8081-8100`.
+- Active approved range: `8101-8120`.
+- Scope: Stealth Lifecycle Operator Controls under Release 0.1. The active
+  range must make stealth lifecycle state, exchange-reality evidence,
+  mutation-claim posture, command readiness, post-write evidence, and blocked
+  create/reveal/move/cancel/recovery/reconciliation paths inspectable and
+  usable through the enterprise frontend/API without relying on proof-of-
+  concept dashboards. Every phase must either clear the Stealth commands
   Release 0.1 blocker from
   `docs/plans/ADMIN_RELEASE_0_1_BURNDOWN.md` or directly improve the
-  frontend's ability to manage backend-supported campaign/sweep automation
+  frontend's ability to manage backend-supported stealth lifecycle
   workflows.
 - Unsupported backend behavior must remain explicit as `unsupported` or `not_modeled`; it must not be hidden by browser/BFF behavior.
 - Governing pivot label: Release 0.1 Operator Admin Pivot.
-- Backend implementation status: active work should audit and tighten the
-  existing backend-owned manual spot order/cancel happy path, direct-order
-  audit readback, admission/cap/guard/reconciliation/live-service evidence,
+- Backend implementation status: active work should audit and tighten
+  backend-owned stealth route evidence, command-suite readiness, exchange-
+  reality proof boundaries, mutation-claim boundaries, post-write evidence,
   and no-live association smoke. It must not add route-local FastAPI
-  execution, direct Coinbase calls outside the existing command-service path,
-  reconciliation execution, order/exchange state mutation, browser/BFF
-  authority, or a second spot order path.
-- Frontend implementation status: active work should make command workflow,
-  Orders-to-cancel handoff, Spot Operations direct-order audit lookup, SELL
-  authority visibility, BFF forwarding, and browser smoke understandable and
-  testable through generated contracts and canonical adapters. It must not
-  implement browser wallet checks, guard checks, Coinbase calls, live-service
-  toggles, reconciliation execution, BFF execution authority, or a second
-  trading path.
+  execution, direct Coinbase calls outside existing domain/exchange paths,
+  reconciliation execution, stealth/order/exchange state mutation, browser/BFF
+  authority, hide-again shortcuts, or a second trading path.
+- Frontend implementation status: active work should make Stealth Orders,
+  Command Workflows, and related evidence panels understandable and testable
+  through generated contracts and canonical adapters. It must not implement
+  browser mutation claims, exchange-truth resolution, Coinbase calls,
+  live-service toggles, reconciliation execution, BFF execution authority,
+  dashboard WebSocket fallbacks, or a second stealth path.
 - Phase instruction review status: backend `AGENTS.md`, backend `agent.md`,
   backend owner contracts, frontend `AGENTS.md`, frontend owner contracts, and
   ordered frontend docs were reviewed again on 2026-06-29 for Phase 8021 and
   again before activating `8061-8080`; they were re-reviewed during Phase
-  8068 and again during Phase 8081 with no direction change. Release 0.1 product progress remains the
+  8068, during Phase 8081, and during Phase 8101 with no direction change.
+  Release 0.1 product progress remains the
   controlling rule: every phase must clear a named Release 0.1 blocker or
   directly improve usable admin management. The current range must keep
-  campaign/sweep automation authority in the backend and make the operator
-  controls path verifiable without adding browser scheduler, BFF runner
-  authority, route-local execution, direct Coinbase calls, unbounded loops, or
-  a second automation path.
+  stealth lifecycle authority in the backend/domain/exchange path and make
+  the operator controls path verifiable without adding browser/BFF trading
+  authority, route-local execution, direct Coinbase calls, state mutation,
+  hide-again shortcuts, exchange-order id tracking, or a second trading path.
 - Release 0.1 matrix status:
   `docs/plans/ADMIN_RELEASE_0_1_ROUTE_TO_UI_MATRIX.md` and frontend
   `docs/plans/ADMIN_RELEASE_0_1_WORKFLOW_MATRIX.md` now identify
@@ -170,11 +171,20 @@ work. Historical milestone detail belongs in
   synchronized no-live campaign/sweep evidence for commit and push; no
   phase-scoped subagents were spawned in Phase 8100 and live Coinbase
   execution was not run.
-- Exact next implementation slice: finish Phase 8100 commit/push for active
-  `8081-8100`, then create the next active release-linked range through an
-  explicit validator/docs transition. Select only a gap that directly ties to
-  a remaining Release 0.1 route-to-UI/workflow blocker; do not create a
-  generic proof, recommendation, or polish batch.
+- Phase 8101 transition on 2026-06-29 selects `8101-8120` Stealth Lifecycle
+  Operator Controls as the next active range. Blind reviewer
+  `019f1438-6acf-70e2-aad2-fab95b575e99` passed the selection and confirmed
+  the slice is Release 0.1-aligned when limited to backend-owned operator
+  management/gate surfacing, not live stealth execution. The reviewer was
+  closed after findings were consumed.
+- Phase 8101 validation status: backend autonomous validator, focused
+  phase-range regressions, OpenAPI freshness, ownership, frontend autonomous
+  validator, generated API coverage, typecheck, lint, focused unit tests, and
+  stale-process checks passed. Direct read-service probes confirmed
+  live-enablement and stealth command-suite phase evidence emits `8101-8120`.
+  Full Admin API contract validation timed out before completion in this
+  environment and is deferred to a major closeout gate.
+- Exact next implementation slice: move to Phase 8102 Stealth Operator Scope.
   Do not add browser scheduler, BFF runner authority, retry loops,
   route-local execution, direct Coinbase calls, reconciliation execution,
   order/exchange state mutation, or a second trading path.

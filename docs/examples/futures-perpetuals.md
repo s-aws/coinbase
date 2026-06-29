@@ -11,14 +11,16 @@ python tools\run_admin_api.py --dev-token local-admin-token
 
 ## Command-Suite Contract Evidence
 
-The active 8081-8100 range is the Release 0.1 Campaign/Sweep Operator Controls
-slice. Active Release 0.1 `8081-8100` adds a campaign/sweep operator controls
-path so operators can inspect campaign and sweep automation state, scheduler
-posture, retry posture, controls, limits, blockers, and no-live proof through
-the enterprise frontend/API without browser scheduler, BFF runner, or Coinbase
-execution authority while completed `8061-8080` carries the
-Audit/Reconciliation Operator Correlation evidence.
-Current examples use `"approved_phase_range": "8081-8100"` for active
+The active 8101-8120 range is the Release 0.1 Stealth Lifecycle Operator
+Controls slice. Active Release 0.1 `8101-8120` adds a stealth lifecycle
+operator controls path so operators can inspect stealth lifecycle state,
+exchange-reality evidence, mutation-claim posture, command readiness,
+post-write evidence, and blocked create/reveal/move/cancel/recovery/
+reconciliation paths through the enterprise frontend/API without browser/BFF
+trading authority, route-local execution, Coinbase calls, state mutation,
+hide-again shortcuts, or a second trading path while completed `8081-8100`
+carries the Campaign/Sweep Operator Controls evidence.
+Current examples use `"approved_phase_range": "8101-8120"` for active
 release-control metadata.
 
 The completed 7961-7980 range targeted explicit M57 futures/perpetual

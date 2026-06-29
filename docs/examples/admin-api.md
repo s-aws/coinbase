@@ -20,14 +20,16 @@ futures/perpetuals, stealth orders, repricing, or risk policy modules.
 
 ## Current Release 0.1 Pivot
 
-Active Release 0.1 `8081-8100` adds a Campaign/Sweep Operator Controls slice
-so operators can inspect campaign and sweep automation state, review scheduler,
-retry, and control readiness, and use backend-owned no-live controls through
-the enterprise frontend/API without browser scheduler, BFF runner, or Coinbase
-execution authority while completed `8061-8080` carries the
-Audit/Reconciliation Operator Correlation evidence.
+Active Release 0.1 `8101-8120` adds a Stealth Lifecycle Operator Controls
+slice so operators can inspect stealth lifecycle state, exchange-reality
+evidence, mutation-claim posture, command readiness, post-write evidence, and
+blocked create/reveal/move/cancel/recovery/reconciliation paths through the
+enterprise frontend/API without browser/BFF trading authority, route-local
+execution, Coinbase calls, state mutation, hide-again shortcuts, or a second
+trading path while completed `8081-8100` carries the Campaign/Sweep Operator
+Controls evidence.
 
-Current active Admin API examples use `"approved_phase_range": "8081-8100"`.
+Current active Admin API examples use `"approved_phase_range": "8101-8120"`.
 New examples must clear a named Release 0.1 blocker or directly improve the
 usable operator admin product. Unsupported backend behavior must appear as
 `unsupported` or `not_modeled`; it must not be implemented in the browser, BFF,
@@ -98,7 +100,7 @@ passing summary must report `live_coinbase_orders_ran=false`,
 
 Completed `GET /api/v1/futures/command-suite` examples for M57 used
 `"approved_phase_range": "7961-7980"` as historical evidence. The current
-active release-control range is `"approved_phase_range": "8081-8100"`.
+active release-control range is `"approved_phase_range": "8101-8120"`.
 Futures/perpetual command-suite reads exposed backend-owned
 `risk_proof_record_validation_remediation_summary_count`,
 `risk_proof_record_validation_remediation_summary_blocking_count`, and
@@ -1815,7 +1817,7 @@ Expected current enterprise readiness posture:
 {
   "type": "admin_enterprise_readiness",
   "candidate": "enterprise_admin_m9",
-  "approved_phase_range": "8081-8100",
+  "approved_phase_range": "8101-8120",
   "status": "warning",
   "supported_module_count": 7,
   "unsupported_module_count": 1,
@@ -3777,7 +3779,7 @@ X-Admin-Roles: viewer
 ```json
 {
   "type": "spot_sweep_automation_service_status",
-  "approved_phase_range": "8081-8100",
+  "approved_phase_range": "8101-8120",
   "status": "blocked",
   "service_posture_count": 5,
   "service_postures": [

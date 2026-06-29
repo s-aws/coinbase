@@ -60,7 +60,171 @@ operator admin.
 - Importing spot-only rules into stealth, futures/perpetuals, or movement
   modules.
 
-## Active Phases 8081-8100
+## Active Phases 8101-8120
+
+Batch label: Stealth Lifecycle Operator Controls.
+
+These phases clear the next concrete Release 0.1 blocker for Stealth commands:
+operators must be able to inspect stealth lifecycle state, exchange-reality
+evidence, mutation-claim posture, command readiness, post-write evidence, and
+blocked create/reveal/move/cancel/recovery/reconciliation paths through the
+enterprise frontend/API without falling back to proof-of-concept dashboards.
+This range is no-live by default: it may add or tighten read models,
+adapters, command readiness, handoffs, mocks, and focused validation, but it
+must not add browser/BFF trading authority, route-local execution, direct
+Coinbase calls, stealth state mutation, hide-again shortcuts, exchange-order
+id tracking, or a second trading path.
+
+Every phase must answer: Does this make the frontend able to manage the project?
+
+Active Release 0.1 `8101-8120` adds a Stealth Lifecycle Operator Controls
+slice so operators can inspect stealth lifecycle state, exchange-reality
+evidence, mutation-claim posture, command readiness, post-write evidence, and
+blocked create/reveal/move/cancel/recovery/reconciliation paths through the
+enterprise frontend/API without browser/BFF trading authority, route-local
+execution, Coinbase calls, state mutation, hide-again shortcuts, or a second
+trading path while completed `8081-8100` carries the Campaign/Sweep Operator
+Controls evidence.
+
+Exact autonomous phrase: Active Release 0.1 `8101-8120` adds a Stealth Lifecycle Operator Controls slice so operators can inspect stealth lifecycle state, exchange-reality evidence, mutation-claim posture, command readiness, post-write evidence, and blocked create/reveal/move/cancel/recovery/reconciliation paths through the enterprise frontend/API without browser/BFF trading authority, route-local execution, Coinbase calls, state mutation, hide-again shortcuts, or a second trading path while completed `8081-8100` carries the Campaign/Sweep Operator Controls evidence.
+
+### Phase 8101 - Advance Active Queue Range
+
+- Update autonomous validators, runtime phase evidence, durable state,
+  handoff docs, and phase records so active work is `8101-8120` and completed
+  `8081-8100` remains historical Campaign/Sweep Operator Controls evidence.
+- Evidence update 2026-06-29: active range advanced to `8101-8120`
+  Stealth Lifecycle Operator Controls. This follows the Release 0.1
+  Stealth commands blocker and the route-to-UI matrix, which still marks
+  stealth workflows blocked by exchange-reality, lifecycle-write,
+  live-disabled, and reconciliation gates. Backend/frontend AGENTS and owner
+  instructions were re-reviewed with no direction change. Blind reviewer
+  `019f1438-6acf-70e2-aad2-fab95b575e99` passed the range selection and
+  confirmed no higher-impact blocker was obvious, provided the range remains
+  backend-owned operator management/gate surfacing and not live stealth
+  execution. Live Coinbase execution was not run and submitted/executed
+  notional stayed 0 USDC.
+- Validation update 2026-06-29: backend and frontend autonomous validators
+  now pass for `8101-8120`; backend focused phase-range regressions passed
+  with 11 tests; OpenAPI freshness, ownership, frontend generated API
+  coverage, typecheck, lint, focused unit tests, and stale-process checks
+  passed. Admin API full contract validation timed out before completion and
+  is not treated as a milestone closeout gate for this ordinary transition.
+
+### Phase 8102 - Stealth Operator Scope
+
+- Define the backend/frontend boundary for stealth lifecycle operator
+  controls, including no-live posture, exchange-reality constraints,
+  mutation-claim ownership, supported read evidence, and explicit
+  unsupported or not-modeled gaps.
+
+### Phase 8103 - Backend Stealth Route Inventory
+
+- Inventory stealth list/detail, command-suite, exchange-truth,
+  mutation-claim, reveal-trigger, submission-adapter, recovery,
+  cancel/replace, and post-write evidence contracts needed for operator
+  management.
+
+### Phase 8104 - Stealth Exchange-Reality Contract Map
+
+- Map which routes prove live placement, exchange truth, cancel/replace
+  prerequisites, and reveal state without marking revealed orders hidden or
+  mutating local state without exchange handling.
+
+### Phase 8105 - Stealth Mutation-Claim Contract Map
+
+- Map mutation-claim evidence and ownership boundaries so the admin UI can
+  show why create/reveal/move/cancel/recovery/reconciliation actions are
+  usable, blocked, unsupported, or not modeled without acquiring claims in the
+  browser.
+
+### Phase 8106 - Stealth Command-Suite Action-State Audit
+
+- Audit backend command-suite action-state rows for create, reveal, move,
+  cancel, recovery, reconciliation, and movement reprice handoff coverage.
+
+### Phase 8107 - Stealth Create/Cancel Draft Readiness
+
+- Tighten backend and frontend readiness evidence for stealth create and
+  cancel command drafts while keeping live placement and cancellation
+  authority in existing backend paths.
+
+### Phase 8108 - Stealth Reveal/Move/Reprice Draft Readiness
+
+- Tighten readiness evidence for reveal, move, and movement reprice drafts,
+  including exchange-reality, active-placement, and cancel/replace blockers.
+
+### Phase 8109 - Stealth Recovery/Reconciliation Gap Surfacing
+
+- Surface recovery and reconciliation blockers with exact backend evidence and
+  `unsupported` or `not_modeled` status instead of browser repair or
+  reconciliation logic.
+
+### Phase 8110 - Post-Write Evidence Contract Review
+
+- Review post-write execution journal, reconciliation proof, and verification
+  evidence contracts so operators can inspect what happened without treating
+  evidence presence as reconciliation execution.
+
+### Phase 8111 - Frontend Stealth Status Adapter
+
+- Tighten generated-wrapper adapters and typed view models for stealth
+  lifecycle status, command-suite, and evidence rows.
+
+### Phase 8112 - Stealth Detail Action Matrix UX
+
+- Make selected stealth-order detail render a compact action-state matrix for
+  supported, blocked, unsupported, and not-modeled lifecycle actions.
+
+### Phase 8113 - Command Workflow Stealth Handoffs
+
+- Ensure Stealth Orders hand off to Command Workflows with prefill-only
+  `stealth_order_id` context and no `client_order_id`, active placement id,
+  exchange `order_id`, acknowledgement, or automatic submission.
+
+### Phase 8114 - Exchange Truth Evidence UX
+
+- Make exchange-truth, active-placement, and Coinbase submission-policy
+  evidence inspectable without implying Coinbase reads, cancellation,
+  replacement, reveal, or lifecycle mutation authority.
+
+### Phase 8115 - Mutation Claim And Post-Write Evidence UX
+
+- Make mutation-claim, recovery-proof, cancel/replace-proof, post-write
+  journal, reconciliation proof, and verification evidence inspectable from
+  the owning stealth surfaces.
+
+### Phase 8116 - No Browser/BFF Stealth Authority Assertions
+
+- Add or tighten assertions that frontend/BFF code does not implement stealth
+  trading behavior, mutation claims, exchange-truth resolution, dashboard
+  WebSocket fallbacks, Coinbase calls, route-local execution, or a second
+  stealth path.
+
+### Phase 8117 - Mock Runtime Parity
+
+- Align mock runtime stealth fixtures with backend unsupported/not-modeled,
+  no-live, exchange-reality, mutation-claim, and non-authoritative evidence
+  semantics.
+
+### Phase 8118 - Route-To-UI Matrix Stealth Update
+
+- Update route-to-UI and workflow matrices so every stealth lifecycle route
+  maps to an owning frontend surface and explicit authority boundary.
+
+### Phase 8119 - Focused Backend And Frontend Tests
+
+- Run focused backend contract/regression checks and focused frontend adapter,
+  command-security, generated API, and quality checks covering stealth
+  lifecycle operator controls.
+
+### Phase 8120 - Blind Review And Evidence Push
+
+- Run blind/contextless backend/frontend review for stealth lifecycle operator
+  controls, remediate blocking ambiguity, then commit and push synchronized
+  backend/frontend evidence with no-live notional reporting.
+
+## Completed Phases 8081-8100
 
 Batch label: Campaign/Sweep Operator Controls.
 

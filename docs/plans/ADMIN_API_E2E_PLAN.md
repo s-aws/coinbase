@@ -49,22 +49,42 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 8081-8100
+## Current Active Phases 8101-8120
 
-Batch label: Campaign/Sweep Operator Controls.
+Batch label: Stealth Lifecycle Operator Controls.
 
-Current Release 0.1 `8081-8100` adds a backend-owned Campaign/Sweep Operator
-Controls slice so operators can inspect campaign and sweep automation state,
-review scheduler, retry, and control readiness, and use backend-owned no-live
-controls through the enterprise frontend/API. The slice must keep campaign and
-sweep authority in existing backend services, surface unsupported behavior as
-`unsupported` or `not_modeled`, and avoid browser schedulers, BFF runner
-authority, route-local executors, unbounded loops, Coinbase execution, and
-second automation paths.
+Current Release 0.1 `8101-8120` adds a backend-owned Stealth Lifecycle
+Operator Controls slice so operators can inspect stealth lifecycle state,
+exchange-reality evidence, mutation-claim posture, command readiness,
+post-write evidence, and blocked create/reveal/move/cancel/recovery/
+reconciliation paths through the enterprise frontend/API. The slice must keep
+stealth authority in existing backend/domain/exchange paths, surface
+unsupported behavior as `unsupported` or `not_modeled`, and avoid browser/BFF
+trading authority, route-local execution, Coinbase calls, state mutation,
+hide-again shortcuts, exchange-order id tracking, and second trading paths.
 
 Every phase must answer: Does this make the frontend able to manage the project?
 
-Exact autonomous phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Operator Controls slice so operators can inspect campaign and sweep automation state, review scheduler, retry, and control readiness, and use backend-owned no-live controls through the enterprise frontend/API without browser scheduler, BFF runner, or Coinbase execution authority while completed `8061-8080` carries the Audit/Reconciliation Operator Correlation evidence.
+Exact autonomous phrase: Active Release 0.1 `8101-8120` adds a Stealth Lifecycle Operator Controls slice so operators can inspect stealth lifecycle state, exchange-reality evidence, mutation-claim posture, command readiness, post-write evidence, and blocked create/reveal/move/cancel/recovery/reconciliation paths through the enterprise frontend/API without browser/BFF trading authority, route-local execution, Coinbase calls, state mutation, hide-again shortcuts, or a second trading path while completed `8081-8100` carries the Campaign/Sweep Operator Controls evidence.
+
+Phase 8101 status: active range moved to `8101-8120` Stealth Lifecycle
+Operator Controls. Backend runtime phase evidence now emits the new range,
+and the transition is tied to the Stealth commands Release 0.1 blocker rather
+than proof-only roadmap drift. Blind reviewer
+`019f1438-6acf-70e2-aad2-fab95b575e99` passed the selection and confirmed the
+range is coherent when limited to backend-owned operator management/gate
+surfacing rather than live stealth execution. Live Coinbase execution was not
+run; submitted/executed notional remained 0 USDC.
+
+## Completed Phases 8081-8100
+
+Completed Release 0.1 `8081-8100` added the Campaign/Sweep Operator Controls
+slice for campaign/sweep state, scheduler posture, retry posture, local
+control evidence, dry-run review, route-to-UI traceability, and no-live proof
+through the enterprise frontend/API. The range completed and pushed in
+backend commits through `b8fd1a20` and frontend commits through `1dc0baa`;
+live Coinbase execution was not run and submitted/executed notional remained
+`0` USDC.
 
 Phase 8082 status: `GET /api/v1/spot/sweep/automation-service` now exposes
 `operator_scope_count` and backend-owned `operator_scope` rows for read

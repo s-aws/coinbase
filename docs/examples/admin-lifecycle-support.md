@@ -12,7 +12,7 @@ Relevant lifecycle fields:
 ```json
 {
   "type": "admin_enterprise_readiness",
-  "approved_phase_range": "8081-8100",
+  "approved_phase_range": "8101-8120",
   "lifecycle_support_count": 6,
   "lifecycle_supported_read_count": 5,
   "lifecycle_not_modeled_count": 0,
