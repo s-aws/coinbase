@@ -172,6 +172,14 @@ Exact autonomous phrase: Active Release 0.1 `8041-8060` adds a Spot Command Oper
 
 - Keep mock frontend/backend fixtures in parity with the spot command
   operator E2E contract.
+- Evidence update 2026-06-29: frontend mock runtime fixtures now label the
+  Spot command-suite and direct-order audit mock surfaces with
+  `contract_parity=spot_command_operator_e2e` and
+  `mock_data_authoritative=false`. Focused mock backend unit coverage proves
+  the mock command suite preserves `client_order_id` identity, manual
+  order/cancel no-live posture, display/forward-only authority, direct-order
+  audit parity, and non-authoritative fixture evidence. Live Coinbase
+  execution was not run and submitted/executed notional stayed 0 USDC.
 
 ### Phase 8056 - Focused Backend Tests
 
