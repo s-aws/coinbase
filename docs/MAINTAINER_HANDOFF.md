@@ -192,6 +192,18 @@ notional, retained inventory, reconciliation result, and audit ids.
   not change: Release 0.1 product progress, no second trading path,
   generated-wrapper frontend consumption, and explicit unsupported/not-modeled
   behavior remain controlling.
+- Phase 8088 is a sibling frontend adapter association phase: frontend sweep
+  automation-service mapping now renders backend scheduler status, run-limit
+  status, retry plans, recovery-gate posture, latest control state, blockers,
+  read/command routes, no-live proof, and durable automation control records
+  as typed Campaigns UI evidence. Backend scheduler execution, retry
+  execution, reconciliation execution, Coinbase, route-local, browser, BFF,
+  and second-path authority did not change.
+- Phase `8088` instruction review: backend `AGENTS.md` and frontend
+  `AGENTS.md` were reviewed on 2026-06-29 before implementation. The phase
+  direction did not change: Release 0.1 product progress, no second trading
+  path, generated-wrapper frontend consumption, and explicit
+  unsupported/not-modeled behavior remain controlling.
 - Required boundary phrase: no second trading path.
 - Required checker phrase: usable admin product.
 - Required checker phrase: unsupported` or `not_modeled`.

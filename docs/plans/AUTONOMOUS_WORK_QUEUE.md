@@ -332,6 +332,19 @@ Exact autonomous phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Op
 
 - Tighten frontend adapters for sweep service, scheduler, retry, and control
   evidence through generated API wrappers only.
+- Implementation update 2026-06-29: sibling frontend consumes generated
+  sweep automation-service status evidence as structured adapter rows for
+  scheduler/run-limit/retry, recovery-gate, control, blocker, route, and
+  no-live evidence, plus durable backend automation control records. No
+  backend execution path, scheduler executor, retry executor, reconciliation
+  executor, Coinbase call, browser authority, BFF authority, route-local
+  authority, or second automation path changed in this phase.
+- Validation update 2026-06-29: sibling frontend focused adapter/read-only
+  view/runtime/mock tests and quality checks passed; backend ownership,
+  autonomous queue, stale-process, whitespace, and blind contextless review
+  passed. Full backend regression was not run for this ordinary docs-only
+  backend phase. Live Coinbase execution was not run; submitted/executed
+  notional was 0 USDC.
 
 ### Phase 8089 - Campaigns Control Panel UX
 

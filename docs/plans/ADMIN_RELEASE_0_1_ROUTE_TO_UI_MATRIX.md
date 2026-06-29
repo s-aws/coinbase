@@ -17,8 +17,9 @@ on 2026-06-28 before the frontend Release Blockers implementation, Admin
 Lifecycle Support classification, Spot Buy/Sell/Cancel readiness, Admin API
 spot SELL authority source wiring, Spot Sweep Automation Service Contract read
 work, and scheduler/run-limit binding evidence, and again on 2026-06-29 before
-Phase 8087 frontend campaign status adapter work. No phase-direction change
-was required. The controlling instructions remain:
+Phase 8087 frontend campaign status adapter work and Phase 8088 frontend
+sweep service adapter work. No phase-direction change was required. The
+controlling instructions remain:
 
 - Release 0.1 work must clear a named blocker or directly improve the usable
   admin product.
@@ -80,6 +81,19 @@ authority. This update does not change backend execution authority: scheduler,
 retry runner, reconciliation executor, Coinbase calls, browser/BFF execution,
 route-local execution, and second automation paths remain blocked or
 unsupported as already recorded in the Automation/campaigns row.
+
+## Phase 8088 Frontend Association Update
+
+The sibling frontend now consumes
+`GET /api/v1/spot/sweep/automation-service` scheduler status, run-limit
+status, retry-plan, recovery-gate, latest-control, blocker, route, no-live,
+and durable automation control-record evidence through typed
+generated-wrapper adapters. The Campaigns UI renders this as combined sweep
+automation adapter rows plus separate durable control-record evidence. This
+update does not change backend execution authority: scheduler execution,
+retry execution, reconciliation execution, Coinbase calls, browser/BFF
+execution, route-local execution, and second automation paths remain blocked
+or unsupported as already recorded in the Automation/campaigns row.
 
 ## Implemented Account/Market Coverage Slice
 

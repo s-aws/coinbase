@@ -95,6 +95,15 @@ authority. This consumes existing backend evidence only; it does not change
 backend live execution, scheduler, retry, reconciliation, Coinbase, browser,
 BFF, route-local, or second-path authority.
 
+Phase 8088 frontend association status: the sibling frontend now maps
+generated sweep automation-service status responses into typed adapter rows
+for scheduler status, run-limit status, retry plans, recovery-gate posture,
+latest control state, blockers, read/command routes, no-live proof, and
+durable automation control records. This consumes existing backend evidence
+only; it does not change backend scheduler execution, retry execution,
+reconciliation execution, Coinbase, browser, BFF, route-local, or second-path
+authority.
+
 ## Completed Phases 8061-8080
 
 Completed Release 0.1 `8061-8080` added the Audit/Reconciliation Operator
