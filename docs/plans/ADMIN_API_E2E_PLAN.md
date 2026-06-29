@@ -104,6 +104,13 @@ only; it does not change backend scheduler execution, retry execution,
 reconciliation execution, Coinbase, browser, BFF, route-local, or second-path
 authority.
 
+Phase 8097 backend validation status: focused Admin API campaign/sweep route
+tests passed with 16 selected tests, spot campaign and spot portfolio sweep
+regressions passed with 80 tests, and OpenAPI plus route-inventory generators
+rewrote current artifacts with no diff. Autonomous queue, ownership,
+stale-process, and diff whitespace checks passed. Live Coinbase execution was
+not run; submitted/executed notional remained 0 USDC.
+
 ## Completed Phases 8061-8080
 
 Completed Release 0.1 `8061-8080` added the Audit/Reconciliation Operator

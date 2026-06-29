@@ -322,6 +322,12 @@ Exact autonomous phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Op
 
 - Run focused backend tests and validators covering campaign/sweep status,
   control contracts, route inventory, OpenAPI, and no-live authority.
+- Validation update 2026-06-29: focused Admin API campaign/sweep selection
+  passed with 16 selected tests; spot campaign and spot portfolio sweep
+  regressions passed with 80 tests; OpenAPI generation, route-inventory export,
+  autonomous queue validation, ownership check, stale-process check, and diff
+  whitespace checks passed. Generated artifacts were current. No live Coinbase
+  execution was run; submitted/executed notional remained 0 USDC.
 
 ### Phase 8098 - Focused Frontend Tests
 

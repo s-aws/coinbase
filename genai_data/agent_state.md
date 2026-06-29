@@ -6,7 +6,7 @@ work. Historical milestone detail belongs in
 
 ## Metadata
 
-- Last updated (ET): 2026-06-28
+- Last updated (ET): 2026-06-29
 - Updated by: Codex
 - Backend branch: `codex/stealth-live-service-decision-3501`
 - Frontend branch: `codex/stealth-live-service-decision-3501`
@@ -120,6 +120,13 @@ work. Historical milestone detail belongs in
   execution, and live execution. The frontend Campaigns panel consumes those
   rows as no-live blocker evidence with no browser/BFF scheduler, runner, or
   Coinbase authority.
+- Phase 8097 focused backend validation passed on 2026-06-29: Admin API
+  campaign/sweep route tests passed with 16 selected tests; spot campaign and
+  spot portfolio sweep regressions passed with 80 tests; OpenAPI generation,
+  route-inventory export, autonomous queue validation, ownership,
+  stale-process, and diff checks passed; generated artifacts were already
+  current. No phase-scoped subagents were spawned. Live Coinbase execution was
+  not run; submitted/executed notional remained `0`/`0` USDC.
 - Completed Spot Command Operator slice: backend commit `05093483` and
   frontend commit `6f86b37` completed `8041-8060` by adding manual spot order,
   cancel-by-client_order_id, direct-order audit, and command handoff
@@ -142,9 +149,9 @@ work. Historical milestone detail belongs in
   Live Coinbase execution was not run; submitted/executed notional remained
   `0`/`0` USDC.
 - Exact next implementation slice: continue Release 0.1 blocker clearing with
-  Phase 8084 Sweep Automation Service Status Contract from active
-  `8081-8100`, using the Phase 8082 automation-service operator-scope
-  contract and Phase 8083 campaign inventory contract as the baseline.
+  Phase 8098 Focused Frontend Tests from active `8081-8100`, using the
+  backend Phase 8097 campaign/sweep validation results and the current
+  generated frontend contract as the baseline.
   Do not add browser scheduler, BFF runner authority, retry loops,
   route-local execution, direct Coinbase calls, reconciliation execution,
   order/exchange state mutation, or a second trading path.

@@ -435,6 +435,21 @@ Exact autonomous phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Op
 
 - Run focused backend tests and validators covering campaign/sweep status,
   control contracts, route inventory, OpenAPI, and no-live authority.
+- Validation update 2026-06-29: passed `pytest
+  tests/regression/test_admin_api_contract.py -k "campaign or sweep or
+  command_suite or route_inventory or capabilities or live_enablement or
+  enterprise_readiness" -q --tb=short` with 16 selected tests, and passed
+  `pytest tests/regression/test_spot_campaign.py
+  tests/regression/test_spot_portfolio_sweep.py -q --tb=short` with 80 tests.
+  `python tools/generate_admin_api_openapi.py`, `python
+  tools/export_admin_api_route_inventory.py`, `python
+  tools/run_autonomous_work_queue_check.py`, `python tools/check_ownership.py
+  --owner admin_api_contract`, `python tools/check_stale_test_processes.py
+  --include-sibling-frontend`, and `git diff --check` passed. Generated
+  OpenAPI and route-inventory artifacts were already current. No phase-scoped
+  subagents were spawned, so phase-end cleanup found no reviewer to close.
+  Live Coinbase execution was not run; submitted/executed notional remained 0
+  USDC.
 
 ### Phase 8098 - Focused Frontend Tests
 
