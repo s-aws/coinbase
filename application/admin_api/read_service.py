@@ -405,6 +405,8 @@ from .models import (
     StealthCommandSuiteActionStateHandoffAuditSummary,
     StealthCommandSuiteCreateCancelDraftReadinessItem,
     StealthCommandSuiteCreateCancelDraftReadinessSummary,
+    StealthCommandSuiteRevealMoveRepriceDraftReadinessItem,
+    StealthCommandSuiteRevealMoveRepriceDraftReadinessSummary,
     StealthCommandSuiteAdmissionContextItem,
     StealthCommandSuiteAdmissionReadinessItem,
     StealthCommandSuiteAdmissionRequirementItem,
@@ -20199,6 +20201,374 @@ class AdminApiReadService:
             if boundary is not None:
                 cancel_replace_boundaries.append(boundary)
 
+        exchange_truth_checks_by_route_for_drafts = {
+            check.route: check for check in exchange_truth_checks
+        }
+        cancel_replace_boundaries_by_route_for_drafts = {
+            boundary.route: boundary for boundary in cancel_replace_boundaries
+        }
+        reveal_move_reprice_specs = [
+            (
+                AdminApiMutationFamilyType.STEALTH_REVEAL,
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_REVEAL_WORKFLOW,
+                AdminApiStealthCommandWorkflowSurface.STEALTH_REVEAL,
+                True,
+                False,
+                False,
+            ),
+            (
+                AdminApiMutationFamilyType.STEALTH_MOVE,
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_MOVE_REVEALED_WORKFLOW,
+                AdminApiStealthCommandWorkflowSurface.STEALTH_MOVE,
+                False,
+                True,
+                False,
+            ),
+            (
+                AdminApiMutationFamilyType.MOVEMENT_REPRICE,
+                AdminApiStealthCommandSuiteGapFamily.STEALTH_REPRICE_WORKFLOW,
+                AdminApiStealthCommandWorkflowSurface.MOVEMENT_REPRICE,
+                False,
+                True,
+                True,
+            ),
+        ]
+
+        def build_reveal_move_reprice_draft_readiness(
+            mutation_family: AdminApiMutationFamilyType,
+            workflow_family: AdminApiStealthCommandSuiteGapFamily,
+            command_workflow: AdminApiStealthCommandWorkflowSurface,
+            reveal_trigger_evidence_required: bool,
+            cancel_replace_required: bool,
+            movement_reprice_cooldown_required: bool,
+        ) -> StealthCommandSuiteRevealMoveRepriceDraftReadinessItem:
+            command = command_by_family.get(mutation_family)
+            action_state = action_state_by_family.get(mutation_family)
+            handoff = action_state_handoff_by_family.get(mutation_family)
+            metadata = command_metadata.get(mutation_family, {})
+            route = (
+                command.route
+                if command is not None
+                else str(metadata.get("surface", "")).split(" ", 1)[-1]
+            )
+            method = command.method if command is not None else "POST"
+            truth_check = exchange_truth_checks_by_route_for_drafts.get(route)
+            boundary = cancel_replace_boundaries_by_route_for_drafts.get(route)
+            missing_gate_chain = (
+                list(command.missing_gate_chain)
+                if command is not None
+                else ["command_row_missing"]
+            )
+            exchange_reality_contracts = (
+                list(truth_check.missing_contracts)
+                if truth_check is not None
+                else []
+            )
+            cancel_replace_contracts = (
+                list(boundary.missing_contracts)
+                if boundary is not None
+                else []
+            )
+            if mutation_family == AdminApiMutationFamilyType.STEALTH_REVEAL:
+                next_required_contract = (
+                    "lifecycle_write_guard"
+                    if "lifecycle_write_guard" in missing_gate_chain
+                    else missing_gate_chain[0]
+                )
+            else:
+                next_required_contract = (
+                    "active_placement_exchange_truth"
+                    if "active_placement_exchange_truth" in missing_gate_chain
+                    else missing_gate_chain[0]
+                )
+            blockers = list(
+                dict.fromkeys(
+                    [
+                        *(
+                            action_state.blockers
+                            if action_state is not None
+                            else ["action_state_row_missing"]
+                        ),
+                        *exchange_reality_contracts,
+                        *cancel_replace_contracts,
+                    ]
+                )
+            )
+            label = (
+                action_state.label
+                if action_state is not None
+                else str(mutation_family.value).replace("_", " ").title()
+            )
+            selected_order_handoff_available = (
+                handoff.selected_order_handoff_available
+                if handoff is not None
+                else False
+            )
+            return StealthCommandSuiteRevealMoveRepriceDraftReadinessItem(
+                mutation_family=mutation_family,
+                workflow_family=workflow_family,
+                command_workflow=command_workflow,
+                label=label,
+                route=route,
+                method=method,
+                identity_key=(
+                    command.identity_key if command is not None else "stealth_order_id"
+                ),
+                identity_value_source="selected_stealth_order_id",
+                status=AdminApiGateStatus.BLOCKED,
+                action_state=(
+                    action_state.action_state
+                    if action_state is not None
+                    else AdminApiActionState.NOT_MODELED
+                ),
+                command_status=(
+                    command.status
+                    if command is not None
+                    else AdminApiGateStatus.BLOCKED
+                ),
+                live_execution_status=(
+                    command.live_execution_status
+                    if command is not None
+                    else AdminApiLiveExecutionStatus.LIVE_DISABLED
+                ),
+                command_row_present=command is not None,
+                action_state_row_present=action_state is not None,
+                handoff_audit_row_present=handoff is not None,
+                command_workflow_available=(
+                    handoff.command_workflow_available
+                    if handoff is not None
+                    else False
+                ),
+                selected_order_handoff_required=True,
+                selected_order_handoff_available=selected_order_handoff_available,
+                draft_prefill_only=True,
+                order_specific_adjudication=False,
+                exchange_truth_required=(
+                    truth_check.exchange_truth_required
+                    if truth_check is not None
+                    else bool(metadata.get("exchange_truth_required", True))
+                ),
+                active_placement_evidence_required=(
+                    command.active_placement_evidence_required
+                    if command is not None
+                    else bool(metadata.get("active_placement_evidence_required", True))
+                ),
+                exchange_truth_check_present=truth_check is not None,
+                active_placement_exchange_truth_resolved=(
+                    truth_check.active_placement_exchange_truth_resolved
+                    if truth_check is not None
+                    else False
+                ),
+                reveal_trigger_evidence_required=reveal_trigger_evidence_required,
+                cancel_replace_required=(
+                    boundary.cancel_replace_required
+                    if boundary is not None
+                    else cancel_replace_required
+                ),
+                cancel_replace_boundary_present=boundary is not None,
+                cancel_replace_proof_resolved=(
+                    boundary.cancel_replace_proof_resolved
+                    if boundary is not None
+                    else False
+                ),
+                movement_reprice_cooldown_required=movement_reprice_cooldown_required,
+                backend_contract_required=True,
+                next_required_contract=next_required_contract,
+                first_exchange_reality_contract=(
+                    exchange_reality_contracts[0]
+                    if exchange_reality_contracts
+                    else None
+                ),
+                first_cancel_replace_contract=(
+                    cancel_replace_contracts[0]
+                    if cancel_replace_contracts
+                    else None
+                ),
+                exchange_cancel_method=(
+                    "cancel_order(client_order_id)"
+                    if boundary is not None
+                    else None
+                ),
+                backend_owned=True,
+                route_bound=command.route_bound if command is not None else False,
+                browser_authority=(
+                    command.browser_authority
+                    if command is not None
+                    else "display_only"
+                ),
+                bff_authority=(
+                    command.bff_authority
+                    if command is not None
+                    else "forward_only_no_execution"
+                ),
+                live_enabled=False,
+                executable=False,
+                manager_invocation_allowed=False,
+                coinbase_submit_allowed=False,
+                coinbase_cancel_allowed=False,
+                coinbase_read_allowed=False,
+                reconciliation_execution_allowed=False,
+                state_mutation_allowed=False,
+                exchange_order_id_identity_allowed=False,
+                required_gate_chain=(
+                    list(command.required_gate_chain) if command is not None else []
+                ),
+                missing_gate_chain=missing_gate_chain,
+                blockers=blockers,
+                exchange_reality_contracts=exchange_reality_contracts,
+                cancel_replace_contracts=cancel_replace_contracts,
+                backend_contract_refs=list(
+                    metadata.get("backend_contract_refs", [])
+                ),
+                frontend_contract_refs=list(
+                    metadata.get("frontend_contract_refs", [])
+                ),
+                documentation_refs=list(
+                    metadata.get("documentation_refs", [])
+                ),
+                evidence=[
+                    "Derived from build_stealth_command_suite.commands.",
+                    "Derived from selected_order_action_states and Phase 8106 action-state handoff audit rows.",
+                    "Derived from exchange_truth_checks and cancel_replace_boundaries where applicable.",
+                    "This is reveal/move/reprice draft readiness only; it is not order-specific execution acceptance.",
+                    "stealth_order_id remains the command identity; active placement ids and exchange order_id are evidence only.",
+                    "Coinbase cancellation must use the backend cancel_order(client_order_id) wrapper only after backend active-placement and cancel/replace evidence passes.",
+                ],
+                detail=(
+                    f"{label} draft readiness is blocked until the backend "
+                    f"contract {next_required_contract} is satisfied. Browser "
+                    "and BFF surfaces may prefill a selected-order command draft "
+                    "but cannot invoke managers, call Coinbase, run "
+                    "reconciliation, or mutate stealth/order/exchange state."
+                ),
+            )
+
+        reveal_move_reprice_draft_readiness = [
+            build_reveal_move_reprice_draft_readiness(*spec)
+            for spec in reveal_move_reprice_specs
+        ]
+        reveal_move_reprice_draft_readiness_summary = (
+            StealthCommandSuiteRevealMoveRepriceDraftReadinessSummary(
+                status=AdminApiGateStatus.BLOCKED,
+                draft_count=len(reveal_move_reprice_draft_readiness),
+                blocked_draft_count=sum(
+                    1
+                    for item in reveal_move_reprice_draft_readiness
+                    if item.status == AdminApiGateStatus.BLOCKED
+                ),
+                executable_draft_count=sum(
+                    1
+                    for item in reveal_move_reprice_draft_readiness
+                    if item.executable
+                ),
+                reveal_ready=any(
+                    item.mutation_family == AdminApiMutationFamilyType.STEALTH_REVEAL
+                    and item.executable
+                    for item in reveal_move_reprice_draft_readiness
+                ),
+                move_ready=any(
+                    item.mutation_family == AdminApiMutationFamilyType.STEALTH_MOVE
+                    and item.executable
+                    for item in reveal_move_reprice_draft_readiness
+                ),
+                reprice_ready=any(
+                    item.mutation_family == AdminApiMutationFamilyType.MOVEMENT_REPRICE
+                    and item.executable
+                    for item in reveal_move_reprice_draft_readiness
+                ),
+                command_row_count=sum(
+                    1
+                    for item in reveal_move_reprice_draft_readiness
+                    if item.command_row_present
+                ),
+                action_state_row_count=sum(
+                    1
+                    for item in reveal_move_reprice_draft_readiness
+                    if item.action_state_row_present
+                ),
+                handoff_audit_row_count=sum(
+                    1
+                    for item in reveal_move_reprice_draft_readiness
+                    if item.handoff_audit_row_present
+                ),
+                selected_order_handoff_required_count=sum(
+                    1
+                    for item in reveal_move_reprice_draft_readiness
+                    if item.selected_order_handoff_required
+                ),
+                reveal_trigger_evidence_required_count=sum(
+                    1
+                    for item in reveal_move_reprice_draft_readiness
+                    if item.reveal_trigger_evidence_required
+                ),
+                active_placement_evidence_required_count=sum(
+                    1
+                    for item in reveal_move_reprice_draft_readiness
+                    if item.active_placement_evidence_required
+                ),
+                cancel_replace_required_count=sum(
+                    1
+                    for item in reveal_move_reprice_draft_readiness
+                    if item.cancel_replace_required
+                ),
+                exchange_truth_check_count=sum(
+                    1
+                    for item in reveal_move_reprice_draft_readiness
+                    if item.exchange_truth_check_present
+                ),
+                cancel_replace_boundary_count=sum(
+                    1
+                    for item in reveal_move_reprice_draft_readiness
+                    if item.cancel_replace_boundary_present
+                ),
+                all_command_rows_present=all(
+                    item.command_row_present
+                    for item in reveal_move_reprice_draft_readiness
+                ),
+                all_action_state_rows_present=all(
+                    item.action_state_row_present
+                    for item in reveal_move_reprice_draft_readiness
+                ),
+                all_handoff_rows_present=all(
+                    item.handoff_audit_row_present
+                    for item in reveal_move_reprice_draft_readiness
+                ),
+                all_exchange_truth_rows_present=all(
+                    item.exchange_truth_check_present
+                    for item in reveal_move_reprice_draft_readiness
+                ),
+                all_browser_bff_display_only=all(
+                    item.browser_authority == "display_only"
+                    and item.bff_authority == "forward_only_no_execution"
+                    for item in reveal_move_reprice_draft_readiness
+                ),
+                all_live_disabled=all(
+                    not item.live_enabled and not item.executable
+                    for item in reveal_move_reprice_draft_readiness
+                ),
+                all_exchange_order_id_evidence_only=all(
+                    not item.exchange_order_id_identity_allowed
+                    for item in reveal_move_reprice_draft_readiness
+                ),
+                backend_owned=True,
+                browser_authority="display_only",
+                bff_authority="forward_only_no_execution",
+                live_coinbase_orders_ran=False,
+                live_coinbase_read_ran=False,
+                submitted_notional_usdc="0",
+                executed_notional_usdc="0",
+                detail=(
+                    "Phase 8108 narrows operator draft readiness to stealth "
+                    "reveal, move, and movement reprice. Reveal remains blocked "
+                    "on lifecycle and reveal-trigger/exchange-submission "
+                    "evidence. Move and reprice remain blocked on active "
+                    "placement exchange truth and cancel/replace proof; reprice "
+                    "also keeps cooldown-claim evidence explicit. No draft row "
+                    "is executable."
+                ),
+            )
+        )
+
         proof_route_evidence_names = {
             "create_approval_request": AdminApiStealthAdmissionEvidence.APPROVAL_REQUEST,
             "decide_approval_request": AdminApiStealthAdmissionEvidence.APPROVAL_DECISION,
@@ -27562,6 +27932,21 @@ class AdminApiReadService:
             create_cancel_draft_readiness=create_cancel_draft_readiness,
             create_cancel_draft_readiness_summary=(
                 create_cancel_draft_readiness_summary
+            ),
+            reveal_move_reprice_draft_readiness_count=len(
+                reveal_move_reprice_draft_readiness
+            ),
+            blocked_reveal_move_reprice_draft_readiness_count=sum(
+                1
+                for item in reveal_move_reprice_draft_readiness
+                if item.status == AdminApiGateStatus.BLOCKED
+            ),
+            executable_reveal_move_reprice_draft_readiness_count=sum(
+                1 for item in reveal_move_reprice_draft_readiness if item.executable
+            ),
+            reveal_move_reprice_draft_readiness=reveal_move_reprice_draft_readiness,
+            reveal_move_reprice_draft_readiness_summary=(
+                reveal_move_reprice_draft_readiness_summary
             ),
             coverage_gap_count=len(coverage_gaps),
             coverage_gaps=coverage_gaps,

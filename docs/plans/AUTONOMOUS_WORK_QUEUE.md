@@ -345,6 +345,25 @@ Exact autonomous phrase: Active Release 0.1 `8101-8120` adds a Stealth Lifecycle
 
 - Tighten readiness evidence for reveal, move, and movement reprice drafts,
   including exchange-reality, active-placement, and cancel/replace blockers.
+- Evidence update 2026-06-29: added backend-owned
+  `reveal_move_reprice_draft_readiness` and
+  `reveal_move_reprice_draft_readiness_summary` to
+  `GET /api/v1/stealth/command-suite`, OpenAPI, generated frontend
+  contracts, frontend mock/runtime fixtures, and the Stealth Orders
+  command-suite panel. The three rows are `stealth_reveal`, `stealth_move`,
+  and `movement_reprice`; all remain blocked, prefill-only,
+  non-executable, not live-enabled, and keyed by `stealth_order_id`. Reveal
+  preserves `live_execution_status=approval_required` but is blocked on
+  lifecycle, reveal-trigger, and exchange-submission evidence. Move and
+  movement reprice are blocked on active-placement exchange truth and
+  cancel/replace proof; movement reprice also carries the cooldown/claim
+  requirement. Cancel/replace rows name backend
+  `cancel_order(client_order_id)` as evidence only. No browser/BFF execution
+  authority, manager invocation, Coinbase submit/cancel/read, reconciliation
+  execution, state mutation, exchange `order_id` command identity,
+  route-local execution, or second trading path was added. Backend and
+  frontend `AGENTS.md` instructions were re-reviewed with no direction
+  change.
 
 ### Phase 8109 - Stealth Recovery/Reconciliation Gap Surfacing
 

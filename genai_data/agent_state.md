@@ -252,8 +252,26 @@ work. Historical milestone detail belongs in
   order/exchange state mutation, exchange `order_id` command identity, or
   second trading path was added. Live Coinbase execution was not run and
   submitted/executed notional stayed 0 USDC.
-- Exact next implementation slice after Phase 8107 validation: move to
-  Phase 8108 Stealth Reveal/Move/Reprice Draft Readiness. Do not add browser
+- Phase 8108 implementation status: `GET /api/v1/stealth/command-suite`
+  now exposes backend-owned `reveal_move_reprice_draft_readiness` and
+  `reveal_move_reprice_draft_readiness_summary` for `stealth_reveal`,
+  `stealth_move`, and `movement_reprice`. All three rows remain blocked,
+  prefill-only, not live-enabled, non-executable, and keyed by
+  `stealth_order_id`. Reveal preserves
+  `live_execution_status=approval_required` dry-run posture but is blocked on
+  lifecycle, reveal-trigger, and exchange-submission evidence. Move and
+  movement reprice are blocked on `active_placement_exchange_truth` plus
+  cancel/replace proof; movement reprice also carries the cooldown/claim
+  requirement. Cancel/replace rows name backend
+  `cancel_order(client_order_id)` as evidence only. Frontend generated schema,
+  mock fixtures, runtime tests, typed stealth adapters, and the Stealth Orders
+  command-suite panel consume the same fields. No browser/BFF execution
+  authority, route-local execution, direct Coinbase calls, manager invocation,
+  reconciliation execution, order/exchange state mutation, exchange
+  `order_id` command identity, or second trading path was added. Live Coinbase
+  execution was not run and submitted/executed notional stayed 0 USDC.
+- Exact next implementation slice after Phase 8108 validation: move to
+  Phase 8109 Stealth Recovery/Reconciliation Gap Surfacing. Do not add browser
   scheduler, BFF runner authority, retry loops, route-local execution, direct
   Coinbase calls, manager invocation, reconciliation execution, order/exchange
   state mutation, exchange `order_id` command identity, or a second trading

@@ -7815,6 +7815,26 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
         "executable_create_cancel_draft_readiness_count"
         in stealth_command_suite_schema["properties"]
     )
+    assert (
+        "reveal_move_reprice_draft_readiness"
+        in stealth_command_suite_schema["properties"]
+    )
+    assert (
+        "reveal_move_reprice_draft_readiness_summary"
+        in stealth_command_suite_schema["properties"]
+    )
+    assert (
+        "reveal_move_reprice_draft_readiness_count"
+        in stealth_command_suite_schema["properties"]
+    )
+    assert (
+        "blocked_reveal_move_reprice_draft_readiness_count"
+        in stealth_command_suite_schema["properties"]
+    )
+    assert (
+        "executable_reveal_move_reprice_draft_readiness_count"
+        in stealth_command_suite_schema["properties"]
+    )
     assert "selected_create_pre_execution_contract" in (
         stealth_command_suite_schema["properties"]
     )
@@ -7877,6 +7897,14 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
         "StealthCommandSuiteCreateCancelDraftReadinessSummary"
         in written["components"]["schemas"]
     )
+    assert (
+        "StealthCommandSuiteRevealMoveRepriceDraftReadinessItem"
+        in written["components"]["schemas"]
+    )
+    assert (
+        "StealthCommandSuiteRevealMoveRepriceDraftReadinessSummary"
+        in written["components"]["schemas"]
+    )
     action_state_handoff_schema = written["components"]["schemas"][
         "StealthCommandSuiteActionStateHandoffAuditItem"
     ]
@@ -7917,6 +7945,37 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
     assert "cancel_ready" in draft_readiness_summary_schema["properties"]
     assert "all_exchange_order_id_evidence_only" in (
         draft_readiness_summary_schema["properties"]
+    )
+    reveal_move_reprice_schema = written["components"]["schemas"][
+        "StealthCommandSuiteRevealMoveRepriceDraftReadinessItem"
+    ]
+    assert "mutation_family" in reveal_move_reprice_schema["properties"]
+    assert "command_workflow" in reveal_move_reprice_schema["properties"]
+    assert "exchange_truth_check_present" in (
+        reveal_move_reprice_schema["properties"]
+    )
+    assert "cancel_replace_boundary_present" in (
+        reveal_move_reprice_schema["properties"]
+    )
+    assert "reveal_trigger_evidence_required" in (
+        reveal_move_reprice_schema["properties"]
+    )
+    assert "cancel_replace_required" in reveal_move_reprice_schema["properties"]
+    assert "movement_reprice_cooldown_required" in (
+        reveal_move_reprice_schema["properties"]
+    )
+    assert "exchange_cancel_method" in reveal_move_reprice_schema["properties"]
+    assert "exchange_order_id_identity_allowed" in (
+        reveal_move_reprice_schema["properties"]
+    )
+    reveal_move_reprice_summary_schema = written["components"]["schemas"][
+        "StealthCommandSuiteRevealMoveRepriceDraftReadinessSummary"
+    ]
+    assert "reveal_ready" in reveal_move_reprice_summary_schema["properties"]
+    assert "move_ready" in reveal_move_reprice_summary_schema["properties"]
+    assert "reprice_ready" in reveal_move_reprice_summary_schema["properties"]
+    assert "cancel_replace_required_count" in (
+        reveal_move_reprice_summary_schema["properties"]
     )
     assert "StealthCommandSuiteCancelReplaceBoundaryItem" in written["components"][
         "schemas"
@@ -39124,6 +39183,170 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert create_cancel_draft_summary["all_exchange_order_id_evidence_only"] is True
     assert create_cancel_draft_summary["submitted_notional_usdc"] == "0"
     assert create_cancel_draft_summary["executed_notional_usdc"] == "0"
+    reveal_move_reprice_draft_readiness = payload[
+        "reveal_move_reprice_draft_readiness"
+    ]
+    assert payload["reveal_move_reprice_draft_readiness_count"] == 3
+    assert payload["blocked_reveal_move_reprice_draft_readiness_count"] == 3
+    assert payload["executable_reveal_move_reprice_draft_readiness_count"] == 0
+    assert len(reveal_move_reprice_draft_readiness) == 3
+    assert {
+        item["mutation_family"] for item in reveal_move_reprice_draft_readiness
+    } == {
+        AdminApiMutationFamilyType.STEALTH_REVEAL.value,
+        AdminApiMutationFamilyType.STEALTH_MOVE.value,
+        AdminApiMutationFamilyType.MOVEMENT_REPRICE.value,
+    }
+    assert all(
+        item["status"] == AdminApiGateStatus.BLOCKED.value
+        for item in reveal_move_reprice_draft_readiness
+    )
+    assert all(
+        item["action_state"] == AdminApiActionState.BLOCKED.value
+        for item in reveal_move_reprice_draft_readiness
+    )
+    assert all(
+        item["command_status"] == AdminApiGateStatus.BLOCKED.value
+        for item in reveal_move_reprice_draft_readiness
+    )
+    assert all(item["command_row_present"] is True for item in reveal_move_reprice_draft_readiness)
+    assert all(
+        item["action_state_row_present"] is True
+        for item in reveal_move_reprice_draft_readiness
+    )
+    assert all(
+        item["handoff_audit_row_present"] is True
+        for item in reveal_move_reprice_draft_readiness
+    )
+    assert all(
+        item["exchange_truth_check_present"] is True
+        for item in reveal_move_reprice_draft_readiness
+    )
+    assert all(
+        item["selected_order_handoff_required"] is True
+        for item in reveal_move_reprice_draft_readiness
+    )
+    assert all(
+        item["selected_order_handoff_available"] is True
+        for item in reveal_move_reprice_draft_readiness
+    )
+    assert all(item["draft_prefill_only"] is True for item in reveal_move_reprice_draft_readiness)
+    assert all(item["identity_key"] == "stealth_order_id" for item in reveal_move_reprice_draft_readiness)
+    assert all(
+        item["exchange_order_id_identity_allowed"] is False
+        for item in reveal_move_reprice_draft_readiness
+    )
+    assert all(item["manager_invocation_allowed"] is False for item in reveal_move_reprice_draft_readiness)
+    assert all(item["coinbase_submit_allowed"] is False for item in reveal_move_reprice_draft_readiness)
+    assert all(item["coinbase_cancel_allowed"] is False for item in reveal_move_reprice_draft_readiness)
+    assert all(item["coinbase_read_allowed"] is False for item in reveal_move_reprice_draft_readiness)
+    assert all(
+        item["reconciliation_execution_allowed"] is False
+        for item in reveal_move_reprice_draft_readiness
+    )
+    assert all(item["state_mutation_allowed"] is False for item in reveal_move_reprice_draft_readiness)
+    assert all(item["live_enabled"] is False for item in reveal_move_reprice_draft_readiness)
+    assert all(item["executable"] is False for item in reveal_move_reprice_draft_readiness)
+    assert all(
+        item["browser_authority"] == "display_only"
+        for item in reveal_move_reprice_draft_readiness
+    )
+    assert all(
+        item["bff_authority"] == "forward_only_no_execution"
+        for item in reveal_move_reprice_draft_readiness
+    )
+    reveal_move_reprice_by_id = {
+        item["mutation_family"]: item
+        for item in reveal_move_reprice_draft_readiness
+    }
+    reveal_draft_readiness = reveal_move_reprice_by_id[
+        AdminApiMutationFamilyType.STEALTH_REVEAL.value
+    ]
+    assert (
+        reveal_draft_readiness["route"]
+        == "/api/v1/stealth/orders/{stealth_order_id}/reveal"
+    )
+    assert reveal_draft_readiness["live_execution_status"] == (
+        AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value
+    )
+    assert reveal_draft_readiness["active_placement_evidence_required"] is False
+    assert reveal_draft_readiness["cancel_replace_required"] is False
+    assert reveal_draft_readiness["cancel_replace_boundary_present"] is False
+    assert reveal_draft_readiness["reveal_trigger_evidence_required"] is True
+    assert reveal_draft_readiness["movement_reprice_cooldown_required"] is False
+    assert reveal_draft_readiness["next_required_contract"] == "lifecycle_write_guard"
+    assert reveal_draft_readiness["first_exchange_reality_contract"] == (
+        "stealth_reveal_trigger_guard"
+    )
+    assert reveal_draft_readiness["exchange_cancel_method"] is None
+    move_draft_readiness = reveal_move_reprice_by_id[
+        AdminApiMutationFamilyType.STEALTH_MOVE.value
+    ]
+    assert (
+        move_draft_readiness["route"]
+        == "/api/v1/stealth/orders/{stealth_order_id}/move"
+    )
+    assert move_draft_readiness["active_placement_evidence_required"] is True
+    assert move_draft_readiness["cancel_replace_required"] is True
+    assert move_draft_readiness["cancel_replace_boundary_present"] is True
+    assert move_draft_readiness["reveal_trigger_evidence_required"] is False
+    assert move_draft_readiness["next_required_contract"] == (
+        "active_placement_exchange_truth"
+    )
+    assert move_draft_readiness["first_cancel_replace_contract"] == (
+        "stealth_active_placement_exchange_truth_proof_contract"
+    )
+    assert move_draft_readiness["exchange_cancel_method"] == (
+        "cancel_order(client_order_id)"
+    )
+    reprice_draft_readiness = reveal_move_reprice_by_id[
+        AdminApiMutationFamilyType.MOVEMENT_REPRICE.value
+    ]
+    assert (
+        reprice_draft_readiness["route"]
+        == "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+    )
+    assert reprice_draft_readiness["active_placement_evidence_required"] is True
+    assert reprice_draft_readiness["cancel_replace_required"] is True
+    assert reprice_draft_readiness["cancel_replace_boundary_present"] is True
+    assert reprice_draft_readiness["movement_reprice_cooldown_required"] is True
+    assert reprice_draft_readiness["next_required_contract"] == (
+        "active_placement_exchange_truth"
+    )
+    assert reprice_draft_readiness["first_cancel_replace_contract"] == (
+        "stealth_active_placement_exchange_truth_proof_contract"
+    )
+    assert reprice_draft_readiness["exchange_cancel_method"] == (
+        "cancel_order(client_order_id)"
+    )
+    reveal_move_reprice_summary = payload[
+        "reveal_move_reprice_draft_readiness_summary"
+    ]
+    assert reveal_move_reprice_summary["source"] == (
+        "phase_8108_stealth_reveal_move_reprice_draft_readiness"
+    )
+    assert reveal_move_reprice_summary["status"] == AdminApiGateStatus.BLOCKED.value
+    assert reveal_move_reprice_summary["draft_count"] == 3
+    assert reveal_move_reprice_summary["blocked_draft_count"] == 3
+    assert reveal_move_reprice_summary["executable_draft_count"] == 0
+    assert reveal_move_reprice_summary["reveal_ready"] is False
+    assert reveal_move_reprice_summary["move_ready"] is False
+    assert reveal_move_reprice_summary["reprice_ready"] is False
+    assert reveal_move_reprice_summary["selected_order_handoff_required_count"] == 3
+    assert reveal_move_reprice_summary["reveal_trigger_evidence_required_count"] == 1
+    assert reveal_move_reprice_summary["active_placement_evidence_required_count"] == 2
+    assert reveal_move_reprice_summary["cancel_replace_required_count"] == 2
+    assert reveal_move_reprice_summary["exchange_truth_check_count"] == 3
+    assert reveal_move_reprice_summary["cancel_replace_boundary_count"] == 2
+    assert reveal_move_reprice_summary["all_command_rows_present"] is True
+    assert reveal_move_reprice_summary["all_action_state_rows_present"] is True
+    assert reveal_move_reprice_summary["all_handoff_rows_present"] is True
+    assert reveal_move_reprice_summary["all_exchange_truth_rows_present"] is True
+    assert reveal_move_reprice_summary["all_browser_bff_display_only"] is True
+    assert reveal_move_reprice_summary["all_live_disabled"] is True
+    assert reveal_move_reprice_summary["all_exchange_order_id_evidence_only"] is True
+    assert reveal_move_reprice_summary["submitted_notional_usdc"] == "0"
+    assert reveal_move_reprice_summary["executed_notional_usdc"] == "0"
     move_handoff = action_state_handoff_by_id[
         AdminApiMutationFamilyType.STEALTH_MOVE.value
     ]

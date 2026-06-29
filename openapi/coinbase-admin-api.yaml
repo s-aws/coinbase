@@ -159889,6 +159889,27 @@ components:
           anyOf:
           - $ref: '#/components/schemas/StealthCommandSuiteCreateCancelDraftReadinessSummary'
           - type: 'null'
+        reveal_move_reprice_draft_readiness_count:
+          type: integer
+          title: Reveal Move Reprice Draft Readiness Count
+          default: 0
+        blocked_reveal_move_reprice_draft_readiness_count:
+          type: integer
+          title: Blocked Reveal Move Reprice Draft Readiness Count
+          default: 0
+        executable_reveal_move_reprice_draft_readiness_count:
+          type: integer
+          title: Executable Reveal Move Reprice Draft Readiness Count
+          default: 0
+        reveal_move_reprice_draft_readiness:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuiteRevealMoveRepriceDraftReadinessItem'
+          type: array
+          title: Reveal Move Reprice Draft Readiness
+        reveal_move_reprice_draft_readiness_summary:
+          anyOf:
+          - $ref: '#/components/schemas/StealthCommandSuiteRevealMoveRepriceDraftReadinessSummary'
+          - type: 'null'
         coverage_gap_count:
           type: integer
           title: Coverage Gap Count
@@ -159965,6 +159986,402 @@ components:
       - approved_phase_range
       title: StealthCommandSuiteResponse
       description: Read-only M55 stealth command-suite readiness evidence.
+    StealthCommandSuiteRevealMoveRepriceDraftReadinessItem:
+      properties:
+        mutation_family:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        workflow_family:
+          $ref: '#/components/schemas/AdminApiStealthCommandSuiteGapFamily'
+        command_workflow:
+          $ref: '#/components/schemas/AdminApiStealthCommandWorkflowSurface'
+        label:
+          type: string
+          title: Label
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+        identity_key:
+          type: string
+          title: Identity Key
+          default: stealth_order_id
+        identity_value_source:
+          type: string
+          title: Identity Value Source
+          default: selected_stealth_order_id
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        action_state:
+          $ref: '#/components/schemas/AdminApiActionState'
+        command_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        live_execution_status:
+          $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
+        command_row_present:
+          type: boolean
+          title: Command Row Present
+          default: true
+        action_state_row_present:
+          type: boolean
+          title: Action State Row Present
+          default: true
+        handoff_audit_row_present:
+          type: boolean
+          title: Handoff Audit Row Present
+          default: true
+        command_workflow_available:
+          type: boolean
+          title: Command Workflow Available
+          default: true
+        selected_order_handoff_required:
+          type: boolean
+          title: Selected Order Handoff Required
+          default: true
+        selected_order_handoff_available:
+          type: boolean
+          title: Selected Order Handoff Available
+          default: true
+        draft_prefill_only:
+          type: boolean
+          title: Draft Prefill Only
+          default: true
+        order_specific_adjudication:
+          type: boolean
+          title: Order Specific Adjudication
+          default: false
+        exchange_truth_required:
+          type: boolean
+          title: Exchange Truth Required
+        active_placement_evidence_required:
+          type: boolean
+          title: Active Placement Evidence Required
+        exchange_truth_check_present:
+          type: boolean
+          title: Exchange Truth Check Present
+        active_placement_exchange_truth_resolved:
+          type: boolean
+          title: Active Placement Exchange Truth Resolved
+          default: false
+        reveal_trigger_evidence_required:
+          type: boolean
+          title: Reveal Trigger Evidence Required
+          default: false
+        cancel_replace_required:
+          type: boolean
+          title: Cancel Replace Required
+          default: false
+        cancel_replace_boundary_present:
+          type: boolean
+          title: Cancel Replace Boundary Present
+          default: false
+        cancel_replace_proof_resolved:
+          type: boolean
+          title: Cancel Replace Proof Resolved
+          default: false
+        movement_reprice_cooldown_required:
+          type: boolean
+          title: Movement Reprice Cooldown Required
+          default: false
+        backend_contract_required:
+          type: boolean
+          title: Backend Contract Required
+          default: true
+        next_required_contract:
+          type: string
+          title: Next Required Contract
+        first_exchange_reality_contract:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Exchange Reality Contract
+        first_cancel_replace_contract:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: First Cancel Replace Contract
+        exchange_cancel_method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Exchange Cancel Method
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_enabled:
+          type: boolean
+          title: Live Enabled
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        coinbase_submit_allowed:
+          type: boolean
+          title: Coinbase Submit Allowed
+          default: false
+        coinbase_cancel_allowed:
+          type: boolean
+          title: Coinbase Cancel Allowed
+          default: false
+        coinbase_read_allowed:
+          type: boolean
+          title: Coinbase Read Allowed
+          default: false
+        reconciliation_execution_allowed:
+          type: boolean
+          title: Reconciliation Execution Allowed
+          default: false
+        state_mutation_allowed:
+          type: boolean
+          title: State Mutation Allowed
+          default: false
+        exchange_order_id_identity_allowed:
+          type: boolean
+          title: Exchange Order Id Identity Allowed
+          default: false
+        required_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Required Gate Chain
+        missing_gate_chain:
+          items:
+            type: string
+          type: array
+          title: Missing Gate Chain
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        exchange_reality_contracts:
+          items:
+            type: string
+          type: array
+          title: Exchange Reality Contracts
+        cancel_replace_contracts:
+          items:
+            type: string
+          type: array
+          title: Cancel Replace Contracts
+        backend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Backend Contract Refs
+        frontend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Frontend Contract Refs
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - mutation_family
+      - workflow_family
+      - command_workflow
+      - label
+      - route
+      - method
+      - action_state
+      - command_status
+      - live_execution_status
+      - exchange_truth_required
+      - active_placement_evidence_required
+      - exchange_truth_check_present
+      - next_required_contract
+      - detail
+      title: StealthCommandSuiteRevealMoveRepriceDraftReadinessItem
+      description: Phase 8108 readiness row for reveal, move, and reprice drafts.
+    StealthCommandSuiteRevealMoveRepriceDraftReadinessSummary:
+      properties:
+        source:
+          type: string
+          title: Source
+          default: phase_8108_stealth_reveal_move_reprice_draft_readiness
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        draft_count:
+          type: integer
+          minimum: 0.0
+          title: Draft Count
+        blocked_draft_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Draft Count
+        executable_draft_count:
+          type: integer
+          minimum: 0.0
+          title: Executable Draft Count
+        reveal_ready:
+          type: boolean
+          title: Reveal Ready
+          default: false
+        move_ready:
+          type: boolean
+          title: Move Ready
+          default: false
+        reprice_ready:
+          type: boolean
+          title: Reprice Ready
+          default: false
+        command_row_count:
+          type: integer
+          minimum: 0.0
+          title: Command Row Count
+        action_state_row_count:
+          type: integer
+          minimum: 0.0
+          title: Action State Row Count
+        handoff_audit_row_count:
+          type: integer
+          minimum: 0.0
+          title: Handoff Audit Row Count
+        selected_order_handoff_required_count:
+          type: integer
+          minimum: 0.0
+          title: Selected Order Handoff Required Count
+        reveal_trigger_evidence_required_count:
+          type: integer
+          minimum: 0.0
+          title: Reveal Trigger Evidence Required Count
+        active_placement_evidence_required_count:
+          type: integer
+          minimum: 0.0
+          title: Active Placement Evidence Required Count
+        cancel_replace_required_count:
+          type: integer
+          minimum: 0.0
+          title: Cancel Replace Required Count
+        exchange_truth_check_count:
+          type: integer
+          minimum: 0.0
+          title: Exchange Truth Check Count
+        cancel_replace_boundary_count:
+          type: integer
+          minimum: 0.0
+          title: Cancel Replace Boundary Count
+        all_command_rows_present:
+          type: boolean
+          title: All Command Rows Present
+          default: false
+        all_action_state_rows_present:
+          type: boolean
+          title: All Action State Rows Present
+          default: false
+        all_handoff_rows_present:
+          type: boolean
+          title: All Handoff Rows Present
+          default: false
+        all_exchange_truth_rows_present:
+          type: boolean
+          title: All Exchange Truth Rows Present
+          default: false
+        all_browser_bff_display_only:
+          type: boolean
+          title: All Browser Bff Display Only
+          default: false
+        all_live_disabled:
+          type: boolean
+          title: All Live Disabled
+          default: false
+        all_exchange_order_id_evidence_only:
+          type: boolean
+          title: All Exchange Order Id Evidence Only
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - draft_count
+      - blocked_draft_count
+      - executable_draft_count
+      - command_row_count
+      - action_state_row_count
+      - handoff_audit_row_count
+      - selected_order_handoff_required_count
+      - reveal_trigger_evidence_required_count
+      - active_placement_evidence_required_count
+      - cancel_replace_required_count
+      - exchange_truth_check_count
+      - cancel_replace_boundary_count
+      - detail
+      title: StealthCommandSuiteRevealMoveRepriceDraftReadinessSummary
+      description: Aggregate Phase 8108 reveal/move/reprice draft readiness evidence.
     StealthCreateLifecycleExecutionBlocker:
       type: string
       enum:

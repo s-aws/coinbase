@@ -1652,6 +1652,19 @@ wrapper after backend active-placement evidence passes. The rows are still
 read-only evidence: no manager invocation, Coinbase submit/cancel/read,
 reconciliation execution, state mutation, exchange `order_id` command identity,
 browser/BFF authority, route-local execution, or second trading path is added.
+The same command-suite response also exposes Phase 8108
+`reveal_move_reprice_draft_readiness` and
+`reveal_move_reprice_draft_readiness_summary`. These rows are limited to
+`stealth_reveal`, `stealth_move`, and `movement_reprice`. Reveal keeps the
+backend dry-run `approval_required` posture but remains blocked on lifecycle,
+reveal-trigger, and exchange-submission evidence. Move and movement reprice
+remain blocked on `active_placement_exchange_truth`, cancel/replace proof, and
+the existing backend cancel/replace path; movement reprice also names the
+cooldown/claim requirement. Rows may name `cancel_order(client_order_id)` as
+the backend cancellation method for cancel/replace evidence, but they are
+still read-only evidence: no manager invocation, Coinbase submit/cancel/read,
+reconciliation execution, state mutation, exchange `order_id` command identity,
+browser/BFF authority, route-local execution, or second trading path is added.
 Concrete live-disabled stealth command responses may include
 `stealth_admission_context`. That response echo is different from the
 read-only command-suite row: the command path has route, identity, actor,

@@ -27725,6 +27725,109 @@ class StealthCommandSuiteCreateCancelDraftReadinessSummary(BaseModel):
     detail: str
 
 
+class StealthCommandSuiteRevealMoveRepriceDraftReadinessItem(BaseModel):
+    """Phase 8108 readiness row for reveal, move, and reprice drafts."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    mutation_family: AdminApiMutationFamilyType
+    workflow_family: AdminApiStealthCommandSuiteGapFamily
+    command_workflow: AdminApiStealthCommandWorkflowSurface
+    label: str
+    route: str
+    method: str
+    identity_key: str = "stealth_order_id"
+    identity_value_source: str = "selected_stealth_order_id"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    action_state: AdminApiActionState
+    command_status: AdminApiGateStatus
+    live_execution_status: AdminApiLiveExecutionStatus
+    command_row_present: bool = True
+    action_state_row_present: bool = True
+    handoff_audit_row_present: bool = True
+    command_workflow_available: bool = True
+    selected_order_handoff_required: bool = True
+    selected_order_handoff_available: bool = True
+    draft_prefill_only: bool = True
+    order_specific_adjudication: bool = False
+    exchange_truth_required: bool
+    active_placement_evidence_required: bool
+    exchange_truth_check_present: bool
+    active_placement_exchange_truth_resolved: bool = False
+    reveal_trigger_evidence_required: bool = False
+    cancel_replace_required: bool = False
+    cancel_replace_boundary_present: bool = False
+    cancel_replace_proof_resolved: bool = False
+    movement_reprice_cooldown_required: bool = False
+    backend_contract_required: bool = True
+    next_required_contract: str
+    first_exchange_reality_contract: str | None = None
+    first_cancel_replace_contract: str | None = None
+    exchange_cancel_method: str | None = None
+    backend_owned: bool = True
+    route_bound: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_enabled: bool = False
+    executable: bool = False
+    manager_invocation_allowed: bool = False
+    coinbase_submit_allowed: bool = False
+    coinbase_cancel_allowed: bool = False
+    coinbase_read_allowed: bool = False
+    reconciliation_execution_allowed: bool = False
+    state_mutation_allowed: bool = False
+    exchange_order_id_identity_allowed: bool = False
+    required_gate_chain: list[str] = Field(default_factory=list)
+    missing_gate_chain: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    exchange_reality_contracts: list[str] = Field(default_factory=list)
+    cancel_replace_contracts: list[str] = Field(default_factory=list)
+    backend_contract_refs: list[str] = Field(default_factory=list)
+    frontend_contract_refs: list[str] = Field(default_factory=list)
+    documentation_refs: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    detail: str
+
+
+class StealthCommandSuiteRevealMoveRepriceDraftReadinessSummary(BaseModel):
+    """Aggregate Phase 8108 reveal/move/reprice draft readiness evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: str = "phase_8108_stealth_reveal_move_reprice_draft_readiness"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    draft_count: int = Field(ge=0)
+    blocked_draft_count: int = Field(ge=0)
+    executable_draft_count: int = Field(ge=0)
+    reveal_ready: bool = False
+    move_ready: bool = False
+    reprice_ready: bool = False
+    command_row_count: int = Field(ge=0)
+    action_state_row_count: int = Field(ge=0)
+    handoff_audit_row_count: int = Field(ge=0)
+    selected_order_handoff_required_count: int = Field(ge=0)
+    reveal_trigger_evidence_required_count: int = Field(ge=0)
+    active_placement_evidence_required_count: int = Field(ge=0)
+    cancel_replace_required_count: int = Field(ge=0)
+    exchange_truth_check_count: int = Field(ge=0)
+    cancel_replace_boundary_count: int = Field(ge=0)
+    all_command_rows_present: bool = False
+    all_action_state_rows_present: bool = False
+    all_handoff_rows_present: bool = False
+    all_exchange_truth_rows_present: bool = False
+    all_browser_bff_display_only: bool = False
+    all_live_disabled: bool = False
+    all_exchange_order_id_evidence_only: bool = True
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    detail: str
+
+
 class StealthCommandSuiteCoverageGapEvidenceRouteItem(BaseModel):
     """Read route that supplies evidence for a stealth command-suite coverage gap."""
 
@@ -34072,6 +34175,15 @@ class StealthCommandSuiteResponse(AdminApiReadPayload):
     ] = Field(default_factory=list)
     create_cancel_draft_readiness_summary: (
         StealthCommandSuiteCreateCancelDraftReadinessSummary | None
+    ) = None
+    reveal_move_reprice_draft_readiness_count: int = 0
+    blocked_reveal_move_reprice_draft_readiness_count: int = 0
+    executable_reveal_move_reprice_draft_readiness_count: int = 0
+    reveal_move_reprice_draft_readiness: list[
+        StealthCommandSuiteRevealMoveRepriceDraftReadinessItem
+    ] = Field(default_factory=list)
+    reveal_move_reprice_draft_readiness_summary: (
+        StealthCommandSuiteRevealMoveRepriceDraftReadinessSummary | None
     ) = None
     coverage_gap_count: int = 0
     coverage_gaps: list[StealthCommandSuiteCoverageGapItem] = Field(default_factory=list)

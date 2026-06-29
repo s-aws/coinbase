@@ -473,6 +473,91 @@ the project client id for cancellation through the backend wrapper. The route
 identity remains `stealth_order_id`; active-placement client ids and exchange
 `order_id` stay evidence until backend active-placement exchange truth passes.
 
+Phase 8108 adds reveal/move/reprice draft readiness rows. These rows remain
+read-only evidence and keep reveal, move, and movement reprice blocked until
+the backend-owned exchange-reality, trigger, active-placement, cancel/replace,
+and cooldown contracts pass:
+
+```json
+{
+  "reveal_move_reprice_draft_readiness_count": 3,
+  "blocked_reveal_move_reprice_draft_readiness_count": 3,
+  "executable_reveal_move_reprice_draft_readiness_count": 0,
+  "reveal_move_reprice_draft_readiness": [
+    {
+      "mutation_family": "stealth_reveal",
+      "command_workflow": "stealth-reveal",
+      "route": "/api/v1/stealth/orders/{stealth_order_id}/reveal",
+      "identity_key": "stealth_order_id",
+      "live_execution_status": "approval_required",
+      "reveal_trigger_evidence_required": true,
+      "active_placement_evidence_required": false,
+      "cancel_replace_required": false,
+      "cancel_replace_boundary_present": false,
+      "next_required_contract": "lifecycle_write_guard",
+      "first_exchange_reality_contract": "stealth_reveal_trigger_guard",
+      "exchange_cancel_method": null,
+      "live_enabled": false,
+      "executable": false,
+      "exchange_order_id_identity_allowed": false
+    },
+    {
+      "mutation_family": "stealth_move",
+      "command_workflow": "stealth-move",
+      "route": "/api/v1/stealth/orders/{stealth_order_id}/move",
+      "identity_key": "stealth_order_id",
+      "active_placement_evidence_required": true,
+      "cancel_replace_required": true,
+      "cancel_replace_boundary_present": true,
+      "movement_reprice_cooldown_required": false,
+      "next_required_contract": "active_placement_exchange_truth",
+      "first_cancel_replace_contract": "stealth_active_placement_exchange_truth_proof_contract",
+      "exchange_cancel_method": "cancel_order(client_order_id)",
+      "live_enabled": false,
+      "executable": false,
+      "exchange_order_id_identity_allowed": false
+    },
+    {
+      "mutation_family": "movement_reprice",
+      "command_workflow": "movement-reprice",
+      "route": "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice",
+      "identity_key": "stealth_order_id",
+      "active_placement_evidence_required": true,
+      "cancel_replace_required": true,
+      "cancel_replace_boundary_present": true,
+      "movement_reprice_cooldown_required": true,
+      "next_required_contract": "active_placement_exchange_truth",
+      "first_cancel_replace_contract": "stealth_active_placement_exchange_truth_proof_contract",
+      "exchange_cancel_method": "cancel_order(client_order_id)",
+      "live_enabled": false,
+      "executable": false,
+      "exchange_order_id_identity_allowed": false
+    }
+  ],
+  "reveal_move_reprice_draft_readiness_summary": {
+    "source": "phase_8108_stealth_reveal_move_reprice_draft_readiness",
+    "status": "blocked",
+    "draft_count": 3,
+    "blocked_draft_count": 3,
+    "executable_draft_count": 0,
+    "reveal_ready": false,
+    "move_ready": false,
+    "reprice_ready": false,
+    "selected_order_handoff_required_count": 3,
+    "reveal_trigger_evidence_required_count": 1,
+    "active_placement_evidence_required_count": 2,
+    "cancel_replace_required_count": 2,
+    "exchange_truth_check_count": 3,
+    "cancel_replace_boundary_count": 2,
+    "all_browser_bff_display_only": true,
+    "all_live_disabled": true,
+    "all_exchange_order_id_evidence_only": true,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0"
+  }
+}
+```
+
 The selected candidate is a backend work-sequencing target only. It does not
 authorize create execution, lifecycle writes, proof lookup, manager
 invocation, Coinbase reads/submits/cancels, reconciliation execution, or state

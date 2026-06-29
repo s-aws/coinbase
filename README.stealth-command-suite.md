@@ -286,6 +286,18 @@ only reach exchange cancellation through the backend-owned
 `cancel_order(client_order_id)` path after active-placement evidence passes.
 Both rows are read-only, prefill-only, non-executable, live-disabled, keyed by
 `stealth_order_id`, and treat exchange `order_id` as evidence only.
+The command-suite response also exposes
+`reveal_move_reprice_draft_readiness` and
+`reveal_move_reprice_draft_readiness_summary` for Phase 8108. These rows
+narrow operator-facing draft handoff evidence to reveal, move, and movement
+reprice without changing execution authority. Reveal may show
+`live_execution_status=approval_required`, but it stays blocked on lifecycle,
+reveal-trigger, and exchange-submission evidence. Move and movement reprice
+stay blocked on `active_placement_exchange_truth` plus cancel/replace proof;
+movement reprice also carries the cooldown/claim requirement. The rows may
+name `cancel_order(client_order_id)` as the backend cancel/replace method,
+but they are still read-only, prefill-only, non-executable, live-disabled,
+keyed by `stealth_order_id`, and treat exchange `order_id` as evidence only.
 
 ## Safety Constraints
 
