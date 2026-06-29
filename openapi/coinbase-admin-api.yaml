@@ -159645,6 +159645,376 @@ components:
       - detail
       title: StealthCommandSuiteExchangeTruthItem
       description: Backend-owned exchange-truth prerequisite for a stealth command.
+    StealthCommandSuitePostWriteEvidenceContractReviewItem:
+      properties:
+        evidence_contract:
+          $ref: '#/components/schemas/AdminApiMutationFamilyType'
+        label:
+          type: string
+          title: Label
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        exposure_status:
+          $ref: '#/components/schemas/AdminApiFunctionalityExposureStatus'
+        read_route:
+          type: string
+          title: Read Route
+        read_method:
+          type: string
+          title: Read Method
+          default: GET
+        write_route:
+          type: string
+          title: Write Route
+        write_method:
+          type: string
+          title: Write Method
+          default: POST
+        identity_key:
+          type: string
+          title: Identity Key
+          default: stealth_order_id
+        identity_value_source:
+          type: string
+          title: Identity Value Source
+          default: selected_stealth_order_id
+        readback_available:
+          type: boolean
+          title: Readback Available
+        write_contract_available:
+          type: boolean
+          title: Write Contract Available
+        append_only_evidence_required:
+          type: boolean
+          title: Append Only Evidence Required
+          default: true
+        exact_command_context_required:
+          type: boolean
+          title: Exact Command Context Required
+          default: true
+        proof_chain_required:
+          type: boolean
+          title: Proof Chain Required
+        execution_journal_required:
+          type: boolean
+          title: Execution Journal Required
+        verification_required:
+          type: boolean
+          title: Verification Required
+        evidence_presence_is_execution:
+          type: boolean
+          title: Evidence Presence Is Execution
+          default: false
+        reconciliation_execution_allowed:
+          type: boolean
+          title: Reconciliation Execution Allowed
+          default: false
+        reconciliation_executed:
+          type: boolean
+          title: Reconciliation Executed
+          default: false
+        manager_invocation_allowed:
+          type: boolean
+          title: Manager Invocation Allowed
+          default: false
+        coinbase_submit_allowed:
+          type: boolean
+          title: Coinbase Submit Allowed
+          default: false
+        coinbase_cancel_allowed:
+          type: boolean
+          title: Coinbase Cancel Allowed
+          default: false
+        coinbase_read_allowed:
+          type: boolean
+          title: Coinbase Read Allowed
+          default: false
+        state_mutation_allowed:
+          type: boolean
+          title: State Mutation Allowed
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        route_bound:
+          type: boolean
+          title: Route Bound
+          default: true
+        live_enabled:
+          type: boolean
+          title: Live Enabled
+          default: false
+        executable:
+          type: boolean
+          title: Executable
+          default: false
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiPermission'
+          - type: string
+          title: Required Permission
+        service_method:
+          type: string
+          title: Service Method
+        current_read_evidence_routes:
+          items:
+            type: string
+          type: array
+          title: Current Read Evidence Routes
+        proof_record_routes:
+          items:
+            type: string
+          type: array
+          title: Proof Record Routes
+        required_evidence:
+          items:
+            type: string
+          type: array
+          title: Required Evidence
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        backend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Backend Contract Refs
+        frontend_contract_refs:
+          items:
+            type: string
+          type: array
+          title: Frontend Contract Refs
+        documentation_refs:
+          items:
+            type: string
+          type: array
+          title: Documentation Refs
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - evidence_contract
+      - label
+      - exposure_status
+      - read_route
+      - write_route
+      - readback_available
+      - write_contract_available
+      - proof_chain_required
+      - execution_journal_required
+      - verification_required
+      - action_class
+      - required_permission
+      - service_method
+      - detail
+      title: StealthCommandSuitePostWriteEvidenceContractReviewItem
+      description: Phase 8110 post-write evidence contract review row.
+    StealthCommandSuitePostWriteEvidenceContractReviewSummary:
+      properties:
+        source:
+          type: string
+          title: Source
+          default: phase_8110_stealth_post_write_evidence_contract_review
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        review_count:
+          type: integer
+          minimum: 0.0
+          title: Review Count
+        blocked_review_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Review Count
+        executable_review_count:
+          type: integer
+          minimum: 0.0
+          title: Executable Review Count
+        readback_available_count:
+          type: integer
+          minimum: 0.0
+          title: Readback Available Count
+        write_contract_available_count:
+          type: integer
+          minimum: 0.0
+          title: Write Contract Available Count
+        append_only_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Append Only Contract Count
+        exact_command_context_required_count:
+          type: integer
+          minimum: 0.0
+          title: Exact Command Context Required Count
+        proof_chain_required_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Chain Required Count
+        execution_journal_required_count:
+          type: integer
+          minimum: 0.0
+          title: Execution Journal Required Count
+        verification_required_count:
+          type: integer
+          minimum: 0.0
+          title: Verification Required Count
+        evidence_presence_execution_count:
+          type: integer
+          minimum: 0.0
+          title: Evidence Presence Execution Count
+        reconciliation_execution_allowed_count:
+          type: integer
+          minimum: 0.0
+          title: Reconciliation Execution Allowed Count
+        proof_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Contract Count
+        journal_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Journal Contract Count
+        verification_contract_count:
+          type: integer
+          minimum: 0.0
+          title: Verification Contract Count
+        all_readbacks_available:
+          type: boolean
+          title: All Readbacks Available
+          default: false
+        all_write_contracts_available:
+          type: boolean
+          title: All Write Contracts Available
+          default: false
+        all_append_only:
+          type: boolean
+          title: All Append Only
+          default: false
+        all_exact_command_context_required:
+          type: boolean
+          title: All Exact Command Context Required
+          default: false
+        all_evidence_presence_non_executing:
+          type: boolean
+          title: All Evidence Presence Non Executing
+          default: false
+        all_browser_bff_display_only:
+          type: boolean
+          title: All Browser Bff Display Only
+          default: false
+        all_live_disabled:
+          type: boolean
+          title: All Live Disabled
+          default: false
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - review_count
+      - blocked_review_count
+      - executable_review_count
+      - readback_available_count
+      - write_contract_available_count
+      - append_only_contract_count
+      - exact_command_context_required_count
+      - proof_chain_required_count
+      - execution_journal_required_count
+      - verification_required_count
+      - evidence_presence_execution_count
+      - reconciliation_execution_allowed_count
+      - proof_contract_count
+      - journal_contract_count
+      - verification_contract_count
+      - detail
+      title: StealthCommandSuitePostWriteEvidenceContractReviewSummary
+      description: Aggregate Phase 8110 post-write evidence contract review evidence.
     StealthCommandSuiteProofRouteItem:
       properties:
         gate:
@@ -160384,6 +160754,27 @@ components:
         recovery_reconciliation_gap_surfacing_summary:
           anyOf:
           - $ref: '#/components/schemas/StealthCommandSuiteRecoveryReconciliationGapSurfacingSummary'
+          - type: 'null'
+        post_write_evidence_contract_review_count:
+          type: integer
+          title: Post Write Evidence Contract Review Count
+          default: 0
+        blocked_post_write_evidence_contract_review_count:
+          type: integer
+          title: Blocked Post Write Evidence Contract Review Count
+          default: 0
+        executable_post_write_evidence_contract_review_count:
+          type: integer
+          title: Executable Post Write Evidence Contract Review Count
+          default: 0
+        post_write_evidence_contract_reviews:
+          items:
+            $ref: '#/components/schemas/StealthCommandSuitePostWriteEvidenceContractReviewItem'
+          type: array
+          title: Post Write Evidence Contract Reviews
+        post_write_evidence_contract_review_summary:
+          anyOf:
+          - $ref: '#/components/schemas/StealthCommandSuitePostWriteEvidenceContractReviewSummary'
           - type: 'null'
         coverage_gap_count:
           type: integer

@@ -1678,6 +1678,19 @@ blocked, selected-order prefill only, non-executable, live-disabled, keyed by
 roll back, execute reconciliation, write proofs, read Coinbase, mutate state,
 grant browser/BFF authority, add route-local execution, or create a second
 trading path.
+The same command-suite response also exposes Phase 8110
+`post_write_evidence_contract_reviews` and
+`post_write_evidence_contract_review_summary`. These rows review the existing
+post-write reconciliation proof, post-write execution journal, and post-write
+reconciliation verification contracts. They surface the read/write evidence
+routes, required proof chain, exact guarded command context, append-only
+posture, and no-live/no-execution flags so operators can inspect what evidence
+exists without treating evidence presence as reconciliation execution. The
+rows remain blocked, non-executable, live-disabled, backend-owned, keyed by
+`stealth_order_id`, and display/forward-only for browser/BFF consumers. They
+do not write proofs, execute reconciliation, invoke managers, read/write
+Coinbase, mutate lifecycle/order/exchange state, add route-local execution, or
+create a second trading path.
 Concrete live-disabled stealth command responses may include
 `stealth_admission_context`. That response echo is different from the
 read-only command-suite row: the command path has route, identity, actor,

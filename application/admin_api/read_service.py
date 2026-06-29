@@ -409,6 +409,8 @@ from .models import (
     StealthCommandSuiteRevealMoveRepriceDraftReadinessSummary,
     StealthCommandSuiteRecoveryReconciliationGapSurfacingItem,
     StealthCommandSuiteRecoveryReconciliationGapSurfacingSummary,
+    StealthCommandSuitePostWriteEvidenceContractReviewItem,
+    StealthCommandSuitePostWriteEvidenceContractReviewSummary,
     StealthCommandSuiteAdmissionContextItem,
     StealthCommandSuiteAdmissionReadinessItem,
     StealthCommandSuiteAdmissionRequirementItem,
@@ -21551,6 +21553,369 @@ class AdminApiReadService:
             else None
         )
 
+        post_write_evidence_review_specs = [
+            {
+                "evidence_contract": (
+                    AdminApiMutationFamilyType.STEALTH_POST_WRITE_RECONCILIATION_PROOF
+                ),
+                "label": "Post-write reconciliation proof",
+                "read_surface": (
+                    "GET /api/v1/stealth/orders/{stealth_order_id}/"
+                    "post-write-reconciliation-proof"
+                ),
+                "write_surface": (
+                    "POST /api/v1/stealth/orders/{stealth_order_id}/"
+                    "post-write-reconciliation-proofs"
+                ),
+                "required_evidence": [
+                    "route_bound_reconciliation_plan",
+                    "post_write_execution_journal",
+                    "post_write_completion_proof",
+                ],
+                "backend_contract_refs": [
+                    "api/v1/routes/stealth.py::record_stealth_post_write_reconciliation_proof",
+                    "application/admin_api/command_service.py::record_stealth_post_write_reconciliation_proof",
+                    "application/admin_api/stealth_post_write_reconciliation_service.py",
+                    "application/admin_api/stealth_post_write_reconciliation.py",
+                ],
+                "frontend_contract_refs": [
+                    "src/shared/api/contracts/backendApiClient.ts::getStealthPostWriteReconciliationProof",
+                    "src/features/stealth-orders/stealthBackendAdapters.ts",
+                    "src/features/stealth-orders/StealthOrdersReadModel.tsx",
+                ],
+                "documentation_refs": [
+                    "README.stealth-post-write-reconciliation-execution-policy.md",
+                    "docs/STEALTH_POST_WRITE_RECONCILIATION_EXECUTION_POLICY.md",
+                    "docs/STEALTH_ORDER_READS.md",
+                    "docs/examples/stealth-order-reads.md",
+                ],
+                "proof_chain_required": True,
+                "execution_journal_required": True,
+                "verification_required": False,
+                "detail": (
+                    "The post-write reconciliation proof is append-only backend "
+                    "evidence that a route-bound plan, execution journal, and "
+                    "completion proof were recorded. Its presence is not "
+                    "reconciliation execution and does not mutate stealth, order, "
+                    "or exchange state."
+                ),
+            },
+            {
+                "evidence_contract": (
+                    AdminApiMutationFamilyType.STEALTH_POST_WRITE_EXECUTION_JOURNAL
+                ),
+                "label": "Post-write execution journal",
+                "read_surface": (
+                    "GET /api/v1/stealth/orders/{stealth_order_id}/"
+                    "post-write-execution-journals"
+                ),
+                "write_surface": (
+                    "POST /api/v1/stealth/orders/{stealth_order_id}/"
+                    "post-write-execution-journals"
+                ),
+                "required_evidence": [
+                    "safe_post_write_reconciliation_proof",
+                    "exact_guarded_command_context",
+                    "accepted_execution_journal_ref",
+                ],
+                "backend_contract_refs": [
+                    "api/v1/routes/stealth.py::record_stealth_post_write_execution_journal",
+                    "application/admin_api/command_service.py::record_stealth_post_write_execution_journal",
+                    "application/admin_api/stealth_post_write_reconciliation_service.py",
+                    "application/admin_api/stealth_post_write_reconciliation.py",
+                ],
+                "frontend_contract_refs": [
+                    "src/shared/api/contracts/backendApiClient.ts::getStealthPostWriteExecutionJournals",
+                    "src/features/stealth-orders/stealthBackendAdapters.ts",
+                    "src/features/stealth-orders/StealthOrdersReadModel.tsx",
+                ],
+                "documentation_refs": [
+                    "README.stealth-post-write-reconciliation-execution-policy.md",
+                    "docs/STEALTH_POST_WRITE_RECONCILIATION_EXECUTION_POLICY.md",
+                    "docs/STEALTH_ORDER_READS.md",
+                    "docs/examples/stealth-order-reads.md",
+                ],
+                "proof_chain_required": True,
+                "execution_journal_required": True,
+                "verification_required": False,
+                "detail": (
+                    "The post-write execution journal accepts exact guarded "
+                    "command context after a safe proof exists. It is not a "
+                    "browser or BFF executor and cannot prove reconciliation by "
+                    "itself."
+                ),
+            },
+            {
+                "evidence_contract": (
+                    AdminApiMutationFamilyType.STEALTH_POST_WRITE_RECONCILIATION_VERIFICATION
+                ),
+                "label": "Post-write reconciliation verification",
+                "read_surface": (
+                    "GET /api/v1/stealth/orders/{stealth_order_id}/"
+                    "post-write-reconciliation-verifications"
+                ),
+                "write_surface": (
+                    "POST /api/v1/stealth/orders/{stealth_order_id}/"
+                    "post-write-reconciliation-verifications"
+                ),
+                "required_evidence": [
+                    "safe_post_write_reconciliation_proof",
+                    "accepted_post_write_execution_journal",
+                    "matching_reconciliation_verification_ref",
+                ],
+                "backend_contract_refs": [
+                    "api/v1/routes/stealth.py::record_stealth_post_write_reconciliation_verification",
+                    "application/admin_api/command_service.py::record_stealth_post_write_reconciliation_verification",
+                    "application/admin_api/stealth_post_write_reconciliation_service.py",
+                    "application/admin_api/stealth_post_write_reconciliation.py",
+                ],
+                "frontend_contract_refs": [
+                    "src/shared/api/contracts/backendApiClient.ts::getStealthPostWriteReconciliationVerifications",
+                    "src/features/stealth-orders/stealthBackendAdapters.ts",
+                    "src/features/stealth-orders/StealthOrdersReadModel.tsx",
+                ],
+                "documentation_refs": [
+                    "README.stealth-post-write-reconciliation-execution-policy.md",
+                    "docs/STEALTH_POST_WRITE_RECONCILIATION_EXECUTION_POLICY.md",
+                    "docs/STEALTH_ORDER_READS.md",
+                    "docs/examples/stealth-order-reads.md",
+                ],
+                "proof_chain_required": True,
+                "execution_journal_required": True,
+                "verification_required": True,
+                "detail": (
+                    "The post-write reconciliation verification records a safe "
+                    "matching proof/journal/verification chain. It confirms "
+                    "evidence consistency only; it does not execute "
+                    "reconciliation or mutate local or exchange state."
+                ),
+            },
+        ]
+
+        def post_write_route_parts(surface: str) -> tuple[str, str]:
+            item = inventory_by_surface.get(surface)
+            if item is None:
+                return _surface_method_and_path(surface)
+            return _surface_method_and_path(item.surface)
+
+        def build_post_write_evidence_contract_review(
+            spec: dict[str, object],
+        ) -> StealthCommandSuitePostWriteEvidenceContractReviewItem:
+            read_surface = str(spec["read_surface"])
+            write_surface = str(spec["write_surface"])
+            read_item = inventory_by_surface.get(read_surface)
+            write_item = inventory_by_surface.get(write_surface)
+            read_method, read_route = post_write_route_parts(read_surface)
+            write_method, write_route = post_write_route_parts(write_surface)
+            required_evidence = list(spec["required_evidence"])  # type: ignore[arg-type]
+            return StealthCommandSuitePostWriteEvidenceContractReviewItem(
+                evidence_contract=spec["evidence_contract"],  # type: ignore[arg-type]
+                label=str(spec["label"]),
+                status=AdminApiGateStatus.BLOCKED,
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED
+                ),
+                read_route=read_route,
+                read_method=read_method,
+                write_route=write_route,
+                write_method=write_method,
+                identity_key="stealth_order_id",
+                identity_value_source="selected_stealth_order_id",
+                readback_available=read_item is not None,
+                write_contract_available=write_item is not None,
+                append_only_evidence_required=True,
+                exact_command_context_required=True,
+                proof_chain_required=bool(spec["proof_chain_required"]),
+                execution_journal_required=bool(
+                    spec["execution_journal_required"]
+                ),
+                verification_required=bool(spec["verification_required"]),
+                evidence_presence_is_execution=False,
+                reconciliation_execution_allowed=False,
+                reconciliation_executed=False,
+                manager_invocation_allowed=False,
+                coinbase_submit_allowed=False,
+                coinbase_cancel_allowed=False,
+                coinbase_read_allowed=False,
+                state_mutation_allowed=False,
+                browser_authority="display_only",
+                bff_authority="forward_only_no_execution",
+                backend_owned=True,
+                route_bound=True,
+                live_enabled=False,
+                executable=False,
+                action_class=(
+                    write_item.action_class
+                    if write_item is not None
+                    else AdminApiActionClass.LOCAL_STATE_MUTATION
+                ),
+                required_permission=(
+                    write_item.permission
+                    if write_item is not None
+                    else "reconciliation:record"
+                ),
+                service_method=(
+                    write_item.shared_method
+                    if write_item is not None
+                    else "missing_route_inventory_shared_method"
+                ),
+                current_read_evidence_routes=[
+                    f"{read_method} {read_route}",
+                    "GET /api/v1/stealth/command-suite",
+                ],
+                proof_record_routes=[f"{write_method} {write_route}"],
+                required_evidence=required_evidence,
+                blockers=[
+                    "live_execution_disabled",
+                    "reconciliation_execution_disabled",
+                    "evidence_presence_not_execution",
+                    "browser_bff_execution_authority_disabled",
+                ],
+                backend_contract_refs=list(spec["backend_contract_refs"]),  # type: ignore[arg-type]
+                frontend_contract_refs=list(spec["frontend_contract_refs"]),  # type: ignore[arg-type]
+                documentation_refs=list(spec["documentation_refs"]),  # type: ignore[arg-type]
+                evidence=[
+                    "Derived from ADMIN_API_ROUTE_INVENTORY read/write surfaces.",
+                    "Derived from existing post-write proof, execution journal, and verification readbacks.",
+                    "Evidence presence is not reconciliation execution.",
+                    "The browser may display this row only; BFF forwarding is not execution authority.",
+                ],
+                live_coinbase_orders_ran=False,
+                live_coinbase_read_ran=False,
+                submitted_notional_usdc="0",
+                executed_notional_usdc="0",
+                detail=str(spec["detail"]),
+            )
+
+        post_write_evidence_contract_reviews = [
+            build_post_write_evidence_contract_review(spec)
+            for spec in post_write_evidence_review_specs
+        ]
+        post_write_evidence_contract_review_summary = (
+            StealthCommandSuitePostWriteEvidenceContractReviewSummary(
+                status=AdminApiGateStatus.BLOCKED,
+                review_count=len(post_write_evidence_contract_reviews),
+                blocked_review_count=sum(
+                    1
+                    for item in post_write_evidence_contract_reviews
+                    if item.status == AdminApiGateStatus.BLOCKED
+                ),
+                executable_review_count=sum(
+                    1 for item in post_write_evidence_contract_reviews if item.executable
+                ),
+                readback_available_count=sum(
+                    1
+                    for item in post_write_evidence_contract_reviews
+                    if item.readback_available
+                ),
+                write_contract_available_count=sum(
+                    1
+                    for item in post_write_evidence_contract_reviews
+                    if item.write_contract_available
+                ),
+                append_only_contract_count=sum(
+                    1
+                    for item in post_write_evidence_contract_reviews
+                    if item.append_only_evidence_required
+                ),
+                exact_command_context_required_count=sum(
+                    1
+                    for item in post_write_evidence_contract_reviews
+                    if item.exact_command_context_required
+                ),
+                proof_chain_required_count=sum(
+                    1
+                    for item in post_write_evidence_contract_reviews
+                    if item.proof_chain_required
+                ),
+                execution_journal_required_count=sum(
+                    1
+                    for item in post_write_evidence_contract_reviews
+                    if item.execution_journal_required
+                ),
+                verification_required_count=sum(
+                    1
+                    for item in post_write_evidence_contract_reviews
+                    if item.verification_required
+                ),
+                evidence_presence_execution_count=sum(
+                    1
+                    for item in post_write_evidence_contract_reviews
+                    if item.evidence_presence_is_execution
+                ),
+                reconciliation_execution_allowed_count=sum(
+                    1
+                    for item in post_write_evidence_contract_reviews
+                    if item.reconciliation_execution_allowed
+                ),
+                proof_contract_count=sum(
+                    1
+                    for item in post_write_evidence_contract_reviews
+                    if item.evidence_contract
+                    == AdminApiMutationFamilyType.STEALTH_POST_WRITE_RECONCILIATION_PROOF
+                ),
+                journal_contract_count=sum(
+                    1
+                    for item in post_write_evidence_contract_reviews
+                    if item.evidence_contract
+                    == AdminApiMutationFamilyType.STEALTH_POST_WRITE_EXECUTION_JOURNAL
+                ),
+                verification_contract_count=sum(
+                    1
+                    for item in post_write_evidence_contract_reviews
+                    if item.evidence_contract
+                    == AdminApiMutationFamilyType.STEALTH_POST_WRITE_RECONCILIATION_VERIFICATION
+                ),
+                all_readbacks_available=all(
+                    item.readback_available for item in post_write_evidence_contract_reviews
+                ),
+                all_write_contracts_available=all(
+                    item.write_contract_available
+                    for item in post_write_evidence_contract_reviews
+                ),
+                all_append_only=all(
+                    item.append_only_evidence_required
+                    for item in post_write_evidence_contract_reviews
+                ),
+                all_exact_command_context_required=all(
+                    item.exact_command_context_required
+                    for item in post_write_evidence_contract_reviews
+                ),
+                all_evidence_presence_non_executing=all(
+                    not item.evidence_presence_is_execution
+                    and not item.reconciliation_execution_allowed
+                    and not item.reconciliation_executed
+                    for item in post_write_evidence_contract_reviews
+                ),
+                all_browser_bff_display_only=all(
+                    item.browser_authority == "display_only"
+                    and item.bff_authority == "forward_only_no_execution"
+                    for item in post_write_evidence_contract_reviews
+                ),
+                all_live_disabled=all(
+                    not item.live_enabled and not item.executable
+                    for item in post_write_evidence_contract_reviews
+                ),
+                backend_owned=True,
+                browser_authority="display_only",
+                bff_authority="forward_only_no_execution",
+                live_coinbase_orders_ran=False,
+                live_coinbase_read_ran=False,
+                submitted_notional_usdc="0",
+                executed_notional_usdc="0",
+                detail=(
+                    "Phase 8110 reviews the existing stealth post-write proof, "
+                    "execution journal, and verification contracts as "
+                    "operator-visible command-suite evidence. All rows remain "
+                    "append-only/readback evidence and explicitly do not execute "
+                    "reconciliation, call Coinbase, invoke managers, or mutate "
+                    "stealth/order/exchange state."
+                ),
+            )
+            if post_write_evidence_contract_reviews
+            else None
+        )
+
         def blocker_closure(
             *,
             closure_id: str,
@@ -28342,6 +28707,25 @@ class AdminApiReadService:
             ),
             recovery_reconciliation_gap_surfacing_summary=(
                 recovery_reconciliation_gap_surfacing_summary
+            ),
+            post_write_evidence_contract_review_count=len(
+                post_write_evidence_contract_reviews
+            ),
+            blocked_post_write_evidence_contract_review_count=sum(
+                1
+                for item in post_write_evidence_contract_reviews
+                if item.status == AdminApiGateStatus.BLOCKED
+            ),
+            executable_post_write_evidence_contract_review_count=sum(
+                1
+                for item in post_write_evidence_contract_reviews
+                if item.executable
+            ),
+            post_write_evidence_contract_reviews=(
+                post_write_evidence_contract_reviews
+            ),
+            post_write_evidence_contract_review_summary=(
+                post_write_evidence_contract_review_summary
             ),
             coverage_gap_count=len(coverage_gaps),
             coverage_gaps=coverage_gaps,

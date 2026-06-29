@@ -311,6 +311,19 @@ evidence only and must not be converted into recovery repair, rollback,
 proof-writing, reconciliation execution, Coinbase read/write, state mutation,
 browser/BFF execution authority, route-local execution, or a second trading
 path.
+The command-suite response also exposes
+`post_write_evidence_contract_reviews` and
+`post_write_evidence_contract_review_summary` for Phase 8110. These rows
+review the existing post-write reconciliation proof, post-write execution
+journal, and post-write reconciliation verification contracts. They make the
+read/write evidence routes, required proof chain, exact guarded command
+context, and append-only posture inspectable in one command-suite surface.
+Every row remains blocked, non-executable, live-disabled, backend-owned, and
+keyed by `stealth_order_id`; evidence presence is explicitly not
+reconciliation execution. The rows must not be converted into proof writing
+authority, reconciliation execution, manager invocation, Coinbase read/write,
+state mutation, browser/BFF execution authority, route-local execution, or a
+second trading path.
 
 ## Safety Constraints
 
@@ -355,6 +368,12 @@ path.
   Coinbase reads, active-placement cancel/replace behavior, manager
   invocation, plan building, reconciliation execution, state mutation, command
   enablement, or BFF execution authority.
+- `post_write_evidence_contract_reviews` is command-suite review evidence
+  only. It may show the existing proof, journal, and verification read/write
+  routes, but evidence presence must not be treated as reconciliation
+  execution, proof acceptance authority, Coinbase activity, manager
+  invocation, lifecycle/order/exchange-state mutation, browser/BFF execution,
+  or command enablement.
 - `admission_readiness` is blocked read evidence only. It must not be
   converted into approval, execution, reconciliation, Coinbase reads,
   `StealthOrderManager` invocation, active-placement cancel/replace behavior,

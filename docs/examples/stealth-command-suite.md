@@ -622,6 +622,66 @@ mutate local/exchange state.
 }
 ```
 
+Phase 8110 adds post-write evidence contract review rows. These rows review
+the existing proof, journal, and verification evidence contracts; they do not
+turn evidence presence into reconciliation execution, proof-writing authority,
+Coinbase activity, manager invocation, or state mutation.
+
+```json
+{
+  "post_write_evidence_contract_review_count": 3,
+  "blocked_post_write_evidence_contract_review_count": 3,
+  "executable_post_write_evidence_contract_review_count": 0,
+  "post_write_evidence_contract_reviews": [
+    {
+      "evidence_contract": "stealth_post_write_reconciliation_proof",
+      "read_route": "/api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proof",
+      "write_route": "/api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proofs",
+      "service_method": "record_stealth_post_write_reconciliation_proof",
+      "readback_available": true,
+      "write_contract_available": true,
+      "evidence_presence_is_execution": false,
+      "reconciliation_execution_allowed": false,
+      "live_enabled": false,
+      "executable": false
+    },
+    {
+      "evidence_contract": "stealth_post_write_execution_journal",
+      "read_route": "/api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals",
+      "write_route": "/api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals",
+      "service_method": "record_stealth_post_write_execution_journal",
+      "exact_command_context_required": true,
+      "evidence_presence_is_execution": false
+    },
+    {
+      "evidence_contract": "stealth_post_write_reconciliation_verification",
+      "read_route": "/api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications",
+      "write_route": "/api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications",
+      "service_method": "record_stealth_post_write_reconciliation_verification",
+      "verification_required": true,
+      "evidence_presence_is_execution": false
+    }
+  ],
+  "post_write_evidence_contract_review_summary": {
+    "source": "phase_8110_stealth_post_write_evidence_contract_review",
+    "status": "blocked",
+    "review_count": 3,
+    "blocked_review_count": 3,
+    "executable_review_count": 0,
+    "readback_available_count": 3,
+    "write_contract_available_count": 3,
+    "append_only_contract_count": 3,
+    "evidence_presence_execution_count": 0,
+    "reconciliation_execution_allowed_count": 0,
+    "all_evidence_presence_non_executing": true,
+    "all_browser_bff_display_only": true,
+    "all_live_disabled": true,
+    "submitted_notional_usdc": "0",
+    "executed_notional_usdc": "0"
+  }
+}
+```
+
 The selected candidate is a backend work-sequencing target only. It does not
 authorize create execution, lifecycle writes, proof lookup, manager
 invocation, Coinbase reads/submits/cancels, reconciliation execution, or state

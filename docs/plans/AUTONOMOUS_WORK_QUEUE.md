@@ -400,6 +400,29 @@ Exact autonomous phrase: Active Release 0.1 `8101-8120` adds a Stealth Lifecycle
 - Review post-write execution journal, reconciliation proof, and verification
   evidence contracts so operators can inspect what happened without treating
   evidence presence as reconciliation execution.
+- Evidence update 2026-06-29: added backend-owned
+  `post_write_evidence_contract_reviews` and
+  `post_write_evidence_contract_review_summary` to
+  `GET /api/v1/stealth/command-suite`, OpenAPI, generated frontend contracts,
+  frontend mock/runtime fixtures, and the Stealth Orders command-suite panel.
+  The three rows cover `stealth_post_write_reconciliation_proof`,
+  `stealth_post_write_execution_journal`, and
+  `stealth_post_write_reconciliation_verification`. They surface existing
+  read/write evidence routes, required proof-chain evidence, exact guarded
+  command context, append-only posture, and no-execution flags. All rows
+  remain blocked, non-executable, not live-enabled, backend-owned,
+  display/forward-only, keyed by `stealth_order_id`, and explicitly mark
+  evidence presence as not reconciliation execution. No proof writing,
+  reconciliation execution, manager invocation, Coinbase read/write,
+  lifecycle/order/exchange-state mutation, browser/BFF execution authority,
+  route-local execution, exchange `order_id` command identity, or second
+  trading path was added. Backend and frontend `AGENTS.md` instructions were
+  re-reviewed for Phase 8110 with no direction change.
+  Blind/contextless reviewer `019f158e-8ab0-7031-95d8-888432dc813d` passed
+  with no remediation required. Phase-end stale-subagent sweep completed:
+  reviewer findings were consumed and the agent was closed. Live Coinbase
+  execution was not run; submitted notional `0` USDC, executed notional `0`
+  USDC.
 
 ### Phase 8111 - Frontend Stealth Status Adapter
 

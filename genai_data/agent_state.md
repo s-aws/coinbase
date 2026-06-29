@@ -57,8 +57,8 @@ work. Historical milestone detail belongs in
   backend owner contracts, frontend `AGENTS.md`, frontend owner contracts, and
   ordered frontend docs were reviewed again on 2026-06-29 for Phase 8021 and
   again before activating `8061-8080`; they were re-reviewed during Phase
-  8068, during Phase 8081, during Phase 8101, during Phase 8104, and during
-  Phase 8106 with no direction change.
+  8068, during Phase 8081, during Phase 8101, during Phase 8104, during
+  Phase 8106, and during Phase 8110 with no direction change.
   Release 0.1 product progress remains the
   controlling rule: every phase must clear a named Release 0.1 blocker or
   directly improve usable admin management. The current range must keep
@@ -286,10 +286,29 @@ work. Historical milestone detail belongs in
   state mutation, exchange `order_id` command identity, or second trading path
   was added. Live Coinbase execution was not run and submitted/executed
   notional stayed 0 USDC.
-- Exact next implementation slice after Phase 8109 validation: move to
-  Phase 8110 Post-Write Evidence Contract Review. Do not add browser
-  scheduler, BFF runner authority, retry loops, route-local execution, direct
-  Coinbase calls, manager invocation, recovery repair, rollback, proof writing,
+- Phase 8110 implementation status: `GET /api/v1/stealth/command-suite`
+  now exposes backend-owned `post_write_evidence_contract_reviews` and
+  `post_write_evidence_contract_review_summary` for the existing post-write
+  reconciliation proof, post-write execution journal, and post-write
+  reconciliation verification contracts. All three rows remain blocked,
+  append-only/readback evidence, not live-enabled, non-executable, keyed by
+  `stealth_order_id`, and explicit that evidence presence is not
+  reconciliation execution. Frontend generated schema, mock fixtures, runtime
+  tests, typed stealth adapters, and the Stealth Orders command-suite panel
+  consume the same fields. No browser/BFF execution authority, route-local
+  execution, direct Coinbase calls, manager invocation, proof writing, proof
+  acceptance, reconciliation execution, order/exchange state mutation,
+  exchange `order_id` command identity, or second trading path was added.
+  Blind/contextless reviewer `019f158e-8ab0-7031-95d8-888432dc813d` passed
+  with no remediation required and confirmed the backend/frontend contract is
+  understandable from repository context only. Phase-end stale-subagent sweep
+  completed: reviewer findings were consumed and the agent was closed. Live
+  Coinbase execution was not run and submitted/executed notional stayed 0
+  USDC.
+- Exact next implementation slice after Phase 8110 validation: move to
+  Phase 8111 Frontend Stealth Status Adapter. Do not add browser scheduler,
+  BFF runner authority, retry loops, route-local execution, direct Coinbase
+  calls, manager invocation, recovery repair, rollback, proof writing,
   reconciliation execution, order/exchange state mutation, exchange `order_id`
   command identity, or a second trading path.
 - Contextless review status: backend Phase 7997 passed after remediation.

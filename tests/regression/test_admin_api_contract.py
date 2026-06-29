@@ -7900,6 +7900,78 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
         "all_admission_readiness_rows_present",
     ):
         assert property_name in recovery_reconciliation_gap_summary_schema["properties"]
+    assert (
+        "post_write_evidence_contract_reviews"
+        in stealth_command_suite_schema["properties"]
+    )
+    assert (
+        "post_write_evidence_contract_review_summary"
+        in stealth_command_suite_schema["properties"]
+    )
+    assert (
+        "post_write_evidence_contract_review_count"
+        in stealth_command_suite_schema["properties"]
+    )
+    assert (
+        "blocked_post_write_evidence_contract_review_count"
+        in stealth_command_suite_schema["properties"]
+    )
+    assert (
+        "executable_post_write_evidence_contract_review_count"
+        in stealth_command_suite_schema["properties"]
+    )
+    assert (
+        "StealthCommandSuitePostWriteEvidenceContractReviewItem"
+        in written["components"]["schemas"]
+    )
+    assert (
+        "StealthCommandSuitePostWriteEvidenceContractReviewSummary"
+        in written["components"]["schemas"]
+    )
+    post_write_review_schema = written["components"]["schemas"][
+        "StealthCommandSuitePostWriteEvidenceContractReviewItem"
+    ]
+    for property_name in (
+        "evidence_contract",
+        "read_route",
+        "write_route",
+        "readback_available",
+        "write_contract_available",
+        "append_only_evidence_required",
+        "exact_command_context_required",
+        "proof_chain_required",
+        "execution_journal_required",
+        "verification_required",
+        "evidence_presence_is_execution",
+        "reconciliation_execution_allowed",
+        "reconciliation_executed",
+        "manager_invocation_allowed",
+        "coinbase_read_allowed",
+        "state_mutation_allowed",
+        "proof_record_routes",
+    ):
+        assert property_name in post_write_review_schema["properties"]
+    post_write_review_summary_schema = written["components"]["schemas"][
+        "StealthCommandSuitePostWriteEvidenceContractReviewSummary"
+    ]
+    for property_name in (
+        "review_count",
+        "blocked_review_count",
+        "executable_review_count",
+        "readback_available_count",
+        "write_contract_available_count",
+        "append_only_contract_count",
+        "exact_command_context_required_count",
+        "proof_chain_required_count",
+        "execution_journal_required_count",
+        "verification_required_count",
+        "evidence_presence_execution_count",
+        "reconciliation_execution_allowed_count",
+        "all_evidence_presence_non_executing",
+        "all_browser_bff_display_only",
+        "all_live_disabled",
+    ):
+        assert property_name in post_write_review_summary_schema["properties"]
     assert "selected_create_pre_execution_contract" in (
         stealth_command_suite_schema["properties"]
     )
@@ -39631,6 +39703,179 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert recovery_reconciliation_summary["live_coinbase_read_ran"] is False
     assert recovery_reconciliation_summary["submitted_notional_usdc"] == "0"
     assert recovery_reconciliation_summary["executed_notional_usdc"] == "0"
+    post_write_reviews = payload["post_write_evidence_contract_reviews"]
+    assert payload["post_write_evidence_contract_review_count"] == 3
+    assert payload["blocked_post_write_evidence_contract_review_count"] == 3
+    assert payload["executable_post_write_evidence_contract_review_count"] == 0
+    assert len(post_write_reviews) == 3
+    assert {
+        item["evidence_contract"] for item in post_write_reviews
+    } == {
+        AdminApiMutationFamilyType.STEALTH_POST_WRITE_RECONCILIATION_PROOF.value,
+        AdminApiMutationFamilyType.STEALTH_POST_WRITE_EXECUTION_JOURNAL.value,
+        AdminApiMutationFamilyType.STEALTH_POST_WRITE_RECONCILIATION_VERIFICATION.value,
+    }
+    assert all(
+        item["status"] == AdminApiGateStatus.BLOCKED.value
+        for item in post_write_reviews
+    )
+    assert all(
+        item["exposure_status"]
+        == AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED.value
+        for item in post_write_reviews
+    )
+    assert all(item["identity_key"] == "stealth_order_id" for item in post_write_reviews)
+    assert all(
+        item["identity_value_source"] == "selected_stealth_order_id"
+        for item in post_write_reviews
+    )
+    assert all(item["readback_available"] is True for item in post_write_reviews)
+    assert all(item["write_contract_available"] is True for item in post_write_reviews)
+    assert all(
+        item["append_only_evidence_required"] is True for item in post_write_reviews
+    )
+    assert all(
+        item["exact_command_context_required"] is True
+        for item in post_write_reviews
+    )
+    assert all(item["proof_chain_required"] is True for item in post_write_reviews)
+    assert all(
+        item["execution_journal_required"] is True for item in post_write_reviews
+    )
+    assert all(
+        item["evidence_presence_is_execution"] is False
+        for item in post_write_reviews
+    )
+    assert all(
+        item["reconciliation_execution_allowed"] is False
+        for item in post_write_reviews
+    )
+    assert all(
+        item["reconciliation_executed"] is False for item in post_write_reviews
+    )
+    assert all(
+        item["manager_invocation_allowed"] is False for item in post_write_reviews
+    )
+    assert all(item["coinbase_submit_allowed"] is False for item in post_write_reviews)
+    assert all(item["coinbase_cancel_allowed"] is False for item in post_write_reviews)
+    assert all(item["coinbase_read_allowed"] is False for item in post_write_reviews)
+    assert all(item["state_mutation_allowed"] is False for item in post_write_reviews)
+    assert all(item["live_enabled"] is False for item in post_write_reviews)
+    assert all(item["executable"] is False for item in post_write_reviews)
+    assert all(
+        item["browser_authority"] == "display_only" for item in post_write_reviews
+    )
+    assert all(
+        item["bff_authority"] == "forward_only_no_execution"
+        for item in post_write_reviews
+    )
+    assert all(
+        item["action_class"] == AdminApiActionClass.LOCAL_STATE_MUTATION.value
+        for item in post_write_reviews
+    )
+    assert all(
+        item["required_permission"] == AdminApiPermission.RECONCILIATION_RECORD.value
+        for item in post_write_reviews
+    )
+    assert all(item["live_coinbase_orders_ran"] is False for item in post_write_reviews)
+    assert all(item["live_coinbase_read_ran"] is False for item in post_write_reviews)
+    assert all(item["submitted_notional_usdc"] == "0" for item in post_write_reviews)
+    assert all(item["executed_notional_usdc"] == "0" for item in post_write_reviews)
+    post_write_review_by_contract = {
+        item["evidence_contract"]: item for item in post_write_reviews
+    }
+    post_write_proof_review = post_write_review_by_contract[
+        AdminApiMutationFamilyType.STEALTH_POST_WRITE_RECONCILIATION_PROOF.value
+    ]
+    assert post_write_proof_review["read_route"] == (
+        "/api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proof"
+    )
+    assert post_write_proof_review["write_route"] == (
+        "/api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proofs"
+    )
+    assert post_write_proof_review["service_method"] == (
+        "record_stealth_post_write_reconciliation_proof"
+    )
+    assert post_write_proof_review["verification_required"] is False
+    assert "route_bound_reconciliation_plan" in (
+        post_write_proof_review["required_evidence"]
+    )
+    assert (
+        "Evidence presence is not reconciliation execution."
+        in post_write_proof_review["evidence"]
+    )
+    post_write_journal_review = post_write_review_by_contract[
+        AdminApiMutationFamilyType.STEALTH_POST_WRITE_EXECUTION_JOURNAL.value
+    ]
+    assert post_write_journal_review["read_route"] == (
+        "/api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals"
+    )
+    assert post_write_journal_review["write_route"] == (
+        "/api/v1/stealth/orders/{stealth_order_id}/post-write-execution-journals"
+    )
+    assert post_write_journal_review["service_method"] == (
+        "record_stealth_post_write_execution_journal"
+    )
+    assert post_write_journal_review["verification_required"] is False
+    assert "exact_guarded_command_context" in (
+        post_write_journal_review["required_evidence"]
+    )
+    post_write_verification_review = post_write_review_by_contract[
+        AdminApiMutationFamilyType.STEALTH_POST_WRITE_RECONCILIATION_VERIFICATION.value
+    ]
+    assert post_write_verification_review["read_route"] == (
+        "/api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications"
+    )
+    assert post_write_verification_review["write_route"] == (
+        "/api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-verifications"
+    )
+    assert post_write_verification_review["service_method"] == (
+        "record_stealth_post_write_reconciliation_verification"
+    )
+    assert post_write_verification_review["verification_required"] is True
+    assert "matching_reconciliation_verification_ref" in (
+        post_write_verification_review["required_evidence"]
+    )
+    post_write_review_summary = payload[
+        "post_write_evidence_contract_review_summary"
+    ]
+    assert post_write_review_summary["source"] == (
+        "phase_8110_stealth_post_write_evidence_contract_review"
+    )
+    assert post_write_review_summary["status"] == AdminApiGateStatus.BLOCKED.value
+    assert post_write_review_summary["review_count"] == 3
+    assert post_write_review_summary["blocked_review_count"] == 3
+    assert post_write_review_summary["executable_review_count"] == 0
+    assert post_write_review_summary["readback_available_count"] == 3
+    assert post_write_review_summary["write_contract_available_count"] == 3
+    assert post_write_review_summary["append_only_contract_count"] == 3
+    assert post_write_review_summary["exact_command_context_required_count"] == 3
+    assert post_write_review_summary["proof_chain_required_count"] == 3
+    assert post_write_review_summary["execution_journal_required_count"] == 3
+    assert post_write_review_summary["verification_required_count"] == 1
+    assert post_write_review_summary["evidence_presence_execution_count"] == 0
+    assert (
+        post_write_review_summary["reconciliation_execution_allowed_count"]
+        == 0
+    )
+    assert post_write_review_summary["proof_contract_count"] == 1
+    assert post_write_review_summary["journal_contract_count"] == 1
+    assert post_write_review_summary["verification_contract_count"] == 1
+    assert post_write_review_summary["all_readbacks_available"] is True
+    assert post_write_review_summary["all_write_contracts_available"] is True
+    assert post_write_review_summary["all_append_only"] is True
+    assert (
+        post_write_review_summary["all_exact_command_context_required"] is True
+    )
+    assert (
+        post_write_review_summary["all_evidence_presence_non_executing"] is True
+    )
+    assert post_write_review_summary["all_browser_bff_display_only"] is True
+    assert post_write_review_summary["all_live_disabled"] is True
+    assert post_write_review_summary["live_coinbase_orders_ran"] is False
+    assert post_write_review_summary["live_coinbase_read_ran"] is False
+    assert post_write_review_summary["submitted_notional_usdc"] == "0"
+    assert post_write_review_summary["executed_notional_usdc"] == "0"
     move_handoff = action_state_handoff_by_id[
         AdminApiMutationFamilyType.STEALTH_MOVE.value
     ]

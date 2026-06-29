@@ -27944,6 +27944,99 @@ class StealthCommandSuiteRecoveryReconciliationGapSurfacingSummary(BaseModel):
     detail: str
 
 
+class StealthCommandSuitePostWriteEvidenceContractReviewItem(BaseModel):
+    """Phase 8110 post-write evidence contract review row."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    evidence_contract: AdminApiMutationFamilyType
+    label: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    exposure_status: AdminApiFunctionalityExposureStatus
+    read_route: str
+    read_method: str = "GET"
+    write_route: str
+    write_method: str = "POST"
+    identity_key: str = "stealth_order_id"
+    identity_value_source: str = "selected_stealth_order_id"
+    readback_available: bool
+    write_contract_available: bool
+    append_only_evidence_required: bool = True
+    exact_command_context_required: bool = True
+    proof_chain_required: bool
+    execution_journal_required: bool
+    verification_required: bool
+    evidence_presence_is_execution: bool = False
+    reconciliation_execution_allowed: bool = False
+    reconciliation_executed: bool = False
+    manager_invocation_allowed: bool = False
+    coinbase_submit_allowed: bool = False
+    coinbase_cancel_allowed: bool = False
+    coinbase_read_allowed: bool = False
+    state_mutation_allowed: bool = False
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    backend_owned: bool = True
+    route_bound: bool = True
+    live_enabled: bool = False
+    executable: bool = False
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    service_method: str
+    current_read_evidence_routes: list[str] = Field(default_factory=list)
+    proof_record_routes: list[str] = Field(default_factory=list)
+    required_evidence: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    backend_contract_refs: list[str] = Field(default_factory=list)
+    frontend_contract_refs: list[str] = Field(default_factory=list)
+    documentation_refs: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    detail: str
+
+
+class StealthCommandSuitePostWriteEvidenceContractReviewSummary(BaseModel):
+    """Aggregate Phase 8110 post-write evidence contract review evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: str = "phase_8110_stealth_post_write_evidence_contract_review"
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    review_count: int = Field(ge=0)
+    blocked_review_count: int = Field(ge=0)
+    executable_review_count: int = Field(ge=0)
+    readback_available_count: int = Field(ge=0)
+    write_contract_available_count: int = Field(ge=0)
+    append_only_contract_count: int = Field(ge=0)
+    exact_command_context_required_count: int = Field(ge=0)
+    proof_chain_required_count: int = Field(ge=0)
+    execution_journal_required_count: int = Field(ge=0)
+    verification_required_count: int = Field(ge=0)
+    evidence_presence_execution_count: int = Field(ge=0)
+    reconciliation_execution_allowed_count: int = Field(ge=0)
+    proof_contract_count: int = Field(ge=0)
+    journal_contract_count: int = Field(ge=0)
+    verification_contract_count: int = Field(ge=0)
+    all_readbacks_available: bool = False
+    all_write_contracts_available: bool = False
+    all_append_only: bool = False
+    all_exact_command_context_required: bool = False
+    all_evidence_presence_non_executing: bool = False
+    all_browser_bff_display_only: bool = False
+    all_live_disabled: bool = False
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    detail: str
+
+
 class StealthCommandSuiteCoverageGapEvidenceRouteItem(BaseModel):
     """Read route that supplies evidence for a stealth command-suite coverage gap."""
 
@@ -34309,6 +34402,15 @@ class StealthCommandSuiteResponse(AdminApiReadPayload):
     ] = Field(default_factory=list)
     recovery_reconciliation_gap_surfacing_summary: (
         StealthCommandSuiteRecoveryReconciliationGapSurfacingSummary | None
+    ) = None
+    post_write_evidence_contract_review_count: int = 0
+    blocked_post_write_evidence_contract_review_count: int = 0
+    executable_post_write_evidence_contract_review_count: int = 0
+    post_write_evidence_contract_reviews: list[
+        StealthCommandSuitePostWriteEvidenceContractReviewItem
+    ] = Field(default_factory=list)
+    post_write_evidence_contract_review_summary: (
+        StealthCommandSuitePostWriteEvidenceContractReviewSummary | None
     ) = None
     coverage_gap_count: int = 0
     coverage_gaps: list[StealthCommandSuiteCoverageGapItem] = Field(default_factory=list)
