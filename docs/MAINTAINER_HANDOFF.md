@@ -64,6 +64,16 @@ evidence. `POST /api/v1/spot/campaign/executions` may return
 non-dry requests, but those rows do not permit scheduler, runner, retry,
 reconciliation, Coinbase, browser, or BFF execution authority.
 
+Phase 8091 sibling frontend result handoffs are route navigation only:
+campaign dry-run review results may link back to Campaigns by `campaign_id`
+through `GET /api/v1/spot/campaign/status`, and sweep dry-run review results
+may link back to Spot Operations by `sweep_config_id` through
+`GET /api/v1/spot/sweep/status`. These links do not create backend scheduler,
+retry, reconciliation, live-service, Coinbase, order/exchange mutation, or
+second-path authority, and they must not reinterpret `client_order_id`,
+exchange `order_id`, `coinbase_order_id`, or active placement ids as
+campaign/sweep ownership.
+
 ## Adding An Admin Module
 
 1. Define the backend read or command contract first.

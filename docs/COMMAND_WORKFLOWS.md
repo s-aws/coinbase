@@ -75,6 +75,15 @@ configured live-service, REST-client, and event-stream gates pass.
   retry execution, reconciliation, Coinbase, browser, BFF, route-local, and
   second-path execution remain false/unsupported unless a later backend-owned
   contract explicitly replaces that boundary.
+- Sibling frontend Command Workflows may render submitted campaign/sweep
+  review result links back to the owning read routes. Campaign links use only
+  `campaign_id` with `GET /api/v1/spot/campaign/status`; sweep links use only
+  `sweep_config_id` with `GET /api/v1/spot/sweep/status`. These are
+  navigation links over backend-owned read evidence. They do not reinterpret
+  `client_order_id`, exchange `order_id`, `coinbase_order_id`, or active
+  placement ids as campaign/sweep ownership, and they do not change backend
+  scheduler, retry, reconciliation, live-service, Coinbase, order/exchange
+  state, browser/BFF, route-local, or second-path authority.
 
 ## Spot Command Suite
 

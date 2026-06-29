@@ -19,6 +19,14 @@ or reconcile exchange state.
   can link to audit, recovery, and reconciliation evidence, but those links are
   not recovery execution, reconciliation execution, Coinbase calls, or sell
   authority.
+- Sibling frontend command-result links may point operators back to Campaigns
+  through `GET /api/v1/spot/campaign/status` by `campaign_id` and Spot
+  Operations through `GET /api/v1/spot/sweep/status` by `sweep_config_id`.
+  These links are read-model navigation only. They do not make
+  `client_order_id`, exchange `order_id`, `coinbase_order_id`, or active
+  placement ids valid campaign/sweep ownership, and they do not create
+  scheduler, retry, reconciliation, Coinbase, browser/BFF, route-local, or
+  second-path authority.
 
 ## Spot Recovery Contracts
 

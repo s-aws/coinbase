@@ -17,8 +17,9 @@ on 2026-06-28 before the frontend Release Blockers implementation, Admin
 Lifecycle Support classification, Spot Buy/Sell/Cancel readiness, Admin API
 spot SELL authority source wiring, Spot Sweep Automation Service Contract read
 work, and scheduler/run-limit binding evidence, and again on 2026-06-29 before
-Phase 8087 frontend campaign status adapter work and Phase 8088 frontend
-sweep service adapter work. No phase-direction change was required. The
+Phase 8087 frontend campaign status adapter work, Phase 8088 frontend
+sweep service adapter work, and Phase 8091 command result handoff work. No
+phase-direction change was required. The
 controlling instructions remain:
 
 - Release 0.1 work must clear a named blocker or directly improve the usable
@@ -118,6 +119,20 @@ posture, retry-intent readiness, run-limit status, blockers, and no-live
 proof. This update does not change backend execution authority: disabled
 controls stay disabled unless existing backend/runtime context allows local
 control recording, and scheduler execution, retry execution, reconciliation
+execution, Coinbase calls, browser/BFF execution, route-local execution, and
+second automation paths remain blocked or unsupported as already recorded in
+the Automation/campaigns row.
+
+## Phase 8091 Frontend Association Update
+
+The sibling frontend now renders Command Workflows result handoff links after
+submitted campaign/sweep dry-run review evidence. Campaign review results link
+to the Campaigns surface through `GET /api/v1/spot/campaign/status` with
+`campaign_id`. Sweep review results link to Spot Operations through
+`GET /api/v1/spot/sweep/status` with `sweep_config_id`. This update does not
+change backend execution authority: `client_order_id`, exchange `order_id`,
+`coinbase_order_id`, and active placement ids are not campaign/sweep ownership
+identities, and scheduler execution, retry execution, reconciliation
 execution, Coinbase calls, browser/BFF execution, route-local execution, and
 second automation paths remain blocked or unsupported as already recorded in
 the Automation/campaigns row.

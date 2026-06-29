@@ -276,6 +276,21 @@ Exact autonomous phrase: Active Release 0.1 `8081-8100` adds a Campaign/Sweep Op
 - Ensure Campaigns and Sweep panels hand off to command workflows with
   campaign/sweep identity only and no client_order_id or exchange order_id
   substitution.
+- Implementation update 2026-06-29: sibling frontend Command Workflows now
+  renders display-only result links from campaign dry-run review to Campaigns
+  by `campaign_id` and from sweep dry-run review to Spot Operations by
+  `sweep_config_id`. The backend route contracts and authority are unchanged:
+  no `client_order_id`, exchange `order_id`, `coinbase_order_id`, active
+  placement id, browser/BFF execution authority, scheduler, retry executor,
+  reconciliation executor, Coinbase call, route-local executor, or second
+  automation path was introduced.
+- Validation update 2026-06-29: sibling frontend focused Command
+  Workflow/Campaigns read-model tests and quality checks passed; backend
+  ownership, autonomous queue, stale-process, whitespace, and blind
+  contextless review passed. Full backend regression was not run because this
+  phase is not a durable milestone closeout. Live Coinbase execution was not
+  run; submitted/executed notional was 0 USDC. The phase-end subagent sweep
+  closed reviewer `019f13d9-09c8-7b52-b7de-fe7defaaee9a`.
 
 ### Phase 8092 - Automation Limits And Caps Visibility
 

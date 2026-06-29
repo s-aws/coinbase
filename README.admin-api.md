@@ -1340,6 +1340,12 @@ idempotency, operator intent, RBAC, live admission boundary, dry-run
 requirement, request scope, runner boundary, no-live execution, and
 frontend/BFF authority; accepted dry-runs still show live admission blocked and
 zero submitted/executed notional.
+The sibling frontend may link accepted campaign/sweep review results back to
+the read-only Campaigns or Spot Operations views using only `campaign_id` or
+`sweep_config_id`; it must not substitute `client_order_id`, exchange
+`order_id`, `coinbase_order_id`, or active placement ids, and those links do
+not create scheduler, retry, reconciliation, Coinbase, browser/BFF, or
+route-local execution authority.
 The same command-suite response exposes `automation_control_readiness` as the
 backend-owned control-state contract for campaign/sweep automation. It reports
 eight explicit controls: scheduler dispatch, scheduler executor, run limit,

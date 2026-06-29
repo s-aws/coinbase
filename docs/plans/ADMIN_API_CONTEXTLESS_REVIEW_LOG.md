@@ -105,6 +105,25 @@ Phase 8090 subagent sweep: review subagent
 `019f13c7-0823-7e32-ac85-db43d06af035` was closed after findings were consumed.
 No stale phase-scoped subagents remain intentionally open.
 
+Phase 8091 blind/contextless review result: PASS with no blockers. Reviewer
+`019f13d9-09c8-7b52-b7de-fe7defaaee9a` classified the sibling frontend change
+as a reusable admin platform/navigation primitive over backend-owned
+campaign/sweep read routes, not a backend execution or scheduler change. The
+review verified that result links route only to
+`GET /api/v1/spot/campaign/status` by `campaign_id` and
+`GET /api/v1/spot/sweep/status` by `sweep_config_id`, and that no backend
+execution path, scheduler, BFF runner, route-local executor, Coinbase call,
+reconciliation executor, command submission path, audit/proof writer, state
+mutation, or second trading path was introduced. The reviewer noted a
+non-blocking frontend unit-fixture alias-coverage risk; it was remediated in
+the sibling frontend tests with explicit `order_id`, `exchange_order_id`,
+active exchange order, and active-placement client id negative assertions.
+
+Phase 8091 subagent sweep: review subagent
+`019f13d9-09c8-7b52-b7de-fe7defaaee9a` was closed after findings were consumed
+and the residual alias-coverage risk was remediated. No stale phase-scoped
+subagents remain intentionally open.
+
 ## Audit/Reconciliation Operator Correlation Review - Phases 8061-8080
 
 Result: PASS after remediation. Scope: phases `8061-8080`, after completed history through
