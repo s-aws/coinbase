@@ -404,6 +404,22 @@
     },
     {
       "module_id": "stealth_orders",
+      "surface": "GET /api/v1/stealth/operator-scope",
+      "method": "GET",
+      "path": "/api/v1/stealth/operator-scope",
+      "action_class": "read_only",
+      "permission": "analytics:read",
+      "idempotency": "not required",
+      "approval": "not required",
+      "caps": "read-only stealth operator scope boundary evidence",
+      "audit": "optional read audit",
+      "shared_method": "build_stealth_operator_scope",
+      "parity_test": "read-only stealth lifecycle operator scope; no browser/BFF trading authority, dashboard fallback, Coinbase call, mutation claim acquisition, or lifecycle mutation",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
+      "module_id": "stealth_orders",
       "surface": "POST /api/v1/stealth/orders/{stealth_order_id}/reveal",
       "method": "POST",
       "path": "/api/v1/stealth/orders/{stealth_order_id}/reveal",

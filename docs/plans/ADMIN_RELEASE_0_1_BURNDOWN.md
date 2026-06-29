@@ -117,6 +117,14 @@ Exact autonomous phrase: Active Release 0.1 `8101-8120` adds a Stealth Lifecycle
   controls, including no-live posture, exchange-reality constraints,
   mutation-claim ownership, supported read evidence, and explicit
   unsupported or not-modeled gaps.
+- Evidence update 2026-06-29: added read-only
+  `GET /api/v1/stealth/operator-scope` through backend route inventory,
+  OpenAPI models, read service, and Admin API routing. The route summarizes
+  which stealth lifecycle controls are read evidence, blocked command drafts,
+  exchange-reality evidence, mutation-claim evidence, post-write
+  reconciliation evidence, unsupported gaps, or backend authority boundaries.
+  No browser/BFF trading authority, route-local execution, Coinbase calls,
+  lifecycle mutation, or second trading path was added.
 
 ### Phase 8103 - Backend Stealth Route Inventory
 

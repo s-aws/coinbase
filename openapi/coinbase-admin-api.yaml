@@ -8951,6 +8951,69 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/stealth/operator-scope:
+    get:
+      tags:
+      - stealth
+      summary: Read stealth lifecycle operator scope
+      description: Read stealth operator scope without mutating lifecycle state.
+      operationId: stealth_operator_scope_api_v1_stealth_operator_scope_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StealthOperatorScopeResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/stealth/orders/{stealth_order_id}/reveal:
     post:
       tags:
@@ -12569,6 +12632,18 @@ components:
       - state_mutation_policy
       title: AdminApiStealthLiveReadinessDecision
       description: Backend decisions required before stealth live execution can exist.
+    AdminApiStealthOperatorScope:
+      type: string
+      enum:
+      - read_evidence
+      - command_drafts
+      - exchange_reality
+      - mutation_claims
+      - post_write_reconciliation
+      - unsupported_gaps
+      - authority_boundary
+      title: AdminApiStealthOperatorScope
+      description: Operator-visible stealth lifecycle management scope rows.
     AdminApiVerifierReadinessStatus:
       type: string
       enum:
@@ -164734,6 +164809,255 @@ components:
         repriced again. Callers must release the claim with ``release`` after
 
         both success and failure paths; there is no terminal ``done`` state.'
+    StealthOperatorScopeItem:
+      properties:
+        scope:
+          $ref: '#/components/schemas/AdminApiStealthOperatorScope'
+        label:
+          type: string
+          title: Label
+        support_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+        gate_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        action_state:
+          $ref: '#/components/schemas/AdminApiActionState'
+        identity_keys:
+          items:
+            type: string
+          type: array
+          title: Identity Keys
+        read_routes:
+          items:
+            type: string
+          type: array
+          title: Read Routes
+        command_routes:
+          items:
+            type: string
+          type: array
+          title: Command Routes
+        backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Backend Contracts
+        unsupported_behaviors:
+          items:
+            type: string
+          type: array
+          title: Unsupported Behaviors
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - scope
+      - label
+      - support_status
+      - gate_status
+      - action_state
+      - detail
+      title: StealthOperatorScopeItem
+      description: One operator-visible scope row for stealth lifecycle management.
+    StealthOperatorScopeResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: stealth_operator_scope
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        module_id:
+          type: string
+          title: Module Id
+          default: stealth_orders
+        approved_phase_range:
+          type: string
+          title: Approved Phase Range
+        support_status:
+          $ref: '#/components/schemas/AdminApiModuleSupportStatus'
+          default: command_draft_live_disabled
+        command_count:
+          type: integer
+          minimum: 0.0
+          title: Command Count
+          default: 0
+        blocked_command_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Command Count
+          default: 0
+        executable_command_count:
+          type: integer
+          minimum: 0.0
+          title: Executable Command Count
+          default: 0
+        coverage_gap_count:
+          type: integer
+          minimum: 0.0
+          title: Coverage Gap Count
+          default: 0
+        exchange_truth_check_count:
+          type: integer
+          minimum: 0.0
+          title: Exchange Truth Check Count
+          default: 0
+        mutation_claim_scope_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        exchange_reality_scope_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        post_write_scope_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        read_route_count:
+          type: integer
+          minimum: 0.0
+          title: Read Route Count
+          default: 0
+        read_routes:
+          items:
+            type: string
+          type: array
+          title: Read Routes
+        command_route_count:
+          type: integer
+          minimum: 0.0
+          title: Command Route Count
+          default: 0
+        command_routes:
+          items:
+            type: string
+          type: array
+          title: Command Routes
+        operator_scope_count:
+          type: integer
+          minimum: 0.0
+          title: Operator Scope Count
+          default: 0
+        operator_scope:
+          items:
+            $ref: '#/components/schemas/StealthOperatorScopeItem'
+          type: array
+          title: Operator Scope
+        unsupported_gap_count:
+          type: integer
+          minimum: 0.0
+          title: Unsupported Gap Count
+          default: 0
+        unsupported_behaviors:
+          items:
+            type: string
+          type: array
+          title: Unsupported Behaviors
+        backend_contracts:
+          items:
+            type: string
+          type: array
+          title: Backend Contracts
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        executed_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Executed Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - approved_phase_range
+      - detail
+      title: StealthOperatorScopeResponse
+      description: Read-only operator boundary for stealth lifecycle controls.
     StealthPostWriteExecutionJournalReadResponse:
       properties:
         type:

@@ -2785,6 +2785,13 @@ X-Admin-Roles: viewer
 ```
 
 ```http
+GET /api/v1/stealth/operator-scope
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+```http
 GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof
 Authorization: Bearer <backend-verifiable-token>
 X-Admin-Actor: viewer-001
@@ -2810,6 +2817,17 @@ prerequisites match. These routes do not create stealth orders, reveal orders,
 cancel active placements, move/reprice revealed orders, execute
 reconciliation, mutate state, read Coinbase, verify exchange truth, or call
 Coinbase.
+
+The operator-scope response is the admin-management boundary for the same
+stealth surface. It reports `type="stealth_operator_scope"`,
+`approved_phase_range="8101-8120"`, blocked command counts, read routes,
+command routes, unsupported behaviors, and one scope row each for read
+evidence, command drafts, exchange reality, mutation claims, post-write
+reconciliation, unsupported gaps, and the backend authority boundary. It is
+read-only and must show `live_coinbase_orders_ran=false`,
+`submitted_notional_usdc="0"`, `executed_notional_usdc="0"`,
+`browser_authority="display_only"`, and
+`bff_authority="forward_only_no_execution"`.
 
 ## Movement And Repricing
 

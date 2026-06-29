@@ -46,6 +46,7 @@ from application.admin_api.models import (
     StealthMutationClaimSnapshotProofRequest,
     StealthMutationClaimSnapshotReadResponse,
     StealthCommandSuiteResponse,
+    StealthOperatorScopeResponse,
     StealthCancelCommand,
     StealthCancelRequest,
     StealthCreateCommand,
@@ -621,6 +622,25 @@ def stealth_command_suite(
     return _read_model_response(
         StealthCommandSuiteResponse,
         stealth_command_suite_api_payload(service.build_stealth_command_suite()),
+    )
+
+
+@router.get(
+    "/stealth/operator-scope",
+    response_model=StealthOperatorScopeResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="Read stealth lifecycle operator scope",
+)
+def stealth_operator_scope(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+) -> JSONResponse:
+    """Read stealth operator scope without mutating lifecycle state."""
+
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    return _read_model_response(
+        StealthOperatorScopeResponse,
+        service.build_stealth_operator_scope(),
     )
 
 

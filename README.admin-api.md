@@ -15,7 +15,8 @@ The repository now contains an Admin API contract, generated OpenAPI and
 route-inventory artifacts, fail-closed auth/RBAC bootstrap, durable JSONL
 idempotency/audit stores, structured error payloads, observability headers,
 read-only admin diagnostics, order read routes, read-only stealth lifecycle
-routes, read-only stealth command-suite readiness evidence, live-disabled
+routes, read-only stealth command-suite readiness evidence, read-only stealth
+operator-scope evidence, live-disabled
 stealth create, reveal, move, cancel, recovery, and reconciliation command contracts, movement/repricing evidence routes, a
 live-disabled movement reprice command contract, read-only futures/perpetual
 account, position, command-suite contract, and risk-proof record read routes,
@@ -1990,6 +1991,7 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/stealth/orders`
 - `GET /api/v1/stealth/orders/{stealth_order_id}`
 - `GET /api/v1/stealth/command-suite`
+- `GET /api/v1/stealth/operator-scope`
 - `GET /api/v1/movement-repricing/evidence`
 - `GET /api/v1/movement-repricing/orders/{client_order_id}`
 - `GET /api/v1/movement-repricing/stealth/{stealth_order_id}`
@@ -2095,6 +2097,14 @@ Current mutating HTTP command surfaces are:
 `stealth_order_id`. It does not invoke `StealthOrderManager`, create local
 stealth lifecycle state, accept `client_order_id` or exchange `order_id`, or
 submit Coinbase orders.
+`GET /api/v1/stealth/operator-scope` summarizes the Release 0.1 stealth
+operator management boundary from backend route inventory and
+`build_stealth_command_suite`. It is read-only and reports read evidence,
+live-disabled command drafts, exchange-reality requirements, mutation-claim
+ownership, post-write reconciliation posture, unsupported gaps, and authority
+boundaries. It does not add browser/BFF trading authority, route-local
+execution, dashboard fallback, Coinbase reads or orders, mutation-claim
+acquisition, reconciliation execution, or stealth lifecycle mutation.
 `POST /api/v1/stealth/orders/{stealth_order_id}/reveal` is a live-disabled
 exchange-placement draft keyed by `stealth_order_id`. It does not invoke
 `reveal_order_slice`, call `StealthOrderManager`, accept order ids as command

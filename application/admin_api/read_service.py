@@ -102,6 +102,7 @@ from core.enums import (
     AdminApiStealthClosureDependencyClass,
     AdminApiStealthCommandSuiteBlockerClosure,
     AdminApiStealthCommandSuiteGapFamily,
+    AdminApiStealthOperatorScope,
     AdminApiVerifierReadinessStatus,
     OrderSide,
     ProductCapability,
@@ -384,6 +385,8 @@ from .models import (
     SpotSweepAutomationOperatorScopeItem,
     SpotSweepAutomationServicePostureItem,
     SpotSweepAutomationServiceStatusResponse,
+    StealthOperatorScopeItem,
+    StealthOperatorScopeResponse,
     StealthCommandSuiteCommandItem,
     StealthSelectedOrderActionStateItem,
     StealthCommandSuiteAdmissionContextItem,
@@ -16878,6 +16881,266 @@ class AdminApiReadService:
                 "invoke managers, call Coinbase, mutate lifecycle/order/"
                 "exchange state, execute reconciliation, or satisfy live "
                 "execution service/adapter prerequisites."
+            ),
+        )
+
+    def build_stealth_operator_scope(self) -> StealthOperatorScopeResponse:
+        """Return the operator-facing stealth lifecycle management boundary."""
+
+        command_suite = self.build_stealth_command_suite()
+        read_routes = sorted(command_suite.read_routes)
+        command_routes = sorted(
+            f"{command.method} {command.route}" for command in command_suite.commands
+        )
+        exchange_reality_routes = sorted(
+            route
+            for route in read_routes
+            if "exchange-truth" in route
+            or route == "GET /api/v1/stealth/command-suite"
+        )
+        mutation_claim_routes = sorted(
+            route
+            for route in read_routes
+            if "mutation-claim-proof" in route
+            or route == "GET /api/v1/stealth/command-suite"
+        )
+        post_write_routes = sorted(
+            route
+            for route in read_routes
+            if "post-write" in route
+            or route == "GET /api/v1/admin/reconciliation/plans"
+            or route == "GET /api/v1/admin/reconciliation/plans/{plan_id}"
+            or route == "GET /api/v1/stealth/command-suite"
+        )
+        unsupported_behaviors = [
+            "browser_bff_trading_authority",
+            "dashboard_websocket_fallback",
+            "route_local_stealth_execution",
+            "direct_coinbase_calls",
+            "stealth_state_mutation_without_exchange_handling",
+            "hide_again_shortcuts",
+            "exchange_order_id_command_identity",
+            "browser_mutation_claim_acquisition",
+            "browser_exchange_truth_resolution",
+        ]
+        operator_scope = [
+            StealthOperatorScopeItem(
+                scope=AdminApiStealthOperatorScope.READ_EVIDENCE,
+                label="Stealth read evidence",
+                support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                gate_status=AdminApiGateStatus.PASSED,
+                action_state=AdminApiActionState.USABLE,
+                identity_keys=["stealth_order_id"],
+                read_routes=read_routes,
+                backend_contracts=[
+                    "build_stealth_order_list",
+                    "build_stealth_order_detail",
+                    "build_stealth_command_suite",
+                ],
+                detail=(
+                    "Operators can inspect stealth lists, details, command-suite "
+                    "readiness, and supporting proof readbacks without mutating "
+                    "lifecycle, order, exchange, or reconciliation state."
+                ),
+            ),
+            StealthOperatorScopeItem(
+                scope=AdminApiStealthOperatorScope.COMMAND_DRAFTS,
+                label="Live-disabled command drafts",
+                support_status=(
+                    AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                ),
+                gate_status=AdminApiGateStatus.BLOCKED,
+                action_state=AdminApiActionState.BLOCKED,
+                identity_keys=["stealth_order_id"],
+                read_routes=["GET /api/v1/stealth/command-suite"],
+                command_routes=command_routes,
+                backend_contracts=[
+                    "build_stealth_command_suite",
+                    "AdminApiCommandService stealth command routes",
+                    "AdminApiLiveExecutionService disabled gate",
+                ],
+                unsupported_behaviors=[
+                    "live_stealth_execution",
+                    "route_local_stealth_execution",
+                    "dashboard_websocket_fallback",
+                ],
+                detail=(
+                    "Operators can prepare route-bound stealth command drafts, "
+                    "but every create, reveal, move, cancel, reprice, recovery, "
+                    "and reconciliation command remains blocked by backend live "
+                    "execution and proof gates."
+                ),
+            ),
+            StealthOperatorScopeItem(
+                scope=AdminApiStealthOperatorScope.EXCHANGE_REALITY,
+                label="Exchange-reality evidence",
+                support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                gate_status=AdminApiGateStatus.BLOCKED,
+                action_state=AdminApiActionState.BLOCKED,
+                identity_keys=["stealth_order_id"],
+                read_routes=exchange_reality_routes,
+                command_routes=command_routes,
+                backend_contracts=[
+                    "build_stealth_active_placement_exchange_truth",
+                    "build_stealth_cancel_replace_proof",
+                    "build_stealth_command_suite.exchange_truth_checks",
+                ],
+                unsupported_behaviors=[
+                    "browser_exchange_truth_resolution",
+                    "direct_coinbase_reads",
+                    "active_placement_cancel_replace",
+                ],
+                detail=(
+                    "Operators can see which command families require exchange "
+                    "truth, but the admin frontend cannot prove live Coinbase "
+                    "truth, cancel/replace placements, or mark revealed orders "
+                    "hidden."
+                ),
+            ),
+            StealthOperatorScopeItem(
+                scope=AdminApiStealthOperatorScope.MUTATION_CLAIMS,
+                label="Mutation-claim ownership",
+                support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                gate_status=AdminApiGateStatus.BLOCKED,
+                action_state=AdminApiActionState.BLOCKED,
+                identity_keys=["stealth_order_id"],
+                read_routes=mutation_claim_routes,
+                command_routes=command_routes,
+                backend_contracts=[
+                    "build_stealth_mutation_claim_snapshot",
+                    "build_stealth_command_suite.admission_readiness",
+                    "core/stealth_order_manager.py mutation claim paths",
+                ],
+                unsupported_behaviors=[
+                    "browser_mutation_claim_acquisition",
+                    "bff_mutation_claim_release",
+                    "parallel_stealth_lifecycle_path",
+                ],
+                detail=(
+                    "Operators can inspect mutation-claim prerequisites and "
+                    "missing proof, but claims remain backend-owned and cannot "
+                    "be acquired, released, or bypassed by the browser or BFF."
+                ),
+            ),
+            StealthOperatorScopeItem(
+                scope=AdminApiStealthOperatorScope.POST_WRITE_RECONCILIATION,
+                label="Post-write reconciliation",
+                support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                gate_status=AdminApiGateStatus.BLOCKED,
+                action_state=AdminApiActionState.BLOCKED,
+                identity_keys=["stealth_order_id"],
+                read_routes=post_write_routes,
+                command_routes=command_routes,
+                backend_contracts=[
+                    "build_stealth_post_write_reconciliation_proof",
+                    "build_stealth_post_write_execution_journals",
+                    "build_stealth_post_write_reconciliation_verifications",
+                    "build_stealth_command_suite.blocker_closures",
+                ],
+                unsupported_behaviors=[
+                    "browser_reconciliation_execution",
+                    "bff_reconciliation_execution",
+                    "post_write_state_mutation_without_proof",
+                ],
+                detail=(
+                    "Operators can inspect post-write proof, journal, and "
+                    "verification evidence, but reconciliation execution and "
+                    "state transitions remain backend-disabled until every "
+                    "post-live contract is complete."
+                ),
+            ),
+            StealthOperatorScopeItem(
+                scope=AdminApiStealthOperatorScope.UNSUPPORTED_GAPS,
+                label="Explicit unsupported and not-modeled gaps",
+                support_status=AdminApiModuleSupportStatus.NOT_MODELED,
+                gate_status=AdminApiGateStatus.BLOCKED,
+                action_state=AdminApiActionState.NOT_MODELED,
+                identity_keys=["stealth_order_id"],
+                read_routes=["GET /api/v1/stealth/command-suite"],
+                command_routes=command_routes,
+                backend_contracts=[
+                    "build_stealth_command_suite.coverage_gaps",
+                    "build_stealth_command_suite.blocker_closures",
+                ],
+                unsupported_behaviors=unsupported_behaviors,
+                detail=(
+                    "Unsupported gaps are surfaced directly instead of being "
+                    "hidden, inferred by frontend code, or replaced with a "
+                    "dashboard or BFF execution path."
+                ),
+            ),
+            StealthOperatorScopeItem(
+                scope=AdminApiStealthOperatorScope.AUTHORITY_BOUNDARY,
+                label="Backend authority boundary",
+                support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                gate_status=AdminApiGateStatus.PASSED,
+                action_state=AdminApiActionState.USABLE,
+                identity_keys=["stealth_order_id"],
+                read_routes=[
+                    "GET /api/v1/stealth/operator-scope",
+                    "GET /api/v1/stealth/command-suite",
+                ],
+                backend_contracts=[
+                    "AGENTS.md stealth exchange-reality invariant",
+                    "docs/agents/INVARIANTS.md client_order_id discipline",
+                    "application/admin_api/read_service.py::build_stealth_operator_scope",
+                ],
+                unsupported_behaviors=unsupported_behaviors,
+                detail=(
+                    "Backend owns trading behavior, guards, audit, mutation "
+                    "claims, reconciliation, and Coinbase authority. The "
+                    "frontend can display or forward backend-approved requests "
+                    "only; it cannot execute stealth lifecycle behavior."
+                ),
+            ),
+        ]
+        return StealthOperatorScopeResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            status=AdminApiGateStatus.BLOCKED,
+            support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+            command_count=command_suite.command_count,
+            blocked_command_count=command_suite.blocked_command_count,
+            executable_command_count=command_suite.executable_command_count,
+            coverage_gap_count=command_suite.coverage_gap_count,
+            exchange_truth_check_count=command_suite.exchange_truth_check_count,
+            mutation_claim_scope_status=AdminApiGateStatus.BLOCKED,
+            exchange_reality_scope_status=AdminApiGateStatus.BLOCKED,
+            post_write_scope_status=AdminApiGateStatus.BLOCKED,
+            read_route_count=len(read_routes),
+            read_routes=read_routes,
+            command_route_count=len(command_routes),
+            command_routes=command_routes,
+            operator_scope_count=len(operator_scope),
+            operator_scope=operator_scope,
+            unsupported_gap_count=len(unsupported_behaviors),
+            unsupported_behaviors=unsupported_behaviors,
+            backend_contracts=[
+                "build_stealth_command_suite",
+                "ADMIN_API_ROUTE_INVENTORY",
+                "AdminApiLiveExecutionService disabled gate",
+                "core/stealth_order_manager.py",
+                "bridges/stealth_order_bridge.py",
+            ],
+            evidence=[
+                "Derived from build_stealth_command_suite and ADMIN_API_ROUTE_INVENTORY.",
+                "No browser, BFF, dashboard, route-local, or Coinbase authority is added.",
+                "Exchange order ids remain evidence only; stealth_order_id is the command identity.",
+                "Unsupported gaps are explicit unsupported/not-modeled scope rows.",
+            ],
+            backend_owned=True,
+            read_only=True,
+            browser_authority="display_only",
+            bff_authority="forward_only_no_execution",
+            live_coinbase_orders_ran=False,
+            live_coinbase_read_ran=False,
+            submitted_notional_usdc="0",
+            executed_notional_usdc="0",
+            detail=(
+                "Stealth operator scope summarizes what the Release 0.1 admin "
+                "frontend can manage now: read evidence and live-disabled "
+                "backend command drafts, with exchange-reality, mutation-claim, "
+                "post-write reconciliation, and unsupported gaps surfaced as "
+                "backend-owned blockers."
             ),
         )
 

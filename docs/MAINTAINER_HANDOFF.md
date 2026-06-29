@@ -279,15 +279,18 @@ notional, retained inventory, reconciliation result, and audit ids.
   live-service dependency, service-level acknowledgement rejection before
   REST, and can only reach `cancel_order(client_order_id)` when all backend
   gates pass.
+- Phase 8102 implementation status: backend now exposes read-only
+  `GET /api/v1/stealth/operator-scope` as the stealth lifecycle operator
+  boundary. It reports seven scope rows, unsupported behaviors, read and
+  command route lists, display/forward-only authority, no live Coinbase
+  execution, and 0 USDC submitted/executed notional.
 - Exact next implementation slice: continue active `8101-8120` Stealth
-  Lifecycle Operator Controls with Phase 8101 active-range transition until
-  backend/frontend docs, validators, runtime evidence, generated contracts,
-  and focused phase-range tests consistently report `8101-8120`; then move to
-  Phase 8102 Stealth Operator Scope. Current Phase 8101 validation has backend
-  autonomous, focused phase-range regressions, OpenAPI freshness, ownership,
-  frontend autonomous, generated API, typecheck, lint, focused unit tests, and
-  stale-process checks passing. The full Admin API contract file timed out in
-  this environment and should be rerun at a major closeout gate.
+  Lifecycle Operator Controls with Phase 8103 Backend Stealth Route
+  Inventory. Keep the slice backend-owned operator management/gate surfacing;
+  do not add browser/BFF execution authority, route-local execution, direct
+  Coinbase calls, reconciliation execution, order/exchange-state mutation, or
+  a second trading path. The full Admin API contract file remains a major
+  closeout gate, not an ordinary phase gate.
   Completed `8081-8100` Campaign/Sweep Operator Controls work is pushed in
   backend commit `b8fd1a20` and frontend commit `1dc0baa`.
   Completed `8061-8080` Audit/Reconciliation Operator Correlation work is

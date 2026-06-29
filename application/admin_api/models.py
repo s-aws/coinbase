@@ -161,6 +161,7 @@ from core.enums import (
     AdminApiStealthCommandSuiteBlockerClosure,
     AdminApiStealthAdmissionEvidence,
     AdminApiStealthCommandSuiteGapFamily,
+    AdminApiStealthOperatorScope,
     AdminApiStealthDecisionResolutionEvidenceType,
     AdminApiStealthLiveReadinessDecision,
     AdminApiVerifierReadinessStatus,
@@ -33427,6 +33428,73 @@ class StealthCreatePreExecutionContractEvidence(BaseModel):
     live_coinbase_orders_ran: bool = False
     browser_authority: str = "display_only"
     bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
+class StealthOperatorScopeItem(BaseModel):
+    """One operator-visible scope row for stealth lifecycle management."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scope: AdminApiStealthOperatorScope
+    label: str
+    support_status: AdminApiModuleSupportStatus
+    gate_status: AdminApiGateStatus
+    action_state: AdminApiActionState
+    identity_keys: list[str] = Field(default_factory=list)
+    read_routes: list[str] = Field(default_factory=list)
+    command_routes: list[str] = Field(default_factory=list)
+    backend_contracts: list[str] = Field(default_factory=list)
+    unsupported_behaviors: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    read_only: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    detail: str
+
+
+class StealthOperatorScopeResponse(AdminApiReadPayload):
+    """Read-only operator boundary for stealth lifecycle controls."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "stealth_operator_scope"
+    module_id: str = "stealth_orders"
+    approved_phase_range: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    support_status: AdminApiModuleSupportStatus = (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+    )
+    command_count: int = Field(default=0, ge=0)
+    blocked_command_count: int = Field(default=0, ge=0)
+    executable_command_count: int = Field(default=0, ge=0)
+    coverage_gap_count: int = Field(default=0, ge=0)
+    exchange_truth_check_count: int = Field(default=0, ge=0)
+    mutation_claim_scope_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    exchange_reality_scope_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    post_write_scope_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    read_route_count: int = Field(default=0, ge=0)
+    read_routes: list[str] = Field(default_factory=list)
+    command_route_count: int = Field(default=0, ge=0)
+    command_routes: list[str] = Field(default_factory=list)
+    operator_scope_count: int = Field(default=0, ge=0)
+    operator_scope: list[StealthOperatorScopeItem] = Field(default_factory=list)
+    unsupported_gap_count: int = Field(default=0, ge=0)
+    unsupported_behaviors: list[str] = Field(default_factory=list)
+    backend_contracts: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    backend_owned: bool = True
+    read_only: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
     detail: str
 
 

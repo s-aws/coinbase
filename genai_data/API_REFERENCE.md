@@ -30,9 +30,10 @@ evidence, mutation-claim posture, command readiness, post-write evidence, and
 blocked create/reveal/move/cancel/recovery/reconciliation paths through the
 enterprise frontend/API without browser/BFF trading authority, route-local
 execution, Coinbase calls, state mutation, hide-again shortcuts, or a second
-trading path while completed `8081-8100` carries the Campaign/Sweep Operator
-Controls evidence. The governing question for new work is: Does this make the
-frontend able to manage the project?
+trading path. Phase 8102 exposes that boundary through
+`GET /api/v1/stealth/operator-scope` while completed `8081-8100` carries the
+Campaign/Sweep Operator Controls evidence. The governing question for new work
+is: Does this make the frontend able to manage the project?
 
 Phase 8082 adds `operator_scope_count` and `operator_scope` to the spot sweep
 automation-service status response. The rows classify read evidence, local
@@ -759,6 +760,7 @@ Current route adapters:
 - `GET /api/v1/stealth/orders`
 - `GET /api/v1/stealth/orders/{stealth_order_id}`
 - `GET /api/v1/stealth/command-suite`
+- `GET /api/v1/stealth/operator-scope`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/lifecycle-write-guard-proof`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/mutation-claim-proof`
@@ -855,6 +857,13 @@ Current behavior:
   create, reveal, move, cancel, recovery, reconciliation, and movement/reprice routes, reports
   exchange-truth blockers, and does not create, reveal, cancel, move/reprice,
   reconcile, mutate state, read Coinbase, or call Coinbase.
+- `GET /api/v1/stealth/operator-scope` exposes the Release 0.1 stealth
+  operator management boundary as backend-owned read evidence. It summarizes
+  read routes, live-disabled command routes, exchange-reality blockers,
+  mutation-claim ownership, post-write reconciliation blockers, unsupported
+  gaps, and browser/BFF authority limits. It does not invoke managers, acquire
+  mutation claims, execute reconciliation, call Coinbase, mutate local or
+  exchange state, route through the dashboard, or create a second trading path.
   `execution_live_readiness` also includes forbidden execution claim evidence
   and summary rows mapping each forbidden claim to the backend decision,
   clearance/work-queue refs, backend contract evidence, and disabled

@@ -184,8 +184,13 @@ work. Historical milestone detail belongs in
   live-enablement and stealth command-suite phase evidence emits `8101-8120`.
   Full Admin API contract validation timed out before completion in this
   environment and is deferred to a major closeout gate.
-- Exact next implementation slice: move to Phase 8102 Stealth Operator Scope.
-  Do not add browser scheduler, BFF runner authority, retry loops,
+- Phase 8102 implementation status: `GET /api/v1/stealth/operator-scope`
+  now exposes the backend-owned stealth operator boundary as read-only Admin
+  API evidence. The route reports seven scope rows, unsupported behaviors,
+  command/read route lists, display/forward-only authority, no live Coinbase
+  order/read execution, and 0 USDC submitted/executed notional.
+- Exact next implementation slice: move to Phase 8103 Backend Stealth Route
+  Inventory. Do not add browser scheduler, BFF runner authority, retry loops,
   route-local execution, direct Coinbase calls, reconciliation execution,
   order/exchange state mutation, or a second trading path.
 - Contextless review status: backend Phase 7997 passed after remediation.

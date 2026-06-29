@@ -576,6 +576,16 @@ Boundary token: do not create dependency graphs.
 | Guard / Risk Policy | Implemented as backend read-only guard/risk policy evidence and consumed by the enterprise frontend | Not a frontend command module | Not applicable | Not approved through frontend | `/api/v1/admin/guard-risk-policy` | Backend-defined policy ids, product id filter, correlation ids, and audit ids | Browser must not calculate wallet, margin, guard, profitability, or live approval authority; route does not fetch Coinbase wallets | Guard regression, Admin API contract tests, frontend release gate, contextless review |
 | Audit Workbench | Implemented as backend read-only cross-module route, command, correlation, audit, and exchange evidence | Not a frontend command module | Not applicable | Not approved through frontend | `/api/v1/admin/audit-workbench` | `client_order_id`, `stealth_order_id`, or `position_key` depending on module; exchange ids are evidence only | Browser must not mutate audit history, call Coinbase, replay commands, or treat exchange ids as tracking/cancel keys | Admin API contract tests, frontend route coverage, frontend release gate, contextless review |
 
+## Stealth Operator-Scope Note
+
+The Stealth Orders row also includes read-only operator-scope evidence through
+`GET /api/v1/stealth/operator-scope`. This route summarizes stealth read
+evidence, blocked command drafts, exchange-reality evidence, mutation-claim
+ownership, post-write reconciliation evidence, unsupported gaps, and backend
+authority boundaries. It does not grant browser/BFF trading authority, run
+Coinbase reads/orders, acquire mutation claims, execute reconciliation, mutate
+lifecycle/order/exchange state, or create a second trading path.
+
 ## Stealth Manager-Invocation Policy Note
 
 The Stealth Orders row includes manager-invocation policy evidence through

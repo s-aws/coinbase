@@ -3636,6 +3636,20 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
     assert "content" in stealth_command_suite_operation["responses"]["200"]
     assert "401" in stealth_command_suite_operation["responses"]
     assert "403" in stealth_command_suite_operation["responses"]
+    stealth_operator_scope_operation = written["paths"][
+        "/api/v1/stealth/operator-scope"
+    ]["get"]
+    assert "200" in stealth_operator_scope_operation["responses"]
+    assert "content" in stealth_operator_scope_operation["responses"]["200"]
+    assert "401" in stealth_operator_scope_operation["responses"]
+    assert "403" in stealth_operator_scope_operation["responses"]
+    stealth_operator_scope_schema = written["components"]["schemas"][
+        "StealthOperatorScopeResponse"
+    ]
+    assert "operator_scope" in stealth_operator_scope_schema["properties"]
+    assert "unsupported_behaviors" in stealth_operator_scope_schema["properties"]
+    assert "command_routes" in stealth_operator_scope_schema["properties"]
+    assert "read_routes" in stealth_operator_scope_schema["properties"]
     movement_reprice_operation = written["paths"][
         "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
     ]["post"]
@@ -44785,6 +44799,125 @@ def test_admin_api_stealth_command_suite_is_read_only_backend_evidence(monkeypat
     assert "stealth_reconciliation_executor" in reconciliation_gap[
         "missing_contracts"
     ]
+
+
+@pytest.mark.regression
+def test_admin_api_stealth_operator_scope_is_read_only_management_boundary(
+    monkeypatch,
+):
+    from application.admin_api.read_service import AdminApiReadService
+
+    client = _client(monkeypatch)
+
+    response = client.get(
+        "/api/v1/stealth/operator-scope",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["type"] == "stealth_operator_scope"
+    assert payload["module_id"] == "stealth_orders"
+    assert payload["approved_phase_range"] == "8101-8120"
+    assert payload["status"] == AdminApiGateStatus.BLOCKED.value
+    assert payload["support_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert payload["backend_owned"] is True
+    assert payload["read_only"] is True
+    assert payload["browser_authority"] == "display_only"
+    assert payload["bff_authority"] == "forward_only_no_execution"
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_read_ran"] is False
+    assert payload["submitted_notional_usdc"] == "0"
+    assert payload["executed_notional_usdc"] == "0"
+    assert payload["operator_scope_count"] == 7
+    scope_by_name = {item["scope"]: item for item in payload["operator_scope"]}
+    assert set(scope_by_name) == {
+        "read_evidence",
+        "command_drafts",
+        "exchange_reality",
+        "mutation_claims",
+        "post_write_reconciliation",
+        "unsupported_gaps",
+        "authority_boundary",
+    }
+    assert scope_by_name["read_evidence"]["support_status"] == (
+        AdminApiModuleSupportStatus.READ_ONLY_READY.value
+    )
+    assert scope_by_name["command_drafts"]["support_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert scope_by_name["unsupported_gaps"]["support_status"] == (
+        AdminApiModuleSupportStatus.NOT_MODELED.value
+    )
+    assert all(
+        item["browser_authority"] == "display_only"
+        for item in payload["operator_scope"]
+    )
+    assert all(
+        item["bff_authority"] == "forward_only_no_execution"
+        for item in payload["operator_scope"]
+    )
+    assert all(
+        item["live_coinbase_orders_ran"] is False
+        for item in payload["operator_scope"]
+    )
+    assert all(
+        item["submitted_notional_usdc"] == "0"
+        for item in payload["operator_scope"]
+    )
+    assert all(
+        item["executed_notional_usdc"] == "0"
+        for item in payload["operator_scope"]
+    )
+    assert payload["read_route_count"] == len(payload["read_routes"])
+    assert payload["command_route_count"] == len(payload["command_routes"])
+    assert "GET /api/v1/stealth/orders" in payload["read_routes"]
+    assert "GET /api/v1/stealth/command-suite" in payload["read_routes"]
+    assert "POST /api/v1/stealth/orders" in payload["command_routes"]
+    assert (
+        "POST /api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
+        in payload["command_routes"]
+    )
+    assert payload["unsupported_gap_count"] == len(payload["unsupported_behaviors"])
+    assert "browser_bff_trading_authority" in payload["unsupported_behaviors"]
+    assert "dashboard_websocket_fallback" in payload["unsupported_behaviors"]
+    assert "route_local_stealth_execution" in payload["unsupported_behaviors"]
+    assert "exchange_order_id_command_identity" in payload["unsupported_behaviors"]
+    assert payload["command_count"] == 7
+    assert payload["blocked_command_count"] == 7
+    assert payload["executable_command_count"] == 0
+    assert payload["coverage_gap_count"] == 7
+    assert payload["exchange_truth_check_count"] == 7
+    assert payload["mutation_claim_scope_status"] == (
+        AdminApiGateStatus.BLOCKED.value
+    )
+    assert payload["exchange_reality_scope_status"] == (
+        AdminApiGateStatus.BLOCKED.value
+    )
+    assert payload["post_write_scope_status"] == AdminApiGateStatus.BLOCKED.value
+    assert (
+        "build_stealth_command_suite"
+        in scope_by_name["command_drafts"]["backend_contracts"]
+    )
+    assert (
+        "GET /api/v1/stealth/orders/{stealth_order_id}/mutation-claim-proof"
+        in scope_by_name["mutation_claims"]["read_routes"]
+    )
+    assert (
+        "GET /api/v1/stealth/orders/{stealth_order_id}/post-write-reconciliation-proof"
+        in scope_by_name["post_write_reconciliation"]["read_routes"]
+    )
+    assert (
+        "No browser, BFF, dashboard, route-local, or Coinbase authority is added."
+        in payload["evidence"]
+    )
+
+    direct_response = AdminApiReadService().build_stealth_operator_scope()
+    assert direct_response.operator_scope_count == 7
+    assert direct_response.command_count == 7
+    assert direct_response.live_coinbase_orders_ran is False
 
 
 @pytest.mark.regression

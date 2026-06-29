@@ -575,6 +575,18 @@ class AdminApiStealthCommandSuiteGapFamily(str, Enum):
     STEALTH_RECONCILIATION_WORKFLOW = "stealth_reconciliation_workflow"
 
 
+class AdminApiStealthOperatorScope(str, Enum):
+    """Operator-visible stealth lifecycle management scope rows."""
+
+    READ_EVIDENCE = "read_evidence"
+    COMMAND_DRAFTS = "command_drafts"
+    EXCHANGE_REALITY = "exchange_reality"
+    MUTATION_CLAIMS = "mutation_claims"
+    POST_WRITE_RECONCILIATION = "post_write_reconciliation"
+    UNSUPPORTED_GAPS = "unsupported_gaps"
+    AUTHORITY_BOUNDARY = "authority_boundary"
+
+
 class AdminApiStealthCommandSuiteBlockerClosure(str, Enum):
     """Concrete M55 blocker closures required before stealth live execution."""
 

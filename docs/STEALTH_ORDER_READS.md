@@ -15,11 +15,18 @@ platform, not the legacy dashboard command plane.
 - `GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof`
 - `GET /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proof`
 - `GET /api/v1/stealth/command-suite`
+- `GET /api/v1/stealth/operator-scope`
 
 The list/detail routes read local stealth lifecycle rows and report active
 placement evidence, mutation-claim evidence, and reveal-trigger evidence when
 present. The command-suite route reports M55 readiness for stealth create,
 cancel, reveal, move, reprice, recovery, and reconciliation workflows.
+The operator-scope route summarizes which parts of that stealth lifecycle
+surface the Release 0.1 admin can manage now: read evidence and live-disabled
+command drafts are visible; exchange-reality checks, mutation-claim ownership,
+post-write reconciliation, unsupported gaps, and authority boundaries remain
+backend-owned blockers. It does not invoke managers, call Coinbase, execute
+reconciliation, mutate local or exchange state, or grant browser/BFF authority.
 For phases 4581-4600, the M55 blocker-closure ledger also reports partial
 proof/readback evidence for all concrete blocker rows. Partial evidence is
 readback only: it does not change blocker status, missing backend contracts,
