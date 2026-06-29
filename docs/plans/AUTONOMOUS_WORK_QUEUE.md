@@ -262,6 +262,15 @@ Exact autonomous phrase: Active Release 0.1 `8041-8060` adds a Spot Command Oper
 - Add focused assertions that this slice does not add live Coinbase execution,
   browser/BFF execution authority, dashboard WebSocket calls, route-local
   execution, reconciliation execution, or order/exchange state mutation.
+- Evidence update 2026-06-29: AGENTS.md was re-reviewed for this phase.
+  Frontend release evidence now includes a machine-readable
+  `noLiveAuthorityBoundary` contract, and focused quality/autonomous checks
+  require live Coinbase execution `not_run`, submitted/executed notional `0`
+  USDC, display-only browser authority, forward-only/no-execution BFF
+  authority, no local frontend services, no dashboard WebSocket calls, no
+  route-local execution, no reconciliation execution, and no order/exchange
+  state mutation. Live Coinbase execution was not run and submitted/executed
+  notional stayed 0 USDC.
 
 ### Phase 8055 - Mock Runtime Parity
 
