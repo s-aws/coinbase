@@ -288,14 +288,22 @@ notional, retained inventory, reconciliation result, and audit ids.
   `GET /api/v1/stealth/route-inventory` and frontend consumes it through
   generated schema, `getStealthRouteInventory`, mock fixtures, runtime
   snapshot loading, typed stealth adapters, and Stealth Orders read-model
-  rendering. It reports 40 route rows, 12 route families, 19 reads, 6
+  rendering. It reports 41 route rows, 12 route families, 20 reads, 6
   live-disabled command drafts, 15 local evidence record routes, 3
   exchange-shaped routes, zero live-enabled routes, embedded
   submission-adapter detail evidence, and no live Coinbase execution with
   0 USDC submitted/executed notional.
-- Exact next implementation slice after Phase 8103 validation: continue
-  active `8101-8120` Stealth Lifecycle Operator Controls with Phase 8104
-  Stealth Exchange-Reality Contract Map. Keep the slice backend-owned
+- Phase 8104 implementation status: backend now exposes read-only
+  `GET /api/v1/stealth/exchange-reality-contract-map` and frontend consumes it
+  through generated schema, `getStealthExchangeRealityContractMap`, mock
+  fixtures, runtime snapshot loading, typed stealth adapters, and Stealth
+  Orders read-model rendering. It reports 8 backend-owned exchange-reality
+  contract rows, 6 blocked rows, 6 command-boundary rows, 2
+  live-exchange-shaped primary surfaces, zero live-enabled rows, no Coinbase
+  reads/orders/cancellations, and 0 USDC submitted/executed notional.
+- Exact next implementation slice after Phase 8104 validation: continue
+  active `8101-8120` Stealth Lifecycle Operator Controls with Phase 8105
+  Stealth Mutation-Claim Contract Map. Keep the slice backend-owned
   operator management/gate surfacing; do not add browser/BFF execution
   authority, route-local execution, direct Coinbase calls, reconciliation
   execution, order/exchange-state mutation, or a second trading path. The

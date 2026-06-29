@@ -236,8 +236,8 @@ Exact autonomous phrase: Active Release 0.1 `8101-8120` adds a Stealth Lifecycle
 - Evidence update 2026-06-29: added read-only
   `GET /api/v1/stealth/route-inventory` through backend route inventory,
   OpenAPI models, read service, and Admin API routing. The response is
-  derived from `ADMIN_API_ROUTE_INVENTORY` and reports 40 stealth route rows,
-  12 route families, 19 read routes, 6 live-disabled command draft routes,
+  derived from `ADMIN_API_ROUTE_INVENTORY` and now reports 41 stealth route
+  rows, 12 route families, 20 read routes, 6 live-disabled command draft routes,
   15 local evidence record routes, 3 exchange-shaped routes, zero live-enabled
   routes, and embedded submission-adapter detail evidence on the stealth
   detail route. No browser/BFF route inference, route-local execution,
@@ -250,6 +250,20 @@ Exact autonomous phrase: Active Release 0.1 `8101-8120` adds a Stealth Lifecycle
 - Map which routes prove live placement, exchange truth, cancel/replace
   prerequisites, and reveal state without marking revealed orders hidden or
   mutating local state without exchange handling.
+- Evidence update 2026-06-29: added read-only
+  `GET /api/v1/stealth/exchange-reality-contract-map` through backend route
+  inventory, OpenAPI models, read service, Admin API routing, generated
+  contracts, and focused contract tests. The response reports 8 backend-owned
+  contract rows: active placement truth, revealed placement state,
+  hidden-state invariants, reveal command boundary, cancel/replace boundary,
+  move/cancel command boundary, reconciliation boundary, and browser/BFF
+  authority boundary. It reports 6 blocked rows, 6 command-boundary rows, 2
+  live-exchange-shaped primary surfaces, zero live-enabled rows, no Coinbase
+  reads/orders/cancellations, and 0 USDC submitted/executed notional.
+  Backend/frontend `AGENTS.md` instructions were re-reviewed with no scope
+  change. No browser/BFF exchange-truth resolution, route-local execution,
+  lifecycle mutation, cancel/replace, Coinbase call, or second trading path was
+  added.
 
 ### Phase 8105 - Stealth Mutation-Claim Contract Map
 

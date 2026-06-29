@@ -2799,6 +2799,13 @@ X-Admin-Roles: viewer
 ```
 
 ```http
+GET /api/v1/stealth/exchange-reality-contract-map
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+```http
 GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/exchange-truth-proof
 Authorization: Bearer <backend-verifiable-token>
 X-Admin-Actor: viewer-001
@@ -2835,6 +2842,18 @@ read-only and must show `live_coinbase_orders_ran=false`,
 `submitted_notional_usdc="0"`, `executed_notional_usdc="0"`,
 `browser_authority="display_only"`, and
 `bff_authority="forward_only_no_execution"`.
+
+The exchange-reality contract-map response reports
+`type="stealth_exchange_reality_contract_map"`, 8 backend-owned contract rows,
+6 blocked rows, 6 command-boundary rows, 2 live-exchange-shaped primary
+surfaces, `live_enabled_count=0`, `live_coinbase_orders_ran=false`,
+`live_coinbase_reads_ran=false`, `live_coinbase_cancellations_ran=false`, and
+0 USDC submitted/executed notional. It is read-only evidence for active
+placement truth, revealed placement state, hidden-state invariants, reveal,
+cancel/replace, move/cancel, reconciliation, and browser/BFF authority
+boundaries. It does not resolve exchange truth, cancel or replace placements,
+mark revealed orders hidden, mutate lifecycle state, or authorize browser/BFF
+execution.
 
 ## Movement And Repricing
 

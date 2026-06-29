@@ -59,6 +59,28 @@ route coverage checks. Phase-end stale-subagent sweep completed: reviewer
 findings were consumed and the agent was closed. Live Coinbase execution was
 not run; actual submitted/executed notional remains `0` USDC.
 
+Phase 8104 exchange-reality contract-map evidence: blind/contextless reviewer
+`019f14cc-9059-7a62-afec-d15ccb3c4b8d` passed the backend/frontend
+exchange-reality contract-map review. The reviewer traced backend authority to
+`GET /api/v1/stealth/exchange-reality-contract-map`,
+`AdminApiReadService.build_stealth_exchange_reality_contract_map`, typed
+models, enum scope rows, and `ADMIN_API_ROUTE_INVENTORY`; traced frontend
+consumption through generated schema, `getStealthExchangeRealityContractMap`,
+runtime snapshot loading, typed adapters, mock fixtures, BFF GET
+allowlisting, route coverage metadata, and Stealth Orders read-model
+rendering; and found no browser/BFF exchange-truth resolution, cancel/replace
+authority, reveal authority, lifecycle mutation, Coinbase call, route-local
+executor, dashboard fallback, reconciliation execution, or second trading
+path. The reviewer confirmed visible hidden/revealed placement rules:
+`HIDDEN`, `PENDING`, and `TRIGGERED` must not have live Coinbase placement;
+`REVEALED` may have an active placement until backend evidence proves closure;
+cancel/re-entry is narrow no-fill policy, not hide-again; same-side retreat is
+hidden-order-only; and exchange `order_id` remains evidence, not command
+identity. Focused backend and frontend validation passed. No concrete blocker
+was found. Phase-end stale-subagent sweep completed: reviewer findings were
+consumed and the agent was closed. Live Coinbase execution was not run; actual
+submitted/executed notional remains `0` USDC.
+
 ## Campaign/Sweep Operator Controls Review - Phases 8081-8100
 
 Result: planned. Closeout ready. Scope: phases `8081-8100`, after completed history through

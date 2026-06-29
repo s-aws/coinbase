@@ -102,6 +102,7 @@ from core.enums import (
     AdminApiStealthClosureDependencyClass,
     AdminApiStealthCommandSuiteBlockerClosure,
     AdminApiStealthCommandSuiteGapFamily,
+    AdminApiStealthExchangeRealityContractScope,
     AdminApiStealthOperatorScope,
     AdminApiStealthRouteInventoryFamily,
     AdminApiVerifierReadinessStatus,
@@ -388,6 +389,8 @@ from .models import (
     SpotSweepAutomationServiceStatusResponse,
     StealthOperatorScopeItem,
     StealthOperatorScopeResponse,
+    StealthExchangeRealityContractMapItem,
+    StealthExchangeRealityContractMapResponse,
     StealthRouteInventoryFamilyItem,
     StealthRouteInventoryItem,
     StealthRouteInventoryResponse,
@@ -16923,7 +16926,10 @@ class AdminApiReadService:
             "/api/v1/stealth/route-inventory",
         }:
             return AdminApiStealthRouteInventoryFamily.COMMAND_READINESS
-        if "active-placement/exchange-truth" in route:
+        if (
+            route == "/api/v1/stealth/exchange-reality-contract-map"
+            or "active-placement/exchange-truth" in route
+        ):
             return AdminApiStealthRouteInventoryFamily.EXCHANGE_REALITY
         if "lifecycle-write-guard" in route:
             return AdminApiStealthRouteInventoryFamily.LIFECYCLE_WRITE_GUARD
@@ -17292,6 +17298,603 @@ class AdminApiReadService:
                 "operator-facing families so the enterprise admin can show "
                 "which reads, local evidence records, and blocked command "
                 "drafts exist without deriving route authority in the browser."
+            ),
+        )
+
+    def build_stealth_exchange_reality_contract_map(
+        self,
+    ) -> StealthExchangeRealityContractMapResponse:
+        """Return stealth exchange-reality boundaries for operator management."""
+
+        command_suite = self.build_stealth_command_suite()
+        inventory_by_surface = {
+            item.surface: item for item in ADMIN_API_ROUTE_INVENTORY
+        }
+
+        active_truth_surface = (
+            "GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/"
+            "exchange-truth-proof"
+        )
+        active_truth_snapshot_surface = (
+            "POST /api/v1/stealth/orders/{stealth_order_id}/active-placement/"
+            "exchange-truth-snapshots"
+        )
+        active_truth_proof_surface = (
+            "POST /api/v1/stealth/orders/{stealth_order_id}/active-placement/"
+            "exchange-truth-proofs"
+        )
+        cancel_replace_surface = (
+            "GET /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proof"
+        )
+        cancel_replace_record_surface = (
+            "POST /api/v1/stealth/orders/{stealth_order_id}/cancel-replace-proofs"
+        )
+        reconciliation_surface = (
+            "GET /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proof"
+        )
+        reconciliation_record_surface = (
+            "POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation-proofs"
+        )
+        post_write_surface = (
+            "GET /api/v1/stealth/orders/{stealth_order_id}/"
+            "post-write-reconciliation-proof"
+        )
+        reveal_trigger_surface = (
+            "GET /api/v1/stealth/orders/{stealth_order_id}/reveal-trigger-proof"
+        )
+        coinbase_policy_surface = (
+            "GET /api/v1/stealth/orders/{stealth_order_id}/"
+            "coinbase-exchange-submission-policy"
+        )
+        state_policy_surface = (
+            "GET /api/v1/stealth/orders/{stealth_order_id}/state-mutation-policy"
+        )
+        detail_surface = "GET /api/v1/stealth/orders/{stealth_order_id}"
+        operator_scope_surface = "GET /api/v1/stealth/operator-scope"
+        route_inventory_surface = "GET /api/v1/stealth/route-inventory"
+        contract_map_surface = "GET /api/v1/stealth/exchange-reality-contract-map"
+        command_suite_surface = "GET /api/v1/stealth/command-suite"
+        reveal_command_surface = "POST /api/v1/stealth/orders/{stealth_order_id}/reveal"
+        cancel_command_surface = "POST /api/v1/stealth/orders/{stealth_order_id}/cancel"
+        move_command_surface = "POST /api/v1/stealth/orders/{stealth_order_id}/move"
+        recovery_command_surface = (
+            "POST /api/v1/stealth/orders/{stealth_order_id}/recovery"
+        )
+        reconciliation_command_surface = (
+            "POST /api/v1/stealth/orders/{stealth_order_id}/reconciliation"
+        )
+
+        def contract_item(
+            *,
+            scope: AdminApiStealthExchangeRealityContractScope,
+            label: str,
+            primary_surface: str,
+            gate_status: AdminApiGateStatus,
+            action_state: AdminApiActionState,
+            support_status: AdminApiModuleSupportStatus,
+            identity_keys: list[str],
+            lifecycle_statuses: list[str],
+            current_read_evidence_routes: list[str],
+            command_routes: list[str],
+            backend_contracts: list[str],
+            required_evidence: list[str],
+            unsupported_behaviors: list[str],
+            active_placement_exchange_truth_required: bool = False,
+            active_placement_cancel_replace_required: bool = False,
+            post_write_reconciliation_required: bool = False,
+            detail: str,
+        ) -> StealthExchangeRealityContractMapItem:
+            inventory_item = inventory_by_surface[primary_surface]
+            method, route = self._admin_api_http_surface(inventory_item.surface)
+            route_inventory_surfaces = [
+                primary_surface,
+                *current_read_evidence_routes,
+                *command_routes,
+            ]
+            route_inventory_bound = all(
+                surface in inventory_by_surface for surface in route_inventory_surfaces
+            )
+            return StealthExchangeRealityContractMapItem(
+                scope=scope,
+                label=label,
+                support_status=support_status,
+                gate_status=gate_status,
+                action_state=action_state,
+                surface=inventory_item.surface,
+                method=method,
+                route=route,
+                action_class=inventory_item.action_class,
+                required_permission=inventory_item.permission,
+                shared_method=inventory_item.shared_method,
+                route_inventory_bound=route_inventory_bound,
+                identity_keys=identity_keys,
+                lifecycle_statuses=lifecycle_statuses,
+                current_read_evidence_routes=current_read_evidence_routes,
+                command_routes=command_routes,
+                backend_contracts=backend_contracts,
+                required_evidence=required_evidence,
+                unsupported_behaviors=unsupported_behaviors,
+                active_placement_exchange_truth_required=(
+                    active_placement_exchange_truth_required
+                ),
+                active_placement_cancel_replace_required=(
+                    active_placement_cancel_replace_required
+                ),
+                post_write_reconciliation_required=post_write_reconciliation_required,
+                exchange_truth_verified=False,
+                executable=False,
+                live_enabled=False,
+                local_lifecycle_mutation_allowed=False,
+                lifecycle_state_mutated=False,
+                order_state_mutated=False,
+                exchange_state_mutated=False,
+                coinbase_read_allowed=False,
+                live_coinbase_read_ran=False,
+                coinbase_order_submitted=False,
+                coinbase_order_cancel_submitted=False,
+                reconciliation_execution_allowed=False,
+                reconciliation_executed=False,
+                backend_owned=True,
+                read_only=True,
+                browser_authority="display_only",
+                bff_authority="forward_only_no_execution",
+                live_coinbase_orders_ran=False,
+                submitted_notional_usdc="0",
+                executed_notional_usdc="0",
+                detail=detail,
+            )
+
+        common_unsupported = [
+            "browser_exchange_truth_resolution",
+            "bff_exchange_truth_resolution",
+            "dashboard_websocket_fallback",
+            "route_local_stealth_execution",
+            "direct_coinbase_calls",
+            "exchange_order_id_command_identity",
+        ]
+        contract_map = [
+            contract_item(
+                scope=(
+                    AdminApiStealthExchangeRealityContractScope.ACTIVE_PLACEMENT_TRUTH
+                ),
+                label="Active-placement exchange truth",
+                primary_surface=active_truth_surface,
+                gate_status=AdminApiGateStatus.BLOCKED,
+                action_state=AdminApiActionState.BLOCKED,
+                support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                identity_keys=["stealth_order_id", "active_placement_client_order_id"],
+                lifecycle_statuses=["revealed"],
+                current_read_evidence_routes=[
+                    active_truth_surface,
+                    active_truth_snapshot_surface,
+                    active_truth_proof_surface,
+                    command_suite_surface,
+                ],
+                command_routes=[
+                    cancel_command_surface,
+                    move_command_surface,
+                    recovery_command_surface,
+                    reconciliation_command_surface,
+                ],
+                backend_contracts=[
+                    "build_stealth_active_placement_exchange_truth",
+                    "build_stealth_command_suite.exchange_truth_checks",
+                    "stealth_exchange_truth_service route-inventory validation",
+                ],
+                required_evidence=[
+                    "active_placement_client_order_id",
+                    "safe_exchange_truth_snapshot",
+                    "safe_exchange_truth_proof",
+                ],
+                unsupported_behaviors=[
+                    *common_unsupported,
+                    "live_coinbase_order_status_read",
+                    "active_placement_cancel_replace",
+                ],
+                active_placement_exchange_truth_required=True,
+                detail=(
+                    "Active-placement truth is readback evidence only. It can "
+                    "show local proof prerequisites, but it does not read "
+                    "Coinbase or verify a live placement by itself."
+                ),
+            ),
+            contract_item(
+                scope=(
+                    AdminApiStealthExchangeRealityContractScope.REVEALED_PLACEMENT_STATE
+                ),
+                label="Revealed placement state",
+                primary_surface=detail_surface,
+                gate_status=AdminApiGateStatus.BLOCKED,
+                action_state=AdminApiActionState.BLOCKED,
+                support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                identity_keys=["stealth_order_id", "active_placement_client_order_id"],
+                lifecycle_statuses=["revealed"],
+                current_read_evidence_routes=[
+                    detail_surface,
+                    active_truth_surface,
+                    cancel_replace_surface,
+                    reconciliation_surface,
+                    post_write_surface,
+                ],
+                command_routes=[
+                    cancel_command_surface,
+                    move_command_surface,
+                    reconciliation_command_surface,
+                ],
+                backend_contracts=[
+                    "build_stealth_order_detail",
+                    "build_stealth_active_placement_exchange_truth",
+                    "build_stealth_cancel_replace_proof",
+                    "build_stealth_reconciliation_proof",
+                ],
+                required_evidence=[
+                    "exchange_handling_before_local_hidden_cancelled_moved_state",
+                    "post_write_reconciliation_before_completion",
+                ],
+                unsupported_behaviors=[
+                    *common_unsupported,
+                    "hide_again_shortcuts",
+                    "local_cancel_without_exchange_handling",
+                    "local_move_without_cancel_replace_proof",
+                ],
+                active_placement_exchange_truth_required=True,
+                active_placement_cancel_replace_required=True,
+                post_write_reconciliation_required=True,
+                detail=(
+                    "A revealed stealth order may still have an active Coinbase "
+                    "placement until backend evidence proves fill, cancel, "
+                    "move/reprice replacement, or reconciliation closure."
+                ),
+            ),
+            contract_item(
+                scope=(
+                    AdminApiStealthExchangeRealityContractScope.HIDDEN_STATE_INVARIANTS
+                ),
+                label="Hidden-state invariants",
+                primary_surface=operator_scope_surface,
+                gate_status=AdminApiGateStatus.PASSED,
+                action_state=AdminApiActionState.USABLE,
+                support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                identity_keys=["stealth_order_id"],
+                lifecycle_statuses=["hidden", "pending", "triggered"],
+                current_read_evidence_routes=[
+                    operator_scope_surface,
+                    route_inventory_surface,
+                    command_suite_surface,
+                ],
+                command_routes=[],
+                backend_contracts=[
+                    "AGENTS.md stealth exchange-reality invariant",
+                    "docs/agents/INVARIANTS.md::Stealth Exchange Truth",
+                    "build_stealth_operator_scope",
+                ],
+                required_evidence=[
+                    "no_live_coinbase_placement_for_hidden_pending_triggered",
+                    "same_side_post_fill_retreat_hidden_only",
+                ],
+                unsupported_behaviors=[
+                    "hidden_order_live_placement",
+                    "same_side_retreat_live_revealed_placement_mutation",
+                ],
+                detail=(
+                    "HIDDEN, PENDING, and TRIGGERED stealth orders must not "
+                    "have a live resting Coinbase placement. Same-side retreat "
+                    "is a hidden-order policy and must not mutate a live "
+                    "revealed placement."
+                ),
+            ),
+            contract_item(
+                scope=(
+                    AdminApiStealthExchangeRealityContractScope.REVEAL_COMMAND_BOUNDARY
+                ),
+                label="Reveal command boundary",
+                primary_surface=reveal_command_surface,
+                gate_status=AdminApiGateStatus.BLOCKED,
+                action_state=AdminApiActionState.BLOCKED,
+                support_status=(
+                    AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                ),
+                identity_keys=["stealth_order_id"],
+                lifecycle_statuses=["hidden", "pending", "triggered"],
+                current_read_evidence_routes=[
+                    reveal_trigger_surface,
+                    coinbase_policy_surface,
+                    post_write_surface,
+                    command_suite_surface,
+                ],
+                command_routes=[reveal_command_surface],
+                backend_contracts=[
+                    "build_stealth_command_suite.commands[stealth_reveal]",
+                    "build_stealth_reveal_trigger_proof",
+                    "build_stealth_coinbase_exchange_submission_policy",
+                    "core/stealth_order_manager.py::reveal_order_slice",
+                ],
+                required_evidence=[
+                    "reveal_trigger_proof",
+                    "coinbase_exchange_submission_policy",
+                    "post_write_reconciliation",
+                    "live_execution_service_enabled",
+                ],
+                unsupported_behaviors=[
+                    *common_unsupported,
+                    "browser_trigger_evaluation",
+                    "browser_reveal_order_slice_call",
+                    "route_local_active_placement_creation",
+                ],
+                post_write_reconciliation_required=True,
+                detail=(
+                    "Reveal is a live-exchange-place-shaped command draft. It "
+                    "remains blocked until backend trigger, submission-policy, "
+                    "live service/adapter, manager, and post-write "
+                    "reconciliation gates are complete."
+                ),
+            ),
+            contract_item(
+                scope=(
+                    AdminApiStealthExchangeRealityContractScope.CANCEL_REPLACE_BOUNDARY
+                ),
+                label="Cancel/replace proof boundary",
+                primary_surface=cancel_replace_surface,
+                gate_status=AdminApiGateStatus.BLOCKED,
+                action_state=AdminApiActionState.BLOCKED,
+                support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                identity_keys=["stealth_order_id", "active_placement_client_order_id"],
+                lifecycle_statuses=["revealed"],
+                current_read_evidence_routes=[
+                    cancel_replace_surface,
+                    cancel_replace_record_surface,
+                    active_truth_surface,
+                    command_suite_surface,
+                ],
+                command_routes=[cancel_command_surface, move_command_surface],
+                backend_contracts=[
+                    "build_stealth_cancel_replace_proof",
+                    "build_stealth_command_suite.cancel_replace_boundaries",
+                    "stealth_active_placement_cancel_replace_contract",
+                ],
+                required_evidence=[
+                    "active_placement_exchange_truth",
+                    "safe_cancel_replace_proof",
+                    "mutation_claim",
+                    "post_write_reconciliation",
+                ],
+                unsupported_behaviors=[
+                    *common_unsupported,
+                    "active_placement_cancel_replace_execution",
+                    "local_move_cancel_without_cancel_replace_proof",
+                ],
+                active_placement_exchange_truth_required=True,
+                active_placement_cancel_replace_required=True,
+                post_write_reconciliation_required=True,
+                detail=(
+                    "Cancel/replace proof rows describe the evidence required "
+                    "before a revealed placement can be cancelled or replaced. "
+                    "They do not perform the cancel/replace."
+                ),
+            ),
+            contract_item(
+                scope=(
+                    AdminApiStealthExchangeRealityContractScope.MOVE_CANCEL_COMMAND_BOUNDARY
+                ),
+                label="Move/cancel command boundary",
+                primary_surface=cancel_command_surface,
+                gate_status=AdminApiGateStatus.BLOCKED,
+                action_state=AdminApiActionState.BLOCKED,
+                support_status=(
+                    AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+                ),
+                identity_keys=["stealth_order_id", "active_placement_client_order_id"],
+                lifecycle_statuses=["revealed"],
+                current_read_evidence_routes=[
+                    active_truth_surface,
+                    cancel_replace_surface,
+                    state_policy_surface,
+                    post_write_surface,
+                    command_suite_surface,
+                ],
+                command_routes=[cancel_command_surface, move_command_surface],
+                backend_contracts=[
+                    "build_stealth_command_suite.commands[stealth_cancel]",
+                    "build_stealth_command_suite.commands[stealth_move]",
+                    "build_stealth_state_mutation_policy",
+                    "core/stealth_order_manager.py move/cancel paths",
+                ],
+                required_evidence=[
+                    "active_placement_exchange_truth",
+                    "cancel_replace_proof",
+                    "state_mutation_policy",
+                    "post_write_reconciliation",
+                ],
+                unsupported_behaviors=[
+                    *common_unsupported,
+                    "local_cancel_without_exchange_cancel",
+                    "local_move_without_exchange_replacement",
+                    "exchange_order_id_as_command_key",
+                ],
+                active_placement_exchange_truth_required=True,
+                active_placement_cancel_replace_required=True,
+                post_write_reconciliation_required=True,
+                detail=(
+                    "Move and cancel are live-disabled command drafts keyed by "
+                    "stealth_order_id. They cannot locally mark a revealed "
+                    "order cancelled or moved until backend exchange handling "
+                    "and reconciliation evidence are complete."
+                ),
+            ),
+            contract_item(
+                scope=(
+                    AdminApiStealthExchangeRealityContractScope.RECONCILIATION_BOUNDARY
+                ),
+                label="Reconciliation boundary",
+                primary_surface=reconciliation_surface,
+                gate_status=AdminApiGateStatus.BLOCKED,
+                action_state=AdminApiActionState.BLOCKED,
+                support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                identity_keys=["stealth_order_id", "active_placement_client_order_id"],
+                lifecycle_statuses=["revealed", "unknown"],
+                current_read_evidence_routes=[
+                    reconciliation_surface,
+                    reconciliation_record_surface,
+                    active_truth_surface,
+                    post_write_surface,
+                    command_suite_surface,
+                ],
+                command_routes=[reconciliation_command_surface],
+                backend_contracts=[
+                    "build_stealth_reconciliation_proof",
+                    "build_stealth_post_write_reconciliation_proof",
+                    "build_stealth_command_suite.commands[stealth_reconciliation]",
+                    "application/admin_api/reconciliation.py",
+                ],
+                required_evidence=[
+                    "reconciliation_plan",
+                    "reconciliation_proof",
+                    "active_placement_exchange_truth",
+                    "post_write_reconciliation",
+                ],
+                unsupported_behaviors=[
+                    *common_unsupported,
+                    "browser_reconciliation_execution",
+                    "bff_reconciliation_execution",
+                    "route_local_reconciliation_execution",
+                ],
+                active_placement_exchange_truth_required=True,
+                post_write_reconciliation_required=True,
+                detail=(
+                    "Reconciliation evidence is visible, but the route does "
+                    "not execute reconciliation or mutate local/exchange state. "
+                    "Future execution must remain backend-owned."
+                ),
+            ),
+            contract_item(
+                scope=(
+                    AdminApiStealthExchangeRealityContractScope.BROWSER_BFF_AUTHORITY_BOUNDARY
+                ),
+                label="Browser/BFF authority boundary",
+                primary_surface=contract_map_surface,
+                gate_status=AdminApiGateStatus.PASSED,
+                action_state=AdminApiActionState.USABLE,
+                support_status=AdminApiModuleSupportStatus.READ_ONLY_READY,
+                identity_keys=["stealth_order_id"],
+                lifecycle_statuses=["hidden", "pending", "triggered", "revealed"],
+                current_read_evidence_routes=[
+                    contract_map_surface,
+                    route_inventory_surface,
+                    operator_scope_surface,
+                    command_suite_surface,
+                ],
+                command_routes=[],
+                backend_contracts=[
+                    "build_stealth_exchange_reality_contract_map",
+                    "ADMIN_API_ROUTE_INVENTORY",
+                    "build_stealth_command_suite",
+                    "docs/agents/INVARIANTS.md",
+                ],
+                required_evidence=[
+                    "backend_route_inventory",
+                    "backend_command_suite",
+                    "backend_exchange_reality_invariants",
+                ],
+                unsupported_behaviors=common_unsupported,
+                detail=(
+                    "This map is read-only operator evidence. The browser and "
+                    "BFF may display or forward backend-approved requests only; "
+                    "they cannot resolve exchange truth, call Coinbase, or "
+                    "mutate stealth lifecycle state."
+                ),
+            ),
+        ]
+
+        read_routes = sorted(
+            {
+                route
+                for item in contract_map
+                for route in item.current_read_evidence_routes
+            }
+        )
+        command_routes = sorted(
+            {route for item in contract_map for route in item.command_routes}
+        )
+        unsupported_behaviors = sorted(
+            {behavior for item in contract_map for behavior in item.unsupported_behaviors}
+        )
+        active_placement_status_rules = [
+            "HIDDEN, PENDING, and TRIGGERED must not have a live Coinbase placement.",
+            "REVEALED may have an active placement until backend evidence proves fill, cancel, move/reprice replacement, or reconciliation closure.",
+            "Browser and BFF code cannot resolve exchange truth or use exchange order_id as command identity.",
+            "Cancel/re-entry is a narrow no-fill revealed-placement policy, not a general hide-again shortcut.",
+            "Same-side post-fill retreat is hidden-order policy only and must not mutate live revealed placements.",
+        ]
+        return StealthExchangeRealityContractMapResponse(
+            approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            status=AdminApiGateStatus.BLOCKED,
+            support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+            route_inventory_source="ADMIN_API_ROUTE_INVENTORY",
+            route_inventory_ref="application/admin_api/route_inventory.py",
+            contract_map_count=len(contract_map),
+            blocking_contract_count=sum(
+                1 for item in contract_map if item.gate_status == AdminApiGateStatus.BLOCKED
+            ),
+            read_only_contract_count=sum(
+                1 for item in contract_map if item.action_class == AdminApiActionClass.READ_ONLY
+            ),
+            command_boundary_count=sum(1 for item in contract_map if item.command_routes),
+            live_exchange_classified_contract_count=sum(
+                1
+                for item in contract_map
+                if item.action_class
+                in {
+                    AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+                    AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                }
+            ),
+            live_enabled_contract_count=0,
+            exchange_truth_check_count=command_suite.exchange_truth_check_count,
+            blocking_exchange_truth_check_count=(
+                command_suite.blocking_exchange_truth_check_count
+            ),
+            active_placement_exchange_truth_required_count=(
+                command_suite.active_placement_exchange_truth_required_count
+            ),
+            cancel_replace_boundary_count=command_suite.cancel_replace_boundary_count,
+            blocking_cancel_replace_boundary_count=(
+                command_suite.blocking_cancel_replace_boundary_count
+            ),
+            command_count=command_suite.command_count,
+            blocked_command_count=command_suite.blocked_command_count,
+            read_routes=read_routes,
+            command_routes=command_routes,
+            active_placement_status_rules=active_placement_status_rules,
+            unsupported_behaviors=unsupported_behaviors,
+            backend_contracts=[
+                "ADMIN_API_ROUTE_INVENTORY",
+                "build_stealth_command_suite",
+                "build_stealth_active_placement_exchange_truth",
+                "build_stealth_cancel_replace_proof",
+                "build_stealth_reconciliation_proof",
+                "build_stealth_exchange_reality_contract_map",
+            ],
+            evidence=[
+                "Derived from build_stealth_command_suite and ADMIN_API_ROUTE_INVENTORY.",
+                "No Coinbase read, order submit, order cancel, reconciliation execution, or state mutation is performed.",
+                "HIDDEN/PENDING/TRIGGERED and REVEALED placement rules are explicit backend invariants.",
+                "Browser and BFF authority remains display/forward only.",
+            ],
+            contract_map=contract_map,
+            route_inventory_bound=all(item.route_inventory_bound for item in contract_map),
+            backend_owned=True,
+            read_only=True,
+            browser_authority="display_only",
+            bff_authority="forward_only_no_execution",
+            live_coinbase_orders_ran=False,
+            live_coinbase_read_ran=False,
+            submitted_notional_usdc="0",
+            executed_notional_usdc="0",
+            detail=(
+                "Stealth exchange-reality contract map shows the backend-owned "
+                "rules an operator must inspect before reveal, move, cancel, "
+                "or reconciliation can ever become executable. It is not a "
+                "Coinbase read, command admission, or lifecycle mutation path."
             ),
         )
 

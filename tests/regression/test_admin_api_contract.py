@@ -445,6 +445,7 @@ from core.enums import (
     AdminApiStealthAdmissionEvidence,
     AdminApiStealthCommandSuiteGapFamily,
     AdminApiStealthDecisionResolutionEvidenceType,
+    AdminApiStealthExchangeRealityContractScope,
     AdminApiStealthLiveReadinessDecision,
     AdminApiStealthRouteInventoryFamily,
     AdminApiVerifierReadinessStatus,
@@ -3667,6 +3668,20 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
         stealth_route_inventory_schema["properties"]
     )
     assert "embedded_evidence_routes" in stealth_route_inventory_schema["properties"]
+    stealth_exchange_reality_operation = written["paths"][
+        "/api/v1/stealth/exchange-reality-contract-map"
+    ]["get"]
+    assert "200" in stealth_exchange_reality_operation["responses"]
+    assert "content" in stealth_exchange_reality_operation["responses"]["200"]
+    assert "401" in stealth_exchange_reality_operation["responses"]
+    assert "403" in stealth_exchange_reality_operation["responses"]
+    stealth_exchange_reality_schema = written["components"]["schemas"][
+        "StealthExchangeRealityContractMapResponse"
+    ]
+    assert "contract_map" in stealth_exchange_reality_schema["properties"]
+    assert "active_placement_status_rules" in (
+        stealth_exchange_reality_schema["properties"]
+    )
     movement_reprice_operation = written["paths"][
         "/api/v1/movement-repricing/stealth/{stealth_order_id}/reprice"
     ]["post"]
@@ -44961,8 +44976,8 @@ def test_admin_api_stealth_route_inventory_is_backend_owned_operator_map(
     )
     assert payload["route_inventory_source"] == "ADMIN_API_ROUTE_INVENTORY"
     assert payload["route_inventory_ref"] == "application/admin_api/route_inventory.py"
-    assert payload["route_count"] == 40
-    assert payload["read_route_count"] == 19
+    assert payload["route_count"] == 41
+    assert payload["read_route_count"] == 20
     assert payload["command_draft_route_count"] == 6
     assert payload["local_evidence_record_route_count"] == 15
     assert payload["live_exchange_classified_route_count"] == 3
@@ -44999,6 +45014,15 @@ def test_admin_api_stealth_route_inventory_is_backend_owned_operator_map(
     assert route_inventory_row["read_only_route"] is True
     assert route_inventory_row["command_draft_route"] is False
     assert route_inventory_row["live_enabled"] is False
+    exchange_reality_row = rows_by_surface[
+        "GET /api/v1/stealth/exchange-reality-contract-map"
+    ]
+    assert exchange_reality_row["family"] == (
+        AdminApiStealthRouteInventoryFamily.EXCHANGE_REALITY.value
+    )
+    assert exchange_reality_row["read_only_route"] is True
+    assert exchange_reality_row["command_draft_route"] is False
+    assert exchange_reality_row["live_enabled"] is False
     reveal_row = rows_by_surface[
         "POST /api/v1/stealth/orders/{stealth_order_id}/reveal"
     ]
@@ -45023,6 +45047,11 @@ def test_admin_api_stealth_route_inventory_is_backend_owned_operator_map(
     ]
     assert command_readiness["read_route_count"] == 3
     assert command_readiness["gate_status"] == AdminApiGateStatus.PASSED.value
+    exchange_reality = family_by_id[
+        AdminApiStealthRouteInventoryFamily.EXCHANGE_REALITY.value
+    ]
+    assert exchange_reality["read_route_count"] == 2
+    assert exchange_reality["gate_status"] == AdminApiGateStatus.BLOCKED.value
     command_drafts = family_by_id[
         AdminApiStealthRouteInventoryFamily.COMMAND_DRAFTS.value
     ]
@@ -45049,6 +45078,120 @@ def test_admin_api_stealth_route_inventory_is_backend_owned_operator_map(
     assert direct_response.route_count == len(direct_response.route_inventory)
     assert direct_response.live_enabled_route_count == 0
     assert direct_response.missing_route_families == []
+
+
+@pytest.mark.regression
+def test_admin_api_stealth_exchange_reality_contract_map_is_backend_owned(
+    monkeypatch,
+):
+    from application.admin_api.read_service import AdminApiReadService
+
+    client = _client(monkeypatch)
+
+    response = client.get(
+        "/api/v1/stealth/exchange-reality-contract-map",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["type"] == "stealth_exchange_reality_contract_map"
+    assert payload["module_id"] == "stealth_orders"
+    assert payload["approved_phase_range"] == "8101-8120"
+    assert payload["status"] == AdminApiGateStatus.BLOCKED.value
+    assert payload["support_status"] == (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED.value
+    )
+    assert payload["route_inventory_source"] == "ADMIN_API_ROUTE_INVENTORY"
+    assert payload["route_inventory_ref"] == "application/admin_api/route_inventory.py"
+    assert payload["contract_map_count"] == 8
+    assert payload["blocking_contract_count"] == 6
+    assert payload["read_only_contract_count"] == 6
+    assert payload["command_boundary_count"] == 6
+    assert payload["live_exchange_classified_contract_count"] == 2
+    assert payload["live_enabled_contract_count"] == 0
+    assert payload["route_inventory_bound"] is True
+    assert payload["backend_owned"] is True
+    assert payload["read_only"] is True
+    assert payload["browser_authority"] == "display_only"
+    assert payload["bff_authority"] == "forward_only_no_execution"
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_read_ran"] is False
+    assert payload["submitted_notional_usdc"] == "0"
+    assert payload["executed_notional_usdc"] == "0"
+    assert "browser_exchange_truth_resolution" in payload["unsupported_behaviors"]
+    assert "direct_coinbase_calls" in payload["unsupported_behaviors"]
+    assert "GET /api/v1/stealth/exchange-reality-contract-map" in payload[
+        "read_routes"
+    ]
+    assert "POST /api/v1/stealth/orders/{stealth_order_id}/reveal" in payload[
+        "command_routes"
+    ]
+    assert any(
+        "HIDDEN, PENDING, and TRIGGERED" in rule
+        for rule in payload["active_placement_status_rules"]
+    )
+    assert any(
+        "REVEALED may have an active placement" in rule
+        for rule in payload["active_placement_status_rules"]
+    )
+
+    map_by_scope = {item["scope"]: item for item in payload["contract_map"]}
+    assert set(map_by_scope) == {
+        scope.value for scope in AdminApiStealthExchangeRealityContractScope
+    }
+    active_truth = map_by_scope[
+        AdminApiStealthExchangeRealityContractScope.ACTIVE_PLACEMENT_TRUTH.value
+    ]
+    assert active_truth["surface"] == (
+        "GET /api/v1/stealth/orders/{stealth_order_id}/active-placement/"
+        "exchange-truth-proof"
+    )
+    assert active_truth["active_placement_exchange_truth_required"] is True
+    assert active_truth["coinbase_read_allowed"] is False
+    assert active_truth["live_coinbase_read_ran"] is False
+    assert active_truth["route_inventory_bound"] is True
+    revealed_state = map_by_scope[
+        AdminApiStealthExchangeRealityContractScope.REVEALED_PLACEMENT_STATE.value
+    ]
+    assert "revealed" in revealed_state["lifecycle_statuses"]
+    assert revealed_state["active_placement_cancel_replace_required"] is True
+    assert "hide_again_shortcuts" in revealed_state["unsupported_behaviors"]
+    hidden_state = map_by_scope[
+        AdminApiStealthExchangeRealityContractScope.HIDDEN_STATE_INVARIANTS.value
+    ]
+    assert hidden_state["gate_status"] == AdminApiGateStatus.PASSED.value
+    assert hidden_state["command_routes"] == []
+    assert "hidden" in hidden_state["lifecycle_statuses"]
+    reveal_boundary = map_by_scope[
+        AdminApiStealthExchangeRealityContractScope.REVEAL_COMMAND_BOUNDARY.value
+    ]
+    assert reveal_boundary["action_class"] == (
+        AdminApiActionClass.LIVE_EXCHANGE_PLACE.value
+    )
+    assert reveal_boundary["post_write_reconciliation_required"] is True
+    assert reveal_boundary["coinbase_order_submitted"] is False
+    move_cancel = map_by_scope[
+        AdminApiStealthExchangeRealityContractScope.MOVE_CANCEL_COMMAND_BOUNDARY.value
+    ]
+    assert move_cancel["action_class"] == (
+        AdminApiActionClass.LIVE_EXCHANGE_CANCEL.value
+    )
+    assert move_cancel["coinbase_order_cancel_submitted"] is False
+    assert move_cancel["exchange_state_mutated"] is False
+    authority = map_by_scope[
+        AdminApiStealthExchangeRealityContractScope.BROWSER_BFF_AUTHORITY_BOUNDARY.value
+    ]
+    assert authority["surface"] == "GET /api/v1/stealth/exchange-reality-contract-map"
+    assert authority["gate_status"] == AdminApiGateStatus.PASSED.value
+    assert authority["browser_authority"] == "display_only"
+    assert authority["bff_authority"] == "forward_only_no_execution"
+
+    direct_response = AdminApiReadService().build_stealth_exchange_reality_contract_map()
+    assert direct_response.contract_map_count == len(direct_response.contract_map)
+    assert direct_response.live_enabled_contract_count == 0
+    assert direct_response.route_inventory_bound is True
+    assert direct_response.live_coinbase_orders_ran is False
 
 
 @pytest.mark.regression
@@ -61605,6 +61748,15 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows["GET /api/v1/stealth/route-inventory"].permission == (
         AdminApiPermission.ANALYTICS_READ
     )
+    assert rows[
+        "GET /api/v1/stealth/exchange-reality-contract-map"
+    ].shared_method == "build_stealth_exchange_reality_contract_map"
+    assert rows[
+        "GET /api/v1/stealth/exchange-reality-contract-map"
+    ].action_class == AdminApiActionClass.READ_ONLY
+    assert rows[
+        "GET /api/v1/stealth/exchange-reality-contract-map"
+    ].permission == AdminApiPermission.ANALYTICS_READ
     assert rows["POST /api/v1/stealth/orders"].shared_method == (
         "create_stealth_order"
     )

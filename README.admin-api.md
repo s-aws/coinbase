@@ -1993,6 +1993,7 @@ Current read-only HTTP surfaces include:
 - `GET /api/v1/stealth/command-suite`
 - `GET /api/v1/stealth/operator-scope`
 - `GET /api/v1/stealth/route-inventory`
+- `GET /api/v1/stealth/exchange-reality-contract-map`
 - `GET /api/v1/movement-repricing/evidence`
 - `GET /api/v1/movement-repricing/orders/{client_order_id}`
 - `GET /api/v1/movement-repricing/stealth/{stealth_order_id}`
@@ -2107,7 +2108,7 @@ boundaries. It does not add browser/BFF trading authority, route-local
 execution, dashboard fallback, Coinbase reads or orders, mutation-claim
 acquisition, reconciliation execution, or stealth lifecycle mutation.
 `GET /api/v1/stealth/route-inventory` exposes the backend-owned stealth route
-inventory derived from `ADMIN_API_ROUTE_INVENTORY`. It groups 40 stealth route
+inventory derived from `ADMIN_API_ROUTE_INVENTORY`. It groups 41 stealth route
 rows into 12 operator-facing families, including lifecycle reads, command
 readiness, live-disabled command drafts, local evidence record routes,
 exchange-reality evidence, mutation-claim evidence, post-write reconciliation,
@@ -2116,6 +2117,15 @@ zero live-enabled routes, no live Coinbase orders or reads, and 0 USDC
 submitted/executed notional. It does not grant browser route inference, BFF
 execution, dashboard fallback, standalone submission-adapter invocation,
 Coinbase calls, reconciliation execution, or stealth lifecycle mutation.
+`GET /api/v1/stealth/exchange-reality-contract-map` exposes the
+backend-owned stealth exchange-reality contract map. It reports the active
+placement truth, revealed placement, hidden-state, reveal, cancel/replace,
+move/cancel, reconciliation, and browser/BFF authority boundaries as read-only
+evidence. It reports 8 contract rows, 6 blocked rows, 6 command-boundary rows,
+2 live-exchange-shaped primary surfaces, zero live-enabled rows, no Coinbase
+reads/orders/cancellations, and 0 USDC submitted/executed notional. It does
+not resolve exchange truth, cancel or replace placements, mark revealed orders
+hidden, mutate lifecycle state, or grant browser/BFF trading authority.
 `POST /api/v1/stealth/orders/{stealth_order_id}/reveal` is a live-disabled
 exchange-placement draft keyed by `stealth_order_id`. It does not invoke
 `reveal_order_slice`, call `StealthOrderManager`, accept order ids as command

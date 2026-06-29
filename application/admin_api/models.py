@@ -161,6 +161,7 @@ from core.enums import (
     AdminApiStealthCommandSuiteBlockerClosure,
     AdminApiStealthAdmissionEvidence,
     AdminApiStealthCommandSuiteGapFamily,
+    AdminApiStealthExchangeRealityContractScope,
     AdminApiStealthOperatorScope,
     AdminApiStealthRouteInventoryFamily,
     AdminApiStealthDecisionResolutionEvidenceType,
@@ -33603,6 +33604,104 @@ class StealthRouteInventoryResponse(AdminApiReadPayload):
     unsupported_behaviors: list[str] = Field(default_factory=list)
     backend_contracts: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
+    route_inventory_bound: bool = True
+    backend_owned: bool = True
+    read_only: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    detail: str
+
+
+class StealthExchangeRealityContractMapItem(BaseModel):
+    """One backend-owned exchange-reality contract boundary for stealth orders."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    scope: AdminApiStealthExchangeRealityContractScope
+    label: str
+    support_status: AdminApiModuleSupportStatus
+    gate_status: AdminApiGateStatus
+    action_state: AdminApiActionState
+    surface: str
+    method: str
+    route: str
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission | str
+    shared_method: str
+    route_inventory_bound: bool = True
+    identity_keys: list[str] = Field(default_factory=list)
+    lifecycle_statuses: list[str] = Field(default_factory=list)
+    current_read_evidence_routes: list[str] = Field(default_factory=list)
+    command_routes: list[str] = Field(default_factory=list)
+    backend_contracts: list[str] = Field(default_factory=list)
+    required_evidence: list[str] = Field(default_factory=list)
+    unsupported_behaviors: list[str] = Field(default_factory=list)
+    active_placement_exchange_truth_required: bool = False
+    active_placement_cancel_replace_required: bool = False
+    post_write_reconciliation_required: bool = False
+    exchange_truth_verified: bool = False
+    executable: bool = False
+    live_enabled: bool = False
+    local_lifecycle_mutation_allowed: bool = False
+    lifecycle_state_mutated: bool = False
+    order_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    coinbase_read_allowed: bool = False
+    live_coinbase_read_ran: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    reconciliation_execution_allowed: bool = False
+    reconciliation_executed: bool = False
+    backend_owned: bool = True
+    read_only: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_coinbase_orders_ran: bool = False
+    submitted_notional_usdc: DecimalString = "0"
+    executed_notional_usdc: DecimalString = "0"
+    detail: str
+
+
+class StealthExchangeRealityContractMapResponse(AdminApiReadPayload):
+    """Read-only exchange-reality contract map for stealth lifecycle controls."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "stealth_exchange_reality_contract_map"
+    module_id: str = "stealth_orders"
+    approved_phase_range: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    support_status: AdminApiModuleSupportStatus = (
+        AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED
+    )
+    route_inventory_source: str = "ADMIN_API_ROUTE_INVENTORY"
+    route_inventory_ref: str = "application/admin_api/route_inventory.py"
+    contract_map_count: int = Field(default=0, ge=0)
+    blocking_contract_count: int = Field(default=0, ge=0)
+    read_only_contract_count: int = Field(default=0, ge=0)
+    command_boundary_count: int = Field(default=0, ge=0)
+    live_exchange_classified_contract_count: int = Field(default=0, ge=0)
+    live_enabled_contract_count: int = Field(default=0, ge=0)
+    exchange_truth_check_count: int = Field(default=0, ge=0)
+    blocking_exchange_truth_check_count: int = Field(default=0, ge=0)
+    active_placement_exchange_truth_required_count: int = Field(default=0, ge=0)
+    cancel_replace_boundary_count: int = Field(default=0, ge=0)
+    blocking_cancel_replace_boundary_count: int = Field(default=0, ge=0)
+    command_count: int = Field(default=0, ge=0)
+    blocked_command_count: int = Field(default=0, ge=0)
+    read_routes: list[str] = Field(default_factory=list)
+    command_routes: list[str] = Field(default_factory=list)
+    active_placement_status_rules: list[str] = Field(default_factory=list)
+    unsupported_behaviors: list[str] = Field(default_factory=list)
+    backend_contracts: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    contract_map: list[StealthExchangeRealityContractMapItem] = Field(
+        default_factory=list
+    )
     route_inventory_bound: bool = True
     backend_owned: bool = True
     read_only: bool = True

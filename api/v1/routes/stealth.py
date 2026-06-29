@@ -47,6 +47,7 @@ from application.admin_api.models import (
     StealthMutationClaimSnapshotReadResponse,
     StealthCommandSuiteResponse,
     StealthOperatorScopeResponse,
+    StealthExchangeRealityContractMapResponse,
     StealthRouteInventoryResponse,
     StealthCancelCommand,
     StealthCancelRequest,
@@ -661,6 +662,25 @@ def stealth_route_inventory(
     return _read_model_response(
         StealthRouteInventoryResponse,
         service.build_stealth_route_inventory(),
+    )
+
+
+@router.get(
+    "/stealth/exchange-reality-contract-map",
+    response_model=StealthExchangeRealityContractMapResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="Read stealth exchange-reality contract map",
+)
+def stealth_exchange_reality_contract_map(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+) -> JSONResponse:
+    """Read stealth exchange-reality boundaries without Coinbase activity."""
+
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    return _read_model_response(
+        StealthExchangeRealityContractMapResponse,
+        service.build_stealth_exchange_reality_contract_map(),
     )
 
 

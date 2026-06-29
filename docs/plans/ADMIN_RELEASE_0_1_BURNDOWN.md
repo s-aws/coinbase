@@ -134,8 +134,8 @@ Exact autonomous phrase: Active Release 0.1 `8101-8120` adds a Stealth Lifecycle
   management.
 - Evidence update 2026-06-29: added read-only
   `GET /api/v1/stealth/route-inventory` as backend-owned operator evidence.
-  It derives rows from `ADMIN_API_ROUTE_INVENTORY`, classifies 40 stealth
-  route rows into 12 families, exposes 19 reads, 6 blocked command drafts,
+  It derives rows from `ADMIN_API_ROUTE_INVENTORY`, classifies 41 stealth
+  route rows into 12 families, exposes 20 reads, 6 blocked command drafts,
   15 local evidence record routes, 3 exchange-shaped routes, and zero
   live-enabled routes, and names submission-adapter evidence as embedded in
   stealth detail. The browser and BFF remain display/forward-only and no live
@@ -146,6 +146,18 @@ Exact autonomous phrase: Active Release 0.1 `8101-8120` adds a Stealth Lifecycle
 - Map which routes prove live placement, exchange truth, cancel/replace
   prerequisites, and reveal state without marking revealed orders hidden or
   mutating local state without exchange handling.
+- Evidence update 2026-06-29: added read-only
+  `GET /api/v1/stealth/exchange-reality-contract-map` as backend-owned
+  operator evidence. It derives rows from route inventory and command-suite
+  evidence, exposes active-placement truth, revealed-placement,
+  hidden-state, reveal, cancel/replace, move/cancel, reconciliation, and
+  browser/BFF authority boundaries, and reports 8 contract rows, 6 blocked
+  rows, 6 command-boundary rows, 2 live-exchange-shaped primary surfaces,
+  zero live-enabled rows, no Coinbase reads/orders/cancellations, and 0 USDC
+  submitted/executed notional. Backend/frontend `AGENTS.md` instructions were
+  re-reviewed with no scope change. No browser/BFF exchange-truth resolution,
+  route-local execution, lifecycle mutation, cancel/replace, Coinbase call, or
+  second trading path was added.
 
 ### Phase 8105 - Stealth Mutation-Claim Contract Map
 

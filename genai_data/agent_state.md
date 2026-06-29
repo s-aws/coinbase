@@ -57,7 +57,8 @@ work. Historical milestone detail belongs in
   backend owner contracts, frontend `AGENTS.md`, frontend owner contracts, and
   ordered frontend docs were reviewed again on 2026-06-29 for Phase 8021 and
   again before activating `8061-8080`; they were re-reviewed during Phase
-  8068, during Phase 8081, and during Phase 8101 with no direction change.
+  8068, during Phase 8081, during Phase 8101, and during Phase 8104 with no
+  direction change.
   Release 0.1 product progress remains the
   controlling rule: every phase must clear a named Release 0.1 blocker or
   directly improve usable admin management. The current range must keep
@@ -192,15 +193,24 @@ work. Historical milestone detail belongs in
 - Phase 8103 implementation status: `GET /api/v1/stealth/route-inventory`
   now exposes backend-owned stealth route inventory as read-only Admin API
   evidence. The route is derived from `ADMIN_API_ROUTE_INVENTORY` and reports
-  40 stealth route rows, 12 route families, 19 reads, 6 blocked command
+  41 stealth route rows, 12 route families, 20 reads, 6 blocked command
   drafts, 15 local evidence record routes, 3 exchange-shaped routes, zero
   live-enabled routes, embedded submission-adapter detail evidence, and no
   live Coinbase order/read execution with 0 USDC submitted/executed notional.
   The frontend consumes it through generated schema, `getStealthRouteInventory`,
   mock fixtures, runtime snapshot loading, typed stealth adapters, and Stealth
   Orders read-model rendering.
-- Exact next implementation slice after Phase 8103 validation: move to
-  Phase 8104 Stealth Exchange-Reality Contract Map. Do not add browser
+- Phase 8104 implementation status: `GET /api/v1/stealth/exchange-reality-contract-map`
+  now exposes backend-owned exchange-reality contract evidence as read-only
+  Admin API evidence. It reports 8 contract rows, 6 blocked rows, 6
+  command-boundary rows, 2 live-exchange-shaped primary surfaces, zero
+  live-enabled rows, no Coinbase reads/orders/cancellations, and 0 USDC
+  submitted/executed notional. The frontend consumes it through generated
+  schema, `getStealthExchangeRealityContractMap`, mock fixtures, runtime
+  snapshot loading, typed stealth adapters, BFF GET allowlisting, and Stealth
+  Orders read-model rendering.
+- Exact next implementation slice after Phase 8104 validation: move to
+  Phase 8105 Stealth Mutation-Claim Contract Map. Do not add browser
   scheduler, BFF runner authority, retry loops, route-local execution, direct
   Coinbase calls, reconciliation execution, order/exchange state mutation, or
   a second trading path.

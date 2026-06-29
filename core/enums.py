@@ -604,6 +604,19 @@ class AdminApiStealthRouteInventoryFamily(str, Enum):
     POLICY_BOUNDARIES = "policy_boundaries"
 
 
+class AdminApiStealthExchangeRealityContractScope(str, Enum):
+    """Operator-facing stealth exchange-reality contract-map scopes."""
+
+    ACTIVE_PLACEMENT_TRUTH = "active_placement_truth"
+    REVEALED_PLACEMENT_STATE = "revealed_placement_state"
+    HIDDEN_STATE_INVARIANTS = "hidden_state_invariants"
+    REVEAL_COMMAND_BOUNDARY = "reveal_command_boundary"
+    CANCEL_REPLACE_BOUNDARY = "cancel_replace_boundary"
+    MOVE_CANCEL_COMMAND_BOUNDARY = "move_cancel_command_boundary"
+    RECONCILIATION_BOUNDARY = "reconciliation_boundary"
+    BROWSER_BFF_AUTHORITY_BOUNDARY = "browser_bff_authority_boundary"
+
+
 class AdminApiStealthCommandSuiteBlockerClosure(str, Enum):
     """Concrete M55 blocker closures required before stealth live execution."""
 

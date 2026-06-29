@@ -453,6 +453,24 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="stealth_orders",
+        surface="GET /api/v1/stealth/exchange-reality-contract-map",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="read-only stealth exchange-reality contract-map evidence",
+        audit="optional read audit",
+        shared_method="build_stealth_exchange_reality_contract_map",
+        parity_test=(
+            "read-only stealth exchange-reality contract map derived from "
+            "ADMIN_API_ROUTE_INVENTORY and build_stealth_command_suite; no "
+            "browser/BFF exchange-truth resolution, dashboard fallback, "
+            "Coinbase read, Coinbase submit/cancel, active-placement "
+            "cancel/replace, reconciliation execution, or lifecycle mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="stealth_orders",
         surface="POST /api/v1/stealth/orders/{stealth_order_id}/reveal",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         permission=AdminApiPermission.ORDER_CREATE,
