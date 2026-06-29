@@ -147,6 +147,11 @@ Exact autonomous phrase: Active Release 0.1 `8041-8060` adds a Spot Command Oper
 
 - Assert the BFF forwards only allowed Admin API routes and never becomes
   command execution authority.
+- Evidence update 2026-06-29: frontend BFF unit coverage now proves browser
+  actor, live-execution, Coinbase, and browser CSRF authority headers are not
+  forwarded as backend authority, and backend responses expose only documented
+  evidence headers back to the browser. Live Coinbase execution was not run
+  and submitted/executed notional stayed 0 USDC.
 
 ### Phase 8054 - No-Live Authority Assertions
 
