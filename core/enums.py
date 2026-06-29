@@ -1169,6 +1169,16 @@ class AdminAuditCommandTimelineStageStatus(str, Enum):
     NOT_REPORTED = "not_reported"
 
 
+class AdminAuditApprovalAdmissionCorrelationStatus(str, Enum):
+    """Stable status labels for approval/admission evidence correlation."""
+
+    LINKED = "linked"
+    APPROVAL_MISSING = "approval_missing"
+    ADMISSION_AUDIT_MISSING = "admission_audit_missing"
+    BOTH_MISSING = "both_missing"
+    NOT_REPORTED = "not_reported"
+
+
 class AdminAuditEvidenceSource(str, Enum):
     """Source labels for cross-module audit workbench evidence."""
 

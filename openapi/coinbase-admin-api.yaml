@@ -12943,6 +12943,186 @@ components:
       type: object
       title: AdminApprovalRevokeRequest
       description: Revoke an approved backend approval snapshot.
+    AdminAuditApprovalAdmissionCorrelationStatus:
+      type: string
+      enum:
+      - linked
+      - approval_missing
+      - admission_audit_missing
+      - both_missing
+      - not_reported
+      title: AdminAuditApprovalAdmissionCorrelationStatus
+      description: Stable status labels for approval/admission evidence correlation.
+    AdminAuditApprovalAdmissionLinkItem:
+      properties:
+        link_id:
+          type: string
+          title: Link Id
+        timeline_id:
+          type: string
+          title: Timeline Id
+        event_id:
+          type: string
+          title: Event Id
+        module:
+          $ref: '#/components/schemas/AdminAuditWorkbenchModule'
+        endpoint:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Endpoint
+        route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Route
+        method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Method
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+        correlation_status:
+          $ref: '#/components/schemas/AdminAuditApprovalAdmissionCorrelationStatus'
+        canonical_identity_key:
+          type: string
+          title: Canonical Identity Key
+        canonical_identity_value:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Canonical Identity Value
+        actor_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Actor Id
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+        payload_hash:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Payload Hash
+        operator_intent:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Intent
+        approval_snapshot_present:
+          type: boolean
+          title: Approval Snapshot Present
+          default: false
+        approval_snapshot_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Snapshot Id
+        approval_snapshot_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Snapshot Source
+        approval_snapshot_approved_by_actor_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Snapshot Approved By Actor Id
+        approval_snapshot_requested_by_actor_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Snapshot Requested By Actor Id
+        approval_snapshot_expires_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Snapshot Expires At
+        approval_snapshot_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Snapshot Missing Reason
+        admission_audit_present:
+          type: boolean
+          title: Admission Audit Present
+          default: false
+        admission_audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Admission Audit Id
+        admission_audit_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Admission Audit Source
+        admission_audit_recorded_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Admission Audit Recorded At
+        admission_audit_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Admission Audit Missing Reason
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        evidence:
+          items:
+            type: string
+          type: array
+          title: Evidence
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        no_browser_authority:
+          type: boolean
+          title: No Browser Authority
+          default: true
+        no_bff_execution_authority:
+          type: boolean
+          title: No Bff Execution Authority
+          default: true
+        no_reconciliation_execution:
+          type: boolean
+          title: No Reconciliation Execution
+          default: true
+        no_order_or_exchange_state_mutation:
+          type: boolean
+          title: No Order Or Exchange State Mutation
+          default: true
+      additionalProperties: false
+      type: object
+      required:
+      - link_id
+      - timeline_id
+      - event_id
+      - module
+      - correlation_status
+      - canonical_identity_key
+      title: AdminAuditApprovalAdmissionLinkItem
+      description: Backend-owned approval/admission evidence correlation for one command.
     AdminAuditCommandTimelineItem:
       properties:
         timeline_id:
@@ -13491,6 +13671,11 @@ components:
             $ref: '#/components/schemas/AdminAuditCommandTimelineItem'
           type: array
           title: Command Timelines
+        approval_admission_links:
+          items:
+            $ref: '#/components/schemas/AdminAuditApprovalAdmissionLinkItem'
+          type: array
+          title: Approval Admission Links
         module_summary:
           items:
             $ref: '#/components/schemas/AdminAuditModuleSummaryItem'

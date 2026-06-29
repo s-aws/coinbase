@@ -19,6 +19,7 @@ from core.enums import (
     AdminApiActionClass,
     AdminApiAuthMode,
     AdminApiLiveExecutionStatus,
+    AdminAuditApprovalAdmissionCorrelationStatus,
     AdminAuditCommandTimelineStage,
     AdminAuditCommandTimelineStageStatus,
     AdminAuditCorrelationScopeKind,
@@ -132,6 +133,7 @@ from .models import (
     AdminAccountMarketInventoryFamilyItem,
     AdminAccountMarketInventoryResponse,
     AdminAccountMarketInventorySummary,
+    AdminAuditApprovalAdmissionLinkItem,
     AdminAuditCommandTimelineItem,
     AdminAuditCommandTimelineStageItem,
     AdminAuditCorrelationScopeItem,
@@ -5426,6 +5428,92 @@ def _audit_command_timeline_from_event(
         idempotency_key=item.idempotency_key,
         operator_intent=item.operator_intent,
         stages=stages,
+    )
+
+
+def _audit_approval_admission_correlation_status(
+    *,
+    approval_present: bool,
+    admission_audit_present: bool,
+    reported: bool,
+) -> AdminAuditApprovalAdmissionCorrelationStatus:
+    if not reported:
+        return AdminAuditApprovalAdmissionCorrelationStatus.NOT_REPORTED
+    if approval_present and admission_audit_present:
+        return AdminAuditApprovalAdmissionCorrelationStatus.LINKED
+    if not approval_present and not admission_audit_present:
+        return AdminAuditApprovalAdmissionCorrelationStatus.BOTH_MISSING
+    if not approval_present:
+        return AdminAuditApprovalAdmissionCorrelationStatus.APPROVAL_MISSING
+    return AdminAuditApprovalAdmissionCorrelationStatus.ADMISSION_AUDIT_MISSING
+
+
+def _audit_approval_admission_link_from_event(
+    item: AdminAuditWorkbenchEventItem,
+) -> AdminAuditApprovalAdmissionLinkItem:
+    admission = dict(item.admission_decision or {})
+    reported = bool(admission)
+    approval_present = _audit_admission_bool(admission, "approval_snapshot_present")
+    admission_audit_present = _audit_admission_bool(
+        admission,
+        "admission_audit_present",
+    )
+    canonical_key, canonical_value = _audit_command_identity(item)
+    timeline_id = f"command:{item.audit_id or item.request_id or item.event_id}"
+    return AdminAuditApprovalAdmissionLinkItem(
+        link_id=f"approval-admission:{item.audit_id or item.request_id or item.event_id}",
+        timeline_id=timeline_id,
+        event_id=item.event_id,
+        module=item.module,
+        endpoint=item.endpoint,
+        route=_string_or_none(admission.get("route")),
+        method=_string_or_none(admission.get("method")),
+        status=_string_or_none(admission.get("status")) or item.status,
+        correlation_status=_audit_approval_admission_correlation_status(
+            approval_present=approval_present,
+            admission_audit_present=admission_audit_present,
+            reported=reported,
+        ),
+        canonical_identity_key=canonical_key,
+        canonical_identity_value=canonical_value,
+        actor_id=_string_or_none(admission.get("actor_id")) or item.actor_id,
+        idempotency_key=_string_or_none(admission.get("idempotency_key"))
+        or item.idempotency_key,
+        payload_hash=_string_or_none(admission.get("payload_hash")),
+        operator_intent=_string_or_none(admission.get("operator_intent"))
+        or item.operator_intent,
+        approval_snapshot_present=approval_present,
+        approval_snapshot_id=_string_or_none(
+            admission.get("approval_snapshot_id")
+        ),
+        approval_snapshot_source=_string_or_none(
+            admission.get("approval_snapshot_source")
+        ),
+        approval_snapshot_approved_by_actor_id=_string_or_none(
+            admission.get("approval_snapshot_approved_by_actor_id")
+        ),
+        approval_snapshot_requested_by_actor_id=_string_or_none(
+            admission.get("approval_snapshot_requested_by_actor_id")
+        ),
+        approval_snapshot_expires_at=_string_or_none(
+            admission.get("approval_snapshot_expires_at")
+        ),
+        approval_snapshot_missing_reason=_string_or_none(
+            admission.get("approval_snapshot_missing_reason")
+        ),
+        admission_audit_present=admission_audit_present,
+        admission_audit_id=_string_or_none(admission.get("admission_audit_id")),
+        admission_audit_source=_string_or_none(
+            admission.get("admission_audit_source")
+        ),
+        admission_audit_recorded_at=_string_or_none(
+            admission.get("admission_audit_recorded_at")
+        ),
+        admission_audit_missing_reason=_string_or_none(
+            admission.get("admission_audit_missing_reason")
+        ),
+        blockers=[str(value) for value in _list_or_empty(admission.get("blockers"))],
+        evidence=[str(value) for value in _list_or_empty(admission.get("evidence"))],
     )
 
 
@@ -14825,6 +14913,11 @@ class AdminApiReadService:
             correlation_scope=_audit_correlation_scope(),
             command_timelines=[
                 _audit_command_timeline_from_event(item)
+                for item in page_items
+                if item.source == AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG
+            ],
+            approval_admission_links=[
+                _audit_approval_admission_link_from_event(item)
                 for item in page_items
                 if item.source == AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG
             ],

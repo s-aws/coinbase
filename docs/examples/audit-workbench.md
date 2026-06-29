@@ -128,6 +128,27 @@ Command-audit events can also produce `command_timelines`:
 }
 ```
 
+Approval/admission evidence is also projected into `approval_admission_links`:
+
+```json
+{
+  "approval_admission_links": [
+    {
+      "link_id": "approval-admission:audit-001",
+      "timeline_id": "command:audit-001",
+      "correlation_status": "linked",
+      "approval_snapshot_present": true,
+      "approval_snapshot_id": "approval-snapshot-001",
+      "admission_audit_present": true,
+      "admission_audit_id": "admission-audit-001",
+      "read_only": true,
+      "live_coinbase_orders_ran": false,
+      "live_coinbase_read_ran": false
+    }
+  ]
+}
+```
+
 Command audit rows may include persisted admission evidence:
 
 ```json

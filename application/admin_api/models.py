@@ -24,6 +24,7 @@ from core.enums import (
     AdminApiAuthMode,
     AdminApiFunctionalityExposureStatus,
     AdminApiFunctionalityWorkflowType,
+    AdminAuditApprovalAdmissionCorrelationStatus,
     AdminAuditCommandTimelineStage,
     AdminAuditCommandTimelineStageStatus,
     AdminAuditCorrelationScopeKind,
@@ -17090,6 +17091,49 @@ class AdminAuditCommandTimelineItem(BaseModel):
     no_order_or_exchange_state_mutation: bool = True
 
 
+class AdminAuditApprovalAdmissionLinkItem(BaseModel):
+    """Backend-owned approval/admission evidence correlation for one command."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    link_id: str
+    timeline_id: str
+    event_id: str
+    module: AdminAuditWorkbenchModule
+    endpoint: str | None = None
+    route: str | None = None
+    method: str | None = None
+    status: str | None = None
+    correlation_status: AdminAuditApprovalAdmissionCorrelationStatus
+    canonical_identity_key: str
+    canonical_identity_value: str | None = None
+    actor_id: str | None = None
+    idempotency_key: str | None = None
+    payload_hash: str | None = None
+    operator_intent: str | None = None
+    approval_snapshot_present: bool = False
+    approval_snapshot_id: str | None = None
+    approval_snapshot_source: str | None = None
+    approval_snapshot_approved_by_actor_id: str | None = None
+    approval_snapshot_requested_by_actor_id: str | None = None
+    approval_snapshot_expires_at: str | None = None
+    approval_snapshot_missing_reason: str | None = None
+    admission_audit_present: bool = False
+    admission_audit_id: str | None = None
+    admission_audit_source: str | None = None
+    admission_audit_recorded_at: str | None = None
+    admission_audit_missing_reason: str | None = None
+    blockers: list[str] = Field(default_factory=list)
+    evidence: list[str] = Field(default_factory=list)
+    read_only: bool = True
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    no_browser_authority: bool = True
+    no_bff_execution_authority: bool = True
+    no_reconciliation_execution: bool = True
+    no_order_or_exchange_state_mutation: bool = True
+
+
 class AdminAuditWorkbenchEventItem(BaseModel):
     """One normalized cross-module audit/correlation evidence row."""
 
@@ -17131,6 +17175,7 @@ class AdminAuditWorkbenchReadResponse(BaseModel):
     source_inventory: list[AdminAuditSourceInventoryItem] = Field(default_factory=list)
     correlation_scope: list[AdminAuditCorrelationScopeItem] = Field(default_factory=list)
     command_timelines: list[AdminAuditCommandTimelineItem] = Field(default_factory=list)
+    approval_admission_links: list[AdminAuditApprovalAdmissionLinkItem] = Field(default_factory=list)
     module_summary: list[AdminAuditModuleSummaryItem] = Field(default_factory=list)
     events: list[AdminAuditWorkbenchEventItem] = Field(default_factory=list)
     pagination: AdminOrderPagination

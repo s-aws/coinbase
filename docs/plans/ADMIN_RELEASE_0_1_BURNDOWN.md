@@ -145,6 +145,10 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Correlate approval records and admission-audit records by backend-owned ids
   and status fields for operator inspection.
+- Evidence update 2026-06-29: Audit Workbench now exposes
+  `approval_admission_links` so operators can see whether approval snapshot
+  and admission audit evidence are linked, missing, or not reported for a
+  command attempt.
 
 ### Phase 8066 - Cap Guard And Wallet Correlation Contract
 

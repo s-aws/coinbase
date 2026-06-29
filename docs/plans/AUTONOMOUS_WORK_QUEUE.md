@@ -263,6 +263,16 @@ Exact autonomous phrase: Active Release 0.1 `8061-8080` adds an Audit/Reconcilia
 
 - Correlate approval records and admission-audit records by backend-owned ids
   and status fields for operator inspection.
+- Evidence update 2026-06-29: added enum-backed Audit Workbench
+  `approval_admission_links` derived from command-audit admission evidence.
+  Link rows correlate timeline id, command identity, route/method/status,
+  approval snapshot presence/id/source/actors/expiry, admission audit
+  presence/id/source/recorded time, blockers, evidence, and no-authority
+  posture. Missing approval or admission evidence is explicit through
+  correlation status values and does not approve, replay, or execute commands.
+  OpenAPI and frontend generated schema were refreshed; the frontend mock and
+  read model render links as display-only evidence. Live Coinbase execution
+  was not run and submitted/executed notional stayed 0 USDC.
 
 ### Phase 8066 - Cap Guard And Wallet Correlation Contract
 

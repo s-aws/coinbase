@@ -31,6 +31,8 @@ The route is authenticated and RBAC-gated with `audit:read`.
   reconciliation status
 - command timelines that project command-audit events into request, approval,
   admission, cap/guard, live-intent, exchange-evidence, and result stages
+- approval/admission links that correlate approval snapshot evidence with
+  admission audit evidence for each command attempt
 - read and command route counts
 - durable command audit events when available
 - persisted command admission decisions on command audit events when available,
@@ -58,6 +60,8 @@ The route is authenticated and RBAC-gated with `audit:read`.
   `live_coinbase_orders_ran=false` and `live_coinbase_read_ran=false`.
 - `command_timelines` are derived from returned command-audit events. They
   are read-only operator trace projections, not replay instructions.
+- `approval_admission_links` correlate approval snapshot and admission audit
+  fields already recorded by backend command admission.
 - Exchange `order_id` values are evidence only. They are not internal tracking
   ids or cancellation keys.
 - Command acceptance, cancellation, movement, repricing, guard evaluation, and

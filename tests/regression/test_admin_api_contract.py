@@ -396,6 +396,7 @@ from core.enums import (
     AdminApiApprovalLifecycleEventType,
     AdminApiApprovalLifecycleStatus,
     AdminApiAuthMode,
+    AdminAuditApprovalAdmissionCorrelationStatus,
     AdminAuditCommandTimelineStage,
     AdminAuditCommandTimelineStageStatus,
     AdminAuditCorrelationScopeKind,
@@ -9619,6 +9620,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
     assert "source_inventory" in audit_workbench_schema["properties"]
     assert "correlation_scope" in audit_workbench_schema["properties"]
     assert "command_timelines" in audit_workbench_schema["properties"]
+    assert "approval_admission_links" in audit_workbench_schema["properties"]
     assert "module_summary" in audit_workbench_schema["properties"]
     assert "events" in audit_workbench_schema["properties"]
     source_inventory_schema = written["components"]["schemas"][
@@ -9651,6 +9653,15 @@ def test_admin_api_openapi_schema_file_matches_generated_contract(tmp_path):
     assert "stage_status" in command_timeline_stage_schema["properties"]
     assert "evidence_source" in command_timeline_stage_schema["properties"]
     assert "blocking" in command_timeline_stage_schema["properties"]
+    approval_admission_schema = written["components"]["schemas"][
+        "AdminAuditApprovalAdmissionLinkItem"
+    ]
+    assert "correlation_status" in approval_admission_schema["properties"]
+    assert "approval_snapshot_present" in approval_admission_schema["properties"]
+    assert "approval_snapshot_id" in approval_admission_schema["properties"]
+    assert "admission_audit_present" in approval_admission_schema["properties"]
+    assert "admission_audit_id" in approval_admission_schema["properties"]
+    assert "blockers" in approval_admission_schema["properties"]
     correlation_scope_schema = written["components"]["schemas"][
         "AdminAuditCorrelationScopeItem"
     ]
@@ -60473,6 +60484,7 @@ def test_admin_api_audit_workbench_route_uses_read_service_without_commands(
             "source_inventory": [],
             "correlation_scope": [],
             "command_timelines": [],
+            "approval_admission_links": [],
             "module_summary": [
                 {
                     "module": "orders",
@@ -60544,6 +60556,7 @@ def test_admin_api_audit_workbench_route_uses_read_service_without_commands(
     assert "source_inventory" in payload
     assert "correlation_scope" in payload
     assert "command_timelines" in payload
+    assert "approval_admission_links" in payload
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_read_ran"] is False
     assert payload["events"][0]["client_order_id"] == "client-abc"
@@ -60725,6 +60738,25 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
         stage.no_order_or_exchange_state_mutation
         for stage in command_timeline.stages
     )
+    assert len(response.approval_admission_links) == 1
+    approval_admission_link = response.approval_admission_links[0]
+    assert approval_admission_link.link_id == (
+        f"approval-admission:{command_timeline.audit_id}"
+    )
+    assert approval_admission_link.timeline_id == command_timeline.timeline_id
+    assert approval_admission_link.canonical_identity_key == "client_order_id"
+    assert approval_admission_link.canonical_identity_value == "client-abc"
+    assert (
+        approval_admission_link.correlation_status
+        == AdminAuditApprovalAdmissionCorrelationStatus.BOTH_MISSING
+    )
+    assert approval_admission_link.approval_snapshot_present is False
+    assert approval_admission_link.admission_audit_present is False
+    assert approval_admission_link.blockers == ["admission_audit_missing"]
+    assert approval_admission_link.no_browser_authority is True
+    assert approval_admission_link.no_bff_execution_authority is True
+    assert approval_admission_link.no_reconciliation_execution is True
+    assert approval_admission_link.no_order_or_exchange_state_mutation is True
     assert response.pagination.total_matching_count == 2
     modules = {item.module for item in response.module_summary}
     assert AdminAuditWorkbenchModule.ORDERS in modules
