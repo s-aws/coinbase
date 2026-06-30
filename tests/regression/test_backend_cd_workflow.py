@@ -1,15 +1,16 @@
 from pathlib import Path
 
 
-WORKFLOW_PATH = Path(".github/workflows/deploy.yml")
+DEPLOY_WORKFLOW_PATH = Path(".github/workflows/deploy.yml")
+PUBLIC_CHECKS_WORKFLOW_PATH = Path(".github/workflows/public-agent-checks.yml")
 
 
 def test_backend_continuous_deployment_workflow_exists() -> None:
-    assert WORKFLOW_PATH.exists(), "backend continuous deployment workflow is missing"
+    assert DEPLOY_WORKFLOW_PATH.exists(), "backend continuous deployment workflow is missing"
 
 
 def test_backend_continuous_deployment_workflow_guards_staging_deploy() -> None:
-    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+    workflow = DEPLOY_WORKFLOW_PATH.read_text(encoding="utf-8")
     normalized_workflow = workflow.replace(r"\"", '"')
 
     for expected_text in [
@@ -31,8 +32,14 @@ def test_backend_continuous_deployment_workflow_guards_staging_deploy() -> None:
 
 
 def test_backend_continuous_deployment_workflow_only_runs_after_success() -> None:
-    workflow = WORKFLOW_PATH.read_text(encoding="utf-8")
+    workflow = DEPLOY_WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert "github.event.workflow_run.conclusion == 'success'" in workflow
     assert "github.event_name == 'workflow_dispatch'" in workflow
     assert "cancel-in-progress: false" in workflow
+
+
+def test_public_agent_checks_cover_backend_continuous_deployment_contract() -> None:
+    workflow = PUBLIC_CHECKS_WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert "python -m pytest tests/regression/test_backend_cd_workflow.py -v --tb=short" in workflow

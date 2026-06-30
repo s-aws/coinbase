@@ -39,3 +39,7 @@ jobs:
           # Ordinary PRs use focused tests. Durable milestone closeout uses:
           # python tools/run_parallel_regression.py --workers 4
           python -m pytest tests/regression/test_parallel_regression_runner.py -v --tb=short
+
+      - name: Continuous deployment contract
+        shell: pwsh
+        run: python -m pytest tests/regression/test_backend_cd_workflow.py -v --tb=short
