@@ -67,6 +67,12 @@ def build_admin_api_route_inventory_export() -> dict[str, Any]:
     }
 
 
+def serialize_admin_api_route_inventory_export(payload: dict[str, Any]) -> str:
+    """Return the canonical JSON representation of the route inventory export."""
+
+    return json.dumps(payload, indent=2) + "\n"
+
+
 def write_admin_api_route_inventory_export(
     path: Path = ROUTE_INVENTORY_EXPORT_PATH,
 ) -> dict[str, Any]:
@@ -74,8 +80,22 @@ def write_admin_api_route_inventory_export(
 
     payload = build_admin_api_route_inventory_export()
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    path.write_text(serialize_admin_api_route_inventory_export(payload), encoding="utf-8")
     return payload
+
+
+def route_inventory_export_file_is_current(
+    path: Path = ROUTE_INVENTORY_EXPORT_PATH,
+) -> bool:
+    """Return whether the checked-in route inventory matches generated output."""
+
+    if not path.exists():
+        return False
+    expected = serialize_admin_api_route_inventory_export(
+        build_admin_api_route_inventory_export()
+    )
+    actual = path.read_text(encoding="utf-8")
+    return actual == expected
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -93,13 +113,28 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Write JSON to stdout instead of a file.",
     )
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Fail if the checked-in route inventory artifact is stale.",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     payload = build_admin_api_route_inventory_export()
-    body = json.dumps(payload, indent=2) + "\n"
+    body = serialize_admin_api_route_inventory_export(payload)
+    if args.check:
+        if route_inventory_export_file_is_current(args.output):
+            print(f"Admin API route inventory is current: {args.output}")
+            return 0
+        print(
+            "Admin API route inventory is stale; run "
+            "python tools/export_admin_api_route_inventory.py",
+            file=sys.stderr,
+        )
+        return 1
     if args.stdout:
         sys.stdout.write(body)
     else:

@@ -57,6 +57,9 @@ jobs:
       - name: Admin API OpenAPI freshness check
         run: python tools/generate_admin_api_openapi.py --check
 
+      - name: Admin API route inventory freshness check
+        run: python tools/export_admin_api_route_inventory.py --check
+
       - name: Admin API deploy smoke
         run: python -m pytest tests/regression/test_admin_api_local_run_contract.py -v --tb=short
 
@@ -96,8 +99,10 @@ jobs:
             market_intel \
             websocket \
             openapi/coinbase-admin-api.yaml \
+            openapi/coinbase-admin-api-route-inventory.json \
             tools/run_admin_api.py \
             tools/generate_admin_api_openapi.py \
+            tools/export_admin_api_route_inventory.py \
             configuration.py \
             dashboard_server.py \
             main.py \

@@ -6,6 +6,7 @@ DEPLOY_WORKFLOW_PATH = Path(".github/workflows/deploy.yml")
 PUBLIC_CHECKS_WORKFLOW_PATH = Path(".github/workflows/public-agent-checks.yml")
 PYPROJECT_PATH = Path("pyproject.toml")
 OPENAPI_GENERATOR_PATH = Path("tools/generate_admin_api_openapi.py")
+ROUTE_INVENTORY_EXPORTER_PATH = Path("tools/export_admin_api_route_inventory.py")
 
 
 def test_backend_continuous_deployment_workflow_exists() -> None:
@@ -26,6 +27,7 @@ def test_backend_continuous_deployment_workflow_guards_staging_deploy() -> None:
         "python tools/check_ownership.py",
         "python tools/run_autonomous_work_queue_check.py --summary-only",
         "python tools/generate_admin_api_openapi.py --check",
+        "python tools/export_admin_api_route_inventory.py --check",
         "python -m pytest tests/regression/test_admin_api_local_run_contract.py -v --tb=short",
         "python tools/run_admin_oidc_readiness_smoke.py --summary-only",
         "coinbase-backend-deployment.tgz",
@@ -50,6 +52,8 @@ def test_backend_deploy_payload_contains_admin_runtime_contract_files() -> None:
     for expected_path in [
         "products.json",
         "openapi/coinbase-admin-api.yaml",
+        "openapi/coinbase-admin-api-route-inventory.json",
+        "tools/export_admin_api_route_inventory.py",
     ]:
         assert expected_path in payload_block
 
@@ -59,6 +63,7 @@ def test_public_agent_checks_cover_backend_continuous_deployment_contract() -> N
 
     assert "python -m pytest tests/regression/test_backend_cd_workflow.py -v --tb=short" in workflow
     assert "python tools/generate_admin_api_openapi.py --check" in workflow
+    assert "python tools/export_admin_api_route_inventory.py --check" in workflow
 
 
 def test_backend_openapi_generator_supports_check_mode() -> None:
@@ -66,6 +71,13 @@ def test_backend_openapi_generator_supports_check_mode() -> None:
 
     assert "--check" in generator
     assert "Admin API OpenAPI schema is current" in generator
+
+
+def test_backend_route_inventory_exporter_supports_check_mode() -> None:
+    exporter = ROUTE_INVENTORY_EXPORTER_PATH.read_text(encoding="utf-8")
+
+    assert "--check" in exporter
+    assert "Admin API route inventory is current" in exporter
 
 
 def test_backend_deploy_install_declares_admin_api_runtime_dependencies() -> None:
