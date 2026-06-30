@@ -57,6 +57,9 @@ jobs:
       - name: Admin API deploy smoke
         run: python -m pytest tests/regression/test_admin_api_local_run_contract.py -v --tb=short
 
+      - name: Admin API OIDC readiness smoke
+        run: python tools/run_admin_oidc_readiness_smoke.py --summary-only
+
       - name: Compile backend packages
         run: |
           python -m compileall -q \
