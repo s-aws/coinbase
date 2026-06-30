@@ -70,6 +70,13 @@ APPROVED_PHASES = tuple(range(7961, 7981))
 PREVIOUS_COMPLETED_PHASE_RANGE = "7941-7960"
 MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_EXECUTED_NOTIONAL_USDC = "1.00"
+MVP_SCOPE = {
+    "work_mode": "controlled_live_admin_mvp_continuous_deployment",
+    "frontend_authority": "operator_ui_only",
+    "live_action_path": "auditable_backend_admin_interfaces_only",
+    "phase_range_policy": "defer_unless_direct_mvp_blocker",
+    "continuous_deployment_required": True,
+}
 
 
 @dataclass(frozen=True)
@@ -107,6 +114,7 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
     checks = [
         _check_doc_exists(body),
         _check_phase_range(body),
+        _check_controlled_live_admin_mvp_scope(body),
         _check_live_caps(body),
         _check_stop_conditions(body),
         _check_subagent_hygiene_policy(body),
@@ -124,6 +132,7 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         "status": "passed" if passed else "blocked",
         "approved_phase_range": APPROVED_PHASE_RANGE,
         "approved_phase_count": len(APPROVED_PHASES),
+        "mvp_scope": MVP_SCOPE,
         "live_coinbase_orders_ran": False,
         "live_order_notional_usdc": "0",
         "max_submitted_notional_usdc": MAX_SUBMITTED_NOTIONAL_USDC,
@@ -180,6 +189,32 @@ def _check_phase_range(body: str) -> QueueCheck:
             "expected_last_phase": APPROVED_PHASES[-1],
             "missing_phase_headings": missing,
             "missing_history_text": missing_history,
+        },
+    )
+
+
+def _check_controlled_live_admin_mvp_scope(body: str) -> QueueCheck:
+    required = [
+        "Controlled-live Admin MVP with continuous deployment.",
+        "Build the smallest usable, demoable admin product that replaces the ad hoc workflow.",
+        "Frontend is operator UI only.",
+        "All live actions and Coinbase API calls must go through auditable backend Admin interfaces.",
+        "Every increment must stay runnable, tested with focused checks, and deployable.",
+        "Defer evidence-tightening, new phase ranges, and docs expansion unless they directly block MVP operation, safe backend-controlled execution, demo readiness, or continuous deployment.",
+    ]
+    missing = [text for text in required if text not in body]
+    return QueueCheck(
+        name="controlled_live_admin_mvp_scope",
+        passed=not missing,
+        evidence={
+            "work_mode": MVP_SCOPE["work_mode"],
+            "frontend_authority": MVP_SCOPE["frontend_authority"],
+            "live_action_path": MVP_SCOPE["live_action_path"],
+            "phase_range_policy": MVP_SCOPE["phase_range_policy"],
+            "continuous_deployment_required": MVP_SCOPE[
+                "continuous_deployment_required"
+            ],
+            "missing_scope_text": missing,
         },
     )
 

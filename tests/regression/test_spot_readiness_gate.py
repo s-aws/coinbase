@@ -99,12 +99,20 @@ def test_autonomous_work_queue_check_covers_approved_20_phase_batch():
     assert summary["approved_phase_count"] == 20
     assert summary["live_coinbase_orders_ran"] is False
     assert summary["live_order_notional_usdc"] == "0"
+    assert summary["mvp_scope"] == {
+        "work_mode": "controlled_live_admin_mvp_continuous_deployment",
+        "frontend_authority": "operator_ui_only",
+        "live_action_path": "auditable_backend_admin_interfaces_only",
+        "phase_range_policy": "defer_unless_direct_mvp_blocker",
+        "continuous_deployment_required": True,
+    }
     assert summary["max_submitted_notional_usdc"] == (
         AUTONOMOUS_MAX_SUBMITTED_NOTIONAL_USDC
     )
     assert summary["max_executed_notional_usdc"] == (
         AUTONOMOUS_MAX_EXECUTED_NOTIONAL_USDC
     )
+    assert check_results["controlled_live_admin_mvp_scope"]["passed"] is True
     assert "subagent_hygiene_policy" in check_results
 
 

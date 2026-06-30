@@ -56,6 +56,15 @@ result in the phase evidence, handoff, or closeout summary before advancing.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
+## Controlled-Live Admin MVP Scope Guard
+
+- Controlled-live Admin MVP with continuous deployment.
+- Build the smallest usable, demoable admin product that replaces the ad hoc workflow.
+- Frontend is operator UI only.
+- All live actions and Coinbase API calls must go through auditable backend Admin interfaces.
+- Every increment must stay runnable, tested with focused checks, and deployable.
+- Defer evidence-tightening, new phase ranges, and docs expansion unless they directly block MVP operation, safe backend-controlled execution, demo readiness, or continuous deployment.
+
 ## Current Progress Record
 
 This record mirrors the machine-readable artifact contract. While the
