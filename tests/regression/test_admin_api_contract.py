@@ -33511,6 +33511,18 @@ def test_admin_api_idempotency_contract_replays_same_hash_and_conflicts_on_drift
 
 
 @pytest.mark.regression
+def test_admin_api_idempotency_store_uses_configured_env_path(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    configured_path = _store_dir() / "isolated_idempotency.jsonl"
+    monkeypatch.setenv("COINBASE_ADMIN_API_IDEMPOTENCY_LOG_PATH", str(configured_path))
+
+    store = FileIdempotencyStore()
+
+    assert store.path == configured_path
+
+
+@pytest.mark.regression
 def test_admin_api_idempotency_store_externalizes_large_responses():
     store = FileIdempotencyStore(_store_dir() / "large_idempotency.jsonl")
     large_response = {
