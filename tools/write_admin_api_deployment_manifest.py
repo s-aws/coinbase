@@ -19,6 +19,10 @@ from tools import run_admin_api
 DEFAULT_OUTPUT = Path("artifacts/coinbase-backend-deployment-manifest.json")
 DEFAULT_DEPLOYMENT_TIER = "staging"
 DEPLOYMENT_TIERS = ("local", "staging", "production")
+PYTHON_VERSION = "3.13"
+REQUIRES_PYTHON = ">=3.13"
+DEPENDENCY_MANIFEST = "pyproject.toml"
+INSTALL_COMMAND = "python -m pip install ."
 PRODUCTION_AUTH_MODE = "oidc_jwt"
 OIDC_ENV_VARS = (
     "COINBASE_ADMIN_API_AUTH_MODE",
@@ -49,6 +53,10 @@ def build_deployment_manifest(
         "deployment_tier": deployment_tier,
         "runtime": {
             "app": run_admin_api.APP_IMPORT_PATH,
+            "python_version": PYTHON_VERSION,
+            "requires_python": REQUIRES_PYTHON,
+            "dependency_manifest": DEPENDENCY_MANIFEST,
+            "install_command": INSTALL_COMMAND,
             "start_command": (
                 "python tools/run_admin_api.py "
                 f"--host 0.0.0.0 --port {run_admin_api.DEFAULT_PORT}"

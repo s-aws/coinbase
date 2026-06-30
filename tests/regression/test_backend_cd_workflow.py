@@ -36,6 +36,8 @@ def test_backend_continuous_deployment_workflow_guards_staging_deploy() -> None:
         "python tools/write_admin_api_deployment_manifest.py",
         "coinbase-backend-deployment.tgz",
         "artifacts/coinbase-backend-deployment-manifest.json",
+        "python-version: \"3.13\"",
+        "python -m pip install -e \".[test]\"",
         "Live Coinbase execution: not run; notional $0",
         '"manifest":"coinbase-backend-deployment-manifest.json"',
         '"liveCoinbaseExecution":"not_run"',
@@ -71,6 +73,8 @@ def test_backend_deploy_payload_contains_admin_runtime_contract_files() -> None:
         "products.json",
         "openapi/coinbase-admin-api.yaml",
         "openapi/coinbase-admin-api-route-inventory.json",
+        "pyproject.toml",
+        "tools/run_admin_api.py",
         "tools/write_admin_api_deployment_manifest.py",
         "tools/export_admin_api_route_inventory.py",
     ]:
@@ -89,6 +93,10 @@ def test_backend_deployment_manifest_describes_admin_runtime_without_live_execut
     assert manifest["deployment_tier"] == "staging"
     assert manifest["commit"] == "abc123"
     assert manifest["runtime"]["app"] == "api.v1.app:app"
+    assert manifest["runtime"]["python_version"] == "3.13"
+    assert manifest["runtime"]["requires_python"] == ">=3.13"
+    assert manifest["runtime"]["dependency_manifest"] == "pyproject.toml"
+    assert manifest["runtime"]["install_command"] == "python -m pip install ."
     assert manifest["runtime"]["start_command"] == (
         "python tools/run_admin_api.py --host 0.0.0.0 --port 8787"
     )
