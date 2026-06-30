@@ -47,6 +47,17 @@ def test_backend_continuous_deployment_workflow_only_runs_after_success() -> Non
     assert "cancel-in-progress: false" in workflow
 
 
+def test_backend_deploy_uploads_payload_before_calling_webhook() -> None:
+    workflow = DEPLOY_WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert workflow.index("Upload deployment payload") > workflow.index(
+        "Package backend deploy payload"
+    )
+    assert workflow.index("Call deployment webhook") > workflow.index(
+        "Upload deployment payload"
+    )
+
+
 def test_backend_deploy_payload_contains_admin_runtime_contract_files() -> None:
     payload_block = _deploy_payload_block()
 

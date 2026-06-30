@@ -111,6 +111,12 @@ jobs:
             README.md \
             README.admin-api.md
 
+      - name: Upload deployment payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: coinbase-backend-deployment
+          path: artifacts/coinbase-backend-deployment.tgz
+
       - name: Call deployment webhook
         run: |
           echo 'Live Coinbase execution: not run; notional $0'
@@ -120,9 +126,3 @@ jobs:
             -H "X-GitHub-Run-Id: $GITHUB_RUN_ID" \
             -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"commit\":\"${DEPLOYMENT_REF}\",\"environment\":\"staging\",\"artifact\":\"coinbase-backend-deployment.tgz\",\"liveCoinbaseExecution\":\"not_run\",\"notionalUsdc\":\"0\"}" \
             "$COINBASE_BACKEND_DEPLOY_WEBHOOK_URL"
-
-      - name: Upload deployment payload
-        uses: actions/upload-artifact@v4
-        with:
-          name: coinbase-backend-deployment
-          path: artifacts/coinbase-backend-deployment.tgz
