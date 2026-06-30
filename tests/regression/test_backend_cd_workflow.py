@@ -5,6 +5,7 @@ import tomllib
 DEPLOY_WORKFLOW_PATH = Path(".github/workflows/deploy.yml")
 PUBLIC_CHECKS_WORKFLOW_PATH = Path(".github/workflows/public-agent-checks.yml")
 PYPROJECT_PATH = Path("pyproject.toml")
+TEST_REQUIREMENTS_PATH = Path("tests/requirements.txt")
 OPENAPI_GENERATOR_PATH = Path("tools/generate_admin_api_openapi.py")
 ROUTE_INVENTORY_EXPORTER_PATH = Path("tools/export_admin_api_route_inventory.py")
 
@@ -87,10 +88,24 @@ def test_backend_deploy_install_declares_admin_api_runtime_dependencies() -> Non
         pyproject["project"]["optional-dependencies"]["test"]
     )
 
-    assert {"fastapi", "pydantic", "pyjwt", "uvicorn"}.issubset(dependencies)
+    assert {"fastapi", "pydantic", "psycopg2-binary", "pyjwt", "uvicorn"}.issubset(
+        dependencies
+    )
     assert {"httpx", "pytest", "pytest-timeout", "pytest-xdist"}.issubset(
         test_dependencies
     )
+
+
+def test_legacy_test_requirements_include_pytest_startup_imports() -> None:
+    requirements = _dependency_names(
+        [
+            line.strip()
+            for line in TEST_REQUIREMENTS_PATH.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        ]
+    )
+
+    assert "psycopg2-binary" in requirements
 
 
 def _dependency_names(requirements: list[str]) -> set[str]:
