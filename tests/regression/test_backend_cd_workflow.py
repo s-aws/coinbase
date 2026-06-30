@@ -5,6 +5,7 @@ import tomllib
 DEPLOY_WORKFLOW_PATH = Path(".github/workflows/deploy.yml")
 PUBLIC_CHECKS_WORKFLOW_PATH = Path(".github/workflows/public-agent-checks.yml")
 PYPROJECT_PATH = Path("pyproject.toml")
+OPENAPI_GENERATOR_PATH = Path("tools/generate_admin_api_openapi.py")
 
 
 def test_backend_continuous_deployment_workflow_exists() -> None:
@@ -24,6 +25,7 @@ def test_backend_continuous_deployment_workflow_guards_staging_deploy() -> None:
         "COINBASE_BACKEND_DEPLOY_WEBHOOK_URL",
         "python tools/check_ownership.py",
         "python tools/run_autonomous_work_queue_check.py --summary-only",
+        "python tools/generate_admin_api_openapi.py --check",
         "python -m pytest tests/regression/test_admin_api_local_run_contract.py -v --tb=short",
         "python tools/run_admin_oidc_readiness_smoke.py --summary-only",
         "coinbase-backend-deployment.tgz",
@@ -56,6 +58,14 @@ def test_public_agent_checks_cover_backend_continuous_deployment_contract() -> N
     workflow = PUBLIC_CHECKS_WORKFLOW_PATH.read_text(encoding="utf-8")
 
     assert "python -m pytest tests/regression/test_backend_cd_workflow.py -v --tb=short" in workflow
+    assert "python tools/generate_admin_api_openapi.py --check" in workflow
+
+
+def test_backend_openapi_generator_supports_check_mode() -> None:
+    generator = OPENAPI_GENERATOR_PATH.read_text(encoding="utf-8")
+
+    assert "--check" in generator
+    assert "Admin API OpenAPI schema is current" in generator
 
 
 def test_backend_deploy_install_declares_admin_api_runtime_dependencies() -> None:

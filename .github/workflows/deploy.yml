@@ -54,6 +54,9 @@ jobs:
           python tools/check_ownership.py
           python tools/run_autonomous_work_queue_check.py --summary-only
 
+      - name: Admin API OpenAPI freshness check
+        run: python tools/generate_admin_api_openapi.py --check
+
       - name: Admin API deploy smoke
         run: python -m pytest tests/regression/test_admin_api_local_run_contract.py -v --tb=short
 

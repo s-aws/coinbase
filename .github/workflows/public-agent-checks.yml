@@ -33,6 +33,10 @@ jobs:
           python tools/check_ownership.py
           python tools/run_autonomous_work_queue_check.py --summary-only
 
+      - name: Admin API OpenAPI freshness
+        shell: pwsh
+        run: python tools/generate_admin_api_openapi.py --check
+
       - name: Regression runner contract
         shell: pwsh
         run: |
