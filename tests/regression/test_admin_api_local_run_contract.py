@@ -61,6 +61,22 @@ def test_admin_api_local_runner_applies_local_environment_without_secret_overwri
 
 
 @pytest.mark.regression
+def test_admin_api_runner_uses_deployment_tier_as_environment_default():
+    config = run_admin_api.parse_run_config([])
+    environ = {run_admin_api.DEPLOYMENT_TIER_ENV: "staging"}
+
+    applied = run_admin_api.apply_local_environment(config, environ=environ)
+
+    assert environ[run_admin_api.ENVIRONMENT_ENV] == "staging"
+    assert applied[run_admin_api.ENVIRONMENT_ENV] == "staging"
+
+    environ[run_admin_api.ENVIRONMENT_ENV] = "production"
+    run_admin_api.apply_local_environment(config, environ=environ)
+
+    assert environ[run_admin_api.ENVIRONMENT_ENV] == "production"
+
+
+@pytest.mark.regression
 def test_admin_api_local_runner_fails_closed_without_backend_auth(monkeypatch, capsys):
     monkeypatch.delenv(run_admin_api.AUTH_MODE_ENV, raising=False)
     monkeypatch.delenv(run_admin_api.AUTH_TOKEN_ENV, raising=False)

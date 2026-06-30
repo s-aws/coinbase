@@ -57,6 +57,9 @@ def build_deployment_manifest(
             "requires_python": REQUIRES_PYTHON,
             "dependency_manifest": DEPENDENCY_MANIFEST,
             "install_command": INSTALL_COMMAND,
+            "environment_env": run_admin_api.ENVIRONMENT_ENV,
+            "deployment_tier_env": run_admin_api.DEPLOYMENT_TIER_ENV,
+            "default_environment": deployment_tier,
             "start_command": (
                 "python tools/run_admin_api.py "
                 f"--host 0.0.0.0 --port {run_admin_api.DEFAULT_PORT}"

@@ -97,6 +97,9 @@ def test_backend_deployment_manifest_describes_admin_runtime_without_live_execut
     assert manifest["runtime"]["requires_python"] == ">=3.13"
     assert manifest["runtime"]["dependency_manifest"] == "pyproject.toml"
     assert manifest["runtime"]["install_command"] == "python -m pip install ."
+    assert manifest["runtime"]["environment_env"] == "COINBASE_ADMIN_API_ENVIRONMENT"
+    assert manifest["runtime"]["deployment_tier_env"] == "COINBASE_BACKEND_DEPLOYMENT_TIER"
+    assert manifest["runtime"]["default_environment"] == "staging"
     assert manifest["runtime"]["start_command"] == (
         "python tools/run_admin_api.py --host 0.0.0.0 --port 8787"
     )

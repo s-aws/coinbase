@@ -25,6 +25,7 @@ AUTH_MODE_ENV = "COINBASE_ADMIN_API_AUTH_MODE"
 AUTH_TOKEN_ENV = "COINBASE_ADMIN_API_BEARER_TOKEN"
 CORS_ORIGINS_ENV = "COINBASE_ADMIN_API_CORS_ORIGINS"
 ENVIRONMENT_ENV = "COINBASE_ADMIN_API_ENVIRONMENT"
+DEPLOYMENT_TIER_ENV = "COINBASE_BACKEND_DEPLOYMENT_TIER"
 OIDC_REQUIRED_ENV_VARS = (
     "COINBASE_ADMIN_API_OIDC_ISSUER",
     "COINBASE_ADMIN_API_OIDC_AUDIENCE",
@@ -120,8 +121,9 @@ def apply_local_environment(
         applied[CORS_ORIGINS_ENV] = target[CORS_ORIGINS_ENV]
 
     if not target.get(ENVIRONMENT_ENV, "").strip():
-        target[ENVIRONMENT_ENV] = "local"
-        applied[ENVIRONMENT_ENV] = "local"
+        environment = resolve_admin_api_environment(target)
+        target[ENVIRONMENT_ENV] = environment
+        applied[ENVIRONMENT_ENV] = environment
 
     return applied
 
@@ -141,6 +143,16 @@ def _read_env_value(source: Mapping[str, str | None], key: str) -> str | None:
     value = source.get(key)
     value = value.strip() if value else ""
     return value or None
+
+
+def resolve_admin_api_environment(source: Mapping[str, str | None]) -> str:
+    """Return the operator-visible Admin API environment label."""
+
+    return (
+        _read_env_value(source, ENVIRONMENT_ENV)
+        or _read_env_value(source, DEPLOYMENT_TIER_ENV)
+        or "local"
+    )
 
 
 def _configured_auth_mode_value(source: Mapping[str, str | None]) -> str:
