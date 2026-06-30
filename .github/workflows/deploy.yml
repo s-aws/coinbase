@@ -66,6 +66,9 @@ jobs:
       - name: Admin API OIDC readiness smoke
         run: python tools/run_admin_oidc_readiness_smoke.py --summary-only
 
+      - name: Write backend deployment manifest
+        run: python tools/write_admin_api_deployment_manifest.py --deployment-tier staging
+
       - name: Compile backend packages
         run: |
           python -m compileall -q \
@@ -86,6 +89,7 @@ jobs:
         run: |
           mkdir -p artifacts
           tar -czf artifacts/coinbase-backend-deployment.tgz \
+            artifacts/coinbase-backend-deployment-manifest.json \
             api \
             application \
             bridges \
@@ -100,6 +104,7 @@ jobs:
             websocket \
             openapi/coinbase-admin-api.yaml \
             openapi/coinbase-admin-api-route-inventory.json \
+            tools/write_admin_api_deployment_manifest.py \
             tools/run_admin_api.py \
             tools/generate_admin_api_openapi.py \
             tools/export_admin_api_route_inventory.py \
@@ -115,7 +120,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: coinbase-backend-deployment
-          path: artifacts/coinbase-backend-deployment.tgz
+          path: |
+            artifacts/coinbase-backend-deployment.tgz
+            artifacts/coinbase-backend-deployment-manifest.json
 
       - name: Call deployment webhook
         run: |
@@ -124,5 +131,5 @@ jobs:
             -X POST \
             -H "Content-Type: application/json" \
             -H "X-GitHub-Run-Id: $GITHUB_RUN_ID" \
-            -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"commit\":\"${DEPLOYMENT_REF}\",\"environment\":\"staging\",\"artifact\":\"coinbase-backend-deployment.tgz\",\"liveCoinbaseExecution\":\"not_run\",\"notionalUsdc\":\"0\"}" \
+            -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"commit\":\"${DEPLOYMENT_REF}\",\"environment\":\"staging\",\"artifact\":\"coinbase-backend-deployment.tgz\",\"manifest\":\"coinbase-backend-deployment-manifest.json\",\"liveCoinbaseExecution\":\"not_run\",\"notionalUsdc\":\"0\"}" \
             "$COINBASE_BACKEND_DEPLOY_WEBHOOK_URL"

@@ -1,6 +1,8 @@
 from pathlib import Path
 import tomllib
 
+from tools import write_admin_api_deployment_manifest as deployment_manifest
+
 
 DEPLOY_WORKFLOW_PATH = Path(".github/workflows/deploy.yml")
 PUBLIC_CHECKS_WORKFLOW_PATH = Path(".github/workflows/public-agent-checks.yml")
@@ -31,8 +33,11 @@ def test_backend_continuous_deployment_workflow_guards_staging_deploy() -> None:
         "python tools/export_admin_api_route_inventory.py --check",
         "python -m pytest tests/regression/test_admin_api_local_run_contract.py -v --tb=short",
         "python tools/run_admin_oidc_readiness_smoke.py --summary-only",
+        "python tools/write_admin_api_deployment_manifest.py",
         "coinbase-backend-deployment.tgz",
+        "artifacts/coinbase-backend-deployment-manifest.json",
         "Live Coinbase execution: not run; notional $0",
+        '"manifest":"coinbase-backend-deployment-manifest.json"',
         '"liveCoinbaseExecution":"not_run"',
         '"notionalUsdc":"0"',
     ]:
@@ -62,12 +67,39 @@ def test_backend_deploy_payload_contains_admin_runtime_contract_files() -> None:
     payload_block = _deploy_payload_block()
 
     for expected_path in [
+        "artifacts/coinbase-backend-deployment-manifest.json",
         "products.json",
         "openapi/coinbase-admin-api.yaml",
         "openapi/coinbase-admin-api-route-inventory.json",
+        "tools/write_admin_api_deployment_manifest.py",
         "tools/export_admin_api_route_inventory.py",
     ]:
         assert expected_path in payload_block
+
+
+def test_backend_deployment_manifest_describes_admin_runtime_without_live_execution() -> None:
+    manifest = deployment_manifest.build_deployment_manifest(
+        generated_at="2026-07-01T00:00:00Z",
+        commit="abc123",
+        deployment_tier="staging",
+    )
+
+    assert manifest["schema_version"] == "1"
+    assert manifest["artifact_type"] == "coinbase_admin_api_deployment_manifest"
+    assert manifest["deployment_tier"] == "staging"
+    assert manifest["commit"] == "abc123"
+    assert manifest["runtime"]["app"] == "api.v1.app:app"
+    assert manifest["runtime"]["start_command"] == (
+        "python tools/run_admin_api.py --host 0.0.0.0 --port 8787"
+    )
+    assert manifest["runtime"]["health_check"] == "GET /api/v1/admin/health"
+    assert manifest["auth"]["production_mode"] == "oidc_jwt"
+    assert "COINBASE_ADMIN_API_BEARER_TOKEN" in manifest["auth"]["bootstrap_env"]
+    assert "COINBASE_ADMIN_API_OIDC_JWKS_URL" in manifest["auth"]["oidc_env"]
+    assert manifest["live_coinbase_execution"] == "not_run"
+    assert manifest["notional_usdc"] == "0"
+    assert manifest["frontend_authority"] == "operator_ui_only"
+    assert manifest["live_action_path"] == "auditable_backend_admin_interfaces_only"
 
 
 def test_public_agent_checks_cover_backend_continuous_deployment_contract() -> None:
@@ -99,9 +131,14 @@ def test_backend_deploy_install_declares_admin_api_runtime_dependencies() -> Non
         pyproject["project"]["optional-dependencies"]["test"]
     )
 
-    assert {"fastapi", "pydantic", "psycopg2-binary", "pyjwt", "uvicorn"}.issubset(
-        dependencies
-    )
+    assert {
+        "fastapi",
+        "pydantic",
+        "psycopg2-binary",
+        "pyjwt",
+        "pyyaml",
+        "uvicorn",
+    }.issubset(dependencies)
     assert {"httpx", "pytest", "pytest-timeout", "pytest-xdist"}.issubset(
         test_dependencies
     )
@@ -116,7 +153,7 @@ def test_legacy_test_requirements_include_pytest_startup_imports() -> None:
         ]
     )
 
-    assert "psycopg2-binary" in requirements
+    assert {"psycopg2-binary", "pyyaml"}.issubset(requirements)
 
 
 def _dependency_names(requirements: list[str]) -> set[str]:
