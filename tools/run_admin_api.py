@@ -8,20 +8,29 @@ exchange state.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Mapping, MutableMapping, Sequence
 from dataclasses import dataclass
-from collections.abc import MutableMapping, Sequence
 import os
 import sys
 from typing import Any
+
+from core.enums import AdminApiAuthMode
 
 
 APP_IMPORT_PATH = "api.v1.app:app"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8787
 DEFAULT_CORS_ORIGIN = "http://127.0.0.1:3000"
+AUTH_MODE_ENV = "COINBASE_ADMIN_API_AUTH_MODE"
 AUTH_TOKEN_ENV = "COINBASE_ADMIN_API_BEARER_TOKEN"
 CORS_ORIGINS_ENV = "COINBASE_ADMIN_API_CORS_ORIGINS"
 ENVIRONMENT_ENV = "COINBASE_ADMIN_API_ENVIRONMENT"
+OIDC_REQUIRED_ENV_VARS = (
+    "COINBASE_ADMIN_API_OIDC_ISSUER",
+    "COINBASE_ADMIN_API_OIDC_AUDIENCE",
+    "COINBASE_ADMIN_API_OIDC_JWKS_URL",
+)
+STARTUP_AUTH_MODE_VALUES = tuple(mode.value for mode in AdminApiAuthMode)
 
 
 @dataclass(frozen=True)
@@ -128,18 +137,73 @@ def build_uvicorn_kwargs(config: AdminApiRunConfig) -> dict[str, Any]:
     }
 
 
+def _read_env_value(source: Mapping[str, str | None], key: str) -> str | None:
+    value = source.get(key)
+    value = value.strip() if value else ""
+    return value or None
+
+
+def _configured_auth_mode_value(source: Mapping[str, str | None]) -> str:
+    return (
+        _read_env_value(source, AUTH_MODE_ENV)
+        or AdminApiAuthMode.BOOTSTRAP_BEARER.value
+    )
+
+
+def missing_startup_auth_env_vars(
+    *,
+    environ: Mapping[str, str | None] | None = None,
+) -> tuple[str, ...]:
+    """Return missing auth settings required before the Admin API can start."""
+
+    source = os.environ if environ is None else environ
+    auth_mode = _configured_auth_mode_value(source)
+    if auth_mode == AdminApiAuthMode.BOOTSTRAP_BEARER.value:
+        return () if _read_env_value(source, AUTH_TOKEN_ENV) else (AUTH_TOKEN_ENV,)
+    if auth_mode == AdminApiAuthMode.OIDC_JWT.value:
+        return tuple(
+            key for key in OIDC_REQUIRED_ENV_VARS if not _read_env_value(source, key)
+        )
+    return (AUTH_MODE_ENV,)
+
+
+def startup_auth_error_message(
+    *,
+    environ: Mapping[str, str | None] | None = None,
+) -> str | None:
+    """Return a startup auth error message, or None when auth is configured."""
+
+    source = os.environ if environ is None else environ
+    auth_mode = _configured_auth_mode_value(source)
+    if auth_mode not in STARTUP_AUTH_MODE_VALUES:
+        return (
+            f"{AUTH_MODE_ENV} must be one of "
+            f"{', '.join(STARTUP_AUTH_MODE_VALUES)}."
+        )
+
+    missing_env_vars = missing_startup_auth_env_vars(environ=source)
+    if not missing_env_vars:
+        return None
+    if missing_env_vars == (AUTH_TOKEN_ENV,):
+        return (
+            f"{AUTH_TOKEN_ENV} is required. Set it in the environment or pass "
+            "--dev-token for local-only development."
+        )
+    return (
+        "Admin API OIDC/JWT startup auth is not configured. Missing: "
+        f"{', '.join(missing_env_vars)}."
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the local Admin API server."""
 
     config = parse_run_config(argv)
     apply_local_environment(config)
 
-    if not os.environ.get(AUTH_TOKEN_ENV, "").strip():
-        print(
-            f"{AUTH_TOKEN_ENV} is required. Set it in the environment or pass "
-            "--dev-token for local-only development.",
-            file=sys.stderr,
-        )
+    auth_error = startup_auth_error_message()
+    if auth_error:
+        print(auth_error, file=sys.stderr)
         return 2
 
     try:
