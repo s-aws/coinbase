@@ -10577,6 +10577,10 @@ components:
           type: boolean
           title: Live Exchange Submitted
           default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
         submission_event_recorded:
           anyOf:
           - type: boolean

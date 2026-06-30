@@ -2360,6 +2360,7 @@ class AdminApiCommandResponse(BaseModel):
     idempotency_key: str | None = None
     audit_id: str | None = None
     live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
     submission_event_recorded: bool | None = None
     audit_command: str | None = None
     admission_decision: AdminLiveAdmissionDecisionEvidence | None = None

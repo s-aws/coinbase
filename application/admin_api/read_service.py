@@ -1683,6 +1683,60 @@ def futures_command_suite_frontend_fixture_payload(
     return compacted
 
 
+def lightweight_futures_command_suite_frontend_fixture_payload() -> dict[str, Any]:
+    """Return a fast offline futures command-suite fixture summary."""
+
+    output_schema_field_type_count_key = (
+        "request_payload_validation_record_execution_eligibility_resolution_plan_"
+        "step_review_input_store_record_validation_remediation_dependency_work_item_"
+        "claim_trace_clearance_step_review_input_store_record_validation_check_"
+        "output_schema_field_type_count"
+    )
+    commands = [
+        {
+            "command": command.value,
+            "fixture_scope": "bounded_frontend_smoke",
+            "status": AdminApiGateStatus.BLOCKED.value,
+            "command_route_registered": True,
+            "command_draft_allowed": True,
+            "execution_allowed": False,
+            "live_coinbase_orders_ran": False,
+            output_schema_field_type_count_key: 1,
+            f"materialized_{output_schema_field_type_count_key}": 1,
+        }
+        for command in AdminFuturesCommandAction
+    ]
+    return {
+        "type": "admin_futures_command_suite",
+        "module_id": "futures_perpetuals",
+        "approved_phase_range": AUTONOMOUS_APPROVED_PHASE_RANGE,
+        "status": AdminApiGateStatus.BLOCKED.value,
+        "command_count": len(commands),
+        "blocked_command_count": len(commands),
+        "executable_command_count": 0,
+        "command_route_count": len(commands),
+        "command_draft_allowed_count": len(commands),
+        "request_payload_validator_contract_count": 22,
+        "blocking_request_payload_validator_contract_count": 22,
+        "ready_request_payload_validator_contract_count": 0,
+        "registered_request_payload_validator_contract_count": 22,
+        "request_payload_validator_registration_count": 22,
+        "blocking_request_payload_validator_registration_count": 22,
+        "ready_request_payload_validator_registration_count": 0,
+        "registered_request_payload_validator_registration_count": 22,
+        "risk_proof_payload_field_count": 200,
+        "blocking_risk_proof_payload_field_count": 200,
+        "present_risk_proof_payload_field_count": 0,
+        "commands": commands,
+        "fixture_scope": "bounded_frontend_smoke",
+        "live_coinbase_orders_ran": False,
+        "detail": (
+            "Offline frontend smoke fixture. It preserves futures command-suite "
+            "summary counts without materializing the full nested readiness graph."
+        ),
+    }
+
+
 def stealth_command_suite_api_payload(
     response: StealthCommandSuiteResponse,
 ) -> dict[str, Any]:
@@ -49919,8 +49973,8 @@ class AdminApiReadService:
                     mode="json"
                 ),
                 "futures.account": self.build_futures_account().model_dump(mode="json"),
-                "futures.commandSuite": futures_command_suite_frontend_fixture_payload(
-                    self.build_futures_command_suite()
+                "futures.commandSuite": (
+                    lightweight_futures_command_suite_frontend_fixture_payload()
                 ),
                 "futures.positions": self.build_futures_positions().model_dump(mode="json"),
                 "futures.position.empty": self.build_futures_position_detail(

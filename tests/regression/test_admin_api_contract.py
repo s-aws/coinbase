@@ -7,6 +7,7 @@ import inspect
 import json
 import shutil
 import tempfile
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
@@ -3325,6 +3326,7 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "order_state_mutated" in reveal_reconciliation_audit_schema["properties"]
     command_response_schema = written["components"]["schemas"]["AdminApiCommandResponse"]
     assert "stealth_order_id" in command_response_schema["properties"]
+    assert "live_coinbase_orders_ran" in command_response_schema["properties"]
     assert "admission_decision" in command_response_schema["properties"]
     assert "stealth_lifecycle_execution_contract" in command_response_schema[
         "properties"
@@ -9715,6 +9717,7 @@ def test_admin_api_create_manual_order_contract_is_not_implemented_and_not_live(
     client_order_id = payload["client_order_id"]
     assert client_order_id
     assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
     assert payload["failure_stage"] == "approval"
     assert payload["guard"]["approval_snapshot_required"] is True
     assert payload["guard"]["cap_evaluation_required"] is True
@@ -44979,12 +44982,25 @@ def test_admin_api_frontend_fixtures_are_bounded_and_offline_safe(monkeypatch):
     def reject_runtime_query(*_args, **_kwargs):
         raise AssertionError("frontend fixtures must not run runtime database queries")
 
+    def reject_full_futures_command_suite(_self):
+        raise AssertionError(
+            "frontend fixtures must not build the full futures command suite"
+        )
+
     monkeypatch.setattr(builtins, "__import__", guarded_import)
     monkeypatch.setattr(read_service_module, "_query_admin_rows", reject_runtime_query)
+    monkeypatch.setattr(
+        AdminApiReadService,
+        "build_futures_command_suite",
+        reject_full_futures_command_suite,
+    )
 
+    started = time.perf_counter()
     payload = AdminApiReadService().build_frontend_fixtures().model_dump(mode="json")
+    elapsed_seconds = time.perf_counter() - started
     encoded = json.dumps(payload).encode("utf-8")
 
+    assert elapsed_seconds < 5
     assert len(encoded) < 20_000_000
     for heavy_key in (
         b"record_validation_remediation_dependency_work_item_claim_trace_clearance_steps",
@@ -44997,44 +45013,10 @@ def test_admin_api_frontend_fixtures_are_bounded_and_offline_safe(monkeypatch):
     fixtures = payload["fixtures"]
     futures_command_suite_fixture = fixtures["futures.commandSuite"]
     futures_command = futures_command_suite_fixture["commands"][0]
-    remediation_dependency_rows = futures_command[
-        "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependencies"
-    ]
-    assert len(remediation_dependency_rows) <= futures_command[
-        "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_detail_row_limit"
-    ]
-    assert futures_command[
-        "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_detail_rows_limited"
-    ] is True
-    remediation_dependency_work_item_rows = futures_command[
-        "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_items"
-    ]
-    assert len(remediation_dependency_work_item_rows) <= futures_command[
-        "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_detail_row_limit"
-    ]
-    assert futures_command[
-        "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_detail_rows_limited"
-    ] is True
-    remediation_dependency_work_item_claim_trace_rows = futures_command[
-        "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces"
-    ]
-    assert len(remediation_dependency_work_item_claim_trace_rows) <= futures_command[
-        "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_detail_row_limit"
-    ]
-    assert futures_command[
-        "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_detail_rows_limited"
-    ] is True
-    remediation_dependency_work_item_claim_trace_clearance_plan_rows = futures_command[
-        "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans"
-    ]
-    assert len(
-        remediation_dependency_work_item_claim_trace_clearance_plan_rows
-    ) <= futures_command[
-        "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_detail_row_limit"
-    ]
-    assert futures_command[
-        "request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_detail_rows_limited"
-    ] is True
+    assert futures_command["fixture_scope"] == "bounded_frontend_smoke"
+    assert futures_command["execution_allowed"] is False
+    assert futures_command["live_coinbase_orders_ran"] is False
+    assert "risk_proof_requirements" not in futures_command
     assert fixtures["orders.list"]["filters"]["runtime_backing_store_queried"] is False
     assert (
         fixtures["admin.auditWorkbench"]["filters"]["runtime_backing_store_queried"]

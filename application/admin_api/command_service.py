@@ -1528,6 +1528,7 @@ class AdminApiCommandService:
                 correlation_id=command.envelope.correlation_id,
                 idempotency_key=command.envelope.idempotency_key,
                 live_exchange_submitted=True,
+                live_coinbase_orders_ran=True,
                 submission_event_recorded=submission_event_recorded,
                 audit_command=(
                     "python tools\\run_spot_direct_order_audit.py "
@@ -1611,6 +1612,7 @@ class AdminApiCommandService:
                     correlation_id=command.envelope.correlation_id,
                     idempotency_key=command.envelope.idempotency_key,
                     live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
                     data=result,
                     failure_stage="coinbase_rest",
                 )
@@ -1626,6 +1628,7 @@ class AdminApiCommandService:
                 correlation_id=command.envelope.correlation_id,
                 idempotency_key=command.envelope.idempotency_key,
                 live_exchange_submitted=True,
+                live_coinbase_orders_ran=True,
                 data=result,
             )
         except Exception as exc:
@@ -5137,6 +5140,7 @@ class AdminApiCommandService:
                 correlation_id=command.envelope.correlation_id,
                 idempotency_key=command.envelope.idempotency_key,
                 live_exchange_submitted=True,
+                live_coinbase_orders_ran=True,
                 submission_event_recorded=submission_event_recorded,
             )
         except CoinbaseAPIError as exc:
