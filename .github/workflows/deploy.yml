@@ -1,0 +1,115 @@
+name: Continuous Deployment
+
+on:
+  workflow_run:
+    workflows: [Public Agent Checks]
+    branches: [main, master]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: coinbase-backend-cd-${{ github.event.workflow_run.head_branch || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy-staging:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: staging
+    env:
+      COINBASE_BACKEND_DEPLOYMENT_TIER: staging
+      COINBASE_BACKEND_DEPLOY_WEBHOOK_URL: ${{ secrets.COINBASE_BACKEND_DEPLOY_WEBHOOK_URL }}
+      DEPLOYMENT_REF: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+    steps:
+      - name: Checkout release ref
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOYMENT_REF }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install backend
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[test]"
+
+      - name: Validate deploy hook
+        run: |
+          if [ -z "$COINBASE_BACKEND_DEPLOY_WEBHOOK_URL" ]; then
+            echo "::error::COINBASE_BACKEND_DEPLOY_WEBHOOK_URL is required for continuous deployment."
+            exit 1
+          fi
+
+      - name: Backend policy checks
+        run: |
+          python tools/check_ownership.py
+          python tools/run_autonomous_work_queue_check.py --summary-only
+
+      - name: Admin API deploy smoke
+        run: python -m pytest tests/regression/test_admin_api_local_run_contract.py -v --tb=short
+
+      - name: Compile backend packages
+        run: |
+          python -m compileall -q \
+            api \
+            application \
+            bridges \
+            business \
+            calculation \
+            core \
+            data \
+            database \
+            external \
+            integration \
+            market_intel \
+            websocket
+
+      - name: Package backend deploy payload
+        run: |
+          mkdir -p artifacts
+          tar -czf artifacts/coinbase-backend-deployment.tgz \
+            api \
+            application \
+            bridges \
+            business \
+            calculation \
+            core \
+            data \
+            database \
+            external \
+            integration \
+            market_intel \
+            websocket \
+            tools/run_admin_api.py \
+            tools/generate_admin_api_openapi.py \
+            configuration.py \
+            dashboard_server.py \
+            main.py \
+            pyproject.toml \
+            README.md \
+            README.admin-api.md
+
+      - name: Call deployment webhook
+        run: |
+          echo 'Live Coinbase execution: not run; notional $0'
+          curl --fail --show-error --silent \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -H "X-GitHub-Run-Id: $GITHUB_RUN_ID" \
+            -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"commit\":\"${DEPLOYMENT_REF}\",\"environment\":\"staging\",\"artifact\":\"coinbase-backend-deployment.tgz\",\"liveCoinbaseExecution\":\"not_run\",\"notionalUsdc\":\"0\"}" \
+            "$COINBASE_BACKEND_DEPLOY_WEBHOOK_URL"
+
+      - name: Upload deployment payload
+        uses: actions/upload-artifact@v4
+        with:
+          name: coinbase-backend-deployment
+          path: artifacts/coinbase-backend-deployment.tgz

@@ -39,6 +39,7 @@ owners:
       - docs/REPO_CLEANUP_CLASSIFICATION.md
       - .agents/**
       - .github/workflows/public-agent-checks.yml
+      - .github/workflows/deploy.yml
       - .github/PULL_REQUEST_TEMPLATE.md
       - .github/skills/**
       - tools/__init__.py
@@ -112,6 +113,7 @@ owners:
       - tests/regression/test_runtime_artifact_checker.py
       - tests/regression/test_spot_contextless_agent_checklist.py
       - tests/regression/test_spot_readiness_gate.py
+      - tests/regression/test_backend_cd_workflow.py
     tests:
       - python tools/check_ownership.py --owner architect
     requires_regression: false
