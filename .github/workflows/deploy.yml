@@ -92,12 +92,14 @@ jobs:
             integration \
             market_intel \
             websocket \
+            openapi/coinbase-admin-api.yaml \
             tools/run_admin_api.py \
             tools/generate_admin_api_openapi.py \
             configuration.py \
             dashboard_server.py \
             main.py \
             pyproject.toml \
+            products.json \
             README.md \
             README.admin-api.md
 

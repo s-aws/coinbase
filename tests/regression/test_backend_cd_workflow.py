@@ -42,6 +42,16 @@ def test_backend_continuous_deployment_workflow_only_runs_after_success() -> Non
     assert "cancel-in-progress: false" in workflow
 
 
+def test_backend_deploy_payload_contains_admin_runtime_contract_files() -> None:
+    payload_block = _deploy_payload_block()
+
+    for expected_path in [
+        "products.json",
+        "openapi/coinbase-admin-api.yaml",
+    ]:
+        assert expected_path in payload_block
+
+
 def test_public_agent_checks_cover_backend_continuous_deployment_contract() -> None:
     workflow = PUBLIC_CHECKS_WORKFLOW_PATH.read_text(encoding="utf-8")
 
@@ -69,3 +79,15 @@ def _dependency_names(requirements: list[str]) -> set[str]:
             name = name.split(separator, 1)[0]
         names.add(name.strip().lower())
     return names
+
+
+def _deploy_payload_block() -> str:
+    workflow = DEPLOY_WORKFLOW_PATH.read_text(encoding="utf-8")
+    marker = "tar -czf artifacts/coinbase-backend-deployment.tgz"
+    _, package_block = workflow.split(marker, 1)
+    payload_lines: list[str] = []
+    for line in package_block.splitlines():
+        if not line.strip():
+            break
+        payload_lines.append(line)
+    return "\n".join(payload_lines)
