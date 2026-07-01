@@ -78,9 +78,7 @@ def normalize_smoke_timing(smoke_timing: Mapping[str, Any]) -> dict[str, Any]:
     command = smoke_timing.get("command")
     if not isinstance(command, list):
         command = []
-    smoke_node_ids = smoke_timing.get("smoke_node_ids")
-    if not isinstance(smoke_node_ids, list):
-        smoke_node_ids = []
+    smoke_node_ids = required_smoke_string_list(smoke_timing, "smoke_node_ids")
     return {
         "status": status,
         "duration_seconds": finite_number(
@@ -105,6 +103,7 @@ def normalize_smoke_timing(smoke_timing: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "command": command,
         "smoke_node_count": len(smoke_node_ids),
+        "smoke_node_ids": smoke_node_ids,
     }
 
 
@@ -147,6 +146,21 @@ def required_smoke_string(smoke_timing: Mapping[str, Any], field_name: str) -> s
     if not value:
         raise ValueError(f"Controlled-live smoke timing is missing {field_name}.")
     return value
+
+
+def required_smoke_string_list(
+    smoke_timing: Mapping[str, Any],
+    field_name: str,
+) -> list[str]:
+    """Return a required non-empty list of smoke timing strings."""
+
+    value = smoke_timing.get(field_name)
+    if not isinstance(value, list) or not value:
+        raise ValueError(f"Controlled-live smoke timing is missing {field_name}.")
+    string_values = [item for item in value if isinstance(item, str) and item.strip()]
+    if len(string_values) != len(value):
+        raise ValueError(f"Controlled-live smoke timing has invalid {field_name}.")
+    return string_values
 
 
 def finite_number(value: Any, label: str) -> float:

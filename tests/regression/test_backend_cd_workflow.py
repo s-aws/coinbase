@@ -279,6 +279,7 @@ def test_backend_deployment_webhook_payload_includes_smoke_timing() -> None:
         "backend_contract_ref": "backendabc",
         "command": ["python", "-m", "pytest"],
         "smoke_node_count": 1,
+        "smoke_node_ids": ["tests/regression/test_admin_api_contract.py::test_smoke"],
     }
     assert payload["live_coinbase_execution"] == "not_run"
     assert payload["notional_usdc"] == "0"
@@ -335,6 +336,7 @@ def test_backend_deployment_webhook_payload_reads_powershell_utf8_bom(
 
     assert payload["smoke_timing"]["duration_seconds"] == 12.345
     assert payload["smoke_timing"]["backend_contract_ref"] == "backendabc"
+    assert payload["smoke_timing"]["smoke_node_ids"] == ["test_node"]
     assert payload["live_coinbase_execution"] == "not_run"
     assert payload["notional_usdc"] == "0"
 
