@@ -36741,6 +36741,163 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
 
 
 @pytest.mark.regression
+def test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap(
+    monkeypatch,
+):
+    import configuration
+    from api.v1.routes import orders as order_routes
+    from application.admin_api import command_runtime
+
+    class FakeRuntimeController:
+        def track_inflight(self, _name):
+            return self
+
+        def __enter__(self):
+            return None
+
+        def __exit__(self, _exc_type, _exc, _traceback):
+            return False
+
+    class FakeRestClient:
+        def __init__(self) -> None:
+            self.create_order_calls = []
+
+        def create_order(self, **kwargs):
+            self.create_order_calls.append(kwargs)
+            return SimpleNamespace(success=True, order_id="exchange-admin-route-1")
+
+    class FakeOrderEventPublisher:
+        enabled = True
+
+        def __init__(self) -> None:
+            self.events = []
+
+        def publish_event(self, **kwargs):
+            self.events.append(kwargs)
+            return True
+
+    client = _client(monkeypatch)
+    client.app.dependency_overrides.pop(order_routes.get_command_service, None)
+    fake_rest_client = FakeRestClient()
+    fake_event_publisher = FakeOrderEventPublisher()
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_LIVE_SERVICE_DECISION_LOG_PATH",
+        str(client.admin_api_test_live_service_decision_store.path),
+    )
+    monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setattr(configuration, "API_KEY", "test-key", raising=False)
+    monkeypatch.setattr(configuration, "API_SECRET", "test-secret", raising=False)
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        _admin_api_direct_spot_cap_policy(max_notional=3.10),
+    )
+    monkeypatch.setattr(
+        configuration,
+        "rest_get_account_wallets",
+        lambda: {"USDC": {"available_balance": {"value": "10.00"}}},
+    )
+    monkeypatch.setattr(configuration, "get_rest_client", lambda: fake_rest_client)
+    monkeypatch.setattr(
+        command_runtime,
+        "get_runtime_controller",
+        lambda: FakeRuntimeController(),
+    )
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_order_event_stream_publisher",
+        lambda: fake_event_publisher,
+    )
+
+    client_order_id = "client-route-runtime-over-cap"
+    idempotency_key = "idem-route-runtime-over-cap"
+    operator_intent = "manual_one_off"
+    oversized_body = _manual_order_payload(
+        quote_size="4.00",
+        client_order_id=client_order_id,
+    )
+    approval_payload = _manual_order_approval_payload(
+        operator_intent=operator_intent,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+    )
+    approval_payload["body"] = ManualOrderRequest.model_validate(
+        oversized_body
+    ).model_dump(mode="json")
+    payload_hash = make_payload_hash(approval_payload)
+    approval = _append_manual_order_approval(
+        store=client.admin_api_test_approval_store,
+        now=datetime.now(timezone.utc),
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+    )
+    audit_event = _append_manual_order_admission_audit(
+        store=client.admin_api_test_audit_store,
+        approval=approval,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+    )
+    cap_guard = _append_manual_order_cap_guard_decision(
+        store=client.admin_api_test_cap_guard_store,
+        approval=approval,
+        audit_event=audit_event,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+    )
+    _append_manual_order_reconciliation_plan(
+        store=client.admin_api_test_reconciliation_store,
+        approval=approval,
+        audit_event=audit_event,
+        cap_guard=cap_guard,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+    )
+    client.admin_api_test_live_service_decision_store.append(
+        LiveServiceDecisionRecord(
+            decision_id="live-service-manual-order-runtime-over-cap",
+            status=AdminApiGateStatus.PASSED,
+            requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+            service_enabled=True,
+            deployment_ref="deployment-controlled-live-mvp",
+            runtime_configuration_ref="runtime-controlled-live-mvp",
+            decision_reason="Enable bounded manual order route runtime.",
+            live_coinbase_execution_approved=True,
+            max_submitted_notional_usdc="3.10",
+            max_executed_notional_usdc="1.00",
+        )
+    )
+
+    response = client.post(
+        "/api/v1/orders",
+        headers=_headers(idempotency_key=idempotency_key),
+        json=oversized_body,
+    )
+
+    payload = response.json()
+    assert response.status_code == 400
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["client_order_id"] == client_order_id
+    assert payload["failure_stage"] == "action_condition_guard"
+    assert payload["admission_decision"]["allowed"] is True
+    assert payload["admission_decision"]["browser_authority"] == "backend_admin_api"
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["guard"]["condition"] == ActionConditionType.MAX_NOTIONAL.value
+    assert payload["guard"]["configured_limit"] == 3.1
+    assert payload["guard"]["actual"] == 4.0
+    assert fake_rest_client.create_order_calls == []
+    assert fake_event_publisher.events == []
+
+
+@pytest.mark.regression
 def test_admin_api_command_service_uses_backend_runtime_dependencies_when_enabled(
     monkeypatch,
 ):
