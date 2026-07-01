@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 
 SUMMARY_PREFIX = "ADMIN_API_CONTROLLED_LIVE_MVP_SMOKE_SUMMARY "
@@ -35,6 +36,12 @@ class SmokeRunResult:
     started_at: str
     ended_at: str
     duration_seconds: float
+
+
+@dataclass(frozen=True)
+class BackendGitEvidence:
+    commit: str
+    branch: str
 
 
 def build_pytest_command() -> list[str]:
@@ -69,6 +76,8 @@ def build_timing_summary(
     *,
     result: SmokeRunResult,
     command: Sequence[str],
+    backend_git: BackendGitEvidence,
+    backend_contract_ref: str,
 ) -> dict[str, Any]:
     """Build the machine-readable smoke timing summary."""
 
@@ -81,6 +90,9 @@ def build_timing_summary(
         "ended_at": result.ended_at,
         "duration_seconds": result.duration_seconds,
         "wait_sleep_seconds": 0.0,
+        "backend_git_commit": backend_git.commit,
+        "backend_git_branch": backend_git.branch,
+        "backend_contract_ref": backend_contract_ref,
         "command": list(command),
         "smoke_node_ids": list(SMOKE_NODE_IDS),
         "live_coinbase_execution": "not_run",
@@ -132,11 +144,61 @@ def utc_now_iso() -> str:
     )
 
 
+def read_git_value(args: Sequence[str], fallback: str = "unknown") -> str:
+    """Read a git value for deployment audit evidence."""
+
+    try:
+        value = subprocess.check_output(
+            ["git", *args],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return fallback
+    return value or fallback
+
+
+def read_backend_git_evidence() -> BackendGitEvidence:
+    """Return backend commit and branch evidence for the smoke artifact."""
+
+    return BackendGitEvidence(
+        commit=read_git_value(["rev-parse", "--short", "HEAD"]),
+        branch=read_git_value(["rev-parse", "--abbrev-ref", "HEAD"]),
+    )
+
+
+def resolve_backend_contract_ref(
+    env: Mapping[str, str | None] = os.environ,
+    git_evidence: BackendGitEvidence | None = None,
+) -> str:
+    """Return the backend contract ref associated with this smoke run."""
+
+    for key in (
+        "BACKEND_CONTRACT_REF",
+        "COINBASE_BACKEND_CONTRACT_REF",
+        "DEPLOYMENT_REF",
+        "GITHUB_SHA",
+    ):
+        value = env.get(key)
+        if value and value.strip():
+            return value.strip()
+    evidence = git_evidence or read_backend_git_evidence()
+    return evidence.commit
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     command = build_pytest_command()
     result = run_smoke(command)
-    summary = build_timing_summary(result=result, command=command)
+    git_evidence = read_backend_git_evidence()
+    summary = build_timing_summary(
+        result=result,
+        command=command,
+        backend_git=git_evidence,
+        backend_contract_ref=resolve_backend_contract_ref(
+            git_evidence=git_evidence,
+        ),
+    )
     write_timing_summary(args.summary_output, summary)
     if not args.summary_only:
         print(

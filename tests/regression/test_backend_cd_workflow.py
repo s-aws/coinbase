@@ -192,6 +192,8 @@ def test_controlled_live_mvp_smoke_runner_records_timing_summary() -> None:
     assert "ADMIN_API_CONTROLLED_LIVE_MVP_SMOKE_SUMMARY" in runner
     assert "coinbase_admin_api_controlled_live_mvp_smoke_timing" in runner
     assert "wait_sleep_seconds" in runner
+    assert "backend_git_commit" in runner
+    assert "backend_contract_ref" in runner
     assert CONTROLLED_LIVE_SMOKE_TIMING_PATH in runner
 
     command = controlled_live_smoke.build_pytest_command()
@@ -212,11 +214,19 @@ def test_controlled_live_mvp_smoke_runner_records_timing_summary() -> None:
             duration_seconds=12.0,
         ),
         command=command,
+        backend_git=controlled_live_smoke.BackendGitEvidence(
+            commit="backendabc",
+            branch="codex/mvp",
+        ),
+        backend_contract_ref="backendabc",
     )
     assert summary["artifact_type"] == "coinbase_admin_api_controlled_live_mvp_smoke_timing"
     assert summary["status"] == "passed"
     assert summary["duration_seconds"] == 12.0
     assert summary["wait_sleep_seconds"] == 0.0
+    assert summary["backend_git_commit"] == "backendabc"
+    assert summary["backend_git_branch"] == "codex/mvp"
+    assert summary["backend_contract_ref"] == "backendabc"
     assert summary["live_coinbase_execution"] == "not_run"
     assert summary["notional_usdc"] == "0"
 
@@ -234,6 +244,9 @@ def test_backend_deployment_webhook_payload_includes_smoke_timing() -> None:
             "return_code": 0,
             "duration_seconds": 12.345,
             "wait_sleep_seconds": 0.0,
+            "backend_git_commit": "backendabc",
+            "backend_git_branch": "codex/mvp",
+            "backend_contract_ref": "backendabc",
             "started_at": "2026-07-01T00:00:00Z",
             "ended_at": "2026-07-01T00:00:12Z",
             "command": ["python", "-m", "pytest"],
@@ -260,6 +273,9 @@ def test_backend_deployment_webhook_payload_includes_smoke_timing() -> None:
         "status": "passed",
         "duration_seconds": 12.345,
         "wait_sleep_seconds": 0.0,
+        "backend_git_commit": "backendabc",
+        "backend_git_branch": "codex/mvp",
+        "backend_contract_ref": "backendabc",
         "command": ["python", "-m", "pytest"],
         "smoke_node_count": 1,
     }
@@ -279,6 +295,9 @@ def test_backend_deployment_webhook_payload_rejects_failed_smoke_timing() -> Non
                 "return_code": 1,
                 "duration_seconds": 12.345,
                 "wait_sleep_seconds": 0.0,
+                "backend_git_commit": "backendabc",
+                "backend_git_branch": "codex/mvp",
+                "backend_contract_ref": "backendabc",
                 "command": ["python", "-m", "pytest"],
                 "smoke_node_ids": ["tests/regression/test_admin_api_contract.py::test_smoke"],
                 "live_coinbase_execution": "not_run",
@@ -294,7 +313,11 @@ def test_backend_deployment_webhook_payload_reads_powershell_utf8_bom(
     timing_path.write_text(
         (
             '{"status":"passed","duration_seconds":12.345,'
-            '"wait_sleep_seconds":0.0,"command":["python"],'
+            '"wait_sleep_seconds":0.0,'
+            '"backend_git_commit":"backendabc",'
+            '"backend_git_branch":"codex/mvp",'
+            '"backend_contract_ref":"backendabc",'
+            '"command":["python"],'
             '"smoke_node_ids":["test_node"],'
             '"live_coinbase_execution":"not_run","notional_usdc":"0"}'
         ),
@@ -310,6 +333,7 @@ def test_backend_deployment_webhook_payload_reads_powershell_utf8_bom(
     )
 
     assert payload["smoke_timing"]["duration_seconds"] == 12.345
+    assert payload["smoke_timing"]["backend_contract_ref"] == "backendabc"
     assert payload["live_coinbase_execution"] == "not_run"
     assert payload["notional_usdc"] == "0"
 

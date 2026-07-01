@@ -91,6 +91,18 @@ def normalize_smoke_timing(smoke_timing: Mapping[str, Any]) -> dict[str, Any]:
             smoke_timing.get("wait_sleep_seconds"),
             "wait_sleep_seconds",
         ),
+        "backend_git_commit": required_smoke_string(
+            smoke_timing,
+            "backend_git_commit",
+        ),
+        "backend_git_branch": required_smoke_string(
+            smoke_timing,
+            "backend_git_branch",
+        ),
+        "backend_contract_ref": required_smoke_string(
+            smoke_timing,
+            "backend_contract_ref",
+        ),
         "command": command,
         "smoke_node_count": len(smoke_node_ids),
     }
@@ -126,6 +138,15 @@ def non_empty_string(value: Any, fallback: str) -> str:
     if isinstance(value, str) and value.strip():
         return value.strip()
     return fallback
+
+
+def required_smoke_string(smoke_timing: Mapping[str, Any], field_name: str) -> str:
+    """Return a required non-empty smoke timing string."""
+
+    value = non_empty_string(smoke_timing.get(field_name), "")
+    if not value:
+        raise ValueError(f"Controlled-live smoke timing is missing {field_name}.")
+    return value
 
 
 def finite_number(value: Any, label: str) -> float:
