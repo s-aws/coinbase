@@ -36158,6 +36158,86 @@ def test_admin_api_manual_order_route_passes_backend_admission_to_command_servic
 
 
 @pytest.mark.regression
+def test_admin_api_command_service_uses_backend_runtime_dependencies_when_enabled(
+    monkeypatch,
+):
+    import configuration
+    from api.v1.routes import orders as order_routes
+    from application.admin_api import command_runtime
+
+    rest_client = SimpleNamespace(name="fake-rest-client")
+    event_publisher = SimpleNamespace(
+        enabled=True,
+        publish_event=lambda **_kwargs: True,
+    )
+    monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setattr(configuration, "API_KEY", "test-key", raising=False)
+    monkeypatch.setattr(configuration, "API_SECRET", "test-secret", raising=False)
+    monkeypatch.setattr(configuration, "get_rest_client", lambda: rest_client)
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_order_event_stream_publisher",
+        lambda: event_publisher,
+    )
+
+    service = order_routes.get_command_service()
+
+    assert isinstance(service, AdminApiCommandService)
+    assert service.dependencies.rest_client is rest_client
+    assert service.dependencies.rest_client_available is True
+    assert service.dependencies.order_event_publisher_getter() is event_publisher
+
+
+@pytest.mark.regression
+def test_admin_api_command_service_fails_closed_when_rest_client_unavailable(
+    monkeypatch,
+):
+    import configuration
+    from api.v1.routes import orders as order_routes
+
+    def fail_rest_client():
+        raise RuntimeError("missing Coinbase REST credentials")
+
+    monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setattr(configuration, "API_KEY", "test-key", raising=False)
+    monkeypatch.setattr(configuration, "API_SECRET", "test-secret", raising=False)
+    monkeypatch.setattr(configuration, "get_rest_client", fail_rest_client)
+
+    service = order_routes.get_command_service()
+
+    assert isinstance(service, AdminApiCommandService)
+    assert service.dependencies.rest_client is None
+    assert service.dependencies.rest_client_available is False
+
+
+@pytest.mark.regression
+def test_admin_api_command_service_does_not_load_rest_client_without_credentials(
+    monkeypatch,
+):
+    import configuration
+    from api.v1.routes import orders as order_routes
+
+    called = False
+
+    def unexpected_rest_client_load():
+        nonlocal called
+        called = True
+        return SimpleNamespace(name="should-not-load")
+
+    monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setattr(configuration, "API_KEY", None, raising=False)
+    monkeypatch.setattr(configuration, "API_SECRET", None, raising=False)
+    monkeypatch.setattr(configuration, "get_rest_client", unexpected_rest_client_load)
+
+    service = order_routes.get_command_service()
+
+    assert called is False
+    assert isinstance(service, AdminApiCommandService)
+    assert service.dependencies.rest_client is None
+    assert service.dependencies.rest_client_available is False
+
+
+@pytest.mark.regression
 def test_admin_api_disabled_live_execution_service_is_evidence_only(tmp_path):
     service = get_disabled_live_execution_service()
     state = service.admission_state()

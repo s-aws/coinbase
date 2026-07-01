@@ -16,6 +16,7 @@ from application.admin_api.approval import (
 )
 from application.admin_api.auth import get_authenticated_actor, require_permission
 from application.admin_api.cap_guard import FileAdminApiCapGuardStore
+from application.admin_api.command_runtime import build_admin_api_command_service
 from application.admin_api.command_service import AdminApiCommandService
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
@@ -202,7 +203,7 @@ READ_ROUTE_RESPONSES = {
 def get_command_service() -> AdminApiCommandService:
     """Return the shared command service boundary."""
 
-    return AdminApiCommandService()
+    return build_admin_api_command_service()
 
 
 def get_idempotency_store() -> FileIdempotencyStore:
