@@ -938,8 +938,14 @@ def create_manual_order(
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
         client_order_id=body.client_order_id,
-        command_runner=lambda: service.place_manual_order(
-            ManualOrderCommand(envelope=envelope, request=body)
+        command_runner_with_admission=lambda admission_decision: (
+            service.place_manual_order(
+                ManualOrderCommand(
+                    envelope=envelope,
+                    request=body,
+                    allow_live_execution=admission_decision.allowed,
+                )
+            )
         ),
     )
 
