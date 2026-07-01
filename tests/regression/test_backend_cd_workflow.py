@@ -2,6 +2,8 @@ import subprocess
 import tomllib
 from pathlib import Path
 
+import pytest
+
 from tools import run_admin_api_controlled_live_mvp_smoke as controlled_live_smoke
 from tools import write_admin_api_deployment_manifest as deployment_manifest
 from tools import write_admin_api_deployment_webhook_payload as deployment_webhook_payload
@@ -317,6 +319,25 @@ def test_backend_deployment_webhook_payload_prefers_ci_deployment_ref(
     args = deployment_webhook_payload.build_parser().parse_args([])
 
     assert args.commit == "ci-deploy-ref"
+
+
+def test_backend_deployment_webhook_payload_rejects_manifest_commit_mismatch(
+    tmp_path: Path,
+) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    deployment_webhook_payload.write_json(
+        manifest_path,
+        {
+            "artifact_type": "coinbase_admin_api_deployment_manifest",
+            "commit": "manifest-commit",
+        },
+    )
+
+    with pytest.raises(ValueError, match="deployment manifest"):
+        deployment_webhook_payload.assert_manifest_commit(
+            manifest_path,
+            "payload-commit",
+        )
 
 
 def test_backend_openapi_generator_supports_check_mode() -> None:

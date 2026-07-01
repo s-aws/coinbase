@@ -20,6 +20,7 @@ from typing import Any
 DEFAULT_SMOKE_TIMING_PATH = Path(
     "artifacts/coinbase-backend-controlled-live-mvp-smoke-timing.json"
 )
+DEFAULT_MANIFEST_PATH = Path("artifacts/coinbase-backend-deployment-manifest.json")
 DEFAULT_OUTPUT = Path("artifacts/coinbase-backend-deployment-webhook-payload.json")
 ARTIFACT_NAME = "coinbase-backend-deployment.tgz"
 MANIFEST_NAME = "coinbase-backend-deployment-manifest.json"
@@ -92,12 +93,13 @@ def normalize_smoke_timing(smoke_timing: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def read_json(path: Path) -> dict[str, Any]:
+def read_json(path: Path, *, missing_message: str | None = None) -> dict[str, Any]:
     """Read a JSON object from a file."""
 
     if not path.exists():
         raise FileNotFoundError(
-            f"{path} is missing. Run python tools/run_admin_api_controlled_live_mvp_smoke.py first."
+            missing_message
+            or f"{path} is missing. Run the required deployment artifact writer first."
         )
     data = json.loads(path.read_text(encoding="utf-8-sig"))
     if not isinstance(data, dict):
@@ -163,6 +165,25 @@ def resolve_deployment_commit(env: Mapping[str, str | None] = os.environ) -> str
     return read_git_commit()
 
 
+def assert_manifest_commit(manifest_path: Path, commit: str) -> None:
+    """Fail when the deployment manifest commit differs from the webhook commit."""
+
+    manifest = read_json(
+        manifest_path,
+        missing_message=(
+            f"{manifest_path} is missing. Run python "
+            "tools/write_admin_api_deployment_manifest.py before the webhook payload writer."
+        ),
+    )
+    manifest_commit = non_empty_string(manifest.get("commit"), "missing")
+    payload_commit = non_empty_string(commit, "unknown")
+    if manifest_commit != payload_commit:
+        raise ValueError(
+            "Backend deployment webhook payload commit must match deployment manifest: "
+            f"{manifest_path} commit {manifest_commit} != {payload_commit}."
+        )
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Create the deployment webhook payload parser."""
 
@@ -174,6 +195,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         default=DEFAULT_SMOKE_TIMING_PATH,
         help=f"Controlled-live smoke timing JSON. Defaults to {DEFAULT_SMOKE_TIMING_PATH}.",
+    )
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        default=DEFAULT_MANIFEST_PATH,
+        help=f"Deployment manifest JSON. Defaults to {DEFAULT_MANIFEST_PATH}.",
     )
     parser.add_argument(
         "--output",
@@ -213,6 +240,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Parse arguments, write the payload, and print no-live evidence."""
 
     args = build_parser().parse_args(argv)
+    assert_manifest_commit(args.manifest, args.commit)
     payload = build_deployment_webhook_payload(
         repository=args.repository,
         commit=args.commit,
