@@ -38,6 +38,7 @@ from application.admin_api.approval import (
     AdminApiApprovalRecord,
     ApprovalSnapshotRequest,
     FileAdminApiApprovalStore,
+    evaluate_command_live_admission,
     resolve_approval_snapshot,
 )
 from application.admin_api.approval_service import AdminApiApprovalLifecycleService
@@ -339,6 +340,7 @@ from application.admin_api.live_execution import (
     POST_WRITE_RECONCILIATION_SOURCE,
     DisabledAdminApiLiveExecutionService,
     FileAdminApiLiveServiceDecisionStore,
+    AdminApiLiveExecutionServiceState,
     LiveAdapterDecisionRecord,
     LiveServiceDecisionRecord,
     build_disabled_live_execution_adapter_contract,
@@ -35684,6 +35686,135 @@ def test_admin_api_reconciliation_plan_resolver_is_exact_and_identity_generic():
             )
             is None
         )
+
+
+@pytest.mark.regression
+def test_admin_api_command_live_admission_passes_only_with_backend_admin_chain():
+    class LiveEnabledAdmissionService:
+        def admission_state(self) -> AdminApiLiveExecutionServiceState:
+            return AdminApiLiveExecutionServiceState(
+                required=True,
+                present=True,
+                status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+                source="configured_admin_api_live_execution_service",
+                missing_reason=None,
+            )
+
+    client_order_id = "client-live-admission-ready"
+    idempotency_key = "idem-live-admission-ready"
+    operator_intent = "manual_one_off"
+    payload_hash = make_payload_hash(
+        _manual_order_approval_payload(
+            operator_intent=operator_intent,
+            client_order_id=client_order_id,
+            idempotency_key=idempotency_key,
+        )
+    )
+    approval_store = FileAdminApiApprovalStore(_store_dir() / "admission_approval.jsonl")
+    audit_store = FileAdminApiAuditStore(_store_dir() / "admission_audit.jsonl")
+    cap_guard_store = FileAdminApiCapGuardStore(_store_dir() / "admission_cap_guard.jsonl")
+    reconciliation_store = FileAdminApiReconciliationStore(
+        _store_dir() / "admission_reconciliation.jsonl"
+    )
+    approval = _append_manual_order_approval(
+        store=approval_store,
+        now=datetime.now(timezone.utc),
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+    )
+    audit_event = _append_manual_order_admission_audit(
+        store=audit_store,
+        approval=approval,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+    )
+    cap_guard = _append_manual_order_cap_guard_decision(
+        store=cap_guard_store,
+        approval=approval,
+        audit_event=audit_event,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+    )
+    _append_manual_order_reconciliation_plan(
+        store=reconciliation_store,
+        approval=approval,
+        audit_event=audit_event,
+        cap_guard=cap_guard,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+    )
+
+    decision = evaluate_command_live_admission(
+        route="/api/v1/orders",
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value=client_order_id,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        service_method="place_manual_order",
+        actor_id="operator-001",
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+        approval_store=approval_store,
+        audit_store=audit_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        live_execution_service=LiveEnabledAdmissionService(),
+    )
+
+    assert decision.status == AdminApiGateStatus.PASSED
+    assert decision.allowed is True
+    assert decision.approval_snapshot_present is True
+    assert decision.admission_audit_present is True
+    assert decision.cap_guard_present is True
+    assert decision.reconciliation_plan_present is True
+    assert decision.live_execution_service_status == (
+        AdminApiLiveExecutionStatus.APPROVAL_REQUIRED
+    )
+    assert decision.live_execution_service_missing_reason is None
+    assert decision.blockers == []
+    assert decision.browser_authority == "backend_admin_api"
+    assert decision.live_exchange_submitted is False
+
+    disabled_decision = evaluate_command_live_admission(
+        route="/api/v1/orders",
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value=client_order_id,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        service_method="place_manual_order",
+        actor_id="operator-001",
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+        approval_store=approval_store,
+        audit_store=audit_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        live_execution_service=get_disabled_live_execution_service(),
+    )
+
+    assert disabled_decision.status == AdminApiGateStatus.BLOCKED
+    assert disabled_decision.allowed is False
+    assert disabled_decision.approval_snapshot_present is True
+    assert disabled_decision.admission_audit_present is True
+    assert disabled_decision.cap_guard_present is True
+    assert disabled_decision.reconciliation_plan_present is True
+    assert AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED in (
+        disabled_decision.blockers
+    )
 
 
 @pytest.mark.regression
