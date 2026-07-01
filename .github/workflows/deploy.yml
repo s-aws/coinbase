@@ -109,6 +109,7 @@ jobs:
             openapi/coinbase-admin-api.yaml \
             openapi/coinbase-admin-api-route-inventory.json \
             tools/write_admin_api_deployment_manifest.py \
+            tools/write_admin_api_deployment_webhook_payload.py \
             tools/run_admin_api_controlled_live_mvp_smoke.py \
             tools/run_admin_api.py \
             tools/generate_admin_api_openapi.py \
@@ -121,6 +122,9 @@ jobs:
             README.md \
             README.admin-api.md
 
+      - name: Write backend deployment webhook payload
+        run: python tools/write_admin_api_deployment_webhook_payload.py
+
       - name: Upload deployment payload
         uses: actions/upload-artifact@v4
         with:
@@ -129,6 +133,7 @@ jobs:
             artifacts/coinbase-backend-deployment.tgz
             artifacts/coinbase-backend-deployment-manifest.json
             artifacts/coinbase-backend-controlled-live-mvp-smoke-timing.json
+            artifacts/coinbase-backend-deployment-webhook-payload.json
 
       - name: Call deployment webhook
         run: |
@@ -137,5 +142,5 @@ jobs:
             -X POST \
             -H "Content-Type: application/json" \
             -H "X-GitHub-Run-Id: $GITHUB_RUN_ID" \
-            -d "{\"repository\":\"${GITHUB_REPOSITORY}\",\"commit\":\"${DEPLOYMENT_REF}\",\"environment\":\"staging\",\"artifact\":\"coinbase-backend-deployment.tgz\",\"manifest\":\"coinbase-backend-deployment-manifest.json\",\"smokeTimingArtifact\":\"coinbase-backend-controlled-live-mvp-smoke-timing.json\",\"smokeTimingSummary\":\"ADMIN_API_CONTROLLED_LIVE_MVP_SMOKE_SUMMARY\",\"liveCoinbaseExecution\":\"not_run\",\"notionalUsdc\":\"0\"}" \
+            -d @artifacts/coinbase-backend-deployment-webhook-payload.json \
             "$COINBASE_BACKEND_DEPLOY_WEBHOOK_URL"

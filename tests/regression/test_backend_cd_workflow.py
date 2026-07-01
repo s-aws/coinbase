@@ -3,6 +3,7 @@ import tomllib
 
 from tools import run_admin_api_controlled_live_mvp_smoke as controlled_live_smoke
 from tools import write_admin_api_deployment_manifest as deployment_manifest
+from tools import write_admin_api_deployment_webhook_payload as deployment_webhook_payload
 
 
 DEPLOY_WORKFLOW_PATH = Path(".github/workflows/deploy.yml")
@@ -16,6 +17,9 @@ CONTROLLED_LIVE_SMOKE_RUNNER_PATH = Path(
 )
 CONTROLLED_LIVE_SMOKE_TIMING_PATH = (
     "artifacts/coinbase-backend-controlled-live-mvp-smoke-timing.json"
+)
+DEPLOYMENT_WEBHOOK_PAYLOAD_PATH = (
+    "artifacts/coinbase-backend-deployment-webhook-payload.json"
 )
 
 
@@ -44,17 +48,15 @@ def test_backend_continuous_deployment_workflow_guards_staging_deploy() -> None:
         CONTROLLED_LIVE_SMOKE_TIMING_PATH,
         "python tools/run_admin_oidc_readiness_smoke.py --summary-only",
         "python tools/write_admin_api_deployment_manifest.py",
+        "python tools/write_admin_api_deployment_webhook_payload.py",
         "coinbase-backend-deployment.tgz",
         "artifacts/coinbase-backend-deployment-manifest.json",
         CONTROLLED_LIVE_SMOKE_TIMING_PATH,
+        DEPLOYMENT_WEBHOOK_PAYLOAD_PATH,
         "python-version: \"3.13\"",
         "python -m pip install -e \".[test]\"",
         "Live Coinbase execution: not run; notional $0",
-        '"manifest":"coinbase-backend-deployment-manifest.json"',
-        '"smokeTimingArtifact":"coinbase-backend-controlled-live-mvp-smoke-timing.json"',
-        '"smokeTimingSummary":"ADMIN_API_CONTROLLED_LIVE_MVP_SMOKE_SUMMARY"',
-        '"liveCoinbaseExecution":"not_run"',
-        '"notionalUsdc":"0"',
+        "-d @artifacts/coinbase-backend-deployment-webhook-payload.json",
     ]:
         assert expected_text in normalized_workflow
 
@@ -72,6 +74,12 @@ def test_backend_deploy_uploads_payload_before_calling_webhook() -> None:
 
     assert workflow.index("Upload deployment payload") > workflow.index(
         "Package backend deploy payload"
+    )
+    assert workflow.index("Write backend deployment webhook payload") > workflow.index(
+        "Package backend deploy payload"
+    )
+    assert workflow.index("Upload deployment payload") > workflow.index(
+        "Write backend deployment webhook payload"
     )
     assert workflow.index("Call deployment webhook") > workflow.index(
         "Upload deployment payload"
@@ -106,6 +114,7 @@ def test_backend_deploy_payload_contains_admin_runtime_contract_files() -> None:
         "pyproject.toml",
         "tools/run_admin_api.py",
         "tools/write_admin_api_deployment_manifest.py",
+        "tools/write_admin_api_deployment_webhook_payload.py",
         "tools/export_admin_api_route_inventory.py",
         "tools/run_admin_api_controlled_live_mvp_smoke.py",
         CONTROLLED_LIVE_SMOKE_TIMING_PATH,
@@ -198,6 +207,79 @@ def test_controlled_live_mvp_smoke_runner_records_timing_summary() -> None:
     assert summary["wait_sleep_seconds"] == 0.0
     assert summary["live_coinbase_execution"] == "not_run"
     assert summary["notional_usdc"] == "0"
+
+
+def test_backend_deployment_webhook_payload_includes_smoke_timing() -> None:
+    payload = deployment_webhook_payload.build_deployment_webhook_payload(
+        repository="s-aws/coinbase",
+        commit="abc123",
+        environment="staging",
+        github_run_id="local-validation",
+        smoke_timing={
+            "schema_version": "1",
+            "artifact_type": "coinbase_admin_api_controlled_live_mvp_smoke_timing",
+            "status": "passed",
+            "return_code": 0,
+            "duration_seconds": 12.345,
+            "wait_sleep_seconds": 0.0,
+            "started_at": "2026-07-01T00:00:00Z",
+            "ended_at": "2026-07-01T00:00:12Z",
+            "command": ["python", "-m", "pytest"],
+            "smoke_node_ids": ["tests/regression/test_admin_api_contract.py::test_smoke"],
+            "live_coinbase_execution": "not_run",
+            "notional_usdc": "0",
+        },
+    )
+
+    assert payload["schema_version"] == "1"
+    assert payload["artifact_type"] == "coinbase_admin_api_deployment_webhook_payload"
+    assert payload["repository"] == "s-aws/coinbase"
+    assert payload["commit"] == "abc123"
+    assert payload["environment"] == "staging"
+    assert payload["artifact"] == "coinbase-backend-deployment.tgz"
+    assert payload["manifest"] == "coinbase-backend-deployment-manifest.json"
+    assert payload["smoke_timing_artifact"] == (
+        "coinbase-backend-controlled-live-mvp-smoke-timing.json"
+    )
+    assert payload["smoke_timing_summary"] == (
+        "ADMIN_API_CONTROLLED_LIVE_MVP_SMOKE_SUMMARY"
+    )
+    assert payload["smoke_timing"] == {
+        "status": "passed",
+        "duration_seconds": 12.345,
+        "wait_sleep_seconds": 0.0,
+        "command": ["python", "-m", "pytest"],
+        "smoke_node_count": 1,
+    }
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+
+
+def test_backend_deployment_webhook_payload_reads_powershell_utf8_bom(
+    tmp_path: Path,
+) -> None:
+    timing_path = tmp_path / "smoke-timing.json"
+    timing_path.write_text(
+        (
+            '{"status":"passed","duration_seconds":12.345,'
+            '"wait_sleep_seconds":0.0,"command":["python"],'
+            '"smoke_node_ids":["test_node"],'
+            '"live_coinbase_execution":"not_run","notional_usdc":"0"}'
+        ),
+        encoding="utf-8-sig",
+    )
+
+    payload = deployment_webhook_payload.build_deployment_webhook_payload(
+        repository="s-aws/coinbase",
+        commit="abc123",
+        environment="staging",
+        github_run_id="local-validation",
+        smoke_timing=deployment_webhook_payload.read_json(timing_path),
+    )
+
+    assert payload["smoke_timing"]["duration_seconds"] == 12.345
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
 
 
 def test_backend_openapi_generator_supports_check_mode() -> None:
