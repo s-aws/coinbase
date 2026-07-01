@@ -17,6 +17,11 @@ from tools import run_admin_api
 
 
 DEFAULT_OUTPUT = Path("artifacts/coinbase-backend-deployment-manifest.json")
+CONTROLLED_LIVE_MVP_SMOKE_TIMING_ARTIFACT = (
+    "artifacts/coinbase-backend-controlled-live-mvp-smoke-timing.json"
+)
+CONTROLLED_LIVE_MVP_SMOKE_COMMAND = "python tools/run_admin_api_controlled_live_mvp_smoke.py"
+CONTROLLED_LIVE_MVP_SMOKE_SUMMARY_PREFIX = "ADMIN_API_CONTROLLED_LIVE_MVP_SMOKE_SUMMARY"
 DEFAULT_DEPLOYMENT_TIER = "staging"
 DEPLOYMENT_TIERS = ("local", "staging", "production")
 PYTHON_VERSION = "3.13"
@@ -76,6 +81,17 @@ def build_deployment_manifest(
         },
         "frontend_authority": "operator_ui_only",
         "live_action_path": "auditable_backend_admin_interfaces_only",
+        "verification": {
+            "controlled_live_mvp_smoke": {
+                "command": CONTROLLED_LIVE_MVP_SMOKE_COMMAND,
+                "timing_artifact": CONTROLLED_LIVE_MVP_SMOKE_TIMING_ARTIFACT,
+                "summary_prefix": CONTROLLED_LIVE_MVP_SMOKE_SUMMARY_PREFIX,
+                "required_status": "passed",
+                "wait_sleep_seconds_field": "wait_sleep_seconds",
+                "live_coinbase_execution": "not_run",
+                "notional_usdc": "0",
+            },
+        },
         "live_coinbase_execution": "not_run",
         "notional_usdc": "0",
     }

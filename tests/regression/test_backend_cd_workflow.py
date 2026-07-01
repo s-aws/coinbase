@@ -141,6 +141,15 @@ def test_backend_deployment_manifest_describes_admin_runtime_without_live_execut
     assert manifest["notional_usdc"] == "0"
     assert manifest["frontend_authority"] == "operator_ui_only"
     assert manifest["live_action_path"] == "auditable_backend_admin_interfaces_only"
+    assert manifest["verification"]["controlled_live_mvp_smoke"] == {
+        "command": "python tools/run_admin_api_controlled_live_mvp_smoke.py",
+        "timing_artifact": CONTROLLED_LIVE_SMOKE_TIMING_PATH,
+        "summary_prefix": "ADMIN_API_CONTROLLED_LIVE_MVP_SMOKE_SUMMARY",
+        "required_status": "passed",
+        "wait_sleep_seconds_field": "wait_sleep_seconds",
+        "live_coinbase_execution": "not_run",
+        "notional_usdc": "0",
+    }
 
 
 def test_public_agent_checks_cover_backend_continuous_deployment_contract() -> None:
