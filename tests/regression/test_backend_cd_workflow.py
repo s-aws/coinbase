@@ -179,6 +179,9 @@ def test_backend_deployment_manifest_prefers_ci_deployment_ref(monkeypatch) -> N
 def test_public_agent_checks_cover_backend_continuous_deployment_contract() -> None:
     workflow = PUBLIC_CHECKS_WORKFLOW_PATH.read_text(encoding="utf-8")
 
+    assert "Enable Windows long paths" in workflow
+    assert "git config --global core.longpaths true" in workflow
+    assert workflow.index("Enable Windows long paths") < workflow.index("uses: actions/checkout@v4")
     assert "python -m pytest tests/regression/test_backend_cd_workflow.py -v --tb=short" in workflow
     assert "python tools/generate_admin_api_openapi.py --check" in workflow
     assert "python tools/export_admin_api_route_inventory.py --check" in workflow
