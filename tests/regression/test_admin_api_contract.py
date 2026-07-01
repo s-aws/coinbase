@@ -37094,6 +37094,29 @@ def test_admin_api_manual_order_route_reports_missing_command_runtime(
         payload["live_command_runtime_source"]
         == "application/admin_api/command_runtime.py"
     )
+    audit_rows = [
+        json.loads(line)
+        for line in (client.admin_api_test_store_dir / "audit.jsonl").read_text(
+            encoding="utf-8"
+        ).splitlines()
+        if line.strip()
+    ]
+    command_audit = audit_rows[-1]
+    assert command_audit["client_order_id"] == client_order_id
+    assert command_audit["status"] == AdminApiCommandStatus.REJECTED.value
+    assert command_audit["live_exchange_submitted"] is False
+    assert command_audit["live_coinbase_orders_ran"] is False
+    assert command_audit["live_command_runtime_enabled"] is True
+    assert command_audit["live_command_rest_client_available"] is False
+    assert command_audit["live_command_runtime_ready"] is False
+    assert (
+        command_audit["live_command_runtime_missing_reason"]
+        == "coinbase_rest_credentials_missing"
+    )
+    assert (
+        command_audit["live_command_runtime_source"]
+        == "application/admin_api/command_runtime.py"
+    )
 
 
 @pytest.mark.regression
@@ -58567,6 +58590,13 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
             idempotency_key="idem-001",
             client_order_id="client-abc",
             coinbase_order_id="exchange-evidence-001",
+            live_exchange_submitted=False,
+            live_coinbase_orders_ran=False,
+            live_command_runtime_enabled=True,
+            live_command_rest_client_available=False,
+            live_command_runtime_ready=False,
+            live_command_runtime_missing_reason="coinbase_rest_credentials_missing",
+            live_command_runtime_source="application/admin_api/command_runtime.py",
             status=AdminApiCommandStatus.NOT_IMPLEMENTED,
             failure_stage="approval",
             message="cancel live disabled",
@@ -58627,17 +58657,25 @@ def test_admin_api_audit_workbench_read_service_normalizes_cross_module_evidence
     assert AdminAuditWorkbenchModule.ORDERS in modules
     assert AdminAuditWorkbenchModule.FUTURES_PERPETUALS in modules
     events_by_source = {item.source: item for item in response.events}
-    assert events_by_source[AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG].audit_id
-    assert events_by_source[AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG].request_id == (
-        "corr-001"
+    command_event = events_by_source[AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG]
+    assert command_event.audit_id
+    assert command_event.request_id == "corr-001"
+    assert command_event.operator_intent == "manual_one_off"
+    assert command_event.live_exchange_submitted is False
+    assert command_event.live_coinbase_orders_ran is False
+    assert command_event.live_command_runtime_enabled is True
+    assert command_event.live_command_rest_client_available is False
+    assert command_event.live_command_runtime_ready is False
+    assert (
+        command_event.live_command_runtime_missing_reason
+        == "coinbase_rest_credentials_missing"
     )
     assert (
-        events_by_source[AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG].operator_intent
-        == "manual_one_off"
+        command_event.live_command_runtime_source
+        == "application/admin_api/command_runtime.py"
     )
-    assert events_by_source[
-        AdminAuditEvidenceSource.ADMIN_API_AUDIT_LOG
-    ].admission_decision == {
+    assert command_event.raw_event["live_command_runtime_enabled"] is True
+    assert command_event.admission_decision == {
         "status": AdminApiGateStatus.BLOCKED.value,
         "allowed": False,
         "route": "/api/v1/orders/{client_order_id}/cancel",

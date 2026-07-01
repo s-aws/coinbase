@@ -553,6 +553,15 @@ def _record_audit(
         "client_order_id": response.client_order_id,
         "stealth_order_id": response.stealth_order_id,
         "coinbase_order_id": response.coinbase_order_id,
+        "live_exchange_submitted": response.live_exchange_submitted,
+        "live_coinbase_orders_ran": response.live_coinbase_orders_ran,
+        "live_command_runtime_enabled": response.live_command_runtime_enabled,
+        "live_command_rest_client_available": response.live_command_rest_client_available,
+        "live_command_runtime_ready": response.live_command_runtime_ready,
+        "live_command_runtime_missing_reason": (
+            response.live_command_runtime_missing_reason
+        ),
+        "live_command_runtime_source": response.live_command_runtime_source,
         "status": response.status,
         "failure_stage": response.failure_stage,
         "message": response.message,

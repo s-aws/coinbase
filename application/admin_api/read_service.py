@@ -4209,6 +4209,12 @@ def _audit_event_from_command_event(
         operator_intent=event.operator_intent,
         idempotency_key=event.idempotency_key,
         exchange_order_id=event.coinbase_order_id,
+        live_exchange_submitted=event.live_exchange_submitted,
+        live_command_runtime_enabled=event.live_command_runtime_enabled,
+        live_command_rest_client_available=event.live_command_rest_client_available,
+        live_command_runtime_ready=event.live_command_runtime_ready,
+        live_command_runtime_missing_reason=event.live_command_runtime_missing_reason,
+        live_command_runtime_source=event.live_command_runtime_source,
         recorded_at=event.recorded_at,
         message=event.message,
         admission_decision=(
@@ -4216,6 +4222,7 @@ def _audit_event_from_command_event(
             if event.admission_decision is not None
             else None
         ),
+        live_coinbase_orders_ran=event.live_coinbase_orders_ran,
         raw_event=raw_event,
     )
 

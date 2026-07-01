@@ -11955,6 +11955,35 @@ components:
           type: boolean
           title: Exchange Order Id Evidence Only
           default: true
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_command_runtime_enabled:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Live Command Runtime Enabled
+        live_command_rest_client_available:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Live Command Rest Client Available
+        live_command_runtime_ready:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Live Command Runtime Ready
+        live_command_runtime_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Command Runtime Missing Reason
+        live_command_runtime_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Command Runtime Source
         recorded_at:
           anyOf:
           - type: string
