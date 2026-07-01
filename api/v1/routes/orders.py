@@ -609,6 +609,54 @@ def _manual_order_with_backend_identity(
     )
 
 
+def _should_retry_non_live_manual_order_after_admission(
+    *,
+    record: IdempotencyRecord,
+    response: AdminApiCommandResponse,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+    endpoint: str,
+    payload_hash: str,
+    action_class: AdminApiActionClass,
+    permission: AdminApiPermission,
+    service_method: str,
+    route_template: str,
+    module_id: str,
+    identity_key: str,
+) -> bool:
+    """Return whether a prior blocked manual order can run after admission passes."""
+
+    previous_admission = response.admission_decision
+    return (
+        endpoint == "POST /api/v1/orders"
+        and route_template == "/api/v1/orders"
+        and service_method == "place_manual_order"
+        and module_id == "spot_operations"
+        and identity_key == "client_order_id"
+        and action_class == AdminApiActionClass.LIVE_EXCHANGE_PLACE
+        and permission == AdminApiPermission.ORDER_CREATE
+        and record.endpoint == endpoint
+        and record.payload_hash == payload_hash
+        and record.status == AdminApiCommandStatus.NOT_IMPLEMENTED
+        and response.status == AdminApiCommandStatus.NOT_IMPLEMENTED
+        and response.action_class == AdminApiActionClass.LIVE_EXCHANGE_PLACE
+        and response.required_permission == AdminApiPermission.ORDER_CREATE
+        and response.service_method == "place_manual_order"
+        and response.live_exchange_submitted is False
+        and response.live_coinbase_orders_ran is False
+        and previous_admission is not None
+        and previous_admission.allowed is False
+        and admission_decision.allowed is True
+        and admission_decision.route == route_template
+        and admission_decision.method == "POST"
+        and admission_decision.module_id == module_id
+        and admission_decision.identity_key == identity_key
+        and admission_decision.action_class == action_class
+        and admission_decision.required_permission == permission
+        and admission_decision.service_method == service_method
+        and admission_decision.live_exchange_submitted is False
+    )
+
+
 def _execute_idempotent_command(
     *,
     idempotency_key: str,
@@ -698,7 +746,20 @@ def _execute_idempotent_command(
     if check.decision == AdminApiIdempotencyDecision.REPLAY and check.record:
         payload = dict(check.record.response)
         response = AdminApiCommandResponse.model_validate(payload)
-        return _command_response(response, replayed=True)
+        if not _should_retry_non_live_manual_order_after_admission(
+            record=check.record,
+            response=response,
+            admission_decision=admission_decision,
+            endpoint=endpoint,
+            payload_hash=payload_hash,
+            action_class=action_class,
+            permission=permission,
+            service_method=service_method,
+            route_template=route_template,
+            module_id=module_id,
+            identity_key=identity_key,
+        ):
+            return _command_response(response, replayed=True)
     if check.decision == AdminApiIdempotencyDecision.CONFLICT:
         response = AdminApiCommandResponse(
             status=AdminApiCommandStatus.CONFLICT,
