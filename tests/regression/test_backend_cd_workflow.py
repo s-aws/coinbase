@@ -137,6 +137,11 @@ def test_public_agent_checks_cover_backend_continuous_deployment_contract() -> N
     assert "python -m pytest tests/regression/test_backend_cd_workflow.py -v --tb=short" in workflow
     assert "python tools/generate_admin_api_openapi.py --check" in workflow
     assert "python tools/export_admin_api_route_inventory.py --check" in workflow
+    assert "Admin API controlled-live MVP route smoke" in workflow
+    assert "test_admin_api_order_live_execution_service_dependency_reads_decision_log" in workflow
+    assert "test_admin_api_manual_order_route_passes_backend_admission_to_command_service" in workflow
+    assert "test_admin_api_manual_order_route_executes_through_backend_runtime_dependencies" in workflow
+    assert "test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap" in workflow
 
 
 def test_backend_openapi_generator_supports_check_mode() -> None:
