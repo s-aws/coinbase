@@ -17,6 +17,7 @@ from core.enums import (
     AdminApiApprovalLifecycleStatus,
     AdminApiGateStatus,
     AdminApiLiveAdmissionBlocker,
+    AdminApiLiveExecutionStatus,
     AdminApiPermission,
 )
 
@@ -42,6 +43,15 @@ from .live_execution import (
     build_disabled_live_execution_intent,
 )
 from .models import AdminLiveAdmissionDecisionEvidence
+
+
+BACKEND_LIVE_ADMISSION_SERVICE_STATUSES = frozenset(
+    {
+        AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+        AdminApiLiveExecutionStatus.RECONCILIATION_REQUIRED,
+        AdminApiLiveExecutionStatus.COMPLETED,
+    }
+)
 
 
 class ApprovalSnapshotRequest(BaseModel):
@@ -446,9 +456,9 @@ def evaluate_command_live_admission(
     """Return route-bound live admission evidence for one command attempt.
 
     This is decision evidence only. The function does not call Coinbase and
-    does not mutate command state. Current HTTP command routes remain blocked
-    until approval store, admission audit, cap/guard, and reconciliation
-    contracts are implemented end to end.
+    does not mutate command state. A command is admitted only when the backend
+    live-execution service is configured and every route-bound approval,
+    admission-audit, cap/guard, and reconciliation proof resolves.
     """
 
     approval_snapshot = None
@@ -545,9 +555,18 @@ def evaluate_command_live_admission(
         if cap_guard is None:
             cap_guard_missing_reason = "no_matching_cap_guard_decision"
 
-    blockers = [
-        AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED,
-    ]
+    live_execution_state = (
+        live_execution_service.admission_state()
+        if live_execution_service is not None
+        else AdminApiLiveExecutionServiceState()
+    )
+    live_execution_service_allows_admission = (
+        _live_execution_service_allows_backend_admission(live_execution_state)
+    )
+
+    blockers = []
+    if not live_execution_service_allows_admission:
+        blockers.append(AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED)
     evidence = [
         "existing Admin API command route",
         "durable idempotency payload hash",
@@ -561,27 +580,21 @@ def evaluate_command_live_admission(
             f"missing route-specific approval snapshot: {approval_snapshot_missing_reason}"
         )
     else:
-        evidence.append(
-            "route-specific approval snapshot resolved but live execution remains blocked"
-        )
+        evidence.append("route-specific approval snapshot resolved")
     if admission_audit is None:
         blockers.append(AdminApiLiveAdmissionBlocker.ADMISSION_AUDIT_MISSING)
         evidence.append(
             f"missing admission audit trail: {admission_audit_missing_reason}"
         )
     else:
-        evidence.append(
-            "route-specific admission audit resolved but live execution remains blocked"
-        )
+        evidence.append("route-specific admission audit resolved")
     if cap_guard is None:
         blockers.append(AdminApiLiveAdmissionBlocker.CAP_GUARD_MISSING)
         evidence.append(
             f"missing route-specific cap/guard decision: {cap_guard_missing_reason}"
         )
     else:
-        evidence.append(
-            "route-specific cap/guard decision resolved but live execution remains blocked"
-        )
+        evidence.append("route-specific cap/guard decision resolved")
 
     reconciliation_plan = None
     reconciliation_plan_missing_reason = "reconciliation_store_not_checked"
@@ -629,39 +642,47 @@ def evaluate_command_live_admission(
             f"{reconciliation_plan_missing_reason}"
         )
     else:
+        evidence.append("route-specific reconciliation plan resolved")
+
+    if live_execution_service_allows_admission:
         evidence.append(
-            "route-specific reconciliation plan resolved but live execution remains blocked"
+            f"live execution service {live_execution_state.source} configured "
+            "for backend admission"
         )
-    blockers.append(AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED)
-    live_execution_state = (
-        live_execution_service.admission_state()
-        if live_execution_service is not None
-        else AdminApiLiveExecutionServiceState()
-    )
-    evidence.extend([
-        f"live execution service {live_execution_state.source} disabled",
-        "browser authority rejected",
-    ])
-    live_execution_intent = build_disabled_live_execution_intent(
-        method=method,
-        route=route,
-        module_id=module_id,
-        identity_key=identity_key,
-        identity_value=identity_value,
-        action_class=action_class,
-        required_permission=required_permission,
-        service_method=service_method,
-        actor_id=actor_id,
-        idempotency_key=idempotency_key,
-        operator_intent=operator_intent,
-        payload_hash=payload_hash,
-        blockers=blockers,
-        live_execution_state=live_execution_state,
+    else:
+        evidence.append(f"live execution service {live_execution_state.source} disabled")
+
+    if blockers:
+        blockers.append(AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED)
+        evidence.append("browser authority rejected")
+    else:
+        evidence.append("backend Admin API authority accepted")
+
+    allowed = not blockers
+    live_execution_intent = (
+        build_disabled_live_execution_intent(
+            method=method,
+            route=route,
+            module_id=module_id,
+            identity_key=identity_key,
+            identity_value=identity_value,
+            action_class=action_class,
+            required_permission=required_permission,
+            service_method=service_method,
+            actor_id=actor_id,
+            idempotency_key=idempotency_key,
+            operator_intent=operator_intent,
+            payload_hash=payload_hash,
+            blockers=blockers,
+            live_execution_state=live_execution_state,
+        )
+        if not allowed
+        else None
     )
 
     return AdminLiveAdmissionDecisionEvidence(
-        status=AdminApiGateStatus.BLOCKED,
-        allowed=False,
+        status=AdminApiGateStatus.PASSED if allowed else AdminApiGateStatus.BLOCKED,
+        allowed=allowed,
         route=route,
         method=method,
         module_id=module_id,
@@ -752,15 +773,33 @@ def evaluate_command_live_admission(
         live_execution_service_status=live_execution_state.status,
         live_execution_service_source=live_execution_state.source,
         live_execution_service_missing_reason=live_execution_state.missing_reason,
-        browser_authority="rejected",
+        browser_authority="backend_admin_api" if allowed else "rejected",
         live_exchange_submitted=False,
         live_execution_intent=live_execution_intent,
         blockers=blockers,
         evidence=evidence,
         detail=(
-            "HTTP live execution is blocked until a backend-owned approval "
-            "snapshot, cap/guard, admission-audit, and reconciliation gates "
-            "admit this exact route, identity, payload hash, idempotency key, "
-            "and operator intent."
+            "Backend Admin API admission passed for this exact route, identity, "
+            "payload hash, idempotency key, and operator intent."
+            if allowed
+            else (
+                "HTTP live execution is blocked until a backend-owned approval "
+                "snapshot, cap/guard, admission-audit, and reconciliation gates "
+                "admit this exact route, identity, payload hash, idempotency key, "
+                "and operator intent."
+            )
         ),
+    )
+
+
+def _live_execution_service_allows_backend_admission(
+    state: AdminApiLiveExecutionServiceState,
+) -> bool:
+    """Return whether backend service posture can clear the disabled blocker."""
+
+    return (
+        state.required
+        and state.present
+        and state.status in BACKEND_LIVE_ADMISSION_SERVICE_STATUSES
+        and state.missing_reason is None
     )

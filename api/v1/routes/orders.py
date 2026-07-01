@@ -16,6 +16,7 @@ from application.admin_api.approval import (
 )
 from application.admin_api.auth import get_authenticated_actor, require_permission
 from application.admin_api.cap_guard import FileAdminApiCapGuardStore
+from application.admin_api.command_runtime import build_admin_api_command_service
 from application.admin_api.command_service import AdminApiCommandService
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
@@ -24,7 +25,7 @@ from application.admin_api.idempotency import (
 )
 from application.admin_api.live_execution import (
     AdminApiLiveExecutionService,
-    get_disabled_live_execution_service,
+    get_decision_backed_live_execution_service,
 )
 from application.admin_api.reconciliation import FileAdminApiReconciliationStore
 from application.admin_api.stealth_exchange_truth import (
@@ -100,6 +101,7 @@ from application.admin_api.read_service import AdminApiReadService
 from core.enums import (
     AdminApiActionClass,
     AdminApiCommandStatus,
+    AdminApiGateStatus,
     AdminApiIdempotencyDecision,
     AdminApiMutationFamilyType,
     AdminApiPermission,
@@ -202,7 +204,7 @@ READ_ROUTE_RESPONSES = {
 def get_command_service() -> AdminApiCommandService:
     """Return the shared command service boundary."""
 
-    return AdminApiCommandService()
+    return build_admin_api_command_service()
 
 
 def get_idempotency_store() -> FileIdempotencyStore:
@@ -236,9 +238,9 @@ def get_reconciliation_store() -> FileAdminApiReconciliationStore:
 
 
 def get_live_execution_service() -> AdminApiLiveExecutionService:
-    """Return the backend-owned disabled live execution service boundary."""
+    """Return the backend-owned live execution service boundary."""
 
-    return get_disabled_live_execution_service()
+    return get_decision_backed_live_execution_service()
 
 
 def get_read_service() -> AdminApiReadService:
@@ -552,6 +554,15 @@ def _record_audit(
         "client_order_id": response.client_order_id,
         "stealth_order_id": response.stealth_order_id,
         "coinbase_order_id": response.coinbase_order_id,
+        "live_exchange_submitted": response.live_exchange_submitted,
+        "live_coinbase_orders_ran": response.live_coinbase_orders_ran,
+        "live_command_runtime_enabled": response.live_command_runtime_enabled,
+        "live_command_rest_client_available": response.live_command_rest_client_available,
+        "live_command_runtime_ready": response.live_command_runtime_ready,
+        "live_command_runtime_missing_reason": (
+            response.live_command_runtime_missing_reason
+        ),
+        "live_command_runtime_source": response.live_command_runtime_source,
         "status": response.status,
         "failure_stage": response.failure_stage,
         "message": response.message,
@@ -605,6 +616,107 @@ def _manual_order_with_backend_identity(
     )
     return body.model_copy(
         update={"client_order_id": str(uuid.uuid5(uuid.NAMESPACE_URL, material))}
+    )
+
+
+def _manual_order_admin_cap_guard_context(
+    *,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+    cap_guard_store: FileAdminApiCapGuardStore,
+) -> tuple[str | None, str | None]:
+    """Return the exact Admin cap/guard notional context for manual order submit."""
+
+    if (
+        not admission_decision.allowed
+        or not admission_decision.cap_guard_present
+        or not admission_decision.cap_guard_decision_id
+    ):
+        return None, None
+
+    record = cap_guard_store.find_by_decision_id(
+        admission_decision.cap_guard_decision_id
+    )
+    if (
+        record is None
+        or not record.allowed
+        or record.status != AdminApiGateStatus.PASSED
+    ):
+        return None, None
+
+    same_command = (
+        record.route == admission_decision.route
+        and record.method == admission_decision.method
+        and record.module_id == admission_decision.module_id
+        and record.identity_key == admission_decision.identity_key
+        and record.identity_value == admission_decision.identity_value
+        and _enum_text(record.action_class)
+        == _enum_text(admission_decision.action_class)
+        and _enum_text(record.required_permission)
+        == _enum_text(admission_decision.required_permission)
+        and record.service_method == admission_decision.service_method
+        and record.actor_id == admission_decision.actor_id
+        and record.operator_intent == admission_decision.operator_intent
+        and record.idempotency_key == admission_decision.idempotency_key
+        and record.payload_hash == admission_decision.payload_hash
+        and record.approval_snapshot_id == admission_decision.approval_snapshot_id
+        and record.admission_audit_id == admission_decision.admission_audit_id
+    )
+    if not same_command:
+        return None, None
+
+    return record.decision_id, record.max_submitted_notional_usdc
+
+
+def _enum_text(value: object) -> str:
+    enum_value = getattr(value, "value", value)
+    return str(enum_value)
+
+
+def _should_retry_non_live_manual_order_after_admission(
+    *,
+    record: IdempotencyRecord,
+    response: AdminApiCommandResponse,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+    endpoint: str,
+    payload_hash: str,
+    action_class: AdminApiActionClass,
+    permission: AdminApiPermission,
+    service_method: str,
+    route_template: str,
+    module_id: str,
+    identity_key: str,
+) -> bool:
+    """Return whether a prior blocked manual order can run after admission passes."""
+
+    previous_admission = response.admission_decision
+    return (
+        endpoint == "POST /api/v1/orders"
+        and route_template == "/api/v1/orders"
+        and service_method == "place_manual_order"
+        and module_id == "spot_operations"
+        and identity_key == "client_order_id"
+        and action_class == AdminApiActionClass.LIVE_EXCHANGE_PLACE
+        and permission == AdminApiPermission.ORDER_CREATE
+        and record.endpoint == endpoint
+        and record.payload_hash == payload_hash
+        and record.status == AdminApiCommandStatus.NOT_IMPLEMENTED
+        and response.status == AdminApiCommandStatus.NOT_IMPLEMENTED
+        and response.action_class == AdminApiActionClass.LIVE_EXCHANGE_PLACE
+        and response.required_permission == AdminApiPermission.ORDER_CREATE
+        and response.service_method == "place_manual_order"
+        and response.live_exchange_submitted is False
+        and response.live_coinbase_orders_ran is False
+        and previous_admission is not None
+        and previous_admission.allowed is False
+        and admission_decision.allowed is True
+        and admission_decision.route == route_template
+        and admission_decision.method == "POST"
+        and admission_decision.module_id == module_id
+        and admission_decision.identity_key == identity_key
+        and admission_decision.action_class == action_class
+        and admission_decision.required_permission == permission
+        and admission_decision.service_method == service_method
+        and admission_decision.live_exchange_submitted is False
     )
 
 
@@ -697,7 +809,20 @@ def _execute_idempotent_command(
     if check.decision == AdminApiIdempotencyDecision.REPLAY and check.record:
         payload = dict(check.record.response)
         response = AdminApiCommandResponse.model_validate(payload)
-        return _command_response(response, replayed=True)
+        if not _should_retry_non_live_manual_order_after_admission(
+            record=check.record,
+            response=response,
+            admission_decision=admission_decision,
+            endpoint=endpoint,
+            payload_hash=payload_hash,
+            action_class=action_class,
+            permission=permission,
+            service_method=service_method,
+            route_template=route_template,
+            module_id=module_id,
+            identity_key=identity_key,
+        ):
+            return _command_response(response, replayed=True)
     if check.decision == AdminApiIdempotencyDecision.CONFLICT:
         response = AdminApiCommandResponse(
             status=AdminApiCommandStatus.CONFLICT,
@@ -917,6 +1042,26 @@ def create_manual_order(
         idempotency_key=idempotency_key,
         payload_hash=payload_hash,
     )
+
+    def run_manual_order_with_admission(
+        admission_decision: AdminLiveAdmissionDecisionEvidence,
+    ) -> AdminApiCommandResponse:
+        cap_guard_decision_id, admin_max_notional = (
+            _manual_order_admin_cap_guard_context(
+                admission_decision=admission_decision,
+                cap_guard_store=cap_guard_store,
+            )
+        )
+        return service.place_manual_order(
+            ManualOrderCommand(
+                envelope=envelope,
+                request=body,
+                admin_cap_guard_decision_id=cap_guard_decision_id,
+                admin_max_submitted_notional_usdc=admin_max_notional,
+                allow_live_execution=admission_decision.allowed,
+            )
+        )
+
     return _execute_idempotent_command(
         idempotency_key=idempotency_key,
         payload_hash=payload_hash,
@@ -938,9 +1083,7 @@ def create_manual_order(
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
         client_order_id=body.client_order_id,
-        command_runner=lambda: service.place_manual_order(
-            ManualOrderCommand(envelope=envelope, request=body)
-        ),
+        command_runner_with_admission=run_manual_order_with_admission,
     )
 
 

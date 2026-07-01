@@ -33,6 +33,13 @@ class AdminApiAuditEvent(BaseModel):
     client_order_id: str | None = None
     stealth_order_id: str | None = None
     coinbase_order_id: str | None = None
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_command_runtime_enabled: bool | None = None
+    live_command_rest_client_available: bool | None = None
+    live_command_runtime_ready: bool | None = None
+    live_command_runtime_missing_reason: str | None = None
+    live_command_runtime_source: str | None = None
     status: AdminApiCommandStatus
     failure_stage: str | None = None
     message: str | None = None

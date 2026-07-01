@@ -21,6 +21,7 @@ coverage-badge>=1.1.0
 
 # Data validation
 jsonschema>=4.17.0
+PyYAML>=6.0.0
 
 # Time handling in tests
 python-dateutil>=2.8.0
@@ -32,6 +33,7 @@ requests-mock>=1.10.0
 websocket-client>=1.5.0
 
 # Database testing
+psycopg2-binary>=2.9.0
 sqlalchemy>=2.0.0
 
 # Async testing

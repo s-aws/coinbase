@@ -1182,6 +1182,8 @@ class ManualOrderCommand(BaseModel):
     envelope: AdminApiCommandEnvelope
     request: ManualOrderRequest
     order_configuration_override: dict[str, Any] | None = None
+    admin_cap_guard_decision_id: str | None = Field(default=None, min_length=1)
+    admin_max_submitted_notional_usdc: DecimalString | None = None
     allow_live_execution: bool = False
 
 
@@ -1814,6 +1816,24 @@ class AdminAdmissionAuditResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminAdmissionPreviewResponse(BaseModel):
+    """Read-only backend admission preview for one exact command context."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_admission_preview"
+    status: AdminApiCommandStatus = AdminApiCommandStatus.ACCEPTED
+    action_class: AdminApiActionClass = AdminApiActionClass.READ_ONLY
+    required_permission: AdminApiPermission = AdminApiPermission.ANALYTICS_READ
+    service_method: str = "preview_live_admission"
+    message: str
+    admission_decision: AdminLiveAdmissionDecisionEvidence
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+
+
 class AdminCapGuardDecisionCreateRequest(BaseModel):
     """Append one backend-owned cap/guard decision for command admission."""
 
@@ -2360,6 +2380,12 @@ class AdminApiCommandResponse(BaseModel):
     idempotency_key: str | None = None
     audit_id: str | None = None
     live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_command_runtime_enabled: bool = False
+    live_command_rest_client_available: bool = False
+    live_command_runtime_ready: bool = False
+    live_command_runtime_missing_reason: str | None = None
+    live_command_runtime_source: str = "application/admin_api/command_runtime.py"
     submission_event_recorded: bool | None = None
     audit_command: str | None = None
     admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
@@ -16777,6 +16803,12 @@ class AdminAuditWorkbenchEventItem(BaseModel):
     idempotency_key: str | None = None
     exchange_order_id: str | None = None
     exchange_order_id_evidence_only: bool = True
+    live_exchange_submitted: bool = False
+    live_command_runtime_enabled: bool | None = None
+    live_command_rest_client_available: bool | None = None
+    live_command_runtime_ready: bool | None = None
+    live_command_runtime_missing_reason: str | None = None
+    live_command_runtime_source: str | None = None
     recorded_at: str | None = None
     message: str | None = None
     admission_decision: FlexibleDict | None = None
@@ -24779,6 +24811,8 @@ class AdminLiveEnablementPathItem(BaseModel):
     product_scope: str = "not_selected"
     max_submitted_notional_usdc: DecimalString | None = None
     max_executed_notional_usdc: DecimalString | None = None
+    live_command_runtime_ready: bool = False
+    live_command_runtime_missing_reason: str | None = None
     preflight_checks: list[AdminLivePreflightCheckItem] = Field(default_factory=list)
     blocking_preflight_check_count: int = 0
     passed_preflight_check_count: int = 0
@@ -24818,6 +24852,12 @@ class AdminLiveEnablementReadResponse(BaseModel):
     reconciliation_required: bool = True
     live_enabled_path_count: int = 0
     live_eligible_path_count: int = 0
+    live_command_runtime_enabled: bool = False
+    live_command_rest_client_available: bool = False
+    live_command_runtime_ready: bool = False
+    live_command_runtime_missing_reason: str | None = None
+    live_command_runtime_source: str = "application/admin_api/command_runtime.py"
+    live_command_runtime_ready_path_count: int = 0
     paths: list[AdminLiveEnablementPathItem] = Field(default_factory=list)
     checks: list[AdminGateCheck] = Field(default_factory=list)
     preflight_check_count: int = 0

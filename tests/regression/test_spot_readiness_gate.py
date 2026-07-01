@@ -73,7 +73,7 @@ def test_autonomous_work_queue_check_covers_approved_20_phase_batch():
     assert AUTONOMOUS_WORK_QUEUE_SUMMARY_PREFIX == (
         "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
     )
-    assert AUTONOMOUS_APPROVED_PHASES == tuple(range(6781, 6801))
+    assert AUTONOMOUS_APPROVED_PHASES == tuple(range(7961, 7981))
     check_results = {check["name"]: check for check in summary["checks"]}
     failed_checks = {
         name: check for name, check in check_results.items() if not check["passed"]
@@ -86,8 +86,8 @@ def test_autonomous_work_queue_check_covers_approved_20_phase_batch():
             "evidence"
         ]
         assert review_evidence["first_review_heading"] == (
-            "## M57 Futures/Perpetual Request Payload Validation Record "
-            "Semantic Artifact Runtime Evidence Acceptance - Phases 6781-6800"
+            "## M57 Futures/Perpetual Risk-Proof Record Validation "
+            "Remediation Summary Evidence - Phases 7961-7980"
         )
         assert (
             "Result: PASS or PASS-after-remediation"
@@ -95,16 +95,42 @@ def test_autonomous_work_queue_check_covers_approved_20_phase_batch():
         )
     else:
         assert summary["status"] == "passed"
-    assert summary["approved_phase_range"] == "6781-6800"
+    assert summary["approved_phase_range"] == "7961-7980"
     assert summary["approved_phase_count"] == 20
     assert summary["live_coinbase_orders_ran"] is False
     assert summary["live_order_notional_usdc"] == "0"
+    assert summary["mvp_scope"] == {
+        "work_mode": "controlled_live_admin_mvp_continuous_deployment",
+        "frontend_authority": "operator_ui_only",
+        "live_action_path": "auditable_backend_admin_interfaces_only",
+        "phase_range_policy": "defer_unless_direct_mvp_blocker",
+        "continuous_deployment_required": True,
+        "active_work_policy": {
+            "current_priority": "controlled_live_admin_mvp_continuous_deployment",
+            "approved_phase_range_status": "deferred_by_default",
+            "phase_range_work_allowed": False,
+            "default_next_action": "work_mvp_cd_blockers_before_phase_range",
+            "allow_only_when_directly_blocks": [
+                "MVP operation",
+                "safe backend-controlled execution",
+                "demo readiness",
+                "continuous deployment",
+            ],
+            "forbidden_default_actions": [
+                "complete_current_approved_range",
+                "unrelated futures/perpetuals summaries",
+                "evidence-tightening batches",
+                "contextless-hardening without a direct MVP blocker",
+            ],
+        },
+    }
     assert summary["max_submitted_notional_usdc"] == (
         AUTONOMOUS_MAX_SUBMITTED_NOTIONAL_USDC
     )
     assert summary["max_executed_notional_usdc"] == (
         AUTONOMOUS_MAX_EXECUTED_NOTIONAL_USDC
     )
+    assert check_results["controlled_live_admin_mvp_scope"]["passed"] is True
     assert "subagent_hygiene_policy" in check_results
 
 
@@ -234,4 +260,3 @@ def test_spot_feature_intake_gate_requires_average_cost_buffer_when_enabled():
     assert summary["invalid_fields"][0]["field"] == (
         "cost_basis_authority.coinbase_average_cost_profit_buffer_pct"
     )
-

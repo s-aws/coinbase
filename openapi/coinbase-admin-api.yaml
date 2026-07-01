@@ -2446,6 +2446,152 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/live-execution/admission-preview:
+    get:
+      tags:
+      - live-execution
+      summary: Preview backend-owned live admission for an exact command context
+      description: Return resolver-backed admission evidence without executing a command.
+      operationId: preview_admin_live_admission_api_v1_admin_live_execution_admission_preview_get
+      parameters:
+      - name: route
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Route
+      - name: method
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Method
+      - name: module_id
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Module Id
+      - name: identity_key
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Identity Key
+      - name: identity_value
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Identity Value
+      - name: action_class
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/AdminApiActionClass'
+      - name: required_permission
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Required Permission
+      - name: service_method
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Service Method
+      - name: actor_id
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Actor Id
+      - name: command_idempotency_key
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Command Idempotency Key
+      - name: operator_intent
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Operator Intent
+      - name: payload_hash
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 64
+          maxLength: 64
+          title: Payload Hash
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Backend-owned read-only live-admission preview evidence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAdmissionPreviewResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/live-execution/adapter-decisions:
     get:
       tags:
@@ -10484,6 +10630,53 @@ components:
       - message
       title: AdminAdmissionAuditResponse
       description: Response for admission audit mutations and detail reads.
+    AdminAdmissionPreviewResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_admission_preview
+        status:
+          $ref: '#/components/schemas/AdminApiCommandStatus'
+          default: accepted
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+          default: read_only
+        required_permission:
+          $ref: '#/components/schemas/AdminApiPermission'
+          default: analytics:read
+        service_method:
+          type: string
+          title: Service Method
+          default: preview_live_admission
+        message:
+          type: string
+          title: Message
+        admission_decision:
+          $ref: '#/components/schemas/AdminLiveAdmissionDecisionEvidence'
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - message
+      - admission_decision
+      title: AdminAdmissionPreviewResponse
+      description: Read-only backend admission preview for one exact command context.
     AdminApiActionClass:
       type: string
       enum:
@@ -10577,6 +10770,31 @@ components:
           type: boolean
           title: Live Exchange Submitted
           default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_command_runtime_enabled:
+          type: boolean
+          title: Live Command Runtime Enabled
+          default: false
+        live_command_rest_client_available:
+          type: boolean
+          title: Live Command Rest Client Available
+          default: false
+        live_command_runtime_ready:
+          type: boolean
+          title: Live Command Runtime Ready
+          default: false
+        live_command_runtime_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Command Runtime Missing Reason
+        live_command_runtime_source:
+          type: string
+          title: Live Command Runtime Source
+          default: application/admin_api/command_runtime.py
         submission_event_recorded:
           anyOf:
           - type: boolean
@@ -11737,6 +11955,35 @@ components:
           type: boolean
           title: Exchange Order Id Evidence Only
           default: true
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_command_runtime_enabled:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Live Command Runtime Enabled
+        live_command_rest_client_available:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Live Command Rest Client Available
+        live_command_runtime_ready:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Live Command Runtime Ready
+        live_command_runtime_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Command Runtime Missing Reason
+        live_command_runtime_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Command Runtime Source
         recorded_at:
           anyOf:
           - type: string
@@ -131386,6 +131633,15 @@ components:
             - '1.00'
           - type: 'null'
           title: Max Executed Notional Usdc
+        live_command_runtime_ready:
+          type: boolean
+          title: Live Command Runtime Ready
+          default: false
+        live_command_runtime_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Command Runtime Missing Reason
         preflight_checks:
           items:
             $ref: '#/components/schemas/AdminLivePreflightCheckItem'
@@ -131535,6 +131791,31 @@ components:
         live_eligible_path_count:
           type: integer
           title: Live Eligible Path Count
+          default: 0
+        live_command_runtime_enabled:
+          type: boolean
+          title: Live Command Runtime Enabled
+          default: false
+        live_command_rest_client_available:
+          type: boolean
+          title: Live Command Rest Client Available
+          default: false
+        live_command_runtime_ready:
+          type: boolean
+          title: Live Command Runtime Ready
+          default: false
+        live_command_runtime_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Command Runtime Missing Reason
+        live_command_runtime_source:
+          type: string
+          title: Live Command Runtime Source
+          default: application/admin_api/command_runtime.py
+        live_command_runtime_ready_path_count:
+          type: integer
+          title: Live Command Runtime Ready Path Count
           default: 0
         paths:
           items:

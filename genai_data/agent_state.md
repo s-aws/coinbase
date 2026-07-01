@@ -503,6 +503,8 @@ work. Historical milestone detail belongs in
   for durable milestone closeout, public/release-candidate handoff,
   deployment approval/closeout, release-hardening closeout, Admin API/backend
   association closeout, or explicit user request.
+- Canonical full backend regression command:
+  `python tools/run_parallel_regression.py --workers 4`.
 - Full frontend `npm run release:gate` is likewise reserved for durable
   frontend milestone closeout or explicit closeout gates.
 

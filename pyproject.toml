@@ -19,16 +19,23 @@ name = "coinbase-engine"
 version = "0.1.0"
 description = "Coinbase Advanced Trading engine: stealth orders, fills, lifecycle controller."
 requires-python = ">=3.13"
-# Dependencies are NOT pinned here intentionally — they're already
-# installed in your environment via prior `pip install` commands.
-# Re-add them only if you decide to version-control the lockfile.
+# Keep deploy/runtime dependencies broad here. Add a lockfile only if the
+# deployment target starts consuming one.
 dependencies = [
+    "fastapi>=0.115,<1",
+    "pydantic>=2.10,<3",
+    "psycopg2-binary>=2.9,<3",
     "PyJWT[crypto]>=2.12,<3",
+    "PyYAML>=6,<7",
+    "uvicorn>=0.30,<1",
 ]
 
 [project.optional-dependencies]
 test = [
-    "pytest-xdist>=3.6",
+    "httpx>=0.27,<1",
+    "pytest>=8,<10",
+    "pytest-timeout>=2.4,<3",
+    "pytest-xdist>=3.6,<4",
 ]
 
 [tool.setuptools]

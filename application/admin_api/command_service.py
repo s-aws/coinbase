@@ -12,7 +12,10 @@ from typing import Any, Callable, Mapping
 import uuid
 
 from calculation.formatter import safe_float
-from core.action_condition_guard import ActionConditionGuard
+from core.action_condition_guard import (
+    ActionConditionGuard,
+    get_action_condition_guard_policy,
+)
 from core.enums import (
     ActionConditionType,
     ActionGuardPhase,
@@ -258,6 +261,10 @@ class AdminApiCommandDependencies:
 
     rest_client: Any = None
     rest_client_available: bool = False
+    live_runtime_enabled: bool | None = None
+    command_runtime_ready: bool | None = None
+    command_runtime_missing_reason: str | None = None
+    command_runtime_source: str = "application/admin_api/command_runtime.py"
     runtime_controller_factory: Callable[[], Any] = get_runtime_controller
     add_log_entry: Callable[[str, str], None] = _noop_log
     order_event_publisher_getter: Callable[[], Any | None] = lambda: None
@@ -420,6 +427,38 @@ def direct_spot_live_acknowledged(order_params: Mapping[str, Any]) -> bool:
     if isinstance(direct_ack, str):
         return direct_ack.strip().lower() in {"true", "yes", "1"}
     return bool(direct_ack)
+
+
+def manual_order_action_guard_policy(command: ManualOrderCommand) -> dict[str, Any]:
+    """Return action-condition policy scoped to this Admin manual-order command."""
+
+    policy = dict(get_action_condition_guard_policy())
+    max_notional = safe_float(
+        command.admin_max_submitted_notional_usdc,
+        default=None,
+    )
+    if max_notional is None:
+        return policy
+
+    raw_limits = policy.get("limits") or []
+    if isinstance(raw_limits, Mapping):
+        limits = list(raw_limits.values())
+    elif isinstance(raw_limits, list):
+        limits = list(raw_limits)
+    else:
+        limits = []
+
+    limits.append({
+        "name": (
+            "admin_cap_guard:"
+            f"{command.admin_cap_guard_decision_id or 'manual_order'}"
+        ),
+        "product_type": ProductType.SPOT.value,
+        ActionConditionType.MAX_NOTIONAL.value: max_notional,
+        "phases": [ActionGuardPhase.PLANNING.value],
+    })
+    policy["limits"] = limits
+    return policy
 
 
 def coinbase_order_response_to_dict(result: Any) -> dict[str, Any]:
@@ -1220,6 +1259,38 @@ class AdminApiCommandService:
     def __init__(self, dependencies: AdminApiCommandDependencies | None = None) -> None:
         self.dependencies = dependencies or AdminApiCommandDependencies()
 
+    def _command_runtime_evidence(self) -> dict[str, Any]:
+        """Return backend command-runtime evidence for command responses."""
+
+        deps = self.dependencies
+        rest_client_available = bool(deps.rest_client_available)
+        live_runtime_enabled = (
+            deps.live_runtime_enabled
+            if deps.live_runtime_enabled is not None
+            else rest_client_available
+        )
+        runtime_ready = (
+            deps.command_runtime_ready
+            if deps.command_runtime_ready is not None
+            else bool(live_runtime_enabled and rest_client_available)
+        )
+        missing_reason = deps.command_runtime_missing_reason
+        if runtime_ready:
+            missing_reason = None
+        elif missing_reason is None:
+            missing_reason = (
+                "coinbase_rest_client_unavailable"
+                if live_runtime_enabled
+                else "live_runtime_disabled"
+            )
+        return {
+            "live_command_runtime_enabled": bool(live_runtime_enabled),
+            "live_command_rest_client_available": rest_client_available,
+            "live_command_runtime_ready": bool(runtime_ready),
+            "live_command_runtime_missing_reason": missing_reason,
+            "live_command_runtime_source": deps.command_runtime_source,
+        }
+
     def place_manual_order(self, command: ManualOrderCommand) -> AdminApiCommandResponse:
         """Place a manual order through the existing guarded REST path."""
 
@@ -1239,6 +1310,7 @@ class AdminApiCommandService:
                 idempotency_key=command.envelope.idempotency_key,
                 guard=gate.model_dump(),
                 failure_stage="approval",
+                **self._command_runtime_evidence(),
             )
 
         deps = self.dependencies
@@ -1342,6 +1414,7 @@ class AdminApiCommandService:
 
             if approved_base_size is not None or quote_size is not None:
                 action_guard = ActionConditionGuard(
+                    policy=manual_order_action_guard_policy(command),
                     planned_budget_fetcher=deps.planned_budget_fetcher,
                     lot_authority_evaluator=deps.lot_authority_evaluator_getter(),
                 )
@@ -1485,12 +1558,23 @@ class AdminApiCommandService:
                     )
 
             controller = deps.runtime_controller_factory()
-            with controller.track_inflight(INFLIGHT_REST_PLACE):
-                result = deps.rest_client.create_order(
+            try:
+                with controller.track_inflight(INFLIGHT_REST_PLACE):
+                    result = deps.rest_client.create_order(
+                        client_order_id=client_order_id,
+                        product_id=product_id,
+                        side=order_params.get("side"),
+                        order_configuration=order_configuration,
+                    )
+            except CoinbaseAPIError:
+                raise
+            except Exception as exc:
+                deps.add_log_entry("ERROR", f"REST submission failed: {exc}")
+                return self._place_rejected(
+                    command=command,
                     client_order_id=client_order_id,
-                    product_id=product_id,
-                    side=order_params.get("side"),
-                    order_configuration=order_configuration,
+                    message=f"Coinbase REST submission failed: {exc}",
+                    failure_stage="coinbase_rest",
                 )
 
             result_dict = coinbase_order_response_to_dict(result)
@@ -1528,11 +1612,13 @@ class AdminApiCommandService:
                 correlation_id=command.envelope.correlation_id,
                 idempotency_key=command.envelope.idempotency_key,
                 live_exchange_submitted=True,
+                live_coinbase_orders_ran=True,
                 submission_event_recorded=submission_event_recorded,
                 audit_command=(
                     "python tools\\run_spot_direct_order_audit.py "
                     f"--client-order-id {client_order_id}"
                 ),
+                **self._command_runtime_evidence(),
             )
         except CoinbaseAPIError as exc:
             deps.add_log_entry("ERROR", f"API error: {exc}")
@@ -1570,6 +1656,7 @@ class AdminApiCommandService:
                 idempotency_key=command.envelope.idempotency_key,
                 guard=gate.model_dump(),
                 failure_stage="approval",
+                **self._command_runtime_evidence(),
             )
 
         deps = self.dependencies
@@ -1611,8 +1698,10 @@ class AdminApiCommandService:
                     correlation_id=command.envelope.correlation_id,
                     idempotency_key=command.envelope.idempotency_key,
                     live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
                     data=result,
                     failure_stage="coinbase_rest",
+                    **self._command_runtime_evidence(),
                 )
 
             deps.add_log_entry("INFO", f"Order cancelled: client_order_id={client_order_id}")
@@ -1626,7 +1715,9 @@ class AdminApiCommandService:
                 correlation_id=command.envelope.correlation_id,
                 idempotency_key=command.envelope.idempotency_key,
                 live_exchange_submitted=True,
+                live_coinbase_orders_ran=True,
                 data=result,
+                **self._command_runtime_evidence(),
             )
         except Exception as exc:
             deps.add_log_entry("ERROR", f"Order cancellation failed: {exc}")
@@ -5137,6 +5228,7 @@ class AdminApiCommandService:
                 correlation_id=command.envelope.correlation_id,
                 idempotency_key=command.envelope.idempotency_key,
                 live_exchange_submitted=True,
+                live_coinbase_orders_ran=True,
                 submission_event_recorded=submission_event_recorded,
             )
         except CoinbaseAPIError as exc:
@@ -5209,6 +5301,7 @@ class AdminApiCommandService:
             guard=guard,
             data=data,
             failure_stage=failure_stage,
+            **self._command_runtime_evidence(),
         )
 
     def _mark_hotpoint_parent_failed(
@@ -5241,4 +5334,5 @@ class AdminApiCommandService:
             correlation_id=command.envelope.correlation_id,
             idempotency_key=command.envelope.idempotency_key,
             failure_stage=failure_stage,
+            **self._command_runtime_evidence(),
         )

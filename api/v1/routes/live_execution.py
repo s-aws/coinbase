@@ -8,7 +8,12 @@ from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Requ
 from fastapi.responses import JSONResponse
 
 from application.admin_api.audit import AdminApiAuditEvent, FileAdminApiAuditStore
+from application.admin_api.approval import (
+    FileAdminApiApprovalStore,
+    evaluate_command_live_admission,
+)
 from application.admin_api.auth import get_authenticated_actor, require_permission
+from application.admin_api.cap_guard import FileAdminApiCapGuardStore
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
     IdempotencyRecord,
@@ -19,14 +24,17 @@ from application.admin_api.live_adapter_decision_service import (
     LiveAdapterDecisionError,
 )
 from application.admin_api.live_execution import (
+    AdminApiLiveExecutionService,
     FileAdminApiLiveAdapterDecisionStore,
     FileAdminApiLiveServiceDecisionStore,
+    get_decision_backed_live_execution_service,
 )
 from application.admin_api.live_service_decision_service import (
     AdminApiLiveServiceDecisionService,
     LiveServiceDecisionError,
 )
 from application.admin_api.models import (
+    AdminAdmissionPreviewResponse,
     AdminApiActor,
     AdminApiErrorResponse,
     AdminLiveAdapterDecisionCreateRequest,
@@ -38,7 +46,9 @@ from application.admin_api.models import (
     AdminLiveServiceDecisionListResponse,
     AdminLiveServiceDecisionResponse,
 )
+from application.admin_api.reconciliation import FileAdminApiReconciliationStore
 from core.enums import (
+    AdminApiActionClass,
     AdminApiCommandStatus,
     AdminApiGateStatus,
     AdminApiIdempotencyDecision,
@@ -104,6 +114,40 @@ ADAPTER_DECISION_ROUTE_RESPONSES = {
         "description": "Idempotency key conflict.",
     },
 }
+
+
+ADMISSION_PREVIEW_ROUTE_RESPONSES = {
+    200: {
+        "model": AdminAdmissionPreviewResponse,
+        "description": "Backend-owned read-only live-admission preview evidence.",
+    },
+    401: READ_ROUTE_RESPONSES[401],
+    403: READ_ROUTE_RESPONSES[403],
+}
+
+
+def get_approval_store() -> FileAdminApiApprovalStore:
+    """Return durable approval storage for admission preview routes."""
+
+    return FileAdminApiApprovalStore()
+
+
+def get_cap_guard_store() -> FileAdminApiCapGuardStore:
+    """Return durable cap/guard storage for admission preview routes."""
+
+    return FileAdminApiCapGuardStore()
+
+
+def get_reconciliation_store() -> FileAdminApiReconciliationStore:
+    """Return durable reconciliation storage for admission preview routes."""
+
+    return FileAdminApiReconciliationStore()
+
+
+def get_live_execution_service() -> AdminApiLiveExecutionService:
+    """Return backend-owned live-execution service evidence for admission preview."""
+
+    return get_decision_backed_live_execution_service()
 
 
 def get_live_service_decision_store() -> FileAdminApiLiveServiceDecisionStore:
@@ -515,6 +559,70 @@ def get_admin_live_service_decision(
         service_method="get_live_service_decision",
         message="Live-service decision detail loaded.",
         decision=decision,
+    )
+    return JSONResponse(content=payload.model_dump(mode="json"))
+
+
+@router.get(
+    "/admin/live-execution/admission-preview",
+    response_model=AdminAdmissionPreviewResponse,
+    responses=ADMISSION_PREVIEW_ROUTE_RESPONSES,
+    summary="Preview backend-owned live admission for an exact command context",
+)
+def preview_admin_live_admission(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    cap_guard_store: Annotated[
+        FileAdminApiCapGuardStore,
+        Depends(get_cap_guard_store),
+    ],
+    reconciliation_store: Annotated[
+        FileAdminApiReconciliationStore,
+        Depends(get_reconciliation_store),
+    ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
+    ],
+    route: Annotated[str, Query(min_length=1)],
+    method: Annotated[str, Query(min_length=1)],
+    module_id: Annotated[str, Query(min_length=1)],
+    identity_key: Annotated[str, Query(min_length=1)],
+    identity_value: Annotated[str, Query(min_length=1)],
+    action_class: AdminApiActionClass,
+    required_permission: Annotated[str, Query(min_length=1)],
+    service_method: Annotated[str, Query(min_length=1)],
+    actor_id: Annotated[str, Query(min_length=1)],
+    command_idempotency_key: Annotated[str, Query(min_length=1)],
+    operator_intent: Annotated[str, Query(min_length=1)],
+    payload_hash: Annotated[str, Query(min_length=64, max_length=64)],
+) -> JSONResponse:
+    """Return resolver-backed admission evidence without executing a command."""
+
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    decision = evaluate_command_live_admission(
+        route=route,
+        method=method,
+        module_id=module_id,
+        identity_key=identity_key,
+        identity_value=identity_value,
+        action_class=action_class,
+        required_permission=required_permission,
+        service_method=service_method,
+        actor_id=actor_id,
+        idempotency_key=command_idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+        approval_store=approval_store,
+        audit_store=audit_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
+    )
+    payload = AdminAdmissionPreviewResponse(
+        message="Backend live-admission preview loaded.",
+        admission_decision=decision,
     )
     return JSONResponse(content=payload.model_dump(mode="json"))
 

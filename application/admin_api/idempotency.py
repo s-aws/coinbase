@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import gzip
 import json
+import os
 from pathlib import Path
 from threading import RLock
 from typing import Any
@@ -21,6 +22,8 @@ from core.enums import (
 MAX_INLINE_IDEMPOTENCY_RESPONSE_BYTES = 1_000_000
 MAX_IDEMPOTENCY_RESPONSE_BLOB_BYTES = 50_000_000
 IDEMPOTENCY_RESPONSE_READ_CHUNK_BYTES = 64 * 1024
+IDEMPOTENCY_LOG_PATH_ENV = "COINBASE_ADMIN_API_IDEMPOTENCY_LOG_PATH"
+DEFAULT_IDEMPOTENCY_LOG_PATH = Path("runtime_state") / "admin_api_idempotency.jsonl"
 
 
 class IdempotencyRecord(BaseModel):
@@ -91,8 +94,8 @@ class FileIdempotencyStore:
     repository can replace it without creating a second command behavior path.
     """
 
-    def __init__(self, path: Path | str = Path("runtime_state") / "admin_api_idempotency.jsonl") -> None:
-        self.path = Path(path)
+    def __init__(self, path: Path | str | None = None) -> None:
+        self.path = resolve_idempotency_store_path(path)
         self._lock = RLock()
 
     @property
@@ -269,3 +272,10 @@ class FileIdempotencyStore:
             record = self._externalize_large_response(record)
             with self.path.open("a", encoding="utf-8") as handle:
                 handle.write(record.model_dump_json() + "\n")
+
+
+def resolve_idempotency_store_path(path: Path | str | None = None) -> Path:
+    """Return the configured durable idempotency store path."""
+
+    configured_path = path or os.environ.get(IDEMPOTENCY_LOG_PATH_ENV)
+    return Path(configured_path) if configured_path else DEFAULT_IDEMPOTENCY_LOG_PATH

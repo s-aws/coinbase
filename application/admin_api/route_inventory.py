@@ -1347,6 +1347,21 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="admin_system_health",
+        surface="GET /api/v1/admin/live-execution/admission-preview",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not applicable",
+        caps="not applicable",
+        audit="read-only command admission preview evidence",
+        shared_method="preview_live_admission",
+        parity_test=(
+            "read-only exact-context command admission preview; no command "
+            "execution, Coinbase call, audit append, or browser approval"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
         surface="GET /api/v1/admin/live-execution/service-decisions",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,
@@ -1367,7 +1382,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         caps="not applicable",
         audit="read-only live-service decision evidence",
         shared_method="get_live_service_decision",
-        parity_test="decision_id identity only; no live-service enablement",
+        parity_test="decision_id identity and live-service decision readback only",
     ),
     AdminApiRouteInventoryItem(
         module_id="admin_system_health",
@@ -1375,13 +1390,16 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
         permission=AdminApiPermission.CONFIG_UPDATE,
         idempotency="required",
-        approval="records disabled backend decision; not sufficient for live execution",
+        approval=(
+            "records backend live-service decision; runtime opt-in and route "
+            "admission still required"
+        ),
         caps="not applicable",
         audit="required",
         shared_method="record_live_service_decision",
         parity_test=(
-            "records are backend-owned and append-only; no live-service "
-            "enablement, adapter construction, or Coinbase execution"
+            "records are backend-owned and append-only; no adapter "
+            "construction or Coinbase execution"
         ),
     ),
     AdminApiRouteInventoryItem(

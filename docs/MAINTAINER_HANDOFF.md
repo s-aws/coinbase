@@ -123,6 +123,11 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
+- MVP active work policy: controlled-live Admin MVP continuous deployment is
+  the active default. The approved `7961-7980` M57 range is deferred by
+  default. Do not continue `complete_current_approved_range` unless the work
+  directly blocks MVP operation, safe backend-controlled execution, demo
+  readiness, or continuous deployment.
 - Latest completed autonomous range: `7941-7960` under M57.
 - Active autonomous range: `7961-7980` under M57.
 - Current active range: `7961-7980` adds futures risk-proof record validation
