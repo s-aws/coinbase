@@ -97,7 +97,10 @@ from core.enums import (
     AdminRiskEvidenceStatus,
 )
 
-from .approval import evaluate_live_execution_gate
+from .approval import (
+    BACKEND_LIVE_ADMISSION_SERVICE_STATUSES,
+    evaluate_live_execution_gate,
+)
 from .audit import AdminApiAuditEvent, FileAdminApiAuditStore
 from .auth import (
     build_oidc_jwt_readiness,
@@ -107,8 +110,10 @@ from .auth import (
 from .live_execution import (
     DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
     DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
+    AdminApiLiveExecutionServiceState,
     build_live_execution_adapter_contract,
     build_live_execution_service_contract,
+    get_decision_backed_live_execution_service,
 )
 from .models import (
     AdminApiActor,
@@ -763,6 +768,42 @@ def _route_availability(surface: str, action_class: AdminApiActionClass) -> Admi
     }:
         return AdminApiRouteAvailability.LIVE_DISABLED
     return AdminApiRouteAvailability.AVAILABLE
+
+
+CONTROLLED_LIVE_MVP_ROUTE = ("POST", "/api/v1/orders")
+
+
+def _decision_backed_live_service_state() -> AdminApiLiveExecutionServiceState:
+    """Return the backend-owned live service state used by command admission."""
+
+    return get_decision_backed_live_execution_service().admission_state()
+
+
+def _live_service_state_allows_backend_admission(
+    state: AdminApiLiveExecutionServiceState,
+) -> bool:
+    """Return whether the live-service state can clear route admission."""
+
+    return (
+        state.required
+        and state.present
+        and state.status in BACKEND_LIVE_ADMISSION_SERVICE_STATUSES
+        and state.missing_reason is None
+    )
+
+
+def _controlled_live_mvp_route_enabled(
+    *,
+    method: str,
+    path: str,
+    live_service_state: AdminApiLiveExecutionServiceState,
+) -> bool:
+    """Return whether the current MVP route may expose controlled-live submit."""
+
+    return (
+        (method, path) == CONTROLLED_LIVE_MVP_ROUTE
+        and _live_service_state_allows_backend_admission(live_service_state)
+    )
 
 
 def _frontend_safe(surface: str, action_class: AdminApiActionClass) -> bool:
@@ -5945,9 +5986,17 @@ class AdminApiReadService:
         """Return route capability metadata derived from the owned inventory."""
 
         capabilities: list[AdminCapabilityItem] = []
+        live_service_state = _decision_backed_live_service_state()
         for item in ADMIN_API_ROUTE_INVENTORY:
             method, path = _surface_method_and_path(item.surface)
             availability = _route_availability(item.surface, item.action_class)
+            controlled_live_enabled = _controlled_live_mvp_route_enabled(
+                method=method,
+                path=path,
+                live_service_state=live_service_state,
+            )
+            if controlled_live_enabled:
+                availability = AdminApiRouteAvailability.AVAILABLE
             capabilities.append(
                 AdminCapabilityItem(
                     module_id=item.module_id,
@@ -5956,7 +6005,7 @@ class AdminApiReadService:
                     action_class=item.action_class,
                     permission=item.permission,
                     availability=availability,
-                    live_enabled=False,
+                    live_enabled=controlled_live_enabled,
                     frontend_safe=_frontend_safe(item.surface, item.action_class),
                     shared_method=item.shared_method,
                     idempotency=item.idempotency,
@@ -11349,6 +11398,7 @@ class AdminApiReadService:
         """Return read-only M8 live-enablement posture and cap evidence."""
 
         paths: list[AdminLiveEnablementPathItem] = []
+        live_service_state = _decision_backed_live_service_state()
         for item in ADMIN_API_ROUTE_INVENTORY:
             method, path = _surface_method_and_path(item.surface)
             if method != "POST" or not path.startswith("/api/v1/"):
@@ -11403,6 +11453,16 @@ class AdminApiReadService:
                 module_id=item.module_id,
                 service_method=item.shared_method,
                 action_class=item.action_class,
+                live_execution_service=(
+                    get_decision_backed_live_execution_service()
+                    if (method, path) == CONTROLLED_LIVE_MVP_ROUTE
+                    else None
+                ),
+            )
+            controlled_live_enabled = _controlled_live_mvp_route_enabled(
+                method=method,
+                path=path,
+                live_service_state=live_service_state,
             )
             path_live_status = live_execution_adapter.get(
                 "status",
@@ -11431,8 +11491,8 @@ class AdminApiReadService:
                     action_class=item.action_class,
                     required_permission=item.permission,
                     shared_method=item.shared_method,
-                    live_enabled=False,
-                    live_eligible=False,
+                    live_enabled=controlled_live_enabled,
+                    live_eligible=controlled_live_enabled,
                     status=path_live_status,
                     governance_status=AdminApiGateStatus.BLOCKED,
                     approval_required=True,
@@ -11489,11 +11549,28 @@ class AdminApiReadService:
                         "M8 explicit live approval required",
                         "idempotency, operator intent, payload hash, request id, and audit id required",
                         "post-live reconciliation required",
+                        *(
+                            [
+                                "backend live-service decision permits controlled-live Admin API submission"
+                            ]
+                            if controlled_live_enabled
+                            else []
+                        ),
                     ],
                     notes=(
-                        "Current Admin API command contract is live-disabled; "
-                        "this read route is governance evidence only and does "
-                        "not grant browser command authority."
+                        (
+                            "Controlled-live MVP submission is route-scoped to "
+                            "the backend Admin API; command admission still "
+                            "resolves approval, audit, cap/guard, reconciliation, "
+                            "payload hash, idempotency, and operator intent at "
+                            "submit time."
+                        )
+                        if controlled_live_enabled
+                        else (
+                            "Current Admin API command contract is live-disabled; "
+                            "this read route is governance evidence only and does "
+                            "not grant browser command authority."
+                        )
                     ),
                 )
             )
@@ -11546,7 +11623,11 @@ class AdminApiReadService:
         ]
 
         return AdminLiveEnablementReadResponse(
-            status=AdminApiLiveExecutionStatus.LIVE_DISABLED,
+            status=(
+                AdminApiLiveExecutionStatus.APPROVAL_REQUIRED
+                if any(path.live_enabled for path in paths)
+                else AdminApiLiveExecutionStatus.LIVE_DISABLED
+            ),
             approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
             default_live_coinbase_execution=AdminApiLiveExecutionStatus.NOT_RUN,
             submitted_notional_usdc="0",
@@ -11559,8 +11640,8 @@ class AdminApiReadService:
             notional_posture=LIVE_ENABLEMENT_NOTIONAL_POSTURE,
             retain_inventory=True,
             reconciliation_required=True,
-            live_enabled_path_count=0,
-            live_eligible_path_count=0,
+            live_enabled_path_count=sum(1 for path in paths if path.live_enabled),
+            live_eligible_path_count=sum(1 for path in paths if path.live_eligible),
             paths=paths,
             checks=checks,
             preflight_check_count=len(preflight_checks),
@@ -50475,6 +50556,9 @@ class AdminApiReadService:
                 readiness_preconditions = list(live_path.readiness_preconditions)
                 live_execution_status = live_path.status
                 live_adapter_configured = live_path.live_execution_adapter.configured
+            controlled_live_enabled = (
+                live_path.live_enabled if live_path is not None else False
+            )
             required_gate_chain = [
                 "idempotency",
                 "operator_intent",
@@ -50499,8 +50583,8 @@ class AdminApiReadService:
                     shared_method=inventory_item.shared_method,
                     status=AdminApiGateStatus.BLOCKED,
                     live_execution_status=live_execution_status,
-                    live_enabled=False,
-                    live_eligible=False,
+                    live_enabled=controlled_live_enabled,
+                    live_eligible=controlled_live_enabled,
                     executable=False,
                     live_adapter_configured=live_adapter_configured,
                     approval_required=True,
@@ -50541,6 +50625,13 @@ class AdminApiReadService:
                         "Proof routes are derived from backend route inventory and remain local-state records until live admission passes.",
                         "No browser, BFF, route-local, or Coinbase execution authority is added.",
                         "Spot-only wallet, no-shorting, USDC, average-cost, and lot authority remain backend guard evidence.",
+                        *(
+                            [
+                                "Manual order controlled-live submission is allowed only through backend Admin API admission."
+                            ]
+                            if controlled_live_enabled
+                            else []
+                        ),
                     ],
                     detail=str(metadata["detail"]),
                 )

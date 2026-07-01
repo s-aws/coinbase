@@ -35064,6 +35064,87 @@ def test_admin_api_order_live_execution_service_dependency_reads_decision_log(
     assert state.missing_reason is None
 
 
+@pytest.mark.regression
+def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision(
+    monkeypatch,
+    tmp_path,
+):
+    from application.admin_api.read_service import AdminApiReadService
+
+    decision_log = tmp_path / "live_service_decisions.jsonl"
+    store = FileAdminApiLiveServiceDecisionStore(decision_log)
+    store.append(
+        LiveServiceDecisionRecord(
+            decision_id="live-service-read-surface-mvp",
+            status=AdminApiGateStatus.PASSED,
+            requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+            service_enabled=True,
+            deployment_ref="deployment-controlled-live-mvp",
+            runtime_configuration_ref="runtime-controlled-live-mvp",
+            decision_reason="Expose controlled-live manual order through read evidence.",
+            live_coinbase_execution_approved=True,
+            max_submitted_notional_usdc="3.10",
+            max_executed_notional_usdc="1.00",
+        )
+    )
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_LIVE_SERVICE_DECISION_LOG_PATH",
+        str(decision_log),
+    )
+    monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+
+    service = AdminApiReadService()
+    capabilities = service.build_admin_capabilities().model_dump(mode="json")
+    live_enablement = service.build_live_enablement().model_dump(mode="json")
+    spot_suite = service.build_spot_command_suite().model_dump(mode="json")
+
+    command_capabilities = {
+        (item["method"], item["route"]): item
+        for item in capabilities["capabilities"]
+        if item["command_contract"]
+    }
+    manual_capability = command_capabilities[("POST", "/api/v1/orders")]
+    cancel_capability = command_capabilities[
+        ("POST", "/api/v1/orders/{client_order_id}/cancel")
+    ]
+
+    assert manual_capability["availability"] == "available"
+    assert manual_capability["live_enabled"] is True
+    assert manual_capability["frontend_safe"] is True
+    assert manual_capability["shared_method"] == "place_manual_order"
+    assert cancel_capability["availability"] == "live_disabled"
+    assert cancel_capability["live_enabled"] is False
+
+    live_routes = {item["route"]: item for item in live_enablement["paths"]}
+    manual_live_route = live_routes["/api/v1/orders"]
+    cancel_live_route = live_routes["/api/v1/orders/{client_order_id}/cancel"]
+
+    assert live_enablement["status"] == "approval_required"
+    assert live_enablement["live_enabled_path_count"] == 1
+    assert live_enablement["live_eligible_path_count"] == 1
+    assert manual_live_route["live_enabled"] is True
+    assert manual_live_route["live_eligible"] is True
+    assert not any(
+        precondition["precondition"] == "live_execution_service"
+        and precondition["blocking"]
+        for precondition in manual_live_route["readiness_preconditions"]
+    )
+    assert cancel_live_route["live_enabled"] is False
+    assert cancel_live_route["live_eligible"] is False
+
+    spot_commands = {item["route"]: item for item in spot_suite["commands"]}
+    manual_command = spot_commands["/api/v1/orders"]
+    cancel_command = spot_commands["/api/v1/orders/{client_order_id}/cancel"]
+
+    assert spot_suite["live_enabled_command_count"] == 1
+    assert manual_command["live_enabled"] is True
+    assert manual_command["live_eligible"] is True
+    assert "live_execution_service" not in manual_command["missing_gate_chain"]
+    assert "approval_snapshot" in manual_command["missing_gate_chain"]
+    assert cancel_command["live_enabled"] is False
+    assert cancel_command["live_eligible"] is False
+
+
 def _live_adapter_decision_payload(
     *,
     decision_id: str = "live-adapter-decision-001",
