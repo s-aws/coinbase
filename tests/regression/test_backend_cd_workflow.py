@@ -164,6 +164,15 @@ def test_backend_deployment_manifest_describes_admin_runtime_without_live_execut
     }
 
 
+def test_backend_deployment_manifest_prefers_ci_deployment_ref(monkeypatch) -> None:
+    monkeypatch.setenv("DEPLOYMENT_REF", "ci-deploy-ref")
+    monkeypatch.setenv("GITHUB_SHA", "github-sha")
+
+    args = deployment_manifest.build_parser().parse_args([])
+
+    assert args.commit == "ci-deploy-ref"
+
+
 def test_public_agent_checks_cover_backend_continuous_deployment_contract() -> None:
     workflow = PUBLIC_CHECKS_WORKFLOW_PATH.read_text(encoding="utf-8")
 
@@ -297,6 +306,17 @@ def test_backend_deployment_webhook_payload_defaults_to_local_git_commit(
 
     assert deployment_webhook_payload.read_git_commit() == expected_commit
     assert args.commit == expected_commit
+
+
+def test_backend_deployment_webhook_payload_prefers_ci_deployment_ref(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("DEPLOYMENT_REF", "ci-deploy-ref")
+    monkeypatch.setenv("GITHUB_SHA", "github-sha")
+
+    args = deployment_webhook_payload.build_parser().parse_args([])
+
+    assert args.commit == "ci-deploy-ref"
 
 
 def test_backend_openapi_generator_supports_check_mode() -> None:

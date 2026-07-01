@@ -153,6 +153,16 @@ def read_git_commit() -> str:
         return "unknown"
 
 
+def resolve_deployment_commit(env: Mapping[str, str | None] = os.environ) -> str:
+    """Return CI deployment ref, GitHub SHA, or the local git commit."""
+
+    for key in ("DEPLOYMENT_REF", "GITHUB_SHA"):
+        value = env.get(key)
+        if value and value.strip():
+            return value.strip()
+    return read_git_commit()
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Create the deployment webhook payload parser."""
 
@@ -178,7 +188,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--commit",
-        default=os.getenv("DEPLOYMENT_REF") or os.getenv("GITHUB_SHA") or read_git_commit(),
+        default=resolve_deployment_commit(),
         help="Deployment commit ref.",
     )
     parser.add_argument(

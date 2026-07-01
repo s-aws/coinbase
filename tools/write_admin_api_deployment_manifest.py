@@ -7,9 +7,10 @@ not start services, import trading clients, submit orders, or call Coinbase.
 from __future__ import annotations
 
 import argparse
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import subprocess
 
@@ -123,6 +124,16 @@ def read_git_commit() -> str:
     return completed.stdout.strip() if completed.returncode == 0 else "unknown"
 
 
+def resolve_deployment_commit(env: Mapping[str, str | None] = os.environ) -> str:
+    """Return CI deployment ref, GitHub SHA, or the local git commit."""
+
+    for key in ("DEPLOYMENT_REF", "GITHUB_SHA"):
+        value = env.get(key)
+        if value and value.strip():
+            return value.strip()
+    return read_git_commit()
+
+
 def current_utc_timestamp() -> str:
     """Return an ISO-8601 UTC timestamp for artifact metadata."""
 
@@ -145,7 +156,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_DEPLOYMENT_TIER,
         help=f"Deployment tier label. Defaults to {DEFAULT_DEPLOYMENT_TIER}.",
     )
-    parser.add_argument("--commit", default=read_git_commit(), help="Commit evidence.")
+    parser.add_argument("--commit", default=resolve_deployment_commit(), help="Commit evidence.")
     parser.add_argument(
         "--generated-at",
         default=current_utc_timestamp(),
