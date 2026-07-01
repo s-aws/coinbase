@@ -65,6 +65,23 @@ result in the phase evidence, handoff, or closeout summary before advancing.
 - Every increment must stay runnable, tested with focused checks, and deployable.
 - Defer evidence-tightening, new phase ranges, and docs expansion unless they directly block MVP operation, safe backend-controlled execution, demo readiness, or continuous deployment.
 
+## MVP Active Work Policy
+
+The approved M57 range is recorded, but it is deferred by default while the
+active objective is controlled-live Admin MVP continuous deployment. Do not
+execute `complete_current_approved_range` by default. Continue `7961-7980`
+only when the specific change directly blocks MVP operation, safe
+backend-controlled execution, demo readiness, or continuous deployment.
+
+Default next action is `work_mvp_cd_blockers_before_phase_range`.
+
+Forbidden default actions:
+
+- `complete_current_approved_range`
+- unrelated futures/perpetuals summaries
+- evidence-tightening batches
+- contextless-hardening without a direct MVP blocker
+
 ## Current Progress Record
 
 This record mirrors the machine-readable artifact contract. While the

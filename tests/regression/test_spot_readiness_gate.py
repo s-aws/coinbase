@@ -105,6 +105,24 @@ def test_autonomous_work_queue_check_covers_approved_20_phase_batch():
         "live_action_path": "auditable_backend_admin_interfaces_only",
         "phase_range_policy": "defer_unless_direct_mvp_blocker",
         "continuous_deployment_required": True,
+        "active_work_policy": {
+            "current_priority": "controlled_live_admin_mvp_continuous_deployment",
+            "approved_phase_range_status": "deferred_by_default",
+            "phase_range_work_allowed": False,
+            "default_next_action": "work_mvp_cd_blockers_before_phase_range",
+            "allow_only_when_directly_blocks": [
+                "MVP operation",
+                "safe backend-controlled execution",
+                "demo readiness",
+                "continuous deployment",
+            ],
+            "forbidden_default_actions": [
+                "complete_current_approved_range",
+                "unrelated futures/perpetuals summaries",
+                "evidence-tightening batches",
+                "contextless-hardening without a direct MVP blocker",
+            ],
+        },
     }
     assert summary["max_submitted_notional_usdc"] == (
         AUTONOMOUS_MAX_SUBMITTED_NOTIONAL_USDC
