@@ -36665,6 +36665,10 @@ def test_admin_api_manual_order_route_passes_backend_admission_to_command_servic
     assert payload["live_coinbase_orders_ran"] is False
     assert len(command_service.commands) == 1
     assert command_service.commands[0].allow_live_execution is True
+    assert command_service.commands[0].admin_cap_guard_decision_id == (
+        cap_guard.decision_id
+    )
+    assert command_service.commands[0].admin_max_submitted_notional_usdc == "3.10"
 
 
 @pytest.mark.regression
@@ -36717,7 +36721,7 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
     monkeypatch.setattr(
         configuration,
         "ACTION_CONDITION_GUARDS",
-        _admin_api_direct_spot_cap_policy(max_notional=3.10),
+        {"limits": []},
     )
     monkeypatch.setattr(
         configuration,
@@ -36894,7 +36898,7 @@ def test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap(
     monkeypatch.setattr(
         configuration,
         "ACTION_CONDITION_GUARDS",
-        _admin_api_direct_spot_cap_policy(max_notional=3.10),
+        {"limits": []},
     )
     monkeypatch.setattr(
         configuration,

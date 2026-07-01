@@ -1182,6 +1182,8 @@ class ManualOrderCommand(BaseModel):
     envelope: AdminApiCommandEnvelope
     request: ManualOrderRequest
     order_configuration_override: dict[str, Any] | None = None
+    admin_cap_guard_decision_id: str | None = Field(default=None, min_length=1)
+    admin_max_submitted_notional_usdc: DecimalString | None = None
     allow_live_execution: bool = False
 
 

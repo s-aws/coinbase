@@ -101,6 +101,7 @@ from application.admin_api.read_service import AdminApiReadService
 from core.enums import (
     AdminApiActionClass,
     AdminApiCommandStatus,
+    AdminApiGateStatus,
     AdminApiIdempotencyDecision,
     AdminApiMutationFamilyType,
     AdminApiPermission,
@@ -618,6 +619,59 @@ def _manual_order_with_backend_identity(
     )
 
 
+def _manual_order_admin_cap_guard_context(
+    *,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+    cap_guard_store: FileAdminApiCapGuardStore,
+) -> tuple[str | None, str | None]:
+    """Return the exact Admin cap/guard notional context for manual order submit."""
+
+    if (
+        not admission_decision.allowed
+        or not admission_decision.cap_guard_present
+        or not admission_decision.cap_guard_decision_id
+    ):
+        return None, None
+
+    record = cap_guard_store.find_by_decision_id(
+        admission_decision.cap_guard_decision_id
+    )
+    if (
+        record is None
+        or not record.allowed
+        or record.status != AdminApiGateStatus.PASSED
+    ):
+        return None, None
+
+    same_command = (
+        record.route == admission_decision.route
+        and record.method == admission_decision.method
+        and record.module_id == admission_decision.module_id
+        and record.identity_key == admission_decision.identity_key
+        and record.identity_value == admission_decision.identity_value
+        and _enum_text(record.action_class)
+        == _enum_text(admission_decision.action_class)
+        and _enum_text(record.required_permission)
+        == _enum_text(admission_decision.required_permission)
+        and record.service_method == admission_decision.service_method
+        and record.actor_id == admission_decision.actor_id
+        and record.operator_intent == admission_decision.operator_intent
+        and record.idempotency_key == admission_decision.idempotency_key
+        and record.payload_hash == admission_decision.payload_hash
+        and record.approval_snapshot_id == admission_decision.approval_snapshot_id
+        and record.admission_audit_id == admission_decision.admission_audit_id
+    )
+    if not same_command:
+        return None, None
+
+    return record.decision_id, record.max_submitted_notional_usdc
+
+
+def _enum_text(value: object) -> str:
+    enum_value = getattr(value, "value", value)
+    return str(enum_value)
+
+
 def _should_retry_non_live_manual_order_after_admission(
     *,
     record: IdempotencyRecord,
@@ -988,6 +1042,26 @@ def create_manual_order(
         idempotency_key=idempotency_key,
         payload_hash=payload_hash,
     )
+
+    def run_manual_order_with_admission(
+        admission_decision: AdminLiveAdmissionDecisionEvidence,
+    ) -> AdminApiCommandResponse:
+        cap_guard_decision_id, admin_max_notional = (
+            _manual_order_admin_cap_guard_context(
+                admission_decision=admission_decision,
+                cap_guard_store=cap_guard_store,
+            )
+        )
+        return service.place_manual_order(
+            ManualOrderCommand(
+                envelope=envelope,
+                request=body,
+                admin_cap_guard_decision_id=cap_guard_decision_id,
+                admin_max_submitted_notional_usdc=admin_max_notional,
+                allow_live_execution=admission_decision.allowed,
+            )
+        )
+
     return _execute_idempotent_command(
         idempotency_key=idempotency_key,
         payload_hash=payload_hash,
@@ -1009,15 +1083,7 @@ def create_manual_order(
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
         client_order_id=body.client_order_id,
-        command_runner_with_admission=lambda admission_decision: (
-            service.place_manual_order(
-                ManualOrderCommand(
-                    envelope=envelope,
-                    request=body,
-                    allow_live_execution=admission_decision.allowed,
-                )
-            )
-        ),
+        command_runner_with_admission=run_manual_order_with_admission,
     )
 
 

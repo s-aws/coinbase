@@ -12,7 +12,10 @@ from typing import Any, Callable, Mapping
 import uuid
 
 from calculation.formatter import safe_float
-from core.action_condition_guard import ActionConditionGuard
+from core.action_condition_guard import (
+    ActionConditionGuard,
+    get_action_condition_guard_policy,
+)
 from core.enums import (
     ActionConditionType,
     ActionGuardPhase,
@@ -424,6 +427,38 @@ def direct_spot_live_acknowledged(order_params: Mapping[str, Any]) -> bool:
     if isinstance(direct_ack, str):
         return direct_ack.strip().lower() in {"true", "yes", "1"}
     return bool(direct_ack)
+
+
+def manual_order_action_guard_policy(command: ManualOrderCommand) -> dict[str, Any]:
+    """Return action-condition policy scoped to this Admin manual-order command."""
+
+    policy = dict(get_action_condition_guard_policy())
+    max_notional = safe_float(
+        command.admin_max_submitted_notional_usdc,
+        default=None,
+    )
+    if max_notional is None:
+        return policy
+
+    raw_limits = policy.get("limits") or []
+    if isinstance(raw_limits, Mapping):
+        limits = list(raw_limits.values())
+    elif isinstance(raw_limits, list):
+        limits = list(raw_limits)
+    else:
+        limits = []
+
+    limits.append({
+        "name": (
+            "admin_cap_guard:"
+            f"{command.admin_cap_guard_decision_id or 'manual_order'}"
+        ),
+        "product_type": ProductType.SPOT.value,
+        ActionConditionType.MAX_NOTIONAL.value: max_notional,
+        "phases": [ActionGuardPhase.PLANNING.value],
+    })
+    policy["limits"] = limits
+    return policy
 
 
 def coinbase_order_response_to_dict(result: Any) -> dict[str, Any]:
@@ -1379,6 +1414,7 @@ class AdminApiCommandService:
 
             if approved_base_size is not None or quote_size is not None:
                 action_guard = ActionConditionGuard(
+                    policy=manual_order_action_guard_policy(command),
                     planned_budget_fetcher=deps.planned_budget_fetcher,
                     lot_authority_evaluator=deps.lot_authority_evaluator_getter(),
                 )
