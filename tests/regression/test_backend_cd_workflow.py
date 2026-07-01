@@ -32,6 +32,10 @@ def test_backend_continuous_deployment_workflow_guards_staging_deploy() -> None:
         "python tools/generate_admin_api_openapi.py --check",
         "python tools/export_admin_api_route_inventory.py --check",
         "python -m pytest tests/regression/test_admin_api_local_run_contract.py -v --tb=short",
+        "Admin API controlled-live MVP route smoke",
+        "test_admin_api_manual_order_route_passes_backend_admission_to_command_service",
+        "test_admin_api_manual_order_route_executes_through_backend_runtime_dependencies",
+        "test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap",
         "python tools/run_admin_oidc_readiness_smoke.py --summary-only",
         "python tools/write_admin_api_deployment_manifest.py",
         "coinbase-backend-deployment.tgz",
@@ -63,6 +67,20 @@ def test_backend_deploy_uploads_payload_before_calling_webhook() -> None:
     assert workflow.index("Call deployment webhook") > workflow.index(
         "Upload deployment payload"
     )
+
+
+def test_backend_deploy_runs_controlled_live_mvp_smoke_before_packaging() -> None:
+    workflow = DEPLOY_WORKFLOW_PATH.read_text(encoding="utf-8")
+
+    assert workflow.index("Admin API controlled-live MVP route smoke") > workflow.index(
+        "Admin API deploy smoke"
+    )
+    assert workflow.index("Package backend deploy payload") > workflow.index(
+        "Admin API controlled-live MVP route smoke"
+    )
+    assert workflow.index(
+        "test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap"
+    ) < workflow.index("Package backend deploy payload")
 
 
 def test_backend_deploy_payload_contains_admin_runtime_contract_files() -> None:
