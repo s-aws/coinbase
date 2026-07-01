@@ -1609,6 +1609,7 @@ class AdminApiCommandService:
                 idempotency_key=command.envelope.idempotency_key,
                 guard=gate.model_dump(),
                 failure_stage="approval",
+                **self._command_runtime_evidence(),
             )
 
         deps = self.dependencies
@@ -1653,6 +1654,7 @@ class AdminApiCommandService:
                     live_coinbase_orders_ran=True,
                     data=result,
                     failure_stage="coinbase_rest",
+                    **self._command_runtime_evidence(),
                 )
 
             deps.add_log_entry("INFO", f"Order cancelled: client_order_id={client_order_id}")
@@ -1668,6 +1670,7 @@ class AdminApiCommandService:
                 live_exchange_submitted=True,
                 live_coinbase_orders_ran=True,
                 data=result,
+                **self._command_runtime_evidence(),
             )
         except Exception as exc:
             deps.add_log_entry("ERROR", f"Order cancellation failed: {exc}")
@@ -5284,4 +5287,5 @@ class AdminApiCommandService:
             correlation_id=command.envelope.correlation_id,
             idempotency_key=command.envelope.idempotency_key,
             failure_stage=failure_stage,
+            **self._command_runtime_evidence(),
         )

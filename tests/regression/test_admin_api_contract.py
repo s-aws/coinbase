@@ -10141,6 +10141,14 @@ def test_admin_api_cancel_contract_is_keyed_by_client_order_id(monkeypatch):
     assert payload["client_order_id"] == "client-abc"
     assert payload["live_exchange_submitted"] is False
     assert payload["failure_stage"] == "approval"
+    assert payload["live_command_runtime_enabled"] is False
+    assert payload["live_command_rest_client_available"] is False
+    assert payload["live_command_runtime_ready"] is False
+    assert payload["live_command_runtime_missing_reason"] == "live_runtime_disabled"
+    assert (
+        payload["live_command_runtime_source"]
+        == "application/admin_api/command_runtime.py"
+    )
     assert payload["guard"]["approval_snapshot_required"] is True
     assert payload["guard"]["cap_evaluation_required"] is True
     assert payload["admission_decision"]["route"] == (
@@ -33327,6 +33335,17 @@ def test_admin_api_command_audit_is_durable(monkeypatch):
     assert audit_rows[-1]["admission_decision"]["operator_intent"] == "manual_one_off"
     assert len(audit_rows[-1]["admission_decision"]["payload_hash"]) == 64
     assert audit_rows[-1]["admission_decision"]["live_exchange_submitted"] is False
+    assert audit_rows[-1]["live_command_runtime_enabled"] is False
+    assert audit_rows[-1]["live_command_rest_client_available"] is False
+    assert audit_rows[-1]["live_command_runtime_ready"] is False
+    assert (
+        audit_rows[-1]["live_command_runtime_missing_reason"]
+        == "live_runtime_disabled"
+    )
+    assert (
+        audit_rows[-1]["live_command_runtime_source"]
+        == "application/admin_api/command_runtime.py"
+    )
     _assert_disabled_live_execution_intent(
         audit_rows[-1]["admission_decision"]["live_execution_intent"],
         route="/api/v1/orders/{client_order_id}/cancel",
