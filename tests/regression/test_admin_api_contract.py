@@ -33520,6 +33520,21 @@ def test_admin_api_examples_keep_operator_intent_in_headers():
 
 
 @pytest.mark.regression
+def test_admin_api_docs_include_live_admission_preview_operator_example():
+    examples_doc = (ROOT / "docs" / "examples" / "admin-api.md").read_text(
+        encoding="utf-8"
+    )
+    readme_doc = (ROOT / "README.admin-api.md").read_text(encoding="utf-8")
+    normalized_readme_doc = " ".join(readme_doc.split())
+
+    assert "GET /api/v1/admin/live-execution/admission-preview" in examples_doc
+    assert "preview_live_admission" in examples_doc
+    assert "live_coinbase_orders_ran" in examples_doc
+    assert "GET /api/v1/admin/live-execution/admission-preview" in readme_doc
+    assert "read-only backend admission preview" in normalized_readme_doc
+
+
+@pytest.mark.regression
 def test_admin_api_idempotency_contract_replays_same_hash_and_conflicts_on_drift():
     payload_hash = make_payload_hash({"product_id": "BTC-USDC", "quote_size": "1.00"})
     record = IdempotencyRecord(
@@ -58519,6 +58534,25 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows["POST /api/v1/admin/cap-guard/decisions"].permission == (
         AdminApiPermission.CAP_GUARD_RECORD
     )
+    admission_preview_route = rows[
+        "GET /api/v1/admin/live-execution/admission-preview"
+    ]
+    assert admission_preview_route.shared_method == "preview_live_admission"
+    assert admission_preview_route.permission == AdminApiPermission.ANALYTICS_READ
+    admission_preview_doc_row = markdown_inventory_rows[
+        admission_preview_route.surface
+    ]
+    assert admission_preview_doc_row[1].strip("`") == (
+        admission_preview_route.action_class.value
+    )
+    assert admission_preview_doc_row[2].strip("`") == (
+        admission_preview_route.permission.value
+    )
+    assert admission_preview_doc_row[5] == admission_preview_route.caps
+    assert admission_preview_doc_row[7].strip("`") == (
+        admission_preview_route.shared_method
+    )
+    assert admission_preview_doc_row[8] == admission_preview_route.parity_test
     assert rows[
         "GET /api/v1/admin/live-execution/service-decisions"
     ].shared_method == "list_live_service_decisions"
@@ -58570,6 +58604,7 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "record_admission_audit" in doc
     assert "list_cap_guard_decisions" in doc
     assert "record_cap_guard_decision" in doc
+    assert "preview_live_admission" in doc
     assert "list_live_service_decisions" in doc
     assert "record_live_service_decision" in doc
     assert "list_live_adapter_decisions" in doc
@@ -58655,6 +58690,14 @@ def test_admin_api_route_inventory_and_openapi_paths_stay_in_sync():
     )
     assert "POST /api/v1/admin/cap-guard/decisions" in inventory_http_surfaces
     assert "POST /api/v1/admin/cap-guard/decisions" in schema_http_surfaces
+    assert (
+        "GET /api/v1/admin/live-execution/admission-preview"
+        in inventory_http_surfaces
+    )
+    assert (
+        "GET /api/v1/admin/live-execution/admission-preview"
+        in schema_http_surfaces
+    )
     assert (
         "GET /api/v1/admin/live-execution/service-decisions"
         in inventory_http_surfaces

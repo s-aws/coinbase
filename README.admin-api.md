@@ -84,6 +84,13 @@ requirement, and notional caps. Only `allowed=true` with `status=passed` is
 resolver-eligible. The routes do not execute reconciliation, mutate order or
 exchange state, submit Coinbase orders, or create browser/BFF reconciliation
 authority.
+`GET /api/v1/admin/live-execution/admission-preview` returns a read-only backend
+admission preview for one exact command context. It resolves approval,
+admission-audit, cap/guard, reconciliation, and live-service evidence without
+executing the command, appending audit rows, calling Coinbase, or granting the
+browser/BFF approval authority. It is intended for MVP operator UI and
+deployment smoke checks before a dry-submit or live-disabled command path is
+shown as eligible.
 M55 adds backend-owned live-service decision evidence routes at
 `/api/v1/admin/live-execution/service-decisions`. The `POST` route records an
 append-only disabled-service decision only: it rejects enabled service,

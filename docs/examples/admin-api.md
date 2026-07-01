@@ -4679,6 +4679,50 @@ blocked status, warning status, read-only route target, local-state route
 target, permission mismatch, or duplicate plan id fails closed as evidence
 only.
 
+## Live Admission Preview
+
+The admission preview route returns read-only backend admission preview evidence
+for one exact command context. It resolves the backend approval, admission
+audit, cap/guard, reconciliation, and live-service prerequisites without
+executing the command, appending audit evidence, submitting Coinbase orders, or
+granting browser/BFF authority.
+
+Preview backend admission for a dry-submit command:
+
+```http
+GET /api/v1/admin/live-execution/admission-preview?route=/api/v1/orders&method=POST&module_id=spot_operations&identity_key=client_order_id&identity_value=client-order-001&action_class=live_exchange_place&required_permission=order:create&service_method=place_manual_order&actor_id=operator-001&command_idempotency_key=idem-order-001&operator_intent=manual_one_off&payload_hash=1111111111111111111111111111111111111111111111111111111111111111
+Authorization: Bearer <backend-verifiable-token>
+X-Admin-Actor: viewer-001
+X-Admin-Roles: viewer
+```
+
+Selected response fields:
+
+```json
+{
+  "type": "admin_admission_preview",
+  "status": "accepted",
+  "action_class": "read_only",
+  "required_permission": "analytics:read",
+  "service_method": "preview_live_admission",
+  "browser_authority": "display_only",
+  "bff_authority": "read_only_forward",
+  "live_exchange_submitted": false,
+  "live_coinbase_orders_ran": false,
+  "admission_decision": {
+    "status": "blocked",
+    "allowed": false,
+    "live_exchange_submitted": false
+  }
+}
+```
+
+The route is safe for MVP deployment smoke checks and operator demos because it
+cannot approve, execute, or mutate the command path. A blocked preview remains
+evidence only; the backend command route must still enforce authorization,
+approval, caps, reconciliation, live-service state, and no-live execution
+guards.
+
 ## Live-Service Decision Evidence
 
 Live-service decision routes persist backend-owned disabled-service evidence
