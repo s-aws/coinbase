@@ -355,9 +355,11 @@ from application.admin_api.live_execution import (
 )
 from application.admin_api.models import (
     AdminApiActor,
+    AdminApiCommandEnvelope,
     AdminApiCommandResponse,
     AdminApprovalRequestCreateRequest,
     AdminLiveAdmissionDecisionEvidence,
+    ManualOrderCommand,
     ManualOrderRequest,
     MovementRepriceRequest,
     SpotRecoveryApplyExecutionRequest,
@@ -37174,6 +37176,92 @@ def test_admin_api_command_service_uses_backend_runtime_dependencies_when_enable
     assert service.dependencies.command_runtime_ready is True
     assert service.dependencies.command_runtime_missing_reason is None
     assert service.dependencies.order_event_publisher_getter() is event_publisher
+
+
+@pytest.mark.regression
+def test_admin_api_order_event_stream_publisher_can_be_disabled(monkeypatch):
+    from application.admin_api import command_runtime
+
+    monkeypatch.setenv(command_runtime.ORDER_EVENT_STREAM_DISABLED_ENV, "true")
+    monkeypatch.setattr(
+        command_runtime,
+        "_order_event_stream_publisher",
+        SimpleNamespace(enabled=True),
+    )
+
+    assert command_runtime.admin_api_order_event_stream_disabled() is True
+    assert command_runtime.get_admin_api_order_event_stream_publisher() is None
+
+
+@pytest.mark.regression
+def test_admin_api_manual_order_command_fails_closed_on_rest_exception(
+    monkeypatch,
+):
+    import configuration
+
+    class FakeRuntimeController:
+        def track_inflight(self, _name):
+            return self
+
+        def __enter__(self):
+            return None
+
+        def __exit__(self, _exc_type, _exc, _traceback):
+            return False
+
+    class RaisingRestClient:
+        def create_order(self, **_kwargs):
+            raise RuntimeError("placeholder credentials rejected")
+
+    event_publisher = SimpleNamespace(
+        enabled=True,
+        publish_event=lambda **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        {ActionConditionType.WALLET_AVAILABLE.value: False, "limits": []},
+        raising=False,
+    )
+    service = AdminApiCommandService(
+        AdminApiCommandDependencies(
+            rest_client=RaisingRestClient(),
+            rest_client_available=True,
+            live_runtime_enabled=True,
+            command_runtime_ready=True,
+            command_runtime_missing_reason=None,
+            runtime_controller_factory=lambda: FakeRuntimeController(),
+            order_event_publisher_getter=lambda: event_publisher,
+        )
+    )
+    command = ManualOrderCommand(
+        envelope=AdminApiCommandEnvelope(
+            idempotency_key="idem-rest-exception",
+            correlation_id="corr-rest-exception",
+            operator_intent="manual_one_off",
+            actor=AdminApiActor(
+                actor_id="operator-001",
+                roles=[AdminApiRole.ADMIN],
+            ),
+        ),
+        request=ManualOrderRequest.model_validate(
+            _manual_order_payload(client_order_id="client-rest-exception")
+        ),
+        admin_cap_guard_decision_id="cap-rest-exception",
+        admin_max_submitted_notional_usdc="3.10",
+        allow_live_execution=True,
+    )
+
+    response = service.place_manual_order(command)
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "coinbase_rest"
+    assert "placeholder credentials rejected" in response.message
+    assert response.live_exchange_submitted is False
+    assert response.live_coinbase_orders_ran is False
+    assert response.live_command_runtime_enabled is True
+    assert response.live_command_rest_client_available is True
+    assert response.live_command_runtime_ready is True
 
 
 @pytest.mark.regression

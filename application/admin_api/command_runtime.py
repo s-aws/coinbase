@@ -16,6 +16,8 @@ from .command_service import AdminApiCommandDependencies, AdminApiCommandService
 from .live_execution import LIVE_EXECUTION_RUNTIME_ENABLED_ENV
 
 
+ORDER_EVENT_STREAM_DISABLED_ENV = "COINBASE_ADMIN_API_ORDER_EVENT_STREAM_DISABLED"
+
 logger = get_logger("AdminApiCommandRuntime")
 
 _order_event_stream_lock = Lock()
@@ -45,6 +47,17 @@ def admin_api_live_runtime_enabled() -> bool:
     """Return whether backend Admin API live runtime wiring is enabled."""
 
     return os.environ.get(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+def admin_api_order_event_stream_disabled() -> bool:
+    """Return whether Admin API should fail before order-event publishing."""
+
+    return os.environ.get(ORDER_EVENT_STREAM_DISABLED_ENV, "").strip().lower() in {
         "1",
         "true",
         "yes",
@@ -106,6 +119,9 @@ def build_admin_api_command_runtime_readiness() -> AdminApiCommandRuntimeReadine
 
 def get_admin_api_order_event_stream_publisher() -> Any | None:
     """Return the shared durable order-event publisher for Admin API placement."""
+
+    if admin_api_order_event_stream_disabled():
+        return None
 
     global _order_event_stream_publisher
     if _order_event_stream_publisher is not None:

@@ -1558,12 +1558,23 @@ class AdminApiCommandService:
                     )
 
             controller = deps.runtime_controller_factory()
-            with controller.track_inflight(INFLIGHT_REST_PLACE):
-                result = deps.rest_client.create_order(
+            try:
+                with controller.track_inflight(INFLIGHT_REST_PLACE):
+                    result = deps.rest_client.create_order(
+                        client_order_id=client_order_id,
+                        product_id=product_id,
+                        side=order_params.get("side"),
+                        order_configuration=order_configuration,
+                    )
+            except CoinbaseAPIError:
+                raise
+            except Exception as exc:
+                deps.add_log_entry("ERROR", f"REST submission failed: {exc}")
+                return self._place_rejected(
+                    command=command,
                     client_order_id=client_order_id,
-                    product_id=product_id,
-                    side=order_params.get("side"),
-                    order_configuration=order_configuration,
+                    message=f"Coinbase REST submission failed: {exc}",
+                    failure_stage="coinbase_rest",
                 )
 
             result_dict = coinbase_order_response_to_dict(result)
