@@ -24798,6 +24798,8 @@ class AdminLiveEnablementPathItem(BaseModel):
     product_scope: str = "not_selected"
     max_submitted_notional_usdc: DecimalString | None = None
     max_executed_notional_usdc: DecimalString | None = None
+    live_command_runtime_ready: bool = False
+    live_command_runtime_missing_reason: str | None = None
     preflight_checks: list[AdminLivePreflightCheckItem] = Field(default_factory=list)
     blocking_preflight_check_count: int = 0
     passed_preflight_check_count: int = 0
@@ -24837,6 +24839,12 @@ class AdminLiveEnablementReadResponse(BaseModel):
     reconciliation_required: bool = True
     live_enabled_path_count: int = 0
     live_eligible_path_count: int = 0
+    live_command_runtime_enabled: bool = False
+    live_command_rest_client_available: bool = False
+    live_command_runtime_ready: bool = False
+    live_command_runtime_missing_reason: str | None = None
+    live_command_runtime_source: str = "application/admin_api/command_runtime.py"
+    live_command_runtime_ready_path_count: int = 0
     paths: list[AdminLiveEnablementPathItem] = Field(default_factory=list)
     checks: list[AdminGateCheck] = Field(default_factory=list)
     preflight_check_count: int = 0

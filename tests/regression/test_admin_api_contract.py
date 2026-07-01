@@ -35096,6 +35096,8 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
     monkeypatch,
     tmp_path,
 ):
+    import configuration
+
     from application.admin_api.read_service import AdminApiReadService
 
     decision_log = tmp_path / "live_service_decisions.jsonl"
@@ -35119,6 +35121,13 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
         str(decision_log),
     )
     monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setattr(configuration, "API_KEY", "test-key", raising=False)
+    monkeypatch.setattr(configuration, "API_SECRET", "test-secret", raising=False)
+    monkeypatch.setattr(
+        configuration,
+        "get_rest_client",
+        lambda: SimpleNamespace(name="fake-rest-client"),
+    )
 
     service = AdminApiReadService()
     capabilities = service.build_admin_capabilities().model_dump(mode="json")
@@ -35149,8 +35158,15 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
     assert live_enablement["status"] == "approval_required"
     assert live_enablement["live_enabled_path_count"] == 1
     assert live_enablement["live_eligible_path_count"] == 1
+    assert live_enablement["live_command_runtime_enabled"] is True
+    assert live_enablement["live_command_rest_client_available"] is True
+    assert live_enablement["live_command_runtime_ready"] is True
+    assert live_enablement["live_command_runtime_missing_reason"] is None
+    assert live_enablement["live_command_runtime_ready_path_count"] == 1
     assert manual_live_route["live_enabled"] is True
     assert manual_live_route["live_eligible"] is True
+    assert manual_live_route["live_command_runtime_ready"] is True
+    assert manual_live_route["live_command_runtime_missing_reason"] is None
     assert not any(
         precondition["precondition"] == "live_execution_service"
         and precondition["blocking"]
@@ -35158,6 +35174,11 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
     )
     assert cancel_live_route["live_enabled"] is False
     assert cancel_live_route["live_eligible"] is False
+    assert cancel_live_route["live_command_runtime_ready"] is False
+    assert (
+        cancel_live_route["live_command_runtime_missing_reason"]
+        == "not_controlled_live_mvp_route"
+    )
 
     spot_commands = {item["route"]: item for item in spot_suite["commands"]}
     manual_command = spot_commands["/api/v1/orders"]
@@ -35170,6 +35191,66 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
     assert "approval_snapshot" in manual_command["missing_gate_chain"]
     assert cancel_command["live_enabled"] is False
     assert cancel_command["live_eligible"] is False
+
+
+@pytest.mark.regression
+def test_live_enablement_separates_admission_from_missing_command_runtime(
+    monkeypatch,
+    tmp_path,
+):
+    import configuration
+
+    from application.admin_api.read_service import AdminApiReadService
+
+    decision_log = tmp_path / "live_service_decisions.jsonl"
+    store = FileAdminApiLiveServiceDecisionStore(decision_log)
+    store.append(
+        LiveServiceDecisionRecord(
+            decision_id="live-service-read-surface-runtime-missing",
+            status=AdminApiGateStatus.PASSED,
+            requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+            service_enabled=True,
+            deployment_ref="deployment-controlled-live-mvp",
+            runtime_configuration_ref="runtime-controlled-live-mvp",
+            decision_reason="Expose admission while runtime is not yet bound.",
+            live_coinbase_execution_approved=True,
+            max_submitted_notional_usdc="3.10",
+            max_executed_notional_usdc="1.00",
+        )
+    )
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_LIVE_SERVICE_DECISION_LOG_PATH",
+        str(decision_log),
+    )
+    monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setattr(configuration, "API_KEY", None, raising=False)
+    monkeypatch.setattr(configuration, "API_SECRET", None, raising=False)
+
+    def unexpected_rest_client_load():
+        raise AssertionError("REST client must not load without credentials")
+
+    monkeypatch.setattr(configuration, "get_rest_client", unexpected_rest_client_load)
+
+    live_enablement = AdminApiReadService().build_live_enablement().model_dump(mode="json")
+    manual_live_route = {
+        item["route"]: item for item in live_enablement["paths"]
+    }["/api/v1/orders"]
+
+    assert live_enablement["live_enabled_path_count"] == 1
+    assert live_enablement["live_command_runtime_enabled"] is True
+    assert live_enablement["live_command_rest_client_available"] is False
+    assert live_enablement["live_command_runtime_ready"] is False
+    assert (
+        live_enablement["live_command_runtime_missing_reason"]
+        == "coinbase_rest_credentials_missing"
+    )
+    assert live_enablement["live_command_runtime_ready_path_count"] == 0
+    assert manual_live_route["live_enabled"] is True
+    assert manual_live_route["live_command_runtime_ready"] is False
+    assert (
+        manual_live_route["live_command_runtime_missing_reason"]
+        == "coinbase_rest_credentials_missing"
+    )
 
 
 def _live_adapter_decision_payload(

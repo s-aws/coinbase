@@ -107,6 +107,7 @@ from .auth import (
     check_oidc_jwks_reachability,
     configured_auth_mode,
 )
+from .command_runtime import build_admin_api_command_runtime_readiness
 from .live_execution import (
     DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
     DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
@@ -11399,6 +11400,7 @@ class AdminApiReadService:
 
         paths: list[AdminLiveEnablementPathItem] = []
         live_service_state = _decision_backed_live_service_state()
+        command_runtime = build_admin_api_command_runtime_readiness()
         for item in ADMIN_API_ROUTE_INVENTORY:
             method, path = _surface_method_and_path(item.surface)
             if method != "POST" or not path.startswith("/api/v1/"):
@@ -11464,6 +11466,16 @@ class AdminApiReadService:
                 path=path,
                 live_service_state=live_service_state,
             )
+            controlled_live_runtime_ready = (
+                controlled_live_enabled and command_runtime.runtime_ready
+            )
+            command_runtime_missing_reason = (
+                command_runtime.missing_reason
+                if controlled_live_enabled and not command_runtime.runtime_ready
+                else None
+            )
+            if not controlled_live_enabled and (method, path) != CONTROLLED_LIVE_MVP_ROUTE:
+                command_runtime_missing_reason = "not_controlled_live_mvp_route"
             path_live_status = live_execution_adapter.get(
                 "status",
                 AdminApiLiveExecutionStatus.LIVE_DISABLED,
@@ -11515,6 +11527,10 @@ class AdminApiReadService:
                     product_scope=LIVE_ENABLEMENT_PRODUCT_SCOPE,
                     max_submitted_notional_usdc=LIVE_ENABLEMENT_MAX_SUBMITTED_NOTIONAL_USDC,
                     max_executed_notional_usdc=LIVE_ENABLEMENT_MAX_EXECUTED_NOTIONAL_USDC,
+                    live_command_runtime_ready=controlled_live_runtime_ready,
+                    live_command_runtime_missing_reason=(
+                        command_runtime_missing_reason
+                    ),
                     preflight_checks=preflight_checks,
                     blocking_preflight_check_count=sum(
                         1
@@ -11642,6 +11658,16 @@ class AdminApiReadService:
             reconciliation_required=True,
             live_enabled_path_count=sum(1 for path in paths if path.live_enabled),
             live_eligible_path_count=sum(1 for path in paths if path.live_eligible),
+            live_command_runtime_enabled=command_runtime.live_runtime_enabled,
+            live_command_rest_client_available=(
+                command_runtime.rest_client_available
+            ),
+            live_command_runtime_ready=command_runtime.runtime_ready,
+            live_command_runtime_missing_reason=command_runtime.missing_reason,
+            live_command_runtime_source=command_runtime.source,
+            live_command_runtime_ready_path_count=sum(
+                1 for path in paths if path.live_command_runtime_ready
+            ),
             paths=paths,
             checks=checks,
             preflight_check_count=len(preflight_checks),

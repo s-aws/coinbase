@@ -30,6 +30,17 @@ class AdminApiRestClientBinding:
     available: bool
 
 
+@dataclass(frozen=True, slots=True)
+class AdminApiCommandRuntimeReadiness:
+    """Backend command-runtime readiness for controlled-live Admin API placement."""
+
+    live_runtime_enabled: bool
+    rest_client_available: bool
+    runtime_ready: bool
+    missing_reason: str | None
+    source: str = "application/admin_api/command_runtime.py"
+
+
 def admin_api_live_runtime_enabled() -> bool:
     """Return whether backend Admin API live runtime wiring is enabled."""
 
@@ -56,6 +67,41 @@ def load_admin_api_rest_client() -> AdminApiRestClientBinding:
         return AdminApiRestClientBinding(client=None, available=False)
 
     return AdminApiRestClientBinding(client=client, available=client is not None)
+
+
+def build_admin_api_command_runtime_readiness() -> AdminApiCommandRuntimeReadiness:
+    """Return fail-closed command-runtime evidence for controlled-live placement."""
+
+    live_runtime_enabled = admin_api_live_runtime_enabled()
+    if not live_runtime_enabled:
+        return AdminApiCommandRuntimeReadiness(
+            live_runtime_enabled=False,
+            rest_client_available=False,
+            runtime_ready=False,
+            missing_reason="live_runtime_disabled",
+        )
+    if not rest_credentials_configured():
+        return AdminApiCommandRuntimeReadiness(
+            live_runtime_enabled=True,
+            rest_client_available=False,
+            runtime_ready=False,
+            missing_reason="coinbase_rest_credentials_missing",
+        )
+
+    rest_client = load_admin_api_rest_client()
+    if not rest_client.available:
+        return AdminApiCommandRuntimeReadiness(
+            live_runtime_enabled=True,
+            rest_client_available=False,
+            runtime_ready=False,
+            missing_reason="coinbase_rest_client_unavailable",
+        )
+    return AdminApiCommandRuntimeReadiness(
+        live_runtime_enabled=True,
+        rest_client_available=True,
+        runtime_ready=True,
+        missing_reason=None,
+    )
 
 
 def get_admin_api_order_event_stream_publisher() -> Any | None:

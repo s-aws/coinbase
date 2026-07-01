@@ -131583,6 +131583,15 @@ components:
             - '1.00'
           - type: 'null'
           title: Max Executed Notional Usdc
+        live_command_runtime_ready:
+          type: boolean
+          title: Live Command Runtime Ready
+          default: false
+        live_command_runtime_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Command Runtime Missing Reason
         preflight_checks:
           items:
             $ref: '#/components/schemas/AdminLivePreflightCheckItem'
@@ -131732,6 +131741,31 @@ components:
         live_eligible_path_count:
           type: integer
           title: Live Eligible Path Count
+          default: 0
+        live_command_runtime_enabled:
+          type: boolean
+          title: Live Command Runtime Enabled
+          default: false
+        live_command_rest_client_available:
+          type: boolean
+          title: Live Command Rest Client Available
+          default: false
+        live_command_runtime_ready:
+          type: boolean
+          title: Live Command Runtime Ready
+          default: false
+        live_command_runtime_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Command Runtime Missing Reason
+        live_command_runtime_source:
+          type: string
+          title: Live Command Runtime Source
+          default: application/admin_api/command_runtime.py
+        live_command_runtime_ready_path_count:
+          type: integer
+          title: Live Command Runtime Ready Path Count
           default: 0
         paths:
           items:
