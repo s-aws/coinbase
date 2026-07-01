@@ -200,6 +200,7 @@ def test_controlled_live_mvp_smoke_runner_records_timing_summary() -> None:
     assert command[:3] == [controlled_live_smoke.sys.executable, "-m", "pytest"]
     for nodeid in [
         "test_admin_api_order_live_execution_service_dependency_reads_decision_log",
+        "test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision",
         "test_admin_api_manual_order_route_passes_backend_admission_to_command_service",
         "test_admin_api_manual_order_route_executes_through_backend_runtime_dependencies",
         "test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap",

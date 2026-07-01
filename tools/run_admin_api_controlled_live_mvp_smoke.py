@@ -22,6 +22,8 @@ SMOKE_NODE_IDS = (
     "tests/regression/test_admin_api_contract.py::"
     "test_admin_api_order_live_execution_service_dependency_reads_decision_log",
     "tests/regression/test_admin_api_contract.py::"
+    "test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision",
+    "tests/regression/test_admin_api_contract.py::"
     "test_admin_api_manual_order_route_passes_backend_admission_to_command_service",
     "tests/regression/test_admin_api_contract.py::"
     "test_admin_api_manual_order_route_executes_through_backend_runtime_dependencies",
