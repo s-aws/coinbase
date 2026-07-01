@@ -12,6 +12,7 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
 import json
 import os
+import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -139,6 +140,19 @@ def current_utc_timestamp() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
+def read_git_commit() -> str:
+    """Return the local git short SHA for deployment metadata."""
+
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except (OSError, subprocess.CalledProcessError):
+        return "unknown"
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Create the deployment webhook payload parser."""
 
@@ -164,7 +178,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--commit",
-        default=os.getenv("DEPLOYMENT_REF") or os.getenv("GITHUB_SHA", "unknown"),
+        default=os.getenv("DEPLOYMENT_REF") or os.getenv("GITHUB_SHA") or read_git_commit(),
         help="Deployment commit ref.",
     )
     parser.add_argument(

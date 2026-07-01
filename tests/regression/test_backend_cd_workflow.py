@@ -1,5 +1,6 @@
-from pathlib import Path
+import subprocess
 import tomllib
+from pathlib import Path
 
 from tools import run_admin_api_controlled_live_mvp_smoke as controlled_live_smoke
 from tools import write_admin_api_deployment_manifest as deployment_manifest
@@ -280,6 +281,22 @@ def test_backend_deployment_webhook_payload_reads_powershell_utf8_bom(
     assert payload["smoke_timing"]["duration_seconds"] == 12.345
     assert payload["live_coinbase_execution"] == "not_run"
     assert payload["notional_usdc"] == "0"
+
+
+def test_backend_deployment_webhook_payload_defaults_to_local_git_commit(
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("DEPLOYMENT_REF", raising=False)
+    monkeypatch.delenv("GITHUB_SHA", raising=False)
+    expected_commit = subprocess.check_output(
+        ["git", "rev-parse", "--short", "HEAD"],
+        text=True,
+    ).strip()
+
+    args = deployment_webhook_payload.build_parser().parse_args([])
+
+    assert deployment_webhook_payload.read_git_commit() == expected_commit
+    assert args.commit == expected_commit
 
 
 def test_backend_openapi_generator_supports_check_mode() -> None:
