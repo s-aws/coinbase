@@ -1,6 +1,7 @@
 from pathlib import Path
 import tomllib
 
+from tools import run_admin_api_controlled_live_mvp_smoke as controlled_live_smoke
 from tools import write_admin_api_deployment_manifest as deployment_manifest
 
 
@@ -10,6 +11,12 @@ PYPROJECT_PATH = Path("pyproject.toml")
 TEST_REQUIREMENTS_PATH = Path("tests/requirements.txt")
 OPENAPI_GENERATOR_PATH = Path("tools/generate_admin_api_openapi.py")
 ROUTE_INVENTORY_EXPORTER_PATH = Path("tools/export_admin_api_route_inventory.py")
+CONTROLLED_LIVE_SMOKE_RUNNER_PATH = Path(
+    "tools/run_admin_api_controlled_live_mvp_smoke.py"
+)
+CONTROLLED_LIVE_SMOKE_TIMING_PATH = (
+    "artifacts/coinbase-backend-controlled-live-mvp-smoke-timing.json"
+)
 
 
 def test_backend_continuous_deployment_workflow_exists() -> None:
@@ -33,13 +40,13 @@ def test_backend_continuous_deployment_workflow_guards_staging_deploy() -> None:
         "python tools/export_admin_api_route_inventory.py --check",
         "python -m pytest tests/regression/test_admin_api_local_run_contract.py -v --tb=short",
         "Admin API controlled-live MVP route smoke",
-        "test_admin_api_manual_order_route_passes_backend_admission_to_command_service",
-        "test_admin_api_manual_order_route_executes_through_backend_runtime_dependencies",
-        "test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap",
+        "python tools/run_admin_api_controlled_live_mvp_smoke.py",
+        CONTROLLED_LIVE_SMOKE_TIMING_PATH,
         "python tools/run_admin_oidc_readiness_smoke.py --summary-only",
         "python tools/write_admin_api_deployment_manifest.py",
         "coinbase-backend-deployment.tgz",
         "artifacts/coinbase-backend-deployment-manifest.json",
+        CONTROLLED_LIVE_SMOKE_TIMING_PATH,
         "python-version: \"3.13\"",
         "python -m pip install -e \".[test]\"",
         "Live Coinbase execution: not run; notional $0",
@@ -78,9 +85,12 @@ def test_backend_deploy_runs_controlled_live_mvp_smoke_before_packaging() -> Non
     assert workflow.index("Package backend deploy payload") > workflow.index(
         "Admin API controlled-live MVP route smoke"
     )
-    assert workflow.index(
-        "test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap"
-    ) < workflow.index("Package backend deploy payload")
+    assert workflow.index(CONTROLLED_LIVE_SMOKE_TIMING_PATH) < workflow.index(
+        "Package backend deploy payload"
+    )
+    assert workflow.index("Upload deployment payload") > workflow.index(
+        CONTROLLED_LIVE_SMOKE_TIMING_PATH
+    )
 
 
 def test_backend_deploy_payload_contains_admin_runtime_contract_files() -> None:
@@ -95,6 +105,8 @@ def test_backend_deploy_payload_contains_admin_runtime_contract_files() -> None:
         "tools/run_admin_api.py",
         "tools/write_admin_api_deployment_manifest.py",
         "tools/export_admin_api_route_inventory.py",
+        "tools/run_admin_api_controlled_live_mvp_smoke.py",
+        CONTROLLED_LIVE_SMOKE_TIMING_PATH,
     ]:
         assert expected_path in payload_block
 
@@ -138,10 +150,43 @@ def test_public_agent_checks_cover_backend_continuous_deployment_contract() -> N
     assert "python tools/generate_admin_api_openapi.py --check" in workflow
     assert "python tools/export_admin_api_route_inventory.py --check" in workflow
     assert "Admin API controlled-live MVP route smoke" in workflow
-    assert "test_admin_api_order_live_execution_service_dependency_reads_decision_log" in workflow
-    assert "test_admin_api_manual_order_route_passes_backend_admission_to_command_service" in workflow
-    assert "test_admin_api_manual_order_route_executes_through_backend_runtime_dependencies" in workflow
-    assert "test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap" in workflow
+    assert "python tools/run_admin_api_controlled_live_mvp_smoke.py --summary-only" in workflow
+
+
+def test_controlled_live_mvp_smoke_runner_records_timing_summary() -> None:
+    assert CONTROLLED_LIVE_SMOKE_RUNNER_PATH.exists()
+    runner = CONTROLLED_LIVE_SMOKE_RUNNER_PATH.read_text(encoding="utf-8")
+
+    assert "ADMIN_API_CONTROLLED_LIVE_MVP_SMOKE_SUMMARY" in runner
+    assert "coinbase_admin_api_controlled_live_mvp_smoke_timing" in runner
+    assert "wait_sleep_seconds" in runner
+    assert CONTROLLED_LIVE_SMOKE_TIMING_PATH in runner
+
+    command = controlled_live_smoke.build_pytest_command()
+    assert command[:3] == [controlled_live_smoke.sys.executable, "-m", "pytest"]
+    for nodeid in [
+        "test_admin_api_order_live_execution_service_dependency_reads_decision_log",
+        "test_admin_api_manual_order_route_passes_backend_admission_to_command_service",
+        "test_admin_api_manual_order_route_executes_through_backend_runtime_dependencies",
+        "test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap",
+    ]:
+        assert any(nodeid in part for part in command)
+
+    summary = controlled_live_smoke.build_timing_summary(
+        result=controlled_live_smoke.SmokeRunResult(
+            return_code=0,
+            started_at="2026-07-01T00:00:00Z",
+            ended_at="2026-07-01T00:00:12Z",
+            duration_seconds=12.0,
+        ),
+        command=command,
+    )
+    assert summary["artifact_type"] == "coinbase_admin_api_controlled_live_mvp_smoke_timing"
+    assert summary["status"] == "passed"
+    assert summary["duration_seconds"] == 12.0
+    assert summary["wait_sleep_seconds"] == 0.0
+    assert summary["live_coinbase_execution"] == "not_run"
+    assert summary["notional_usdc"] == "0"
 
 
 def test_backend_openapi_generator_supports_check_mode() -> None:

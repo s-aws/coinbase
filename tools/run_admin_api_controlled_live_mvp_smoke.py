@@ -1,0 +1,152 @@
+"""Run the backend controlled-live Admin MVP route smoke with timing evidence."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import subprocess
+import sys
+import time
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Sequence
+
+
+SUMMARY_PREFIX = "ADMIN_API_CONTROLLED_LIVE_MVP_SMOKE_SUMMARY "
+DEFAULT_SUMMARY_OUTPUT = Path(
+    "artifacts/coinbase-backend-controlled-live-mvp-smoke-timing.json"
+)
+SMOKE_NODE_IDS = (
+    "tests/regression/test_admin_api_contract.py::"
+    "test_admin_api_order_live_execution_service_dependency_reads_decision_log",
+    "tests/regression/test_admin_api_contract.py::"
+    "test_admin_api_manual_order_route_passes_backend_admission_to_command_service",
+    "tests/regression/test_admin_api_contract.py::"
+    "test_admin_api_manual_order_route_executes_through_backend_runtime_dependencies",
+    "tests/regression/test_admin_api_contract.py::"
+    "test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap",
+)
+
+
+@dataclass(frozen=True)
+class SmokeRunResult:
+    return_code: int
+    started_at: str
+    ended_at: str
+    duration_seconds: float
+
+
+def build_pytest_command() -> list[str]:
+    """Return the controlled-live route smoke pytest command."""
+
+    return [
+        sys.executable,
+        "-m",
+        "pytest",
+        *SMOKE_NODE_IDS,
+        "-q",
+        "--tb=short",
+    ]
+
+
+def run_smoke(command: Sequence[str]) -> SmokeRunResult:
+    """Run the smoke command and return timing metadata."""
+
+    started_at = utc_now_iso()
+    started_perf = time.perf_counter()
+    completed = subprocess.run(command, check=False)
+    duration_seconds = round(time.perf_counter() - started_perf, 3)
+    return SmokeRunResult(
+        return_code=completed.returncode,
+        started_at=started_at,
+        ended_at=utc_now_iso(),
+        duration_seconds=duration_seconds,
+    )
+
+
+def build_timing_summary(
+    *,
+    result: SmokeRunResult,
+    command: Sequence[str],
+) -> dict[str, Any]:
+    """Build the machine-readable smoke timing summary."""
+
+    return {
+        "schema_version": "1",
+        "artifact_type": "coinbase_admin_api_controlled_live_mvp_smoke_timing",
+        "status": "passed" if result.return_code == 0 else "failed",
+        "return_code": result.return_code,
+        "started_at": result.started_at,
+        "ended_at": result.ended_at,
+        "duration_seconds": result.duration_seconds,
+        "wait_sleep_seconds": 0.0,
+        "command": list(command),
+        "smoke_node_ids": list(SMOKE_NODE_IDS),
+        "live_coinbase_execution": "not_run",
+        "notional_usdc": "0",
+    }
+
+
+def write_timing_summary(path: Path, summary: dict[str, Any]) -> None:
+    """Write the smoke timing summary as stable JSON."""
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(summary, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def build_parser() -> argparse.ArgumentParser:
+    """Create the controlled-live MVP smoke parser."""
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Run the backend controlled-live Admin MVP route smoke and write "
+            "machine-readable timing evidence."
+        )
+    )
+    parser.add_argument(
+        "--summary-output",
+        type=Path,
+        default=DEFAULT_SUMMARY_OUTPUT,
+        help="Path for the JSON smoke timing summary artifact.",
+    )
+    parser.add_argument(
+        "--summary-only",
+        action="store_true",
+        help="Only print the machine-readable summary line after pytest output.",
+    )
+    return parser
+
+
+def utc_now_iso() -> str:
+    """Return a compact UTC timestamp for deployment artifacts."""
+
+    return (
+        datetime.now(timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z")
+    )
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    command = build_pytest_command()
+    result = run_smoke(command)
+    summary = build_timing_summary(result=result, command=command)
+    write_timing_summary(args.summary_output, summary)
+    if not args.summary_only:
+        print(
+            "Controlled-live MVP route smoke timing written: "
+            f"{args.summary_output.resolve()}"
+        )
+        print("Live Coinbase execution: not run; notional $0")
+    print(SUMMARY_PREFIX + json.dumps(summary, sort_keys=True))
+    return result.return_code
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
