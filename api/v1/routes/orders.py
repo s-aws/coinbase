@@ -24,7 +24,7 @@ from application.admin_api.idempotency import (
 )
 from application.admin_api.live_execution import (
     AdminApiLiveExecutionService,
-    get_disabled_live_execution_service,
+    get_decision_backed_live_execution_service,
 )
 from application.admin_api.reconciliation import FileAdminApiReconciliationStore
 from application.admin_api.stealth_exchange_truth import (
@@ -236,9 +236,9 @@ def get_reconciliation_store() -> FileAdminApiReconciliationStore:
 
 
 def get_live_execution_service() -> AdminApiLiveExecutionService:
-    """Return the backend-owned disabled live execution service boundary."""
+    """Return the backend-owned live execution service boundary."""
 
-    return get_disabled_live_execution_service()
+    return get_decision_backed_live_execution_service()
 
 
 def get_read_service() -> AdminApiReadService:

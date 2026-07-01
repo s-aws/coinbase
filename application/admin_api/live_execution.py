@@ -9,6 +9,7 @@ from __future__ import annotations
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 import os
 from pathlib import Path
@@ -31,6 +32,9 @@ from core.enums import (
 
 
 DISABLED_LIVE_EXECUTION_SERVICE_SOURCE = "disabled_backend_service"
+CONFIGURED_LIVE_EXECUTION_SERVICE_SOURCE = (
+    "configured_admin_api_live_execution_service"
+)
 DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE = (
     "disabled_stealth_command_live_adapter"
 )
@@ -39,6 +43,11 @@ POST_WRITE_RECONCILIATION_METHOD = "POST"
 POST_WRITE_RECONCILIATION_SOURCE = "post_write_reconciliation_contract"
 EXECUTION_BOUNDARY_AUTHORITY = "backend_contract_only_no_execution"
 LIVE_EXECUTION_DISABLED_REASON = "live_execution_disabled"
+LIVE_EXECUTION_RUNTIME_ENABLED_ENV = "COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED"
+LIVE_EXECUTION_DECISION_MISSING_REASON = "live_service_enablement_decision_missing"
+LIVE_EXECUTION_DECISION_NOT_ELIGIBLE_REASON = (
+    "live_service_enablement_decision_not_resolver_eligible"
+)
 DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS = (
     "create_order",
     "cancel_order",
@@ -1840,6 +1849,84 @@ def get_disabled_live_execution_service() -> DisabledAdminApiLiveExecutionServic
     return DisabledAdminApiLiveExecutionService()
 
 
+@dataclass(frozen=True, slots=True)
+class DecisionBackedAdminApiLiveExecutionService:
+    """Live execution service state resolved from backend decision evidence."""
+
+    store: FileAdminApiLiveServiceDecisionStore | None = None
+    runtime_enabled: bool | None = None
+
+    def admission_state(self) -> AdminApiLiveExecutionServiceState:
+        runtime_enabled = (
+            _env_flag_enabled(LIVE_EXECUTION_RUNTIME_ENABLED_ENV)
+            if self.runtime_enabled is None
+            else self.runtime_enabled
+        )
+        if not runtime_enabled:
+            return get_disabled_live_execution_service().admission_state()
+
+        decision = read_latest_live_service_decision(self.store)
+        if decision is None:
+            return AdminApiLiveExecutionServiceState(
+                required=True,
+                present=True,
+                status=AdminApiLiveExecutionStatus.LIVE_DISABLED,
+                source=LIVE_SERVICE_DECISION_SOURCE,
+                missing_reason=LIVE_EXECUTION_DECISION_MISSING_REASON,
+            )
+        if not live_service_decision_allows_backend_admission(decision):
+            return AdminApiLiveExecutionServiceState(
+                required=True,
+                present=True,
+                status=decision.requested_service_status,
+                source=decision.source,
+                missing_reason=LIVE_EXECUTION_DECISION_NOT_ELIGIBLE_REASON,
+            )
+        return AdminApiLiveExecutionServiceState(
+            required=True,
+            present=True,
+            status=decision.requested_service_status,
+            source=CONFIGURED_LIVE_EXECUTION_SERVICE_SOURCE,
+            missing_reason=None,
+        )
+
+
+def get_decision_backed_live_execution_service(
+    store: FileAdminApiLiveServiceDecisionStore | None = None,
+    *,
+    runtime_enabled: bool | None = None,
+) -> DecisionBackedAdminApiLiveExecutionService:
+    """Return the backend-owned live service state resolver."""
+
+    return DecisionBackedAdminApiLiveExecutionService(
+        store=store,
+        runtime_enabled=runtime_enabled,
+    )
+
+
+def live_service_decision_allows_backend_admission(
+    decision: LiveServiceDecisionRecord | None,
+) -> bool:
+    """Return whether a live-service decision can satisfy admission state."""
+
+    return (
+        decision is not None
+        and decision.status == AdminApiGateStatus.PASSED
+        and decision.service_enabled
+        and decision.live_coinbase_execution_approved
+        and decision.requested_service_status
+        in {
+            AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+            AdminApiLiveExecutionStatus.RECONCILIATION_REQUIRED,
+            AdminApiLiveExecutionStatus.COMPLETED,
+        }
+        and _bounded_positive_notional_caps(
+            submitted=decision.max_submitted_notional_usdc,
+            executed=decision.max_executed_notional_usdc,
+        )
+    )
+
+
 def read_latest_live_service_decision(
     store: FileAdminApiLiveServiceDecisionStore | None = None,
 ) -> LiveServiceDecisionRecord | None:
@@ -1851,6 +1938,23 @@ def read_latest_live_service_decision(
     except OSError:
         return None
     return records[0] if records else None
+
+
+def _env_flag_enabled(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _bounded_positive_notional_caps(*, submitted: str, executed: str) -> bool:
+    try:
+        submitted_notional = Decimal(submitted)
+        executed_notional = Decimal(executed)
+    except (InvalidOperation, ValueError):
+        return False
+    return (
+        submitted_notional > Decimal("0")
+        and executed_notional > Decimal("0")
+        and executed_notional <= submitted_notional
+    )
 
 
 def read_latest_live_adapter_decision(

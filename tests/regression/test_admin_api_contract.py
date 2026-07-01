@@ -140,6 +140,7 @@ from application.admin_api.idempotency import (
     make_payload_hash,
 )
 from application.admin_api.live_execution import (
+    CONFIGURED_LIVE_EXECUTION_SERVICE_SOURCE,
     DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
     DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
     FileAdminApiLiveAdapterDecisionStore,
@@ -333,6 +334,7 @@ from application.admin_api.live_execution import (
     LIVE_EXECUTION_SERVICE_ENABLEMENT_CONTRACT_REFS,
     LIVE_EXECUTION_SERVICE_ENABLEMENT_VERIFICATION_GATES,
     LIVE_EXECUTION_SERVICE_REQUIRED_ENABLEMENT_ARTIFACTS,
+    LIVE_EXECUTION_RUNTIME_ENABLED_ENV,
     M55_STEALTH_REVEAL_DRY_RUN_SERVICE_MISSING_REASON,
     M55_STEALTH_REVEAL_DRY_RUN_SERVICE_SOURCE,
     POST_WRITE_RECONCILIATION_METHOD,
@@ -348,6 +350,7 @@ from application.admin_api.live_execution import (
     build_live_adapter_construction_contract,
     build_live_execution_adapter_contract,
     build_live_execution_service_contract,
+    get_decision_backed_live_execution_service,
     get_disabled_live_execution_service,
 )
 from application.admin_api.models import (
@@ -34733,6 +34736,58 @@ def test_admin_api_live_service_decision_routes_record_and_replay(monkeypatch):
 
 
 @pytest.mark.regression
+def test_admin_api_live_service_decision_routes_record_enabled_backend_decision(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    body = _live_service_decision_payload(
+        decision_id="live-service-enabled-approved",
+        status=AdminApiGateStatus.PASSED,
+        requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value,
+        service_enabled=True,
+        live_coinbase_execution_approved=True,
+        max_submitted_notional_usdc="3.10",
+        max_executed_notional_usdc="1.00",
+    )
+
+    created = client.post(
+        "/api/v1/admin/live-execution/service-decisions",
+        headers=_headers(
+            idempotency_key="live-service-enabled-approved-idem",
+            operator_intent="record_enabled_backend_live_service_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=body,
+    )
+
+    assert created.status_code == 200
+    created_payload = created.json()
+    assert created_payload["live_exchange_submitted"] is False
+    assert created_payload["live_coinbase_orders_ran"] is False
+    decision = created_payload["decision"]
+    assert decision["decision_id"] == "live-service-enabled-approved"
+    assert decision["status"] == AdminApiGateStatus.PASSED.value
+    assert decision["requested_service_status"] == (
+        AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value
+    )
+    assert decision["live_execution_service_status"] == (
+        AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value
+    )
+    assert decision["service_enabled"] is True
+    assert decision["live_coinbase_execution_approved"] is True
+    assert decision["max_submitted_notional_usdc"] == "3.10"
+    assert decision["max_executed_notional_usdc"] == "1.00"
+    assert decision["enablement_precondition_resolved"] is True
+    assert decision["resolver_eligible"] is True
+    assert decision["recorded_enablement_artifacts"] == list(
+        LIVE_EXECUTION_SERVICE_REQUIRED_ENABLEMENT_ARTIFACTS
+    )
+    assert decision["missing_enablement_artifacts"] == []
+    assert decision["browser_authority"] == "display_only"
+    assert decision["bff_authority"] == "forward_only_no_execution"
+
+
+@pytest.mark.regression
 def test_admin_api_live_service_decision_routes_fail_closed(monkeypatch):
     client = _client(monkeypatch)
     body = _live_service_decision_payload(decision_id="live-service-denied")
@@ -34749,22 +34804,25 @@ def test_admin_api_live_service_decision_routes_fail_closed(monkeypatch):
     assert denied.status_code == 403
     assert denied.json()["code"] == "permission_denied"
 
-    enabled = _live_service_decision_payload(
-        decision_id="live-service-enabled",
+    enabled_blocked = _live_service_decision_payload(
+        decision_id="live-service-enabled-blocked",
         service_enabled=True,
+        live_coinbase_execution_approved=True,
+        max_submitted_notional_usdc="3.10",
+        max_executed_notional_usdc="1.00",
     )
-    rejected_enabled = client.post(
+    rejected_enabled_blocked = client.post(
         "/api/v1/admin/live-execution/service-decisions",
         headers=_headers(
             idempotency_key="live-service-decision-enabled-idem",
             operator_intent="record_enabled_live_service_decision",
             roles=AdminApiRole.ADMIN.value,
         ),
-        json=enabled,
+        json=enabled_blocked,
     )
-    assert rejected_enabled.status_code == 400
-    assert rejected_enabled.json()["status"] == "rejected"
-    assert "cannot record enabled" in rejected_enabled.json()["message"]
+    assert rejected_enabled_blocked.status_code == 400
+    assert rejected_enabled_blocked.json()["status"] == "rejected"
+    assert "must record passed" in rejected_enabled_blocked.json()["message"]
 
     passed = _live_service_decision_payload(
         decision_id="live-service-passed",
@@ -34801,6 +34859,48 @@ def test_admin_api_live_service_decision_routes_fail_closed(monkeypatch):
         rejected_approved.json()["message"]
     )
 
+    live_disabled_enabled = _live_service_decision_payload(
+        decision_id="live-service-enabled-disabled-status",
+        status=AdminApiGateStatus.PASSED,
+        service_enabled=True,
+        live_coinbase_execution_approved=True,
+        max_submitted_notional_usdc="3.10",
+        max_executed_notional_usdc="1.00",
+    )
+    rejected_live_disabled_enabled = client.post(
+        "/api/v1/admin/live-execution/service-decisions",
+        headers=_headers(
+            idempotency_key="live-service-decision-live-disabled-enabled-idem",
+            operator_intent="record_live_disabled_enabled_service_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=live_disabled_enabled,
+    )
+    assert rejected_live_disabled_enabled.status_code == 400
+    assert "must request a non-disabled" in (
+        rejected_live_disabled_enabled.json()["message"]
+    )
+
+    unapproved_enabled = _live_service_decision_payload(
+        decision_id="live-service-enabled-unapproved",
+        status=AdminApiGateStatus.PASSED,
+        requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value,
+        service_enabled=True,
+        max_submitted_notional_usdc="3.10",
+        max_executed_notional_usdc="1.00",
+    )
+    rejected_unapproved_enabled = client.post(
+        "/api/v1/admin/live-execution/service-decisions",
+        headers=_headers(
+            idempotency_key="live-service-decision-unapproved-enabled-idem",
+            operator_intent="record_unapproved_enabled_service_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=unapproved_enabled,
+    )
+    assert rejected_unapproved_enabled.status_code == 400
+    assert "must explicitly approve" in rejected_unapproved_enabled.json()["message"]
+
     nonzero = _live_service_decision_payload(
         decision_id="live-service-nonzero",
         max_submitted_notional_usdc="1",
@@ -34818,7 +34918,131 @@ def test_admin_api_live_service_decision_routes_fail_closed(monkeypatch):
     assert "cannot record submitted live Coinbase notional" in (
         rejected_nonzero.json()["message"]
     )
+
+    unbounded_enabled = _live_service_decision_payload(
+        decision_id="live-service-enabled-unbounded",
+        status=AdminApiGateStatus.PASSED,
+        requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value,
+        service_enabled=True,
+        live_coinbase_execution_approved=True,
+    )
+    rejected_unbounded_enabled = client.post(
+        "/api/v1/admin/live-execution/service-decisions",
+        headers=_headers(
+            idempotency_key="live-service-decision-enabled-unbounded-idem",
+            operator_intent="record_unbounded_enabled_service_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=unbounded_enabled,
+    )
+    assert rejected_unbounded_enabled.status_code == 400
+    assert "positive submitted notional cap" in (
+        rejected_unbounded_enabled.json()["message"]
+    )
     assert client.admin_api_test_live_service_decision_store.read_recent() == []
+
+
+@pytest.mark.regression
+def test_admin_api_decision_backed_live_execution_service_requires_runtime_opt_in(
+    tmp_path,
+):
+    store = FileAdminApiLiveServiceDecisionStore(
+        tmp_path / "live_service_decisions.jsonl"
+    )
+    store.append(
+        LiveServiceDecisionRecord(
+            decision_id="live-service-runtime-opt-in",
+            status=AdminApiGateStatus.PASSED,
+            requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+            service_enabled=True,
+            deployment_ref="deployment-controlled-live-mvp",
+            runtime_configuration_ref="runtime-controlled-live-mvp",
+            decision_reason="Enable bounded backend Admin API live service.",
+            live_coinbase_execution_approved=True,
+            max_submitted_notional_usdc="3.10",
+            max_executed_notional_usdc="1.00",
+        )
+    )
+
+    disabled_state = get_decision_backed_live_execution_service(
+        store=store,
+        runtime_enabled=False,
+    ).admission_state()
+    enabled_state = get_decision_backed_live_execution_service(
+        store=store,
+        runtime_enabled=True,
+    ).admission_state()
+    malformed_store = FileAdminApiLiveServiceDecisionStore(
+        tmp_path / "malformed_live_service_decisions.jsonl"
+    )
+    malformed_store.append(
+        LiveServiceDecisionRecord(
+            decision_id="live-service-bad-notional-cap",
+            status=AdminApiGateStatus.PASSED,
+            requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+            service_enabled=True,
+            deployment_ref="deployment-controlled-live-mvp",
+            runtime_configuration_ref="runtime-controlled-live-mvp",
+            decision_reason="Malformed direct log record must not enable service.",
+            live_coinbase_execution_approved=True,
+            max_submitted_notional_usdc="1.00",
+            max_executed_notional_usdc="3.10",
+        )
+    )
+    malformed_state = get_decision_backed_live_execution_service(
+        store=malformed_store,
+        runtime_enabled=True,
+    ).admission_state()
+
+    assert disabled_state.status == AdminApiLiveExecutionStatus.LIVE_DISABLED
+    assert disabled_state.source == DISABLED_LIVE_EXECUTION_SERVICE_SOURCE
+    assert disabled_state.missing_reason == "live_execution_disabled"
+    assert enabled_state.status == AdminApiLiveExecutionStatus.APPROVAL_REQUIRED
+    assert enabled_state.source == CONFIGURED_LIVE_EXECUTION_SERVICE_SOURCE
+    assert enabled_state.missing_reason is None
+    assert malformed_state.status == AdminApiLiveExecutionStatus.APPROVAL_REQUIRED
+    assert malformed_state.source == "admin_api_live_service_decision_log"
+    assert malformed_state.missing_reason == (
+        "live_service_enablement_decision_not_resolver_eligible"
+    )
+
+
+@pytest.mark.regression
+def test_admin_api_order_live_execution_service_dependency_reads_decision_log(
+    monkeypatch,
+    tmp_path,
+):
+    from api.v1.routes import orders as order_routes
+
+    decision_log = tmp_path / "live_service_decisions.jsonl"
+    store = FileAdminApiLiveServiceDecisionStore(decision_log)
+    store.append(
+        LiveServiceDecisionRecord(
+            decision_id="live-service-route-dependency",
+            status=AdminApiGateStatus.PASSED,
+            requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+            service_enabled=True,
+            deployment_ref="deployment-controlled-live-mvp",
+            runtime_configuration_ref="runtime-controlled-live-mvp",
+            decision_reason="Enable route dependency from backend decision log.",
+            live_coinbase_execution_approved=True,
+            max_submitted_notional_usdc="3.10",
+            max_executed_notional_usdc="1.00",
+        )
+    )
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_LIVE_SERVICE_DECISION_LOG_PATH",
+        str(decision_log),
+    )
+    monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+
+    state = order_routes.get_live_execution_service().admission_state()
+
+    assert state.required is True
+    assert state.present is True
+    assert state.status == AdminApiLiveExecutionStatus.APPROVAL_REQUIRED
+    assert state.source == CONFIGURED_LIVE_EXECUTION_SERVICE_SOURCE
+    assert state.missing_reason is None
 
 
 def _live_adapter_decision_payload(
@@ -35824,16 +36048,6 @@ def test_admin_api_manual_order_route_passes_backend_admission_to_command_servic
 ):
     from api.v1.routes import orders as order_routes
 
-    class LiveEnabledAdmissionService:
-        def admission_state(self) -> AdminApiLiveExecutionServiceState:
-            return AdminApiLiveExecutionServiceState(
-                required=True,
-                present=True,
-                status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
-                source="configured_admin_api_live_execution_service",
-                missing_reason=None,
-            )
-
     class RecordingCommandService:
         def __init__(self) -> None:
             self.commands = []
@@ -35859,9 +36073,11 @@ def test_admin_api_manual_order_route_passes_backend_admission_to_command_servic
     client.app.dependency_overrides[order_routes.get_command_service] = (
         lambda: command_service
     )
-    client.app.dependency_overrides[order_routes.get_live_execution_service] = (
-        lambda: LiveEnabledAdmissionService()
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_LIVE_SERVICE_DECISION_LOG_PATH",
+        str(client.admin_api_test_live_service_decision_store.path),
     )
+    monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
 
     client_order_id = "client-route-admission-ready"
     idempotency_key = "idem-route-admission-ready"
@@ -35907,6 +36123,20 @@ def test_admin_api_manual_order_route_passes_backend_admission_to_command_servic
         idempotency_key=idempotency_key,
         operator_intent=operator_intent,
         payload_hash=payload_hash,
+    )
+    client.admin_api_test_live_service_decision_store.append(
+        LiveServiceDecisionRecord(
+            decision_id="live-service-manual-order-route",
+            status=AdminApiGateStatus.PASSED,
+            requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+            service_enabled=True,
+            deployment_ref="deployment-controlled-live-mvp",
+            runtime_configuration_ref="runtime-controlled-live-mvp",
+            decision_reason="Enable bounded manual order route admission.",
+            live_coinbase_execution_approved=True,
+            max_submitted_notional_usdc="3.10",
+            max_executed_notional_usdc="1.00",
+        )
     )
 
     response = client.post(

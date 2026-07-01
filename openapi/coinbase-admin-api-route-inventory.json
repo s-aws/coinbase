@@ -1438,7 +1438,7 @@
       "caps": "not applicable",
       "audit": "read-only live-service decision evidence",
       "shared_method": "get_live_service_decision",
-      "parity_test": "decision_id identity only; no live-service enablement",
+      "parity_test": "decision_id identity and live-service decision readback only",
       "compatibility_mode": null,
       "command_contract": false
     },
@@ -1450,11 +1450,11 @@
       "action_class": "local_state_mutation",
       "permission": "config:update",
       "idempotency": "required",
-      "approval": "records disabled backend decision; not sufficient for live execution",
+      "approval": "records backend live-service decision; runtime opt-in and route admission still required",
       "caps": "not applicable",
       "audit": "required",
       "shared_method": "record_live_service_decision",
-      "parity_test": "records are backend-owned and append-only; no live-service enablement, adapter construction, or Coinbase execution",
+      "parity_test": "records are backend-owned and append-only; no adapter construction or Coinbase execution",
       "compatibility_mode": null,
       "command_contract": true
     },

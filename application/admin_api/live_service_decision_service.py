@@ -23,6 +23,7 @@ from .live_execution import (
     LIVE_SERVICE_DECISION_SERVICE_METHOD,
     LIVE_SERVICE_DECISION_SOURCE,
     LiveServiceDecisionRecord,
+    live_service_decision_allows_backend_admission,
 )
 from .models import (
     AdminLiveServiceDecisionCreateRequest,
@@ -123,29 +124,54 @@ class AdminApiLiveServiceDecisionService:
     def _validate_decision_consistency(
         body: AdminLiveServiceDecisionCreateRequest,
     ) -> None:
-        if body.service_enabled:
+        submitted_notional = _decimal_value(body.max_submitted_notional_usdc)
+        executed_notional = _decimal_value(body.max_executed_notional_usdc)
+        if not body.service_enabled:
+            if body.live_coinbase_execution_approved:
+                raise LiveServiceDecisionError(
+                    "Disabled live-service decisions cannot approve live Coinbase execution."
+                )
+            if body.status == AdminApiGateStatus.PASSED:
+                raise LiveServiceDecisionError(
+                    "Disabled live-service decisions cannot record passed status."
+                )
+            if body.requested_service_status != AdminApiLiveExecutionStatus.LIVE_DISABLED:
+                raise LiveServiceDecisionError(
+                    "Disabled live-service decisions must request live-disabled status."
+                )
+            if submitted_notional != Decimal("0"):
+                raise LiveServiceDecisionError(
+                    "Disabled live-service decisions cannot record submitted live Coinbase notional."
+                )
+            if executed_notional != Decimal("0"):
+                raise LiveServiceDecisionError(
+                    "Disabled live-service decisions cannot record executed live Coinbase notional."
+                )
+            return
+
+        if body.status != AdminApiGateStatus.PASSED:
             raise LiveServiceDecisionError(
-                "This phase cannot record enabled live-service decisions."
+                "Enabled live-service decisions must record passed status."
             )
-        if body.live_coinbase_execution_approved:
+        if body.requested_service_status == AdminApiLiveExecutionStatus.LIVE_DISABLED:
             raise LiveServiceDecisionError(
-                "This phase cannot approve live Coinbase execution."
+                "Enabled live-service decisions must request a non-disabled service status."
             )
-        if body.status == AdminApiGateStatus.PASSED:
+        if not body.live_coinbase_execution_approved:
             raise LiveServiceDecisionError(
-                "This phase cannot record passed live-service decisions."
+                "Enabled live-service decisions must explicitly approve live Coinbase execution."
             )
-        if body.requested_service_status != AdminApiLiveExecutionStatus.LIVE_DISABLED:
+        if submitted_notional <= Decimal("0"):
             raise LiveServiceDecisionError(
-                "This phase can only record live-disabled service decisions."
+                "Enabled live-service decisions require a positive submitted notional cap."
             )
-        if _decimal_value(body.max_submitted_notional_usdc) != Decimal("0"):
+        if executed_notional <= Decimal("0"):
             raise LiveServiceDecisionError(
-                "This phase cannot record submitted live Coinbase notional."
+                "Enabled live-service decisions require a positive executed notional cap."
             )
-        if _decimal_value(body.max_executed_notional_usdc) != Decimal("0"):
+        if executed_notional > submitted_notional:
             raise LiveServiceDecisionError(
-                "This phase cannot record executed live Coinbase notional."
+                "Enabled live-service decisions cannot execute more notional than submitted."
             )
 
 
@@ -153,10 +179,21 @@ def _item_from_record(
     record: LiveServiceDecisionRecord,
 ) -> AdminLiveServiceDecisionItem:
     required_artifacts = list(LIVE_EXECUTION_SERVICE_REQUIRED_ENABLEMENT_ARTIFACTS)
-    recorded_artifacts = ["explicit_backend_live_enablement_decision"]
+    resolver_eligible = live_service_decision_allows_backend_admission(record)
+    recorded_artifacts = (
+        required_artifacts
+        if resolver_eligible
+        else ["explicit_backend_live_enablement_decision"]
+    )
+    missing_artifacts = [] if resolver_eligible else required_artifacts
     detail = (
-        "Live-service decision evidence is recorded as fail-closed local state; "
-        "it does not resolve live-service enablement or permit Coinbase execution."
+        "Live-service decision is resolver-eligible for backend runtime admission; "
+        "browser and BFF layers still cannot execute Coinbase orders."
+        if resolver_eligible
+        else (
+            "Live-service decision evidence is recorded as fail-closed local state; "
+            "it does not resolve live-service enablement or permit Coinbase execution."
+        )
     )
     return AdminLiveServiceDecisionItem(
         decision_id=record.decision_id,
@@ -169,7 +206,11 @@ def _item_from_record(
         service_method=LIVE_SERVICE_DECISION_SERVICE_METHOD,
         status=record.status,
         requested_service_status=record.requested_service_status,
-        live_execution_service_status=AdminApiLiveExecutionStatus.LIVE_DISABLED,
+        live_execution_service_status=(
+            record.requested_service_status
+            if resolver_eligible
+            else AdminApiLiveExecutionStatus.LIVE_DISABLED
+        ),
         service_enabled=record.service_enabled,
         source=LIVE_SERVICE_DECISION_SOURCE,
         deployment_ref=record.deployment_ref,
@@ -179,12 +220,12 @@ def _item_from_record(
         max_submitted_notional_usdc=record.max_submitted_notional_usdc,
         max_executed_notional_usdc=record.max_executed_notional_usdc,
         enablement_precondition_required=True,
-        enablement_precondition_resolved=False,
+        enablement_precondition_resolved=resolver_eligible,
         enablement_precondition_authority=LIVE_EXECUTION_SERVICE_ENABLEMENT_AUTHORITY,
         required_enablement_artifacts=required_artifacts,
         recorded_enablement_artifacts=recorded_artifacts,
-        missing_enablement_artifacts=required_artifacts,
-        resolver_eligible=False,
+        missing_enablement_artifacts=missing_artifacts,
+        resolver_eligible=resolver_eligible,
         browser_authority="display_only",
         bff_authority="forward_only_no_execution",
         live_exchange_submitted=False,
@@ -206,4 +247,3 @@ def _decimal_value(value: str) -> Decimal:
         return Decimal(value)
     except (InvalidOperation, ValueError) as exc:
         raise LiveServiceDecisionError("Notional fields must be decimal strings.") from exc
-

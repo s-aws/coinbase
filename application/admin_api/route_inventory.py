@@ -1367,7 +1367,7 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         caps="not applicable",
         audit="read-only live-service decision evidence",
         shared_method="get_live_service_decision",
-        parity_test="decision_id identity only; no live-service enablement",
+        parity_test="decision_id identity and live-service decision readback only",
     ),
     AdminApiRouteInventoryItem(
         module_id="admin_system_health",
@@ -1375,13 +1375,16 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
         permission=AdminApiPermission.CONFIG_UPDATE,
         idempotency="required",
-        approval="records disabled backend decision; not sufficient for live execution",
+        approval=(
+            "records backend live-service decision; runtime opt-in and route "
+            "admission still required"
+        ),
         caps="not applicable",
         audit="required",
         shared_method="record_live_service_decision",
         parity_test=(
-            "records are backend-owned and append-only; no live-service "
-            "enablement, adapter construction, or Coinbase execution"
+            "records are backend-owned and append-only; no adapter "
+            "construction or Coinbase execution"
         ),
     ),
     AdminApiRouteInventoryItem(
