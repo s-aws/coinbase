@@ -267,6 +267,26 @@ def test_backend_deployment_webhook_payload_includes_smoke_timing() -> None:
     assert payload["notional_usdc"] == "0"
 
 
+def test_backend_deployment_webhook_payload_rejects_failed_smoke_timing() -> None:
+    with pytest.raises(ValueError, match="status passed"):
+        deployment_webhook_payload.build_deployment_webhook_payload(
+            repository="s-aws/coinbase",
+            commit="abc123",
+            environment="staging",
+            github_run_id="local-validation",
+            smoke_timing={
+                "status": "failed",
+                "return_code": 1,
+                "duration_seconds": 12.345,
+                "wait_sleep_seconds": 0.0,
+                "command": ["python", "-m", "pytest"],
+                "smoke_node_ids": ["tests/regression/test_admin_api_contract.py::test_smoke"],
+                "live_coinbase_execution": "not_run",
+                "notional_usdc": "0",
+            },
+        )
+
+
 def test_backend_deployment_webhook_payload_reads_powershell_utf8_bom(
     tmp_path: Path,
 ) -> None:

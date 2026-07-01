@@ -62,6 +62,9 @@ def build_deployment_webhook_payload(
 def normalize_smoke_timing(smoke_timing: Mapping[str, Any]) -> dict[str, Any]:
     """Return checked smoke timing fields for the deployment webhook."""
 
+    status = non_empty_string(smoke_timing.get("status"), "unknown")
+    if status != "passed":
+        raise ValueError("Controlled-live smoke timing must prove status passed.")
     live_execution = non_empty_string(
         smoke_timing.get("live_coinbase_execution"),
         "missing",
@@ -79,7 +82,7 @@ def normalize_smoke_timing(smoke_timing: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(smoke_node_ids, list):
         smoke_node_ids = []
     return {
-        "status": non_empty_string(smoke_timing.get("status"), "unknown"),
+        "status": status,
         "duration_seconds": finite_number(
             smoke_timing.get("duration_seconds"),
             "duration_seconds",
