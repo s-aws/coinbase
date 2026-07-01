@@ -330,11 +330,34 @@ def test_backend_deployment_webhook_payload_rejects_manifest_commit_mismatch(
         {
             "artifact_type": "coinbase_admin_api_deployment_manifest",
             "commit": "manifest-commit",
+            "live_coinbase_execution": "not_run",
+            "notional_usdc": "0",
         },
     )
 
     with pytest.raises(ValueError, match="deployment manifest"):
-        deployment_webhook_payload.assert_manifest_commit(
+        deployment_webhook_payload.assert_deployment_manifest(
+            manifest_path,
+            "payload-commit",
+        )
+
+
+def test_backend_deployment_webhook_payload_rejects_live_manifest(
+    tmp_path: Path,
+) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    deployment_webhook_payload.write_json(
+        manifest_path,
+        {
+            "artifact_type": "coinbase_admin_api_deployment_manifest",
+            "commit": "payload-commit",
+            "live_coinbase_execution": "ran",
+            "notional_usdc": "1",
+        },
+    )
+
+    with pytest.raises(ValueError, match="live Coinbase execution"):
+        deployment_webhook_payload.assert_deployment_manifest(
             manifest_path,
             "payload-commit",
         )

@@ -165,8 +165,37 @@ def resolve_deployment_commit(env: Mapping[str, str | None] = os.environ) -> str
     return read_git_commit()
 
 
-def assert_manifest_commit(manifest_path: Path, commit: str) -> None:
+def assert_manifest_commit(
+    manifest: Mapping[str, Any],
+    manifest_path: Path,
+    commit: str,
+) -> None:
     """Fail when the deployment manifest commit differs from the webhook commit."""
+
+    manifest_commit = non_empty_string(manifest.get("commit"), "missing")
+    payload_commit = non_empty_string(commit, "unknown")
+    if manifest_commit != payload_commit:
+        raise ValueError(
+            "Backend deployment webhook payload commit must match deployment manifest: "
+            f"{manifest_path} commit {manifest_commit} != {payload_commit}."
+        )
+
+
+def assert_manifest_no_live(manifest: Mapping[str, Any], manifest_path: Path) -> None:
+    """Fail unless the deployment manifest proves no live Coinbase execution."""
+
+    live_execution = non_empty_string(manifest.get("live_coinbase_execution"), "missing")
+    notional_usdc = non_empty_string(manifest.get("notional_usdc"), "missing")
+    if live_execution != "not_run" or notional_usdc != "0":
+        raise ValueError(
+            "Backend deployment manifest must prove live Coinbase execution "
+            f"not_run and notional 0: {manifest_path} has "
+            f"live_coinbase_execution={live_execution}, notional_usdc={notional_usdc}."
+        )
+
+
+def assert_deployment_manifest(manifest_path: Path, commit: str) -> None:
+    """Fail unless the deployment manifest matches webhook metadata and no-live posture."""
 
     manifest = read_json(
         manifest_path,
@@ -175,13 +204,8 @@ def assert_manifest_commit(manifest_path: Path, commit: str) -> None:
             "tools/write_admin_api_deployment_manifest.py before the webhook payload writer."
         ),
     )
-    manifest_commit = non_empty_string(manifest.get("commit"), "missing")
-    payload_commit = non_empty_string(commit, "unknown")
-    if manifest_commit != payload_commit:
-        raise ValueError(
-            "Backend deployment webhook payload commit must match deployment manifest: "
-            f"{manifest_path} commit {manifest_commit} != {payload_commit}."
-        )
+    assert_manifest_commit(manifest, manifest_path, commit)
+    assert_manifest_no_live(manifest, manifest_path)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -240,7 +264,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Parse arguments, write the payload, and print no-live evidence."""
 
     args = build_parser().parse_args(argv)
-    assert_manifest_commit(args.manifest, args.commit)
+    assert_deployment_manifest(args.manifest, args.commit)
     payload = build_deployment_webhook_payload(
         repository=args.repository,
         commit=args.commit,
