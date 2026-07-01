@@ -51,6 +51,8 @@ def test_backend_continuous_deployment_workflow_guards_staging_deploy() -> None:
         "python -m pip install -e \".[test]\"",
         "Live Coinbase execution: not run; notional $0",
         '"manifest":"coinbase-backend-deployment-manifest.json"',
+        '"smokeTimingArtifact":"coinbase-backend-controlled-live-mvp-smoke-timing.json"',
+        '"smokeTimingSummary":"ADMIN_API_CONTROLLED_LIVE_MVP_SMOKE_SUMMARY"',
         '"liveCoinbaseExecution":"not_run"',
         '"notionalUsdc":"0"',
     ]:
