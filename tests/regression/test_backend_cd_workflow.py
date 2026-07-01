@@ -1,3 +1,4 @@
+import json
 import subprocess
 import tomllib
 from pathlib import Path
@@ -251,7 +252,7 @@ def test_backend_deployment_webhook_payload_includes_smoke_timing() -> None:
             "started_at": "2026-07-01T00:00:00Z",
             "ended_at": "2026-07-01T00:00:12Z",
             "command": ["python", "-m", "pytest"],
-            "smoke_node_ids": ["tests/regression/test_admin_api_contract.py::test_smoke"],
+            "smoke_node_ids": list(controlled_live_smoke.SMOKE_NODE_IDS),
             "live_coinbase_execution": "not_run",
             "notional_usdc": "0",
         },
@@ -278,8 +279,8 @@ def test_backend_deployment_webhook_payload_includes_smoke_timing() -> None:
         "backend_git_branch": "codex/mvp",
         "backend_contract_ref": "backendabc",
         "command": ["python", "-m", "pytest"],
-        "smoke_node_count": 1,
-        "smoke_node_ids": ["tests/regression/test_admin_api_contract.py::test_smoke"],
+        "smoke_node_count": len(controlled_live_smoke.SMOKE_NODE_IDS),
+        "smoke_node_ids": list(controlled_live_smoke.SMOKE_NODE_IDS),
     }
     assert payload["live_coinbase_execution"] == "not_run"
     assert payload["notional_usdc"] == "0"
@@ -301,7 +302,7 @@ def test_backend_deployment_webhook_payload_rejects_failed_smoke_timing() -> Non
                 "backend_git_branch": "codex/mvp",
                 "backend_contract_ref": "backendabc",
                 "command": ["python", "-m", "pytest"],
-                "smoke_node_ids": ["tests/regression/test_admin_api_contract.py::test_smoke"],
+                "smoke_node_ids": list(controlled_live_smoke.SMOKE_NODE_IDS),
                 "live_coinbase_execution": "not_run",
                 "notional_usdc": "0",
             },
@@ -320,7 +321,7 @@ def test_backend_deployment_webhook_payload_reads_powershell_utf8_bom(
             '"backend_git_branch":"codex/mvp",'
             '"backend_contract_ref":"backendabc",'
             '"command":["python"],'
-            '"smoke_node_ids":["test_node"],'
+            f'"smoke_node_ids":{json.dumps(list(controlled_live_smoke.SMOKE_NODE_IDS))},'
             '"live_coinbase_execution":"not_run","notional_usdc":"0"}'
         ),
         encoding="utf-8-sig",
@@ -336,9 +337,40 @@ def test_backend_deployment_webhook_payload_reads_powershell_utf8_bom(
 
     assert payload["smoke_timing"]["duration_seconds"] == 12.345
     assert payload["smoke_timing"]["backend_contract_ref"] == "backendabc"
-    assert payload["smoke_timing"]["smoke_node_ids"] == ["test_node"]
+    assert payload["smoke_timing"]["smoke_node_ids"] == list(
+        controlled_live_smoke.SMOKE_NODE_IDS
+    )
     assert payload["live_coinbase_execution"] == "not_run"
     assert payload["notional_usdc"] == "0"
+
+
+def test_backend_deployment_webhook_payload_rejects_missing_smoke_nodes() -> None:
+    smoke_node_ids = list(controlled_live_smoke.SMOKE_NODE_IDS)
+    smoke_node_ids.remove(
+        "tests/regression/test_admin_api_contract.py::"
+        "test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision"
+    )
+
+    with pytest.raises(ValueError, match="required smoke nodes"):
+        deployment_webhook_payload.build_deployment_webhook_payload(
+            repository="s-aws/coinbase",
+            commit="abc123",
+            environment="staging",
+            github_run_id="local-validation",
+            smoke_timing={
+                "status": "passed",
+                "return_code": 0,
+                "duration_seconds": 12.345,
+                "wait_sleep_seconds": 0.0,
+                "backend_git_commit": "backendabc",
+                "backend_git_branch": "codex/mvp",
+                "backend_contract_ref": "backendabc",
+                "command": ["python", "-m", "pytest"],
+                "smoke_node_ids": smoke_node_ids,
+                "live_coinbase_execution": "not_run",
+                "notional_usdc": "0",
+            },
+        )
 
 
 def test_backend_deployment_webhook_payload_defaults_to_local_git_commit(

@@ -16,6 +16,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from tools.run_admin_api_controlled_live_mvp_smoke import SMOKE_NODE_IDS
+
 
 DEFAULT_SMOKE_TIMING_PATH = Path(
     "artifacts/coinbase-backend-controlled-live-mvp-smoke-timing.json"
@@ -79,6 +81,7 @@ def normalize_smoke_timing(smoke_timing: Mapping[str, Any]) -> dict[str, Any]:
     if not isinstance(command, list):
         command = []
     smoke_node_ids = required_smoke_string_list(smoke_timing, "smoke_node_ids")
+    assert_required_smoke_node_ids(smoke_node_ids)
     return {
         "status": status,
         "duration_seconds": finite_number(
@@ -161,6 +164,19 @@ def required_smoke_string_list(
     if len(string_values) != len(value):
         raise ValueError(f"Controlled-live smoke timing has invalid {field_name}.")
     return string_values
+
+
+def assert_required_smoke_node_ids(smoke_node_ids: Sequence[str]) -> None:
+    """Fail when controlled-live smoke evidence omits required test nodes."""
+
+    missing_node_ids = [
+        node_id for node_id in SMOKE_NODE_IDS if node_id not in smoke_node_ids
+    ]
+    if missing_node_ids:
+        raise ValueError(
+            "Controlled-live smoke timing is missing required smoke nodes: "
+            + ", ".join(missing_node_ids)
+        )
 
 
 def finite_number(value: Any, label: str) -> float:
