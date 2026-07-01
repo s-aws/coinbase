@@ -1347,6 +1347,21 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="admin_system_health",
+        surface="GET /api/v1/admin/live-execution/admission-preview",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not applicable",
+        caps="not applicable",
+        audit="read-only command admission preview evidence",
+        shared_method="preview_live_admission",
+        parity_test=(
+            "read-only exact-context command admission preview; no command "
+            "execution, Coinbase call, audit append, or browser approval"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="admin_system_health",
         surface="GET /api/v1/admin/live-execution/service-decisions",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,

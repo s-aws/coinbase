@@ -744,6 +744,18 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[
         live_execution_routes.get_live_adapter_decision_store
     ] = lambda: live_adapter_decision_store
+    app.dependency_overrides[live_execution_routes.get_approval_store] = (
+        lambda: approval_store
+    )
+    app.dependency_overrides[live_execution_routes.get_audit_store] = (
+        lambda: audit_store
+    )
+    app.dependency_overrides[live_execution_routes.get_cap_guard_store] = (
+        lambda: cap_guard_store
+    )
+    app.dependency_overrides[live_execution_routes.get_reconciliation_store] = (
+        lambda: reconciliation_store
+    )
     app.dependency_overrides[reconciliation_routes.get_idempotency_store] = (
         lambda: idempotency_store
     )
@@ -36140,6 +36152,139 @@ def test_admin_api_command_live_admission_passes_only_with_backend_admin_chain()
     assert AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED in (
         disabled_decision.blockers
     )
+
+
+@pytest.mark.regression
+def test_admin_api_live_admission_preview_reads_exact_backend_chain(monkeypatch):
+    from api.v1.routes import live_execution as live_execution_routes
+
+    class LiveEnabledAdmissionService:
+        def admission_state(self) -> AdminApiLiveExecutionServiceState:
+            return AdminApiLiveExecutionServiceState(
+                required=True,
+                present=True,
+                status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+                source="configured_admin_api_live_execution_service",
+                missing_reason=None,
+            )
+
+    client = _client(monkeypatch)
+    client.app.dependency_overrides[
+        live_execution_routes.get_live_execution_service
+    ] = lambda: LiveEnabledAdmissionService()
+
+    client_order_id = "client-live-admission-preview"
+    idempotency_key = "idem-live-admission-preview"
+    operator_intent = "manual_one_off"
+    payload_hash = make_payload_hash(
+        _manual_order_approval_payload(
+            operator_intent=operator_intent,
+            client_order_id=client_order_id,
+            idempotency_key=idempotency_key,
+        )
+    )
+    params = {
+        "route": "/api/v1/orders",
+        "method": "POST",
+        "module_id": "spot_operations",
+        "identity_key": "client_order_id",
+        "identity_value": client_order_id,
+        "action_class": AdminApiActionClass.LIVE_EXCHANGE_PLACE.value,
+        "required_permission": AdminApiPermission.ORDER_CREATE.value,
+        "service_method": "place_manual_order",
+        "actor_id": "operator-001",
+        "command_idempotency_key": idempotency_key,
+        "operator_intent": operator_intent,
+        "payload_hash": payload_hash,
+    }
+
+    denied = client.get(
+        "/api/v1/admin/live-execution/admission-preview",
+        params=params,
+    )
+    assert denied.status_code == 401
+
+    missing = client.get(
+        "/api/v1/admin/live-execution/admission-preview",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+        params=params,
+    )
+    assert missing.status_code == 200
+    missing_payload = missing.json()
+    assert missing_payload["type"] == "admin_admission_preview"
+    assert missing_payload["service_method"] == "preview_live_admission"
+    assert missing_payload["browser_authority"] == "display_only"
+    assert missing_payload["bff_authority"] == "read_only_forward"
+    assert missing_payload["live_exchange_submitted"] is False
+    assert missing_payload["live_coinbase_orders_ran"] is False
+    assert missing_payload["admission_decision"]["status"] == (
+        AdminApiGateStatus.BLOCKED.value
+    )
+    assert missing_payload["admission_decision"]["allowed"] is False
+    assert "approval_snapshot_missing" in missing_payload["admission_decision"][
+        "blockers"
+    ]
+
+    approval = _append_manual_order_approval(
+        store=client.admin_api_test_approval_store,
+        now=datetime.now(timezone.utc),
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+    )
+    audit_event = _append_manual_order_admission_audit(
+        store=client.admin_api_test_audit_store,
+        approval=approval,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+    )
+    cap_guard = _append_manual_order_cap_guard_decision(
+        store=client.admin_api_test_cap_guard_store,
+        approval=approval,
+        audit_event=audit_event,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+    )
+    _append_manual_order_reconciliation_plan(
+        store=client.admin_api_test_reconciliation_store,
+        approval=approval,
+        audit_event=audit_event,
+        cap_guard=cap_guard,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+    )
+
+    audit_count_before_preview = len(client.admin_api_test_audit_store.read_recent())
+    accepted = client.get(
+        "/api/v1/admin/live-execution/admission-preview",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+        params=params,
+    )
+    audit_count_after_preview = len(client.admin_api_test_audit_store.read_recent())
+
+    assert accepted.status_code == 200
+    payload = accepted.json()
+    decision = payload["admission_decision"]
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert decision["status"] == AdminApiGateStatus.PASSED.value
+    assert decision["allowed"] is True
+    assert decision["approval_snapshot_present"] is True
+    assert decision["admission_audit_present"] is True
+    assert decision["cap_guard_present"] is True
+    assert decision["reconciliation_plan_present"] is True
+    assert decision["live_execution_service_status"] == (
+        AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value
+    )
+    assert decision["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert audit_count_after_preview == audit_count_before_preview
 
 
 @pytest.mark.regression

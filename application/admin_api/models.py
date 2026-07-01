@@ -1814,6 +1814,24 @@ class AdminAdmissionAuditResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminAdmissionPreviewResponse(BaseModel):
+    """Read-only backend admission preview for one exact command context."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_admission_preview"
+    status: AdminApiCommandStatus = AdminApiCommandStatus.ACCEPTED
+    action_class: AdminApiActionClass = AdminApiActionClass.READ_ONLY
+    required_permission: AdminApiPermission = AdminApiPermission.ANALYTICS_READ
+    service_method: str = "preview_live_admission"
+    message: str
+    admission_decision: AdminLiveAdmissionDecisionEvidence
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+
+
 class AdminCapGuardDecisionCreateRequest(BaseModel):
     """Append one backend-owned cap/guard decision for command admission."""
 

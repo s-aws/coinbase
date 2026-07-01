@@ -1412,6 +1412,22 @@
     },
     {
       "module_id": "admin_system_health",
+      "surface": "GET /api/v1/admin/live-execution/admission-preview",
+      "method": "GET",
+      "path": "/api/v1/admin/live-execution/admission-preview",
+      "action_class": "read_only",
+      "permission": "analytics:read",
+      "idempotency": "not required",
+      "approval": "not applicable",
+      "caps": "not applicable",
+      "audit": "read-only command admission preview evidence",
+      "shared_method": "preview_live_admission",
+      "parity_test": "read-only exact-context command admission preview; no command execution, Coinbase call, audit append, or browser approval",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
+      "module_id": "admin_system_health",
       "surface": "GET /api/v1/admin/live-execution/service-decisions",
       "method": "GET",
       "path": "/api/v1/admin/live-execution/service-decisions",
