@@ -2379,6 +2379,11 @@ class AdminApiCommandResponse(BaseModel):
     audit_id: str | None = None
     live_exchange_submitted: bool = False
     live_coinbase_orders_ran: bool = False
+    live_command_runtime_enabled: bool = False
+    live_command_rest_client_available: bool = False
+    live_command_runtime_ready: bool = False
+    live_command_runtime_missing_reason: str | None = None
+    live_command_runtime_source: str = "application/admin_api/command_runtime.py"
     submission_event_recorded: bool | None = None
     audit_command: str | None = None
     admission_decision: AdminLiveAdmissionDecisionEvidence | None = None

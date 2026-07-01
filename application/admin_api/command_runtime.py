@@ -135,10 +135,27 @@ def log_admin_api_command(level: str, message: str) -> None:
 def build_admin_api_command_dependencies() -> AdminApiCommandDependencies:
     """Compose backend-owned dependencies for the shared Admin API command service."""
 
-    rest_client = load_admin_api_rest_client()
+    live_runtime_enabled = admin_api_live_runtime_enabled()
+    credentials_configured = rest_credentials_configured()
+    rest_client = (
+        load_admin_api_rest_client()
+        if live_runtime_enabled and credentials_configured
+        else AdminApiRestClientBinding(client=None, available=False)
+    )
+    if not live_runtime_enabled:
+        missing_reason = "live_runtime_disabled"
+    elif not credentials_configured:
+        missing_reason = "coinbase_rest_credentials_missing"
+    elif not rest_client.available:
+        missing_reason = "coinbase_rest_client_unavailable"
+    else:
+        missing_reason = None
     return AdminApiCommandDependencies(
         rest_client=rest_client.client,
         rest_client_available=rest_client.available,
+        live_runtime_enabled=live_runtime_enabled,
+        command_runtime_ready=live_runtime_enabled and rest_client.available,
+        command_runtime_missing_reason=missing_reason,
         runtime_controller_factory=get_runtime_controller,
         add_log_entry=log_admin_api_command,
         order_event_publisher_getter=get_admin_api_order_event_stream_publisher,

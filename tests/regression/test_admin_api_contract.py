@@ -36792,6 +36792,10 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
     assert payload["admission_decision"]["browser_authority"] == "backend_admin_api"
     assert payload["live_exchange_submitted"] is True
     assert payload["live_coinbase_orders_ran"] is True
+    assert payload["live_command_runtime_enabled"] is True
+    assert payload["live_command_rest_client_available"] is True
+    assert payload["live_command_runtime_ready"] is True
+    assert payload["live_command_runtime_missing_reason"] is None
     assert payload["submission_event_recorded"] is True
     assert payload["audit_command"] == (
         "python tools\\run_spot_direct_order_audit.py "
@@ -36971,11 +36975,125 @@ def test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap(
     assert payload["admission_decision"]["browser_authority"] == "backend_admin_api"
     assert payload["live_exchange_submitted"] is False
     assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_command_runtime_enabled"] is True
+    assert payload["live_command_rest_client_available"] is True
+    assert payload["live_command_runtime_ready"] is True
+    assert payload["live_command_runtime_missing_reason"] is None
     assert payload["guard"]["condition"] == ActionConditionType.MAX_NOTIONAL.value
     assert payload["guard"]["configured_limit"] == 3.1
     assert payload["guard"]["actual"] == 4.0
     assert fake_rest_client.create_order_calls == []
     assert fake_event_publisher.events == []
+
+
+@pytest.mark.regression
+def test_admin_api_manual_order_route_reports_missing_command_runtime(
+    monkeypatch,
+):
+    import configuration
+    from api.v1.routes import orders as order_routes
+
+    client = _client(monkeypatch)
+    client.app.dependency_overrides.pop(order_routes.get_command_service, None)
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_LIVE_SERVICE_DECISION_LOG_PATH",
+        str(client.admin_api_test_live_service_decision_store.path),
+    )
+    monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setattr(configuration, "API_KEY", None, raising=False)
+    monkeypatch.setattr(configuration, "API_SECRET", None, raising=False)
+
+    def unexpected_rest_client_load():
+        raise AssertionError("REST client must not load without credentials")
+
+    monkeypatch.setattr(configuration, "get_rest_client", unexpected_rest_client_load)
+
+    client_order_id = "client-route-runtime-missing"
+    idempotency_key = "idem-route-runtime-missing"
+    operator_intent = "manual_one_off"
+    payload_hash = make_payload_hash(
+        _manual_order_approval_payload(
+            operator_intent=operator_intent,
+            client_order_id=client_order_id,
+            idempotency_key=idempotency_key,
+        )
+    )
+    approval = _append_manual_order_approval(
+        store=client.admin_api_test_approval_store,
+        now=datetime.now(timezone.utc),
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+    )
+    audit_event = _append_manual_order_admission_audit(
+        store=client.admin_api_test_audit_store,
+        approval=approval,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+    )
+    cap_guard = _append_manual_order_cap_guard_decision(
+        store=client.admin_api_test_cap_guard_store,
+        approval=approval,
+        audit_event=audit_event,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+    )
+    _append_manual_order_reconciliation_plan(
+        store=client.admin_api_test_reconciliation_store,
+        approval=approval,
+        audit_event=audit_event,
+        cap_guard=cap_guard,
+        client_order_id=client_order_id,
+        idempotency_key=idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+    )
+    client.admin_api_test_live_service_decision_store.append(
+        LiveServiceDecisionRecord(
+            decision_id="live-service-manual-order-runtime-missing",
+            status=AdminApiGateStatus.PASSED,
+            requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+            service_enabled=True,
+            deployment_ref="deployment-controlled-live-mvp",
+            runtime_configuration_ref="runtime-controlled-live-mvp",
+            decision_reason="Enable admission while command runtime is missing.",
+            live_coinbase_execution_approved=True,
+            max_submitted_notional_usdc="3.10",
+            max_executed_notional_usdc="1.00",
+        )
+    )
+
+    response = client.post(
+        "/api/v1/orders",
+        headers=_headers(idempotency_key=idempotency_key),
+        json=_manual_order_payload(client_order_id=client_order_id),
+    )
+
+    payload = response.json()
+    assert response.status_code == 400
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["client_order_id"] == client_order_id
+    assert payload["failure_stage"] == "rest_client"
+    assert payload["admission_decision"]["allowed"] is True
+    assert payload["admission_decision"]["browser_authority"] == "backend_admin_api"
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_command_runtime_enabled"] is True
+    assert payload["live_command_rest_client_available"] is False
+    assert payload["live_command_runtime_ready"] is False
+    assert (
+        payload["live_command_runtime_missing_reason"]
+        == "coinbase_rest_credentials_missing"
+    )
+    assert (
+        payload["live_command_runtime_source"]
+        == "application/admin_api/command_runtime.py"
+    )
 
 
 @pytest.mark.regression
@@ -37006,6 +37124,9 @@ def test_admin_api_command_service_uses_backend_runtime_dependencies_when_enable
     assert isinstance(service, AdminApiCommandService)
     assert service.dependencies.rest_client is rest_client
     assert service.dependencies.rest_client_available is True
+    assert service.dependencies.live_runtime_enabled is True
+    assert service.dependencies.command_runtime_ready is True
+    assert service.dependencies.command_runtime_missing_reason is None
     assert service.dependencies.order_event_publisher_getter() is event_publisher
 
 
@@ -37029,6 +37150,12 @@ def test_admin_api_command_service_fails_closed_when_rest_client_unavailable(
     assert isinstance(service, AdminApiCommandService)
     assert service.dependencies.rest_client is None
     assert service.dependencies.rest_client_available is False
+    assert service.dependencies.live_runtime_enabled is True
+    assert service.dependencies.command_runtime_ready is False
+    assert (
+        service.dependencies.command_runtime_missing_reason
+        == "coinbase_rest_client_unavailable"
+    )
 
 
 @pytest.mark.regression
@@ -37056,6 +37183,12 @@ def test_admin_api_command_service_does_not_load_rest_client_without_credentials
     assert isinstance(service, AdminApiCommandService)
     assert service.dependencies.rest_client is None
     assert service.dependencies.rest_client_available is False
+    assert service.dependencies.live_runtime_enabled is True
+    assert service.dependencies.command_runtime_ready is False
+    assert (
+        service.dependencies.command_runtime_missing_reason
+        == "coinbase_rest_credentials_missing"
+    )
 
 
 @pytest.mark.regression

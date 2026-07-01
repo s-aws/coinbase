@@ -10774,6 +10774,27 @@ components:
           type: boolean
           title: Live Coinbase Orders Ran
           default: false
+        live_command_runtime_enabled:
+          type: boolean
+          title: Live Command Runtime Enabled
+          default: false
+        live_command_rest_client_available:
+          type: boolean
+          title: Live Command Rest Client Available
+          default: false
+        live_command_runtime_ready:
+          type: boolean
+          title: Live Command Runtime Ready
+          default: false
+        live_command_runtime_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Command Runtime Missing Reason
+        live_command_runtime_source:
+          type: string
+          title: Live Command Runtime Source
+          default: application/admin_api/command_runtime.py
         submission_event_recorded:
           anyOf:
           - type: boolean

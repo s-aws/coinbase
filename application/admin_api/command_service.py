@@ -258,6 +258,10 @@ class AdminApiCommandDependencies:
 
     rest_client: Any = None
     rest_client_available: bool = False
+    live_runtime_enabled: bool | None = None
+    command_runtime_ready: bool | None = None
+    command_runtime_missing_reason: str | None = None
+    command_runtime_source: str = "application/admin_api/command_runtime.py"
     runtime_controller_factory: Callable[[], Any] = get_runtime_controller
     add_log_entry: Callable[[str, str], None] = _noop_log
     order_event_publisher_getter: Callable[[], Any | None] = lambda: None
@@ -1220,6 +1224,38 @@ class AdminApiCommandService:
     def __init__(self, dependencies: AdminApiCommandDependencies | None = None) -> None:
         self.dependencies = dependencies or AdminApiCommandDependencies()
 
+    def _command_runtime_evidence(self) -> dict[str, Any]:
+        """Return backend command-runtime evidence for command responses."""
+
+        deps = self.dependencies
+        rest_client_available = bool(deps.rest_client_available)
+        live_runtime_enabled = (
+            deps.live_runtime_enabled
+            if deps.live_runtime_enabled is not None
+            else rest_client_available
+        )
+        runtime_ready = (
+            deps.command_runtime_ready
+            if deps.command_runtime_ready is not None
+            else bool(live_runtime_enabled and rest_client_available)
+        )
+        missing_reason = deps.command_runtime_missing_reason
+        if runtime_ready:
+            missing_reason = None
+        elif missing_reason is None:
+            missing_reason = (
+                "coinbase_rest_client_unavailable"
+                if live_runtime_enabled
+                else "live_runtime_disabled"
+            )
+        return {
+            "live_command_runtime_enabled": bool(live_runtime_enabled),
+            "live_command_rest_client_available": rest_client_available,
+            "live_command_runtime_ready": bool(runtime_ready),
+            "live_command_runtime_missing_reason": missing_reason,
+            "live_command_runtime_source": deps.command_runtime_source,
+        }
+
     def place_manual_order(self, command: ManualOrderCommand) -> AdminApiCommandResponse:
         """Place a manual order through the existing guarded REST path."""
 
@@ -1239,6 +1275,7 @@ class AdminApiCommandService:
                 idempotency_key=command.envelope.idempotency_key,
                 guard=gate.model_dump(),
                 failure_stage="approval",
+                **self._command_runtime_evidence(),
             )
 
         deps = self.dependencies
@@ -1534,6 +1571,7 @@ class AdminApiCommandService:
                     "python tools\\run_spot_direct_order_audit.py "
                     f"--client-order-id {client_order_id}"
                 ),
+                **self._command_runtime_evidence(),
             )
         except CoinbaseAPIError as exc:
             deps.add_log_entry("ERROR", f"API error: {exc}")
@@ -5213,6 +5251,7 @@ class AdminApiCommandService:
             guard=guard,
             data=data,
             failure_stage=failure_stage,
+            **self._command_runtime_evidence(),
         )
 
     def _mark_hotpoint_parent_failed(
