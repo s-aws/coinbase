@@ -592,6 +592,90 @@ def test_admin_wallet_read_exposes_backend_owned_wallet_reality():
     assert rest_client.get_futures_positions_calls == 1
 
 
+def test_admin_wallet_read_accepts_usd_quote_wallet_when_usdc_wallet_is_missing():
+    rest_client = FakeAccountRestClient()
+    rest_client.account_wallets = {
+        "USD": {
+            "currency": "USD",
+            "available_balance": "9.25",
+            "total_balance": "10.00",
+            "hold_balance": "0.75",
+            "updated_at": "2026-07-03T00:02:00Z",
+        },
+    }
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+
+    result = service.get_read_response(
+        "/api/v1/admin/wallet",
+        {},
+        context(idempotency_key="wallet-usd-read"),
+    )
+
+    assert result.status_code == 200
+    body = result.body
+    assert body["wallet_inventory"]["status"] == "ready"
+    assert body["wallet_inventory"]["currency"] == "USD"
+    assert body["wallet_inventory"]["available_notional_usdc"] == "9.25"
+    assert body["wallet_inventory"]["hold_notional_usdc"] == "0.75"
+    assert body["wallet_inventory"]["total_notional_usdc"] == "10.00"
+    assert body["wallet_inventory"]["freshness_status"] == "backend_rest_fresh"
+    assert body["wallet_inventory"]["error"] == "none"
+    assert body["readiness"]["spot_wallet_inventory_ready"] is True
+    assert body["spot_admission_input"]["status"] == "ready"
+    assert body["spot_admission_input"]["currency"] == "USD"
+    wallet_rows = {wallet["currency"]: wallet for wallet in body["wallets"]}
+    assert wallet_rows["USD"]["admission_asset"] is True
+    assert wallet_rows["USD"]["admission_ready"] is True
+    assert body["live_coinbase_orders_ran"] is False
+
+
+def test_cap_guard_uses_usd_quote_wallet_from_backend_snapshot():
+    rest_client = FakeAccountRestClient()
+    rest_client.account_wallets = {
+        "USD": {
+            "currency": "USD",
+            "available_balance": "9.25",
+            "total_balance": "10.00",
+            "hold_balance": "0.75",
+            "updated_at": "2026-07-03T00:02:00Z",
+        },
+    }
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+
+    result = service.record_cap_guard_decision(
+        {
+            "route": "/api/v1/orders",
+            "method": "POST",
+            "module_id": "spot_operations",
+            "identity_key": "client_order_id",
+            "identity_value": "spot-order-usd",
+            "action_class": "live_exchange_place",
+            "required_permission": "order:create",
+            "service_method": "place_manual_order",
+            "actor_id": "operator-1",
+            "operator_intent": "use backend USD quote wallet snapshot",
+            "command_idempotency_key": "spot-order-usd",
+            "payload_hash": "payload-hash",
+            "wallet_check_source": "account_management_snapshot",
+        },
+        context(idempotency_key="cap-guard-usd-account-snapshot"),
+    )
+
+    assert result.status_code == 200
+    decision = result.body["decision"]
+    assert decision["wallet_check_required"] is True
+    assert decision["wallet_check_status"] == "passed"
+    assert decision["wallet_available_notional_usdc"] == "9.25"
+    assert decision["wallet_check_source"] == "account_management_snapshot"
+    assert decision["account_snapshot_status"] == "ready"
+    assert decision["account_snapshot_source"] == "backend_rest_client"
+    assert result.body["live_coinbase_orders_ran"] is False
+
+
 def test_admin_wallet_route_is_registered_as_account_management_capability():
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)

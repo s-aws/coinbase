@@ -31,6 +31,7 @@ ACCOUNT_SNAPSHOT_WALLET_SOURCE = "account_management_snapshot"
 BACKEND_REST_CLIENT_SOURCE = "backend_rest_client"
 BACKEND_REST_FRESHNESS = "backend_rest_fresh"
 LOCAL_DEFAULT_FRESHNESS = "local_default_not_connected"
+SPOT_ADMISSION_QUOTE_CURRENCIES = ("USDC", "USD")
 FUTURES_MODULE_ID = "futures_perpetuals"
 FUTURES_CONFIGURED_PRODUCT_SCOPE = ("BIP-20DEC30-CDE",)
 FUTURES_READ_ROUTES = (
@@ -2854,23 +2855,23 @@ def _normalize_futures_positions(value: Any) -> list[dict[str, Any]]:
 
 
 def _wallet_inventory_from_wallets(wallets: list[dict[str, Any]]) -> dict[str, Any]:
-    usdc = next((wallet for wallet in wallets if wallet["currency"] == "USDC"), None)
-    if usdc is None:
+    quote_wallet = _spot_admission_quote_wallet(wallets)
+    if quote_wallet is None:
         return {
             "currency": "USDC",
             "available_notional_usdc": "0",
             "hold_notional_usdc": "0",
             "total_notional_usdc": "0",
             "source": BACKEND_REST_CLIENT_SOURCE,
-            "freshness_status": "backend_rest_missing_usdc",
+            "freshness_status": "backend_rest_missing_quote_wallet",
             "status": "blocked",
-            "error": "usdc_wallet_missing",
+            "error": "quote_wallet_missing",
         }
     return {
-        "currency": "USDC",
-        "available_notional_usdc": usdc["available_balance"],
-        "hold_notional_usdc": usdc["hold_balance"],
-        "total_notional_usdc": usdc["total_balance"],
+        "currency": quote_wallet["currency"],
+        "available_notional_usdc": quote_wallet["available_balance"],
+        "hold_notional_usdc": quote_wallet["hold_balance"],
+        "total_notional_usdc": quote_wallet["total_balance"],
         "source": BACKEND_REST_CLIENT_SOURCE,
         "freshness_status": BACKEND_REST_FRESHNESS,
         "status": "ready",
@@ -2878,10 +2879,20 @@ def _wallet_inventory_from_wallets(wallets: list[dict[str, Any]]) -> dict[str, A
     }
 
 
+def _spot_admission_quote_wallet(
+    wallets: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    for currency in SPOT_ADMISSION_QUOTE_CURRENCIES:
+        wallet = next((item for item in wallets if item["currency"] == currency), None)
+        if wallet is not None:
+            return wallet
+    return None
+
+
 def _wallet_rows_for_admin(wallets: list[dict[str, Any]]) -> list[dict[str, Any]]:
     rows = []
     for wallet in wallets:
-        admission_asset = wallet["currency"] == "USDC"
+        admission_asset = wallet["currency"] in SPOT_ADMISSION_QUOTE_CURRENCIES
         admission_ready = admission_asset and _decimal_value(
             wallet["available_balance"],
             Decimal("0"),
