@@ -28,6 +28,9 @@ MANUAL_ORDER_SERVICE_METHOD = "place_manual_order"
 LIVE_SERVICE_DECISION_ROUTE = "/api/v1/admin/live-execution/service-decisions"
 LIVE_SERVICE_DECISION_PERMISSION = "config:update"
 LIVE_SERVICE_DECISION_SERVICE_METHOD = "record_live_service_decision"
+LIVE_ADAPTER_DECISION_ROUTE = "/api/v1/admin/live-execution/adapter-decisions"
+LIVE_ADAPTER_DECISION_PERMISSION = "config:update"
+LIVE_ADAPTER_DECISION_SERVICE_METHOD = "record_live_adapter_decision"
 DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC = Decimal("3.10")
 DEFAULT_MAX_EXECUTED_NOTIONAL_USDC = Decimal("1.00")
 DEFAULT_WALLET_AVAILABLE_NOTIONAL_USDC = Decimal("0")
@@ -337,6 +340,111 @@ class AdminMvpService:
             "idempotency_key": context.idempotency_key,
             "correlation_id": context.correlation_id,
             "detail": "Backend-owned disabled live-service decision evidence.",
+        }
+
+    def record_live_adapter_decision(
+        self,
+        body: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+    ) -> AdminMvpApiResult:
+        """Record backend live-adapter construction posture evidence."""
+
+        decision_id = str(body.get("decision_id") or self.dependencies.uuid_factory())
+        record = self._live_adapter_decision_record(decision_id, body, context)
+        self.store.live_adapter_decisions[decision_id] = record
+        return self._ok(
+            {
+                "type": "admin_live_adapter_decision",
+                "status": AdminMvpCommandStatus.ACCEPTED.value,
+                "action_class": "local_state_mutation",
+                "required_permission": LIVE_ADAPTER_DECISION_PERMISSION,
+                "service_method": LIVE_ADAPTER_DECISION_SERVICE_METHOD,
+                "message": "Live-adapter decision recorded.",
+                "decision": record,
+                "correlation_id": context.correlation_id,
+                "idempotency_key": context.idempotency_key,
+                "audit_id": f"audit-{context.idempotency_key}",
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                "live_exchange_submitted": False,
+                **self._live_outputs(False, Decimal("0")),
+            },
+            context,
+        )
+
+    def _live_adapter_decision_record(
+        self,
+        decision_id: str,
+        body: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+    ) -> dict[str, Any]:
+        requested_status = str(
+            body.get("requested_adapter_status")
+            or AdminMvpLiveServiceStatus.LIVE_DISABLED.value
+        )
+        return {
+            "decision_id": decision_id,
+            "recorded_at": self._now_iso(),
+            "route": LIVE_ADAPTER_DECISION_ROUTE,
+            "method": "POST",
+            "module_id": "admin_system_health",
+            "action_class": "local_state_mutation",
+            "required_permission": LIVE_ADAPTER_DECISION_PERMISSION,
+            "service_method": LIVE_ADAPTER_DECISION_SERVICE_METHOD,
+            "status": str(body.get("status") or AdminMvpGateStatus.BLOCKED.value),
+            "requested_adapter_status": requested_status,
+            "live_execution_adapter_status": requested_status,
+            "target_route": str(body.get("target_route") or MANUAL_ORDER_ROUTE),
+            "target_method": str(body.get("target_method") or "POST"),
+            "target_module_id": str(body.get("target_module_id") or MANUAL_ORDER_MODULE_ID),
+            "target_service_method": str(
+                body.get("target_service_method") or MANUAL_ORDER_SERVICE_METHOD
+            ),
+            "adapter_reference": str(
+                body.get("adapter_reference")
+                or f"AdminApiCommandService.{MANUAL_ORDER_SERVICE_METHOD}"
+            ),
+            "adapter_constructed": bool(body.get("adapter_constructed", False)),
+            "adapter_enabled": bool(body.get("adapter_enabled", False)),
+            "source": "admin_api_live_adapter_decision_log",
+            "construction_review_ref": str(
+                body.get("construction_review_ref")
+                or "adapter-construction-review-disabled"
+            ),
+            "decision_reason": str(
+                body.get("decision_reason")
+                or "Local MVP backend live-adapter decision recorded."
+            ),
+            "live_coinbase_execution_approved": bool(
+                body.get("live_coinbase_execution_approved", False)
+            ),
+            "max_submitted_notional_usdc": _decimal_text(
+                _decimal_value(body.get("max_submitted_notional_usdc"), Decimal("0"))
+            ),
+            "max_executed_notional_usdc": _decimal_text(
+                _decimal_value(body.get("max_executed_notional_usdc"), Decimal("0"))
+            ),
+            "construction_precondition_required": True,
+            "construction_precondition_resolved": False,
+            "construction_precondition_authority": "backend_route_binding_only_no_execution",
+            "required_construction_artifacts": [
+                "route_bound_live_execution_adapter",
+                "shared_command_service_adapter",
+            ],
+            "recorded_construction_artifacts": ["route_bound_live_execution_adapter"],
+            "missing_construction_artifacts": ["shared_command_service_adapter"],
+            "route_mapping_satisfies_construction": False,
+            "adapter_configuration_satisfies_construction": False,
+            "resolver_eligible": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "live_exchange_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "actor_id": context.actor_id,
+            "operator_intent": context.operator_intent,
+            "idempotency_key": context.idempotency_key,
+            "correlation_id": context.correlation_id,
+            "detail": "Backend-owned disabled live-adapter decision evidence.",
         }
 
     def submit_manual_order(
@@ -1370,9 +1478,26 @@ class AdminMvpService:
 
     def _live_adapter_decision_list(self) -> dict[str, Any]:
         records = list(self.store.live_adapter_decisions.values())
+        passed_count = sum(
+            1 for record in records if record.get("status") == AdminMvpGateStatus.PASSED.value
+        )
+        blocked_count = sum(
+            1 for record in records if record.get("status") == AdminMvpGateStatus.BLOCKED.value
+        )
         return {
             "type": "admin_live_adapter_decision_list",
             "decisions": records,
+            "returned_count": len(records),
+            "total_count": len(records),
+            "passed_count": passed_count,
+            "blocked_count": blocked_count,
+            "warning_count": 0,
+            "resolver_eligible_count": sum(
+                1 for record in records if record.get("resolver_eligible")
+            ),
+            "constructed_count": sum(
+                1 for record in records if record.get("adapter_constructed")
+            ),
             "count": len(records),
             "pagination": _pagination(len(records), len(records), 0),
             "live_coinbase_orders_ran": False,
@@ -1381,9 +1506,32 @@ class AdminMvpService:
     def _live_adapter_decision_detail(self, decision_id: str) -> dict[str, Any]:
         decision = self.store.live_adapter_decisions.get(decision_id)
         return {
-            "type": "admin_live_adapter_decision_detail",
+            "type": "admin_live_adapter_decision",
+            "status": (
+                AdminMvpCommandStatus.ACCEPTED.value
+                if decision is not None
+                else AdminMvpCommandStatus.REJECTED.value
+            ),
+            "action_class": "local_state_mutation",
+            "required_permission": LIVE_ADAPTER_DECISION_PERMISSION,
+            "service_method": "get_live_adapter_decision",
+            "message": (
+                "Live-adapter decision detail loaded."
+                if decision is not None
+                else "Live-adapter decision was not found."
+            ),
             "decision": decision,
             "found": decision is not None,
+            "correlation_id": decision.get("correlation_id") if decision else None,
+            "idempotency_key": decision.get("idempotency_key") if decision else None,
+            "audit_id": (
+                f"audit-{decision.get('idempotency_key')}"
+                if decision and decision.get("idempotency_key")
+                else None
+            ),
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "live_exchange_submitted": False,
             "live_coinbase_orders_ran": False,
         }
 
@@ -1714,6 +1862,13 @@ class AdminMvpService:
                 action_class="local_state_mutation",
                 required_permission="config:update",
                 shared_method="record_live_service_decision",
+                live_enabled=False,
+            ),
+            _command_capability(
+                route="/api/v1/admin/live-execution/adapter-decisions",
+                action_class="local_state_mutation",
+                required_permission="config:update",
+                shared_method="record_live_adapter_decision",
                 live_enabled=False,
             ),
         ])

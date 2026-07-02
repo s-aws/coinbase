@@ -87,6 +87,45 @@ def record_live_service_decision(service: AdminMvpService) -> None:
     assert decision["live_exchange_submitted"] is False
 
 
+def record_live_adapter_decision(service: AdminMvpService) -> None:
+    result = service.record_live_adapter_decision(
+        {
+            "decision_id": "mvp-live-adapter",
+            "status": "blocked",
+            "requested_adapter_status": "live_disabled",
+            "target_route": "/api/v1/orders",
+            "target_method": "POST",
+            "target_module_id": "spot_operations",
+            "target_service_method": "place_manual_order",
+            "adapter_reference": "AdminApiCommandService.place_manual_order",
+            "adapter_constructed": False,
+            "adapter_enabled": False,
+            "construction_review_ref": "adapter-construction-review-disabled",
+            "decision_reason": "Document disabled local MVP live-adapter posture.",
+            "live_coinbase_execution_approved": False,
+            "max_submitted_notional_usdc": "0",
+            "max_executed_notional_usdc": "0",
+        },
+        context(idempotency_key="live-adapter-decision"),
+    )
+    assert result.status_code == 200
+    assert result.body["type"] == "admin_live_adapter_decision"
+    assert result.body["status"] == "accepted"
+    assert result.body["service_method"] == "record_live_adapter_decision"
+    assert result.body["message"] == "Live-adapter decision recorded."
+    assert result.body["audit_id"] == "audit-live-adapter-decision"
+    assert result.body["live_coinbase_orders_ran"] is False
+    decision = result.body["decision"]
+    assert decision["route"] == "/api/v1/admin/live-execution/adapter-decisions"
+    assert decision["method"] == "POST"
+    assert decision["module_id"] == "admin_system_health"
+    assert decision["required_permission"] == "config:update"
+    assert decision["service_method"] == "record_live_adapter_decision"
+    assert decision["target_service_method"] == "place_manual_order"
+    assert decision["adapter_constructed"] is False
+    assert decision["live_exchange_submitted"] is False
+
+
 def first_manual_submit(service: AdminMvpService) -> dict:
     result = service.submit_manual_order(
         manual_order_body(),
@@ -276,6 +315,7 @@ def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
         AdminMvpDependencies(rest_client=FakeRestClient(), rest_client_available=True)
     )
     record_live_service_decision(service)
+    record_live_adapter_decision(service)
 
     capabilities = service.get_read_response("/api/v1/admin/capabilities", {}, context())
     manual_capability = next(
@@ -295,6 +335,12 @@ def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
         if item["method"] == "POST"
         and item["route"] == "/api/v1/admin/live-execution/service-decisions"
     )
+    live_adapter_capability = next(
+        item
+        for item in capabilities.body["capabilities"]
+        if item["method"] == "POST"
+        and item["route"] == "/api/v1/admin/live-execution/adapter-decisions"
+    )
     command_permissions = {
         item["route"]: item["permission"]
         for item in capabilities.body["capabilities"]
@@ -310,6 +356,10 @@ def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
     assert live_service_capability["shared_method"] == "record_live_service_decision"
     assert live_service_capability["frontend_safe"] is True
     assert live_service_capability["live_enabled"] is False
+    assert live_adapter_capability["permission"] == "config:update"
+    assert live_adapter_capability["shared_method"] == "record_live_adapter_decision"
+    assert live_adapter_capability["frontend_safe"] is True
+    assert live_adapter_capability["live_enabled"] is False
     assert command_permissions["/api/v1/admin/approvals/requests"] == "approval:request"
     assert (
         command_permissions[
@@ -320,6 +370,10 @@ def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
     assert command_permissions["/api/v1/admin/admission-audits"] == "admission_audit:record"
     assert command_permissions["/api/v1/admin/cap-guard/decisions"] == "cap_guard:record"
     assert command_permissions["/api/v1/admin/reconciliation/plans"] == "reconciliation:record"
+    assert (
+        command_permissions["/api/v1/admin/live-execution/adapter-decisions"]
+        == "config:update"
+    )
 
     service_decisions = service.get_read_response(
         "/api/v1/admin/live-execution/service-decisions",
@@ -341,6 +395,28 @@ def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
     assert service_detail.body["status"] == "accepted"
     assert service_detail.body["service_method"] == "get_live_service_decision"
     assert service_detail.body["decision"]["decision_id"] == "mvp-live-service"
+
+    adapter_decisions = service.get_read_response(
+        "/api/v1/admin/live-execution/adapter-decisions",
+        {},
+        context(),
+    )
+    assert adapter_decisions.body["type"] == "admin_live_adapter_decision_list"
+    assert adapter_decisions.body["total_count"] == 1
+    assert adapter_decisions.body["returned_count"] == 1
+    assert adapter_decisions.body["blocked_count"] == 1
+    assert adapter_decisions.body["constructed_count"] == 0
+    assert adapter_decisions.body["live_coinbase_orders_ran"] is False
+
+    adapter_detail = service.get_read_response(
+        "/api/v1/admin/live-execution/adapter-decisions/mvp-live-adapter",
+        {},
+        context(),
+    )
+    assert adapter_detail.body["type"] == "admin_live_adapter_decision"
+    assert adapter_detail.body["status"] == "accepted"
+    assert adapter_detail.body["service_method"] == "get_live_adapter_decision"
+    assert adapter_detail.body["decision"]["decision_id"] == "mvp-live-adapter"
 
     live_enablement = service.get_read_response(
         "/api/v1/admin/live-enablement",

@@ -174,6 +174,8 @@ class AdminMvpRequestHandler(BaseHTTPRequestHandler):
             result = service.cancel_order_by_client_order_id(client_order_id, body, context)
         elif path == "/api/v1/admin/live-execution/service-decisions":
             result = service.record_live_service_decision(body, context)
+        elif path == "/api/v1/admin/live-execution/adapter-decisions":
+            result = service.record_live_adapter_decision(body, context)
         elif path == "/api/v1/admin/approvals/requests":
             result = service.create_approval_request(body, context)
         elif path.startswith("/api/v1/admin/approvals/requests/") and path.endswith("/decisions"):
