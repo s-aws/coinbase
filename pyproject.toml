@@ -22,6 +22,7 @@ requires-python = ">=3.13"
 # Keep deploy/runtime dependencies broad here. Add a lockfile only if the
 # deployment target starts consuming one.
 dependencies = [
+    "coinbase-advanced-py>=1.8,<2",
     "fastapi>=0.115,<1",
     "pydantic>=2.10,<3",
     "psycopg2-binary>=2.9,<3",
