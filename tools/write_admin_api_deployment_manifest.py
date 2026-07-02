@@ -104,7 +104,7 @@ def build_deployment_manifest(
             "default_enabled": False,
             "accepted_env_vars": [
                 "COINBASE_ADMIN_LIVE_COINBASE_EXECUTION",
-                "COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED",
+                "COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED",
             ],
             "requires_backend_proof_chain": True,
         },

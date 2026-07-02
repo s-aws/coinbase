@@ -69,8 +69,20 @@ def record_live_service_decision(service: AdminMvpService) -> None:
         context(idempotency_key="live-service-decision"),
     )
     assert result.status_code == 200
+    assert result.body["type"] == "admin_live_service_decision"
     assert result.body["status"] == "accepted"
+    assert result.body["service_method"] == "record_live_service_decision"
+    assert result.body["message"] == "Live-service decision recorded."
+    assert result.body["audit_id"] == "audit-live-service-decision"
     assert result.body["live_coinbase_orders_ran"] is False
+    decision = result.body["decision"]
+    assert decision["route"] == "/api/v1/admin/live-execution/service-decisions"
+    assert decision["method"] == "POST"
+    assert decision["module_id"] == "admin_system_health"
+    assert decision["required_permission"] == "config:update"
+    assert decision["service_method"] == "record_live_service_decision"
+    assert decision["live_execution_service_status"] == "approval_required"
+    assert decision["live_exchange_submitted"] is False
 
 
 def first_manual_submit(service: AdminMvpService) -> dict:
@@ -91,6 +103,11 @@ def first_manual_submit(service: AdminMvpService) -> dict:
     return admission
 
 
+def assert_local_mutation_did_not_submit_exchange(result_body: dict) -> None:
+    assert result_body["live_exchange_submitted"] is False
+    assert result_body["live_coinbase_orders_ran"] is False
+
+
 def record_proof_chain(service: AdminMvpService, admission: dict) -> None:
     approval_request = service.create_approval_request(
         {
@@ -109,7 +126,33 @@ def record_proof_chain(service: AdminMvpService, admission: dict) -> None:
         context(idempotency_key="approval-request"),
     )
     assert approval_request.status_code == 200
-    approval_request_id = approval_request.body["approval"]["approval_request_id"]
+    assert_local_mutation_did_not_submit_exchange(approval_request.body)
+    requested_approval = approval_request.body["approval"]
+    assert requested_approval["status"] == "requested"
+    assert requested_approval["approval_id"] is None
+    assert requested_approval["snapshot_linked"] is False
+    assert requested_approval["live_exchange_submitted"] is False
+    assert requested_approval["browser_authority"] == "display_only"
+    assert requested_approval["bff_authority"] == "forward_only_no_execution"
+    approval_request_id = requested_approval["approval_request_id"]
+
+    approval_list = service.get_read_response("/api/v1/admin/approvals", {}, context())
+    assert approval_list.body["type"] == "admin_approval_lifecycle_list"
+    assert approval_list.body["returned_count"] == 1
+    assert approval_list.body["total_count"] == 1
+    assert approval_list.body["pending_count"] == 1
+    assert approval_list.body["approved_count"] == 0
+    assert approval_list.body["approvals"][0]["status"] == "requested"
+
+    approval_detail = service.get_read_response(
+        f"/api/v1/admin/approvals/requests/{approval_request_id}",
+        {},
+        context(),
+    )
+    assert approval_detail.body["type"] == "admin_approval_lifecycle"
+    assert approval_detail.body["status"] == "accepted"
+    assert approval_detail.body["service_method"] == "get_approval_request"
+    assert approval_detail.body["approval"]["approval_request_id"] == approval_request_id
 
     approval_decision = service.decide_approval_request(
         approval_request_id,
@@ -122,7 +165,15 @@ def record_proof_chain(service: AdminMvpService, admission: dict) -> None:
         context(idempotency_key="approval-decision"),
     )
     assert approval_decision.status_code == 200
-    approval_id = approval_decision.body["approval"]["approval_id"]
+    assert_local_mutation_did_not_submit_exchange(approval_decision.body)
+    approved_approval = approval_decision.body["approval"]
+    assert approved_approval["status"] == "approved"
+    assert approved_approval["snapshot_linked"] is True
+    assert approved_approval["decision_actor_id"] == "operator-1"
+    assert approved_approval["cap_guard_decision_ref"] == "cap-ref"
+    assert approved_approval["reconciliation_plan_ref"] == "recon-ref"
+    assert approved_approval["live_exchange_submitted"] is False
+    approval_id = approved_approval["approval_id"]
 
     proof_base = {
         "route": admission["route"],
@@ -148,6 +199,7 @@ def record_proof_chain(service: AdminMvpService, admission: dict) -> None:
         context(idempotency_key="admission-audit"),
     )
     assert admission_audit.status_code == 200
+    assert_local_mutation_did_not_submit_exchange(admission_audit.body)
     admission_audit_id = admission_audit.body["admission_audit"]["admission_audit_id"]
 
     cap_guard = service.record_cap_guard_decision(
@@ -162,6 +214,7 @@ def record_proof_chain(service: AdminMvpService, admission: dict) -> None:
         context(idempotency_key="cap-guard"),
     )
     assert cap_guard.status_code == 200
+    assert_local_mutation_did_not_submit_exchange(cap_guard.body)
     cap_guard_decision_id = cap_guard.body["decision"]["decision_id"]
 
     reconciliation = service.record_reconciliation_plan(
@@ -178,6 +231,7 @@ def record_proof_chain(service: AdminMvpService, admission: dict) -> None:
         context(idempotency_key="reconciliation"),
     )
     assert reconciliation.status_code == 200
+    assert_local_mutation_did_not_submit_exchange(reconciliation.body)
 
 
 def preview_query(admission: dict) -> dict[str, str]:
@@ -215,10 +269,58 @@ def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
         if item["method"] == "POST"
         and item["route"] == "/api/v1/orders/{client_order_id}/cancel"
     )
+    live_service_capability = next(
+        item
+        for item in capabilities.body["capabilities"]
+        if item["method"] == "POST"
+        and item["route"] == "/api/v1/admin/live-execution/service-decisions"
+    )
+    command_permissions = {
+        item["route"]: item["permission"]
+        for item in capabilities.body["capabilities"]
+        if item["method"] == "POST"
+    }
     assert manual_capability["availability"] == "available"
     assert manual_capability["live_enabled"] is True
     assert manual_capability["frontend_safe"] is True
+    assert manual_capability["permission"] == "order:create"
     assert cancel_capability["live_enabled"] is False
+    assert cancel_capability["permission"] == "order:cancel"
+    assert live_service_capability["permission"] == "config:update"
+    assert live_service_capability["shared_method"] == "record_live_service_decision"
+    assert live_service_capability["frontend_safe"] is True
+    assert live_service_capability["live_enabled"] is False
+    assert command_permissions["/api/v1/admin/approvals/requests"] == "approval:request"
+    assert (
+        command_permissions[
+            "/api/v1/admin/approvals/requests/{approval_request_id}/decisions"
+        ]
+        == "approval:manage"
+    )
+    assert command_permissions["/api/v1/admin/admission-audits"] == "admission_audit:record"
+    assert command_permissions["/api/v1/admin/cap-guard/decisions"] == "cap_guard:record"
+    assert command_permissions["/api/v1/admin/reconciliation/plans"] == "reconciliation:record"
+
+    service_decisions = service.get_read_response(
+        "/api/v1/admin/live-execution/service-decisions",
+        {},
+        context(),
+    )
+    assert service_decisions.body["type"] == "admin_live_service_decision_list"
+    assert service_decisions.body["total_count"] == 1
+    assert service_decisions.body["returned_count"] == 1
+    assert service_decisions.body["passed_count"] == 1
+    assert service_decisions.body["live_coinbase_orders_ran"] is False
+
+    service_detail = service.get_read_response(
+        "/api/v1/admin/live-execution/service-decisions/mvp-live-service",
+        {},
+        context(),
+    )
+    assert service_detail.body["type"] == "admin_live_service_decision"
+    assert service_detail.body["status"] == "accepted"
+    assert service_detail.body["service_method"] == "get_live_service_decision"
+    assert service_detail.body["decision"]["decision_id"] == "mvp-live-service"
 
     live_enablement = service.get_read_response(
         "/api/v1/admin/live-enablement",
@@ -264,6 +366,7 @@ def test_admin_mvp_proof_chain_admits_manual_order_but_default_stays_pre_coinbas
     assert preview.status_code == 200
     assert preview.body["admission_decision"]["status"] == "passed"
     assert preview.body["admission_decision"]["allowed"] is True
+    assert preview.body["live_exchange_submitted"] is False
     assert preview.body["live_coinbase_orders_ran"] is False
 
     admitted_submit = service.submit_manual_order(
@@ -333,8 +436,16 @@ def test_admin_mvp_runner_matches_frontend_local_stack_contract():
     assert applied[run_admin_api.AUTH_TOKEN_ENV] == "set_from_dev_token"
 
 
-def test_admin_mvp_live_execution_env_accepts_admin_api_alias(monkeypatch):
+def test_admin_mvp_live_execution_env_requires_coinbase_specific_opt_in(monkeypatch):
     monkeypatch.delenv("COINBASE_ADMIN_LIVE_COINBASE_EXECUTION", raising=False)
+    monkeypatch.delenv(
+        "COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED",
+        raising=False,
+    )
     monkeypatch.setenv("COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED", "true")
+
+    assert live_coinbase_execution_enabled_from_env() is False
+
+    monkeypatch.setenv("COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED", "true")
 
     assert live_coinbase_execution_enabled_from_env() is True

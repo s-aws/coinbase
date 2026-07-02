@@ -25,6 +25,9 @@ MANUAL_ORDER_MODULE_ID = "spot_operations"
 MANUAL_ORDER_ACTION_CLASS = "live_exchange_place"
 MANUAL_ORDER_PERMISSION = "order:create"
 MANUAL_ORDER_SERVICE_METHOD = "place_manual_order"
+LIVE_SERVICE_DECISION_ROUTE = "/api/v1/admin/live-execution/service-decisions"
+LIVE_SERVICE_DECISION_PERMISSION = "config:update"
+LIVE_SERVICE_DECISION_SERVICE_METHOD = "record_live_service_decision"
 DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC = Decimal("3.10")
 DEFAULT_MAX_EXECUTED_NOTIONAL_USDC = Decimal("1.00")
 TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
@@ -104,7 +107,7 @@ def live_coinbase_execution_enabled_from_env() -> bool:
 
     for name in (
         "COINBASE_ADMIN_LIVE_COINBASE_EXECUTION",
-        "COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED",
+        "COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED",
     ):
         value = os.environ.get(name, "")
         if value.strip().lower() in TRUTHY_ENV_VALUES:
@@ -239,16 +242,56 @@ class AdminMvpService:
         """Record backend live-service posture evidence."""
 
         decision_id = str(body.get("decision_id") or self.dependencies.uuid_factory())
-        record = {
+        record = self._live_service_decision_record(decision_id, body, context)
+        self.store.service_decisions[decision_id] = record
+        return self._ok(
+            {
+                "type": "admin_live_service_decision",
+                "status": AdminMvpCommandStatus.ACCEPTED.value,
+                "action_class": "local_state_mutation",
+                "required_permission": LIVE_SERVICE_DECISION_PERMISSION,
+                "service_method": LIVE_SERVICE_DECISION_SERVICE_METHOD,
+                "message": "Live-service decision recorded.",
+                "decision": record,
+                "correlation_id": context.correlation_id,
+                "idempotency_key": context.idempotency_key,
+                "audit_id": f"audit-{context.idempotency_key}",
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                "live_exchange_submitted": False,
+                **self._live_outputs(False, Decimal("0")),
+            },
+            context,
+        )
+
+    def _live_service_decision_record(
+        self,
+        decision_id: str,
+        body: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+    ) -> dict[str, Any]:
+        requested_status = str(
+            body.get("requested_service_status")
+            or AdminMvpLiveServiceStatus.APPROVAL_REQUIRED.value
+        )
+        return {
             "decision_id": decision_id,
+            "recorded_at": self._now_iso(),
+            "route": LIVE_SERVICE_DECISION_ROUTE,
+            "method": "POST",
+            "module_id": "admin_system_health",
+            "action_class": "local_state_mutation",
+            "required_permission": LIVE_SERVICE_DECISION_PERMISSION,
+            "service_method": LIVE_SERVICE_DECISION_SERVICE_METHOD,
             "status": str(body.get("status") or AdminMvpGateStatus.PASSED.value),
-            "requested_service_status": str(
-                body.get("requested_service_status")
-                or AdminMvpLiveServiceStatus.APPROVAL_REQUIRED.value
-            ),
+            "requested_service_status": requested_status,
+            "live_execution_service_status": requested_status,
             "service_enabled": bool(body.get("service_enabled", True)),
-            "deployment_ref": body.get("deployment_ref"),
-            "runtime_configuration_ref": body.get("runtime_configuration_ref"),
+            "source": "admin_api_live_service_decision_log",
+            "deployment_ref": str(body.get("deployment_ref") or "coinbase-local"),
+            "runtime_configuration_ref": str(
+                body.get("runtime_configuration_ref") or "coinbase-local-runtime"
+            ),
             "decision_reason": str(
                 body.get("decision_reason")
                 or "Local MVP backend live-service decision recorded."
@@ -268,23 +311,32 @@ class AdminMvpService:
                     DEFAULT_MAX_EXECUTED_NOTIONAL_USDC,
                 )
             ),
+            "enablement_precondition_required": True,
+            "enablement_precondition_resolved": False,
+            "enablement_precondition_authority": "backend_only",
+            "required_enablement_artifacts": [
+                "deployment_ref",
+                "runtime_configuration_ref",
+                "live_coinbase_execution_approved",
+            ],
+            "recorded_enablement_artifacts": [
+                "deployment_ref",
+                "runtime_configuration_ref",
+            ],
+            "missing_enablement_artifacts": [
+                "manual_backend_live_execution_review",
+            ],
+            "resolver_eligible": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "live_exchange_submitted": False,
+            "live_coinbase_orders_ran": False,
             "actor_id": context.actor_id,
             "operator_intent": context.operator_intent,
             "idempotency_key": context.idempotency_key,
             "correlation_id": context.correlation_id,
-            "recorded_at": self._now_iso(),
-            "live_coinbase_orders_ran": False,
+            "detail": "Backend-owned disabled live-service decision evidence.",
         }
-        self.store.service_decisions[decision_id] = record
-        return self._ok(
-            {
-                "type": "admin_live_service_decision_result",
-                "status": AdminMvpCommandStatus.ACCEPTED.value,
-                "decision": record,
-                **self._live_outputs(False, Decimal("0")),
-            },
-            context,
-        )
 
     def submit_manual_order(
         self,
@@ -353,6 +405,7 @@ class AdminMvpService:
             "correlation_id": context.correlation_id,
             "idempotency_key": context.idempotency_key,
             "failure_stage": "durable_audit_required",
+            "live_exchange_submitted": False,
             **self._runtime_evidence(),
             **self._live_outputs(False, Decimal("0")),
         }
@@ -370,20 +423,48 @@ class AdminMvpService:
         )
         record = {
             "approval_request_id": approval_request_id,
+            "approval_id": None,
+            "status": "requested",
             "lifecycle_status": "requested",
             "requested_by_actor_id": context.actor_id,
             "requested_at": self._now_iso(),
+            "decided_at": None,
+            "revoked_at": None,
+            "expires_at": None,
+            "expired": False,
             **_command_evidence_from_body(body),
+            "decision_actor_id": None,
+            "revoked_by_actor_id": None,
+            "cap_guard_decision_ref": body.get("cap_guard_decision_ref"),
+            "reconciliation_plan_ref": body.get("reconciliation_plan_ref"),
             "request_reason": body.get("request_reason"),
+            "decision_reason": None,
+            "revoke_reason": None,
+            "snapshot_linked": False,
+            "live_execution_authority": False,
+            "live_exchange_submitted": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "detail": "Backend-owned approval request awaiting decision.",
             "correlation_id": context.correlation_id,
             "idempotency_key": context.idempotency_key,
         }
         self.store.approval_requests[approval_request_id] = record
         return self._ok(
             {
-                "type": "admin_approval_request_result",
+                "type": "admin_approval_lifecycle",
                 "status": AdminMvpCommandStatus.ACCEPTED.value,
+                "action_class": "local_state_mutation",
+                "required_permission": "approval:request",
+                "service_method": "create_approval_request",
+                "message": "Approval request recorded.",
                 "approval": record,
+                "correlation_id": context.correlation_id,
+                "idempotency_key": context.idempotency_key,
+                "audit_id": f"audit-{context.idempotency_key}",
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                "live_exchange_submitted": False,
                 **self._live_outputs(False, Decimal("0")),
             },
             context,
@@ -408,6 +489,7 @@ class AdminMvpService:
             **request,
             "approval_id": approval_id,
             "approval_request_id": approval_request_id,
+            "status": "approved",
             "lifecycle_status": "approved",
             "decision": "approved",
             "decision_reason": body.get("decision_reason"),
@@ -416,15 +498,28 @@ class AdminMvpService:
             "expires_at": body.get("expires_at"),
             "cap_guard_decision_ref": body.get("cap_guard_decision_ref"),
             "reconciliation_plan_ref": body.get("reconciliation_plan_ref"),
+            "snapshot_linked": True,
             "decision_correlation_id": context.correlation_id,
             "decision_idempotency_key": context.idempotency_key,
+            "detail": "Backend-owned approval snapshot recorded.",
         }
+        self.store.approval_requests[approval_request_id] = record
         self.store.approval_snapshots[approval_id] = record
         return self._ok(
             {
-                "type": "admin_approval_decision_result",
+                "type": "admin_approval_lifecycle",
                 "status": AdminMvpCommandStatus.ACCEPTED.value,
+                "action_class": "local_state_mutation",
+                "required_permission": "approval:manage",
+                "service_method": "decide_approval_request",
+                "message": "Approval decision recorded.",
                 "approval": record,
+                "correlation_id": context.correlation_id,
+                "idempotency_key": context.idempotency_key,
+                "audit_id": f"audit-{context.idempotency_key}",
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                "live_exchange_submitted": False,
                 **self._live_outputs(False, Decimal("0")),
             },
             context,
@@ -457,6 +552,7 @@ class AdminMvpService:
                 "type": "admin_admission_audit_result",
                 "status": AdminMvpCommandStatus.ACCEPTED.value,
                 "admission_audit": record,
+                "live_exchange_submitted": False,
                 **self._live_outputs(False, Decimal("0")),
             },
             context,
@@ -499,6 +595,7 @@ class AdminMvpService:
                 "type": "admin_cap_guard_decision_result",
                 "status": AdminMvpCommandStatus.ACCEPTED.value,
                 "decision": record,
+                "live_exchange_submitted": False,
                 **self._live_outputs(False, Decimal("0")),
             },
             context,
@@ -545,6 +642,7 @@ class AdminMvpService:
                 "type": "admin_reconciliation_plan_result",
                 "status": AdminMvpCommandStatus.ACCEPTED.value,
                 "plan": record,
+                "live_exchange_submitted": False,
                 **self._live_outputs(False, Decimal("0")),
             },
             context,
@@ -576,6 +674,7 @@ class AdminMvpService:
             {
                 "type": "admin_live_admission_preview",
                 "admission_decision": admission,
+                "live_exchange_submitted": False,
                 **self._live_outputs(False, Decimal("0")),
             },
             context,
@@ -1082,9 +1181,21 @@ class AdminMvpService:
 
     def _approval_list(self) -> dict[str, Any]:
         approvals = list(self.store.approval_requests.values())
+        pending_count = sum(1 for approval in approvals if approval.get("status") == "requested")
+        approved_count = sum(1 for approval in approvals if approval.get("status") == "approved")
+        rejected_count = sum(1 for approval in approvals if approval.get("status") == "rejected")
+        revoked_count = sum(1 for approval in approvals if approval.get("status") == "revoked")
+        expired_count = sum(1 for approval in approvals if approval.get("expired"))
         return {
-            "type": "admin_approval_list",
+            "type": "admin_approval_lifecycle_list",
             "approvals": approvals,
+            "returned_count": len(approvals),
+            "total_count": len(approvals),
+            "pending_count": pending_count,
+            "approved_count": approved_count,
+            "rejected_count": rejected_count,
+            "revoked_count": revoked_count,
+            "expired_count": expired_count,
             "count": len(approvals),
             "pagination": _pagination(len(approvals), len(approvals), 0),
             "live_coinbase_orders_ran": False,
@@ -1093,9 +1204,32 @@ class AdminMvpService:
     def _approval_detail(self, approval_request_id: str) -> dict[str, Any]:
         approval = self.store.approval_requests.get(approval_request_id)
         return {
-            "type": "admin_approval_detail",
+            "type": "admin_approval_lifecycle",
+            "status": (
+                AdminMvpCommandStatus.ACCEPTED.value
+                if approval is not None
+                else AdminMvpCommandStatus.REJECTED.value
+            ),
+            "action_class": "local_state_mutation",
+            "required_permission": "approval:read",
+            "service_method": "get_approval_request",
+            "message": (
+                "Approval detail loaded."
+                if approval is not None
+                else "Approval request was not found."
+            ),
             "approval": approval,
             "found": approval is not None,
+            "correlation_id": approval.get("correlation_id") if approval else None,
+            "idempotency_key": approval.get("idempotency_key") if approval else None,
+            "audit_id": (
+                f"audit-{approval.get('idempotency_key')}"
+                if approval and approval.get("idempotency_key")
+                else None
+            ),
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "live_exchange_submitted": False,
             "live_coinbase_orders_ran": False,
         }
 
@@ -1158,9 +1292,23 @@ class AdminMvpService:
 
     def _live_service_decision_list(self) -> dict[str, Any]:
         records = list(self.store.service_decisions.values())
+        passed_count = sum(
+            1 for record in records if record.get("status") == AdminMvpGateStatus.PASSED.value
+        )
+        blocked_count = sum(
+            1 for record in records if record.get("status") == AdminMvpGateStatus.BLOCKED.value
+        )
         return {
             "type": "admin_live_service_decision_list",
             "decisions": records,
+            "returned_count": len(records),
+            "total_count": len(records),
+            "passed_count": passed_count,
+            "blocked_count": blocked_count,
+            "warning_count": 0,
+            "resolver_eligible_count": sum(
+                1 for record in records if record.get("resolver_eligible")
+            ),
             "count": len(records),
             "pagination": _pagination(len(records), len(records), 0),
             "live_coinbase_orders_ran": False,
@@ -1169,9 +1317,32 @@ class AdminMvpService:
     def _live_service_decision_detail(self, decision_id: str) -> dict[str, Any]:
         decision = self.store.service_decisions.get(decision_id)
         return {
-            "type": "admin_live_service_decision_detail",
+            "type": "admin_live_service_decision",
+            "status": (
+                AdminMvpCommandStatus.ACCEPTED.value
+                if decision is not None
+                else AdminMvpCommandStatus.REJECTED.value
+            ),
+            "action_class": "local_state_mutation",
+            "required_permission": LIVE_SERVICE_DECISION_PERMISSION,
+            "service_method": "get_live_service_decision",
+            "message": (
+                "Live-service decision detail loaded."
+                if decision is not None
+                else "Live-service decision was not found."
+            ),
             "decision": decision,
             "found": decision is not None,
+            "correlation_id": decision.get("correlation_id") if decision else None,
+            "idempotency_key": decision.get("idempotency_key") if decision else None,
+            "audit_id": (
+                f"audit-{decision.get('idempotency_key')}"
+                if decision and decision.get("idempotency_key")
+                else None
+            ),
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "live_exchange_submitted": False,
             "live_coinbase_orders_ran": False,
         }
 
@@ -1484,42 +1655,42 @@ class AdminMvpService:
             _command_capability(
                 route="/api/v1/admin/approvals/requests",
                 action_class="local_state_mutation",
-                required_permission="approval:create",
+                required_permission="approval:request",
                 shared_method="create_approval_request",
                 live_enabled=False,
             ),
             _command_capability(
                 route="/api/v1/admin/approvals/requests/{approval_request_id}/decisions",
                 action_class="local_state_mutation",
-                required_permission="approval:decide",
+                required_permission="approval:manage",
                 shared_method="decide_approval_request",
                 live_enabled=False,
             ),
             _command_capability(
                 route="/api/v1/admin/admission-audits",
                 action_class="local_state_mutation",
-                required_permission="audit:write",
+                required_permission="admission_audit:record",
                 shared_method="record_admission_audit",
                 live_enabled=False,
             ),
             _command_capability(
                 route="/api/v1/admin/cap-guard/decisions",
                 action_class="local_state_mutation",
-                required_permission="cap_guard:write",
+                required_permission="cap_guard:record",
                 shared_method="record_cap_guard_decision",
                 live_enabled=False,
             ),
             _command_capability(
                 route="/api/v1/admin/reconciliation/plans",
                 action_class="local_state_mutation",
-                required_permission="reconciliation:write",
+                required_permission="reconciliation:record",
                 shared_method="record_reconciliation_plan",
                 live_enabled=False,
             ),
             _command_capability(
                 route="/api/v1/admin/live-execution/service-decisions",
                 action_class="local_state_mutation",
-                required_permission="live_execution:write",
+                required_permission="config:update",
                 shared_method="record_live_service_decision",
                 live_enabled=False,
             ),
@@ -1756,6 +1927,7 @@ def _read_capability(route: str, module_id: str) -> dict[str, Any]:
         "live_enabled": False,
         "frontend_safe": True,
         "action_class": "read_only",
+        "permission": "analytics:read",
         "required_permission": "analytics:read",
         "shared_method": "read_mvp_contract",
         "idempotency": "not_required",
@@ -1785,6 +1957,7 @@ def _command_capability(
         "live_enabled": live_enabled,
         "frontend_safe": True,
         "action_class": action_class,
+        "permission": required_permission,
         "required_permission": required_permission,
         "shared_method": shared_method,
         "idempotency": "required",
