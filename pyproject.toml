@@ -28,6 +28,8 @@ dependencies = []
 # Explicit list. Avoids accidentally scooping `tests/`, `genai_tools/`,
 # top-level `__pycache__`, etc. as importable packages.
 packages = [
+    "application",
+    "application.admin_api",
     "bridges",
     "business",
     "calculation",

@@ -19,23 +19,34 @@ from typing import Set, Dict, Any, Optional
 import websockets
 from websockets.server import WebSocketServerProtocol
 
-# Import REST client for order placement
+# Import REST client for backend-owned command execution. Import must fail
+# closed so tests and local UI startup do not reach Coinbase at module import.
 try:
     from configuration import REST_CLIENT, rest_get_products
     REST_CLIENT_AVAILABLE = True
-except ImportError:
+    REST_CLIENT_IMPORT_ERROR = None
+except Exception as exc:
+    REST_CLIENT = None
+    REST_CLIENT_IMPORT_ERROR = exc
     REST_CLIENT_AVAILABLE = False
+
+    def rest_get_products():
+        return {}
 
 # Use custom logging service
 from logging_service import get_logger
 from core.enums import EngineState, FollowUpRevealDirection, RepricingReferenceSource, StealthOrderStatus
 from core.models import RepricingPolicy
-from core.exceptions import WebSocketMessageError, OrderCreationError, CoinbaseAPIError
+from core.exceptions import WebSocketMessageError
 from core.runtime_controller import (
-    INFLIGHT_REST_CANCEL,
-    INFLIGHT_REST_PLACE,
     EngineNotAdmittingError,
     get_runtime_controller,
+)
+from application.admin_api.mvp_service import (
+    AdminMvpDependencies,
+    AdminMvpRequestContext,
+    AdminMvpService,
+    live_coinbase_execution_enabled_from_env,
 )
 from database.database import PostgresDB
 from calculation.formatter import safe_float
@@ -72,6 +83,8 @@ _ACTIVE_STEALTH_STATUSES = frozenset(
     s.value for s in StealthOrderStatus if s.value not in _TERMINAL_STEALTH_STATUSES
 )
 
+_ADMIN_MVP_SERVICE: Optional[AdminMvpService] = None
+
 # Fields on the in-memory stealth order that map back to create_stealth_order
 # kwargs (keys exactly match what the existing "create_stealth_order" message
 # handler expects in `data["order"]`). Listing them explicitly avoids leaking
@@ -93,6 +106,102 @@ _EXPORT_FIELDS = (
     "allow_partial_fills",
     "anchor_repricing_policy_json",  # → anchor_repricing_policy
 )
+
+def _dashboard_admin_service() -> AdminMvpService:
+    """Return the dashboard's shared backend Admin MVP command service."""
+
+    global _ADMIN_MVP_SERVICE
+    if _ADMIN_MVP_SERVICE is None:
+        rest_client = globals().get("REST_CLIENT")
+        _ADMIN_MVP_SERVICE = AdminMvpService(
+            AdminMvpDependencies(
+                rest_client=rest_client,
+                rest_client_available=REST_CLIENT_AVAILABLE and rest_client is not None,
+                live_coinbase_execution_enabled=live_coinbase_execution_enabled_from_env(),
+            )
+        )
+    return _ADMIN_MVP_SERVICE
+
+
+def _dashboard_admin_context(
+    data: Dict[str, Any],
+    default_operator_intent: str,
+) -> AdminMvpRequestContext:
+    """Build auditable Admin API context for a legacy dashboard message."""
+
+    return AdminMvpRequestContext(
+        idempotency_key=str(data.get("idempotency_key") or data.get("request_id") or uuid.uuid4()),
+        correlation_id=str(data.get("correlation_id") or data.get("request_id") or uuid.uuid4()),
+        operator_intent=str(data.get("operator_intent") or default_operator_intent),
+        actor_id=str(data.get("actor_id") or "legacy-dashboard-operator"),
+        roles=tuple(data.get("roles") or ("operator",)),
+    )
+
+
+def _manual_order_body_from_dashboard(
+    order_params: Dict[str, Any],
+    data: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Convert a legacy dashboard place_order payload into an Admin API body."""
+
+    order_configuration = order_params.get("order_configuration") or {}
+    inner_key = next(iter(order_configuration), "")
+    inner = order_configuration.get(inner_key, {}) if inner_key else {}
+    is_limit = inner_key == "limit_limit_gtc" or inner.get("limit_price") is not None
+    body: Dict[str, Any] = {
+        "product_id": order_params.get("product_id"),
+        "side": order_params.get("side"),
+        "order_type": "LIMIT" if is_limit else "MARKET",
+        "post_only": bool(inner.get("post_only", order_params.get("post_only", False))),
+        "manual_live_acknowledgement": bool(
+            order_params.get(
+                "manual_live_acknowledgement",
+                data.get("manual_live_acknowledgement", False),
+            )
+        ),
+    }
+    if inner.get("base_size") is not None:
+        body["base_size"] = str(inner["base_size"])
+    if inner.get("quote_size") is not None:
+        body["quote_size"] = str(inner["quote_size"])
+    if inner.get("limit_price") is not None:
+        body["limit_price"] = str(inner["limit_price"])
+    return body
+
+
+def _dashboard_order_response(admin_result: Dict[str, Any]) -> Dict[str, Any]:
+    """Map an Admin API command result to the legacy dashboard order response."""
+
+    accepted = admin_result.get("status") == "accepted"
+    return {
+        "type": "order_response",
+        "status": "success" if accepted else "error",
+        "message": admin_result.get("message", "Admin API command rejected"),
+        "client_order_id": admin_result.get("client_order_id"),
+        "order_id": admin_result.get("coinbase_order_id"),
+        "audit_correlation_id": admin_result.get("correlation_id"),
+        "backend_status": admin_result.get("status"),
+        "failure_stage": admin_result.get("failure_stage"),
+        "live_coinbase_orders_ran": admin_result.get("live_coinbase_orders_ran", False),
+        "notional_usdc": admin_result.get("notional_usdc"),
+    }
+
+
+def _dashboard_cancel_response(admin_result: Dict[str, Any]) -> Dict[str, Any]:
+    """Map an Admin API command result to the legacy dashboard cancel response."""
+
+    accepted = admin_result.get("status") == "accepted"
+    return {
+        "type": "cancel_response",
+        "status": "success" if accepted else "error",
+        "message": admin_result.get("message", "Admin API command rejected"),
+        "client_order_id": admin_result.get("client_order_id"),
+        "audit_correlation_id": admin_result.get("correlation_id"),
+        "backend_status": admin_result.get("status"),
+        "failure_stage": admin_result.get("failure_stage"),
+        "live_coinbase_orders_ran": admin_result.get("live_coinbase_orders_ran", False),
+    }
+
 
 logger = get_logger("DashboardServer")
 
@@ -608,162 +717,72 @@ async def handle_client_message(websocket: WebSocketServerProtocol, message: str
             return
         
         if msg_type == "place_order":
-            # Place order via REST API
+            # Compatibility input: delegate to backend Admin API service.
             order_params = data.get("params", {})
             logger.info(f"Order placement requested: {order_params}")
-            
-            if not REST_CLIENT_AVAILABLE:
-                response = {
-                    "type": "order_response",
-                    "status": "error",
-                    "message": "REST client not available",
-                }
-                await websocket.send(json.dumps(response))
-                return
-            
+
             try:
-                # Generate unique client order ID
-                client_order_id = str(uuid.uuid4())
-
-                # Boundary validation: tick-align size and reject sizes
-                # below the exchange's base_min_size / quote_min_size
-                # before we burn a REST call. Mirrors the boundary hook
-                # in core/stealth_order_manager.create_stealth_order so
-                # both order-creation paths get the same guard. See
-                # calculation/size_validation.py for the contract.
-                from calculation.size_validation import validate_and_quantize_size
-
-                product_id = order_params.get("product_id")
-                order_configuration = order_params.get("order_configuration") or {}
-                # order_configuration shape (per Coinbase Advanced Trade):
-                #   {"limit_limit_gtc": {"base_size": "...", "limit_price": "...", ...}}
-                #   {"market_market_ioc": {"base_size": "..."}} (or quote_size)
-                # Pick whichever inner config is present.
-                inner_key = next(iter(order_configuration), None)
-                inner = order_configuration.get(inner_key, {}) if inner_key else {}
-                raw_size = inner.get("base_size")
-                raw_price = inner.get("limit_price")  # None for market orders
-                if raw_size is not None:
-                    size_check = validate_and_quantize_size(
-                        raw_size,
-                        product_id=product_id,
-                        price=float(raw_price) if raw_price is not None else None,
-                    )
-                    if not size_check:
-                        raise OrderCreationError(
-                            f"Order rejected at boundary: {size_check.reason}",
-                            client_order_id=client_order_id,
-                        )
-                    # Write quantized value back so the REST call sends
-                    # exactly what the validator approved.
-                    inner["base_size"] = str(size_check.size)
-
-                # Call REST API to create order. Tracked as in-flight so a
-                # concurrent drain waits for the placement to settle before
-                # transitioning to STOPPED.
-                with controller.track_inflight(INFLIGHT_REST_PLACE):
-                    result = REST_CLIENT.create_order(
-                        client_order_id=client_order_id,
-                        product_id=product_id,
-                        side=order_params.get("side"),
-                        order_configuration=order_configuration,
-                    )
-                
-                # Convert response object to dict if needed
-                if hasattr(result, '__dict__'):
-                    result_dict = result.__dict__
-                else:
-                    result_dict = result
-                
-                logger.info(f"Order response: {result_dict}")
-                
-                # Check if order was successful
-                if hasattr(result, 'success') and not result.success:
-                    error_msg = "Unknown error"
-                    if hasattr(result, 'error_response'):
-                        error_response = result.error_response
-                        if isinstance(error_response, dict):
-                            error_msg = error_response.get('message') or error_response.get('error', 'Unknown error')
-                        elif hasattr(error_response, 'message'):
-                            error_msg = error_response.message
-                        elif hasattr(error_response, 'error'):
-                            error_msg = error_response.error
-                    
-                    raise CoinbaseAPIError(
-                        f"Order creation failed: {error_msg}",
-                        api_error_code="order_creation_failed"
-                    )
-                
-                # Order successful
-                order_id = None
-                if hasattr(result, 'order_id'):
-                    order_id = result.order_id
-                elif isinstance(result_dict, dict):
-                    order_id = result_dict.get('order_id')
-                
-                response = {
-                    "type": "order_response",
-                    "status": "success",
-                    "message": "Order created",
-                    "order_id": order_id,
-                }
-                add_log_entry("INFO", f"Order created: {order_params.get('product_id')} {order_params.get('side')}")
-                
-            except CoinbaseAPIError as e:
-                logger.error(f"API error during order placement: {str(e)}")
-                response = {
-                    "type": "order_response",
-                    "status": "error",
-                    "message": str(e),
-                }
-                add_log_entry("ERROR", f"API error: {str(e)}")
+                admin_result = _dashboard_admin_service().submit_manual_order(
+                    _manual_order_body_from_dashboard(order_params, data),
+                    _dashboard_admin_context(data, "legacy_dashboard_place_order"),
+                )
+                response = _dashboard_order_response(admin_result.body)
+                log_level = "INFO" if response["status"] == "success" else "WARNING"
+                add_log_entry(
+                    log_level,
+                    (
+                        "Admin API order command "
+                        f"{response['backend_status']}: {order_params.get('product_id')} "
+                        f"{order_params.get('side')}"
+                    ),
+                    {
+                        "client_order_id": response.get("client_order_id"),
+                        "correlation_id": response.get("audit_correlation_id"),
+                        "failure_stage": response.get("failure_stage"),
+                        "live_coinbase_orders_ran": response.get("live_coinbase_orders_ran"),
+                    },
+                )
             except Exception as e:
                 logger.error(f"Order placement failed: {type(e).__name__}: {str(e)}")
-                raise OrderCreationError(
-                    f"Failed to place order: {e}",
-                    client_order_id=client_order_id if 'client_order_id' in locals() else None
-                ) from e
+                response = {
+                    "type": "order_response",
+                    "status": "error",
+                    "message": f"Admin API order command failed: {e}",
+                    "live_coinbase_orders_ran": False,
+                }
             
             await websocket.send(json.dumps(response))
             
         elif msg_type == "cancel_order":
-            # Cancel order via REST API
-            # Use client_order_id (which we always have) rather than order_id
-            # This works for both revealed and unrevealed orders
+            # Compatibility input: delegate to backend Admin API service.
             client_order_id = data.get("client_order_id")
             logger.info(f"Cancel requested for order: {client_order_id}")
-            
-            if not REST_CLIENT_AVAILABLE:
-                response = {
-                    "type": "cancel_response",
-                    "status": "error",
-                    "message": "REST client not available",
-                }
-                await websocket.send(json.dumps(response))
-                return
-            
+
             try:
-                # Call REST API to cancel order using client_order_id.
-                # Cancellations are always-allowed (even while paused/draining)
-                # but still tracked so the drain waits for them.
-                with controller.track_inflight(INFLIGHT_REST_CANCEL):
-                    result = REST_CLIENT.cancel_orders(order_ids=[client_order_id])
-                
-                logger.info(f"Order cancelled successfully: {result}")
-                response = {
-                    "type": "cancel_response",
-                    "status": "success",
-                    "message": "Order cancelled",
-                    "data": result,
-                }
-                add_log_entry("INFO", f"Order cancelled: {client_order_id}")
-                
+                admin_result = _dashboard_admin_service().cancel_order_by_client_order_id(
+                    str(client_order_id or ""),
+                    data,
+                    _dashboard_admin_context(data, "legacy_dashboard_cancel_order"),
+                )
+                response = _dashboard_cancel_response(admin_result.body)
+                log_level = "INFO" if response["status"] == "success" else "WARNING"
+                add_log_entry(
+                    log_level,
+                    f"Admin API cancel command {response['backend_status']}: {client_order_id}",
+                    {
+                        "client_order_id": response.get("client_order_id"),
+                        "correlation_id": response.get("audit_correlation_id"),
+                        "failure_stage": response.get("failure_stage"),
+                        "live_coinbase_orders_ran": response.get("live_coinbase_orders_ran"),
+                    },
+                )
             except Exception as e:
                 logger.error(f"Order cancellation failed: {str(e)}")
                 response = {
                     "type": "cancel_response",
                     "status": "error",
-                    "message": str(e),
+                    "message": f"Admin API cancel command failed: {e}",
+                    "live_coinbase_orders_ran": False,
                 }
                 add_log_entry("ERROR", f"Order cancellation failed: {str(e)}")
             
