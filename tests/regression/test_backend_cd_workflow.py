@@ -468,6 +468,7 @@ def test_backend_deploy_install_declares_admin_api_runtime_dependencies() -> Non
 
     assert {
         "fastapi",
+        "coinbase-advanced-py",
         "pydantic",
         "psycopg2-binary",
         "pyjwt",
