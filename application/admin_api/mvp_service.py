@@ -23,6 +23,7 @@ ADMIN_API_VERSION = "0.1.0-prod-mvp"
 MANUAL_ORDER_ROUTE = "/api/v1/orders"
 CANCEL_ORDER_ROUTE = "/api/v1/orders/{client_order_id}/cancel"
 ACCOUNT_MANAGEMENT_ROUTE = "/api/v1/admin/account-management"
+ACCOUNT_WALLET_ROUTE = "/api/v1/admin/wallet"
 ACCOUNT_MANAGEMENT_MODULE_ID = "account_management"
 FRONTEND_LOCAL_RELEASE_MANIFEST_ENV = "COINBASE_ADMIN_FRONTEND_LOCAL_RELEASE_MANIFEST_PATH"
 BACKEND_LOCAL_RELEASE_MANIFEST_ENV = "COINBASE_BACKEND_LOCAL_RELEASE_MANIFEST_PATH"
@@ -180,6 +181,8 @@ class AdminMvpService:
             return self._ok(self._csrf_contract(), context)
         if normalized_path == ACCOUNT_MANAGEMENT_ROUTE:
             return self._ok(self._account_management(context), context)
+        if normalized_path == ACCOUNT_WALLET_ROUTE:
+            return self._ok(self._admin_wallet(context), context)
         if normalized_path == "/api/v1/admin/live-enablement":
             return self._ok(self._live_enablement(), context)
         if normalized_path == "/api/v1/admin/enterprise-readiness":
@@ -1220,6 +1223,7 @@ class AdminMvpService:
             },
             "portfolio_scope": portfolio_scope,
             "wallet_inventory": wallet_inventory,
+            "wallets": wallet_items,
             "readiness": readiness,
             "futures_positions": position_items,
             "coinbase_read_enabled": True,
@@ -1372,6 +1376,55 @@ class AdminMvpService:
                 "idempotency_key": context.idempotency_key,
                 "operator_intent": context.operator_intent,
                 "audit_surface": ACCOUNT_MANAGEMENT_ROUTE,
+            },
+            "read_only": True,
+            "command_routes_mode": "backend_admin_api",
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "coinbase_read_enabled": snapshot["coinbase_read_enabled"],
+            "live_coinbase_read_ran": snapshot["coinbase_read_ran"],
+            **self._live_outputs(False, Decimal("0")),
+            "notional_usdc": "0",
+        }
+
+    def _admin_wallet(self, context: AdminMvpRequestContext) -> dict[str, Any]:
+        snapshot = self._account_snapshot()
+        readiness = snapshot["readiness"]
+        wallet_inventory = snapshot["wallet_inventory"]
+        spot_wallet_ready = bool(readiness["spot_wallet_inventory_ready"])
+        futures_risk_ready = bool(readiness["usable_for_futures_risk"])
+        return {
+            "type": "admin_wallet",
+            "status": "ready" if spot_wallet_ready else "warning",
+            "module_id": ACCOUNT_MANAGEMENT_MODULE_ID,
+            "account_reality": snapshot["account_reality"],
+            "account_scope": snapshot["account_scope"],
+            "portfolio_scope": snapshot["portfolio_scope"],
+            "wallet_inventory": wallet_inventory,
+            "wallets": _wallet_rows_for_admin(snapshot["wallets"]),
+            "wallet_count": len(snapshot["wallets"]),
+            "readiness": readiness,
+            "spot_admission_input": {
+                "status": "ready" if spot_wallet_ready else "blocked",
+                "wallet_check_source": ACCOUNT_SNAPSHOT_WALLET_SOURCE,
+                "currency": wallet_inventory["currency"],
+                "available_notional_usdc": wallet_inventory["available_notional_usdc"],
+                "proof_id": snapshot["account_reality"]["proof_id"],
+                "first_blocker": "none" if spot_wallet_ready else "spot_wallet_inventory_ready",
+            },
+            "futures_risk_input": {
+                "status": "ready" if futures_risk_ready else "blocked",
+                "wallet_check_source": ACCOUNT_SNAPSHOT_WALLET_SOURCE,
+                "currency": wallet_inventory["currency"],
+                "available_notional_usdc": wallet_inventory["available_notional_usdc"],
+                "proof_id": snapshot["account_reality"]["proof_id"],
+                "first_blocker": "none" if futures_risk_ready else "futures_margin_collateral_ready",
+            },
+            "audit": {
+                "correlation_id": context.correlation_id,
+                "idempotency_key": context.idempotency_key,
+                "operator_intent": context.operator_intent,
+                "audit_surface": ACCOUNT_WALLET_ROUTE,
             },
             "read_only": True,
             "command_routes_mode": "backend_admin_api",
@@ -1549,7 +1602,7 @@ class AdminMvpService:
                 ACCOUNT_MANAGEMENT_MODULE_ID,
                 "Account Management",
                 "mvp_read_ready",
-                [ACCOUNT_MANAGEMENT_ROUTE],
+                [ACCOUNT_MANAGEMENT_ROUTE, ACCOUNT_WALLET_ROUTE],
             ),
             _module_registry(
                 "spot_operations",
@@ -2440,6 +2493,7 @@ class AdminMvpService:
             "/api/v1/admin/capabilities",
             "/api/v1/admin/csrf",
             ACCOUNT_MANAGEMENT_ROUTE,
+            ACCOUNT_WALLET_ROUTE,
             "/api/v1/admin/live-enablement",
             "/api/v1/admin/enterprise-readiness",
             "/api/v1/admin/release-gate",
@@ -2697,6 +2751,7 @@ def _unavailable_account_snapshot(generated_at: str) -> dict[str, Any]:
             "status": "visible",
             "error": "not_applicable",
         },
+        "wallets": [],
         "readiness": readiness,
         "futures_positions": [],
         "coinbase_read_enabled": False,
@@ -2821,6 +2876,28 @@ def _wallet_inventory_from_wallets(wallets: list[dict[str, Any]]) -> dict[str, A
         "status": "ready",
         "error": "none",
     }
+
+
+def _wallet_rows_for_admin(wallets: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows = []
+    for wallet in wallets:
+        admission_asset = wallet["currency"] == "USDC"
+        admission_ready = admission_asset and _decimal_value(
+            wallet["available_balance"],
+            Decimal("0"),
+        ) > Decimal("0")
+        rows.append(
+            {
+                **wallet,
+                "source": BACKEND_REST_CLIENT_SOURCE,
+                "freshness_status": BACKEND_REST_FRESHNESS,
+                "admission_asset": admission_asset,
+                "admission_ready": admission_ready,
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+            }
+        )
+    return rows
 
 
 def _portfolio_scope_from_portfolios(portfolios: list[dict[str, Any]]) -> dict[str, Any]:
@@ -3008,7 +3085,7 @@ def _nested_manifest_text(
 
 
 def _read_capability_module_id(route: str) -> str:
-    if route == ACCOUNT_MANAGEMENT_ROUTE:
+    if route in {ACCOUNT_MANAGEMENT_ROUTE, ACCOUNT_WALLET_ROUTE}:
         return ACCOUNT_MANAGEMENT_MODULE_ID
     if route in FUTURES_READ_ROUTES:
         return FUTURES_MODULE_ID

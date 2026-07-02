@@ -440,6 +440,68 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/wallet:
+    get:
+      tags:
+      - admin
+      summary: Read backend-owned wallet inventory and admission input evidence
+      operationId: admin_wallet_api_v1_admin_wallet_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminWalletReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/live-enablement:
     get:
       tags:
@@ -13057,6 +13119,184 @@ components:
       - error
       title: AdminAccountManagementWalletInventory
       description: Wallet and balance evidence without live Coinbase reads.
+    AdminWalletItem:
+      properties:
+        currency:
+          type: string
+          title: Currency
+        available_balance:
+          type: string
+          title: Available Balance
+        total_balance:
+          type: string
+          title: Total Balance
+        hold_balance:
+          type: string
+          title: Hold Balance
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+        source:
+          type: string
+          title: Source
+        freshness_status:
+          type: string
+          title: Freshness Status
+        admission_asset:
+          type: boolean
+          title: Admission Asset
+          default: false
+        admission_ready:
+          type: boolean
+          title: Admission Ready
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+        bff_authority:
+          type: string
+          title: Bff Authority
+      additionalProperties: false
+      type: object
+      required:
+      - currency
+      - available_balance
+      - total_balance
+      - hold_balance
+      - updated_at
+      - source
+      - freshness_status
+      - admission_asset
+      - admission_ready
+      - browser_authority
+      - bff_authority
+      title: AdminWalletItem
+      description: One backend-normalized wallet row. It is evidence only, not browser authority.
+    AdminWalletGateInput:
+      properties:
+        status:
+          type: string
+          title: Status
+        wallet_check_source:
+          type: string
+          title: Wallet Check Source
+        currency:
+          type: string
+          title: Currency
+        available_notional_usdc:
+          type: string
+          title: Available Notional Usdc
+        proof_id:
+          type: string
+          title: Proof Id
+        first_blocker:
+          type: string
+          title: First Blocker
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - wallet_check_source
+      - currency
+      - available_notional_usdc
+      - proof_id
+      - first_blocker
+      title: AdminWalletGateInput
+      description: Backend-derived wallet input evidence for admission or risk gates.
+    AdminWalletReadResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_wallet
+        status:
+          type: string
+          title: Status
+        module_id:
+          type: string
+          title: Module Id
+          default: account_management
+        account_reality:
+          $ref: '#/components/schemas/AdminAccountManagementReality'
+        account_scope:
+          $ref: '#/components/schemas/AdminAccountManagementScope'
+        portfolio_scope:
+          $ref: '#/components/schemas/AdminAccountManagementPortfolioScope'
+        wallet_inventory:
+          $ref: '#/components/schemas/AdminAccountManagementWalletInventory'
+        wallets:
+          items:
+            $ref: '#/components/schemas/AdminWalletItem'
+          type: array
+          title: Wallets
+        wallet_count:
+          type: integer
+          title: Wallet Count
+        readiness:
+          $ref: '#/components/schemas/AdminAccountManagementReadiness'
+        spot_admission_input:
+          $ref: '#/components/schemas/AdminWalletGateInput'
+        futures_risk_input:
+          $ref: '#/components/schemas/AdminWalletGateInput'
+        audit:
+          $ref: '#/components/schemas/AdminAccountManagementAudit'
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+        browser_authority:
+          type: string
+          title: Browser Authority
+        bff_authority:
+          type: string
+          title: Bff Authority
+        coinbase_read_enabled:
+          type: boolean
+          title: Coinbase Read Enabled
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+        notional_usdc:
+          type: string
+          title: Notional Usdc
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - account_reality
+      - account_scope
+      - portfolio_scope
+      - wallet_inventory
+      - wallets
+      - wallet_count
+      - readiness
+      - spot_admission_input
+      - futures_risk_input
+      - audit
+      - command_routes_mode
+      - browser_authority
+      - bff_authority
+      - coinbase_read_enabled
+      - live_coinbase_read_ran
+      - live_coinbase_execution
+      - notional_usdc
+      - live_coinbase_orders_ran
+      title: AdminWalletReadResponse
+      description: Backend-owned wallet inventory and gate-input evidence for the Wallet MVP.
     AdminAccountManagementReadResponse:
       properties:
         type:

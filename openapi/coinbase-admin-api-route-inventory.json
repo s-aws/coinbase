@@ -1619,6 +1619,22 @@
       "command_contract": false
     },
     {
+      "module_id": "account_management",
+      "surface": "GET /api/v1/admin/wallet",
+      "method": "GET",
+      "path": "/api/v1/admin/wallet",
+      "action_class": "read_only",
+      "permission": "analytics:read",
+      "idempotency": "not required",
+      "approval": "not required",
+      "caps": "not applicable",
+      "audit": "optional read audit",
+      "shared_method": "build_admin_wallet",
+      "parity_test": "backend-owned wallet inventory and admission input evidence; no Coinbase mutation",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
       "module_id": "admin_system_health",
       "surface": "GET /api/v1/admin/live-enablement",
       "method": "GET",

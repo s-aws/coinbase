@@ -479,7 +479,10 @@ def test_admin_account_management_read_contract_exposes_local_operator_scope(
         if item["module_id"] == "account_management"
     )
     assert account_module["support_status"] == "mvp_read_ready"
-    assert account_module["read_routes"] == ["GET /api/v1/admin/account-management"]
+    assert account_module["read_routes"] == [
+        "GET /api/v1/admin/account-management",
+        "GET /api/v1/admin/wallet",
+    ]
     assert account_module["action_posture"]["browser_authority"] == "display_only"
 
 
@@ -529,6 +532,94 @@ def test_admin_account_management_exposes_backend_owned_account_reality():
     assert rest_client.get_account_wallets_calls == 1
     assert rest_client.list_portfolios_calls == 1
     assert rest_client.get_futures_positions_calls == 1
+
+
+def test_admin_wallet_read_exposes_backend_owned_wallet_reality():
+    rest_client = FakeAccountRestClient()
+    rest_client.account_wallets["BTC"] = {
+        "currency": "BTC",
+        "available_balance": "0.01000000",
+        "total_balance": "0.01500000",
+        "hold_balance": "0.00500000",
+        "updated_at": "2026-07-03T00:01:00Z",
+    }
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+
+    result = service.get_read_response(
+        "/api/v1/admin/wallet",
+        {},
+        context(idempotency_key="wallet-read"),
+    )
+
+    assert result.status_code == 200
+    body = result.body
+    assert body["type"] == "admin_wallet"
+    assert body["module_id"] == "account_management"
+    assert body["read_only"] is True
+    assert body["browser_authority"] == "display_only"
+    assert body["bff_authority"] == "forward_only_no_execution"
+    assert body["account_reality"]["status"] == "ready"
+    assert body["account_reality"]["source"] == "backend_rest_client"
+    assert body["wallet_inventory"]["status"] == "ready"
+    assert body["wallet_inventory"]["currency"] == "USDC"
+    assert body["wallet_inventory"]["available_notional_usdc"] == "12.34"
+    assert body["wallet_inventory"]["hold_notional_usdc"] == "2.66"
+    assert body["wallet_inventory"]["total_notional_usdc"] == "15.00"
+    assert body["wallet_count"] == 2
+    wallet_rows = {wallet["currency"]: wallet for wallet in body["wallets"]}
+    assert wallet_rows["USDC"]["available_balance"] == "12.34"
+    assert wallet_rows["USDC"]["admission_asset"] is True
+    assert wallet_rows["USDC"]["admission_ready"] is True
+    assert wallet_rows["BTC"]["admission_asset"] is False
+    assert wallet_rows["BTC"]["admission_ready"] is False
+    assert body["readiness"]["spot_wallet_inventory_ready"] is True
+    assert body["readiness"]["usable_for_spot_admission"] is True
+    assert body["readiness"]["usable_for_futures_risk"] is False
+    assert body["spot_admission_input"]["status"] == "ready"
+    assert body["spot_admission_input"]["wallet_check_source"] == "account_management_snapshot"
+    assert body["futures_risk_input"]["status"] == "blocked"
+    assert body["futures_risk_input"]["first_blocker"] == "futures_margin_collateral_ready"
+    assert body["coinbase_read_enabled"] is True
+    assert body["live_coinbase_read_ran"] is True
+    assert body["live_coinbase_orders_ran"] is False
+    assert body["live_coinbase_execution"] == "not_run"
+    assert body["notional_usdc"] == "0"
+    assert body["audit"]["correlation_id"] == "wallet-read-correlation"
+    assert rest_client.get_account_wallets_calls == 1
+    assert rest_client.list_portfolios_calls == 1
+    assert rest_client.get_futures_positions_calls == 1
+
+
+def test_admin_wallet_route_is_registered_as_account_management_capability():
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
+    )
+
+    capabilities = service.get_read_response("/api/v1/admin/capabilities", {}, context())
+    wallet_capability = next(
+        item
+        for item in capabilities.body["capabilities"]
+        if item["method"] == "GET" and item["route"] == "/api/v1/admin/wallet"
+    )
+    assert wallet_capability["module_id"] == "account_management"
+    assert wallet_capability["frontend_safe"] is True
+    assert wallet_capability["live_enabled"] is False
+
+    readiness_response = service.get_read_response(
+        "/api/v1/admin/enterprise-readiness",
+        {},
+        context(),
+    )
+    account_module = next(
+        item
+        for item in readiness_response.body["modules"]
+        if item["module_id"] == "account_management"
+    )
+    assert "GET /api/v1/admin/wallet" in account_module["read_routes"]
+    assert "/api/v1/admin/wallet" in account_module["evidence_routes"]
+    assert account_module["action_posture"]["browser_authority"] == "display_only"
 
 
 def test_spot_and_futures_reads_consume_backend_account_snapshot():
