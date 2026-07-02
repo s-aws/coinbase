@@ -7,8 +7,10 @@ Usage:
 from __future__ import annotations
 
 import argparse
+from collections.abc import MutableMapping, Sequence
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import os
 from pathlib import Path
 import sys
 from typing import Any
@@ -25,14 +27,63 @@ from application.admin_api.mvp_service import (
 
 
 DEFAULT_HOST = "127.0.0.1"
-DEFAULT_PORT = 8010
+DEFAULT_PORT = 8787
+DEFAULT_CORS_ORIGIN = "http://127.0.0.1:3000"
+AUTH_TOKEN_ENV = "COINBASE_ADMIN_API_BEARER_TOKEN"
+CORS_ORIGINS_ENV = "COINBASE_ADMIN_API_CORS_ORIGINS"
+ENVIRONMENT_ENV = "COINBASE_ADMIN_API_ENVIRONMENT"
+DEPLOYMENT_TIER_ENV = "COINBASE_BACKEND_DEPLOYMENT_TIER"
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run the local Admin MVP API.")
     parser.add_argument("--host", default=DEFAULT_HOST, help="HTTP bind host.")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT, help="HTTP bind port.")
-    return parser.parse_args()
+    parser.add_argument(
+        "--dev-token",
+        help=(
+            "Local-only bearer token to export for frontend BFF compatibility. "
+            "The MVP runner still delegates authorization evidence to the "
+            "backend Admin service."
+        ),
+    )
+    parser.add_argument(
+        "--cors-origin",
+        action="append",
+        dest="cors_origins",
+        help=(
+            "Allowed browser origin. Can be repeated. Defaults to "
+            f"{DEFAULT_CORS_ORIGIN}."
+        ),
+    )
+    parser.add_argument(
+        "--reload",
+        action="store_true",
+        help="Accepted for compatibility with the full Admin API runner.",
+    )
+    args = parser.parse_args(argv)
+    args.cors_origins = tuple(args.cors_origins or (DEFAULT_CORS_ORIGIN,))
+    return args
+
+
+def apply_local_environment(
+    args: argparse.Namespace,
+    *,
+    environ: MutableMapping[str, str] | None = None,
+) -> dict[str, str]:
+    target = environ if environ is not None else os.environ
+    applied: dict[str, str] = {}
+    if args.dev_token and not target.get(AUTH_TOKEN_ENV, "").strip():
+        target[AUTH_TOKEN_ENV] = args.dev_token
+        applied[AUTH_TOKEN_ENV] = "set_from_dev_token"
+    if args.cors_origins:
+        target[CORS_ORIGINS_ENV] = ",".join(args.cors_origins)
+        applied[CORS_ORIGINS_ENV] = target[CORS_ORIGINS_ENV]
+    if not target.get(ENVIRONMENT_ENV, "").strip():
+        environment = target.get(DEPLOYMENT_TIER_ENV, "").strip() or "local"
+        target[ENVIRONMENT_ENV] = environment
+        applied[ENVIRONMENT_ENV] = environment
+    return applied
 
 
 def build_request_context(headers: Any) -> AdminMvpRequestContext:
@@ -64,14 +115,41 @@ def write_json(handler: BaseHTTPRequestHandler, result) -> None:
     handler.send_response(result.status_code)
     for name, value in result.headers.items():
         handler.send_header(name, value)
+    write_cors_headers(handler)
     handler.send_header("Content-Length", str(len(payload)))
     handler.send_header("Cache-Control", "no-store")
     handler.end_headers()
     handler.wfile.write(payload)
 
 
+def write_cors_headers(handler: BaseHTTPRequestHandler) -> None:
+    origin = handler.headers.get("Origin") or ""
+    allowed_origins = {
+        item.strip()
+        for item in os.environ.get(CORS_ORIGINS_ENV, DEFAULT_CORS_ORIGIN).split(",")
+        if item.strip()
+    }
+    if "*" in allowed_origins:
+        handler.send_header("Access-Control-Allow-Origin", "*")
+    elif origin in allowed_origins:
+        handler.send_header("Access-Control-Allow-Origin", origin)
+        handler.send_header("Vary", "Origin")
+    handler.send_header(
+        "Access-Control-Allow-Headers",
+        "Authorization,Content-Type,Idempotency-Key,X-Admin-Actor,"
+        "X-Admin-Roles,X-Correlation-Id,X-Operator-Intent,X-Request-Id",
+    )
+    handler.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+
+
 class AdminMvpRequestHandler(BaseHTTPRequestHandler):
     server_version = "CoinbaseAdminMvp/0.1"
+
+    def do_OPTIONS(self) -> None:
+        self.send_response(204)
+        write_cors_headers(self)
+        self.send_header("Content-Length", "0")
+        self.end_headers()
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
@@ -117,6 +195,7 @@ class AdminMvpRequestHandler(BaseHTTPRequestHandler):
 
 def main() -> None:
     args = parse_args()
+    apply_local_environment(args)
     server = ThreadingHTTPServer((args.host, args.port), AdminMvpRequestHandler)
     print(f"Admin MVP API listening on http://{args.host}:{args.port}")
     server.serve_forever()

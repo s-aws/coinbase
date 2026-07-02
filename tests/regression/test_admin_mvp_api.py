@@ -6,7 +6,9 @@ from application.admin_api.mvp_service import (
     AdminMvpDependencies,
     AdminMvpRequestContext,
     AdminMvpService,
+    live_coinbase_execution_enabled_from_env,
 )
+from tools import run_admin_api
 
 
 PRE_COINBASE_FAILURE_STAGES = {
@@ -313,3 +315,26 @@ def test_admin_mvp_explicit_live_execution_flows_through_backend_service_only():
             },
         }
     ]
+
+
+def test_admin_mvp_runner_matches_frontend_local_stack_contract():
+    args = run_admin_api.parse_args(["--dev-token", "local-admin-token"])
+
+    assert args.host == "127.0.0.1"
+    assert args.port == 8787
+    assert args.cors_origins == ("http://127.0.0.1:3000",)
+
+    environ: dict[str, str] = {}
+    applied = run_admin_api.apply_local_environment(args, environ=environ)
+
+    assert environ[run_admin_api.AUTH_TOKEN_ENV] == "local-admin-token"
+    assert environ[run_admin_api.CORS_ORIGINS_ENV] == "http://127.0.0.1:3000"
+    assert environ[run_admin_api.ENVIRONMENT_ENV] == "local"
+    assert applied[run_admin_api.AUTH_TOKEN_ENV] == "set_from_dev_token"
+
+
+def test_admin_mvp_live_execution_env_accepts_admin_api_alias(monkeypatch):
+    monkeypatch.delenv("COINBASE_ADMIN_LIVE_COINBASE_EXECUTION", raising=False)
+    monkeypatch.setenv("COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED", "true")
+
+    assert live_coinbase_execution_enabled_from_env() is True

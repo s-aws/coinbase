@@ -102,8 +102,14 @@ class AdminMvpDependencies:
 def live_coinbase_execution_enabled_from_env() -> bool:
     """Return True when local backend live execution is explicitly enabled."""
 
-    value = os.environ.get("COINBASE_ADMIN_LIVE_COINBASE_EXECUTION", "")
-    return value.strip().lower() in TRUTHY_ENV_VALUES
+    for name in (
+        "COINBASE_ADMIN_LIVE_COINBASE_EXECUTION",
+        "COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED",
+    ):
+        value = os.environ.get(name, "")
+        if value.strip().lower() in TRUTHY_ENV_VALUES:
+            return True
+    return False
 
 
 def _default_runtime_controller_factory() -> Any:
