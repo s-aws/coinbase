@@ -12736,6 +12736,39 @@ components:
         admin_api_version:
           type: string
           title: Admin Api Version
+        deployment_evidence_status:
+          type: string
+          title: Deployment Evidence Status
+        frontend_release_commit:
+          type: string
+          title: Frontend Release Commit
+        frontend_current_path:
+          type: string
+          title: Frontend Current Path
+        frontend_release_path:
+          type: string
+          title: Frontend Release Path
+        backend_release_commit:
+          type: string
+          title: Backend Release Commit
+        backend_current_path:
+          type: string
+          title: Backend Current Path
+        backend_release_path:
+          type: string
+          title: Backend Release Path
+        deployment_smoke_status:
+          type: string
+          title: Deployment Smoke Status
+        backend_smoke_status:
+          type: string
+          title: Backend Smoke Status
+        deployment_live_coinbase_execution:
+          type: string
+          title: Deployment Live Coinbase Execution
+        deployment_notional_usdc:
+          type: string
+          title: Deployment Notional Usdc
       additionalProperties: false
       type: object
       required:
@@ -12743,6 +12776,17 @@ components:
       - deployment_target
       - backend_repository
       - admin_api_version
+      - deployment_evidence_status
+      - frontend_release_commit
+      - frontend_current_path
+      - frontend_release_path
+      - backend_release_commit
+      - backend_current_path
+      - backend_release_path
+      - deployment_smoke_status
+      - backend_smoke_status
+      - deployment_live_coinbase_execution
+      - deployment_notional_usdc
       title: AdminAccountManagementEnvironment
       description: Local deployment evidence for account-management reads.
     AdminAccountManagementOperator:

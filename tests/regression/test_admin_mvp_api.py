@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 
 import pytest
 
@@ -310,7 +311,48 @@ def preview_query(admission: dict) -> dict[str, str]:
     }
 
 
-def test_admin_account_management_read_contract_exposes_local_operator_scope():
+def test_admin_account_management_read_contract_exposes_local_operator_scope(
+    tmp_path,
+    monkeypatch,
+):
+    frontend_manifest_path = tmp_path / "deployment-local-manifest.json"
+    frontend_manifest_path.write_text(
+        json.dumps(
+            {
+                "commit": "frontend-release-123",
+                "currentPath": "C:\\coinbase-local\\current",
+                "releasePath": "C:\\coinbase-local\\releases\\frontend-release-123",
+                "backendContractRef": "backend-release-456",
+                "smokeTiming": {"status": "passed"},
+                "backendControlledLiveSmokeTiming": {"status": "passed"},
+                "liveCoinbaseExecution": "not_run",
+                "notionalUsdc": "0",
+            },
+        ),
+        encoding="utf-8",
+    )
+    backend_manifest_path = tmp_path / "coinbase-backend-local-deployment-manifest.json"
+    backend_manifest_path.write_text(
+        json.dumps(
+            {
+                "commit": "backend-release-456",
+                "current_path": "C:\\coinbase-local\\backend\\current",
+                "release_path": "C:\\coinbase-local\\backend\\releases\\backend-release-456",
+                "live_coinbase_execution": "not_run",
+                "notional_usdc": "0",
+            },
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_FRONTEND_LOCAL_RELEASE_MANIFEST_PATH",
+        str(frontend_manifest_path),
+    )
+    monkeypatch.setenv(
+        "COINBASE_BACKEND_LOCAL_RELEASE_MANIFEST_PATH",
+        str(backend_manifest_path),
+    )
+
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=FakeRestClient(), rest_client_available=True)
     )
@@ -329,6 +371,19 @@ def test_admin_account_management_read_contract_exposes_local_operator_scope():
     assert body["browser_authority"] == "display_only"
     assert body["bff_authority"] == "forward_only_no_execution"
     assert body["environment"]["deployment_target"] == "coinbase-local"
+    assert body["environment"]["deployment_evidence_status"] == "visible"
+    assert body["environment"]["frontend_release_commit"] == "frontend-release-123"
+    assert body["environment"]["frontend_release_path"] == (
+        "C:\\coinbase-local\\releases\\frontend-release-123"
+    )
+    assert body["environment"]["backend_release_commit"] == "backend-release-456"
+    assert body["environment"]["backend_release_path"] == (
+        "C:\\coinbase-local\\backend\\releases\\backend-release-456"
+    )
+    assert body["environment"]["deployment_smoke_status"] == "passed"
+    assert body["environment"]["backend_smoke_status"] == "passed"
+    assert body["environment"]["deployment_live_coinbase_execution"] == "not_run"
+    assert body["environment"]["deployment_notional_usdc"] == "0"
     assert body["operator"]["actor_id"] == "operator-1"
     assert body["operator"]["roles"] == ["operator"]
     assert body["account_scope"]["scope_type"] == "local_admin_portfolio"

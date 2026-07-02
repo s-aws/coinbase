@@ -24,6 +24,8 @@ MANUAL_ORDER_ROUTE = "/api/v1/orders"
 CANCEL_ORDER_ROUTE = "/api/v1/orders/{client_order_id}/cancel"
 ACCOUNT_MANAGEMENT_ROUTE = "/api/v1/admin/account-management"
 ACCOUNT_MANAGEMENT_MODULE_ID = "account_management"
+FRONTEND_LOCAL_RELEASE_MANIFEST_ENV = "COINBASE_ADMIN_FRONTEND_LOCAL_RELEASE_MANIFEST_PATH"
+BACKEND_LOCAL_RELEASE_MANIFEST_ENV = "COINBASE_BACKEND_LOCAL_RELEASE_MANIFEST_PATH"
 FUTURES_MODULE_ID = "futures_perpetuals"
 FUTURES_CONFIGURED_PRODUCT_SCOPE = ("BIP-20DEC30-CDE",)
 FUTURES_READ_ROUTES = (
@@ -1282,11 +1284,46 @@ class AdminMvpService:
         }
 
     def _account_management_environment(self) -> dict[str, Any]:
+        frontend_manifest = _read_json_manifest_from_env(FRONTEND_LOCAL_RELEASE_MANIFEST_ENV)
+        backend_manifest = _read_json_manifest_from_env(BACKEND_LOCAL_RELEASE_MANIFEST_ENV)
+        frontend_commit = _manifest_text(frontend_manifest, "commit")
+        backend_commit = _manifest_text(backend_manifest, "commit")
         return {
             "environment": "local",
             "deployment_target": "coinbase-local",
             "backend_repository": "s-aws/coinbase",
             "admin_api_version": ADMIN_API_VERSION,
+            "deployment_evidence_status": (
+                "visible"
+                if frontend_commit != "unknown" and backend_commit != "unknown"
+                else "local_default_not_connected"
+            ),
+            "frontend_release_commit": frontend_commit,
+            "frontend_current_path": _manifest_text(frontend_manifest, "currentPath"),
+            "frontend_release_path": _manifest_text(frontend_manifest, "releasePath"),
+            "backend_release_commit": backend_commit,
+            "backend_current_path": _manifest_text(backend_manifest, "current_path"),
+            "backend_release_path": _manifest_text(backend_manifest, "release_path"),
+            "deployment_smoke_status": _nested_manifest_text(
+                frontend_manifest,
+                "smokeTiming",
+                "status",
+            ),
+            "backend_smoke_status": _nested_manifest_text(
+                frontend_manifest,
+                "backendControlledLiveSmokeTiming",
+                "status",
+            ),
+            "deployment_live_coinbase_execution": _manifest_text(
+                frontend_manifest,
+                "liveCoinbaseExecution",
+                _manifest_text(backend_manifest, "live_coinbase_execution", "not_run"),
+            ),
+            "deployment_notional_usdc": _manifest_text(
+                frontend_manifest,
+                "notionalUsdc",
+                _manifest_text(backend_manifest, "notional_usdc", "0"),
+            ),
         }
 
     def _account_management_wallet_inventory(self) -> dict[str, Any]:
@@ -2599,6 +2636,44 @@ def _normalize_path(path: str) -> str:
 
 def _last_path_part(path: str) -> str:
     return path.rstrip("/").rsplit("/", 1)[-1]
+
+
+def _read_json_manifest_from_env(env_name: str) -> dict[str, Any]:
+    path = os.environ.get(env_name, "").strip()
+    if not path:
+        return {}
+    try:
+        with open(path, encoding="utf-8") as handle:
+            data = json.load(handle)
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if isinstance(data, dict):
+        return data
+    return {}
+
+
+def _manifest_text(
+    manifest: Mapping[str, Any],
+    key: str,
+    default: str = "unknown",
+) -> str:
+    value = manifest.get(key)
+    if value is None:
+        return default
+    text = str(value).strip()
+    return text or default
+
+
+def _nested_manifest_text(
+    manifest: Mapping[str, Any],
+    section: str,
+    key: str,
+    default: str = "unknown",
+) -> str:
+    value = manifest.get(section)
+    if not isinstance(value, Mapping):
+        return default
+    return _manifest_text(value, key, default)
 
 
 def _read_capability_module_id(route: str) -> str:
