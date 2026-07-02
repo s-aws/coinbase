@@ -1,13 +1,14 @@
 import json
 import subprocess
+import tarfile
 import tomllib
 from pathlib import Path
 
 import pytest
 
 from tools import run_admin_api_controlled_live_mvp_smoke as controlled_live_smoke
+from tools import apply_admin_api_local_deployment as local_deployment
 from tools import write_admin_api_deployment_manifest as deployment_manifest
-from tools import write_admin_api_deployment_webhook_payload as deployment_webhook_payload
 
 
 DEPLOY_WORKFLOW_PATH = Path(".github/workflows/deploy.yml")
@@ -22,8 +23,8 @@ CONTROLLED_LIVE_SMOKE_RUNNER_PATH = Path(
 CONTROLLED_LIVE_SMOKE_TIMING_PATH = (
     "artifacts/coinbase-backend-controlled-live-mvp-smoke-timing.json"
 )
-DEPLOYMENT_WEBHOOK_PAYLOAD_PATH = (
-    "artifacts/coinbase-backend-deployment-webhook-payload.json"
+LOCAL_DEPLOYMENT_MANIFEST_PATH = (
+    "artifacts/coinbase-backend-local-deployment-manifest.json"
 )
 
 
@@ -31,7 +32,7 @@ def test_backend_continuous_deployment_workflow_exists() -> None:
     assert DEPLOY_WORKFLOW_PATH.exists(), "backend continuous deployment workflow is missing"
 
 
-def test_backend_continuous_deployment_workflow_guards_staging_deploy() -> None:
+def test_backend_continuous_deployment_workflow_guards_local_deploy() -> None:
     workflow = DEPLOY_WORKFLOW_PATH.read_text(encoding="utf-8")
     normalized_workflow = workflow.replace(r"\"", '"')
 
@@ -40,8 +41,10 @@ def test_backend_continuous_deployment_workflow_guards_staging_deploy() -> None:
         "workflow_run:",
         "Public Agent Checks",
         "workflow_dispatch:",
-        "environment: staging",
-        "COINBASE_BACKEND_DEPLOY_WEBHOOK_URL",
+        "deploy-local:",
+        "COINBASE_BACKEND_DEPLOYMENT_TIER: local",
+        "COINBASE_BACKEND_LOCAL_DEPLOY_ROOT",
+        "coinbase-local/backend",
         "python tools/check_ownership.py",
         "python tools/run_autonomous_work_queue_check.py --summary-only",
         "python tools/generate_admin_api_openapi.py --check",
@@ -51,18 +54,31 @@ def test_backend_continuous_deployment_workflow_guards_staging_deploy() -> None:
         "python tools/run_admin_api_controlled_live_mvp_smoke.py",
         CONTROLLED_LIVE_SMOKE_TIMING_PATH,
         "python tools/run_admin_oidc_readiness_smoke.py --summary-only",
-        "python tools/write_admin_api_deployment_manifest.py",
-        "python tools/write_admin_api_deployment_webhook_payload.py",
+        "python tools/write_admin_api_deployment_manifest.py --deployment-tier local",
+        "python tools/apply_admin_api_local_deployment.py",
         "coinbase-backend-deployment.tgz",
         "artifacts/coinbase-backend-deployment-manifest.json",
         CONTROLLED_LIVE_SMOKE_TIMING_PATH,
-        DEPLOYMENT_WEBHOOK_PAYLOAD_PATH,
+        LOCAL_DEPLOYMENT_MANIFEST_PATH,
+        "coinbase-local/backend/current-release.json",
         "python-version: \"3.13\"",
         "python -m pip install -e \".[test]\"",
         "Live Coinbase execution: not run; notional $0",
-        "-d @artifacts/coinbase-backend-deployment-webhook-payload.json",
     ]:
         assert expected_text in normalized_workflow
+
+    for forbidden_text in [
+        "deployments: write",
+        "environment: staging",
+        "COINBASE_BACKEND_DEPLOY_WEBHOOK_URL",
+        "Validate deploy hook",
+        "Write backend deployment webhook payload",
+        "Call deployment webhook",
+        "curl --fail",
+        "deployment-webhook-payload",
+        "-d @",
+    ]:
+        assert forbidden_text not in normalized_workflow
 
 
 def test_backend_continuous_deployment_workflow_only_runs_after_success() -> None:
@@ -73,20 +89,17 @@ def test_backend_continuous_deployment_workflow_only_runs_after_success() -> Non
     assert "cancel-in-progress: false" in workflow
 
 
-def test_backend_deploy_uploads_payload_before_calling_webhook() -> None:
+def test_backend_deploy_applies_local_target_before_uploading_payload() -> None:
     workflow = DEPLOY_WORKFLOW_PATH.read_text(encoding="utf-8")
 
-    assert workflow.index("Upload deployment payload") > workflow.index(
-        "Package backend deploy payload"
-    )
-    assert workflow.index("Write backend deployment webhook payload") > workflow.index(
+    assert workflow.index("Apply local backend deployment") > workflow.index(
         "Package backend deploy payload"
     )
     assert workflow.index("Upload deployment payload") > workflow.index(
-        "Write backend deployment webhook payload"
+        "Apply local backend deployment"
     )
-    assert workflow.index("Call deployment webhook") > workflow.index(
-        "Upload deployment payload"
+    assert workflow.index("Confirm local no-live posture") > workflow.index(
+        "Apply local backend deployment"
     )
 
 
@@ -118,7 +131,7 @@ def test_backend_deploy_payload_contains_admin_runtime_contract_files() -> None:
         "pyproject.toml",
         "tools/run_admin_api.py",
         "tools/write_admin_api_deployment_manifest.py",
-        "tools/write_admin_api_deployment_webhook_payload.py",
+        "tools/apply_admin_api_local_deployment.py",
         "tools/export_admin_api_route_inventory.py",
         "tools/run_admin_api_controlled_live_mvp_smoke.py",
         CONTROLLED_LIVE_SMOKE_TIMING_PATH,
@@ -130,12 +143,12 @@ def test_backend_deployment_manifest_describes_admin_runtime_without_live_execut
     manifest = deployment_manifest.build_deployment_manifest(
         generated_at="2026-07-01T00:00:00Z",
         commit="abc123",
-        deployment_tier="staging",
+        deployment_tier="local",
     )
 
     assert manifest["schema_version"] == "1"
     assert manifest["artifact_type"] == "coinbase_admin_api_deployment_manifest"
-    assert manifest["deployment_tier"] == "staging"
+    assert manifest["deployment_tier"] == "local"
     assert manifest["commit"] == "abc123"
     assert manifest["runtime"]["app"] == "api.v1.app:app"
     assert manifest["runtime"]["python_version"] == "3.13"
@@ -144,7 +157,7 @@ def test_backend_deployment_manifest_describes_admin_runtime_without_live_execut
     assert manifest["runtime"]["install_command"] == "python -m pip install ."
     assert manifest["runtime"]["environment_env"] == "COINBASE_ADMIN_API_ENVIRONMENT"
     assert manifest["runtime"]["deployment_tier_env"] == "COINBASE_BACKEND_DEPLOYMENT_TIER"
-    assert manifest["runtime"]["default_environment"] == "staging"
+    assert manifest["runtime"]["default_environment"] == "local"
     assert manifest["runtime"]["start_command"] == (
         "python tools/run_admin_api.py --host 0.0.0.0 --port 8787"
     )
@@ -236,36 +249,31 @@ def test_controlled_live_mvp_smoke_runner_records_timing_summary() -> None:
     assert summary["notional_usdc"] == "0"
 
 
-def test_backend_deployment_webhook_payload_includes_smoke_timing() -> None:
-    payload = deployment_webhook_payload.build_deployment_webhook_payload(
+def test_backend_local_deployment_manifest_includes_smoke_timing() -> None:
+    deploy_root = Path("coinbase-local/backend").resolve()
+
+    payload = local_deployment.build_local_deployment_manifest(
         repository="s-aws/coinbase",
         commit="abc123",
-        environment="staging",
-        github_run_id="local-validation",
-        smoke_timing={
-            "schema_version": "1",
-            "artifact_type": "coinbase_admin_api_controlled_live_mvp_smoke_timing",
-            "status": "passed",
-            "return_code": 0,
-            "duration_seconds": 12.345,
-            "wait_sleep_seconds": 0.0,
-            "backend_git_commit": "backendabc",
-            "backend_git_branch": "codex/mvp",
-            "backend_contract_ref": "backendabc",
-            "started_at": "2026-07-01T00:00:00Z",
-            "ended_at": "2026-07-01T00:00:12Z",
-            "command": ["python", "-m", "pytest"],
-            "smoke_node_ids": list(controlled_live_smoke.SMOKE_NODE_IDS),
-            "live_coinbase_execution": "not_run",
-            "notional_usdc": "0",
-        },
+        deployment_tier="local",
+        target_name="coinbase-local-backend",
+        deploy_root=deploy_root,
+        current_path=deploy_root / "current",
+        release_path=deploy_root / "releases" / "abc123",
+        smoke_timing=_passed_smoke_timing(),
+        generated_at="2026-07-01T00:00:00Z",
     )
 
     assert payload["schema_version"] == "1"
-    assert payload["artifact_type"] == "coinbase_admin_api_deployment_webhook_payload"
+    assert payload["artifact_type"] == "coinbase_admin_api_local_deployment_manifest"
     assert payload["repository"] == "s-aws/coinbase"
     assert payload["commit"] == "abc123"
-    assert payload["environment"] == "staging"
+    assert payload["environment"] == "local"
+    assert payload["deployment_tier"] == "local"
+    assert payload["target_name"] == "coinbase-local-backend"
+    assert payload["deploy_root"] == str(deploy_root)
+    assert payload["current_path"] == str(deploy_root / "current")
+    assert payload["release_path"] == str(deploy_root / "releases" / "abc123")
     assert payload["artifact"] == "coinbase-backend-deployment.tgz"
     assert payload["manifest"] == "coinbase-backend-deployment-manifest.json"
     assert payload["smoke_timing_artifact"] == (
@@ -289,30 +297,22 @@ def test_backend_deployment_webhook_payload_includes_smoke_timing() -> None:
     assert payload["notional_usdc"] == "0"
 
 
-def test_backend_deployment_webhook_payload_rejects_failed_smoke_timing() -> None:
+def test_backend_local_deployment_rejects_failed_smoke_timing() -> None:
     with pytest.raises(ValueError, match="status passed"):
-        deployment_webhook_payload.build_deployment_webhook_payload(
+        local_deployment.build_local_deployment_manifest(
             repository="s-aws/coinbase",
             commit="abc123",
-            environment="staging",
-            github_run_id="local-validation",
-            smoke_timing={
-                "status": "failed",
-                "return_code": 1,
-                "duration_seconds": 12.345,
-                "wait_sleep_seconds": 0.0,
-                "backend_git_commit": "backendabc",
-                "backend_git_branch": "codex/mvp",
-                "backend_contract_ref": "backendabc",
-                "command": ["python", "-m", "pytest"],
-                "smoke_node_ids": list(controlled_live_smoke.SMOKE_NODE_IDS),
-                "live_coinbase_execution": "not_run",
-                "notional_usdc": "0",
-            },
+            deployment_tier="local",
+            target_name="coinbase-local-backend",
+            deploy_root=Path("coinbase-local/backend"),
+            current_path=Path("coinbase-local/backend/current"),
+            release_path=Path("coinbase-local/backend/releases/abc123"),
+            smoke_timing=_passed_smoke_timing(status="failed", return_code=1),
+            generated_at="2026-07-01T00:00:00Z",
         )
 
 
-def test_backend_deployment_webhook_payload_reads_powershell_utf8_bom(
+def test_backend_local_deployment_reads_powershell_utf8_bom(
     tmp_path: Path,
 ) -> None:
     timing_path = tmp_path / "smoke-timing.json"
@@ -330,12 +330,16 @@ def test_backend_deployment_webhook_payload_reads_powershell_utf8_bom(
         encoding="utf-8-sig",
     )
 
-    payload = deployment_webhook_payload.build_deployment_webhook_payload(
+    payload = local_deployment.build_local_deployment_manifest(
         repository="s-aws/coinbase",
         commit="abc123",
-        environment="staging",
-        github_run_id="local-validation",
-        smoke_timing=deployment_webhook_payload.read_json(timing_path),
+        deployment_tier="local",
+        target_name="coinbase-local-backend",
+        deploy_root=tmp_path / "coinbase-local" / "backend",
+        current_path=tmp_path / "coinbase-local" / "backend" / "current",
+        release_path=tmp_path / "coinbase-local" / "backend" / "releases" / "abc123",
+        smoke_timing=local_deployment.read_json(timing_path),
+        generated_at="2026-07-01T00:00:00Z",
     )
 
     assert payload["smoke_timing"]["duration_seconds"] == 12.345
@@ -347,7 +351,7 @@ def test_backend_deployment_webhook_payload_reads_powershell_utf8_bom(
     assert payload["notional_usdc"] == "0"
 
 
-def test_backend_deployment_webhook_payload_rejects_missing_smoke_nodes() -> None:
+def test_backend_local_deployment_rejects_missing_smoke_nodes() -> None:
     smoke_node_ids = list(controlled_live_smoke.SMOKE_NODE_IDS)
     smoke_node_ids.remove(
         "tests/regression/test_admin_api_contract.py::"
@@ -355,93 +359,180 @@ def test_backend_deployment_webhook_payload_rejects_missing_smoke_nodes() -> Non
     )
 
     with pytest.raises(ValueError, match="required smoke nodes"):
-        deployment_webhook_payload.build_deployment_webhook_payload(
+        local_deployment.build_local_deployment_manifest(
             repository="s-aws/coinbase",
             commit="abc123",
-            environment="staging",
-            github_run_id="local-validation",
-            smoke_timing={
-                "status": "passed",
-                "return_code": 0,
-                "duration_seconds": 12.345,
-                "wait_sleep_seconds": 0.0,
-                "backend_git_commit": "backendabc",
-                "backend_git_branch": "codex/mvp",
-                "backend_contract_ref": "backendabc",
-                "command": ["python", "-m", "pytest"],
-                "smoke_node_ids": smoke_node_ids,
-                "live_coinbase_execution": "not_run",
-                "notional_usdc": "0",
-            },
+            deployment_tier="local",
+            target_name="coinbase-local-backend",
+            deploy_root=Path("coinbase-local/backend"),
+            current_path=Path("coinbase-local/backend/current"),
+            release_path=Path("coinbase-local/backend/releases/abc123"),
+            smoke_timing=_passed_smoke_timing(smoke_node_ids=smoke_node_ids),
+            generated_at="2026-07-01T00:00:00Z",
         )
 
 
-def test_backend_deployment_webhook_payload_defaults_to_local_git_commit(
+def test_backend_local_deployment_defaults_to_local_git_commit(
     monkeypatch,
 ) -> None:
     monkeypatch.delenv("DEPLOYMENT_REF", raising=False)
     monkeypatch.delenv("GITHUB_SHA", raising=False)
+    monkeypatch.delenv("COINBASE_BACKEND_DEPLOYMENT_TIER", raising=False)
     expected_commit = subprocess.check_output(
         ["git", "rev-parse", "--short", "HEAD"],
         text=True,
     ).strip()
 
-    args = deployment_webhook_payload.build_parser().parse_args([])
+    args = local_deployment.build_parser().parse_args([])
 
-    assert deployment_webhook_payload.read_git_commit() == expected_commit
+    assert local_deployment.read_git_commit() == expected_commit
     assert args.commit == expected_commit
+    assert args.deployment_tier == "local"
 
 
-def test_backend_deployment_webhook_payload_prefers_ci_deployment_ref(
+def test_backend_local_deployment_prefers_ci_deployment_ref(
     monkeypatch,
 ) -> None:
     monkeypatch.setenv("DEPLOYMENT_REF", "ci-deploy-ref")
     monkeypatch.setenv("GITHUB_SHA", "github-sha")
+    monkeypatch.delenv("COINBASE_BACKEND_DEPLOYMENT_TIER", raising=False)
 
-    args = deployment_webhook_payload.build_parser().parse_args([])
+    args = local_deployment.build_parser().parse_args([])
 
     assert args.commit == "ci-deploy-ref"
 
 
-def test_backend_deployment_webhook_payload_rejects_manifest_commit_mismatch(
+def test_backend_local_deployment_rejects_manifest_commit_mismatch(
     tmp_path: Path,
 ) -> None:
     manifest_path = tmp_path / "manifest.json"
-    deployment_webhook_payload.write_json(
+    local_deployment.write_json(
         manifest_path,
         {
             "artifact_type": "coinbase_admin_api_deployment_manifest",
             "commit": "manifest-commit",
+            "deployment_tier": "local",
             "live_coinbase_execution": "not_run",
             "notional_usdc": "0",
         },
     )
 
     with pytest.raises(ValueError, match="deployment manifest"):
-        deployment_webhook_payload.assert_deployment_manifest(
+        local_deployment.assert_deployment_manifest(
             manifest_path,
             "payload-commit",
+            "local",
         )
 
 
-def test_backend_deployment_webhook_payload_rejects_live_manifest(
+def test_backend_local_deployment_rejects_live_manifest(
     tmp_path: Path,
 ) -> None:
     manifest_path = tmp_path / "manifest.json"
-    deployment_webhook_payload.write_json(
+    local_deployment.write_json(
         manifest_path,
         {
             "artifact_type": "coinbase_admin_api_deployment_manifest",
             "commit": "payload-commit",
+            "deployment_tier": "local",
             "live_coinbase_execution": "ran",
             "notional_usdc": "1",
         },
     )
 
     with pytest.raises(ValueError, match="live Coinbase execution"):
-        deployment_webhook_payload.assert_deployment_manifest(
+        local_deployment.assert_deployment_manifest(
             manifest_path,
             "payload-commit",
+            "local",
+        )
+
+
+def test_backend_local_deployment_rejects_non_local_manifest(
+    tmp_path: Path,
+) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    local_deployment.write_json(
+        manifest_path,
+        {
+            "artifact_type": "coinbase_admin_api_deployment_manifest",
+            "commit": "payload-commit",
+            "deployment_tier": "staging",
+            "live_coinbase_execution": "not_run",
+            "notional_usdc": "0",
+        },
+    )
+
+    with pytest.raises(ValueError, match="local deployment only"):
+        local_deployment.assert_deployment_manifest(
+            manifest_path,
+            "payload-commit",
+            "local",
+        )
+
+
+def test_backend_local_deployment_applies_archive_to_versioned_target(
+    tmp_path: Path,
+) -> None:
+    source_path = tmp_path / "source" / "README.md"
+    source_path.parent.mkdir(parents=True)
+    source_path.write_text("admin api artifact\n", encoding="utf-8")
+    archive_path = tmp_path / "coinbase-backend-deployment.tgz"
+    with tarfile.open(archive_path, mode="w:gz") as archive:
+        archive.add(source_path, arcname="README.md")
+
+    manifest_path = tmp_path / "deployment-manifest.json"
+    local_deployment.write_json(
+        manifest_path,
+        {
+            "artifact_type": "coinbase_admin_api_deployment_manifest",
+            "commit": "abc123",
+            "deployment_tier": "local",
+            "live_coinbase_execution": "not_run",
+            "notional_usdc": "0",
+        },
+    )
+    smoke_timing_path = tmp_path / "smoke-timing.json"
+    local_deployment.write_json(smoke_timing_path, _passed_smoke_timing())
+
+    deploy_root = tmp_path / "coinbase-local" / "backend"
+    output_path = tmp_path / "local-deployment-manifest.json"
+    manifest = local_deployment.apply_local_deployment(
+        archive_path=archive_path,
+        manifest_path=manifest_path,
+        smoke_timing_path=smoke_timing_path,
+        output_path=output_path,
+        deploy_root=deploy_root,
+        target_name="coinbase-local-backend",
+        repository="s-aws/coinbase",
+        commit="abc123",
+        deployment_tier="local",
+        generated_at="2026-07-01T00:00:00Z",
+    )
+
+    assert (deploy_root / "current" / "README.md").read_text(
+        encoding="utf-8"
+    ) == "admin api artifact\n"
+    assert (deploy_root / "current-release.json").exists()
+    assert output_path.exists()
+    assert manifest["artifact_type"] == "coinbase_admin_api_local_deployment_manifest"
+    assert manifest["live_coinbase_execution"] == "not_run"
+    assert manifest["notional_usdc"] == "0"
+
+
+def test_backend_local_deployment_rejects_archive_path_escape(
+    tmp_path: Path,
+) -> None:
+    escape_source_path = tmp_path / "escape.txt"
+    escape_source_path.write_text("escape\n", encoding="utf-8")
+    archive_path = tmp_path / "bad.tgz"
+    with tarfile.open(archive_path, mode="w:gz") as archive:
+        archive.add(escape_source_path, arcname="../escape.txt")
+
+    with pytest.raises(ValueError, match="outside the local release directory"):
+        local_deployment.extract_archive_safely(
+            archive_path,
+            tmp_path / "coinbase-local" / "backend" / "releases" / "abc123",
         )
 
 
@@ -490,6 +581,28 @@ def test_legacy_test_requirements_include_pytest_startup_imports() -> None:
     )
 
     assert {"psycopg2-binary", "pyyaml"}.issubset(requirements)
+
+
+def _passed_smoke_timing(**overrides: object) -> dict[str, object]:
+    timing: dict[str, object] = {
+        "schema_version": "1",
+        "artifact_type": "coinbase_admin_api_controlled_live_mvp_smoke_timing",
+        "status": "passed",
+        "return_code": 0,
+        "duration_seconds": 12.345,
+        "wait_sleep_seconds": 0.0,
+        "backend_git_commit": "backendabc",
+        "backend_git_branch": "codex/mvp",
+        "backend_contract_ref": "backendabc",
+        "started_at": "2026-07-01T00:00:00Z",
+        "ended_at": "2026-07-01T00:00:12Z",
+        "command": ["python", "-m", "pytest"],
+        "smoke_node_ids": list(controlled_live_smoke.SMOKE_NODE_IDS),
+        "live_coinbase_execution": "not_run",
+        "notional_usdc": "0",
+    }
+    timing.update(overrides)
+    return timing
 
 
 def _dependency_names(requirements: list[str]) -> set[str]:

@@ -9,21 +9,19 @@ on:
 
 permissions:
   contents: read
-  deployments: write
 
 concurrency:
   group: coinbase-backend-cd-${{ github.event.workflow_run.head_branch || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
-  deploy-staging:
+  deploy-local:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    environment: staging
     env:
-      COINBASE_BACKEND_DEPLOYMENT_TIER: staging
-      COINBASE_BACKEND_DEPLOY_WEBHOOK_URL: ${{ secrets.COINBASE_BACKEND_DEPLOY_WEBHOOK_URL }}
+      COINBASE_BACKEND_DEPLOYMENT_TIER: local
+      COINBASE_BACKEND_LOCAL_DEPLOY_ROOT: ${{ github.workspace }}/coinbase-local/backend
       DEPLOYMENT_REF: ${{ github.event.workflow_run.head_sha || github.sha }}
 
     steps:
@@ -41,13 +39,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -e ".[test]"
-
-      - name: Validate deploy hook
-        run: |
-          if [ -z "$COINBASE_BACKEND_DEPLOY_WEBHOOK_URL" ]; then
-            echo "::error::COINBASE_BACKEND_DEPLOY_WEBHOOK_URL is required for continuous deployment."
-            exit 1
-          fi
 
       - name: Backend policy checks
         run: |
@@ -70,7 +61,7 @@ jobs:
         run: python tools/run_admin_oidc_readiness_smoke.py --summary-only
 
       - name: Write backend deployment manifest
-        run: python tools/write_admin_api_deployment_manifest.py --deployment-tier staging
+        run: python tools/write_admin_api_deployment_manifest.py --deployment-tier local
 
       - name: Compile backend packages
         run: |
@@ -109,7 +100,7 @@ jobs:
             openapi/coinbase-admin-api.yaml \
             openapi/coinbase-admin-api-route-inventory.json \
             tools/write_admin_api_deployment_manifest.py \
-            tools/write_admin_api_deployment_webhook_payload.py \
+            tools/apply_admin_api_local_deployment.py \
             tools/run_admin_api_controlled_live_mvp_smoke.py \
             tools/run_admin_api.py \
             tools/generate_admin_api_openapi.py \
@@ -122,25 +113,20 @@ jobs:
             README.md \
             README.admin-api.md
 
-      - name: Write backend deployment webhook payload
-        run: python tools/write_admin_api_deployment_webhook_payload.py
+      - name: Apply local backend deployment
+        run: python tools/apply_admin_api_local_deployment.py
+
+      - name: Confirm local no-live posture
+        run: |
+          echo 'Live Coinbase execution: not run; notional $0'
 
       - name: Upload deployment payload
         uses: actions/upload-artifact@v4
         with:
-          name: coinbase-backend-deployment
+          name: coinbase-backend-local-deployment
           path: |
             artifacts/coinbase-backend-deployment.tgz
             artifacts/coinbase-backend-deployment-manifest.json
             artifacts/coinbase-backend-controlled-live-mvp-smoke-timing.json
-            artifacts/coinbase-backend-deployment-webhook-payload.json
-
-      - name: Call deployment webhook
-        run: |
-          echo 'Live Coinbase execution: not run; notional $0'
-          curl --fail --show-error --silent \
-            -X POST \
-            -H "Content-Type: application/json" \
-            -H "X-GitHub-Run-Id: $GITHUB_RUN_ID" \
-            -d @artifacts/coinbase-backend-deployment-webhook-payload.json \
-            "$COINBASE_BACKEND_DEPLOY_WEBHOOK_URL"
+            artifacts/coinbase-backend-local-deployment-manifest.json
+            coinbase-local/backend/current-release.json
