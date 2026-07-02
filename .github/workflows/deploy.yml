@@ -65,7 +65,7 @@ jobs:
 
       - name: Compile backend packages
         run: |
-          python -m compileall -q \
+          python -m compileall -q -b \
             api \
             application \
             bridges \
@@ -78,6 +78,21 @@ jobs:
             integration \
             market_intel \
             websocket
+          find \
+            api \
+            application \
+            bridges \
+            business \
+            calculation \
+            core \
+            data \
+            database \
+            external \
+            integration \
+            market_intel \
+            websocket \
+            -name '*.pyc' \
+            -delete
 
       - name: Package backend deploy payload
         run: |
