@@ -30,6 +30,7 @@ LIVE_SERVICE_DECISION_PERMISSION = "config:update"
 LIVE_SERVICE_DECISION_SERVICE_METHOD = "record_live_service_decision"
 DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC = Decimal("3.10")
 DEFAULT_MAX_EXECUTED_NOTIONAL_USDC = Decimal("1.00")
+DEFAULT_WALLET_AVAILABLE_NOTIONAL_USDC = Decimal("0")
 TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
 
 
@@ -365,7 +366,7 @@ class AdminMvpService:
                 context=context,
             )
 
-        pre_coinbase_failure = self._pre_coinbase_failure(body, notional)
+        pre_coinbase_failure = self._pre_coinbase_failure(body, notional, admission)
         if pre_coinbase_failure:
             return self._manual_order_blocked_response(
                 status_code=400,
@@ -586,6 +587,17 @@ class AdminMvpService:
                     DEFAULT_MAX_EXECUTED_NOTIONAL_USDC,
                 )
             ),
+            "wallet_check_required": bool(body.get("wallet_check_required", True)),
+            "wallet_check_status": str(
+                body.get("wallet_check_status") or AdminMvpGateStatus.BLOCKED.value
+            ),
+            "wallet_available_notional_usdc": _decimal_text(
+                _decimal_value(
+                    body.get("wallet_available_notional_usdc"),
+                    DEFAULT_WALLET_AVAILABLE_NOTIONAL_USDC,
+                )
+            ),
+            "wallet_check_source": str(body.get("wallet_check_source") or "missing"),
             "correlation_id": context.correlation_id,
             "idempotency_key": context.idempotency_key,
         }
@@ -780,6 +792,7 @@ class AdminMvpService:
         self,
         body: Mapping[str, Any],
         notional: Decimal,
+        admission: Mapping[str, Any],
     ) -> dict[str, str] | None:
         if not _manual_live_acknowledged(body):
             return {
@@ -791,9 +804,9 @@ class AdminMvpService:
                 "failure_stage": "product_capability",
                 "message": "Coinbase REST client is not available to the backend.",
             }
-        latest_cap = _latest_record(self.store.cap_guard_decisions)
+        admitted_cap = self._admitted_cap_guard(admission)
         max_submitted = _decimal_value(
-            latest_cap.get("max_submitted_notional_usdc") if latest_cap else None,
+            admitted_cap.get("max_submitted_notional_usdc") if admitted_cap else None,
             DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC,
         )
         if notional > max_submitted:
@@ -801,12 +814,21 @@ class AdminMvpService:
                 "failure_stage": "direct_spot_cap_required",
                 "message": "Manual order notional exceeds backend cap evidence.",
             }
+        wallet_failure = _wallet_inventory_failure(admitted_cap, notional)
+        if wallet_failure is not None:
+            return wallet_failure
         if not self._latest_service_decision_allows_live():
             return {
                 "failure_stage": "durable_audit_required",
                 "message": "Backend live-service decision has not approved live execution.",
             }
         return None
+
+    def _admitted_cap_guard(self, admission: Mapping[str, Any]) -> dict[str, Any] | None:
+        decision_id = str(admission.get("cap_guard_decision_id") or "")
+        if not decision_id:
+            return None
+        return self.store.cap_guard_decisions.get(decision_id)
 
     def _admission_decision(
         self,
@@ -1755,6 +1777,37 @@ def _manual_order_notional(body: Mapping[str, Any]) -> Decimal:
     base_size = _decimal_value(body.get("base_size"), Decimal("0"))
     limit_price = _decimal_value(body.get("limit_price"), Decimal("0"))
     return base_size * limit_price
+
+
+def _wallet_inventory_failure(
+    cap_guard: Mapping[str, Any] | None,
+    notional: Decimal,
+) -> dict[str, str] | None:
+    if cap_guard is None:
+        return {
+            "failure_stage": "known_inventory_required",
+            "message": "Backend wallet/inventory evidence is required before Coinbase execution.",
+        }
+    if bool(cap_guard.get("wallet_check_required", True)) is False:
+        return None
+    wallet_status = str(
+        cap_guard.get("wallet_check_status") or AdminMvpGateStatus.BLOCKED.value
+    )
+    if wallet_status != AdminMvpGateStatus.PASSED.value:
+        return {
+            "failure_stage": "known_inventory_required",
+            "message": "Backend wallet/inventory check has not passed.",
+        }
+    wallet_available = _decimal_value(
+        cap_guard.get("wallet_available_notional_usdc"),
+        DEFAULT_WALLET_AVAILABLE_NOTIONAL_USDC,
+    )
+    if notional > wallet_available:
+        return {
+            "failure_stage": "known_inventory_required",
+            "message": "Manual order notional exceeds backend wallet/inventory evidence.",
+        }
+    return None
 
 
 def _manual_order_configuration(body: Mapping[str, Any]) -> dict[str, Any]:

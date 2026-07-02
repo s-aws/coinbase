@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import pytest
+
 from application.admin_api.mvp_service import (
     AdminMvpDependencies,
     AdminMvpRequestContext,
@@ -108,7 +110,13 @@ def assert_local_mutation_did_not_submit_exchange(result_body: dict) -> None:
     assert result_body["live_coinbase_orders_ran"] is False
 
 
-def record_proof_chain(service: AdminMvpService, admission: dict) -> None:
+def record_proof_chain(
+    service: AdminMvpService,
+    admission: dict,
+    *,
+    wallet_check_status: str | None = "passed",
+    wallet_available_notional_usdc: str | None = "3.10",
+) -> None:
     approval_request = service.create_approval_request(
         {
             "route": admission["route"],
@@ -202,19 +210,31 @@ def record_proof_chain(service: AdminMvpService, admission: dict) -> None:
     assert_local_mutation_did_not_submit_exchange(admission_audit.body)
     admission_audit_id = admission_audit.body["admission_audit"]["admission_audit_id"]
 
+    cap_guard_body = {
+        **proof_base,
+        "admission_audit_id": admission_audit_id,
+        "allowed": True,
+        "status": "passed",
+        "max_submitted_notional_usdc": "3.10",
+        "max_executed_notional_usdc": "1.00",
+    }
+    if wallet_check_status is not None:
+        cap_guard_body["wallet_check_required"] = True
+        cap_guard_body["wallet_check_status"] = wallet_check_status
+        cap_guard_body["wallet_check_source"] = "backend_admin_cap_guard_test"
+    if wallet_available_notional_usdc is not None:
+        cap_guard_body["wallet_available_notional_usdc"] = wallet_available_notional_usdc
+
     cap_guard = service.record_cap_guard_decision(
-        {
-            **proof_base,
-            "admission_audit_id": admission_audit_id,
-            "allowed": True,
-            "status": "passed",
-            "max_submitted_notional_usdc": "3.10",
-            "max_executed_notional_usdc": "1.00",
-        },
+        cap_guard_body,
         context(idempotency_key="cap-guard"),
     )
     assert cap_guard.status_code == 200
     assert_local_mutation_did_not_submit_exchange(cap_guard.body)
+    assert cap_guard.body["decision"]["wallet_check_required"] is True
+    assert cap_guard.body["decision"]["wallet_check_status"] == (
+        wallet_check_status or "blocked"
+    )
     cap_guard_decision_id = cap_guard.body["decision"]["decision_id"]
 
     reconciliation = service.record_reconciliation_plan(
@@ -418,6 +438,47 @@ def test_admin_mvp_explicit_live_execution_flows_through_backend_service_only():
             },
         }
     ]
+
+
+@pytest.mark.parametrize(
+    ("wallet_check_status", "wallet_available_notional_usdc"),
+    [
+        (None, None),
+        ("passed", "0.50"),
+    ],
+)
+def test_admin_mvp_live_execution_requires_backend_wallet_inventory_evidence(
+    wallet_check_status: str | None,
+    wallet_available_notional_usdc: str | None,
+):
+    rest_client = FakeRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        )
+    )
+    record_live_service_decision(service)
+    admission = first_manual_submit(service)
+    record_proof_chain(
+        service,
+        admission,
+        wallet_check_status=wallet_check_status,
+        wallet_available_notional_usdc=wallet_available_notional_usdc,
+    )
+
+    live_submit = service.submit_manual_order(
+        manual_order_body(),
+        context(idempotency_key="manual-order-proof-chain"),
+    )
+
+    assert live_submit.status_code == 400
+    assert live_submit.body["status"] == "rejected"
+    assert live_submit.body["failure_stage"] == "known_inventory_required"
+    assert live_submit.body["live_exchange_submitted"] is False
+    assert live_submit.body["live_coinbase_orders_ran"] is False
+    assert rest_client.create_order_calls == []
 
 
 def test_admin_mvp_runner_matches_frontend_local_stack_contract():
