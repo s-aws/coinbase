@@ -4,6 +4,8 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from tools import run_admin_api_controlled_live_mvp_smoke as smoke
 
 
@@ -67,7 +69,11 @@ def test_controlled_live_mvp_smoke_marks_failed_pytest_run(
         return subprocess.CompletedProcess(command, 1, "", "failed")
 
     monkeypatch.setattr(smoke.subprocess, "run", fake_run)
-    monkeypatch.setattr(smoke, "read_git_value", lambda args, fallback="unknown": "abc1234")
+    monkeypatch.setattr(
+        smoke,
+        "read_git_value",
+        lambda args, fallback="unknown": "abc1234",
+    )
     summary_path = tmp_path / "controlled-live-smoke.json"
 
     exit_code = smoke.main(["--summary-output", str(summary_path)])
@@ -78,3 +84,36 @@ def test_controlled_live_mvp_smoke_marks_failed_pytest_run(
     assert summary["return_code"] == 1
     assert summary["live_coinbase_execution"] == "not_run"
     assert summary["notional_usdc"] == "0"
+
+
+def test_controlled_live_mvp_smoke_records_explicit_run_outputs(
+    monkeypatch,
+    tmp_path: Path,
+):
+    def fake_run(command, **kwargs):
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    monkeypatch.setattr(smoke.subprocess, "run", fake_run)
+    monkeypatch.setattr(smoke, "read_git_value", lambda args, fallback="unknown": "abc1234")
+    summary_path = tmp_path / "controlled-live-smoke.json"
+
+    exit_code = smoke.main(
+        [
+            "--summary-output",
+            str(summary_path),
+            "--live-coinbase-execution",
+            "submitted",
+            "--notional-usdc",
+            "1.2300",
+        ]
+    )
+
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert exit_code == 0
+    assert summary["live_coinbase_execution"] == "submitted"
+    assert summary["notional_usdc"] == "1.2300"
+
+
+def test_controlled_live_mvp_smoke_rejects_negative_notional():
+    with pytest.raises(ValueError, match="notional_usdc must be non-negative."):
+        smoke.decimal_text("-1")

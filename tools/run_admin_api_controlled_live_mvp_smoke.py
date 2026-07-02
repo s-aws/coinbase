@@ -10,8 +10,10 @@ from __future__ import annotations
 import argparse
 from collections.abc import Mapping, Sequence
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from enum import Enum
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -40,6 +42,9 @@ class SmokeStatus(str, Enum):
 
 class LiveCoinbaseExecution(str, Enum):
     NOT_RUN = "not_run"
+    SUBMITTED = "submitted"
+    FAILED = "failed"
+    UNKNOWN = "unknown"
 
 
 def resolve_python() -> str:
@@ -85,9 +90,13 @@ def build_smoke_summary(
     backend_git_branch: str,
     backend_contract_ref: str,
     smoke_node_ids: Sequence[str],
+    live_coinbase_execution: str,
+    notional_usdc: str,
 ) -> dict[str, object]:
     """Return frontend-consumable backend smoke evidence."""
 
+    live_execution = LiveCoinbaseExecution(live_coinbase_execution).value
+    notional = decimal_text(notional_usdc)
     return {
         "schema_version": SCHEMA_VERSION,
         "artifact_type": ARTIFACT_TYPE,
@@ -106,9 +115,22 @@ def build_smoke_summary(
         "backend_git_branch": backend_git_branch,
         "backend_contract_ref": backend_contract_ref,
         "smoke_node_ids": list(smoke_node_ids),
-        "live_coinbase_execution": LiveCoinbaseExecution.NOT_RUN.value,
-        "notional_usdc": "0",
+        "live_coinbase_execution": live_execution,
+        "notional_usdc": notional,
     }
+
+
+def decimal_text(value: str | Decimal) -> str:
+    """Return a non-negative decimal string without scientific notation."""
+
+    text = str(value).strip()
+    try:
+        number = Decimal(text)
+    except (InvalidOperation, ValueError) as exc:
+        raise ValueError(f"Invalid notional_usdc: {value!r}") from exc
+    if number < 0:
+        raise ValueError("notional_usdc must be non-negative.")
+    return format(number, "f")
 
 
 def write_json(path: Path, payload: Mapping[str, object]) -> None:
@@ -152,6 +174,20 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Backend contract ref to record. Defaults to the current git commit.",
     )
+    parser.add_argument(
+        "--live-coinbase-execution",
+        choices=[item.value for item in LiveCoinbaseExecution],
+        default=os.getenv("COINBASE_ADMIN_LAST_LIVE_COINBASE_EXECUTION", "not_run"),
+        help=(
+            "Recorded live Coinbase execution output from the run being packaged. "
+            "Defaults to not_run because this smoke does not submit Coinbase orders."
+        ),
+    )
+    parser.add_argument(
+        "--notional-usdc",
+        default=os.getenv("COINBASE_ADMIN_LAST_NOTIONAL_USDC", "0"),
+        help="Recorded notional used by the run being packaged. Defaults to 0.",
+    )
     return parser
 
 
@@ -176,6 +212,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         backend_git_branch=read_git_value(["rev-parse", "--abbrev-ref", "HEAD"]),
         backend_contract_ref=backend_contract_ref,
         smoke_node_ids=node_ids,
+        live_coinbase_execution=args.live_coinbase_execution,
+        notional_usdc=args.notional_usdc,
     )
     write_json(args.summary_output, summary)
     print(
