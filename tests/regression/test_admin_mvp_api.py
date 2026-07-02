@@ -374,6 +374,128 @@ def test_admin_account_management_read_contract_exposes_local_operator_scope():
     assert account_module["action_posture"]["browser_authority"] == "display_only"
 
 
+def test_admin_futures_perpetuals_read_contract_exposes_blocked_mvp_evidence():
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=FakeRestClient(), rest_client_available=True)
+    )
+
+    account = service.get_read_response("/api/v1/futures/account", {}, context())
+    assert account.status_code == 200
+    account_body = account.body
+    assert account_body["type"] == "admin_futures_account"
+    assert account_body["configured_product_scope"] == ["BIP-20DEC30-CDE"]
+    assert account_body["observed_position_scope"] == []
+    assert account_body["position_count"] == 0
+    assert account_body["collateral"]["status"] == "unavailable"
+    assert account_body["margin"]["name"] == "margin"
+    assert account_body["funding"]["status"] == "not_modeled"
+    assert account_body["liquidation"]["source"] == "runtime_unavailable"
+    assert account_body["reduce_only_close_only"]["status"] == "unavailable"
+    assert account_body["position_pnl"]["status"] == "unavailable"
+    assert account_body["read_only"] is True
+    assert account_body["command_routes_mode"] == "backend_admin_api_blocked"
+    assert account_body["live_coinbase_orders_ran"] is False
+
+    positions = service.get_read_response(
+        "/api/v1/futures/positions",
+        {"limit": "2", "offset": "0"},
+        context(),
+    )
+    assert positions.status_code == 200
+    assert positions.body["type"] == "admin_futures_positions"
+    assert positions.body["count"] == 0
+    assert positions.body["items"] == []
+    assert positions.body["pagination"]["limit"] == 2
+    assert positions.body["read_only"] is True
+
+    detail = service.get_read_response(
+        "/api/v1/futures/positions/futures_position:runtime:BIP-20DEC30-CDE",
+        {},
+        context(),
+    )
+    assert detail.status_code == 200
+    assert detail.body["type"] == "admin_futures_position_detail"
+    assert detail.body["found"] is False
+    assert detail.body["position"] is None
+
+    command_suite = service.get_read_response(
+        "/api/v1/futures/command-suite",
+        {},
+        context(),
+    )
+    assert command_suite.status_code == 200
+    suite = command_suite.body
+    assert suite["type"] == "admin_futures_command_suite"
+    assert suite["module_id"] == "futures_perpetuals"
+    assert suite["status"] == "blocked"
+    assert suite["command_count"] == 4
+    assert suite["blocked_command_count"] == 4
+    assert suite["executable_command_count"] == 0
+    assert suite["command_route_count"] == 4
+    assert suite["command_draft_allowed_count"] == 4
+    assert suite["spot_rule_authority"] is False
+    assert suite["browser_authority"] == "display_only"
+    assert suite["bff_authority"] == "forward_only_no_execution"
+    assert suite["live_coinbase_orders_ran"] is False
+    assert suite["submitted_notional_usdc"] == "0"
+    assert suite["executed_notional_usdc"] == "0"
+    assert "spot_no_shorting" in suite["forbidden_spot_assumptions"]
+    assert "futures_margin_collateral_risk_proof" in suite["missing_backend_contracts"]
+    commands = {command["command"]: command for command in suite["commands"]}
+    assert set(commands) == {
+        "futures_place",
+        "futures_close_reduce",
+        "futures_cancel",
+        "futures_reconcile",
+    }
+    assert commands["futures_place"]["route"] == "/api/v1/futures/orders"
+    assert commands["futures_place"]["status"] == "blocked"
+    assert commands["futures_place"]["command_draft_allowed"] is True
+    assert commands["futures_place"]["execution_allowed"] is False
+    assert commands["futures_place"]["spot_rule_authority"] is False
+    assert commands["futures_close_reduce"]["identity_key"] == "position_key"
+    assert commands["futures_cancel"]["identity_key"] == "client_order_id"
+    assert commands["futures_reconcile"]["action_class"] == "local_state_mutation"
+
+    risk_proofs = service.get_read_response("/api/v1/futures/risk-proofs", {}, context())
+    assert risk_proofs.status_code == 200
+    assert risk_proofs.body["type"] == "admin_futures_risk_proofs"
+    assert risk_proofs.body["module_id"] == "futures_perpetuals"
+    assert risk_proofs.body["count"] == 0
+    assert risk_proofs.body["proof_records_created"] is False
+    assert risk_proofs.body["browser_authority"] == "display_only"
+    assert risk_proofs.body["bff_authority"] == "forward_only_no_execution"
+
+    capabilities = service.get_read_response("/api/v1/admin/capabilities", {}, context())
+    futures_read_routes = {
+        item["route"]
+        for item in capabilities.body["capabilities"]
+        if item["method"] == "GET" and item["module_id"] == "futures_perpetuals"
+    }
+    assert {
+        "/api/v1/futures/command-suite",
+        "/api/v1/futures/account",
+        "/api/v1/futures/positions",
+        "/api/v1/futures/positions/{position_key}",
+        "/api/v1/futures/risk-proofs",
+        "/api/v1/futures/risk-proofs/{futures_risk_proof_id}",
+    }.issubset(futures_read_routes)
+
+    readiness_response = service.get_read_response(
+        "/api/v1/admin/enterprise-readiness",
+        {},
+        context(),
+    )
+    futures_module = next(
+        item
+        for item in readiness_response.body["modules"]
+        if item["module_id"] == "futures_perpetuals"
+    )
+    assert futures_module["support_status"] == "mvp_read_ready"
+    assert "GET /api/v1/futures/account" in futures_module["read_routes"]
+    assert futures_module["action_posture"]["bff_authority"] == "forward_only_no_execution"
+
+
 def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=FakeRestClient(), rest_client_available=True)
