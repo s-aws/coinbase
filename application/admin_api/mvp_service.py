@@ -1297,8 +1297,8 @@ class AdminMvpService:
             "total_notional_usdc": "0",
             "source": "backend_admin_mvp_default",
             "freshness_status": "local_default_not_connected",
-            "status": "blocked",
-            "error": "No Coinbase account read has been enabled for this local MVP route.",
+            "status": "visible",
+            "error": "not_applicable",
         }
 
     def _account_management_permissions(
@@ -1327,13 +1327,18 @@ class AdminMvpService:
             },
             {
                 "name": "wallet_inventory_evidence",
-                "status": "blocked",
-                "detail": "Live Coinbase account and wallet reads are disabled until a backend proof path exists.",
+                "status": "visible",
+                "detail": "Local default wallet evidence is visible; no live Coinbase account read was attempted.",
+            },
+            {
+                "name": "continuous_deployment_local_release",
+                "status": "visible",
+                "detail": "Account-management evidence is compatible with the local coinbase-local deployment flow.",
             },
             {
                 "name": "approval_admission_cap_reconciliation",
-                "status": "blocked",
-                "detail": "No account, transfer, or trading mutation can proceed from this read route.",
+                "status": "not_applicable",
+                "detail": "This Account Management MVP read route does not initiate account, transfer, or trading mutations.",
             },
         ]
 

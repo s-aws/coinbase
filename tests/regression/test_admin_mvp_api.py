@@ -345,8 +345,12 @@ def test_admin_account_management_read_contract_exposes_local_operator_scope():
     assert body["audit"]["idempotency_key"] == "account-management-read"
     readiness = {item["name"]: item for item in body["command_readiness_prerequisites"]}
     assert readiness["rbac"]["status"] == "visible"
-    assert readiness["wallet_inventory_evidence"]["status"] == "blocked"
+    assert readiness["wallet_inventory_evidence"]["status"] == "visible"
     assert readiness["backend_admin_api_contract"]["status"] == "visible"
+    assert readiness["continuous_deployment_local_release"]["status"] == "visible"
+    assert readiness["approval_admission_cap_reconciliation"]["status"] == "not_applicable"
+    assert body["wallet_inventory"]["status"] == "visible"
+    assert body["wallet_inventory"]["error"] == "not_applicable"
 
     capabilities = service.get_read_response("/api/v1/admin/capabilities", {}, context())
     account_capability = next(
