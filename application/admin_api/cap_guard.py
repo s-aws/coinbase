@@ -64,6 +64,10 @@ class CapGuardDecisionRecord(BaseModel):
     product_scope: str = Field(min_length=1)
     max_submitted_notional_usdc: str = Field(min_length=1)
     max_executed_notional_usdc: str = Field(min_length=1)
+    wallet_check_required: bool = True
+    wallet_check_status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    wallet_available_notional_usdc: str = Field(default="0", min_length=1)
+    wallet_check_source: str = Field(default="missing", min_length=1)
     reason: str
 
 

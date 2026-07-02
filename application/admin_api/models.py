@@ -1861,6 +1861,10 @@ class AdminCapGuardDecisionCreateRequest(BaseModel):
     product_scope: str = Field(min_length=1)
     max_submitted_notional_usdc: DecimalString
     max_executed_notional_usdc: DecimalString
+    wallet_check_required: bool
+    wallet_check_status: AdminApiGateStatus
+    wallet_available_notional_usdc: DecimalString
+    wallet_check_source: str = Field(min_length=1)
     reason: str = Field(min_length=1)
 
 
@@ -1893,6 +1897,10 @@ class AdminCapGuardDecisionItem(BaseModel):
     product_scope: str
     max_submitted_notional_usdc: DecimalString
     max_executed_notional_usdc: DecimalString
+    wallet_check_required: bool
+    wallet_check_status: AdminApiGateStatus
+    wallet_available_notional_usdc: DecimalString
+    wallet_check_source: str
     reason: str
     resolver_eligible: bool = False
     browser_authority: str = "display_only"
