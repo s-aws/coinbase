@@ -33,6 +33,56 @@ class FakeRestClient:
         return {"success": True, "order_id": "exchange-order-live-1"}
 
 
+@dataclass
+class FakeAccountRestClient(FakeRestClient):
+    account_wallets: dict[str, dict] = field(
+        default_factory=lambda: {
+            "USDC": {
+                "currency": "USDC",
+                "available_balance": "12.34",
+                "total_balance": "15.00",
+                "hold_balance": "2.66",
+                "updated_at": "2026-07-03T00:00:00Z",
+            },
+        },
+    )
+    portfolios: list[dict] = field(
+        default_factory=lambda: [
+            {
+                "uuid": "portfolio-real-1",
+                "name": "Real Backend Portfolio",
+                "type": "DEFAULT",
+            },
+        ],
+    )
+    futures_positions: dict[str, dict] = field(
+        default_factory=lambda: {
+            "BIP-20DEC30-CDE": {
+                "product_id": "BIP-20DEC30-CDE",
+                "side": "LONG",
+                "number_of_contracts": "2",
+                "current_price": "100.00",
+                "entry_price": "90.00",
+            },
+        },
+    )
+    get_account_wallets_calls: int = 0
+    list_portfolios_calls: int = 0
+    get_futures_positions_calls: int = 0
+
+    def get_account_wallets(self):
+        self.get_account_wallets_calls += 1
+        return self.account_wallets
+
+    def list_portfolios(self):
+        self.list_portfolios_calls += 1
+        return self.portfolios
+
+    def get_futures_positions(self):
+        self.get_futures_positions_calls += 1
+        return self.futures_positions
+
+
 def context(
     *,
     idempotency_key: str = "command-dry-order",
@@ -431,6 +481,122 @@ def test_admin_account_management_read_contract_exposes_local_operator_scope(
     assert account_module["support_status"] == "mvp_read_ready"
     assert account_module["read_routes"] == ["GET /api/v1/admin/account-management"]
     assert account_module["action_posture"]["browser_authority"] == "display_only"
+
+
+def test_admin_account_management_exposes_backend_owned_account_reality():
+    rest_client = FakeAccountRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+
+    account_management = service.get_read_response(
+        "/api/v1/admin/account-management",
+        {},
+        context(idempotency_key="account-reality-read"),
+    )
+
+    assert account_management.status_code == 200
+    body = account_management.body
+    assert body["account_reality"]["status"] == "ready"
+    assert body["account_reality"]["source"] == "backend_rest_client"
+    assert body["account_reality"]["coinbase_read_ran"] is True
+    assert body["account_reality"]["browser_authority"] == "display_only"
+    assert body["account_reality"]["bff_authority"] == "forward_only_no_execution"
+    assert body["coinbase_read_enabled"] is True
+    assert body["live_coinbase_read_ran"] is True
+    assert body["live_coinbase_orders_ran"] is False
+    assert body["account_scope"]["source"] == "backend_rest_client"
+    assert body["account_scope"]["freshness_status"] == "backend_rest_fresh"
+    assert body["account_scope"]["account_count"] == 1
+    assert body["portfolio_scope"]["portfolio_id"] == "portfolio-real-1"
+    assert body["portfolio_scope"]["portfolio_name"] == "Real Backend Portfolio"
+    assert body["wallet_inventory"]["source"] == "backend_rest_client"
+    assert body["wallet_inventory"]["freshness_status"] == "backend_rest_fresh"
+    assert body["wallet_inventory"]["status"] == "ready"
+    assert body["wallet_inventory"]["available_notional_usdc"] == "12.34"
+    assert body["wallet_inventory"]["hold_notional_usdc"] == "2.66"
+    assert body["wallet_inventory"]["total_notional_usdc"] == "15.00"
+    assert body["readiness"]["spot_account_ready"] is True
+    assert body["readiness"]["spot_wallet_inventory_ready"] is True
+    assert body["readiness"]["futures_account_scope_ready"] is True
+    assert body["readiness"]["futures_observed_position_scope_ready"] is True
+    assert body["readiness"]["futures_margin_collateral_ready"] is False
+    assert body["readiness"]["usable_for_spot_admission"] is True
+    assert body["readiness"]["usable_for_futures_risk"] is False
+    readiness = {item["name"]: item for item in body["command_readiness_prerequisites"]}
+    assert readiness["backend_account_reality"]["status"] == "ready"
+    assert readiness["wallet_inventory_evidence"]["status"] == "ready"
+    assert rest_client.get_account_wallets_calls == 1
+    assert rest_client.list_portfolios_calls == 1
+    assert rest_client.get_futures_positions_calls == 1
+
+
+def test_spot_and_futures_reads_consume_backend_account_snapshot():
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
+    )
+
+    spot = service.get_read_response("/api/v1/spot/readiness", {}, context())
+    assert spot.status_code == 200
+    assert spot.body["wallet_snapshot"]["source"] == "backend_rest_client"
+    assert spot.body["wallet_snapshot"]["status"] == "ready"
+    assert spot.body["wallet_snapshot"]["available_notional_usdc"] == "12.34"
+    assert spot.body["account_readiness"]["spot_wallet_inventory_ready"] is True
+    assert spot.body["account_readiness"]["usable_for_spot_admission"] is True
+    assert spot.body["live_coinbase_orders_ran"] is False
+
+    futures = service.get_read_response("/api/v1/futures/account", {}, context())
+    assert futures.status_code == 200
+    assert futures.body["account_reality"]["source"] == "backend_rest_client"
+    assert futures.body["account_readiness"]["futures_account_scope_ready"] is True
+    assert futures.body["account_readiness"]["futures_observed_position_scope_ready"] is True
+    assert futures.body["account_readiness"]["futures_margin_collateral_ready"] is False
+    assert futures.body["observed_position_scope"] == ["BIP-20DEC30-CDE"]
+    assert futures.body["position_count"] == 1
+    assert futures.body["collateral"]["status"] == "unavailable"
+    assert futures.body["margin"]["status"] == "unavailable"
+    assert futures.body["live_coinbase_orders_ran"] is False
+
+    positions = service.get_read_response("/api/v1/futures/positions", {}, context())
+    assert positions.status_code == 200
+    assert positions.body["count"] == 1
+    assert positions.body["items"][0]["position_key"] == "futures_position:runtime:BIP-20DEC30-CDE"
+    assert positions.body["items"][0]["product_id"] == "BIP-20DEC30-CDE"
+
+
+def test_cap_guard_can_use_backend_account_snapshot_for_wallet_evidence():
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
+    )
+
+    result = service.record_cap_guard_decision(
+        {
+            "route": "/api/v1/orders",
+            "method": "POST",
+            "module_id": "spot_operations",
+            "identity_key": "client_order_id",
+            "identity_value": "spot-order-1",
+            "action_class": "live_exchange_place",
+            "required_permission": "order:create",
+            "service_method": "place_manual_order",
+            "actor_id": "operator-1",
+            "operator_intent": "use backend account snapshot",
+            "command_idempotency_key": "spot-order-1",
+            "payload_hash": "payload-hash",
+            "wallet_check_source": "account_management_snapshot",
+        },
+        context(idempotency_key="cap-guard-account-snapshot"),
+    )
+
+    assert result.status_code == 200
+    decision = result.body["decision"]
+    assert decision["wallet_check_required"] is True
+    assert decision["wallet_check_status"] == "passed"
+    assert decision["wallet_available_notional_usdc"] == "12.34"
+    assert decision["wallet_check_source"] == "account_management_snapshot"
+    assert decision["account_snapshot_status"] == "ready"
+    assert decision["account_snapshot_source"] == "backend_rest_client"
+    assert result.body["live_coinbase_orders_ran"] is False
 
 
 def test_admin_futures_perpetuals_read_contract_exposes_blocked_mvp_evidence():

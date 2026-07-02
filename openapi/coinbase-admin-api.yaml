@@ -12450,6 +12450,15 @@ components:
         wallet_check_source:
           type: string
           title: Wallet Check Source
+        account_snapshot_status:
+          type: string
+          title: Account Snapshot Status
+        account_snapshot_source:
+          type: string
+          title: Account Snapshot Source
+        account_snapshot_proof_id:
+          type: string
+          title: Account Snapshot Proof Id
         reason:
           type: string
           title: Reason
@@ -12722,6 +12731,88 @@ components:
       - audit_surface
       title: AdminAccountManagementAudit
       description: Audit correlation evidence for the account-management read.
+    AdminAccountManagementReality:
+      properties:
+        status:
+          type: string
+          title: Status
+        source:
+          type: string
+          title: Source
+        proof_id:
+          type: string
+          title: Proof Id
+        generated_at:
+          type: string
+          title: Generated At
+        coinbase_read_ran:
+          type: boolean
+          title: Coinbase Read Ran
+          default: false
+        read_error:
+          type: string
+          title: Read Error
+        browser_authority:
+          type: string
+          title: Browser Authority
+        bff_authority:
+          type: string
+          title: Bff Authority
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - source
+      - proof_id
+      - generated_at
+      - coinbase_read_ran
+      - read_error
+      - browser_authority
+      - bff_authority
+      title: AdminAccountManagementReality
+      description: Backend-owned account snapshot read evidence for admission and risk gates.
+    AdminAccountManagementReadiness:
+      properties:
+        spot_account_ready:
+          type: boolean
+          title: Spot Account Ready
+          default: false
+        spot_wallet_inventory_ready:
+          type: boolean
+          title: Spot Wallet Inventory Ready
+          default: false
+        futures_account_scope_ready:
+          type: boolean
+          title: Futures Account Scope Ready
+          default: false
+        futures_observed_position_scope_ready:
+          type: boolean
+          title: Futures Observed Position Scope Ready
+          default: false
+        futures_margin_collateral_ready:
+          type: boolean
+          title: Futures Margin Collateral Ready
+          default: false
+        usable_for_spot_admission:
+          type: boolean
+          title: Usable For Spot Admission
+          default: false
+        usable_for_futures_risk:
+          type: boolean
+          title: Usable For Futures Risk
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - spot_account_ready
+      - spot_wallet_inventory_ready
+      - futures_account_scope_ready
+      - futures_observed_position_scope_ready
+      - futures_margin_collateral_ready
+      - usable_for_spot_admission
+      - usable_for_futures_risk
+      title: AdminAccountManagementReadiness
+      description: Backend-derived account readiness booleans consumed by Spot and Futures gates.
     AdminAccountManagementEnvironment:
       properties:
         environment:
@@ -12878,6 +12969,20 @@ components:
         freshness_status:
           type: string
           title: Freshness Status
+        account_count:
+          type: integer
+          title: Account Count
+          default: 0
+        configured_product_scope:
+          items:
+            type: string
+          type: array
+          title: Configured Product Scope
+        observed_position_scope:
+          items:
+            type: string
+          type: array
+          title: Observed Position Scope
       additionalProperties: false
       type: object
       required:
@@ -12885,6 +12990,9 @@ components:
       - scope_id
       - source
       - freshness_status
+      - account_count
+      - configured_product_scope
+      - observed_position_scope
       title: AdminAccountManagementScope
       description: Local account scope evidence.
     AdminAccountManagementPortfolioScope:
@@ -12966,12 +13074,16 @@ components:
           $ref: '#/components/schemas/AdminAccountManagementEnvironment'
         operator:
           $ref: '#/components/schemas/AdminAccountManagementOperator'
+        account_reality:
+          $ref: '#/components/schemas/AdminAccountManagementReality'
         account_scope:
           $ref: '#/components/schemas/AdminAccountManagementScope'
         portfolio_scope:
           $ref: '#/components/schemas/AdminAccountManagementPortfolioScope'
         wallet_inventory:
           $ref: '#/components/schemas/AdminAccountManagementWalletInventory'
+        readiness:
+          $ref: '#/components/schemas/AdminAccountManagementReadiness'
         permissions:
           $ref: '#/components/schemas/AdminAccountManagementPermissions'
         command_readiness_prerequisites:
@@ -13018,9 +13130,11 @@ components:
       - status
       - environment
       - operator
+      - account_reality
       - account_scope
       - portfolio_scope
       - wallet_inventory
+      - readiness
       - permissions
       - command_readiness_prerequisites
       - audit
@@ -13813,6 +13927,10 @@ components:
             type: string
           type: array
           title: Observed Position Scope
+        account_reality:
+          $ref: '#/components/schemas/AdminAccountManagementReality'
+        account_readiness:
+          $ref: '#/components/schemas/AdminAccountManagementReadiness'
         collateral:
           $ref: '#/components/schemas/AdminFuturesEvidenceItem'
         margin:
@@ -13844,6 +13962,8 @@ components:
       additionalProperties: false
       type: object
       required:
+      - account_reality
+      - account_readiness
       - collateral
       - margin
       - funding

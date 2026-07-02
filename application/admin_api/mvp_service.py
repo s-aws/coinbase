@@ -26,6 +26,10 @@ ACCOUNT_MANAGEMENT_ROUTE = "/api/v1/admin/account-management"
 ACCOUNT_MANAGEMENT_MODULE_ID = "account_management"
 FRONTEND_LOCAL_RELEASE_MANIFEST_ENV = "COINBASE_ADMIN_FRONTEND_LOCAL_RELEASE_MANIFEST_PATH"
 BACKEND_LOCAL_RELEASE_MANIFEST_ENV = "COINBASE_BACKEND_LOCAL_RELEASE_MANIFEST_PATH"
+ACCOUNT_SNAPSHOT_WALLET_SOURCE = "account_management_snapshot"
+BACKEND_REST_CLIENT_SOURCE = "backend_rest_client"
+BACKEND_REST_FRESHNESS = "backend_rest_fresh"
+LOCAL_DEFAULT_FRESHNESS = "local_default_not_connected"
 FUTURES_MODULE_ID = "futures_perpetuals"
 FUTURES_CONFIGURED_PRODUCT_SCOPE = ("BIP-20DEC30-CDE",)
 FUTURES_READ_ROUTES = (
@@ -692,6 +696,7 @@ class AdminMvpService:
         """Record cap and guard evidence for a command."""
 
         decision_id = str(body.get("decision_id") or f"cap-guard-{self.dependencies.uuid_factory()}")
+        wallet_evidence = self._cap_guard_wallet_evidence(body)
         record = {
             "decision_id": decision_id,
             "recorded_at": self._now_iso(),
@@ -713,16 +718,7 @@ class AdminMvpService:
                 )
             ),
             "wallet_check_required": bool(body.get("wallet_check_required", True)),
-            "wallet_check_status": str(
-                body.get("wallet_check_status") or AdminMvpGateStatus.BLOCKED.value
-            ),
-            "wallet_available_notional_usdc": _decimal_text(
-                _decimal_value(
-                    body.get("wallet_available_notional_usdc"),
-                    DEFAULT_WALLET_AVAILABLE_NOTIONAL_USDC,
-                )
-            ),
-            "wallet_check_source": str(body.get("wallet_check_source") or "missing"),
+            **wallet_evidence,
             "correlation_id": context.correlation_id,
             "idempotency_key": context.idempotency_key,
         }
@@ -737,6 +733,36 @@ class AdminMvpService:
             },
             context,
         )
+
+    def _cap_guard_wallet_evidence(self, body: Mapping[str, Any]) -> dict[str, Any]:
+        source = str(body.get("wallet_check_source") or "missing")
+        if source != ACCOUNT_SNAPSHOT_WALLET_SOURCE:
+            return {
+                "wallet_check_status": str(
+                    body.get("wallet_check_status") or AdminMvpGateStatus.BLOCKED.value
+                ),
+                "wallet_available_notional_usdc": _decimal_text(
+                    _decimal_value(
+                        body.get("wallet_available_notional_usdc"),
+                        DEFAULT_WALLET_AVAILABLE_NOTIONAL_USDC,
+                    )
+                ),
+                "wallet_check_source": source,
+            }
+
+        snapshot = self._account_snapshot()
+        wallet = snapshot["wallet_inventory"]
+        ready = bool(snapshot["readiness"]["spot_wallet_inventory_ready"])
+        return {
+            "wallet_check_status": (
+                AdminMvpGateStatus.PASSED.value if ready else AdminMvpGateStatus.BLOCKED.value
+            ),
+            "wallet_available_notional_usdc": wallet["available_notional_usdc"],
+            "wallet_check_source": ACCOUNT_SNAPSHOT_WALLET_SOURCE,
+            "account_snapshot_status": snapshot["account_reality"]["status"],
+            "account_snapshot_source": snapshot["account_reality"]["source"],
+            "account_snapshot_proof_id": snapshot["account_reality"]["proof_id"],
+        }
 
     def record_reconciliation_plan(
         self,
@@ -1119,6 +1145,87 @@ class AdminMvpService:
             )
         return AdminMvpLiveServiceStatus.APPROVAL_REQUIRED.value
 
+    def _account_snapshot(self) -> dict[str, Any]:
+        generated_at = self._now_iso()
+        unavailable = _unavailable_account_snapshot(generated_at)
+        if not self.dependencies.rest_client_available or self.dependencies.rest_client is None:
+            return unavailable
+
+        rest_client = self.dependencies.rest_client
+        wallets, wallets_read, wallet_error = _read_rest_object(
+            rest_client,
+            "get_account_wallets",
+        )
+        portfolios, portfolios_read, portfolio_error = _read_rest_object(
+            rest_client,
+            "list_portfolios",
+        )
+        positions, positions_read, positions_error = _read_rest_object(
+            rest_client,
+            "get_futures_positions",
+        )
+        if not any((wallets_read, portfolios_read, positions_read)):
+            return unavailable
+
+        wallet_items = _normalize_wallets(wallets)
+        portfolio_items = _normalize_portfolios(portfolios)
+        position_items = _normalize_futures_positions(positions)
+        wallet_inventory = _wallet_inventory_from_wallets(wallet_items)
+        portfolio_scope = _portfolio_scope_from_portfolios(portfolio_items)
+        futures_position_scope = [
+            item["product_id"] for item in position_items if item.get("product_id")
+        ]
+        read_errors = [
+            error
+            for error in (wallet_error, portfolio_error, positions_error)
+            if error is not None
+        ]
+        spot_wallet_ready = wallet_inventory["status"] == "ready"
+        futures_scope_ready = positions_read and positions_error is None
+        readiness = {
+            "spot_account_ready": portfolios_read and portfolio_error is None and spot_wallet_ready,
+            "spot_wallet_inventory_ready": spot_wallet_ready,
+            "futures_account_scope_ready": futures_scope_ready,
+            "futures_observed_position_scope_ready": bool(position_items),
+            "futures_margin_collateral_ready": False,
+            "usable_for_spot_admission": spot_wallet_ready,
+            "usable_for_futures_risk": False,
+        }
+        account_status = "ready" if any(readiness.values()) else "unavailable"
+        source = (
+            BACKEND_REST_CLIENT_SOURCE
+            if account_status == "ready"
+            else "backend_rest_unavailable"
+        )
+        freshness = BACKEND_REST_FRESHNESS if account_status == "ready" else LOCAL_DEFAULT_FRESHNESS
+        return {
+            "account_reality": {
+                "status": account_status,
+                "source": source,
+                "proof_id": f"account-reality-{generated_at}",
+                "generated_at": generated_at,
+                "coinbase_read_ran": True,
+                "read_error": "none" if not read_errors else ";".join(read_errors),
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+            },
+            "account_scope": {
+                "scope_type": "backend_account_snapshot",
+                "scope_id": portfolio_scope["portfolio_id"],
+                "source": source,
+                "freshness_status": freshness,
+                "account_count": len(wallet_items),
+                "configured_product_scope": list(FUTURES_CONFIGURED_PRODUCT_SCOPE),
+                "observed_position_scope": futures_position_scope,
+            },
+            "portfolio_scope": portfolio_scope,
+            "wallet_inventory": wallet_inventory,
+            "readiness": readiness,
+            "futures_positions": position_items,
+            "coinbase_read_enabled": True,
+            "coinbase_read_ran": True,
+        }
+
     def _latest_service_decision_allows_live(self) -> bool:
         latest = _latest_record(self.store.service_decisions)
         return bool(latest and latest.get("live_coinbase_execution_approved"))
@@ -1241,6 +1348,7 @@ class AdminMvpService:
         }
 
     def _account_management(self, context: AdminMvpRequestContext) -> dict[str, Any]:
+        snapshot = self._account_snapshot()
         return {
             "type": "admin_account_management",
             "status": "warning",
@@ -1252,21 +1360,13 @@ class AdminMvpService:
                 "required_permission": "analytics:read",
                 "auth_mode": "bootstrap_bearer",
             },
-            "account_scope": {
-                "scope_type": "local_admin_portfolio",
-                "scope_id": "local-admin-account-scope",
-                "source": "backend_admin_mvp",
-                "freshness_status": "local_default_not_connected",
-            },
-            "portfolio_scope": {
-                "portfolio_id": "local-admin-portfolio",
-                "portfolio_name": "Local Admin Portfolio",
-                "source": "backend_admin_mvp",
-                "freshness_status": "local_default_not_connected",
-            },
-            "wallet_inventory": self._account_management_wallet_inventory(),
+            "account_reality": snapshot["account_reality"],
+            "account_scope": snapshot["account_scope"],
+            "portfolio_scope": snapshot["portfolio_scope"],
+            "wallet_inventory": snapshot["wallet_inventory"],
+            "readiness": snapshot["readiness"],
             "permissions": self._account_management_permissions(context),
-            "command_readiness_prerequisites": self._account_management_prerequisites(),
+            "command_readiness_prerequisites": self._account_management_prerequisites(snapshot),
             "audit": {
                 "correlation_id": context.correlation_id,
                 "idempotency_key": context.idempotency_key,
@@ -1277,8 +1377,8 @@ class AdminMvpService:
             "command_routes_mode": "backend_admin_api",
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
-            "coinbase_read_enabled": False,
-            "live_coinbase_read_ran": False,
+            "coinbase_read_enabled": snapshot["coinbase_read_enabled"],
+            "live_coinbase_read_ran": snapshot["coinbase_read_ran"],
             **self._live_outputs(False, Decimal("0")),
             "notional_usdc": "0",
         }
@@ -1350,7 +1450,13 @@ class AdminMvpService:
             "mutation_permissions_granted": [],
         }
 
-    def _account_management_prerequisites(self) -> list[dict[str, Any]]:
+    def _account_management_prerequisites(
+        self,
+        snapshot: Mapping[str, Any],
+    ) -> list[dict[str, Any]]:
+        readiness = snapshot["readiness"]
+        account_reality = snapshot["account_reality"]
+        wallet_ready = bool(readiness["spot_wallet_inventory_ready"])
         return [
             {
                 "name": "backend_admin_api_contract",
@@ -1363,9 +1469,22 @@ class AdminMvpService:
                 "detail": "Read access uses Admin API session and role evidence.",
             },
             {
+                "name": "backend_account_reality",
+                "status": account_reality["status"],
+                "detail": (
+                    "Backend account, portfolio, wallet, and futures position scope read evidence is available."
+                    if account_reality["status"] == "ready"
+                    else "Backend account reality is unavailable; account-dependent gates remain fail-closed."
+                ),
+            },
+            {
                 "name": "wallet_inventory_evidence",
-                "status": "visible",
-                "detail": "Local default wallet evidence is visible; no live Coinbase account read was attempted.",
+                "status": "ready" if wallet_ready else "visible",
+                "detail": (
+                    "Backend wallet evidence is available for spot admission inputs."
+                    if wallet_ready
+                    else "Local default wallet evidence is visible; no live Coinbase account read was attempted."
+                ),
             },
             {
                 "name": "continuous_deployment_local_release",
@@ -1751,12 +1870,14 @@ class AdminMvpService:
         query: Mapping[str, Any],
     ) -> dict[str, Any]:
         if path == "/api/v1/spot/readiness":
+            snapshot = self._account_snapshot()
             return {
                 "type": "spot_readiness",
                 "status": "warning",
                 "products": [],
                 "planned_budget": {},
-                "wallet_snapshot": {},
+                "wallet_snapshot": snapshot["wallet_inventory"],
+                "account_readiness": snapshot["readiness"],
                 "action_guard_summary": [],
                 "read_only": True,
                 "live_coinbase_orders_ran": False,
@@ -1902,10 +2023,16 @@ class AdminMvpService:
         return self._futures_position_detail(unquote(_last_path_part(path)))
 
     def _futures_account(self) -> dict[str, Any]:
+        snapshot = self._account_snapshot()
+        position_scope = [
+            item["product_id"] for item in snapshot["futures_positions"] if item.get("product_id")
+        ]
         return {
             "type": "admin_futures_account",
             "configured_product_scope": list(FUTURES_CONFIGURED_PRODUCT_SCOPE),
-            "observed_position_scope": [],
+            "observed_position_scope": position_scope,
+            "account_reality": snapshot["account_reality"],
+            "account_readiness": snapshot["readiness"],
             "collateral": self._futures_evidence(
                 "collateral",
                 "unavailable",
@@ -1942,7 +2069,7 @@ class AdminMvpService:
                 "runtime_unavailable",
                 "Position P/L requires observed futures position evidence.",
             ),
-            "position_count": 0,
+            "position_count": len(snapshot["futures_positions"]),
             "read_only": True,
             "command_routes_mode": "backend_admin_api_blocked",
             "live_coinbase_orders_ran": False,
@@ -1951,23 +2078,34 @@ class AdminMvpService:
     def _futures_positions(self, query: Mapping[str, Any]) -> dict[str, Any]:
         limit = _query_int(query, "limit", 10)
         offset = _query_int(query, "offset", 0)
+        snapshot = self._account_snapshot()
+        items = snapshot["futures_positions"][offset : offset + limit]
         return {
             "type": "admin_futures_positions",
             "filters": dict(query),
-            "count": 0,
-            "items": [],
-            "pagination": _pagination(limit, 0, offset),
+            "count": len(items),
+            "items": items,
+            "pagination": _pagination(limit, len(snapshot["futures_positions"]), offset),
             "read_only": True,
             "command_routes_mode": "backend_admin_api_blocked",
             "live_coinbase_orders_ran": False,
         }
 
     def _futures_position_detail(self, position_key: str) -> dict[str, Any]:
+        snapshot = self._account_snapshot()
+        position = next(
+            (
+                item
+                for item in snapshot["futures_positions"]
+                if item["position_key"] == position_key or item["product_id"] == position_key
+            ),
+            None,
+        )
         return {
             "type": "admin_futures_position_detail",
             "position_key": position_key,
-            "found": False,
-            "position": None,
+            "found": position is not None,
+            "position": position,
             "read_only": True,
             "command_routes_mode": "backend_admin_api_blocked",
             "live_coinbase_orders_ran": False,
@@ -2511,6 +2649,199 @@ def _object_to_dict(value: Any) -> dict[str, Any]:
     if hasattr(value, "__dict__"):
         return dict(value.__dict__)
     return {}
+
+
+def _unavailable_account_snapshot(generated_at: str) -> dict[str, Any]:
+    readiness = {
+        "spot_account_ready": False,
+        "spot_wallet_inventory_ready": False,
+        "futures_account_scope_ready": False,
+        "futures_observed_position_scope_ready": False,
+        "futures_margin_collateral_ready": False,
+        "usable_for_spot_admission": False,
+        "usable_for_futures_risk": False,
+    }
+    return {
+        "account_reality": {
+            "status": "unavailable",
+            "source": "backend_rest_unavailable",
+            "proof_id": f"account-reality-{generated_at}",
+            "generated_at": generated_at,
+            "coinbase_read_ran": False,
+            "read_error": "rest_client_unavailable",
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        },
+        "account_scope": {
+            "scope_type": "local_admin_portfolio",
+            "scope_id": "local-admin-account-scope",
+            "source": "backend_admin_mvp",
+            "freshness_status": LOCAL_DEFAULT_FRESHNESS,
+            "account_count": 0,
+            "configured_product_scope": list(FUTURES_CONFIGURED_PRODUCT_SCOPE),
+            "observed_position_scope": [],
+        },
+        "portfolio_scope": {
+            "portfolio_id": "local-admin-portfolio",
+            "portfolio_name": "Local Admin Portfolio",
+            "source": "backend_admin_mvp",
+            "freshness_status": LOCAL_DEFAULT_FRESHNESS,
+        },
+        "wallet_inventory": {
+            "currency": "USDC",
+            "available_notional_usdc": "0",
+            "hold_notional_usdc": "0",
+            "total_notional_usdc": "0",
+            "source": "backend_admin_mvp_default",
+            "freshness_status": LOCAL_DEFAULT_FRESHNESS,
+            "status": "visible",
+            "error": "not_applicable",
+        },
+        "readiness": readiness,
+        "futures_positions": [],
+        "coinbase_read_enabled": False,
+        "coinbase_read_ran": False,
+    }
+
+
+def _read_rest_object(rest_client: Any, method_name: str) -> tuple[Any, bool, str | None]:
+    method = getattr(rest_client, method_name, None)
+    if not callable(method):
+        return None, False, f"{method_name}_unavailable"
+    try:
+        return method(), True, None
+    except Exception as exc:  # pragma: no cover - defensive around live SDK failures
+        return None, True, f"{method_name}_failed:{type(exc).__name__}"
+
+
+def _normalize_wallets(value: Any) -> list[dict[str, Any]]:
+    if isinstance(value, Mapping):
+        candidates = value.values()
+    elif isinstance(value, list):
+        candidates = value
+    else:
+        candidates = []
+    wallets: list[dict[str, Any]] = []
+    for item in candidates:
+        data = _object_to_dict(item)
+        currency = str(data.get("currency") or "").upper()
+        if not currency:
+            continue
+        wallets.append(
+            {
+                "currency": currency,
+                "available_balance": _decimal_text(
+                    _decimal_value(data.get("available_balance"), Decimal("0"))
+                ),
+                "total_balance": _decimal_text(
+                    _decimal_value(data.get("total_balance"), Decimal("0"))
+                ),
+                "hold_balance": _decimal_text(
+                    _wallet_hold_balance(data),
+                ),
+                "updated_at": data.get("updated_at"),
+            }
+        )
+    return wallets
+
+
+def _normalize_portfolios(value: Any) -> list[dict[str, Any]]:
+    if isinstance(value, Mapping):
+        candidates = value.get("portfolios") if isinstance(value.get("portfolios"), list) else value.values()
+    elif isinstance(value, list):
+        candidates = value
+    else:
+        candidates = []
+    portfolios = []
+    for item in candidates:
+        data = _object_to_dict(item)
+        portfolio_id = data.get("portfolio_id") or data.get("uuid") or data.get("id")
+        if not portfolio_id:
+            continue
+        portfolios.append(
+            {
+                "portfolio_id": str(portfolio_id),
+                "portfolio_name": str(data.get("name") or data.get("portfolio_name") or portfolio_id),
+                "source": BACKEND_REST_CLIENT_SOURCE,
+                "freshness_status": BACKEND_REST_FRESHNESS,
+            }
+        )
+    return portfolios
+
+
+def _normalize_futures_positions(value: Any) -> list[dict[str, Any]]:
+    if isinstance(value, Mapping):
+        candidates = value.values()
+    elif isinstance(value, list):
+        candidates = value
+    else:
+        candidates = []
+    positions: list[dict[str, Any]] = []
+    for item in candidates:
+        data = _object_to_dict(item)
+        product_id = str(data.get("product_id") or "")
+        if not product_id:
+            continue
+        positions.append(
+            {
+                "position_key": f"futures_position:runtime:{product_id}",
+                "product_id": product_id,
+                "position_side": str(data.get("position_side") or data.get("side") or "UNKNOWN"),
+                "number_of_contracts": str(data.get("number_of_contracts") or "0"),
+                "current_price": str(data.get("current_price") or ""),
+                "entry_price": str(data.get("entry_price") or ""),
+                "raw_position": data,
+                "source": "runtime_positions",
+                "updated_at": data.get("updated_at"),
+            }
+        )
+    return positions
+
+
+def _wallet_inventory_from_wallets(wallets: list[dict[str, Any]]) -> dict[str, Any]:
+    usdc = next((wallet for wallet in wallets if wallet["currency"] == "USDC"), None)
+    if usdc is None:
+        return {
+            "currency": "USDC",
+            "available_notional_usdc": "0",
+            "hold_notional_usdc": "0",
+            "total_notional_usdc": "0",
+            "source": BACKEND_REST_CLIENT_SOURCE,
+            "freshness_status": "backend_rest_missing_usdc",
+            "status": "blocked",
+            "error": "usdc_wallet_missing",
+        }
+    return {
+        "currency": "USDC",
+        "available_notional_usdc": usdc["available_balance"],
+        "hold_notional_usdc": usdc["hold_balance"],
+        "total_notional_usdc": usdc["total_balance"],
+        "source": BACKEND_REST_CLIENT_SOURCE,
+        "freshness_status": BACKEND_REST_FRESHNESS,
+        "status": "ready",
+        "error": "none",
+    }
+
+
+def _portfolio_scope_from_portfolios(portfolios: list[dict[str, Any]]) -> dict[str, Any]:
+    if portfolios:
+        return portfolios[0]
+    return {
+        "portfolio_id": "unknown",
+        "portfolio_name": "Unknown Backend Portfolio",
+        "source": BACKEND_REST_CLIENT_SOURCE,
+        "freshness_status": "backend_rest_missing_portfolio",
+    }
+
+
+def _wallet_hold_balance(data: Mapping[str, Any]) -> Decimal:
+    explicit_hold = data.get("hold_balance", data.get("hold_notional_usdc"))
+    if explicit_hold not in (None, ""):
+        return _decimal_value(explicit_hold, Decimal("0"))
+    total = _decimal_value(data.get("total_balance"), Decimal("0"))
+    available = _decimal_value(data.get("available_balance"), Decimal("0"))
+    hold = total - available
+    return hold if hold > Decimal("0") else Decimal("0")
 
 
 def _check_runtime_admission(controller: Any) -> None:
