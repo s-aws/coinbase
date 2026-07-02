@@ -1603,6 +1603,22 @@
       "command_contract": false
     },
     {
+      "module_id": "account_management",
+      "surface": "GET /api/v1/admin/account-management",
+      "method": "GET",
+      "path": "/api/v1/admin/account-management",
+      "action_class": "read_only",
+      "permission": "analytics:read",
+      "idempotency": "not required",
+      "approval": "not required",
+      "caps": "not applicable",
+      "audit": "optional read audit",
+      "shared_method": "build_account_management",
+      "parity_test": "backend-owned local account, portfolio, wallet, permission, and audit evidence; no Coinbase read or mutation",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
       "module_id": "admin_system_health",
       "surface": "GET /api/v1/admin/live-enablement",
       "method": "GET",

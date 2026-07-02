@@ -310,6 +310,70 @@ def preview_query(admission: dict) -> dict[str, str]:
     }
 
 
+def test_admin_account_management_read_contract_exposes_local_operator_scope():
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=FakeRestClient(), rest_client_available=True)
+    )
+
+    result = service.get_read_response(
+        "/api/v1/admin/account-management",
+        {},
+        context(idempotency_key="account-management-read"),
+    )
+
+    assert result.status_code == 200
+    body = result.body
+    assert body["type"] == "admin_account_management"
+    assert body["module_id"] == "account_management"
+    assert body["read_only"] is True
+    assert body["browser_authority"] == "display_only"
+    assert body["bff_authority"] == "forward_only_no_execution"
+    assert body["environment"]["deployment_target"] == "coinbase-local"
+    assert body["operator"]["actor_id"] == "operator-1"
+    assert body["operator"]["roles"] == ["operator"]
+    assert body["account_scope"]["scope_type"] == "local_admin_portfolio"
+    assert body["portfolio_scope"]["portfolio_id"] == "local-admin-portfolio"
+    assert body["wallet_inventory"]["currency"] == "USDC"
+    assert body["wallet_inventory"]["freshness_status"] == "local_default_not_connected"
+    assert body["wallet_inventory"]["available_notional_usdc"] == "0"
+    assert body["coinbase_read_enabled"] is False
+    assert body["live_coinbase_read_ran"] is False
+    assert body["live_coinbase_orders_ran"] is False
+    assert body["live_coinbase_execution"] == "not_run"
+    assert body["notional_usdc"] == "0"
+    assert body["audit"]["correlation_id"] == "account-management-read-correlation"
+    assert body["audit"]["idempotency_key"] == "account-management-read"
+    readiness = {item["name"]: item for item in body["command_readiness_prerequisites"]}
+    assert readiness["rbac"]["status"] == "visible"
+    assert readiness["wallet_inventory_evidence"]["status"] == "blocked"
+    assert readiness["backend_admin_api_contract"]["status"] == "visible"
+
+    capabilities = service.get_read_response("/api/v1/admin/capabilities", {}, context())
+    account_capability = next(
+        item
+        for item in capabilities.body["capabilities"]
+        if item["method"] == "GET"
+        and item["route"] == "/api/v1/admin/account-management"
+    )
+    assert account_capability["module_id"] == "account_management"
+    assert account_capability["frontend_safe"] is True
+    assert account_capability["live_enabled"] is False
+
+    readiness_response = service.get_read_response(
+        "/api/v1/admin/enterprise-readiness",
+        {},
+        context(),
+    )
+    account_module = next(
+        item
+        for item in readiness_response.body["modules"]
+        if item["module_id"] == "account_management"
+    )
+    assert account_module["support_status"] == "mvp_read_ready"
+    assert account_module["read_routes"] == ["GET /api/v1/admin/account-management"]
+    assert account_module["action_posture"]["browser_authority"] == "display_only"
+
+
 def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=FakeRestClient(), rest_client_available=True)

@@ -21,6 +21,8 @@ import uuid
 ADMIN_API_VERSION = "0.1.0-prod-mvp"
 MANUAL_ORDER_ROUTE = "/api/v1/orders"
 CANCEL_ORDER_ROUTE = "/api/v1/orders/{client_order_id}/cancel"
+ACCOUNT_MANAGEMENT_ROUTE = "/api/v1/admin/account-management"
+ACCOUNT_MANAGEMENT_MODULE_ID = "account_management"
 MANUAL_ORDER_MODULE_ID = "spot_operations"
 MANUAL_ORDER_ACTION_CLASS = "live_exchange_place"
 MANUAL_ORDER_PERMISSION = "order:create"
@@ -159,6 +161,8 @@ class AdminMvpService:
             return self._ok(self._capability_registry(), context)
         if normalized_path == "/api/v1/admin/csrf":
             return self._ok(self._csrf_contract(), context)
+        if normalized_path == ACCOUNT_MANAGEMENT_ROUTE:
+            return self._ok(self._account_management(context), context)
         if normalized_path == "/api/v1/admin/live-enablement":
             return self._ok(self._live_enablement(), context)
         if normalized_path == "/api/v1/admin/enterprise-readiness":
@@ -1223,6 +1227,105 @@ class AdminMvpService:
             "live_coinbase_orders_ran": False,
         }
 
+    def _account_management(self, context: AdminMvpRequestContext) -> dict[str, Any]:
+        return {
+            "type": "admin_account_management",
+            "status": "warning",
+            "module_id": ACCOUNT_MANAGEMENT_MODULE_ID,
+            "environment": self._account_management_environment(),
+            "operator": {
+                "actor_id": context.actor_id,
+                "roles": list(context.roles),
+                "required_permission": "analytics:read",
+                "auth_mode": "bootstrap_bearer",
+            },
+            "account_scope": {
+                "scope_type": "local_admin_portfolio",
+                "scope_id": "local-admin-account-scope",
+                "source": "backend_admin_mvp",
+                "freshness_status": "local_default_not_connected",
+            },
+            "portfolio_scope": {
+                "portfolio_id": "local-admin-portfolio",
+                "portfolio_name": "Local Admin Portfolio",
+                "source": "backend_admin_mvp",
+                "freshness_status": "local_default_not_connected",
+            },
+            "wallet_inventory": self._account_management_wallet_inventory(),
+            "permissions": self._account_management_permissions(context),
+            "command_readiness_prerequisites": self._account_management_prerequisites(),
+            "audit": {
+                "correlation_id": context.correlation_id,
+                "idempotency_key": context.idempotency_key,
+                "operator_intent": context.operator_intent,
+                "audit_surface": ACCOUNT_MANAGEMENT_ROUTE,
+            },
+            "read_only": True,
+            "command_routes_mode": "backend_admin_api",
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "coinbase_read_enabled": False,
+            "live_coinbase_read_ran": False,
+            **self._live_outputs(False, Decimal("0")),
+            "notional_usdc": "0",
+        }
+
+    def _account_management_environment(self) -> dict[str, Any]:
+        return {
+            "environment": "local",
+            "deployment_target": "coinbase-local",
+            "backend_repository": "s-aws/coinbase",
+            "admin_api_version": ADMIN_API_VERSION,
+        }
+
+    def _account_management_wallet_inventory(self) -> dict[str, Any]:
+        return {
+            "currency": "USDC",
+            "available_notional_usdc": "0",
+            "hold_notional_usdc": "0",
+            "total_notional_usdc": "0",
+            "source": "backend_admin_mvp_default",
+            "freshness_status": "local_default_not_connected",
+            "status": "blocked",
+            "error": "No Coinbase account read has been enabled for this local MVP route.",
+        }
+
+    def _account_management_permissions(
+        self,
+        context: AdminMvpRequestContext,
+    ) -> dict[str, Any]:
+        return {
+            "actor_id": context.actor_id,
+            "roles": list(context.roles),
+            "required_permission": "analytics:read",
+            "permission_status": "visible",
+            "mutation_permissions_granted": [],
+        }
+
+    def _account_management_prerequisites(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "name": "backend_admin_api_contract",
+                "status": "visible",
+                "detail": "Account management is exposed only through this backend Admin API read route.",
+            },
+            {
+                "name": "rbac",
+                "status": "visible",
+                "detail": "Read access uses Admin API session and role evidence.",
+            },
+            {
+                "name": "wallet_inventory_evidence",
+                "status": "blocked",
+                "detail": "Live Coinbase account and wallet reads are disabled until a backend proof path exists.",
+            },
+            {
+                "name": "approval_admission_cap_reconciliation",
+                "status": "blocked",
+                "detail": "No account, transfer, or trading mutation can proceed from this read route.",
+            },
+        ]
+
     def _live_enablement(self) -> dict[str, Any]:
         manual_path = self._live_path(
             route=MANUAL_ORDER_ROUTE,
@@ -1269,6 +1372,12 @@ class AdminMvpService:
                 "Admin / System Health",
                 "platform_ready",
                 ["/api/v1/admin/health", "/api/v1/admin/session"],
+            ),
+            _module_registry(
+                ACCOUNT_MANAGEMENT_MODULE_ID,
+                "Account Management",
+                "mvp_read_ready",
+                [ACCOUNT_MANAGEMENT_ROUTE],
             ),
             _module_registry(
                 "spot_operations",
@@ -1794,6 +1903,7 @@ class AdminMvpService:
             "/api/v1/admin/oidc-readiness",
             "/api/v1/admin/capabilities",
             "/api/v1/admin/csrf",
+            ACCOUNT_MANAGEMENT_ROUTE,
             "/api/v1/admin/live-enablement",
             "/api/v1/admin/enterprise-readiness",
             "/api/v1/admin/release-gate",
@@ -1804,7 +1914,12 @@ class AdminMvpService:
             "/api/v1/spot/command-suite",
         ]
         capabilities = [
-            _read_capability(route, "admin_system_health")
+            _read_capability(
+                route,
+                ACCOUNT_MANAGEMENT_MODULE_ID
+                if route == ACCOUNT_MANAGEMENT_ROUTE
+                else "admin_system_health",
+            )
             for route in read_routes
         ]
         capabilities.extend([

@@ -378,6 +378,68 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/account-management:
+    get:
+      tags:
+      - admin
+      summary: Read local account, portfolio, wallet, permission, and audit evidence
+      operationId: admin_account_management_api_v1_admin_account_management_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAccountManagementReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/live-enablement:
     get:
       tags:
@@ -12637,6 +12699,295 @@ components:
       - notes
       title: AdminCapabilityItem
       description: One backend-owned capability advertised to the frontend.
+    AdminAccountManagementAudit:
+      properties:
+        correlation_id:
+          type: string
+          title: Correlation Id
+        idempotency_key:
+          type: string
+          title: Idempotency Key
+        operator_intent:
+          type: string
+          title: Operator Intent
+        audit_surface:
+          type: string
+          title: Audit Surface
+      additionalProperties: false
+      type: object
+      required:
+      - correlation_id
+      - idempotency_key
+      - operator_intent
+      - audit_surface
+      title: AdminAccountManagementAudit
+      description: Audit correlation evidence for the account-management read.
+    AdminAccountManagementEnvironment:
+      properties:
+        environment:
+          type: string
+          title: Environment
+        deployment_target:
+          type: string
+          title: Deployment Target
+        backend_repository:
+          type: string
+          title: Backend Repository
+        admin_api_version:
+          type: string
+          title: Admin Api Version
+      additionalProperties: false
+      type: object
+      required:
+      - environment
+      - deployment_target
+      - backend_repository
+      - admin_api_version
+      title: AdminAccountManagementEnvironment
+      description: Local deployment evidence for account-management reads.
+    AdminAccountManagementOperator:
+      properties:
+        actor_id:
+          type: string
+          title: Actor Id
+        roles:
+          items:
+            type: string
+          type: array
+          title: Roles
+        required_permission:
+          type: string
+          title: Required Permission
+        auth_mode:
+          type: string
+          title: Auth Mode
+      additionalProperties: false
+      type: object
+      required:
+      - actor_id
+      - roles
+      - required_permission
+      - auth_mode
+      title: AdminAccountManagementOperator
+      description: Authenticated operator and RBAC evidence.
+    AdminAccountManagementPermissions:
+      properties:
+        actor_id:
+          type: string
+          title: Actor Id
+        roles:
+          items:
+            type: string
+          type: array
+          title: Roles
+        required_permission:
+          type: string
+          title: Required Permission
+        permission_status:
+          type: string
+          title: Permission Status
+        mutation_permissions_granted:
+          items:
+            type: string
+          type: array
+          title: Mutation Permissions Granted
+      additionalProperties: false
+      type: object
+      required:
+      - actor_id
+      - roles
+      - required_permission
+      - permission_status
+      - mutation_permissions_granted
+      title: AdminAccountManagementPermissions
+      description: Display-only RBAC evidence for account-management reads.
+    AdminAccountManagementPrerequisite:
+      properties:
+        name:
+          type: string
+          title: Name
+        status:
+          type: string
+          title: Status
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - name
+      - status
+      - detail
+      title: AdminAccountManagementPrerequisite
+      description: Command-readiness prerequisite evidence.
+    AdminAccountManagementScope:
+      properties:
+        scope_type:
+          type: string
+          title: Scope Type
+        scope_id:
+          type: string
+          title: Scope Id
+        source:
+          type: string
+          title: Source
+        freshness_status:
+          type: string
+          title: Freshness Status
+      additionalProperties: false
+      type: object
+      required:
+      - scope_type
+      - scope_id
+      - source
+      - freshness_status
+      title: AdminAccountManagementScope
+      description: Local account scope evidence.
+    AdminAccountManagementPortfolioScope:
+      properties:
+        portfolio_id:
+          type: string
+          title: Portfolio Id
+        portfolio_name:
+          type: string
+          title: Portfolio Name
+        source:
+          type: string
+          title: Source
+        freshness_status:
+          type: string
+          title: Freshness Status
+      additionalProperties: false
+      type: object
+      required:
+      - portfolio_id
+      - portfolio_name
+      - source
+      - freshness_status
+      title: AdminAccountManagementPortfolioScope
+      description: Local portfolio scope evidence.
+    AdminAccountManagementWalletInventory:
+      properties:
+        currency:
+          type: string
+          title: Currency
+        available_notional_usdc:
+          type: string
+          title: Available Notional Usdc
+        hold_notional_usdc:
+          type: string
+          title: Hold Notional Usdc
+        total_notional_usdc:
+          type: string
+          title: Total Notional Usdc
+        source:
+          type: string
+          title: Source
+        freshness_status:
+          type: string
+          title: Freshness Status
+        status:
+          type: string
+          title: Status
+        error:
+          type: string
+          title: Error
+      additionalProperties: false
+      type: object
+      required:
+      - currency
+      - available_notional_usdc
+      - hold_notional_usdc
+      - total_notional_usdc
+      - source
+      - freshness_status
+      - status
+      - error
+      title: AdminAccountManagementWalletInventory
+      description: Wallet and balance evidence without live Coinbase reads.
+    AdminAccountManagementReadResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_account_management
+        status:
+          type: string
+          title: Status
+        module_id:
+          type: string
+          title: Module Id
+          default: account_management
+        environment:
+          $ref: '#/components/schemas/AdminAccountManagementEnvironment'
+        operator:
+          $ref: '#/components/schemas/AdminAccountManagementOperator'
+        account_scope:
+          $ref: '#/components/schemas/AdminAccountManagementScope'
+        portfolio_scope:
+          $ref: '#/components/schemas/AdminAccountManagementPortfolioScope'
+        wallet_inventory:
+          $ref: '#/components/schemas/AdminAccountManagementWalletInventory'
+        permissions:
+          $ref: '#/components/schemas/AdminAccountManagementPermissions'
+        command_readiness_prerequisites:
+          items:
+            $ref: '#/components/schemas/AdminAccountManagementPrerequisite'
+          type: array
+          title: Command Readiness Prerequisites
+        audit:
+          $ref: '#/components/schemas/AdminAccountManagementAudit'
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+        browser_authority:
+          type: string
+          title: Browser Authority
+        bff_authority:
+          type: string
+          title: Bff Authority
+        coinbase_read_enabled:
+          type: boolean
+          title: Coinbase Read Enabled
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+        notional_usdc:
+          type: string
+          title: Notional Usdc
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - environment
+      - operator
+      - account_scope
+      - portfolio_scope
+      - wallet_inventory
+      - permissions
+      - command_readiness_prerequisites
+      - audit
+      - command_routes_mode
+      - browser_authority
+      - bff_authority
+      - live_coinbase_execution
+      - notional_usdc
+      title: AdminAccountManagementReadResponse
+      description: Backend-owned local account, portfolio, wallet, permission,
+        and audit evidence for the Account Management MVP.
     AdminCapabilityRegistryResponse:
       properties:
         type:
