@@ -1447,6 +1447,80 @@ def test_admin_futures_command_suite_exposes_backend_payload_field_contracts():
     assert all(field["request_payload_validated"] is True for field in place["request_fields"])
 
 
+def test_admin_futures_command_suite_exposes_backend_enablement_sequence_traces():
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
+    )
+
+    suite_result = service.get_read_response(
+        "/api/v1/futures/command-suite",
+        {},
+        context(),
+    )
+
+    assert suite_result.status_code == 200
+    suite = suite_result.body
+    assert suite["command_enablement_sequence_step_count"] == 4
+    assert suite["command_enablement_sequence_step_blocking_count"] == 1
+    assert [
+        step["step"]
+        for step in suite["command_enablement_sequence_steps"]
+    ] == [
+        "resolve_prerequisite_contracts",
+        "define_request_payload_contract",
+        "register_admin_command_route",
+        "bind_live_service_adapter",
+    ]
+    payload_step = suite["command_enablement_sequence_steps"][1]
+    assert payload_step["status"] == "passed"
+    assert payload_step["blocking"] is False
+    assert payload_step["source_blockers"] == []
+    assert payload_step["command_route_registered"] is True
+    assert payload_step["execution_allowed"] is False
+
+    live_step = suite["command_enablement_sequence_steps"][3]
+    assert live_step["status"] == "blocked"
+    assert live_step["blocking"] is True
+    assert live_step["source_blockers"] == ["live_service_adapter"]
+    assert live_step["affected_commands"] == [
+        "futures_place",
+        "futures_close_reduce",
+        "futures_cancel",
+        "futures_reconcile",
+    ]
+    assert live_step["required_backend_contracts"] == ["futures_live_adapter_contract"]
+    assert live_step["required_evidence_refs"] == [
+        "/api/v1/admin/live-execution/service-decisions",
+        "/api/v1/admin/live-execution/adapter-decisions",
+    ]
+    assert live_step["live_coinbase_orders_ran"] is False
+    assert live_step["spot_rule_authority"] is False
+
+    assert suite["command_enablement_sequence_command_trace_count"] == 16
+    assert suite["command_enablement_sequence_command_trace_blocking_count"] == 4
+    traces = {
+        trace["trace_id"]: trace
+        for trace in suite["command_enablement_sequence_command_traces"]
+    }
+    place_payload_trace = traces["define_request_payload_contract::futures_place"]
+    assert place_payload_trace["status"] == "passed"
+    assert place_payload_trace["blocking"] is False
+    assert place_payload_trace["command_sequence"] == 1
+    assert place_payload_trace["command_step_sequence"] == 2
+    assert place_payload_trace["execution_allowed"] is False
+    assert place_payload_trace["futures_state_mutation_allowed"] is False
+
+    cancel_live_trace = traces["bind_live_service_adapter::futures_cancel"]
+    assert cancel_live_trace["status"] == "blocked"
+    assert cancel_live_trace["blocking"] is True
+    assert cancel_live_trace["source_blockers"] == ["live_service_adapter"]
+    assert cancel_live_trace["required_backend_contract"] == "futures_live_adapter_contract"
+    assert cancel_live_trace["required_evidence_ref_count"] == 2
+    assert cancel_live_trace["live_coinbase_orders_ran"] is False
+    assert cancel_live_trace["browser_authority"] == "display_only"
+    assert cancel_live_trace["bff_authority"] == "forward_only_no_execution"
+
+
 def test_admin_futures_place_rejects_invalid_payload_before_executor_boundary():
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)

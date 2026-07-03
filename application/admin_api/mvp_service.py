@@ -150,6 +150,12 @@ FUTURES_COMMAND_REQUEST_FIELDS = {
         {"field": "reconciliation_reason", "payload_key": "reconciliation_reason"},
     ),
 }
+FUTURES_COMMAND_ENABLEMENT_SEQUENCE_STEPS = (
+    "resolve_prerequisite_contracts",
+    "define_request_payload_contract",
+    "register_admin_command_route",
+    "bind_live_service_adapter",
+)
 MANUAL_ORDER_MODULE_ID = "spot_operations"
 MANUAL_ORDER_ACTION_CLASS = "live_exchange_place"
 MANUAL_ORDER_PERMISSION = "order:create"
@@ -4029,6 +4035,15 @@ class AdminMvpService:
             missing_contracts,
             live_decision_summary,
         )
+        sequence_steps = _futures_command_enablement_sequence_steps(
+            commands,
+            missing_contracts,
+            live_decision_summary,
+        )
+        sequence_traces = _futures_command_enablement_sequence_traces(
+            commands,
+            sequence_steps,
+        )
         status = "evidence_ready" if not missing_contracts else "blocked"
         return {
             "type": "admin_futures_command_suite",
@@ -4064,12 +4079,16 @@ class AdminMvpService:
             "command_enablement_blocker_summary_count": len(blockers),
             "command_enablement_blocker_summary_blocking_count": len(blockers),
             "command_enablement_blocker_summaries": blockers,
-            "command_enablement_sequence_step_count": 0,
-            "command_enablement_sequence_step_blocking_count": 0,
-            "command_enablement_sequence_steps": [],
-            "command_enablement_sequence_command_trace_count": 0,
-            "command_enablement_sequence_command_trace_blocking_count": 0,
-            "command_enablement_sequence_command_traces": [],
+            "command_enablement_sequence_step_count": len(sequence_steps),
+            "command_enablement_sequence_step_blocking_count": sum(
+                1 for step in sequence_steps if bool(step["blocking"])
+            ),
+            "command_enablement_sequence_steps": sequence_steps,
+            "command_enablement_sequence_command_trace_count": len(sequence_traces),
+            "command_enablement_sequence_command_trace_blocking_count": sum(
+                1 for trace in sequence_traces if bool(trace["blocking"])
+            ),
+            "command_enablement_sequence_command_traces": sequence_traces,
             "commands": commands,
             "futures_live_execution_scope": _futures_live_execution_scope(),
             "futures_live_decision_evidence": live_decision_summary,
@@ -5725,6 +5744,191 @@ def _futures_request_field_detail(
         f"{command} has invalid backend-owned payload field {field}: "
         f"{validation_issue}."
     )
+
+
+def _futures_command_enablement_sequence_steps(
+    commands: Sequence[Mapping[str, Any]],
+    missing_contracts: list[str],
+    live_decision_summary: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    command_ids = [str(command["command"]) for command in commands]
+    rows = [
+        _futures_command_enablement_sequence_step(
+            step="resolve_prerequisite_contracts",
+            sequence=1,
+            command_ids=command_ids,
+            blocking=bool(missing_contracts),
+            source_blockers=["unresolved_prerequisites"] if missing_contracts else [],
+            required_backend_contracts=(
+                missing_contracts if missing_contracts else list(FUTURES_COMMAND_CONTRACTS)
+            ),
+            required_evidence_refs=[
+                "/api/v1/futures/account",
+                "/api/v1/futures/risk-proofs",
+                "/api/v1/admin/reconciliation/plans",
+            ],
+            detail=(
+                "Futures prerequisite contracts are still missing; commands remain draft-only."
+                if missing_contracts
+                else "Futures prerequisite contracts are resolved for draft review."
+            ),
+        ),
+        _futures_command_enablement_sequence_step(
+            step="define_request_payload_contract",
+            sequence=2,
+            command_ids=command_ids,
+            blocking=False,
+            source_blockers=[],
+            required_backend_contracts=["admin_futures_request_payload_contract"],
+            required_evidence_refs=[],
+            detail=(
+                "Backend-owned Futures request payload fields are declared and "
+                "validated before admission."
+            ),
+        ),
+        _futures_command_enablement_sequence_step(
+            step="register_admin_command_route",
+            sequence=3,
+            command_ids=command_ids,
+            blocking=False,
+            source_blockers=[],
+            required_backend_contracts=["admin_futures_command_route_registry"],
+            required_evidence_refs=[],
+            detail=(
+                "Backend Admin API routes are registered for Futures command drafts; "
+                "browser and BFF authority remain display/forward only."
+            ),
+        ),
+        _futures_command_enablement_sequence_step(
+            step="bind_live_service_adapter",
+            sequence=4,
+            command_ids=command_ids,
+            blocking=_futures_live_adapter_sequence_blocking(live_decision_summary),
+            source_blockers=(
+                ["live_service_adapter"]
+                if _futures_live_adapter_sequence_blocking(live_decision_summary)
+                else []
+            ),
+            required_backend_contracts=["futures_live_adapter_contract"],
+            required_evidence_refs=[
+                "/api/v1/admin/live-execution/service-decisions",
+                "/api/v1/admin/live-execution/adapter-decisions",
+            ],
+            detail=(
+                "Futures live-service and adapter evidence must remain backend-bound; "
+                "execution is still disabled for the local MVP."
+            ),
+        ),
+    ]
+    return [row for row in rows if row["step"] in FUTURES_COMMAND_ENABLEMENT_SEQUENCE_STEPS]
+
+
+def _futures_command_enablement_sequence_step(
+    *,
+    step: str,
+    sequence: int,
+    command_ids: list[str],
+    blocking: bool,
+    source_blockers: list[str],
+    required_backend_contracts: list[str],
+    required_evidence_refs: list[str],
+    detail: str,
+) -> dict[str, Any]:
+    return {
+        "step": step,
+        "sequence": sequence,
+        "status": (
+            AdminMvpGateStatus.BLOCKED.value
+            if blocking
+            else AdminMvpGateStatus.PASSED.value
+        ),
+        "blocking": blocking,
+        "command_count": len(command_ids),
+        "affected_commands": command_ids,
+        "source_blockers": source_blockers,
+        "required_backend_contracts": required_backend_contracts,
+        "required_evidence_refs": required_evidence_refs,
+        "required_evidence_ref_count": len(required_evidence_refs),
+        "command_route_registered": True,
+        "command_draft_allowed": True,
+        "execution_allowed": False,
+        "live_coinbase_orders_ran": False,
+        "backend_owned": True,
+        "read_only": True,
+        "spot_rule_authority": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "detail": detail,
+    }
+
+
+def _futures_command_enablement_sequence_traces(
+    commands: Sequence[Mapping[str, Any]],
+    sequence_steps: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    traces: list[dict[str, Any]] = []
+    for command_sequence, command in enumerate(commands, start=1):
+        command_id = str(command["command"])
+        for step in sequence_steps:
+            traces.append(
+                _futures_command_enablement_sequence_trace(
+                    command_id=command_id,
+                    command_sequence=command_sequence,
+                    step=step,
+                )
+            )
+    return traces
+
+
+def _futures_command_enablement_sequence_trace(
+    *,
+    command_id: str,
+    command_sequence: int,
+    step: Mapping[str, Any],
+) -> dict[str, Any]:
+    required_backend_contracts = [
+        str(contract) for contract in step.get("required_backend_contracts", [])
+    ]
+    required_evidence_refs = [
+        str(ref) for ref in step.get("required_evidence_refs", [])
+    ]
+    return {
+        "trace_id": f"{step['step']}::{command_id}",
+        "step": str(step["step"]),
+        "sequence": int(step["sequence"]),
+        "command": command_id,
+        "command_sequence": command_sequence,
+        "command_step_sequence": int(step["sequence"]),
+        "status": str(step["status"]),
+        "blocking": bool(step["blocking"]),
+        "source_blockers": list(step.get("source_blockers", [])),
+        "required_backend_contract": (
+            required_backend_contracts[0] if required_backend_contracts else None
+        ),
+        "required_evidence_refs": required_evidence_refs,
+        "required_evidence_ref_count": len(required_evidence_refs),
+        "command_route_registered": bool(step["command_route_registered"]),
+        "command_draft_allowed": bool(step["command_draft_allowed"]),
+        "execution_allowed": False,
+        "reconciliation_execution_allowed": False,
+        "futures_state_mutation_allowed": False,
+        "live_coinbase_orders_ran": False,
+        "backend_owned": True,
+        "read_only": True,
+        "spot_rule_authority": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "detail": (
+            f"{command_id} trace for {step['step']} remains read-only evidence; "
+            "no Coinbase request or local Futures state mutation is allowed."
+        ),
+    }
+
+
+def _futures_live_adapter_sequence_blocking(
+    live_decision_summary: Mapping[str, Any],
+) -> bool:
+    return str(live_decision_summary.get("first_blocker") or "execution_disabled") != "none"
 
 
 def _filter_futures_risk_proofs(
