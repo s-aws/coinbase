@@ -12146,6 +12146,7 @@ components:
       - stealth_orders
       - movement_repricing
       - futures_positions
+      - admin_api_futures_executor_boundary
       - guard_risk_policy
       - backend_contract
       - runtime_unavailable
@@ -12325,6 +12326,12 @@ components:
             type: object
           - type: 'null'
           title: Admission Decision
+        executor_decision:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Executor Decision
         live_coinbase_orders_ran:
           type: boolean
           title: Live Coinbase Orders Ran

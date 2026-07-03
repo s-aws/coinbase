@@ -1406,6 +1406,31 @@ def test_admin_futures_command_suite_binds_us_cfm_live_decisions_to_disabled_exe
     assert result.body["live_exchange_submitted"] is False
     assert result.body["live_coinbase_orders_ran"] is False
 
+    workbench = service.get_read_response(
+        "/api/v1/admin/audit-workbench",
+        {"module": "futures_perpetuals"},
+        context(),
+    )
+
+    assert workbench.status_code == 200
+    assert workbench.body["count"] == 1
+    assert workbench.body["pagination"]["total_matching_count"] == 1
+    assert workbench.body["module_summary"][0]["module"] == "futures_perpetuals"
+    event = workbench.body["events"][0]
+    assert event["event_id"] == result.body["executor_decision_id"]
+    assert event["module"] == "futures_perpetuals"
+    assert event["source"] == "admin_api_futures_executor_boundary"
+    assert event["endpoint"] == "/api/v1/futures/orders"
+    assert event["status"] == "rejected"
+    assert event["product_id"] == "BIP-20DEC30-CDE"
+    assert event["admission_decision"]["status"] == "blocked"
+    assert event["admission_decision"]["allowed"] is False
+    assert event["admission_decision"]["blockers"] == ["futures_executor_live_disabled"]
+    assert event["executor_decision"]["executor_status"] == "observed_live_disabled"
+    assert event["executor_decision"]["live_exchange_submitted"] is False
+    assert event["exchange_order_id_evidence_only"] is True
+    assert event["live_exchange_submitted"] is False
+
 
 def test_admin_futures_command_routes_are_registered_as_blocked_drafts():
     service = AdminMvpService(

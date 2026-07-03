@@ -3833,13 +3833,104 @@ class AdminMvpService:
     def _audit_workbench(self, query: Mapping[str, Any]) -> dict[str, Any]:
         limit = _query_int(query, "limit", 10)
         offset = _query_int(query, "offset", 0)
+        events = self._audit_workbench_events(query)
+        visible_events = events[offset : offset + limit]
         return {
             "type": "admin_audit_workbench",
-            "items": [],
-            "count": 0,
-            "pagination": _pagination(limit, 0, offset),
+            "filters": dict(query),
+            "items": visible_events,
+            "events": visible_events,
+            "module_summary": _audit_workbench_module_summary(events),
+            "count": len(visible_events),
+            "pagination": _page_pagination(
+                limit=limit,
+                returned_count=len(visible_events),
+                total_count=len(events),
+                offset=offset,
+            ),
+            "command_routes_mode": "evidence_only",
             "read_only": True,
             "live_coinbase_orders_ran": False,
+            "live_coinbase_read_ran": False,
+        }
+
+    def _audit_workbench_events(self, query: Mapping[str, Any]) -> list[dict[str, Any]]:
+        events = [
+            self._futures_executor_audit_event(record)
+            for record in self.store.futures_executor_decisions.values()
+        ]
+        return _filter_audit_workbench_events(events, query)
+
+    def _futures_executor_audit_event(
+        self,
+        record: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        identity_key = str(record.get("identity_key") or "")
+        identity_value = str(record.get("identity_value") or "")
+        position_key = identity_value if identity_key == "position_key" else None
+        product_id = identity_value if identity_key == "product_id" else None
+        client_order_id = identity_value if identity_key == "client_order_id" else None
+        status = AdminMvpCommandStatus.REJECTED.value
+        admission_decision = {
+            "decision_id": record.get("admission_decision_id"),
+            "status": AdminMvpGateStatus.BLOCKED.value,
+            "allowed": False,
+            "route": record.get("route"),
+            "method": record.get("method"),
+            "module_id": record.get("module_id"),
+            "identity_key": identity_key,
+            "identity_value": identity_value,
+            "action_class": record.get("action_class"),
+            "required_permission": record.get("required_permission"),
+            "service_method": record.get("service_method"),
+            "actor_id": record.get("actor_id"),
+            "idempotency_key": record.get("idempotency_key"),
+            "operator_intent": record.get("operator_intent"),
+            "payload_hash": record.get("payload_hash"),
+            "account_family": record.get("account_family"),
+            "intx_applicability": record.get("intx_applicability"),
+            "product_scope": record.get("product_scope"),
+            "risk_proof_id": record.get("risk_proof_id"),
+            "executor_boundary_status": record.get("executor_status"),
+            "executor_boundary_ready": record.get("executor_boundary_ready"),
+            "browser_authority": record.get("browser_authority"),
+            "bff_authority": record.get("bff_authority"),
+            "live_exchange_submitted": False,
+            "blockers": [record.get("failure_stage") or "futures_executor_live_disabled"],
+            "evidence": [record.get("source") or FUTURES_EXECUTOR_BOUNDARY_SOURCE],
+            "detail": record.get("detail"),
+        }
+        return {
+            "event_id": record.get("decision_id"),
+            "module": FUTURES_MODULE_ID,
+            "source": record.get("source") or FUTURES_EXECUTOR_BOUNDARY_SOURCE,
+            "action_class": record.get("action_class"),
+            "endpoint": record.get("route"),
+            "status": status,
+            "actor_id": record.get("actor_id"),
+            "permission": record.get("required_permission"),
+            "client_order_id": client_order_id,
+            "stealth_order_id": None,
+            "position_key": position_key,
+            "product_id": product_id or _first_text(record.get("product_scope")),
+            "correlation_id": record.get("correlation_id"),
+            "audit_id": record.get("audit_id"),
+            "request_id": record.get("correlation_id"),
+            "idempotency_key": record.get("idempotency_key"),
+            "exchange_order_id": None,
+            "exchange_order_id_evidence_only": True,
+            "live_exchange_submitted": False,
+            "live_command_runtime_enabled": False,
+            "live_command_rest_client_available": False,
+            "live_command_runtime_ready": False,
+            "live_command_runtime_missing_reason": record.get("failure_stage"),
+            "live_command_runtime_source": record.get("source"),
+            "recorded_at": record.get("recorded_at"),
+            "message": record.get("detail"),
+            "admission_decision": admission_decision,
+            "executor_decision": dict(record),
+            "live_coinbase_orders_ran": False,
+            "raw_event": dict(record),
         }
 
     def _capability_items(self) -> list[dict[str, Any]]:
@@ -5350,6 +5441,88 @@ def _pagination(limit: int, count: int, offset: int) -> dict[str, Any]:
         "next_offset": None,
         "has_more": False,
     }
+
+
+def _page_pagination(
+    *,
+    limit: int,
+    returned_count: int,
+    total_count: int,
+    offset: int,
+) -> dict[str, Any]:
+    next_offset = offset + returned_count
+    has_more = next_offset < total_count
+    return {
+        "limit": limit,
+        "offset": offset,
+        "returned_count": returned_count,
+        "total_matching_count": total_count,
+        "next_offset": next_offset if has_more else None,
+        "has_more": has_more,
+    }
+
+
+def _filter_audit_workbench_events(
+    events: list[dict[str, Any]],
+    query: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    filters = {
+        "module": _query_text(query, "module"),
+        "product_id": _query_text(query, "product_id"),
+        "position_key": _query_text(query, "position_key"),
+        "client_order_id": _query_text(query, "client_order_id"),
+        "correlation_id": _query_text(query, "correlation_id"),
+        "audit_id": _query_text(query, "audit_id"),
+    }
+    return [
+        event
+        for event in events
+        if all(
+            not expected or str(event.get(key) or "") == expected
+            for key, expected in filters.items()
+        )
+    ]
+
+
+def _audit_workbench_module_summary(
+    events: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    modules: dict[str, list[Mapping[str, Any]]] = {}
+    for event in events:
+        modules.setdefault(str(event.get("module") or "unknown"), []).append(event)
+    return [
+        {
+            "module": module,
+            "read_route_count": 1,
+            "command_route_count": len(
+                {str(event.get("endpoint") or "") for event in module_events}
+            ),
+            "live_enabled": False,
+            "primary_identity": (
+                "position_key/product_id/client_order_id"
+                if module == FUTURES_MODULE_ID
+                else "backend-defined"
+            ),
+            "evidence_sources": sorted(
+                {str(event.get("source") or "unknown") for event in module_events}
+            ),
+            "routes": sorted(
+                {str(event.get("endpoint") or "") for event in module_events}
+            ),
+            "notes": (
+                "Futures executor decisions are read-only audit evidence; live "
+                "Coinbase execution remains disabled."
+                if module == FUTURES_MODULE_ID
+                else "Backend audit evidence."
+            ),
+        }
+        for module, module_events in sorted(modules.items())
+    ]
+
+
+def _first_text(value: Any) -> str | None:
+    items = _string_list(value)
+    return items[0] if items else None
 
 
 def _normalize_path(path: str) -> str:
