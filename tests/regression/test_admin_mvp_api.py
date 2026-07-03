@@ -1029,6 +1029,101 @@ def test_admin_futures_perpetuals_read_contract_exposes_blocked_mvp_evidence():
     assert futures_module["action_posture"]["bff_authority"] == "forward_only_no_execution"
 
 
+def test_admin_futures_command_suite_resolves_account_and_risk_proof_evidence():
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
+    )
+
+    account = service.get_read_response("/api/v1/futures/account", {}, context())
+    assert account.status_code == 200
+    assert account.body["account_readiness"]["futures_account_scope_ready"] is True
+    assert account.body["account_readiness"]["futures_observed_position_scope_ready"] is True
+    assert account.body["account_readiness"]["futures_margin_collateral_ready"] is True
+    assert account.body["account_readiness"]["usable_for_futures_risk"] is True
+
+    risk_proofs = service.get_read_response("/api/v1/futures/risk-proofs", {}, context())
+    assert risk_proofs.status_code == 200
+    assert risk_proofs.body["type"] == "admin_futures_risk_proofs"
+    assert risk_proofs.body["status"] == "ready"
+    assert risk_proofs.body["count"] == 4
+    assert risk_proofs.body["proof_records_created"] is False
+    assert risk_proofs.body["proof_records_generated_from_account_snapshot"] is True
+    proof = risk_proofs.body["items"][0]
+    assert proof["futures_risk_proof_id"] == "futures-risk-proof-account-snapshot-futures-place"
+    assert proof["command"] == "futures_place"
+    assert proof["proof_kind"] == "margin_collateral"
+    assert proof["product_id"] == "BIP-20DEC30-CDE"
+    assert proof["risk_proof_verified"] is True
+    assert proof["risk_proof_accepted"] is False
+    assert proof["command_execution_allowed"] is False
+    assert proof["live_coinbase_orders_ran"] is False
+
+    detail = service.get_read_response(
+        "/api/v1/futures/risk-proofs/futures-risk-proof-account-snapshot-futures-place",
+        {},
+        context(),
+    )
+    assert detail.status_code == 200
+    assert detail.body["found"] is True
+    assert detail.body["record"]["futures_risk_proof_id"] == proof["futures_risk_proof_id"]
+    assert detail.body["proof_record_created"] is False
+    assert detail.body["live_coinbase_orders_ran"] is False
+
+    command_suite = service.get_read_response(
+        "/api/v1/futures/command-suite",
+        {},
+        context(),
+    )
+    assert command_suite.status_code == 200
+    suite = command_suite.body
+    assert suite["status"] == "evidence_ready"
+    assert suite["blocked_command_count"] == 4
+    assert suite["executable_command_count"] == 0
+    assert suite["command_draft_allowed_count"] == 4
+    assert suite["resolved_backend_contracts"] == [
+        "futures_account_scope_contract",
+        "futures_margin_collateral_risk_proof",
+        "futures_reconciliation_contract",
+        "futures_live_adapter_contract",
+    ]
+    assert suite["missing_backend_contracts"] == []
+    assert suite["command_enablement_blocker_summary_count"] == 1
+    assert suite["command_enablement_blocker_summaries"][0]["blocker"] == "execution_disabled"
+    assert suite["command_enablement_blocker_summaries"][0]["blocking"] is True
+    commands = {command["command"]: command for command in suite["commands"]}
+    assert commands["futures_place"]["missing_backend_contracts"] == []
+    assert commands["futures_place"]["readiness_decision"]["first_blocker"] == "execution_disabled"
+    assert commands["futures_place"]["readiness_decision"]["next_required_backend_contract"] is None
+    assert commands["futures_place"]["risk_proof_id"] == proof["futures_risk_proof_id"]
+    assert commands["futures_place"]["execution_allowed"] is False
+    assert suite["live_coinbase_orders_ran"] is False
+
+    recorded = service.record_futures_risk_proof(
+        {
+            "futures_risk_proof_id": "futures-risk-proof-operator-recorded",
+            "command": "futures_place",
+            "proof_kind": "margin_collateral",
+            "product_id": "BIP-20DEC30-CDE",
+            "risk_proof_verified": True,
+            "risk_proof_accepted": False,
+            "evidence_ref": proof["evidence_ref"],
+        },
+        context(idempotency_key="record-futures-risk-proof"),
+    )
+    assert recorded.status_code == 200
+    assert recorded.body["proof_record_created"] is True
+    assert recorded.body["live_coinbase_orders_ran"] is False
+
+    recorded_detail = service.get_read_response(
+        "/api/v1/futures/risk-proofs/futures-risk-proof-operator-recorded",
+        {},
+        context(),
+    )
+    assert recorded_detail.body["found"] is True
+    assert recorded_detail.body["proof_record_created"] is True
+    assert recorded_detail.body["record"]["command_execution_allowed"] is False
+
+
 def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=FakeRestClient(), rest_client_available=True)
@@ -1089,6 +1184,7 @@ def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
     assert command_permissions["/api/v1/admin/admission-audits"] == "admission_audit:record"
     assert command_permissions["/api/v1/admin/cap-guard/decisions"] == "cap_guard:record"
     assert command_permissions["/api/v1/admin/reconciliation/plans"] == "reconciliation:record"
+    assert command_permissions["/api/v1/futures/risk-proofs"] == "futures_risk_proof:record"
     assert (
         command_permissions["/api/v1/admin/live-execution/adapter-decisions"]
         == "config:update"

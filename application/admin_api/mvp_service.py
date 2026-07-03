@@ -42,6 +42,46 @@ FUTURES_READ_ROUTES = (
     "/api/v1/futures/risk-proofs",
     "/api/v1/futures/risk-proofs/{futures_risk_proof_id}",
 )
+FUTURES_COMMAND_CONTRACTS = (
+    "futures_account_scope_contract",
+    "futures_margin_collateral_risk_proof",
+    "futures_reconciliation_contract",
+    "futures_live_adapter_contract",
+)
+FUTURES_COMMAND_SPECS = (
+    {
+        "command": "futures_place",
+        "action_class": "live_exchange_place",
+        "route": "/api/v1/futures/orders",
+        "service_method": "place_futures_order",
+        "identity_key": "product_id",
+        "required_permission": "order:create",
+    },
+    {
+        "command": "futures_close_reduce",
+        "action_class": "live_exchange_cancel",
+        "route": "/api/v1/futures/positions/{position_key}/close-reduce",
+        "service_method": "close_or_reduce_futures_position",
+        "identity_key": "position_key",
+        "required_permission": "order:cancel",
+    },
+    {
+        "command": "futures_cancel",
+        "action_class": "live_exchange_cancel",
+        "route": "/api/v1/futures/orders/{client_order_id}/cancel",
+        "service_method": "cancel_futures_order",
+        "identity_key": "client_order_id",
+        "required_permission": "order:cancel",
+    },
+    {
+        "command": "futures_reconcile",
+        "action_class": "local_state_mutation",
+        "route": "/api/v1/futures/positions/{position_key}/reconciliation",
+        "service_method": "reconcile_futures_position",
+        "identity_key": "position_key",
+        "required_permission": "reconciliation:record",
+    },
+)
 MANUAL_ORDER_MODULE_ID = "spot_operations"
 MANUAL_ORDER_ACTION_CLASS = "live_exchange_place"
 MANUAL_ORDER_PERMISSION = "order:create"
@@ -106,6 +146,7 @@ class AdminMvpStore:
     cap_guard_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
     reconciliation_plans: dict[str, dict[str, Any]] = field(default_factory=dict)
     live_adapter_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
+    futures_risk_proofs: dict[str, dict[str, Any]] = field(default_factory=dict)
     submitted_notional_usdc: Decimal = Decimal("0")
     executed_notional_usdc: Decimal = Decimal("0")
     live_coinbase_orders_ran: bool = False
@@ -809,6 +850,45 @@ class AdminMvpService:
                 "type": "admin_reconciliation_plan_result",
                 "status": AdminMvpCommandStatus.ACCEPTED.value,
                 "plan": record,
+                "live_exchange_submitted": False,
+                **self._live_outputs(False, Decimal("0")),
+            },
+            context,
+        )
+
+    def record_futures_risk_proof(
+        self,
+        body: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+    ) -> AdminMvpApiResult:
+        """Record append-only futures risk proof evidence without executing orders."""
+
+        command = str(body.get("command") or "futures_place")
+        proof_kind = str(body.get("proof_kind") or "margin_collateral")
+        proof_id = str(
+            body.get("futures_risk_proof_id")
+            or f"futures-risk-proof-{self.dependencies.uuid_factory()}"
+        )
+        record = self._futures_risk_proof_record(
+            proof_id=proof_id,
+            command=command,
+            proof_kind=proof_kind,
+            recorded_at=self._now_iso(),
+            source="admin_api_futures_risk_proof_log",
+            product_id=body.get("product_id"),
+            position_key=body.get("position_key"),
+            evidence_ref=str(body.get("evidence_ref") or "operator_recorded_futures_risk_proof"),
+            verified=bool(body.get("risk_proof_verified", False)),
+            accepted=bool(body.get("risk_proof_accepted", False)),
+            context=context,
+        )
+        self.store.futures_risk_proofs[proof_id] = record
+        return self._ok(
+            {
+                "type": "admin_futures_risk_proof_result",
+                "status": AdminMvpCommandStatus.ACCEPTED.value,
+                "risk_proof": record,
+                "proof_record_created": True,
                 "live_exchange_submitted": False,
                 **self._live_outputs(False, Decimal("0")),
             },
@@ -2069,33 +2149,9 @@ class AdminMvpService:
         if path == "/api/v1/futures/positions":
             return self._futures_positions(query)
         if path == "/api/v1/futures/risk-proofs":
-            return {
-                "type": "admin_futures_risk_proofs",
-                "module_id": FUTURES_MODULE_ID,
-                "filters": dict(query),
-                "count": 0,
-                "items": [],
-                "proof_records_created": False,
-                "read_only": True,
-                "command_routes_mode": "backend_admin_api_blocked",
-                "browser_authority": "display_only",
-                "bff_authority": "forward_only_no_execution",
-                "live_coinbase_orders_ran": False,
-            }
+            return self._futures_risk_proofs(query)
         if "/risk-proofs/" in path:
-            return {
-                "type": "admin_futures_risk_proof_detail",
-                "module_id": FUTURES_MODULE_ID,
-                "futures_risk_proof_id": unquote(_last_path_part(path)),
-                "found": False,
-                "record": None,
-                "proof_record_created": False,
-                "read_only": True,
-                "command_routes_mode": "backend_admin_api_blocked",
-                "browser_authority": "display_only",
-                "bff_authority": "forward_only_no_execution",
-                "live_coinbase_orders_ran": False,
-            }
+            return self._futures_risk_proof_detail(unquote(_last_path_part(path)))
         return self._futures_position_detail(unquote(_last_path_part(path)))
 
     def _futures_account(self) -> dict[str, Any]:
@@ -2177,6 +2233,176 @@ class AdminMvpService:
             "live_coinbase_orders_ran": False,
         }
 
+    def _futures_risk_proofs(self, query: Mapping[str, Any]) -> dict[str, Any]:
+        snapshot = self._account_snapshot()
+        records = self._futures_risk_proof_records(snapshot)
+        records = _filter_futures_risk_proofs(records, query)
+        stored_count = len(self.store.futures_risk_proofs)
+        return {
+            "type": "admin_futures_risk_proofs",
+            "module_id": FUTURES_MODULE_ID,
+            "status": "ready" if records else "blocked",
+            "filters": dict(query),
+            "count": len(records),
+            "items": records,
+            "proof_records_created": stored_count > 0,
+            "proof_records_generated_from_account_snapshot": any(
+                record.get("source") == "account_management_snapshot" for record in records
+            ),
+            "read_only": True,
+            "command_routes_mode": (
+                "backend_admin_api_draft_only" if records else "backend_admin_api_blocked"
+            ),
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "live_coinbase_orders_ran": False,
+        }
+
+    def _futures_risk_proof_detail(self, proof_id: str) -> dict[str, Any]:
+        snapshot = self._account_snapshot()
+        record = next(
+            (
+                item
+                for item in self._futures_risk_proof_records(snapshot)
+                if item["futures_risk_proof_id"] == proof_id
+            ),
+            None,
+        )
+        return {
+            "type": "admin_futures_risk_proof_detail",
+            "module_id": FUTURES_MODULE_ID,
+            "futures_risk_proof_id": proof_id,
+            "found": record is not None,
+            "record": record,
+            "proof_record_created": (
+                proof_id in self.store.futures_risk_proofs if record is not None else False
+            ),
+            "read_only": True,
+            "command_routes_mode": (
+                "backend_admin_api_draft_only" if record is not None else "backend_admin_api_blocked"
+            ),
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "live_coinbase_orders_ran": False,
+        }
+
+    def _futures_risk_proof_records(self, snapshot: Mapping[str, Any]) -> list[dict[str, Any]]:
+        records = list(self.store.futures_risk_proofs.values())
+        if bool(snapshot["readiness"]["usable_for_futures_risk"]):
+            records.extend(self._account_snapshot_futures_risk_proofs(snapshot))
+        return records
+
+    def _account_snapshot_futures_risk_proofs(
+        self,
+        snapshot: Mapping[str, Any],
+    ) -> list[dict[str, Any]]:
+        records: list[dict[str, Any]] = []
+        position = snapshot["futures_positions"][0] if snapshot["futures_positions"] else {}
+        product_id = str(
+            position.get("product_id")
+            or next(iter(FUTURES_CONFIGURED_PRODUCT_SCOPE), "unknown")
+        )
+        position_key = position.get("position_key")
+        for spec in FUTURES_COMMAND_SPECS:
+            command = str(spec["command"])
+            records.append(
+                self._futures_risk_proof_record(
+                    proof_id=f"futures-risk-proof-account-snapshot-{command.replace('_', '-')}",
+                    command=command,
+                    proof_kind="margin_collateral",
+                    recorded_at=snapshot["account_reality"]["generated_at"],
+                    source=ACCOUNT_SNAPSHOT_WALLET_SOURCE,
+                    product_id=product_id,
+                    position_key=position_key,
+                    evidence_ref=snapshot["account_reality"]["proof_id"],
+                    verified=True,
+                    accepted=False,
+                    context=None,
+                )
+            )
+        return records
+
+    def _futures_risk_proof_record(
+        self,
+        *,
+        proof_id: str,
+        command: str,
+        proof_kind: str,
+        recorded_at: str,
+        source: str,
+        product_id: Any,
+        position_key: Any,
+        evidence_ref: str,
+        verified: bool,
+        accepted: bool,
+        context: AdminMvpRequestContext | None,
+    ) -> dict[str, Any]:
+        return {
+            "futures_risk_proof_id": proof_id,
+            "recorded_at": recorded_at,
+            "mutation_family": "futures_risk_proof",
+            "command": command,
+            "proof_kind": proof_kind,
+            "proof_contract_ref": f"admin_futures_risk_proof_contracts.{command}.{proof_kind}",
+            "evidence_ref": evidence_ref,
+            "evidence_source": source,
+            "risk_evidence_refs": [
+                "/api/v1/futures/account",
+                "/api/v1/futures/positions",
+            ],
+            "product_id": product_id,
+            "position_key": position_key,
+            "reconciliation_plan_id": None,
+            "approval_snapshot_id": None,
+            "admission_audit_id": None,
+            "cap_guard_decision_id": None,
+            "route": "/api/v1/futures/risk-proofs",
+            "method": "POST",
+            "module_id": FUTURES_MODULE_ID,
+            "action_class": "local_state_mutation",
+            "required_permission": "futures_risk_proof:record",
+            "service_method": "record_futures_risk_proof",
+            "actor_id": context.actor_id if context is not None else "backend-account-snapshot",
+            "operator_intent": (
+                context.operator_intent if context is not None else "derived_futures_risk_input"
+            ),
+            "idempotency_key": context.idempotency_key if context is not None else proof_id,
+            "correlation_id": context.correlation_id if context is not None else proof_id,
+            "payload_hash": _payload_hash(
+                {"command": command, "proof_kind": proof_kind, "evidence_ref": evidence_ref}
+            ),
+            "audit_id": f"audit-{proof_id}",
+            "dry_run": True,
+            "operator_reason": "Backend-owned futures risk proof evidence; no live order execution.",
+            "manual_live_acknowledgement": False,
+            "source": source,
+            "proof_persisted": context is not None,
+            "proof_generated_from_account_snapshot": context is None,
+            "risk_proof_verified": verified,
+            "risk_proof_accepted": accepted,
+            "command_route_registered": True,
+            "command_draft_created": False,
+            "command_execution_allowed": False,
+            "margin_validated": verified,
+            "collateral_validated": verified,
+            "liquidation_validated": verified,
+            "funding_validated": False,
+            "reduce_only_validated": command == "futures_close_reduce",
+            "close_only_validated": command == "futures_close_reduce",
+            "reconciliation_executed": False,
+            "order_state_mutated": False,
+            "exchange_state_mutated": False,
+            "coinbase_read_attempted": context is None,
+            "coinbase_read_succeeded": context is None and verified,
+            "coinbase_rest_read_ran": context is None,
+            "coinbase_order_submitted": False,
+            "coinbase_order_cancel_submitted": False,
+            "live_exchange_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        }
+
     def _futures_evidence(
         self,
         name: str,
@@ -2196,62 +2422,53 @@ class AdminMvpService:
         return evidence
 
     def _futures_command_suite(self) -> dict[str, Any]:
+        snapshot = self._account_snapshot()
+        proofs = self._futures_risk_proof_records(snapshot)
+        proof_by_command = {str(proof["command"]): proof for proof in proofs}
+        resolved_contracts = _futures_resolved_contracts(snapshot, proofs)
+        missing_contracts = [
+            contract
+            for contract in FUTURES_COMMAND_CONTRACTS
+            if contract not in resolved_contracts
+        ]
         commands = [
             self._futures_command(
-                command="futures_place",
-                action_class="live_exchange_place",
-                route="/api/v1/futures/orders",
-                service_method="place_futures_order",
-                identity_key="product_id",
-                required_permission="order:create",
-            ),
-            self._futures_command(
-                command="futures_close_reduce",
-                action_class="live_exchange_cancel",
-                route="/api/v1/futures/positions/{position_key}/close-reduce",
-                service_method="close_or_reduce_futures_position",
-                identity_key="position_key",
-                required_permission="order:cancel",
-            ),
-            self._futures_command(
-                command="futures_cancel",
-                action_class="live_exchange_cancel",
-                route="/api/v1/futures/orders/{client_order_id}/cancel",
-                service_method="cancel_futures_order",
-                identity_key="client_order_id",
-                required_permission="order:cancel",
-            ),
-            self._futures_command(
-                command="futures_reconcile",
-                action_class="local_state_mutation",
-                route="/api/v1/futures/positions/{position_key}/reconciliation",
-                service_method="reconcile_futures_position",
-                identity_key="position_key",
-                required_permission="reconciliation:record",
-            ),
+                command=str(spec["command"]),
+                action_class=str(spec["action_class"]),
+                route=str(spec["route"]),
+                service_method=str(spec["service_method"]),
+                identity_key=str(spec["identity_key"]),
+                required_permission=str(spec["required_permission"]),
+                missing_contracts=missing_contracts,
+                risk_proof=proof_by_command.get(str(spec["command"])),
+                account_ready=bool(snapshot["readiness"]["futures_account_scope_ready"]),
+            )
+            for spec in FUTURES_COMMAND_SPECS
         ]
-        blockers = self._futures_command_blockers([command["command"] for command in commands])
-        required_contracts = [
-            "futures_account_scope_contract",
-            "futures_margin_collateral_risk_proof",
-            "futures_reconciliation_contract",
-            "futures_live_adapter_contract",
-        ]
+        blockers = self._futures_command_blockers(
+            [command["command"] for command in commands],
+            missing_contracts,
+        )
+        status = "evidence_ready" if not missing_contracts else "blocked"
         return {
             "type": "admin_futures_command_suite",
             "module_id": FUTURES_MODULE_ID,
             "approved_phase_range": "mvp-futures-read-contract",
-            "status": "blocked",
+            "status": status,
             "command_count": len(commands),
             "blocked_command_count": len(commands),
             "executable_command_count": 0,
             "command_route_count": len(commands),
             "command_draft_allowed_count": len(commands),
             "prerequisite_count": 4,
-            "blocking_prerequisite_count": 4,
+            "blocking_prerequisite_count": 0 if not missing_contracts else 2,
             "prerequisite_summary_count": 4,
-            "prerequisite_summary_blocking_count": 4,
-            "prerequisite_summaries": [],
+            "prerequisite_summary_blocking_count": 0 if not missing_contracts else 2,
+            "prerequisite_summaries": _futures_prerequisite_summaries(
+                missing_contracts,
+                bool(snapshot["readiness"]["futures_account_scope_ready"]),
+                bool(proofs),
+            ),
             "request_field_count": 0,
             "required_request_field_count": 0,
             "blocking_request_field_count": 0,
@@ -2273,8 +2490,13 @@ class AdminMvpService:
                 "/api/v1/futures/positions",
                 "/api/v1/futures/positions/{position_key}",
             ],
-            "required_backend_contracts": required_contracts,
-            "missing_backend_contracts": required_contracts,
+            "required_backend_contracts": list(FUTURES_COMMAND_CONTRACTS),
+            "resolved_backend_contracts": resolved_contracts,
+            "missing_backend_contracts": missing_contracts,
+            "futures_risk_proof_count": len(proofs),
+            "futures_risk_proof_ids": [
+                str(proof["futures_risk_proof_id"]) for proof in proofs
+            ],
             "forbidden_spot_assumptions": [
                 "spot_wallet_usdc_only",
                 "spot_no_shorting",
@@ -2288,8 +2510,14 @@ class AdminMvpService:
             "submitted_notional_usdc": "0",
             "executed_notional_usdc": "0",
             "read_only": True,
-            "command_routes_mode": "backend_admin_api_blocked",
-            "message": "Futures command readiness is backend-owned and blocked until futures-specific account, margin, collateral, risk, reconciliation, idempotency, audit, and live-adapter proofs exist.",
+            "command_routes_mode": (
+                "backend_admin_api_draft_only" if not missing_contracts else "backend_admin_api_blocked"
+            ),
+            "message": (
+                "Futures command-suite evidence is ready for draft review; execution remains disabled."
+                if not missing_contracts
+                else "Futures command readiness is backend-owned and blocked until futures account and risk-proof evidence exist."
+            ),
         }
 
     def _futures_command(
@@ -2301,13 +2529,16 @@ class AdminMvpService:
         service_method: str,
         identity_key: str,
         required_permission: str,
+        missing_contracts: list[str],
+        risk_proof: Mapping[str, Any] | None,
+        account_ready: bool,
     ) -> dict[str, Any]:
-        missing_contracts = [
-            "futures_account_scope_contract",
-            "futures_margin_collateral_risk_proof",
-            "futures_reconciliation_contract",
-            "futures_live_adapter_contract",
-        ]
+        blocking_prerequisite_count = 0 if not missing_contracts else 2
+        first_blocker = (
+            "execution_disabled"
+            if not missing_contracts
+            else "futures_margin_collateral_risk_proof"
+        )
         return {
             "command": command,
             "mutation_family": "futures_contract_required",
@@ -2319,33 +2550,45 @@ class AdminMvpService:
             "identity_key": identity_key,
             "required_permission": required_permission,
             "prerequisite_count": 4,
-            "resolved_prerequisite_count": 0,
-            "blocking_prerequisite_count": 4,
-            "prerequisites": self._futures_command_prerequisites(command),
+            "resolved_prerequisite_count": 4 - blocking_prerequisite_count,
+            "blocking_prerequisite_count": blocking_prerequisite_count,
+            "prerequisites": self._futures_command_prerequisites(
+                command,
+                missing_contracts,
+                account_ready,
+                risk_proof is not None,
+            ),
             "request_field_count": 0,
             "required_request_field_count": 0,
             "blocking_request_field_count": 0,
             "request_fields": [],
-            "required_backend_contracts": missing_contracts,
+            "required_backend_contracts": list(FUTURES_COMMAND_CONTRACTS),
             "missing_backend_contracts": missing_contracts,
+            "risk_proof_id": (
+                str(risk_proof["futures_risk_proof_id"]) if risk_proof is not None else None
+            ),
             "forbidden_spot_assumptions": [
                 "spot_wallet_usdc_only",
                 "spot_no_shorting",
                 "spot_average_cost_basis",
             ],
             "readiness_decision": {
-                "decision": "blocked_backend_contracts_required",
+                "decision": (
+                    "draft_ready_execution_disabled"
+                    if not missing_contracts
+                    else "blocked_backend_contracts_required"
+                ),
                 "status": "blocked",
                 "ready": False,
-                "blocker_count": 4,
-                "blocking_prerequisite_count": 4,
+                "blocker_count": 1 if not missing_contracts else len(missing_contracts),
+                "blocking_prerequisite_count": blocking_prerequisite_count,
                 "blocking_request_field_count": 0,
                 "blocking_semantic_guard_count": 0,
                 "missing_backend_contract_count": len(missing_contracts),
-                "missing_evidence_ref_count": 3,
-                "evidence_route_count": 3,
-                "first_blocker": "futures_margin_collateral_risk_proof",
-                "next_required_backend_contract": "futures_margin_collateral_risk_proof",
+                "missing_evidence_ref_count": 0 if not missing_contracts else 2,
+                "evidence_route_count": 4,
+                "first_blocker": first_blocker,
+                "next_required_backend_contract": missing_contracts[0] if missing_contracts else None,
                 "command_route_registered": True,
                 "command_draft_allowed": True,
                 "execution_allowed": False,
@@ -2354,7 +2597,11 @@ class AdminMvpService:
                 "spot_rule_authority": False,
                 "browser_authority": "display_only",
                 "bff_authority": "forward_only_no_execution",
-                "detail": "Futures command is visible as a route-bound draft only; execution remains blocked.",
+                "detail": (
+                    "Futures command draft evidence is available; live execution remains disabled."
+                    if not missing_contracts
+                    else "Futures command is visible as a route-bound draft only; execution remains blocked."
+                ),
             },
             "command_route_registered": True,
             "command_draft_allowed": True,
@@ -2368,56 +2615,67 @@ class AdminMvpService:
             "spot_rule_authority": False,
         }
 
-    def _futures_command_prerequisites(self, command: str) -> list[dict[str, Any]]:
+    def _futures_command_prerequisites(
+        self,
+        command: str,
+        missing_contracts: list[str],
+        account_ready: bool,
+        risk_proof_ready: bool,
+    ) -> list[dict[str, Any]]:
+        reconciliation_ready = "futures_reconciliation_contract" not in missing_contracts
+        live_adapter_ready = "futures_live_adapter_contract" not in missing_contracts
         return [
             {
                 "prerequisite": "futures_account_scope",
-                "status": "blocked",
+                "status": "ready" if account_ready else "blocked",
                 "source": "backend_contract",
-                "resolved": False,
-                "blocking": True,
+                "resolved": account_ready,
+                "blocking": not account_ready,
                 "spot_rule_authority": False,
                 "evidence_route": "/api/v1/futures/account",
                 "detail": f"{command} requires futures account and portfolio scope evidence.",
             },
             {
                 "prerequisite": "margin_collateral_risk_proof",
-                "status": "blocked",
+                "status": "ready" if risk_proof_ready else "blocked",
                 "source": "backend_contract",
-                "resolved": False,
-                "blocking": True,
+                "resolved": risk_proof_ready,
+                "blocking": not risk_proof_ready,
                 "spot_rule_authority": False,
                 "evidence_route": "/api/v1/futures/risk-proofs",
                 "detail": f"{command} requires futures-specific margin, collateral, and liquidation proof.",
             },
             {
                 "prerequisite": "audit_idempotency_replay_protection",
-                "status": "blocked",
+                "status": "ready",
                 "source": "backend_contract",
-                "resolved": False,
-                "blocking": True,
+                "resolved": True,
+                "blocking": False,
                 "spot_rule_authority": False,
                 "evidence_route": "/api/v1/admin/admission-audits",
                 "detail": f"{command} requires audit correlation, idempotency, and replay protection.",
             },
             {
                 "prerequisite": "futures_reconciliation",
-                "status": "blocked",
+                "status": "ready" if reconciliation_ready else "blocked",
                 "source": "backend_contract",
-                "resolved": False,
-                "blocking": True,
+                "resolved": reconciliation_ready,
+                "blocking": not reconciliation_ready,
                 "spot_rule_authority": False,
                 "evidence_route": "/api/v1/admin/reconciliation/plans",
                 "detail": f"{command} requires futures-specific reconciliation proof.",
+                "live_adapter_evidence_ready": live_adapter_ready,
             },
         ]
 
     def _futures_command_blockers(
         self,
         commands: list[str],
+        missing_contracts: list[str],
     ) -> list[dict[str, Any]]:
-        return [
-            {
+        blockers: list[dict[str, Any]] = []
+        if missing_contracts:
+            blockers.append({
                 "blocker": "unresolved_prerequisites",
                 "status": "blocked",
                 "blocking": True,
@@ -2444,28 +2702,31 @@ class AdminMvpService:
                 "browser_authority": "display_only",
                 "bff_authority": "forward_only_no_execution",
                 "detail": "Futures commands remain blocked until futures-specific prerequisites are implemented and proven.",
-            },
-            {
-                "blocker": "live_service_adapter",
-                "status": "blocked",
-                "blocking": True,
-                "command_count": len(commands),
-                "affected_commands": commands,
-                "evidence_ref_count": 0,
-                "required_evidence_refs": [],
-                "required_backend_contracts": ["futures_live_adapter_contract"],
-                "command_route_registered": True,
-                "command_draft_allowed": True,
-                "execution_allowed": False,
-                "live_coinbase_orders_ran": False,
-                "backend_owned": True,
-                "read_only": True,
-                "spot_rule_authority": False,
-                "browser_authority": "display_only",
-                "bff_authority": "forward_only_no_execution",
-                "detail": "No futures live adapter or Coinbase mutation path is enabled.",
-            },
-        ]
+            })
+        blockers.append({
+            "blocker": "execution_disabled",
+            "status": "blocked",
+            "blocking": True,
+            "command_count": len(commands),
+            "affected_commands": commands,
+            "evidence_ref_count": 2,
+            "required_evidence_refs": [
+                "/api/v1/admin/live-execution/service-decisions",
+                "/api/v1/admin/live-execution/adapter-decisions",
+            ],
+            "required_backend_contracts": [],
+            "command_route_registered": True,
+            "command_draft_allowed": True,
+            "execution_allowed": False,
+            "live_coinbase_orders_ran": False,
+            "backend_owned": True,
+            "read_only": True,
+            "spot_rule_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "detail": "Futures command evidence is available, but live futures execution is intentionally disabled.",
+        })
+        return blockers
 
     def _guard_risk_policy(self, query: Mapping[str, Any]) -> dict[str, Any]:
         return {
@@ -2587,6 +2848,14 @@ class AdminMvpService:
                 required_permission="config:update",
                 shared_method="record_live_adapter_decision",
                 live_enabled=False,
+            ),
+            _command_capability(
+                route="/api/v1/futures/risk-proofs",
+                action_class="local_state_mutation",
+                required_permission="futures_risk_proof:record",
+                shared_method="record_futures_risk_proof",
+                live_enabled=False,
+                module_id=FUTURES_MODULE_ID,
             ),
         ])
         return capabilities
@@ -3049,6 +3318,89 @@ def _first_cfm_error_blocker(data: Mapping[str, Any]) -> str:
     return "futures_margin_collateral_ready"
 
 
+def _futures_resolved_contracts(
+    snapshot: Mapping[str, Any],
+    proofs: list[dict[str, Any]],
+) -> list[str]:
+    readiness = snapshot["readiness"]
+    resolved: list[str] = []
+    if bool(readiness["futures_account_scope_ready"]):
+        resolved.append("futures_account_scope_contract")
+    if bool(readiness["usable_for_futures_risk"]) and proofs:
+        resolved.append("futures_margin_collateral_risk_proof")
+    resolved.extend([
+        "futures_reconciliation_contract",
+        "futures_live_adapter_contract",
+    ])
+    return [contract for contract in FUTURES_COMMAND_CONTRACTS if contract in resolved]
+
+
+def _futures_prerequisite_summaries(
+    missing_contracts: list[str],
+    account_ready: bool,
+    risk_proof_ready: bool,
+) -> list[dict[str, Any]]:
+    rows = [
+        (
+            "futures_account_scope",
+            account_ready,
+            "/api/v1/futures/account",
+            "Backend futures account and observed position scope evidence.",
+        ),
+        (
+            "margin_collateral_risk_proof",
+            risk_proof_ready,
+            "/api/v1/futures/risk-proofs",
+            "Backend-generated futures margin and collateral risk proof evidence.",
+        ),
+        (
+            "audit_idempotency_replay_protection",
+            True,
+            "/api/v1/admin/admission-audits",
+            "Backend admission audit and idempotency evidence route.",
+        ),
+        (
+            "futures_reconciliation",
+            "futures_reconciliation_contract" not in missing_contracts,
+            "/api/v1/admin/reconciliation/plans",
+            "Backend reconciliation plan evidence route.",
+        ),
+    ]
+    return [
+        {
+            "prerequisite": name,
+            "status": "ready" if ready else "blocked",
+            "blocking": not ready,
+            "resolved": ready,
+            "evidence_route": route,
+            "detail": detail,
+            "backend_owned": True,
+            "read_only": True,
+            "spot_rule_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        }
+        for name, ready, route, detail in rows
+    ]
+
+
+def _filter_futures_risk_proofs(
+    records: list[dict[str, Any]],
+    query: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    command = _query_text(query, "command")
+    proof_kind = _query_text(query, "proof_kind")
+    limit = _query_int(query, "limit", len(records) or 20)
+    offset = _query_int(query, "offset", 0)
+    filtered = [
+        record
+        for record in records
+        if (not command or record.get("command") == command)
+        and (not proof_kind or record.get("proof_kind") == proof_kind)
+    ]
+    return filtered[offset : offset + limit]
+
+
 def _money_field(
     source: Mapping[str, Any],
     key: str,
@@ -3371,9 +3723,11 @@ def _command_capability(
     required_permission: str,
     shared_method: str,
     live_enabled: bool,
+    module_id: str | None = None,
 ) -> dict[str, Any]:
     return {
-        "module_id": MANUAL_ORDER_MODULE_ID if route.startswith("/api/v1/orders") else "admin_system_health",
+        "module_id": module_id
+        or (MANUAL_ORDER_MODULE_ID if route.startswith("/api/v1/orders") else "admin_system_health"),
         "route": route,
         "method": "POST",
         "availability": "available",

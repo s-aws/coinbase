@@ -209,6 +209,8 @@ class AdminMvpRequestHandler(BaseHTTPRequestHandler):
             result = service.record_cap_guard_decision(body, context)
         elif path == "/api/v1/admin/reconciliation/plans":
             result = service.record_reconciliation_plan(body, context)
+        elif path == "/api/v1/futures/risk-proofs":
+            result = service.record_futures_risk_proof(body, context)
         else:
             result = service._error(404, f"Admin MVP mutation route not found: {path}", context)
         write_json(self, result)
