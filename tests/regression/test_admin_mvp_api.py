@@ -2004,6 +2004,32 @@ def test_admin_mvp_explicit_live_execution_flows_through_backend_service_only():
     assert command_suite.body["live_coinbase_orders_ran"] is True
     assert command_suite.body["submitted_notional_usdc"] == "1.00"
 
+    workbench = service.get_read_response(
+        "/api/v1/admin/audit-workbench",
+        {"module": "spot", "client_order_id": admission["identity_value"]},
+        context(),
+    )
+    assert workbench.status_code == 200
+    assert workbench.body["count"] == 2
+    assert workbench.body["pagination"]["total_matching_count"] == 2
+    assert workbench.body["module_summary"][0]["module"] == "spot"
+    assert workbench.body["module_summary"][0]["live_enabled"] is True
+    assert workbench.body["live_coinbase_orders_ran"] is True
+    accepted_event = next(
+        event for event in workbench.body["events"] if event["status"] == "accepted"
+    )
+    assert accepted_event["module"] == "spot"
+    assert accepted_event["source"] == "admin_api_audit_log"
+    assert accepted_event["endpoint"] == "/api/v1/orders"
+    assert accepted_event["client_order_id"] == admission["identity_value"]
+    assert accepted_event["product_id"] == "BTC-USDC"
+    assert accepted_event["exchange_order_id"] == "exchange-order-live-1"
+    assert accepted_event["exchange_order_id_evidence_only"] is True
+    assert accepted_event["live_exchange_submitted"] is True
+    assert accepted_event["live_coinbase_orders_ran"] is True
+    assert accepted_event["admission_decision"]["status"] == "passed"
+    assert accepted_event["admission_decision"]["allowed"] is True
+
 
 def test_admin_mvp_live_execution_rejects_unsuccessful_coinbase_create_order_response():
     rest_client = FakeRestClient(

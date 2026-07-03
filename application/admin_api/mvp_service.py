@@ -189,6 +189,7 @@ class AdminMvpStore:
     cap_guard_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
     reconciliation_plans: dict[str, dict[str, Any]] = field(default_factory=dict)
     live_adapter_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
+    spot_command_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
     futures_risk_proofs: dict[str, dict[str, Any]] = field(default_factory=dict)
     futures_executor_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
     submitted_notional_usdc: Decimal = Decimal("0")
@@ -1733,6 +1734,20 @@ class AdminMvpService:
         order_id = _coinbase_order_id_from_create_order_result(result_data)
         self.store.submitted_notional_usdc += notional
         self.store.live_coinbase_orders_ran = True
+        runtime_evidence = self._runtime_evidence()
+        command_record = self._record_spot_command_decision(
+            status=AdminMvpCommandStatus.ACCEPTED.value,
+            message="Manual order submitted to Coinbase by backend Admin API.",
+            client_order_id=client_order_id,
+            product_id=str(body.get("product_id") or ""),
+            notional=notional,
+            admission=admission,
+            context=context,
+            live_exchange_submitted=True,
+            coinbase_order_id=order_id or None,
+            failure_stage=None,
+            runtime_evidence=runtime_evidence,
+        )
         response = {
             "type": "admin_api_command_result",
             "status": AdminMvpCommandStatus.ACCEPTED.value,
@@ -1747,8 +1762,9 @@ class AdminMvpService:
             "admission_decision": admission,
             "live_exchange_submitted": True,
             "paired_sell_required": False,
-            "submission_event_recorded": False,
-            **self._runtime_evidence(),
+            "submission_event_recorded": True,
+            "submission_event_id": command_record["decision_id"],
+            **runtime_evidence,
             **self._live_outputs(True, notional),
         }
         return self._result(200, response, context, live_execution_enabled=True)
@@ -1765,6 +1781,20 @@ class AdminMvpService:
         admission: Mapping[str, Any],
         context: AdminMvpRequestContext,
     ) -> AdminMvpApiResult:
+        runtime_evidence = self._runtime_evidence()
+        self._record_spot_command_decision(
+            status=command_status.value,
+            message=message,
+            client_order_id=client_order_id,
+            product_id=str(admission.get("product_id") or ""),
+            notional=notional,
+            admission=admission,
+            context=context,
+            live_exchange_submitted=False,
+            coinbase_order_id=None,
+            failure_stage=failure_stage,
+            runtime_evidence=runtime_evidence,
+        )
         body = {
             "type": "admin_api_command_result",
             "status": command_status.value,
@@ -1778,10 +1808,61 @@ class AdminMvpService:
             "admission_decision": dict(admission),
             "live_exchange_submitted": False,
             "failure_stage": failure_stage,
-            **self._runtime_evidence(),
+            **runtime_evidence,
             **self._live_outputs(False, notional),
         }
         return self._result(status_code, body, context)
+
+    def _record_spot_command_decision(
+        self,
+        *,
+        status: str,
+        message: str,
+        client_order_id: str,
+        product_id: str,
+        notional: Decimal,
+        admission: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+        live_exchange_submitted: bool,
+        coinbase_order_id: str | None,
+        failure_stage: str | None,
+        runtime_evidence: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        decision_id = f"spot-command-{self.dependencies.uuid_factory()}"
+        record = {
+            "decision_id": decision_id,
+            "recorded_at": self._now_iso(),
+            "route": MANUAL_ORDER_ROUTE,
+            "method": "POST",
+            "module_id": MANUAL_ORDER_MODULE_ID,
+            "identity_key": "client_order_id",
+            "identity_value": client_order_id,
+            "action_class": MANUAL_ORDER_ACTION_CLASS,
+            "required_permission": MANUAL_ORDER_PERMISSION,
+            "service_method": MANUAL_ORDER_SERVICE_METHOD,
+            "actor_id": context.actor_id,
+            "operator_intent": context.operator_intent,
+            "idempotency_key": context.idempotency_key,
+            "command_idempotency_key": context.idempotency_key,
+            "correlation_id": context.correlation_id,
+            "audit_id": f"audit-{context.idempotency_key}",
+            "payload_hash": admission.get("payload_hash"),
+            "client_order_id": client_order_id,
+            "product_id": product_id,
+            "notional_usdc": _decimal_text(notional),
+            "status": status,
+            "message": message,
+            "failure_stage": failure_stage,
+            "coinbase_order_id": coinbase_order_id,
+            "exchange_order_id": coinbase_order_id,
+            "exchange_order_id_evidence_only": True,
+            "live_exchange_submitted": live_exchange_submitted,
+            "admission_decision": dict(admission),
+            "live_coinbase_orders_ran": live_exchange_submitted,
+            **dict(runtime_evidence),
+        }
+        self.store.spot_command_decisions[decision_id] = record
+        return record
 
     def _pre_coinbase_failure(
         self,
@@ -3835,6 +3916,9 @@ class AdminMvpService:
         offset = _query_int(query, "offset", 0)
         events = self._audit_workbench_events(query)
         visible_events = events[offset : offset + limit]
+        live_coinbase_orders_ran = any(
+            bool(event.get("live_coinbase_orders_ran")) for event in events
+        )
         return {
             "type": "admin_audit_workbench",
             "filters": dict(query),
@@ -3850,16 +3934,63 @@ class AdminMvpService:
             ),
             "command_routes_mode": "evidence_only",
             "read_only": True,
-            "live_coinbase_orders_ran": False,
+            "live_coinbase_orders_ran": live_coinbase_orders_ran,
             "live_coinbase_read_ran": False,
         }
 
     def _audit_workbench_events(self, query: Mapping[str, Any]) -> list[dict[str, Any]]:
         events = [
-            self._futures_executor_audit_event(record)
-            for record in self.store.futures_executor_decisions.values()
+            self._spot_command_audit_event(record)
+            for record in self.store.spot_command_decisions.values()
         ]
+        events.extend(
+            [
+                self._futures_executor_audit_event(record)
+                for record in self.store.futures_executor_decisions.values()
+            ]
+        )
         return _filter_audit_workbench_events(events, query)
+
+    def _spot_command_audit_event(
+        self,
+        record: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        admission_decision = dict(_mapping(record.get("admission_decision")))
+        return {
+            "event_id": record.get("decision_id"),
+            "module": "spot",
+            "source": "admin_api_audit_log",
+            "action_class": record.get("action_class"),
+            "endpoint": record.get("route"),
+            "status": record.get("status"),
+            "actor_id": record.get("actor_id"),
+            "permission": record.get("required_permission"),
+            "client_order_id": record.get("client_order_id") or record.get("identity_value"),
+            "stealth_order_id": None,
+            "position_key": None,
+            "product_id": record.get("product_id"),
+            "correlation_id": record.get("correlation_id"),
+            "audit_id": record.get("audit_id"),
+            "request_id": record.get("correlation_id"),
+            "idempotency_key": record.get("idempotency_key"),
+            "exchange_order_id": record.get("exchange_order_id"),
+            "exchange_order_id_evidence_only": True,
+            "live_exchange_submitted": bool(record.get("live_exchange_submitted")),
+            "live_command_runtime_enabled": record.get("live_command_runtime_enabled"),
+            "live_command_rest_client_available": record.get(
+                "live_command_rest_client_available"
+            ),
+            "live_command_runtime_ready": record.get("live_command_runtime_ready"),
+            "live_command_runtime_missing_reason": record.get(
+                "live_command_runtime_missing_reason"
+            ),
+            "live_command_runtime_source": record.get("live_command_runtime_source"),
+            "recorded_at": record.get("recorded_at"),
+            "message": record.get("message"),
+            "admission_decision": admission_decision,
+            "live_coinbase_orders_ran": bool(record.get("live_coinbase_orders_ran")),
+            "raw_event": dict(record),
+        }
 
     def _futures_executor_audit_event(
         self,
@@ -5497,10 +5628,14 @@ def _audit_workbench_module_summary(
             "command_route_count": len(
                 {str(event.get("endpoint") or "") for event in module_events}
             ),
-            "live_enabled": False,
+            "live_enabled": any(
+                bool(event.get("live_exchange_submitted")) for event in module_events
+            ),
             "primary_identity": (
                 "position_key/product_id/client_order_id"
                 if module == FUTURES_MODULE_ID
+                else "client_order_id"
+                if module == "spot"
                 else "backend-defined"
             ),
             "evidence_sources": sorted(
@@ -5513,6 +5648,11 @@ def _audit_workbench_module_summary(
                 "Futures executor decisions are read-only audit evidence; live "
                 "Coinbase execution remains disabled."
                 if module == FUTURES_MODULE_ID
+                else (
+                    "Spot command decisions are backend-recorded audit evidence; "
+                    "exchange order_id is evidence only."
+                )
+                if module == "spot"
                 else "Backend audit evidence."
             ),
         }

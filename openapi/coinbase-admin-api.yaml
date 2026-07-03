@@ -11114,6 +11114,11 @@ components:
           - type: boolean
           - type: 'null'
           title: Submission Event Recorded
+        submission_event_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Submission Event Id
         audit_command:
           anyOf:
           - type: string
