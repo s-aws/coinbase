@@ -153,6 +153,7 @@ FUTURES_COMMAND_REQUEST_FIELDS = {
 FUTURES_COMMAND_ENABLEMENT_SEQUENCE_STEPS = (
     "resolve_prerequisite_contracts",
     "define_request_payload_contract",
+    "define_backend_command_service",
     "register_admin_command_route",
     "bind_live_service_adapter",
 )
@@ -4181,6 +4182,10 @@ class AdminMvpService:
             "required_request_field_count": len(request_fields),
             "blocking_request_field_count": 0,
             "request_fields": request_fields,
+            "semantic_guard_count": 0,
+            "blocking_semantic_guard_count": 0,
+            "risk_semantic_guard_count": 0,
+            "semantic_guards": [],
             "required_backend_contracts": list(FUTURES_COMMAND_CONTRACTS),
             "missing_backend_contracts": missing_contracts,
             "risk_proof_id": (
@@ -4221,6 +4226,14 @@ class AdminMvpService:
                     else "Futures command is visible as a route-bound draft only; execution remains blocked."
                 ),
             },
+            **_futures_command_readiness_closure(
+                command=command,
+                route=route,
+                service_method=service_method,
+                missing_contracts=missing_contracts,
+                request_fields=request_fields,
+                live_decision_evidence=live_decision_evidence,
+            ),
             "command_route_registered": True,
             "command_draft_allowed": True,
             "execution_allowed": False,
@@ -5787,8 +5800,24 @@ def _futures_command_enablement_sequence_steps(
             ),
         ),
         _futures_command_enablement_sequence_step(
-            step="register_admin_command_route",
+            step="define_backend_command_service",
             sequence=3,
+            command_ids=command_ids,
+            blocking=False,
+            source_blockers=[],
+            required_backend_contracts=["admin_futures_command_service_contract"],
+            required_evidence_refs=[
+                str(command.get("service_method") or "")
+                for command in commands
+            ],
+            detail=(
+                "Backend Futures command service methods are declared before "
+                "route registration or live-adapter binding."
+            ),
+        ),
+        _futures_command_enablement_sequence_step(
+            step="register_admin_command_route",
+            sequence=4,
             command_ids=command_ids,
             blocking=False,
             source_blockers=[],
@@ -5801,7 +5830,7 @@ def _futures_command_enablement_sequence_steps(
         ),
         _futures_command_enablement_sequence_step(
             step="bind_live_service_adapter",
-            sequence=4,
+            sequence=5,
             command_ids=command_ids,
             blocking=_futures_live_adapter_sequence_blocking(live_decision_summary),
             source_blockers=(
@@ -5821,6 +5850,145 @@ def _futures_command_enablement_sequence_steps(
         ),
     ]
     return [row for row in rows if row["step"] in FUTURES_COMMAND_ENABLEMENT_SEQUENCE_STEPS]
+
+
+def _futures_command_readiness_closure(
+    *,
+    command: str,
+    route: str,
+    service_method: str,
+    missing_contracts: list[str],
+    request_fields: Sequence[Mapping[str, Any]],
+    live_decision_evidence: Mapping[str, Any],
+) -> dict[str, Any]:
+    steps = _futures_command_readiness_closure_steps(
+        command=command,
+        route=route,
+        service_method=service_method,
+        missing_contracts=missing_contracts,
+        request_fields=request_fields,
+        live_decision_evidence=live_decision_evidence,
+    )
+    return {
+        "readiness_closure_step_count": len(steps),
+        "blocking_readiness_closure_step_count": sum(
+            1 for step in steps if bool(step["blocking"])
+        ),
+        "readiness_closure_steps": steps,
+    }
+
+
+def _futures_command_readiness_closure_steps(
+    *,
+    command: str,
+    route: str,
+    service_method: str,
+    missing_contracts: list[str],
+    request_fields: Sequence[Mapping[str, Any]],
+    live_decision_evidence: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    request_payload_refs = [
+        str(field.get("request_payload_contract_ref") or "")
+        for field in request_fields
+    ]
+    live_blocking = _futures_live_adapter_sequence_blocking(live_decision_evidence)
+    return [
+        _futures_command_readiness_closure_step(
+            step="resolve_prerequisite_contracts",
+            sequence=1,
+            blocking=bool(missing_contracts),
+            required_backend_contract=(
+                missing_contracts[0]
+                if missing_contracts
+                else "futures_command_prerequisite_contracts"
+            ),
+            required_evidence_refs=[
+                "/api/v1/futures/account",
+                "/api/v1/futures/risk-proofs",
+                "/api/v1/admin/reconciliation/plans",
+            ],
+            detail=(
+                f"{command} prerequisite contracts are still missing."
+                if missing_contracts
+                else f"{command} prerequisite contracts are resolved for draft review."
+            ),
+        ),
+        _futures_command_readiness_closure_step(
+            step="define_request_payload_contract",
+            sequence=2,
+            blocking=False,
+            required_backend_contract=f"admin_futures_request_payload.{command}",
+            required_evidence_refs=request_payload_refs,
+            detail=f"{command} request payload fields are declared and validated by the backend.",
+        ),
+        _futures_command_readiness_closure_step(
+            step="define_backend_command_service",
+            sequence=3,
+            blocking=False,
+            required_backend_contract=f"admin_futures_command_service.{command}",
+            required_evidence_refs=[service_method, route],
+            detail=f"{command} is bound to backend service method {service_method}.",
+        ),
+        _futures_command_readiness_closure_step(
+            step="register_admin_command_route",
+            sequence=4,
+            blocking=False,
+            required_backend_contract=f"admin_futures_command_route.{command}",
+            required_evidence_refs=[route],
+            detail=f"{command} Admin API command route is registered as a backend draft.",
+        ),
+        _futures_command_readiness_closure_step(
+            step="bind_live_service_adapter",
+            sequence=5,
+            blocking=live_blocking,
+            required_backend_contract="futures_live_adapter_contract",
+            required_evidence_refs=[
+                "/api/v1/admin/live-execution/service-decisions",
+                "/api/v1/admin/live-execution/adapter-decisions",
+            ],
+            detail=(
+                f"{command} remains blocked at the backend live-adapter/executor boundary."
+                if live_blocking
+                else f"{command} has no live-adapter blocker in the current evidence."
+            ),
+        ),
+    ]
+
+
+def _futures_command_readiness_closure_step(
+    *,
+    step: str,
+    sequence: int,
+    blocking: bool,
+    required_backend_contract: str,
+    required_evidence_refs: list[str],
+    detail: str,
+) -> dict[str, Any]:
+    refs = _unique_texts(required_evidence_refs)
+    return {
+        "step": step,
+        "sequence": sequence,
+        "status": (
+            AdminMvpGateStatus.BLOCKED.value
+            if blocking
+            else AdminMvpGateStatus.PASSED.value
+        ),
+        "blocking": blocking,
+        "source": "backend_contract",
+        "required_backend_contract": required_backend_contract,
+        "required_evidence_refs": refs,
+        "required_evidence_count": len(refs),
+        "command_route_registered": True,
+        "command_draft_allowed": True,
+        "execution_allowed": False,
+        "proof_writer_enabled": False,
+        "backend_owned": True,
+        "read_only": True,
+        "spot_rule_authority": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "detail": detail,
+    }
 
 
 def _futures_command_enablement_sequence_step(
