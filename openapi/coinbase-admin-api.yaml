@@ -11334,6 +11334,12 @@ components:
       - cap_guard_missing
       - reconciliation_plan_missing
       - browser_authority_rejected
+      - manual_order_proof_chain_missing
+      - live_service_decision_missing
+      - backend_live_execution_disabled
+      - live_command_runtime_not_ready
+      - rest_client_unavailable
+      - wallet_inventory_not_passed
       title: AdminApiLiveAdmissionBlocker
       description: Blocking reasons before an Admin API command may reach live execution.
     AdminApiLiveApprovalSnapshotField:
@@ -11439,6 +11445,11 @@ components:
       - execution_intent_envelope
       - browser_bff_boundary
       - live_execution_service
+      - manual_order_proof_chain
+      - live_service_decision
+      - backend_live_execution_opt_in
+      - live_command_runtime
+      - wallet_inventory
       title: AdminApiLiveReadinessPrecondition
       description: Backend-owned preconditions before Admin API live execution.
     AdminApiModuleSupportStatus:
@@ -136957,7 +136968,11 @@ components:
           type: string
           title: Shared Method
         status:
-          $ref: '#/components/schemas/AdminApiGateStatus'
+          enum:
+          - ready
+          - blocked
+          type: string
+          title: Spot Command Status
           default: blocked
         live_execution_status:
           $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
@@ -137300,7 +137315,9 @@ components:
           title: Type
           default: spot_command_suite
         status:
-          $ref: '#/components/schemas/AdminApiGateStatus'
+          anyOf:
+          - $ref: '#/components/schemas/AdminApiGateStatus'
+          - $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
           default: blocked
         live_coinbase_orders_ran:
           type: boolean

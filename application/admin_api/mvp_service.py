@@ -14,7 +14,7 @@ from enum import Enum
 import hashlib
 import json
 import os
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Mapping, Sequence
 from urllib.parse import unquote
 import uuid
 
@@ -2444,9 +2444,21 @@ class AdminMvpService:
         context: AdminMvpRequestContext,
     ) -> dict[str, Any]:
         proof_context, admission = self._spot_manual_order_admission(query, context)
+        runtime_evidence = self._runtime_evidence()
+        cap_guard = self._admitted_cap_guard(admission) if admission is not None else None
+        manual_readiness = _manual_order_readiness_preconditions(
+            admission=admission,
+            cap_guard=cap_guard,
+            runtime_evidence=runtime_evidence,
+            live_coinbase_execution_enabled=(
+                self.dependencies.live_coinbase_execution_enabled
+            ),
+            live_service_decision_allows_live=self._latest_service_decision_allows_live(),
+        )
         manual_command = _manual_order_command(
             admission=admission,
             admission_context=proof_context,
+            readiness_preconditions=manual_readiness,
         )
         cancel_context, cancel_proof = self._spot_cancel_order_proof(query)
         cancel_command = _cancel_order_command(
@@ -2454,13 +2466,15 @@ class AdminMvpService:
             cancel_proof=cancel_proof,
         )
         commands = [manual_command, cancel_command]
+        blocked_command_count = sum(1 for command in commands if command["status"] != "ready")
+        executable_command_count = sum(1 for command in commands if command["executable"])
         return {
             "type": "spot_command_suite",
             "status": "approval_required",
             "command_count": len(commands),
-            "blocked_command_count": 2,
+            "blocked_command_count": blocked_command_count,
             "live_enabled_command_count": 1,
-            "executable_command_count": 0,
+            "executable_command_count": executable_command_count,
             "coverage_gap_count": 0,
             "manual_order_proof_chain_status": manual_command["proof_chain_status"],
             "manual_order_missing_gate_count": len(manual_command["missing_gate_chain"]),
@@ -4862,11 +4876,166 @@ def _command_capability(
     }
 
 
+def _manual_order_readiness_preconditions(
+    *,
+    admission: Mapping[str, Any] | None,
+    cap_guard: Mapping[str, Any] | None,
+    runtime_evidence: Mapping[str, Any],
+    live_coinbase_execution_enabled: bool,
+    live_service_decision_allows_live: bool,
+) -> list[dict[str, Any]]:
+    proof_chain_passed = bool(admission and admission.get("allowed"))
+    runtime_ready = bool(runtime_evidence.get("live_command_runtime_ready"))
+    wallet_ready = _cap_guard_wallet_ready(cap_guard)
+    return [
+        _spot_command_readiness_precondition(
+            precondition="manual_order_proof_chain",
+            passed=proof_chain_passed,
+            source="backend_proof_chain",
+            expected_source="approval_audit_cap_reconciliation_records",
+            blocker="manual_order_proof_chain_missing",
+            evidence=_evidence_refs_from_mapping(admission),
+            detail=(
+                "Exact manual-order approval, audit, cap, and reconciliation proof chain passed."
+                if proof_chain_passed
+                else "Exact manual-order proof chain has not passed."
+            ),
+        ),
+        _spot_command_readiness_precondition(
+            precondition="live_service_decision",
+            passed=live_service_decision_allows_live,
+            source="admin_api_live_service_decision_log",
+            expected_source="explicit_backend_live_service_decision",
+            blocker="live_service_decision_missing",
+            evidence=["/api/v1/admin/live-execution/service-decisions"],
+            detail=(
+                "Latest backend live-service decision explicitly approves live execution."
+                if live_service_decision_allows_live
+                else "Backend live-service decision has not approved live execution."
+            ),
+        ),
+        _spot_command_readiness_precondition(
+            precondition="backend_live_execution_opt_in",
+            passed=live_coinbase_execution_enabled,
+            source="backend_runtime_environment",
+            expected_source="COINBASE_ADMIN_LIVE_COINBASE_EXECUTION",
+            blocker="backend_live_execution_disabled",
+            evidence=["application/admin_api/mvp_service.py"],
+            detail=(
+                "This backend process is explicitly opted in for controlled live execution."
+                if live_coinbase_execution_enabled
+                else "This backend process has not opted in to controlled live execution."
+            ),
+        ),
+        _spot_command_readiness_precondition(
+            precondition="live_command_runtime",
+            passed=runtime_ready,
+            source=str(
+                runtime_evidence.get("live_command_runtime_source")
+                or "application/admin_api/mvp_service.py"
+            ),
+            expected_source="coinbase_rest_client_available",
+            blocker=str(
+                runtime_evidence.get("live_command_runtime_missing_reason")
+                or "live_command_runtime_not_ready"
+            ),
+            evidence=[str(runtime_evidence.get("live_command_runtime_source") or "")],
+            detail=(
+                "Backend command runtime has a Coinbase REST client available."
+                if runtime_ready
+                else "Backend command runtime is not ready for Coinbase REST submission."
+            ),
+        ),
+        _spot_command_readiness_precondition(
+            precondition="wallet_inventory",
+            passed=wallet_ready,
+            source=str(
+                cap_guard.get("wallet_check_source")
+                if cap_guard is not None
+                else ACCOUNT_SNAPSHOT_WALLET_SOURCE
+            ),
+            expected_source=ACCOUNT_SNAPSHOT_WALLET_SOURCE,
+            blocker="wallet_inventory_not_passed",
+            evidence=[
+                str(cap_guard["decision_id"])
+                if cap_guard is not None and cap_guard.get("decision_id")
+                else ""
+            ],
+            detail=(
+                "Backend cap/guard evidence includes a passed wallet inventory check."
+                if wallet_ready
+                else "Backend cap/guard evidence does not include a passed wallet inventory check."
+            ),
+        ),
+    ]
+
+
+def _cap_guard_wallet_ready(cap_guard: Mapping[str, Any] | None) -> bool:
+    if cap_guard is None:
+        return False
+    if bool(cap_guard.get("allowed")) is not True:
+        return False
+    if bool(cap_guard.get("wallet_check_required", True)) is False:
+        return True
+    return str(cap_guard.get("wallet_check_status")) == AdminMvpGateStatus.PASSED.value
+
+
+def _spot_command_readiness_precondition(
+    *,
+    precondition: str,
+    passed: bool,
+    source: str,
+    expected_source: str,
+    blocker: str,
+    evidence: Sequence[str] | None,
+    detail: str,
+) -> dict[str, Any]:
+    return {
+        "precondition": precondition,
+        "status": (
+            AdminMvpGateStatus.PASSED.value if passed else AdminMvpGateStatus.BLOCKED.value
+        ),
+        "required": True,
+        "configured": passed,
+        "blocking": not passed,
+        "backend_owned": True,
+        "route_bound": True,
+        "source": source,
+        "expected_source": expected_source,
+        "blocker": None if passed else blocker,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "evidence": [item for item in (evidence or []) if item],
+        "detail": detail,
+    }
+
+
+def _evidence_refs_from_mapping(record: Mapping[str, Any] | None) -> list[str]:
+    if record is None:
+        return []
+    return [
+        str(record[key])
+        for key in (
+            "approval_snapshot_id",
+            "admission_audit_id",
+            "cap_guard_decision_id",
+            "reconciliation_plan_id",
+        )
+        if record.get(key)
+    ]
+
+
 def _manual_order_command(
     *,
     admission: Mapping[str, Any] | None = None,
     admission_context: Mapping[str, Any] | None = None,
+    readiness_preconditions: Sequence[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    readiness_items = [dict(item) for item in (readiness_preconditions or [])]
+    readiness_blocker_count = sum(1 for item in readiness_items if bool(item.get("blocking")))
+    readiness_passed_count = sum(
+        1 for item in readiness_items if item.get("status") == AdminMvpGateStatus.PASSED.value
+    )
     if admission is None:
         missing_gate_chain = list(SPOT_MANUAL_PROOF_GATES)
         resolved_gate_chain: list[str] = []
@@ -4890,17 +5059,18 @@ def _manual_order_command(
             admission.get("live_execution_service_status")
             or AdminMvpLiveServiceStatus.APPROVAL_REQUIRED.value
         )
+    executable = bool(readiness_items) and readiness_blocker_count == 0
     return {
         "mutation_family": "spot_manual_order",
         "route": MANUAL_ORDER_ROUTE,
         "method": "POST",
         "identity_key": "client_order_id",
         "shared_method": MANUAL_ORDER_SERVICE_METHOD,
-        "status": "blocked",
+        "status": "ready" if executable else "blocked",
         "live_execution_status": live_execution_status,
         "live_enabled": True,
         "live_eligible": True,
-        "executable": False,
+        "executable": executable,
         "live_adapter_configured": True,
         "proof_chain_status": proof_chain_status,
         "proof_chain_blocker_count": len(missing_gate_chain),
@@ -4918,10 +5088,10 @@ def _manual_order_command(
             _proof_route("cap_guard", "/api/v1/admin/cap-guard/decisions", "decision_id"),
             _proof_route("reconciliation", "/api/v1/admin/reconciliation/plans", "plan_id"),
         ],
-        "readiness_preconditions": [],
-        "readiness_precondition_count": 0,
-        "blocking_readiness_precondition_count": 0,
-        "passed_readiness_precondition_count": 0,
+        "readiness_preconditions": readiness_items,
+        "readiness_precondition_count": len(readiness_items),
+        "blocking_readiness_precondition_count": readiness_blocker_count,
+        "passed_readiness_precondition_count": readiness_passed_count,
     }
 
 

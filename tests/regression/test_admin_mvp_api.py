@@ -1396,6 +1396,53 @@ def test_spot_command_suite_resolves_manual_order_proof_chain_from_backend_recor
     assert suite.body["live_coinbase_orders_ran"] is False
 
 
+def test_spot_command_suite_marks_manual_order_executable_after_backend_live_evidence():
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=FakeAccountRestClient(),
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        )
+    )
+    order_body = limit_ioc_manual_order_body()
+    record_live_service_decision(service)
+    admission = first_manual_submit(service, order_body)
+    record_proof_chain(service, admission)
+
+    suite = service.get_read_response(
+        "/api/v1/spot/command-suite",
+        preview_query(admission),
+        context(),
+    )
+    manual_command = next(
+        command
+        for command in suite.body["commands"]
+        if command["route"] == "/api/v1/orders"
+    )
+    readiness = {
+        item["precondition"]: item
+        for item in manual_command["readiness_preconditions"]
+    }
+
+    assert suite.status_code == 200
+    assert suite.body["executable_command_count"] == 1
+    assert suite.body["blocked_command_count"] == 1
+    assert manual_command["status"] == "ready"
+    assert manual_command["executable"] is True
+    assert manual_command["proof_chain_status"] == "passed"
+    assert manual_command["readiness_precondition_count"] == 5
+    assert manual_command["blocking_readiness_precondition_count"] == 0
+    assert manual_command["passed_readiness_precondition_count"] == 5
+    assert readiness["manual_order_proof_chain"]["status"] == "passed"
+    assert readiness["live_service_decision"]["status"] == "passed"
+    assert readiness["backend_live_execution_opt_in"]["status"] == "passed"
+    assert readiness["live_command_runtime"]["status"] == "passed"
+    assert readiness["wallet_inventory"]["status"] == "passed"
+    assert manual_command["live_exchange_submitted"] is False
+    assert manual_command["live_coinbase_orders_ran"] is False
+    assert suite.body["live_coinbase_orders_ran"] is False
+
+
 def test_spot_manual_order_proof_chain_route_records_backend_evidence_from_command_context():
     rest_client = FakeAccountRestClient()
     service = AdminMvpService(
