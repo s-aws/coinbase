@@ -13129,6 +13129,27 @@ components:
         backend_smoke_status:
           type: string
           title: Backend Smoke Status
+        backend_account_reality_live_read_status:
+          type: string
+          title: Backend Account Reality Live Read Status
+        backend_account_reality_live_read_backend_ref:
+          type: string
+          title: Backend Account Reality Live Read Backend Ref
+        backend_account_reality_live_read_check_count:
+          type: integer
+          title: Backend Account Reality Live Read Check Count
+        backend_account_reality_live_read_credentials_present:
+          type: boolean
+          title: Backend Account Reality Live Read Credentials Present
+        backend_account_reality_live_read_truststore_status:
+          type: string
+          title: Backend Account Reality Live Read Truststore Status
+        backend_account_reality_live_read_live_coinbase_execution:
+          type: string
+          title: Backend Account Reality Live Read Live Coinbase Execution
+        backend_account_reality_live_read_notional_usdc:
+          type: string
+          title: Backend Account Reality Live Read Notional Usdc
         deployment_live_coinbase_execution:
           type: string
           title: Deployment Live Coinbase Execution
@@ -13151,6 +13172,13 @@ components:
       - backend_release_path
       - deployment_smoke_status
       - backend_smoke_status
+      - backend_account_reality_live_read_status
+      - backend_account_reality_live_read_backend_ref
+      - backend_account_reality_live_read_check_count
+      - backend_account_reality_live_read_credentials_present
+      - backend_account_reality_live_read_truststore_status
+      - backend_account_reality_live_read_live_coinbase_execution
+      - backend_account_reality_live_read_notional_usdc
       - deployment_live_coinbase_execution
       - deployment_notional_usdc
       title: AdminAccountManagementEnvironment

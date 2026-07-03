@@ -58,6 +58,25 @@ def test_admin_live_decision_openapi_exposes_futures_scope_fields():
     assert adapter_scope_fields <= set(schemas["AdminLiveAdapterDecisionItem"]["required"])
 
 
+def test_admin_account_management_openapi_exposes_live_read_evidence_fields():
+    openapi = yaml.safe_load(
+        Path("openapi/coinbase-admin-api.yaml").read_text(encoding="utf-8")
+    )
+    environment = openapi["components"]["schemas"]["AdminAccountManagementEnvironment"]
+    live_read_fields = {
+        "backend_account_reality_live_read_status",
+        "backend_account_reality_live_read_backend_ref",
+        "backend_account_reality_live_read_check_count",
+        "backend_account_reality_live_read_credentials_present",
+        "backend_account_reality_live_read_truststore_status",
+        "backend_account_reality_live_read_live_coinbase_execution",
+        "backend_account_reality_live_read_notional_usdc",
+    }
+
+    assert live_read_fields <= set(environment["properties"])
+    assert live_read_fields <= set(environment["required"])
+
+
 @dataclass
 class FakeRestClient:
     create_order_calls: list[dict] = field(default_factory=list)
@@ -663,6 +682,15 @@ def test_admin_account_management_read_contract_exposes_local_operator_scope(
                 "backendContractRef": "backend-release-456",
                 "smokeTiming": {"status": "passed"},
                 "backendControlledLiveSmokeTiming": {"status": "passed"},
+                "backendAccountRealityLiveReadSmoke": {
+                    "status": "passed",
+                    "backendContractRef": "backend-release-456",
+                    "credentialsPresent": True,
+                    "truststoreStatus": "enabled",
+                    "checkCount": 13,
+                    "liveCoinbaseExecution": "not_run",
+                    "notionalUsdc": "0",
+                },
                 "liveCoinbaseExecution": "not_run",
                 "notionalUsdc": "0",
             },
@@ -720,6 +748,25 @@ def test_admin_account_management_read_contract_exposes_local_operator_scope(
     )
     assert body["environment"]["deployment_smoke_status"] == "passed"
     assert body["environment"]["backend_smoke_status"] == "passed"
+    assert body["environment"]["backend_account_reality_live_read_status"] == "passed"
+    assert body["environment"]["backend_account_reality_live_read_backend_ref"] == (
+        "backend-release-456"
+    )
+    assert body["environment"]["backend_account_reality_live_read_check_count"] == 13
+    assert (
+        body["environment"]["backend_account_reality_live_read_credentials_present"]
+        is True
+    )
+    assert (
+        body["environment"]["backend_account_reality_live_read_truststore_status"]
+        == "enabled"
+    )
+    assert (
+        body["environment"]["backend_account_reality_live_read_live_coinbase_execution"]
+        == "not_run"
+    )
+    assert body["environment"]["backend_account_reality_live_read_notional_usdc"] == "0"
+    assert "available_notional_usdc" not in json.dumps(body["environment"])
     assert body["environment"]["deployment_live_coinbase_execution"] == "not_run"
     assert body["environment"]["deployment_notional_usdc"] == "0"
     assert body["operator"]["actor_id"] == "operator-1"

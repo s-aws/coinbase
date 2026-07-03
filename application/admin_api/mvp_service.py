@@ -2919,6 +2919,9 @@ class AdminMvpService:
         backend_manifest = _read_json_manifest_from_env(BACKEND_LOCAL_RELEASE_MANIFEST_ENV)
         frontend_commit = _manifest_text(frontend_manifest, "commit")
         backend_commit = _manifest_text(backend_manifest, "commit")
+        account_reality_live_read = _account_reality_live_read_manifest_evidence(
+            frontend_manifest
+        )
         return {
             "environment": "local",
             "deployment_target": "coinbase-local",
@@ -2945,6 +2948,7 @@ class AdminMvpService:
                 "backendControlledLiveSmokeTiming",
                 "status",
             ),
+            **account_reality_live_read,
             "deployment_live_coinbase_execution": _manifest_text(
                 frontend_manifest,
                 "liveCoinbaseExecution",
@@ -6886,6 +6890,51 @@ def _read_json_manifest_from_env(env_name: str) -> dict[str, Any]:
     return {}
 
 
+def _account_reality_live_read_manifest_evidence(
+    frontend_manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    evidence = frontend_manifest.get("backendAccountRealityLiveReadSmoke")
+    if not isinstance(evidence, Mapping):
+        return {
+            "backend_account_reality_live_read_status": "unknown",
+            "backend_account_reality_live_read_backend_ref": "unknown",
+            "backend_account_reality_live_read_check_count": 0,
+            "backend_account_reality_live_read_credentials_present": False,
+            "backend_account_reality_live_read_truststore_status": "unknown",
+            "backend_account_reality_live_read_live_coinbase_execution": "not_run",
+            "backend_account_reality_live_read_notional_usdc": "0",
+        }
+    return {
+        "backend_account_reality_live_read_status": _manifest_text(evidence, "status"),
+        "backend_account_reality_live_read_backend_ref": _manifest_text(
+            evidence,
+            "backendContractRef",
+        ),
+        "backend_account_reality_live_read_check_count": _manifest_int(
+            evidence,
+            "checkCount",
+        ),
+        "backend_account_reality_live_read_credentials_present": _manifest_bool(
+            evidence,
+            "credentialsPresent",
+        ),
+        "backend_account_reality_live_read_truststore_status": _manifest_text(
+            evidence,
+            "truststoreStatus",
+        ),
+        "backend_account_reality_live_read_live_coinbase_execution": _manifest_text(
+            evidence,
+            "liveCoinbaseExecution",
+            "not_run",
+        ),
+        "backend_account_reality_live_read_notional_usdc": _manifest_text(
+            evidence,
+            "notionalUsdc",
+            "0",
+        ),
+    }
+
+
 def _manifest_text(
     manifest: Mapping[str, Any],
     key: str,
@@ -6896,6 +6945,28 @@ def _manifest_text(
         return default
     text = str(value).strip()
     return text or default
+
+
+def _manifest_bool(
+    manifest: Mapping[str, Any],
+    key: str,
+    default: bool = False,
+) -> bool:
+    value = manifest.get(key)
+    return value if isinstance(value, bool) else default
+
+
+def _manifest_int(
+    manifest: Mapping[str, Any],
+    key: str,
+    default: int = 0,
+) -> int:
+    value = manifest.get(key)
+    if isinstance(value, bool):
+        return default
+    if isinstance(value, int):
+        return value
+    return default
 
 
 def _nested_manifest_text(
