@@ -233,6 +233,96 @@ def record_live_adapter_decision(service: AdminMvpService) -> None:
     assert decision["live_exchange_submitted"] is False
 
 
+def record_futures_live_service_decision(
+    service: AdminMvpService,
+    *,
+    decision_id: str = "futures-us-cfm-live-service",
+    account_family: str = "coinbase_futures_us_cfm",
+    intx_applicability: str = "not_applicable_us_account",
+    product_scope: list[str] | None = None,
+) -> None:
+    result = service.record_live_service_decision(
+        {
+            "decision_id": decision_id,
+            "status": "passed",
+            "requested_service_status": "approval_required",
+            "service_enabled": True,
+            "target_module_id": "futures_perpetuals",
+            "account_family": account_family,
+            "intx_applicability": intx_applicability,
+            "product_scope": product_scope or ["BIP-20DEC30-CDE"],
+            "live_coinbase_execution_approved": True,
+            "max_submitted_notional_usdc": "3.10",
+            "max_executed_notional_usdc": "1.00",
+        },
+        context(idempotency_key=decision_id),
+    )
+    assert result.status_code == 200
+    assert result.body["live_coinbase_orders_ran"] is False
+
+
+def record_futures_live_adapter_decision(
+    service: AdminMvpService,
+    *,
+    decision_id: str,
+    target_route: str,
+    target_service_method: str,
+    account_family: str = "coinbase_futures_us_cfm",
+    intx_applicability: str = "not_applicable_us_account",
+    product_scope: list[str] | None = None,
+) -> None:
+    result = service.record_live_adapter_decision(
+        {
+            "decision_id": decision_id,
+            "status": "passed",
+            "requested_adapter_status": "approval_required",
+            "target_route": target_route,
+            "target_method": "POST",
+            "target_module_id": "futures_perpetuals",
+            "target_service_method": target_service_method,
+            "adapter_reference": f"AdminApiCommandService.{target_service_method}",
+            "adapter_constructed": True,
+            "adapter_enabled": True,
+            "account_family": account_family,
+            "intx_applicability": intx_applicability,
+            "product_scope": product_scope or ["BIP-20DEC30-CDE"],
+            "live_coinbase_execution_approved": True,
+            "max_submitted_notional_usdc": "3.10",
+            "max_executed_notional_usdc": "1.00",
+        },
+        context(idempotency_key=decision_id),
+    )
+    assert result.status_code == 200
+    assert result.body["live_coinbase_orders_ran"] is False
+
+
+def record_all_futures_live_adapter_decisions(service: AdminMvpService) -> None:
+    record_futures_live_adapter_decision(
+        service,
+        decision_id="futures-us-cfm-place-adapter",
+        target_route="/api/v1/futures/orders",
+        target_service_method="place_futures_order",
+    )
+    record_futures_live_adapter_decision(
+        service,
+        decision_id="futures-us-cfm-close-reduce-adapter",
+        target_route="/api/v1/futures/positions/{position_key}/close-reduce",
+        target_service_method="close_or_reduce_futures_position",
+    )
+    record_futures_live_adapter_decision(
+        service,
+        decision_id="futures-us-cfm-cancel-adapter",
+        target_route="/api/v1/futures/orders/{client_order_id}/cancel",
+        target_service_method="cancel_futures_order",
+    )
+    record_futures_live_adapter_decision(
+        service,
+        decision_id="futures-us-cfm-reconcile-adapter",
+        target_route="/api/v1/futures/positions/{position_key}/reconciliation",
+        target_service_method="reconcile_futures_position",
+    )
+
+
 def first_manual_submit(service: AdminMvpService, body: dict | None = None) -> dict:
     result = service.submit_manual_order(
         body or manual_order_body(),
@@ -1168,6 +1258,122 @@ def test_admin_futures_command_suite_resolves_account_and_risk_proof_evidence():
     assert recorded_detail.body["found"] is True
     assert recorded_detail.body["proof_record_created"] is True
     assert recorded_detail.body["record"]["command_execution_allowed"] is False
+
+
+def test_admin_futures_command_suite_ignores_intx_live_decisions_for_us_cfm_scope():
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
+    )
+    record_futures_live_service_decision(
+        service,
+        decision_id="futures-intx-live-service",
+        account_family="coinbase_intx_perpetuals",
+        intx_applicability="requires_intx_account",
+        product_scope=["BTC-PERP"],
+    )
+    record_futures_live_adapter_decision(
+        service,
+        decision_id="futures-intx-place-adapter",
+        target_route="/api/v1/futures/orders",
+        target_service_method="place_futures_order",
+        account_family="coinbase_intx_perpetuals",
+        intx_applicability="requires_intx_account",
+        product_scope=["BTC-PERP"],
+    )
+
+    command_suite = service.get_read_response(
+        "/api/v1/futures/command-suite",
+        {},
+        context(),
+    )
+
+    assert command_suite.status_code == 200
+    suite = command_suite.body
+    assert suite["futures_live_execution_scope"] == {
+        "account_family": "coinbase_futures_us_cfm",
+        "intx_applicability": "not_applicable_us_account",
+        "product_scope": ["BIP-20DEC30-CDE"],
+        "execution_allowed": False,
+    }
+    assert suite["futures_live_decision_evidence"]["service_decision_status"] == (
+        "missing_matching_us_cfm_service_decision"
+    )
+    assert suite["futures_live_decision_evidence"]["matching_service_decision_id"] is None
+    assert suite["futures_live_decision_evidence"]["adapter_decision_ready_count"] == 0
+    commands = {command["command"]: command for command in suite["commands"]}
+    place_evidence = commands["futures_place"]["readiness_decision"]["live_decision_evidence"]
+    assert place_evidence["account_family"] == "coinbase_futures_us_cfm"
+    assert place_evidence["intx_applicability"] == "not_applicable_us_account"
+    assert place_evidence["service_decision_status"] == (
+        "missing_matching_us_cfm_service_decision"
+    )
+    assert place_evidence["adapter_decision_status"] == (
+        "missing_matching_us_cfm_adapter_decision"
+    )
+    assert place_evidence["matching_adapter_decision_id"] is None
+    assert commands["futures_place"]["readiness_decision"]["first_blocker"] == (
+        "execution_disabled"
+    )
+    assert commands["futures_place"]["execution_allowed"] is False
+
+
+def test_admin_futures_command_suite_binds_us_cfm_live_decisions_without_execution():
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
+    )
+    record_futures_live_service_decision(service)
+    record_all_futures_live_adapter_decisions(service)
+
+    command_suite = service.get_read_response(
+        "/api/v1/futures/command-suite",
+        {},
+        context(),
+    )
+
+    assert command_suite.status_code == 200
+    suite = command_suite.body
+    assert suite["futures_live_decision_evidence"]["service_decision_status"] == "ready"
+    assert suite["futures_live_decision_evidence"]["matching_service_decision_id"] == (
+        "futures-us-cfm-live-service"
+    )
+    assert suite["futures_live_decision_evidence"]["adapter_decision_ready_count"] == 4
+    assert suite["futures_live_decision_evidence"]["adapter_decision_missing_count"] == 0
+    assert suite["command_enablement_blocker_summaries"][0]["blocker"] == (
+        "futures_executor_not_implemented"
+    )
+    commands = {command["command"]: command for command in suite["commands"]}
+    place_readiness = commands["futures_place"]["readiness_decision"]
+    assert place_readiness["first_blocker"] == "futures_executor_not_implemented"
+    assert place_readiness["live_decision_evidence"]["service_decision_status"] == "ready"
+    assert place_readiness["live_decision_evidence"]["adapter_decision_status"] == "ready"
+    assert place_readiness["live_decision_evidence"]["matching_adapter_decision_id"] == (
+        "futures-us-cfm-place-adapter"
+    )
+    assert place_readiness["execution_allowed"] is False
+
+    result = service.submit_futures_command(
+        "/api/v1/futures/orders",
+        {
+            "product_id": "BIP-20DEC30-CDE",
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "limit_price": "0.50",
+            "number_of_contracts": "1",
+        },
+        context(idempotency_key="futures-place-us-cfm-evidence"),
+    )
+
+    assert result.status_code == 501
+    assert result.body["failure_stage"] == "futures_executor_not_implemented"
+    assert result.body["readiness_decision"]["live_decision_evidence"][
+        "matching_service_decision_id"
+    ] == "futures-us-cfm-live-service"
+    assert result.body["readiness_decision"]["live_decision_evidence"][
+        "matching_adapter_decision_id"
+    ] == "futures-us-cfm-place-adapter"
+    assert result.body["execution_allowed"] is False
+    assert result.body["live_exchange_submitted"] is False
+    assert result.body["live_coinbase_orders_ran"] is False
 
 
 def test_admin_futures_command_routes_are_registered_as_blocked_drafts():

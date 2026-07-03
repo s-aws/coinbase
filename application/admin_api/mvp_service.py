@@ -19,6 +19,16 @@ from urllib.parse import unquote
 import uuid
 
 
+class AdminMvpFuturesAccountFamily(str, Enum):
+    US_CFM = "coinbase_futures_us_cfm"
+    INTX_PERPETUALS = "coinbase_intx_perpetuals"
+
+
+class AdminMvpFuturesIntxApplicability(str, Enum):
+    NOT_APPLICABLE_US_ACCOUNT = "not_applicable_us_account"
+    REQUIRES_INTX_ACCOUNT = "requires_intx_account"
+
+
 ADMIN_API_VERSION = "0.1.0-prod-mvp"
 MANUAL_ORDER_ROUTE = "/api/v1/orders"
 CANCEL_ORDER_ROUTE = "/api/v1/orders/{client_order_id}/cancel"
@@ -33,6 +43,11 @@ BACKEND_REST_FRESHNESS = "backend_rest_fresh"
 LOCAL_DEFAULT_FRESHNESS = "local_default_not_connected"
 SPOT_ADMISSION_QUOTE_CURRENCIES = ("USDC", "USD")
 FUTURES_MODULE_ID = "futures_perpetuals"
+FUTURES_ACCOUNT_FAMILY_US_CFM = AdminMvpFuturesAccountFamily.US_CFM.value
+FUTURES_INTX_APPLICABILITY_US_ACCOUNT = (
+    AdminMvpFuturesIntxApplicability.NOT_APPLICABLE_US_ACCOUNT.value
+)
+UNSCOPED_LIVE_DECISION_VALUE = "unscoped"
 FUTURES_CONFIGURED_PRODUCT_SCOPE = ("BIP-20DEC30-CDE",)
 FUTURES_READ_ROUTES = (
     "/api/v1/futures/command-suite",
@@ -375,6 +390,20 @@ class AdminMvpService:
             "action_class": "local_state_mutation",
             "required_permission": LIVE_SERVICE_DECISION_PERMISSION,
             "service_method": LIVE_SERVICE_DECISION_SERVICE_METHOD,
+            "target_route": str(body.get("target_route") or ""),
+            "target_method": str(body.get("target_method") or ""),
+            "target_module_id": str(body.get("target_module_id") or "admin_system_health"),
+            "target_service_method": str(body.get("target_service_method") or ""),
+            "account_family": str(body.get("account_family") or UNSCOPED_LIVE_DECISION_VALUE),
+            "venue_scope": str(
+                body.get("venue_scope")
+                or body.get("account_family")
+                or UNSCOPED_LIVE_DECISION_VALUE
+            ),
+            "intx_applicability": str(
+                body.get("intx_applicability") or UNSCOPED_LIVE_DECISION_VALUE
+            ),
+            "product_scope": _string_list(body.get("product_scope")),
             "status": str(body.get("status") or AdminMvpGateStatus.PASSED.value),
             "requested_service_status": requested_status,
             "live_execution_service_status": requested_status,
@@ -488,6 +517,16 @@ class AdminMvpService:
             "target_service_method": str(
                 body.get("target_service_method") or MANUAL_ORDER_SERVICE_METHOD
             ),
+            "account_family": str(body.get("account_family") or UNSCOPED_LIVE_DECISION_VALUE),
+            "venue_scope": str(
+                body.get("venue_scope")
+                or body.get("account_family")
+                or UNSCOPED_LIVE_DECISION_VALUE
+            ),
+            "intx_applicability": str(
+                body.get("intx_applicability") or UNSCOPED_LIVE_DECISION_VALUE
+            ),
+            "product_scope": _string_list(body.get("product_scope")),
             "adapter_reference": str(
                 body.get("adapter_reference")
                 or f"AdminApiCommandService.{MANUAL_ORDER_SERVICE_METHOD}"
@@ -1852,6 +1891,79 @@ class AdminMvpService:
         latest = _latest_record(self.store.service_decisions)
         return bool(latest and latest.get("live_coinbase_execution_approved"))
 
+    def _futures_live_service_decision(self) -> dict[str, Any] | None:
+        return _latest_matching_record(
+            self.store.service_decisions,
+            _is_us_cfm_futures_service_decision,
+        )
+
+    def _futures_live_adapter_decision_for_spec(
+        self,
+        spec: Mapping[str, Any],
+    ) -> dict[str, Any] | None:
+        return _latest_matching_record(
+            self.store.live_adapter_decisions,
+            lambda record: _is_us_cfm_futures_adapter_decision(
+                record,
+                target_route=str(spec["route"]),
+                target_service_method=str(spec["service_method"]),
+            ),
+        )
+
+    def _futures_live_decision_evidence(
+        self,
+        *,
+        command: str,
+        route: str,
+        service_method: str,
+        live_service_decision: Mapping[str, Any] | None,
+        live_adapter_decision: Mapping[str, Any] | None,
+    ) -> dict[str, Any]:
+        service_ready = live_service_decision is not None
+        adapter_ready = live_adapter_decision is not None
+        first_blocker = (
+            "futures_executor_not_implemented"
+            if service_ready and adapter_ready
+            else "execution_disabled"
+        )
+        return {
+            "command": command,
+            "target_route": route,
+            "target_service_method": service_method,
+            "account_family": FUTURES_ACCOUNT_FAMILY_US_CFM,
+            "intx_applicability": FUTURES_INTX_APPLICABILITY_US_ACCOUNT,
+            "product_scope": list(FUTURES_CONFIGURED_PRODUCT_SCOPE),
+            "service_decision_status": (
+                "ready" if service_ready else "missing_matching_us_cfm_service_decision"
+            ),
+            "adapter_decision_status": (
+                "ready" if adapter_ready else "missing_matching_us_cfm_adapter_decision"
+            ),
+            "matching_service_decision_id": (
+                str(live_service_decision["decision_id"]) if service_ready else None
+            ),
+            "matching_adapter_decision_id": (
+                str(live_adapter_decision["decision_id"]) if adapter_ready else None
+            ),
+            "service_decision_source": (
+                str(live_service_decision["source"]) if service_ready else None
+            ),
+            "adapter_decision_source": (
+                str(live_adapter_decision["source"]) if adapter_ready else None
+            ),
+            "live_decision_scope_ready": service_ready and adapter_ready,
+            "execution_allowed": False,
+            "first_blocker": first_blocker,
+            "required_evidence_refs": [
+                LIVE_SERVICE_DECISION_ROUTE,
+                LIVE_ADAPTER_DECISION_ROUTE,
+            ],
+            "spot_rule_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "live_coinbase_orders_ran": False,
+        }
+
     def _now_iso(self) -> str:
         return self.dependencies.now_factory().astimezone(timezone.utc).isoformat()
 
@@ -3142,23 +3254,36 @@ class AdminMvpService:
             for contract in FUTURES_COMMAND_CONTRACTS
             if contract not in resolved_contracts
         ]
-        commands = [
-            self._futures_command(
+        live_service_decision = self._futures_live_service_decision()
+        commands: list[dict[str, Any]] = []
+        for spec in FUTURES_COMMAND_SPECS:
+            live_adapter_decision = self._futures_live_adapter_decision_for_spec(spec)
+            live_decision_evidence = self._futures_live_decision_evidence(
                 command=str(spec["command"]),
-                action_class=str(spec["action_class"]),
                 route=str(spec["route"]),
                 service_method=str(spec["service_method"]),
-                identity_key=str(spec["identity_key"]),
-                required_permission=str(spec["required_permission"]),
-                missing_contracts=missing_contracts,
-                risk_proof=proof_by_command.get(str(spec["command"])),
-                account_ready=bool(snapshot["readiness"]["futures_account_scope_ready"]),
+                live_service_decision=live_service_decision,
+                live_adapter_decision=live_adapter_decision,
             )
-            for spec in FUTURES_COMMAND_SPECS
-        ]
+            commands.append(
+                self._futures_command(
+                    command=str(spec["command"]),
+                    action_class=str(spec["action_class"]),
+                    route=str(spec["route"]),
+                    service_method=str(spec["service_method"]),
+                    identity_key=str(spec["identity_key"]),
+                    required_permission=str(spec["required_permission"]),
+                    missing_contracts=missing_contracts,
+                    risk_proof=proof_by_command.get(str(spec["command"])),
+                    account_ready=bool(snapshot["readiness"]["futures_account_scope_ready"]),
+                    live_decision_evidence=live_decision_evidence,
+                )
+            )
+        live_decision_summary = _futures_live_decision_summary(commands)
         blockers = self._futures_command_blockers(
             [command["command"] for command in commands],
             missing_contracts,
+            live_decision_summary,
         )
         status = "evidence_ready" if not missing_contracts else "blocked"
         return {
@@ -3196,6 +3321,8 @@ class AdminMvpService:
             "command_enablement_sequence_command_trace_blocking_count": 0,
             "command_enablement_sequence_command_traces": [],
             "commands": commands,
+            "futures_live_execution_scope": _futures_live_execution_scope(),
+            "futures_live_decision_evidence": live_decision_summary,
             "account_evidence_routes": ["/api/v1/futures/account"],
             "position_evidence_routes": [
                 "/api/v1/futures/positions",
@@ -3243,12 +3370,23 @@ class AdminMvpService:
         missing_contracts: list[str],
         risk_proof: Mapping[str, Any] | None,
         account_ready: bool,
+        live_decision_evidence: Mapping[str, Any],
     ) -> dict[str, Any]:
         blocking_prerequisite_count = 0 if not missing_contracts else 2
         first_blocker = (
-            "execution_disabled"
+            str(live_decision_evidence["first_blocker"])
             if not missing_contracts
             else "futures_margin_collateral_risk_proof"
+        )
+        readiness_decision = (
+            "live_decision_evidence_ready_execution_not_implemented"
+            if not missing_contracts
+            and first_blocker == "futures_executor_not_implemented"
+            else (
+                "draft_ready_execution_disabled"
+                if not missing_contracts
+                else "blocked_backend_contracts_required"
+            )
         )
         return {
             "command": command,
@@ -3284,11 +3422,7 @@ class AdminMvpService:
                 "spot_average_cost_basis",
             ],
             "readiness_decision": {
-                "decision": (
-                    "draft_ready_execution_disabled"
-                    if not missing_contracts
-                    else "blocked_backend_contracts_required"
-                ),
+                "decision": readiness_decision,
                 "status": "blocked",
                 "ready": False,
                 "blocker_count": 1 if not missing_contracts else len(missing_contracts),
@@ -3308,8 +3442,11 @@ class AdminMvpService:
                 "spot_rule_authority": False,
                 "browser_authority": "display_only",
                 "bff_authority": "forward_only_no_execution",
+                "live_decision_evidence": dict(live_decision_evidence),
                 "detail": (
-                    "Futures command draft evidence is available; live execution remains disabled."
+                    "Futures live-decision evidence is bound to the US CFM scope; backend Futures execution is not implemented."
+                    if first_blocker == "futures_executor_not_implemented"
+                    else "Futures command draft evidence is available; live execution remains disabled."
                     if not missing_contracts
                     else "Futures command is visible as a route-bound draft only; execution remains blocked."
                 ),
@@ -3383,6 +3520,7 @@ class AdminMvpService:
         self,
         commands: list[str],
         missing_contracts: list[str],
+        live_decision_summary: Mapping[str, Any],
     ) -> list[dict[str, Any]]:
         blockers: list[dict[str, Any]] = []
         if missing_contracts:
@@ -3414,8 +3552,14 @@ class AdminMvpService:
                 "bff_authority": "forward_only_no_execution",
                 "detail": "Futures commands remain blocked until futures-specific prerequisites are implemented and proven.",
             })
+        execution_blocker = str(live_decision_summary["first_blocker"])
+        blocker_detail = (
+            "Futures US CFM live-service and live-adapter decisions are bound, but the backend Futures executor is not implemented."
+            if execution_blocker == "futures_executor_not_implemented"
+            else "Futures command evidence is available, but live futures execution is intentionally disabled."
+        )
         blockers.append({
-            "blocker": "execution_disabled",
+            "blocker": execution_blocker,
             "status": "blocked",
             "blocking": True,
             "command_count": len(commands),
@@ -3435,7 +3579,9 @@ class AdminMvpService:
             "spot_rule_authority": False,
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
-            "detail": "Futures command evidence is available, but live futures execution is intentionally disabled.",
+            "futures_live_execution_scope": _futures_live_execution_scope(),
+            "futures_live_decision_evidence": dict(live_decision_summary),
+            "detail": blocker_detail,
         })
         return blockers
 
@@ -4822,6 +4968,119 @@ def _latest_record(records: Mapping[str, dict[str, Any]]) -> dict[str, Any] | No
     if not records:
         return None
     return next(reversed(records.values()))
+
+
+def _latest_matching_record(
+    records: Mapping[str, dict[str, Any]],
+    predicate: Callable[[dict[str, Any]], bool],
+) -> dict[str, Any] | None:
+    for record in reversed(list(records.values())):
+        if predicate(record):
+            return record
+    return None
+
+
+def _string_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if isinstance(value, str):
+        text = value.strip()
+        return [text] if text else []
+    if isinstance(value, Sequence):
+        return [str(item).strip() for item in value if str(item or "").strip()]
+    text = str(value).strip()
+    return [text] if text else []
+
+
+def _futures_live_execution_scope() -> dict[str, Any]:
+    return {
+        "account_family": FUTURES_ACCOUNT_FAMILY_US_CFM,
+        "intx_applicability": FUTURES_INTX_APPLICABILITY_US_ACCOUNT,
+        "product_scope": list(FUTURES_CONFIGURED_PRODUCT_SCOPE),
+        "execution_allowed": False,
+    }
+
+
+def _is_us_cfm_futures_service_decision(record: Mapping[str, Any]) -> bool:
+    return (
+        _has_us_cfm_futures_scope(record)
+        and record.get("status") == AdminMvpGateStatus.PASSED.value
+        and bool(record.get("service_enabled"))
+        and bool(record.get("live_coinbase_execution_approved"))
+    )
+
+
+def _is_us_cfm_futures_adapter_decision(
+    record: Mapping[str, Any],
+    *,
+    target_route: str,
+    target_service_method: str,
+) -> bool:
+    return (
+        _has_us_cfm_futures_scope(record)
+        and str(record.get("target_route") or "") == target_route
+        and str(record.get("target_method") or "") == "POST"
+        and str(record.get("target_service_method") or "") == target_service_method
+        and record.get("status") == AdminMvpGateStatus.PASSED.value
+        and bool(record.get("adapter_constructed"))
+        and bool(record.get("adapter_enabled"))
+        and bool(record.get("live_coinbase_execution_approved"))
+    )
+
+
+def _has_us_cfm_futures_scope(record: Mapping[str, Any]) -> bool:
+    return (
+        str(record.get("target_module_id") or "") == FUTURES_MODULE_ID
+        and str(record.get("account_family") or "") == FUTURES_ACCOUNT_FAMILY_US_CFM
+        and str(record.get("intx_applicability") or "")
+        == FUTURES_INTX_APPLICABILITY_US_ACCOUNT
+        and _futures_product_scope_matches(record)
+    )
+
+
+def _futures_product_scope_matches(record: Mapping[str, Any]) -> bool:
+    product_scope = _string_list(record.get("product_scope"))
+    if not product_scope:
+        return True
+    return any(product_id in FUTURES_CONFIGURED_PRODUCT_SCOPE for product_id in product_scope)
+
+
+def _futures_live_decision_summary(commands: list[Mapping[str, Any]]) -> dict[str, Any]:
+    evidences = [
+        command["readiness_decision"]["live_decision_evidence"] for command in commands
+    ]
+    service_ready = any(
+        evidence["service_decision_status"] == "ready" for evidence in evidences
+    )
+    ready_adapter_count = sum(
+        1 for evidence in evidences if evidence["adapter_decision_status"] == "ready"
+    )
+    missing_adapter_count = len(evidences) - ready_adapter_count
+    first_evidence = evidences[0] if evidences else {}
+    first_blocker = (
+        "futures_executor_not_implemented"
+        if service_ready and missing_adapter_count == 0
+        else "execution_disabled"
+    )
+    return {
+        "account_family": FUTURES_ACCOUNT_FAMILY_US_CFM,
+        "intx_applicability": FUTURES_INTX_APPLICABILITY_US_ACCOUNT,
+        "product_scope": list(FUTURES_CONFIGURED_PRODUCT_SCOPE),
+        "service_decision_status": (
+            "ready" if service_ready else "missing_matching_us_cfm_service_decision"
+        ),
+        "matching_service_decision_id": first_evidence.get("matching_service_decision_id"),
+        "adapter_decision_ready_count": ready_adapter_count,
+        "adapter_decision_missing_count": missing_adapter_count,
+        "all_command_adapters_ready": missing_adapter_count == 0,
+        "first_blocker": first_blocker,
+        "required_evidence_refs": [LIVE_SERVICE_DECISION_ROUTE, LIVE_ADAPTER_DECISION_ROUTE],
+        "execution_allowed": False,
+        "spot_rule_authority": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "live_coinbase_orders_ran": False,
+    }
 
 
 def _query_text(query: Mapping[str, Any], key: str) -> str:
