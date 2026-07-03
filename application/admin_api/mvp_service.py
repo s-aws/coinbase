@@ -3034,11 +3034,34 @@ class AdminMvpService:
         ]
 
     def _live_enablement(self) -> dict[str, Any]:
+        runtime = self._runtime_evidence()
+        service_decision_allows_live = self._latest_service_decision_allows_live()
+        backend_live_execution_opt_in = bool(
+            self.dependencies.live_coinbase_execution_enabled
+        )
+        manual_path_live_enabled = (
+            service_decision_allows_live and backend_live_execution_opt_in
+        )
+        manual_path_live_executable = (
+            manual_path_live_enabled and bool(runtime["live_command_runtime_ready"])
+        )
         manual_path = self._live_path(
             route=MANUAL_ORDER_ROUTE,
             method="POST",
-            live_enabled=True,
-            live_eligible=True,
+            live_enabled=manual_path_live_enabled,
+            live_eligible=service_decision_allows_live,
+        )
+        manual_path.update(
+            {
+                "live_service_decision_enabled": service_decision_allows_live,
+                "backend_live_execution_opt_in": backend_live_execution_opt_in,
+                "live_executable": manual_path_live_executable,
+                "live_blocker": _live_enablement_blocker(
+                    service_decision_allows_live=service_decision_allows_live,
+                    backend_live_execution_opt_in=backend_live_execution_opt_in,
+                    runtime_ready=bool(runtime["live_command_runtime_ready"]),
+                ),
+            }
         )
         cancel_path = self._live_path(
             route=CANCEL_ORDER_ROUTE,
@@ -3046,9 +3069,14 @@ class AdminMvpService:
             live_enabled=False,
             live_eligible=False,
         )
+        live_status = (
+            self._live_service_status()
+            if backend_live_execution_opt_in
+            else AdminMvpLiveServiceStatus.LIVE_DISABLED.value
+        )
         return {
             "type": "admin_live_enablement",
-            "status": self._live_service_status(),
+            "status": live_status,
             "default_live_coinbase_execution": (
                 "submitted" if self.store.live_coinbase_orders_ran else "not_run"
             ),
@@ -3057,17 +3085,34 @@ class AdminMvpService:
             "quote_currency": "USDC",
             "max_submitted_notional_usdc": _decimal_text(self._max_submitted_notional()),
             "max_executed_notional_usdc": _decimal_text(DEFAULT_MAX_EXECUTED_NOTIONAL_USDC),
-            "live_enabled_path_count": 1,
-            "live_eligible_path_count": 1,
-            "live_command_runtime_enabled": True,
-            **self._runtime_evidence(),
-            "live_command_runtime_ready_path_count": 1,
+            "live_enabled_path_count": 1 if manual_path_live_enabled else 0,
+            "live_eligible_path_count": 1 if service_decision_allows_live else 0,
+            "live_executable_path_count": 1 if manual_path_live_executable else 0,
+            "live_service_decision_enabled": service_decision_allows_live,
+            "backend_live_execution_opt_in": backend_live_execution_opt_in,
+            **runtime,
+            "live_command_runtime_ready_path_count": (
+                1 if bool(runtime["live_command_runtime_ready"]) else 0
+            ),
             "paths": [manual_path, cancel_path],
             "checks": [
                 {
                     "name": "backend_admin_service_gate",
                     "status": self._live_service_status(),
                     "detail": "Manual order requires backend proof-chain admission before Coinbase execution.",
+                },
+                {
+                    "name": "backend_live_execution_opt_in",
+                    "status": (
+                        AdminMvpGateStatus.PASSED.value
+                        if backend_live_execution_opt_in
+                        else AdminMvpGateStatus.BLOCKED.value
+                    ),
+                    "detail": (
+                        "This backend process is opted in for controlled live execution."
+                        if backend_live_execution_opt_in
+                        else "This backend process is not opted in for controlled live execution."
+                    ),
                 }
             ],
             "read_only": True,
@@ -4765,6 +4810,21 @@ class AdminMvpService:
             latest.get("max_submitted_notional_usdc"),
             DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC,
         )
+
+
+def _live_enablement_blocker(
+    *,
+    service_decision_allows_live: bool,
+    backend_live_execution_opt_in: bool,
+    runtime_ready: bool,
+) -> str | None:
+    if not service_decision_allows_live:
+        return "live_service_decision_missing"
+    if not backend_live_execution_opt_in:
+        return "backend_live_execution_disabled"
+    if not runtime_ready:
+        return "live_command_runtime_not_ready"
+    return None
 
 
 def _payload_hash(body: Mapping[str, Any]) -> str:

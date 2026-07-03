@@ -132623,6 +132623,23 @@ components:
           type: boolean
           title: Live Eligible
           default: false
+        live_service_decision_enabled:
+          type: boolean
+          title: Live Service Decision Enabled
+          default: false
+        backend_live_execution_opt_in:
+          type: boolean
+          title: Backend Live Execution Opt In
+          default: false
+        live_executable:
+          type: boolean
+          title: Live Executable
+          default: false
+        live_blocker:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Blocker
         status:
           $ref: '#/components/schemas/AdminApiLiveExecutionStatus'
           default: live_disabled
@@ -132872,6 +132889,18 @@ components:
           type: integer
           title: Live Eligible Path Count
           default: 0
+        live_executable_path_count:
+          type: integer
+          title: Live Executable Path Count
+          default: 0
+        live_service_decision_enabled:
+          type: boolean
+          title: Live Service Decision Enabled
+          default: false
+        backend_live_execution_opt_in:
+          type: boolean
+          title: Backend Live Execution Opt In
+          default: false
         live_command_runtime_enabled:
           type: boolean
           title: Live Command Runtime Enabled

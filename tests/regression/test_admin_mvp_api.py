@@ -2110,11 +2110,19 @@ def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
         for path in live_enablement.body["paths"]
         if path["route"] == "/api/v1/orders"
     )
-    assert live_enablement.body["status"] == "approval_required"
-    assert live_enablement.body["live_enabled_path_count"] == 1
-    assert manual_path["live_enabled"] is True
+    assert live_enablement.body["status"] == "live_disabled"
+    assert live_enablement.body["live_enabled_path_count"] == 0
+    assert live_enablement.body["live_eligible_path_count"] == 1
+    assert live_enablement.body["live_executable_path_count"] == 0
+    assert live_enablement.body["live_service_decision_enabled"] is True
+    assert live_enablement.body["backend_live_execution_opt_in"] is False
+    assert manual_path["live_enabled"] is False
     assert manual_path["live_eligible"] is True
     assert manual_path["live_command_runtime_ready"] is True
+    assert manual_path["live_service_decision_enabled"] is True
+    assert manual_path["backend_live_execution_opt_in"] is False
+    assert manual_path["live_executable"] is False
+    assert manual_path["live_blocker"] == "backend_live_execution_disabled"
     assert live_enablement.body["live_coinbase_orders_ran"] is False
 
     command_suite = service.get_read_response(
@@ -2465,6 +2473,10 @@ def test_admin_mvp_explicit_live_execution_flows_through_backend_service_only():
     assert health.body["notional_usdc"] == "1.00"
     assert live_enablement.body["live_coinbase_orders_ran"] is True
     assert live_enablement.body["default_live_coinbase_execution"] == "submitted"
+    assert live_enablement.body["status"] == "approval_required"
+    assert live_enablement.body["live_enabled_path_count"] == 1
+    assert live_enablement.body["live_executable_path_count"] == 1
+    assert live_enablement.body["backend_live_execution_opt_in"] is True
     assert command_suite.body["live_coinbase_orders_ran"] is True
     assert command_suite.body["submitted_notional_usdc"] == "1.00"
 
