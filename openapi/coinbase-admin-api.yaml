@@ -131586,6 +131586,27 @@ components:
           type: string
           minLength: 1
           title: Target Module Id
+        account_family:
+          type: string
+          minLength: 1
+          title: Account Family
+          default: unscoped
+        venue_scope:
+          type: string
+          minLength: 1
+          title: Venue Scope
+          default: unscoped
+        intx_applicability:
+          type: string
+          minLength: 1
+          title: Intx Applicability
+          default: unscoped
+        product_scope:
+          items:
+            type: string
+          type: array
+          title: Product Scope
+          default: []
         target_service_method:
           type: string
           minLength: 1
@@ -131687,6 +131708,24 @@ components:
         target_service_method:
           type: string
           title: Target Service Method
+        account_family:
+          type: string
+          title: Account Family
+          default: unscoped
+        venue_scope:
+          type: string
+          title: Venue Scope
+          default: unscoped
+        intx_applicability:
+          type: string
+          title: Intx Applicability
+          default: unscoped
+        product_scope:
+          items:
+            type: string
+          type: array
+          title: Product Scope
+          default: []
         adapter_reference:
           type: string
           title: Adapter Reference
@@ -131805,6 +131844,10 @@ components:
       - target_method
       - target_module_id
       - target_service_method
+      - account_family
+      - venue_scope
+      - intx_applicability
+      - product_scope
       - adapter_reference
       - construction_review_ref
       - decision_reason
@@ -133672,6 +133715,32 @@ components:
           type: boolean
           title: Service Enabled
           default: false
+        target_module_id:
+          type: string
+          minLength: 1
+          title: Target Module Id
+          default: admin_system_health
+        account_family:
+          type: string
+          minLength: 1
+          title: Account Family
+          default: unscoped
+        venue_scope:
+          type: string
+          minLength: 1
+          title: Venue Scope
+          default: unscoped
+        intx_applicability:
+          type: string
+          minLength: 1
+          title: Intx Applicability
+          default: unscoped
+        product_scope:
+          items:
+            type: string
+          type: array
+          title: Product Scope
+          default: []
         deployment_ref:
           type: string
           minLength: 1
@@ -133749,6 +133818,28 @@ components:
           type: boolean
           title: Service Enabled
           default: false
+        target_module_id:
+          type: string
+          title: Target Module Id
+          default: admin_system_health
+        account_family:
+          type: string
+          title: Account Family
+          default: unscoped
+        venue_scope:
+          type: string
+          title: Venue Scope
+          default: unscoped
+        intx_applicability:
+          type: string
+          title: Intx Applicability
+          default: unscoped
+        product_scope:
+          items:
+            type: string
+          type: array
+          title: Product Scope
+          default: []
         source:
           type: string
           title: Source
@@ -133847,6 +133938,11 @@ components:
       - status
       - requested_service_status
       - live_execution_service_status
+      - target_module_id
+      - account_family
+      - venue_scope
+      - intx_applicability
+      - product_scope
       - deployment_ref
       - runtime_configuration_ref
       - decision_reason

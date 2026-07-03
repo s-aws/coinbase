@@ -6,6 +6,7 @@ from pathlib import Path
 import tomllib
 
 import pytest
+import yaml
 
 from application.admin_api.mvp_service import (
     AdminMvpDependencies,
@@ -24,6 +25,37 @@ PRE_COINBASE_FAILURE_STAGES = {
     "action_condition_guard",
     "durable_audit_required",
 }
+
+
+def test_admin_live_decision_openapi_exposes_futures_scope_fields():
+    openapi = yaml.safe_load(
+        Path("openapi/coinbase-admin-api.yaml").read_text(encoding="utf-8")
+    )
+    schemas = openapi["components"]["schemas"]
+    service_scope_fields = {
+        "target_module_id",
+        "account_family",
+        "venue_scope",
+        "intx_applicability",
+        "product_scope",
+    }
+    adapter_scope_fields = {
+        "account_family",
+        "venue_scope",
+        "intx_applicability",
+        "product_scope",
+    }
+
+    assert service_scope_fields <= set(
+        schemas["AdminLiveServiceDecisionCreateRequest"]["properties"]
+    )
+    assert service_scope_fields <= set(schemas["AdminLiveServiceDecisionItem"]["properties"])
+    assert service_scope_fields <= set(schemas["AdminLiveServiceDecisionItem"]["required"])
+    assert adapter_scope_fields <= set(
+        schemas["AdminLiveAdapterDecisionCreateRequest"]["properties"]
+    )
+    assert adapter_scope_fields <= set(schemas["AdminLiveAdapterDecisionItem"]["properties"])
+    assert adapter_scope_fields <= set(schemas["AdminLiveAdapterDecisionItem"]["required"])
 
 
 @dataclass
