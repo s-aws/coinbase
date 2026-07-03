@@ -14,7 +14,8 @@ from enum import Enum
 import hashlib
 import json
 import os
-from typing import Any, Callable, Mapping, Sequence
+from pathlib import Path
+from typing import Any, Callable, Iterable, Mapping, Sequence
 from urllib.parse import unquote
 import uuid
 
@@ -42,6 +43,13 @@ ACCOUNT_WALLET_ROUTE = "/api/v1/admin/wallet"
 ACCOUNT_MANAGEMENT_MODULE_ID = "account_management"
 FRONTEND_LOCAL_RELEASE_MANIFEST_ENV = "COINBASE_ADMIN_FRONTEND_LOCAL_RELEASE_MANIFEST_PATH"
 BACKEND_LOCAL_RELEASE_MANIFEST_ENV = "COINBASE_BACKEND_LOCAL_RELEASE_MANIFEST_PATH"
+APPROVAL_LOG_PATH_ENV = "COINBASE_ADMIN_API_APPROVAL_LOG_PATH"
+IDEMPOTENCY_LOG_PATH_ENV = "COINBASE_ADMIN_API_IDEMPOTENCY_LOG_PATH"
+AUDIT_LOG_PATH_ENV = "COINBASE_ADMIN_API_AUDIT_LOG_PATH"
+CAP_GUARD_LOG_PATH_ENV = "COINBASE_ADMIN_API_CAP_GUARD_LOG_PATH"
+RECONCILIATION_LOG_PATH_ENV = "COINBASE_ADMIN_API_RECONCILIATION_LOG_PATH"
+LIVE_SERVICE_DECISION_LOG_PATH_ENV = "COINBASE_ADMIN_API_LIVE_SERVICE_DECISION_LOG_PATH"
+LIVE_ADAPTER_DECISION_LOG_PATH_ENV = "COINBASE_ADMIN_API_LIVE_ADAPTER_DECISION_LOG_PATH"
 ACCOUNT_SNAPSHOT_WALLET_SOURCE = "account_management_snapshot"
 BACKEND_REST_CLIENT_SOURCE = "backend_rest_client"
 BACKEND_REST_FRESHNESS = "backend_rest_fresh"
@@ -139,6 +147,20 @@ DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC = Decimal("3.10")
 DEFAULT_MAX_EXECUTED_NOTIONAL_USDC = Decimal("1.00")
 DEFAULT_WALLET_AVAILABLE_NOTIONAL_USDC = Decimal("0")
 TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
+ADMIN_MVP_EVIDENCE_LOG_PATH_ENVS = {
+    "approval_requests": APPROVAL_LOG_PATH_ENV,
+    "approval_snapshots": APPROVAL_LOG_PATH_ENV,
+    "command_identity_by_idempotency_key": IDEMPOTENCY_LOG_PATH_ENV,
+    "admission_audits": AUDIT_LOG_PATH_ENV,
+    "spot_command_decisions": AUDIT_LOG_PATH_ENV,
+    "futures_risk_proofs": AUDIT_LOG_PATH_ENV,
+    "futures_command_decisions": AUDIT_LOG_PATH_ENV,
+    "futures_executor_decisions": AUDIT_LOG_PATH_ENV,
+    "cap_guard_decisions": CAP_GUARD_LOG_PATH_ENV,
+    "reconciliation_plans": RECONCILIATION_LOG_PATH_ENV,
+    "service_decisions": LIVE_SERVICE_DECISION_LOG_PATH_ENV,
+    "live_adapter_decisions": LIVE_ADAPTER_DECISION_LOG_PATH_ENV,
+}
 
 
 class AdminMvpCommandStatus(str, Enum):
@@ -179,7 +201,7 @@ class AdminMvpApiResult:
 
 @dataclass
 class AdminMvpStore:
-    """Process-local MVP evidence store for local deployment."""
+    """MVP evidence store for local deployment."""
 
     command_identity_by_idempotency_key: dict[str, str] = field(default_factory=dict)
     service_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -196,6 +218,142 @@ class AdminMvpStore:
     submitted_notional_usdc: Decimal = Decimal("0")
     executed_notional_usdc: Decimal = Decimal("0")
     live_coinbase_orders_ran: bool = False
+
+
+@dataclass(frozen=True)
+class AdminMvpEvidenceLog:
+    """Append and load local JSONL evidence entries for restart-safe MVP state."""
+
+    collection_paths: Mapping[str, Path] = field(default_factory=dict)
+
+    @classmethod
+    def from_env(cls, environ: Mapping[str, str] | None = None) -> "AdminMvpEvidenceLog":
+        source = os.environ if environ is None else environ
+        paths: dict[str, Path] = {}
+        for collection, env_name in ADMIN_MVP_EVIDENCE_LOG_PATH_ENVS.items():
+            raw_path = str(source.get(env_name) or "").strip()
+            if raw_path:
+                paths[collection] = Path(raw_path)
+        return cls(paths)
+
+    def append(self, collection: str, key: str, record: Any) -> None:
+        path = self.collection_paths.get(collection)
+        if path is None:
+            return
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        entry = {"collection": collection, "key": key, "record": record}
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(entry, sort_keys=True, default=str))
+            handle.write("\n")
+
+    def load_store(self) -> AdminMvpStore:
+        store = AdminMvpStore()
+        for path in _unique_paths(self.collection_paths.values()):
+            for entry in self._read_entries(path):
+                _apply_evidence_log_entry(store, entry)
+        _refresh_store_live_submission_totals(store)
+        return store
+
+    def _read_entries(self, path: Path) -> list[dict[str, Any]]:
+        if not path.exists():
+            return []
+
+        entries: list[dict[str, Any]] = []
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(entry, dict):
+                    entries.append(entry)
+        return entries
+
+
+def _unique_paths(paths: Iterable[Path]) -> list[Path]:
+    seen: set[str] = set()
+    unique: list[Path] = []
+    for path in paths:
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(path)
+    return unique
+
+
+def _apply_evidence_log_entry(store: AdminMvpStore, entry: Mapping[str, Any]) -> None:
+    collection = str(entry.get("collection") or "")
+    key = str(entry.get("key") or "")
+    record = entry.get("record")
+    if not key:
+        return
+
+    if collection == "command_identity_by_idempotency_key":
+        if isinstance(record, dict):
+            client_order_id = str(record.get("client_order_id") or "")
+        else:
+            client_order_id = str(record or "")
+        if client_order_id:
+            store.command_identity_by_idempotency_key[key] = client_order_id
+        return
+
+    collection_store = _evidence_collection_store(store, collection)
+    if collection_store is None or not isinstance(record, dict):
+        return
+    collection_store[key] = record
+
+
+def _evidence_collection_store(
+    store: AdminMvpStore,
+    collection: str,
+) -> dict[str, dict[str, Any]] | None:
+    if collection == "service_decisions":
+        return store.service_decisions
+    if collection == "approval_requests":
+        return store.approval_requests
+    if collection == "approval_snapshots":
+        return store.approval_snapshots
+    if collection == "admission_audits":
+        return store.admission_audits
+    if collection == "cap_guard_decisions":
+        return store.cap_guard_decisions
+    if collection == "reconciliation_plans":
+        return store.reconciliation_plans
+    if collection == "live_adapter_decisions":
+        return store.live_adapter_decisions
+    if collection == "spot_command_decisions":
+        return store.spot_command_decisions
+    if collection == "futures_risk_proofs":
+        return store.futures_risk_proofs
+    if collection == "futures_command_decisions":
+        return store.futures_command_decisions
+    if collection == "futures_executor_decisions":
+        return store.futures_executor_decisions
+    return None
+
+
+def _refresh_store_live_submission_totals(store: AdminMvpStore) -> None:
+    submitted_notional = Decimal("0")
+    executed_notional = Decimal("0")
+    live_orders_ran = False
+    for record in store.spot_command_decisions.values():
+        if not bool(record.get("live_exchange_submitted")):
+            continue
+        live_orders_ran = True
+        submitted_notional += _decimal_value(record.get("notional_usdc"), Decimal("0"))
+        executed_notional += _decimal_value(
+            record.get("executed_notional_usdc"),
+            Decimal("0"),
+        )
+
+    store.submitted_notional_usdc = submitted_notional
+    store.executed_notional_usdc = executed_notional
+    store.live_coinbase_orders_ran = live_orders_ran
 
 
 @dataclass(frozen=True)
@@ -240,11 +398,16 @@ class AdminMvpService:
         self,
         dependencies: AdminMvpDependencies | None = None,
         store: AdminMvpStore | None = None,
+        evidence_log: AdminMvpEvidenceLog | None = None,
     ) -> None:
         self.dependencies = dependencies or AdminMvpDependencies(
             live_coinbase_execution_enabled=live_coinbase_execution_enabled_from_env(),
         )
-        self.store = store or AdminMvpStore()
+        self.evidence_log = evidence_log or AdminMvpEvidenceLog.from_env()
+        self.store = store or self.evidence_log.load_store()
+
+    def _persist_record(self, collection: str, key: str, record: Any) -> None:
+        self.evidence_log.append(collection, key, record)
 
     def get_read_response(
         self,
@@ -360,6 +523,7 @@ class AdminMvpService:
         decision_id = str(body.get("decision_id") or self.dependencies.uuid_factory())
         record = self._live_service_decision_record(decision_id, body, context)
         self.store.service_decisions[decision_id] = record
+        self._persist_record("service_decisions", decision_id, record)
         return self._ok(
             {
                 "type": "admin_live_service_decision",
@@ -478,6 +642,7 @@ class AdminMvpService:
         decision_id = str(body.get("decision_id") or self.dependencies.uuid_factory())
         record = self._live_adapter_decision_record(decision_id, body, context)
         self.store.live_adapter_decisions[decision_id] = record
+        self._persist_record("live_adapter_decisions", decision_id, record)
         return self._ok(
             {
                 "type": "admin_live_adapter_decision",
@@ -1085,6 +1250,7 @@ class AdminMvpService:
             "idempotency_key": context.idempotency_key,
         }
         self.store.approval_requests[approval_request_id] = record
+        self._persist_record("approval_requests", approval_request_id, record)
         return self._ok(
             {
                 "type": "admin_approval_lifecycle",
@@ -1140,6 +1306,8 @@ class AdminMvpService:
         }
         self.store.approval_requests[approval_request_id] = record
         self.store.approval_snapshots[approval_id] = record
+        self._persist_record("approval_requests", approval_request_id, record)
+        self._persist_record("approval_snapshots", approval_id, record)
         return self._ok(
             {
                 "type": "admin_approval_lifecycle",
@@ -1182,6 +1350,7 @@ class AdminMvpService:
             "idempotency_key": context.idempotency_key,
         }
         self.store.admission_audits[audit_id] = record
+        self._persist_record("admission_audits", audit_id, record)
         return self._ok(
             {
                 "type": "admin_admission_audit_result",
@@ -1228,6 +1397,7 @@ class AdminMvpService:
             "idempotency_key": context.idempotency_key,
         }
         self.store.cap_guard_decisions[decision_id] = record
+        self._persist_record("cap_guard_decisions", decision_id, record)
         return self._ok(
             {
                 "type": "admin_cap_guard_decision_result",
@@ -1305,6 +1475,7 @@ class AdminMvpService:
             "idempotency_key": context.idempotency_key,
         }
         self.store.reconciliation_plans[plan_id] = record
+        self._persist_record("reconciliation_plans", plan_id, record)
         return self._ok(
             {
                 "type": "admin_reconciliation_plan_result",
@@ -1343,6 +1514,7 @@ class AdminMvpService:
             context=context,
         )
         self.store.futures_risk_proofs[proof_id] = record
+        self._persist_record("futures_risk_proofs", proof_id, record)
         return self._ok(
             {
                 "type": "admin_futures_risk_proof_result",
@@ -1664,6 +1836,7 @@ class AdminMvpService:
             ),
         }
         self.store.futures_executor_decisions[decision_id] = record
+        self._persist_record("futures_executor_decisions", decision_id, record)
         return record
 
     def _record_futures_command_decision(
@@ -1736,6 +1909,7 @@ class AdminMvpService:
             ),
         }
         self.store.futures_command_decisions[decision_id] = record
+        self._persist_record("futures_command_decisions", decision_id, record)
         return record
 
     def preview_admission(
@@ -1960,6 +2134,7 @@ class AdminMvpService:
             **dict(runtime_evidence),
         }
         self.store.spot_command_decisions[decision_id] = record
+        self._persist_record("spot_command_decisions", decision_id, record)
         return record
 
     def _pre_coinbase_failure(
@@ -2162,6 +2337,14 @@ class AdminMvpService:
             return existing
         client_order_id = self.dependencies.uuid_factory()
         self.store.command_identity_by_idempotency_key[idempotency_key] = client_order_id
+        self._persist_record(
+            "command_identity_by_idempotency_key",
+            idempotency_key,
+            {
+                "idempotency_key": idempotency_key,
+                "client_order_id": client_order_id,
+            },
+        )
         return client_order_id
 
     def _runtime_evidence(self) -> dict[str, Any]:

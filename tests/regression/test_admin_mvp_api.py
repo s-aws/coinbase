@@ -507,6 +507,116 @@ def preview_query(admission: dict) -> dict[str, str]:
     }
 
 
+def configure_local_evidence_logs(tmp_path: Path, monkeypatch) -> None:
+    logs = {
+        "COINBASE_ADMIN_API_APPROVAL_LOG_PATH": "approval.jsonl",
+        "COINBASE_ADMIN_API_IDEMPOTENCY_LOG_PATH": "idempotency.jsonl",
+        "COINBASE_ADMIN_API_AUDIT_LOG_PATH": "audit.jsonl",
+        "COINBASE_ADMIN_API_CAP_GUARD_LOG_PATH": "cap-guard.jsonl",
+        "COINBASE_ADMIN_API_RECONCILIATION_LOG_PATH": "reconciliation.jsonl",
+        "COINBASE_ADMIN_API_LIVE_SERVICE_DECISION_LOG_PATH": "live-service.jsonl",
+        "COINBASE_ADMIN_API_LIVE_ADAPTER_DECISION_LOG_PATH": "live-adapter.jsonl",
+    }
+    for env_name, filename in logs.items():
+        monkeypatch.setenv(env_name, str(tmp_path / filename))
+
+
+def test_admin_mvp_local_evidence_logs_survive_backend_restart(tmp_path, monkeypatch):
+    configure_local_evidence_logs(tmp_path, monkeypatch)
+
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
+    )
+    record_live_service_decision(service)
+    record_futures_live_service_decision(service)
+    record_all_futures_live_adapter_decisions(service)
+
+    order_body = limit_ioc_manual_order_body()
+    admission = first_manual_submit(service, order_body)
+    record_proof_chain(service, admission)
+    spot_attempt = service.submit_manual_order(
+        order_body,
+        context(idempotency_key="manual-order-proof-chain"),
+    )
+    assert spot_attempt.status_code == 400
+    assert spot_attempt.body["client_order_id"] == admission["identity_value"]
+
+    futures_attempt = service.submit_futures_command(
+        "/api/v1/futures/orders",
+        {
+            "product_id": "BIP-20DEC30-CDE",
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "limit_price": "0.50",
+            "number_of_contracts": "1",
+        },
+        context(idempotency_key="futures-place-persisted-draft"),
+    )
+    assert futures_attempt.status_code == 400
+    assert futures_attempt.body["submission_event_recorded"] is True
+
+    restarted = AdminMvpService(
+        AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
+    )
+
+    assert restarted.store.command_identity_by_idempotency_key[
+        "manual-order-proof-chain"
+    ] == admission["identity_value"]
+
+    preview = restarted.preview_admission(preview_query(admission), context())
+    assert preview.status_code == 200
+    assert preview.body["admission_decision"]["allowed"] is True
+
+    spot_suite = restarted.get_read_response(
+        "/api/v1/spot/command-suite",
+        preview_query(admission),
+        context(),
+    )
+    assert spot_suite.body["manual_order_proof_chain_status"] == "passed"
+    manual_command = next(
+        command
+        for command in spot_suite.body["commands"]
+        if command["route"] == "/api/v1/orders"
+    )
+    assert manual_command["admission_decision"]["allowed"] is True
+
+    spot_workbench = restarted.get_read_response(
+        "/api/v1/admin/audit-workbench",
+        {"module": "spot", "client_order_id": admission["identity_value"]},
+        context(),
+    )
+    assert spot_workbench.status_code == 200
+    assert spot_workbench.body["count"] >= 1
+    assert any(
+        event["client_order_id"] == admission["identity_value"]
+        for event in spot_workbench.body["events"]
+    )
+
+    futures_suite = restarted.get_read_response(
+        "/api/v1/futures/command-suite",
+        {},
+        context(),
+    )
+    assert futures_suite.body["futures_live_decision_evidence"]["service_decision_status"] == (
+        "ready"
+    )
+    assert futures_suite.body["futures_live_decision_evidence"][
+        "adapter_decision_ready_count"
+    ] == 4
+
+    futures_workbench = restarted.get_read_response(
+        "/api/v1/admin/audit-workbench",
+        {"module": "futures_perpetuals"},
+        context(),
+    )
+    assert futures_workbench.status_code == 200
+    assert futures_workbench.body["count"] >= 1
+    assert any(
+        event["event_id"] == futures_attempt.body["submission_event_id"]
+        for event in futures_workbench.body["events"]
+    )
+
+
 def test_admin_account_management_read_contract_exposes_local_operator_scope(
     tmp_path,
     monkeypatch,
