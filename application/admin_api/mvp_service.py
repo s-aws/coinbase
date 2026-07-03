@@ -86,6 +86,18 @@ MANUAL_ORDER_MODULE_ID = "spot_operations"
 MANUAL_ORDER_ACTION_CLASS = "live_exchange_place"
 MANUAL_ORDER_PERMISSION = "order:create"
 MANUAL_ORDER_SERVICE_METHOD = "place_manual_order"
+SPOT_MANUAL_PROOF_GATES = (
+    "approval_snapshot",
+    "admission_audit",
+    "cap_guard",
+    "reconciliation_plan",
+)
+SPOT_MANUAL_PROOF_GATE_FIELDS = {
+    "approval_snapshot": "approval_snapshot_present",
+    "admission_audit": "admission_audit_present",
+    "cap_guard": "cap_guard_present",
+    "reconciliation_plan": "reconciliation_plan_present",
+}
 LIVE_SERVICE_DECISION_ROUTE = "/api/v1/admin/live-execution/service-decisions"
 LIVE_SERVICE_DECISION_PERMISSION = "config:update"
 LIVE_SERVICE_DECISION_SERVICE_METHOD = "record_live_service_decision"
@@ -290,7 +302,7 @@ class AdminMvpService:
         if normalized_path.startswith("/api/v1/orders/"):
             return self._ok(self._order_detail(_last_path_part(normalized_path)), context)
         if normalized_path == "/api/v1/spot/command-suite":
-            return self._ok(self._spot_command_suite(), context)
+            return self._ok(self._spot_command_suite(query, context), context)
         if normalized_path.startswith("/api/v1/spot/"):
             return self._ok(self._spot_placeholder(normalized_path, query), context)
         if normalized_path.startswith("/api/v1/stealth/"):
@@ -2000,8 +2012,17 @@ class AdminMvpService:
             "live_coinbase_orders_ran": False,
         }
 
-    def _spot_command_suite(self) -> dict[str, Any]:
-        commands = [_manual_order_command(), _cancel_order_command()]
+    def _spot_command_suite(
+        self,
+        query: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+    ) -> dict[str, Any]:
+        proof_context, admission = self._spot_manual_order_admission(query, context)
+        manual_command = _manual_order_command(
+            admission=admission,
+            admission_context=proof_context,
+        )
+        commands = [manual_command, _cancel_order_command()]
         return {
             "type": "spot_command_suite",
             "status": "approval_required",
@@ -2010,6 +2031,10 @@ class AdminMvpService:
             "live_enabled_command_count": 1,
             "executable_command_count": 0,
             "coverage_gap_count": 0,
+            "manual_order_proof_chain_status": manual_command["proof_chain_status"],
+            "manual_order_missing_gate_count": len(manual_command["missing_gate_chain"]),
+            "manual_order_resolved_gate_count": len(manual_command["resolved_gate_chain"]),
+            "manual_order_admission_context_present": proof_context is not None,
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
             "spot_rules_platform_default": False,
@@ -2019,6 +2044,82 @@ class AdminMvpService:
             "coverage_gaps": [],
             "live_coinbase_orders_ran": False,
         }
+
+    def _spot_manual_order_admission(
+        self,
+        query: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+        proof_context = self._spot_manual_order_context_from_query(query)
+        if proof_context is None:
+            proof_context = self._latest_spot_manual_order_proof_context()
+        if proof_context is None:
+            return None, None
+        admission_context = AdminMvpRequestContext(
+            idempotency_key=proof_context["command_idempotency_key"],
+            correlation_id=context.correlation_id,
+            operator_intent=proof_context["operator_intent"],
+            actor_id=proof_context["actor_id"],
+            roles=context.roles,
+        )
+        admission = self._admission_decision(
+            context=admission_context,
+            identity_value=proof_context["identity_value"],
+            payload_hash=proof_context["payload_hash"],
+        )
+        return proof_context, admission
+
+    def _spot_manual_order_context_from_query(
+        self,
+        query: Mapping[str, Any],
+    ) -> dict[str, Any] | None:
+        route = _query_text(query, "route") or MANUAL_ORDER_ROUTE
+        identity_key = _query_text(query, "identity_key") or "client_order_id"
+        service_method = _query_text(query, "service_method") or MANUAL_ORDER_SERVICE_METHOD
+        if route != MANUAL_ORDER_ROUTE:
+            return None
+        if identity_key != "client_order_id":
+            return None
+        if service_method != MANUAL_ORDER_SERVICE_METHOD:
+            return None
+        identity_value = _query_text(query, "identity_value")
+        idempotency_key = _query_text(query, "command_idempotency_key") or _query_text(
+            query,
+            "idempotency_key",
+        )
+        payload_hash = _query_text(query, "payload_hash")
+        if not (identity_value and idempotency_key and payload_hash):
+            return None
+        return {
+            "route": route,
+            "method": _query_text(query, "method") or "POST",
+            "module_id": _query_text(query, "module_id") or MANUAL_ORDER_MODULE_ID,
+            "identity_key": identity_key,
+            "identity_value": identity_value,
+            "action_class": _query_text(query, "action_class") or MANUAL_ORDER_ACTION_CLASS,
+            "required_permission": _query_text(query, "required_permission")
+            or MANUAL_ORDER_PERMISSION,
+            "service_method": service_method,
+            "actor_id": _query_text(query, "actor_id") or "local-operator",
+            "operator_intent": _query_text(query, "operator_intent") or "read_admin_api",
+            "command_idempotency_key": idempotency_key,
+            "payload_hash": payload_hash,
+            "source": "query",
+        }
+
+    def _latest_spot_manual_order_proof_context(self) -> dict[str, Any] | None:
+        for records in (
+            self.store.reconciliation_plans,
+            self.store.cap_guard_decisions,
+            self.store.admission_audits,
+            self.store.approval_snapshots,
+            self.store.approval_requests,
+        ):
+            for record in reversed(list(records.values())):
+                proof_context = _spot_manual_order_context_from_record(record)
+                if proof_context is not None:
+                    return proof_context
+        return None
 
     def _spot_placeholder(
         self,
@@ -3581,6 +3682,81 @@ def _command_evidence_from_body(body: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _spot_manual_order_context_from_record(
+    record: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    if record is None:
+        return None
+    route = str(record.get("route") or "")
+    identity_key = str(record.get("identity_key") or "")
+    service_method = str(record.get("service_method") or MANUAL_ORDER_SERVICE_METHOD)
+    identity_value = str(record.get("identity_value") or "")
+    idempotency_key = str(record.get("command_idempotency_key") or "")
+    payload_hash = str(record.get("payload_hash") or "")
+    if route != MANUAL_ORDER_ROUTE:
+        return None
+    if identity_key != "client_order_id":
+        return None
+    if service_method != MANUAL_ORDER_SERVICE_METHOD:
+        return None
+    if not (identity_value and idempotency_key and payload_hash):
+        return None
+    return {
+        "route": route,
+        "method": str(record.get("method") or "POST"),
+        "module_id": str(record.get("module_id") or MANUAL_ORDER_MODULE_ID),
+        "identity_key": identity_key,
+        "identity_value": identity_value,
+        "action_class": str(record.get("action_class") or MANUAL_ORDER_ACTION_CLASS),
+        "required_permission": str(
+            record.get("required_permission") or MANUAL_ORDER_PERMISSION
+        ),
+        "service_method": service_method,
+        "actor_id": str(
+            record.get("actor_id")
+            or record.get("decision_actor_id")
+            or record.get("requested_by_actor_id")
+            or "local-operator"
+        ),
+        "operator_intent": str(record.get("operator_intent") or "read_admin_api"),
+        "command_idempotency_key": idempotency_key,
+        "payload_hash": payload_hash,
+        "source": "latest_backend_proof_record",
+    }
+
+
+def _spot_command_suite_admission_summary(admission: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "status": admission.get("status"),
+        "allowed": bool(admission.get("allowed")),
+        "route": admission.get("route"),
+        "method": admission.get("method"),
+        "module_id": admission.get("module_id"),
+        "identity_key": admission.get("identity_key"),
+        "identity_value": admission.get("identity_value"),
+        "idempotency_key": admission.get("idempotency_key"),
+        "payload_hash": admission.get("payload_hash"),
+        "approval_snapshot_present": bool(admission.get("approval_snapshot_present")),
+        "approval_snapshot_id": admission.get("approval_snapshot_id"),
+        "admission_audit_present": bool(admission.get("admission_audit_present")),
+        "admission_audit_id": admission.get("admission_audit_id"),
+        "cap_guard_present": bool(admission.get("cap_guard_present")),
+        "cap_guard_decision_id": admission.get("cap_guard_decision_id"),
+        "reconciliation_plan_present": bool(
+            admission.get("reconciliation_plan_present")
+        ),
+        "reconciliation_plan_id": admission.get("reconciliation_plan_id"),
+        "live_execution_service_present": bool(
+            admission.get("live_execution_service_present")
+        ),
+        "live_execution_service_status": admission.get("live_execution_service_status"),
+        "blockers": list(admission.get("blockers") or []),
+        "evidence": list(admission.get("evidence") or []),
+        "browser_authority": admission.get("browser_authority"),
+        "live_exchange_submitted": False,
+    }
+
+
 def _evidence_refs(*records: dict[str, Any] | None) -> list[str]:
     refs: list[str] = []
     for record in records:
@@ -3748,7 +3924,34 @@ def _command_capability(
     }
 
 
-def _manual_order_command() -> dict[str, Any]:
+def _manual_order_command(
+    *,
+    admission: Mapping[str, Any] | None = None,
+    admission_context: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    if admission is None:
+        missing_gate_chain = list(SPOT_MANUAL_PROOF_GATES)
+        resolved_gate_chain: list[str] = []
+        proof_chain_status = AdminMvpGateStatus.BLOCKED.value
+        live_execution_status = AdminMvpLiveServiceStatus.APPROVAL_REQUIRED.value
+    else:
+        missing_gate_chain = [
+            gate
+            for gate in SPOT_MANUAL_PROOF_GATES
+            if not bool(admission.get(SPOT_MANUAL_PROOF_GATE_FIELDS[gate]))
+        ]
+        resolved_gate_chain = [
+            gate for gate in SPOT_MANUAL_PROOF_GATES if gate not in missing_gate_chain
+        ]
+        proof_chain_status = (
+            AdminMvpGateStatus.PASSED.value
+            if not missing_gate_chain
+            else AdminMvpGateStatus.BLOCKED.value
+        )
+        live_execution_status = str(
+            admission.get("live_execution_service_status")
+            or AdminMvpLiveServiceStatus.APPROVAL_REQUIRED.value
+        )
     return {
         "mutation_family": "spot_manual_order",
         "route": MANUAL_ORDER_ROUTE,
@@ -3756,17 +3959,21 @@ def _manual_order_command() -> dict[str, Any]:
         "identity_key": "client_order_id",
         "shared_method": MANUAL_ORDER_SERVICE_METHOD,
         "status": "blocked",
-        "live_execution_status": AdminMvpLiveServiceStatus.APPROVAL_REQUIRED.value,
+        "live_execution_status": live_execution_status,
         "live_enabled": True,
         "live_eligible": True,
         "executable": False,
         "live_adapter_configured": True,
-        "missing_gate_chain": [
-            "approval_snapshot",
-            "admission_audit",
-            "cap_guard",
-            "reconciliation_plan",
-        ],
+        "proof_chain_status": proof_chain_status,
+        "proof_chain_blocker_count": len(missing_gate_chain),
+        "resolved_gate_chain": resolved_gate_chain,
+        "missing_gate_chain": missing_gate_chain,
+        "admission_context": dict(admission_context) if admission_context else None,
+        "admission_decision": (
+            _spot_command_suite_admission_summary(admission) if admission is not None else None
+        ),
+        "live_exchange_submitted": False,
+        "live_coinbase_orders_ran": False,
         "proof_routes": [
             _proof_route("approval", "/api/v1/admin/approvals/requests", "approval_request_id"),
             _proof_route("admission_audit", "/api/v1/admin/admission-audits", "admission_audit_id"),

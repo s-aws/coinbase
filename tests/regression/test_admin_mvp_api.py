@@ -1265,6 +1265,62 @@ def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
     assert manual_command["executable"] is False
 
 
+def test_spot_command_suite_resolves_manual_order_proof_chain_from_backend_records():
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=FakeRestClient(), rest_client_available=True)
+    )
+    record_live_service_decision(service)
+    admission = first_manual_submit(service)
+
+    initial_suite = service.get_read_response(
+        "/api/v1/spot/command-suite",
+        {},
+        context(),
+    )
+    initial_manual = next(
+        command
+        for command in initial_suite.body["commands"]
+        if command["route"] == "/api/v1/orders"
+    )
+    assert initial_manual["missing_gate_chain"] == [
+        "approval_snapshot",
+        "admission_audit",
+        "cap_guard",
+        "reconciliation_plan",
+    ]
+
+    record_proof_chain(service, admission)
+
+    suite = service.get_read_response(
+        "/api/v1/spot/command-suite",
+        {},
+        context(),
+    )
+    manual_command = next(
+        command
+        for command in suite.body["commands"]
+        if command["route"] == "/api/v1/orders"
+    )
+
+    assert suite.status_code == 200
+    assert suite.body["manual_order_proof_chain_status"] == "passed"
+    assert suite.body["manual_order_missing_gate_count"] == 0
+    assert manual_command["proof_chain_status"] == "passed"
+    assert manual_command["missing_gate_chain"] == []
+    assert manual_command["resolved_gate_chain"] == [
+        "approval_snapshot",
+        "admission_audit",
+        "cap_guard",
+        "reconciliation_plan",
+    ]
+    assert manual_command["proof_chain_blocker_count"] == 0
+    assert manual_command["admission_context"]["identity_value"] == admission["identity_value"]
+    assert manual_command["admission_decision"]["allowed"] is True
+    assert manual_command["live_exchange_submitted"] is False
+    assert manual_command["live_coinbase_orders_ran"] is False
+    assert suite.body["live_coinbase_orders_ran"] is False
+
+
 def test_admin_mvp_proof_chain_admits_manual_order_but_default_stays_pre_coinbase():
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=FakeRestClient(), rest_client_available=True)
