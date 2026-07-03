@@ -86,6 +86,9 @@ MANUAL_ORDER_MODULE_ID = "spot_operations"
 MANUAL_ORDER_ACTION_CLASS = "live_exchange_place"
 MANUAL_ORDER_PERMISSION = "order:create"
 MANUAL_ORDER_SERVICE_METHOD = "place_manual_order"
+SPOT_MANUAL_ORDER_PROOF_CHAIN_ROUTE = "/api/v1/spot/manual-order/proof-chain"
+SPOT_MANUAL_ORDER_PROOF_CHAIN_PERMISSION = "spot_manual_order_proof:record"
+SPOT_MANUAL_ORDER_PROOF_CHAIN_SERVICE_METHOD = "record_spot_manual_order_proof_chain"
 SPOT_MANUAL_PROOF_GATES = (
     "approval_snapshot",
     "admission_audit",
@@ -524,6 +527,248 @@ class AdminMvpService:
             "correlation_id": context.correlation_id,
             "detail": "Backend-owned disabled live-adapter decision evidence.",
         }
+
+    def record_spot_manual_order_proof_chain(
+        self,
+        body: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+    ) -> AdminMvpApiResult:
+        """Record backend-owned proof-chain evidence for one spot manual order."""
+
+        proof_context = _spot_manual_order_context_from_body(body)
+        if proof_context is None:
+            return self._error(
+                400,
+                "Spot manual-order proof chain requires route, client_order_id, command idempotency key, and payload hash evidence.",
+                context,
+            )
+
+        record_ids = self._spot_manual_order_proof_chain_record_ids(body, proof_context)
+        snapshot = self._account_snapshot()
+        cap_guard_allowed = bool(snapshot["readiness"]["spot_wallet_inventory_ready"])
+        evidence = self._record_spot_manual_order_proof_chain_evidence(
+            body=body,
+            context=context,
+            proof_context=proof_context,
+            record_ids=record_ids,
+            cap_guard_allowed=cap_guard_allowed,
+        )
+
+        admission_context = AdminMvpRequestContext(
+            idempotency_key=proof_context["command_idempotency_key"],
+            correlation_id=context.correlation_id,
+            operator_intent=proof_context["operator_intent"],
+            actor_id=proof_context["actor_id"],
+            roles=context.roles,
+        )
+        admission = self._admission_decision(
+            context=admission_context,
+            identity_value=proof_context["identity_value"],
+            payload_hash=proof_context["payload_hash"],
+        )
+        missing_gate_chain = _spot_manual_missing_gates(admission)
+        resolved_gate_chain = [
+            gate for gate in SPOT_MANUAL_PROOF_GATES if gate not in missing_gate_chain
+        ]
+        proof_chain_status = (
+            AdminMvpGateStatus.PASSED.value
+            if not missing_gate_chain
+            else AdminMvpGateStatus.BLOCKED.value
+        )
+        return self._ok(
+            {
+                "type": "spot_manual_order_proof_chain_result",
+                "status": AdminMvpCommandStatus.ACCEPTED.value,
+                "route": SPOT_MANUAL_ORDER_PROOF_CHAIN_ROUTE,
+                "method": "POST",
+                "module_id": MANUAL_ORDER_MODULE_ID,
+                "action_class": "local_state_mutation",
+                "required_permission": SPOT_MANUAL_ORDER_PROOF_CHAIN_PERMISSION,
+                "service_method": SPOT_MANUAL_ORDER_PROOF_CHAIN_SERVICE_METHOD,
+                "message": "Spot manual-order proof-chain evidence recorded by backend Admin API.",
+                "target_route": proof_context["route"],
+                "target_method": proof_context["method"],
+                "identity_key": proof_context["identity_key"],
+                "identity_value": proof_context["identity_value"],
+                "command_idempotency_key": proof_context["command_idempotency_key"],
+                "payload_hash": proof_context["payload_hash"],
+                "proof_chain_status": proof_chain_status,
+                "resolved_gate_chain": resolved_gate_chain,
+                "missing_gate_chain": missing_gate_chain,
+                "approval_request_id": record_ids["approval_request_id"],
+                "approval_snapshot_id": record_ids["approval_snapshot_id"],
+                "admission_audit_id": record_ids["admission_audit_id"],
+                "cap_guard_decision_id": record_ids["cap_guard_decision_id"],
+                "reconciliation_plan_id": record_ids["reconciliation_plan_id"],
+                "admission_decision": admission,
+                "evidence": evidence,
+                "correlation_id": context.correlation_id,
+                "idempotency_key": context.idempotency_key,
+                "audit_id": f"audit-{context.idempotency_key}",
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                "wallet_check_source": ACCOUNT_SNAPSHOT_WALLET_SOURCE,
+                "coinbase_order_submission_allowed": False,
+                "live_exchange_submitted": False,
+                **self._live_outputs(False, Decimal("0")),
+            },
+            context,
+        )
+
+    def _spot_manual_order_proof_chain_record_ids(
+        self,
+        body: Mapping[str, Any],
+        proof_context: Mapping[str, Any],
+    ) -> dict[str, str]:
+        suffix = _proof_chain_record_key(proof_context)
+        return {
+            "approval_request_id": str(
+                body.get("approval_request_id") or f"mvp-approval-request-{suffix}"
+            ),
+            "approval_snapshot_id": str(
+                body.get("approval_snapshot_id") or f"mvp-approval-{suffix}"
+            ),
+            "admission_audit_id": str(
+                body.get("admission_audit_id") or f"mvp-admission-audit-{suffix}"
+            ),
+            "cap_guard_decision_id": str(
+                body.get("cap_guard_decision_id") or f"mvp-cap-guard-{suffix}"
+            ),
+            "reconciliation_plan_id": str(
+                body.get("reconciliation_plan_id") or f"mvp-reconciliation-{suffix}"
+            ),
+        }
+
+    def _record_spot_manual_order_proof_chain_evidence(
+        self,
+        *,
+        body: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+        proof_context: Mapping[str, Any],
+        record_ids: Mapping[str, str],
+        cap_guard_allowed: bool,
+    ) -> dict[str, Any]:
+        proof_base = {
+            "route": proof_context["route"],
+            "method": proof_context["method"],
+            "module_id": proof_context["module_id"],
+            "identity_key": proof_context["identity_key"],
+            "identity_value": proof_context["identity_value"],
+            "action_class": proof_context["action_class"],
+            "required_permission": proof_context["required_permission"],
+            "service_method": proof_context["service_method"],
+            "actor_id": proof_context["actor_id"],
+            "operator_intent": proof_context["operator_intent"],
+            "command_idempotency_key": proof_context["command_idempotency_key"],
+            "payload_hash": proof_context["payload_hash"],
+        }
+        max_submitted_notional = _decimal_text(
+            _decimal_value(
+                body.get("max_submitted_notional_usdc"),
+                DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC,
+            )
+        )
+        max_executed_notional = _decimal_text(
+            _decimal_value(
+                body.get("max_executed_notional_usdc"),
+                DEFAULT_MAX_EXECUTED_NOTIONAL_USDC,
+            )
+        )
+        approval_request = self.create_approval_request(
+            {
+                **proof_base,
+                "approval_request_id": record_ids["approval_request_id"],
+                "request_reason": str(
+                    body.get("request_reason")
+                    or "Backend spot manual-order proof-chain request."
+                ),
+                "cap_guard_decision_ref": record_ids["cap_guard_decision_id"],
+                "reconciliation_plan_ref": record_ids["reconciliation_plan_id"],
+            },
+            self._proof_chain_phase_context(context, "approval-request"),
+        )
+        approval_decision = self.decide_approval_request(
+            record_ids["approval_request_id"],
+            {
+                "decision": "approved",
+                "approval_id": record_ids["approval_snapshot_id"],
+                "decision_reason": str(
+                    body.get("decision_reason")
+                    or "Backend spot manual-order proof-chain approval snapshot."
+                ),
+                "cap_guard_decision_ref": record_ids["cap_guard_decision_id"],
+                "reconciliation_plan_ref": record_ids["reconciliation_plan_id"],
+            },
+            self._proof_chain_phase_context(context, "approval-decision"),
+        )
+        admission_audit = self.record_admission_audit(
+            {
+                **proof_base,
+                "admission_audit_id": record_ids["admission_audit_id"],
+                "approval_snapshot_id": record_ids["approval_snapshot_id"],
+                "allowed": True,
+                "status": AdminMvpGateStatus.PASSED.value,
+            },
+            self._proof_chain_phase_context(context, "admission-audit"),
+        )
+        cap_guard = self.record_cap_guard_decision(
+            {
+                **proof_base,
+                "decision_id": record_ids["cap_guard_decision_id"],
+                "approval_snapshot_id": record_ids["approval_snapshot_id"],
+                "admission_audit_id": record_ids["admission_audit_id"],
+                "allowed": cap_guard_allowed,
+                "status": (
+                    AdminMvpGateStatus.PASSED.value
+                    if cap_guard_allowed
+                    else AdminMvpGateStatus.BLOCKED.value
+                ),
+                "max_submitted_notional_usdc": max_submitted_notional,
+                "max_executed_notional_usdc": max_executed_notional,
+                "wallet_check_required": True,
+                "wallet_check_source": ACCOUNT_SNAPSHOT_WALLET_SOURCE,
+            },
+            self._proof_chain_phase_context(context, "cap-guard"),
+        )
+        reconciliation = self.record_reconciliation_plan(
+            {
+                **proof_base,
+                "plan_id": record_ids["reconciliation_plan_id"],
+                "approval_snapshot_id": record_ids["approval_snapshot_id"],
+                "admission_audit_id": record_ids["admission_audit_id"],
+                "cap_guard_decision_id": record_ids["cap_guard_decision_id"],
+                "allowed": cap_guard_allowed,
+                "status": (
+                    AdminMvpGateStatus.PASSED.value
+                    if cap_guard_allowed
+                    else AdminMvpGateStatus.BLOCKED.value
+                ),
+                "exchange_submission_required": True,
+                "max_submitted_notional_usdc": max_submitted_notional,
+                "max_executed_notional_usdc": max_executed_notional,
+            },
+            self._proof_chain_phase_context(context, "reconciliation"),
+        )
+        return {
+            "approval_request": approval_request.body.get("approval"),
+            "approval_snapshot": approval_decision.body.get("approval"),
+            "admission_audit": admission_audit.body.get("admission_audit"),
+            "cap_guard": cap_guard.body.get("decision"),
+            "reconciliation_plan": reconciliation.body.get("plan"),
+        }
+
+    def _proof_chain_phase_context(
+        self,
+        context: AdminMvpRequestContext,
+        phase: str,
+    ) -> AdminMvpRequestContext:
+        return AdminMvpRequestContext(
+            idempotency_key=f"{context.idempotency_key}-{phase}",
+            correlation_id=context.correlation_id,
+            operator_intent=context.operator_intent,
+            actor_id=context.actor_id,
+            roles=context.roles,
+        )
 
     def submit_manual_order(
         self,
@@ -2967,6 +3212,14 @@ class AdminMvpService:
                 live_enabled=False,
             ),
             _command_capability(
+                route=SPOT_MANUAL_ORDER_PROOF_CHAIN_ROUTE,
+                action_class="local_state_mutation",
+                required_permission=SPOT_MANUAL_ORDER_PROOF_CHAIN_PERMISSION,
+                shared_method=SPOT_MANUAL_ORDER_PROOF_CHAIN_SERVICE_METHOD,
+                live_enabled=False,
+                module_id=MANUAL_ORDER_MODULE_ID,
+            ),
+            _command_capability(
                 route="/api/v1/admin/live-execution/service-decisions",
                 action_class="local_state_mutation",
                 required_permission="config:update",
@@ -3940,6 +4193,68 @@ def _command_evidence_from_body(body: Mapping[str, Any]) -> dict[str, Any]:
         "command_idempotency_key": str(body.get("command_idempotency_key") or ""),
         "payload_hash": str(body.get("payload_hash") or ""),
     }
+
+
+def _spot_manual_order_context_from_body(
+    body: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    source = body.get("admission_decision")
+    if not isinstance(source, Mapping):
+        source = body
+    route = str(source.get("route") or MANUAL_ORDER_ROUTE)
+    identity_key = str(source.get("identity_key") or "client_order_id")
+    service_method = str(source.get("service_method") or MANUAL_ORDER_SERVICE_METHOD)
+    identity_value = str(source.get("identity_value") or source.get("client_order_id") or "")
+    idempotency_key = str(
+        source.get("command_idempotency_key") or source.get("idempotency_key") or ""
+    )
+    payload_hash = str(source.get("payload_hash") or "")
+    if route != MANUAL_ORDER_ROUTE:
+        return None
+    if identity_key != "client_order_id":
+        return None
+    if service_method != MANUAL_ORDER_SERVICE_METHOD:
+        return None
+    if not (identity_value and idempotency_key and payload_hash):
+        return None
+    return {
+        "route": route,
+        "method": str(source.get("method") or "POST"),
+        "module_id": str(source.get("module_id") or MANUAL_ORDER_MODULE_ID),
+        "identity_key": identity_key,
+        "identity_value": identity_value,
+        "action_class": str(source.get("action_class") or MANUAL_ORDER_ACTION_CLASS),
+        "required_permission": str(
+            source.get("required_permission") or MANUAL_ORDER_PERMISSION
+        ),
+        "service_method": service_method,
+        "actor_id": str(source.get("actor_id") or "local-operator"),
+        "operator_intent": str(source.get("operator_intent") or "read_admin_api"),
+        "command_idempotency_key": idempotency_key,
+        "payload_hash": payload_hash,
+        "source": "request_body",
+    }
+
+
+def _proof_chain_record_key(proof_context: Mapping[str, Any]) -> str:
+    material = json.dumps(
+        {
+            "route": proof_context.get("route"),
+            "identity_value": proof_context.get("identity_value"),
+            "command_idempotency_key": proof_context.get("command_idempotency_key"),
+            "payload_hash": proof_context.get("payload_hash"),
+        },
+        sort_keys=True,
+    )
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
+
+
+def _spot_manual_missing_gates(admission: Mapping[str, Any]) -> list[str]:
+    return [
+        gate
+        for gate in SPOT_MANUAL_PROOF_GATES
+        if not bool(admission.get(SPOT_MANUAL_PROOF_GATE_FIELDS[gate]))
+    ]
 
 
 def _spot_manual_order_context_from_record(

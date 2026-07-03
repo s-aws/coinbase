@@ -1201,6 +1201,12 @@ def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
         if item["method"] == "POST"
         and item["route"] == "/api/v1/admin/live-execution/adapter-decisions"
     )
+    proof_chain_capability = next(
+        item
+        for item in capabilities.body["capabilities"]
+        if item["method"] == "POST"
+        and item["route"] == "/api/v1/spot/manual-order/proof-chain"
+    )
     command_permissions = {
         item["route"]: item["permission"]
         for item in capabilities.body["capabilities"]
@@ -1220,6 +1226,11 @@ def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
     assert live_adapter_capability["shared_method"] == "record_live_adapter_decision"
     assert live_adapter_capability["frontend_safe"] is True
     assert live_adapter_capability["live_enabled"] is False
+    assert proof_chain_capability["module_id"] == "spot_operations"
+    assert proof_chain_capability["permission"] == "spot_manual_order_proof:record"
+    assert proof_chain_capability["shared_method"] == "record_spot_manual_order_proof_chain"
+    assert proof_chain_capability["frontend_safe"] is True
+    assert proof_chain_capability["live_enabled"] is False
     assert command_permissions["/api/v1/admin/approvals/requests"] == "approval:request"
     assert (
         command_permissions[
@@ -1365,6 +1376,76 @@ def test_spot_command_suite_resolves_manual_order_proof_chain_from_backend_recor
     assert manual_command["live_exchange_submitted"] is False
     assert manual_command["live_coinbase_orders_ran"] is False
     assert suite.body["live_coinbase_orders_ran"] is False
+
+
+def test_spot_manual_order_proof_chain_route_records_backend_evidence_from_command_context():
+    rest_client = FakeAccountRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+    record_live_service_decision(service)
+    order_body = limit_ioc_manual_order_body()
+    admission = first_manual_submit(service, order_body)
+
+    recorded = service.record_spot_manual_order_proof_chain(
+        preview_query(admission),
+        context(idempotency_key="spot-manual-order-proof-chain-record"),
+    )
+
+    assert recorded.status_code == 200
+    assert recorded.body["type"] == "spot_manual_order_proof_chain_result"
+    assert recorded.body["status"] == "accepted"
+    assert recorded.body["proof_chain_status"] == "passed"
+    assert recorded.body["missing_gate_chain"] == []
+    assert recorded.body["resolved_gate_chain"] == [
+        "approval_snapshot",
+        "admission_audit",
+        "cap_guard",
+        "reconciliation_plan",
+    ]
+    assert recorded.body["live_exchange_submitted"] is False
+    assert recorded.body["live_coinbase_orders_ran"] is False
+    assert recorded.body["admission_decision"]["allowed"] is True
+    assert recorded.body["admission_decision"]["identity_value"] == admission["identity_value"]
+    assert recorded.body["admission_decision"]["payload_hash"] == admission["payload_hash"]
+    assert recorded.body["approval_request_id"]
+    assert recorded.body["approval_snapshot_id"]
+    assert recorded.body["admission_audit_id"]
+    assert recorded.body["cap_guard_decision_id"]
+    assert recorded.body["reconciliation_plan_id"]
+    assert rest_client.create_order_calls == []
+    assert rest_client.get_account_wallets_calls >= 1
+
+    cap_guard = service.store.cap_guard_decisions[recorded.body["cap_guard_decision_id"]]
+    assert cap_guard["wallet_check_source"] == "account_management_snapshot"
+    assert cap_guard["wallet_check_status"] == "passed"
+    assert cap_guard["allowed"] is True
+
+    suite = service.get_read_response(
+        "/api/v1/spot/command-suite",
+        preview_query(admission),
+        context(),
+    )
+    manual_command = next(
+        command
+        for command in suite.body["commands"]
+        if command["route"] == "/api/v1/orders"
+    )
+    assert suite.body["manual_order_proof_chain_status"] == "passed"
+    assert suite.body["manual_order_missing_gate_count"] == 0
+    assert manual_command["admission_decision"]["allowed"] is True
+    assert manual_command["live_exchange_submitted"] is False
+    assert manual_command["live_coinbase_orders_ran"] is False
+
+    admitted_submit = service.submit_manual_order(
+        order_body,
+        context(idempotency_key="manual-order-proof-chain"),
+    )
+    assert admitted_submit.status_code == 400
+    assert admitted_submit.body["admission_decision"]["allowed"] is True
+    assert admitted_submit.body["live_exchange_submitted"] is False
+    assert admitted_submit.body["live_coinbase_orders_ran"] is False
+    assert rest_client.create_order_calls == []
 
 
 def test_admin_mvp_proof_chain_admits_manual_order_but_default_stays_pre_coinbase():
