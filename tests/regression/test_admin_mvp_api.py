@@ -849,13 +849,45 @@ def test_spot_and_futures_reads_consume_backend_account_snapshot():
         AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
     )
 
-    spot = service.get_read_response("/api/v1/spot/readiness", {}, context())
+    spot = service.get_read_response(
+        "/api/v1/spot/readiness",
+        {"product_id": ["BTC-USDC"]},
+        context(),
+    )
     assert spot.status_code == 200
+    assert spot.body["status"] == "ready"
+    assert spot.body["account_reality"]["status"] == "ready"
+    assert spot.body["account_reality"]["source"] == "backend_rest_client"
+    assert spot.body["account_scope"]["scope_id"] == "portfolio-real-1"
+    assert spot.body["portfolio_scope"]["portfolio_id"] == "portfolio-real-1"
     assert spot.body["wallet_snapshot"]["source"] == "backend_rest_client"
     assert spot.body["wallet_snapshot"]["status"] == "ready"
     assert spot.body["wallet_snapshot"]["available_notional_usdc"] == "12.34"
+    assert spot.body["wallet_snapshot"]["available"] is True
+    assert spot.body["spot_admission_input"] == {
+        "status": "ready",
+        "wallet_check_source": "account_management_snapshot",
+        "currency": "USDC",
+        "available_notional_usdc": "12.34",
+        "proof_id": spot.body["account_reality"]["proof_id"],
+        "first_blocker": "none",
+    }
     assert spot.body["account_readiness"]["spot_wallet_inventory_ready"] is True
     assert spot.body["account_readiness"]["usable_for_spot_admission"] is True
+    assert spot.body["products"][0]["product_id"] == "BTC-USDC"
+    assert spot.body["products"][0]["capabilities"]["wallet_inventory"]["mode"] == "enabled"
+    assert spot.body["products"][0]["capabilities"]["product_capability_contract"]["mode"] == "pending"
+    guards = {
+        item["condition"]: item
+        for item in spot.body["action_guard_summary"]
+    }
+    assert guards["backend_account_reality"]["mode"] == "enabled"
+    assert guards["spot_wallet_inventory"]["mode"] == "enabled"
+    assert guards["spot_admission_input"]["mode"] == "enabled"
+    assert guards["product_capability_contract"]["mode"] == "pending"
+    assert spot.body["browser_authority"] == "display_only"
+    assert spot.body["bff_authority"] == "read_only_forward"
+    assert spot.body["live_coinbase_execution"] == "not_run"
     assert spot.body["live_coinbase_orders_ran"] is False
 
     futures = service.get_read_response("/api/v1/futures/account", {}, context())

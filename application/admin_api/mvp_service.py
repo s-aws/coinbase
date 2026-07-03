@@ -1523,6 +1523,7 @@ class AdminMvpService:
         spot_wallet_ready = bool(readiness["spot_wallet_inventory_ready"])
         futures_risk_ready = bool(readiness["usable_for_futures_risk"])
         futures_risk_input = snapshot["futures_margin_collateral"]["risk_input"]
+        spot_admission_input = _spot_admission_input_from_snapshot(snapshot)
         return {
             "type": "admin_wallet",
             "status": "ready" if spot_wallet_ready else "warning",
@@ -1534,18 +1535,7 @@ class AdminMvpService:
             "wallets": _wallet_rows_for_admin(snapshot["wallets"]),
             "wallet_count": len(snapshot["wallets"]),
             "readiness": readiness,
-            "spot_admission_input": {
-                "status": "ready" if spot_wallet_ready else "blocked",
-                "wallet_check_source": ACCOUNT_SNAPSHOT_WALLET_SOURCE,
-                "currency": wallet_inventory["currency"],
-                "available_notional_usdc": wallet_inventory["available_notional_usdc"],
-                "proof_id": snapshot["account_reality"]["proof_id"],
-                "first_blocker": (
-                    "none"
-                    if spot_wallet_ready
-                    else str(wallet_inventory.get("quote_wallet_error") or "spot_wallet_inventory_ready")
-                ),
-            },
+            "spot_admission_input": spot_admission_input,
             "futures_risk_input": {
                 "status": "ready" if futures_risk_ready else "blocked",
                 "wallet_check_source": ACCOUNT_SNAPSHOT_WALLET_SOURCE,
@@ -2148,18 +2138,7 @@ class AdminMvpService:
         query: Mapping[str, Any],
     ) -> dict[str, Any]:
         if path == "/api/v1/spot/readiness":
-            snapshot = self._account_snapshot()
-            return {
-                "type": "spot_readiness",
-                "status": "warning",
-                "products": [],
-                "planned_budget": {},
-                "wallet_snapshot": snapshot["wallet_inventory"],
-                "account_readiness": snapshot["readiness"],
-                "action_guard_summary": [],
-                "read_only": True,
-                "live_coinbase_orders_ran": False,
-            }
+            return self._spot_readiness(query)
         if path == "/api/v1/spot/sweep/status":
             return _operator_status("spot_sweep_status")
         if path == "/api/v1/spot/sweep/pnl":
@@ -2197,6 +2176,36 @@ class AdminMvpService:
             "read_only": True,
             "items": [],
             "live_coinbase_orders_ran": False,
+        }
+
+    def _spot_readiness(self, query: Mapping[str, Any]) -> dict[str, Any]:
+        snapshot = self._account_snapshot()
+        spot_admission_input = _spot_admission_input_from_snapshot(snapshot)
+        products = _spot_readiness_products(query, snapshot)
+        return {
+            "type": "spot_readiness",
+            "status": _spot_readiness_status(snapshot),
+            "module_id": MANUAL_ORDER_MODULE_ID,
+            "account_reality": snapshot["account_reality"],
+            "account_scope": snapshot["account_scope"],
+            "portfolio_scope": snapshot["portfolio_scope"],
+            "account_readiness": snapshot["readiness"],
+            "spot_admission_input": spot_admission_input,
+            "products": products,
+            "planned_budget": _spot_readiness_planned_budget(),
+            "wallet_snapshot": _spot_readiness_wallet_snapshot(snapshot, spot_admission_input),
+            "action_guard_summary": _spot_readiness_guard_summary(
+                snapshot,
+                products,
+                spot_admission_input,
+            ),
+            "read_only": True,
+            "browser_authority": "display_only",
+            "bff_authority": "read_only_forward",
+            "coinbase_read_enabled": snapshot["coinbase_read_enabled"],
+            "live_coinbase_read_ran": snapshot["coinbase_read_ran"],
+            "command_routes_mode": "backend_admin_api",
+            **self._live_outputs(False, Decimal("0")),
         }
 
     def _stealth_placeholder(
@@ -3157,6 +3166,10 @@ def _object_to_dict(value: Any) -> dict[str, Any]:
     return {}
 
 
+def _mapping(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
 def _unavailable_account_snapshot(generated_at: str) -> dict[str, Any]:
     readiness = {
         "spot_account_ready": False,
@@ -3213,6 +3226,184 @@ def _unavailable_account_snapshot(generated_at: str) -> dict[str, Any]:
         "coinbase_read_enabled": False,
         "coinbase_read_ran": False,
     }
+
+
+def _spot_admission_input_from_snapshot(snapshot: Mapping[str, Any]) -> dict[str, Any]:
+    readiness = _mapping(snapshot.get("readiness"))
+    wallet_inventory = _mapping(snapshot.get("wallet_inventory"))
+    account_reality = _mapping(snapshot.get("account_reality"))
+    spot_wallet_ready = bool(readiness.get("spot_wallet_inventory_ready"))
+    return {
+        "status": "ready" if spot_wallet_ready else "blocked",
+        "wallet_check_source": ACCOUNT_SNAPSHOT_WALLET_SOURCE,
+        "currency": str(wallet_inventory.get("currency") or "USDC"),
+        "available_notional_usdc": str(wallet_inventory.get("available_notional_usdc") or "0"),
+        "proof_id": str(account_reality.get("proof_id") or "account-reality-unavailable"),
+        "first_blocker": (
+            "none"
+            if spot_wallet_ready
+            else str(wallet_inventory.get("quote_wallet_error") or "spot_wallet_inventory_ready")
+        ),
+    }
+
+
+def _spot_readiness_status(snapshot: Mapping[str, Any]) -> str:
+    readiness = _mapping(snapshot.get("readiness"))
+    account_reality = _mapping(snapshot.get("account_reality"))
+    if bool(readiness.get("usable_for_spot_admission")):
+        return "ready"
+    if account_reality.get("status") == "unavailable":
+        return "blocked"
+    return "warning"
+
+
+def _spot_readiness_planned_budget() -> dict[str, str]:
+    return {}
+
+
+def _spot_readiness_wallet_snapshot(
+    snapshot: Mapping[str, Any],
+    spot_admission_input: Mapping[str, Any],
+) -> dict[str, Any]:
+    wallet_inventory = dict(_mapping(snapshot.get("wallet_inventory")))
+    return {
+        **wallet_inventory,
+        "available": spot_admission_input.get("status") == "ready",
+        "reason": spot_admission_input.get("first_blocker"),
+        "proof_id": spot_admission_input.get("proof_id"),
+        "backend_owned": True,
+        "browser_authority": "display_only",
+        "bff_authority": "read_only_forward",
+    }
+
+
+def _spot_readiness_products(
+    query: Mapping[str, Any],
+    snapshot: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    return [
+        _spot_readiness_product(product_id, snapshot)
+        for product_id in _query_values(query, "product_id")
+    ]
+
+
+def _spot_readiness_product(
+    product_id: str,
+    snapshot: Mapping[str, Any],
+) -> dict[str, Any]:
+    readiness = _mapping(snapshot.get("readiness"))
+    wallet_inventory = _mapping(snapshot.get("wallet_inventory"))
+    quote_currency = _product_quote_currency(
+        product_id,
+        str(wallet_inventory.get("currency") or "USDC"),
+    )
+    quote_supported = quote_currency in SPOT_ADMISSION_QUOTE_CURRENCIES
+    wallet_ready = bool(readiness.get("spot_wallet_inventory_ready")) and quote_supported
+    return {
+        "product_id": product_id,
+        "quote_currency": quote_currency,
+        "capabilities": {
+            "wallet_inventory": {
+                "mode": "enabled" if wallet_ready else "blocked",
+                "source": ACCOUNT_SNAPSHOT_WALLET_SOURCE,
+                "required": True,
+                "detail": (
+                    "Backend wallet inventory can be used for this quote currency."
+                    if wallet_ready
+                    else "Backend wallet inventory is not ready for this quote currency."
+                ),
+            },
+            "spot_admission_input": {
+                "mode": (
+                    "enabled"
+                    if bool(readiness.get("usable_for_spot_admission")) and quote_supported
+                    else "blocked"
+                ),
+                "source": ACCOUNT_SNAPSHOT_WALLET_SOURCE,
+                "required": True,
+                "detail": "Backend account snapshot is the wallet input for Spot admission.",
+            },
+            "product_capability_contract": {
+                "mode": "pending",
+                "source": "coinbase_product_capability_contract_pending",
+                "required": True,
+                "detail": (
+                    "Coinbase product capability reads are not exposed by this local MVP "
+                    "readiness route; live order admission still checks backend product gates."
+                ),
+            },
+        },
+        "inventory": {
+            "imported_baselines": {
+                "configured": False,
+                "known_quantity": "0",
+                "unknown_cost_basis_quantity": "0",
+                "lots": [],
+            },
+        },
+        "backend_owned": True,
+        "browser_authority": "display_only",
+        "bff_authority": "read_only_forward",
+    }
+
+
+def _spot_readiness_guard_summary(
+    snapshot: Mapping[str, Any],
+    products: list[dict[str, Any]],
+    spot_admission_input: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    readiness = _mapping(snapshot.get("readiness"))
+    account_reality = _mapping(snapshot.get("account_reality"))
+    wallet_inventory = _mapping(snapshot.get("wallet_inventory"))
+    product_scope_detail = (
+        f"{len(products)} requested product scope row(s) are visible."
+        if products
+        else "No product_id filter was supplied; product capability checks remain backend pending."
+    )
+    return [
+        {
+            "condition": "backend_account_reality",
+            "label": "Backend account reality",
+            "mode": "enabled" if account_reality.get("status") == "ready" else "blocked",
+            "reason": str(account_reality.get("read_error") or "none"),
+            "source": str(account_reality.get("source") or "backend_rest_unavailable"),
+            "backend_owned": True,
+        },
+        {
+            "condition": "spot_wallet_inventory",
+            "label": "Spot wallet inventory",
+            "mode": "enabled" if bool(readiness.get("spot_wallet_inventory_ready")) else "blocked",
+            "reason": (
+                f"{wallet_inventory.get('currency', 'USDC')} available "
+                f"{wallet_inventory.get('available_notional_usdc', '0')} USDC"
+            ),
+            "source": ACCOUNT_SNAPSHOT_WALLET_SOURCE,
+            "backend_owned": True,
+        },
+        {
+            "condition": "spot_admission_input",
+            "label": "Spot admission input",
+            "mode": "enabled" if spot_admission_input.get("status") == "ready" else "blocked",
+            "reason": str(spot_admission_input.get("first_blocker") or "none"),
+            "source": ACCOUNT_SNAPSHOT_WALLET_SOURCE,
+            "backend_owned": True,
+        },
+        {
+            "condition": "product_capability_contract",
+            "label": "Product capability contract",
+            "mode": "pending",
+            "reason": product_scope_detail,
+            "source": "coinbase_product_capability_contract_pending",
+            "backend_owned": True,
+        },
+    ]
+
+
+def _product_quote_currency(product_id: str, default_currency: str) -> str:
+    if "-" not in product_id:
+        return default_currency
+    quote = product_id.rsplit("-", 1)[-1].strip().upper()
+    return quote or default_currency
 
 
 def _read_rest_object(rest_client: Any, method_name: str) -> tuple[Any, bool, str | None]:
@@ -3864,6 +4055,12 @@ def _query_text(query: Mapping[str, Any], key: str) -> str:
     if isinstance(value, list):
         value = value[0] if value else ""
     return str(value or "")
+
+
+def _query_values(query: Mapping[str, Any], key: str) -> list[str]:
+    value = query.get(key)
+    values = value if isinstance(value, list) else [value]
+    return [str(item).strip() for item in values if str(item or "").strip()]
 
 
 def _query_int(query: Mapping[str, Any], key: str, default: int) -> int:
