@@ -1317,7 +1317,7 @@ def test_admin_futures_command_suite_ignores_intx_live_decisions_for_us_cfm_scop
     assert commands["futures_place"]["execution_allowed"] is False
 
 
-def test_admin_futures_command_suite_binds_us_cfm_live_decisions_without_execution():
+def test_admin_futures_command_suite_binds_us_cfm_live_decisions_to_disabled_executor():
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
     )
@@ -1338,16 +1338,24 @@ def test_admin_futures_command_suite_binds_us_cfm_live_decisions_without_executi
     )
     assert suite["futures_live_decision_evidence"]["adapter_decision_ready_count"] == 4
     assert suite["futures_live_decision_evidence"]["adapter_decision_missing_count"] == 0
+    assert suite["futures_live_decision_evidence"]["executor_boundary_status"] == (
+        "observed_live_disabled"
+    )
+    assert suite["futures_live_decision_evidence"]["executor_boundary_ready"] is True
     assert suite["command_enablement_blocker_summaries"][0]["blocker"] == (
-        "futures_executor_not_implemented"
+        "futures_executor_live_disabled"
     )
     commands = {command["command"]: command for command in suite["commands"]}
     place_readiness = commands["futures_place"]["readiness_decision"]
-    assert place_readiness["first_blocker"] == "futures_executor_not_implemented"
+    assert place_readiness["decision"] == "executor_observed_live_disabled"
+    assert place_readiness["first_blocker"] == "futures_executor_live_disabled"
     assert place_readiness["live_decision_evidence"]["service_decision_status"] == "ready"
     assert place_readiness["live_decision_evidence"]["adapter_decision_status"] == "ready"
     assert place_readiness["live_decision_evidence"]["matching_adapter_decision_id"] == (
         "futures-us-cfm-place-adapter"
+    )
+    assert place_readiness["live_decision_evidence"]["executor_boundary_status"] == (
+        "observed_live_disabled"
     )
     assert place_readiness["execution_allowed"] is False
 
@@ -1363,14 +1371,37 @@ def test_admin_futures_command_suite_binds_us_cfm_live_decisions_without_executi
         context(idempotency_key="futures-place-us-cfm-evidence"),
     )
 
-    assert result.status_code == 501
-    assert result.body["failure_stage"] == "futures_executor_not_implemented"
+    assert result.status_code == 400
+    assert result.body["status"] == "rejected"
+    assert result.body["failure_stage"] == "futures_executor_live_disabled"
     assert result.body["readiness_decision"]["live_decision_evidence"][
         "matching_service_decision_id"
     ] == "futures-us-cfm-live-service"
     assert result.body["readiness_decision"]["live_decision_evidence"][
         "matching_adapter_decision_id"
     ] == "futures-us-cfm-place-adapter"
+    assert result.body["admission_decision"]["allowed"] is False
+    assert result.body["admission_decision"]["failure_stage"] == (
+        "futures_executor_live_disabled"
+    )
+    assert result.body["admission_decision"]["account_family"] == (
+        "coinbase_futures_us_cfm"
+    )
+    assert result.body["admission_decision"]["intx_applicability"] == (
+        "not_applicable_us_account"
+    )
+    assert result.body["executor_decision"]["executor_status"] == (
+        "observed_live_disabled"
+    )
+    assert result.body["executor_decision"]["account_family"] == (
+        "coinbase_futures_us_cfm"
+    )
+    assert result.body["executor_decision"]["intx_applicability"] == (
+        "not_applicable_us_account"
+    )
+    assert result.body["executor_decision"]["payload_hash"] == result.body["payload_hash"]
+    assert result.body["executor_decision"]["live_exchange_submitted"] is False
+    assert result.body["executor_decision_id"] in service.store.futures_executor_decisions
     assert result.body["execution_allowed"] is False
     assert result.body["live_exchange_submitted"] is False
     assert result.body["live_coinbase_orders_ran"] is False

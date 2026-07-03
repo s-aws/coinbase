@@ -29,6 +29,11 @@ class AdminMvpFuturesIntxApplicability(str, Enum):
     REQUIRES_INTX_ACCOUNT = "requires_intx_account"
 
 
+class AdminMvpFuturesExecutorStatus(str, Enum):
+    PENDING_LIVE_DECISION = "pending_live_decision"
+    OBSERVED_LIVE_DISABLED = "observed_live_disabled"
+
+
 ADMIN_API_VERSION = "0.1.0-prod-mvp"
 MANUAL_ORDER_ROUTE = "/api/v1/orders"
 CANCEL_ORDER_ROUTE = "/api/v1/orders/{client_order_id}/cancel"
@@ -63,6 +68,7 @@ FUTURES_COMMAND_CONTRACTS = (
     "futures_reconciliation_contract",
     "futures_live_adapter_contract",
 )
+FUTURES_EXECUTOR_BOUNDARY_SOURCE = "admin_api_futures_executor_boundary"
 FUTURES_COMMAND_SPECS = (
     {
         "command": "futures_place",
@@ -184,6 +190,7 @@ class AdminMvpStore:
     reconciliation_plans: dict[str, dict[str, Any]] = field(default_factory=dict)
     live_adapter_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
     futures_risk_proofs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    futures_executor_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
     submitted_notional_usdc: Decimal = Decimal("0")
     executed_notional_usdc: Decimal = Decimal("0")
     live_coinbase_orders_ran: bool = False
@@ -1365,6 +1372,7 @@ class AdminMvpService:
         identity_value = str(
             route_match.get("identity_value") or body.get(identity_key) or ""
         )
+        payload_hash = _payload_hash(body)
         command_suite = self._futures_command_suite()
         command_evidence = next(
             (
@@ -1376,6 +1384,82 @@ class AdminMvpService:
         )
         readiness_decision = dict(command_evidence.get("readiness_decision") or {})
         first_blocker = str(readiness_decision.get("first_blocker") or "execution_disabled")
+        admission_decision = self._futures_admission_decision(
+            command=command,
+            route=route,
+            service_method=str(spec["service_method"]),
+            identity_key=identity_key,
+            identity_value=identity_value,
+            payload_hash=payload_hash,
+            readiness_decision=readiness_decision,
+            risk_proof_id=command_evidence.get("risk_proof_id"),
+            context=context,
+        )
+        if first_blocker == "futures_executor_live_disabled":
+            executor_decision = self._record_futures_executor_decision(
+                command=command,
+                action_class=str(spec["action_class"]),
+                route=route,
+                service_method=str(spec["service_method"]),
+                identity_key=identity_key,
+                identity_value=identity_value,
+                required_permission=str(spec["required_permission"]),
+                payload_hash=payload_hash,
+                readiness_decision=readiness_decision,
+                admission_decision=admission_decision,
+                risk_proof_id=command_evidence.get("risk_proof_id"),
+                context=context,
+            )
+            response = {
+                "type": "admin_api_command_result",
+                "status": AdminMvpCommandStatus.REJECTED.value,
+                "module_id": FUTURES_MODULE_ID,
+                "command": command,
+                "mutation_family": "futures_executor_live_disabled",
+                "action_class": str(spec["action_class"]),
+                "route": route,
+                "method": "POST",
+                "required_permission": str(spec["required_permission"]),
+                "service_method": str(spec["service_method"]),
+                "identity_key": identity_key,
+                "identity_value": identity_value,
+                "message": (
+                    "Backend Futures executor boundary was reached for US CFM "
+                    "and rejected before Coinbase because live Futures execution "
+                    "remains disabled."
+                ),
+                "correlation_id": context.correlation_id,
+                "idempotency_key": context.idempotency_key,
+                "operator_intent": context.operator_intent,
+                "actor_id": context.actor_id,
+                "payload_hash": payload_hash,
+                "command_suite_status": command_suite["status"],
+                "readiness_decision": readiness_decision,
+                "admission_decision": admission_decision,
+                "executor_decision_id": executor_decision["decision_id"],
+                "executor_decision": executor_decision,
+                "required_evidence_refs": [
+                    ref
+                    for blocker in command_suite["command_enablement_blocker_summaries"]
+                    for ref in blocker.get("required_evidence_refs", [])
+                ],
+                "risk_proof_id": command_evidence.get("risk_proof_id"),
+                "failure_stage": first_blocker,
+                "command_route_registered": True,
+                "command_draft_allowed": True,
+                "execution_allowed": False,
+                "local_state_mutated": False,
+                "exchange_state_mutated": False,
+                "live_exchange_submitted": False,
+                "submitted_notional_usdc": "0",
+                "executed_notional_usdc": "0",
+                "spot_rule_authority": False,
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                **self._runtime_evidence(),
+                **self._live_outputs(False, Decimal("0")),
+            }
+            return self._result(400, response, context)
         response = {
             "type": "admin_api_command_result",
             "status": AdminMvpCommandStatus.NOT_IMPLEMENTED.value,
@@ -1397,9 +1481,10 @@ class AdminMvpService:
             "idempotency_key": context.idempotency_key,
             "operator_intent": context.operator_intent,
             "actor_id": context.actor_id,
-            "payload_hash": _payload_hash(body),
+            "payload_hash": payload_hash,
             "command_suite_status": command_suite["status"],
             "readiness_decision": readiness_decision,
+            "admission_decision": admission_decision,
             "required_evidence_refs": [
                 ref
                 for blocker in command_suite["command_enablement_blocker_summaries"]
@@ -1422,6 +1507,137 @@ class AdminMvpService:
             **self._live_outputs(False, Decimal("0")),
         }
         return self._result(501, response, context)
+
+    def _futures_admission_decision(
+        self,
+        *,
+        command: str,
+        route: str,
+        service_method: str,
+        identity_key: str,
+        identity_value: str,
+        payload_hash: str,
+        readiness_decision: Mapping[str, Any],
+        risk_proof_id: Any,
+        context: AdminMvpRequestContext,
+    ) -> dict[str, Any]:
+        live_decision = dict(readiness_decision.get("live_decision_evidence") or {})
+        failure_stage = str(readiness_decision.get("first_blocker") or "execution_disabled")
+        return {
+            "decision_id": f"futures-admission-{context.idempotency_key}",
+            "recorded_at": self._now_iso(),
+            "status": AdminMvpGateStatus.BLOCKED.value,
+            "allowed": False,
+            "failure_stage": failure_stage,
+            "module_id": FUTURES_MODULE_ID,
+            "command": command,
+            "route": route,
+            "method": "POST",
+            "service_method": service_method,
+            "identity_key": identity_key,
+            "identity_value": identity_value,
+            "payload_hash": payload_hash,
+            "account_family": FUTURES_ACCOUNT_FAMILY_US_CFM,
+            "intx_applicability": FUTURES_INTX_APPLICABILITY_US_ACCOUNT,
+            "product_scope": list(FUTURES_CONFIGURED_PRODUCT_SCOPE),
+            "risk_proof_id": risk_proof_id,
+            "service_decision_id": live_decision.get("matching_service_decision_id"),
+            "adapter_decision_id": live_decision.get("matching_adapter_decision_id"),
+            "executor_boundary_status": live_decision.get("executor_boundary_status"),
+            "executor_boundary_ready": bool(live_decision.get("executor_boundary_ready")),
+            "readiness_decision": str(readiness_decision.get("decision") or ""),
+            "command_route_registered": bool(
+                readiness_decision.get("command_route_registered", True)
+            ),
+            "command_draft_allowed": bool(
+                readiness_decision.get("command_draft_allowed", True)
+            ),
+            "execution_allowed": False,
+            "live_exchange_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "spot_rule_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "actor_id": context.actor_id,
+            "operator_intent": context.operator_intent,
+            "idempotency_key": context.idempotency_key,
+            "correlation_id": context.correlation_id,
+            "audit_id": f"audit-{context.idempotency_key}",
+            "detail": (
+                "US CFM Futures admission is backend-owned and blocked at the "
+                "disabled executor boundary before any Coinbase call."
+            ),
+        }
+
+    def _record_futures_executor_decision(
+        self,
+        *,
+        command: str,
+        action_class: str,
+        route: str,
+        service_method: str,
+        identity_key: str,
+        identity_value: str,
+        required_permission: str,
+        payload_hash: str,
+        readiness_decision: Mapping[str, Any],
+        admission_decision: Mapping[str, Any],
+        risk_proof_id: Any,
+        context: AdminMvpRequestContext,
+    ) -> dict[str, Any]:
+        live_decision = dict(readiness_decision.get("live_decision_evidence") or {})
+        decision_id = f"futures-executor-{context.idempotency_key}"
+        record = {
+            "decision_id": decision_id,
+            "recorded_at": self._now_iso(),
+            "source": FUTURES_EXECUTOR_BOUNDARY_SOURCE,
+            "executor_status": AdminMvpFuturesExecutorStatus.OBSERVED_LIVE_DISABLED.value,
+            "executor_boundary_ready": True,
+            "module_id": FUTURES_MODULE_ID,
+            "command": command,
+            "mutation_family": "futures_executor_live_disabled",
+            "action_class": action_class,
+            "route": route,
+            "method": "POST",
+            "required_permission": required_permission,
+            "service_method": service_method,
+            "identity_key": identity_key,
+            "identity_value": identity_value,
+            "payload_hash": payload_hash,
+            "account_family": FUTURES_ACCOUNT_FAMILY_US_CFM,
+            "intx_applicability": FUTURES_INTX_APPLICABILITY_US_ACCOUNT,
+            "product_scope": list(FUTURES_CONFIGURED_PRODUCT_SCOPE),
+            "admission_decision_id": admission_decision.get("decision_id"),
+            "admission_allowed": False,
+            "risk_proof_id": risk_proof_id,
+            "service_decision_id": live_decision.get("matching_service_decision_id"),
+            "adapter_decision_id": live_decision.get("matching_adapter_decision_id"),
+            "failure_stage": "futures_executor_live_disabled",
+            "execution_allowed": False,
+            "local_state_mutated": False,
+            "exchange_state_mutated": False,
+            "coinbase_order_submitted": False,
+            "coinbase_order_cancel_submitted": False,
+            "live_exchange_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
+            "spot_rule_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "actor_id": context.actor_id,
+            "operator_intent": context.operator_intent,
+            "idempotency_key": context.idempotency_key,
+            "correlation_id": context.correlation_id,
+            "audit_id": f"audit-{context.idempotency_key}",
+            "detail": (
+                "Backend Futures executor boundary exists for US CFM but is "
+                "live-disabled for the local MVP; no Coinbase order or cancel "
+                "request was submitted."
+            ),
+        }
+        self.store.futures_executor_decisions[decision_id] = record
+        return record
 
     def preview_admission(
         self,
@@ -1921,9 +2137,15 @@ class AdminMvpService:
     ) -> dict[str, Any]:
         service_ready = live_service_decision is not None
         adapter_ready = live_adapter_decision is not None
+        executor_boundary_ready = service_ready and adapter_ready
+        executor_boundary_status = (
+            AdminMvpFuturesExecutorStatus.OBSERVED_LIVE_DISABLED.value
+            if executor_boundary_ready
+            else AdminMvpFuturesExecutorStatus.PENDING_LIVE_DECISION.value
+        )
         first_blocker = (
-            "futures_executor_not_implemented"
-            if service_ready and adapter_ready
+            "futures_executor_live_disabled"
+            if executor_boundary_ready
             else "execution_disabled"
         )
         return {
@@ -1952,6 +2174,11 @@ class AdminMvpService:
                 str(live_adapter_decision["source"]) if adapter_ready else None
             ),
             "live_decision_scope_ready": service_ready and adapter_ready,
+            "executor_boundary_status": executor_boundary_status,
+            "executor_boundary_ready": executor_boundary_ready,
+            "executor_boundary_source": (
+                FUTURES_EXECUTOR_BOUNDARY_SOURCE if executor_boundary_ready else None
+            ),
             "execution_allowed": False,
             "first_blocker": first_blocker,
             "required_evidence_refs": [
@@ -3379,9 +3606,9 @@ class AdminMvpService:
             else "futures_margin_collateral_risk_proof"
         )
         readiness_decision = (
-            "live_decision_evidence_ready_execution_not_implemented"
+            "executor_observed_live_disabled"
             if not missing_contracts
-            and first_blocker == "futures_executor_not_implemented"
+            and first_blocker == "futures_executor_live_disabled"
             else (
                 "draft_ready_execution_disabled"
                 if not missing_contracts
@@ -3444,8 +3671,8 @@ class AdminMvpService:
                 "bff_authority": "forward_only_no_execution",
                 "live_decision_evidence": dict(live_decision_evidence),
                 "detail": (
-                    "Futures live-decision evidence is bound to the US CFM scope; backend Futures execution is not implemented."
-                    if first_blocker == "futures_executor_not_implemented"
+                    "Futures live-decision evidence is bound to the US CFM scope; the backend executor boundary is present and live-disabled."
+                    if first_blocker == "futures_executor_live_disabled"
                     else "Futures command draft evidence is available; live execution remains disabled."
                     if not missing_contracts
                     else "Futures command is visible as a route-bound draft only; execution remains blocked."
@@ -3554,8 +3781,8 @@ class AdminMvpService:
             })
         execution_blocker = str(live_decision_summary["first_blocker"])
         blocker_detail = (
-            "Futures US CFM live-service and live-adapter decisions are bound, but the backend Futures executor is not implemented."
-            if execution_blocker == "futures_executor_not_implemented"
+            "Futures US CFM live-service and live-adapter decisions are bound; the backend Futures executor boundary is present and live-disabled."
+            if execution_blocker == "futures_executor_live_disabled"
             else "Futures command evidence is available, but live futures execution is intentionally disabled."
         )
         blockers.append({
@@ -5057,9 +5284,15 @@ def _futures_live_decision_summary(commands: list[Mapping[str, Any]]) -> dict[st
     )
     missing_adapter_count = len(evidences) - ready_adapter_count
     first_evidence = evidences[0] if evidences else {}
+    executor_boundary_ready = service_ready and missing_adapter_count == 0
+    executor_boundary_status = (
+        AdminMvpFuturesExecutorStatus.OBSERVED_LIVE_DISABLED.value
+        if executor_boundary_ready
+        else AdminMvpFuturesExecutorStatus.PENDING_LIVE_DECISION.value
+    )
     first_blocker = (
-        "futures_executor_not_implemented"
-        if service_ready and missing_adapter_count == 0
+        "futures_executor_live_disabled"
+        if executor_boundary_ready
         else "execution_disabled"
     )
     return {
@@ -5073,6 +5306,11 @@ def _futures_live_decision_summary(commands: list[Mapping[str, Any]]) -> dict[st
         "adapter_decision_ready_count": ready_adapter_count,
         "adapter_decision_missing_count": missing_adapter_count,
         "all_command_adapters_ready": missing_adapter_count == 0,
+        "executor_boundary_status": executor_boundary_status,
+        "executor_boundary_ready": executor_boundary_ready,
+        "executor_boundary_source": (
+            FUTURES_EXECUTOR_BOUNDARY_SOURCE if executor_boundary_ready else None
+        ),
         "first_blocker": first_blocker,
         "required_evidence_refs": [LIVE_SERVICE_DECISION_ROUTE, LIVE_ADAPTER_DECISION_ROUTE],
         "execution_allowed": False,
