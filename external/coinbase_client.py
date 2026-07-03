@@ -69,13 +69,14 @@ class CoinbaseRestClient:
             >>> if btc_wallet:
             ...     print(f"BTC available: {btc_wallet.available_balance}")
         """
-        accounts_list = self._client.get_accounts()["accounts"]
+        accounts_list = _accounts_from_response(self._client.get_accounts())
         
         wallets = {}
         for account in accounts_list:
-            if account.get("deleted_at") is None:
-                currency = account.get("currency")
-                wallet = Wallet.from_dict(account)
+            account_data = _object_to_dict(account)
+            if account_data.get("deleted_at") is None:
+                currency = account_data.get("currency")
+                wallet = Wallet.from_dict(account_data)
                 wallets[currency] = wallet
         
         return wallets
@@ -340,7 +341,10 @@ class CoinbaseRestClient:
             >>> for portfolio in portfolios:
             ...     print(f"Portfolio: {portfolio['name']}")
         """
-        response = self._client.list_portfolios()
+        method = getattr(self._client, "get_portfolios", None)
+        if not callable(method):
+            method = getattr(self._client, "list_portfolios")
+        response = method()
         return response.to_dict().get("portfolios", [])
     
     # ========================================================================
@@ -368,7 +372,7 @@ class CoinbaseRestClient:
             if "404" in str(e) or "not found" in str(e).lower():
                 return None
             raise
-    
+
     def get_accounts(self) -> Dict[str, Any]:
         """Get raw accounts data from SDK.
         
@@ -633,3 +637,25 @@ class CoinbaseRestClient:
             >>> # Advanced operations...
         """
         return self._client
+
+
+def _object_to_dict(value: Any) -> Dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    converter = getattr(value, "to_dict", None)
+    if callable(converter):
+        converted = converter()
+        return dict(converted) if isinstance(converted, dict) else {}
+    if hasattr(value, "__dict__"):
+        return dict(value.__dict__)
+    return {}
+
+
+def _accounts_from_response(response: Any) -> List[Any]:
+    response_data = _object_to_dict(response)
+    accounts = response_data.get("accounts")
+    if isinstance(accounts, list):
+        return accounts
+    if isinstance(response, dict) and isinstance(response.get("accounts"), list):
+        return response["accounts"]
+    return []

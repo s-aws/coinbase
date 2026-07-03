@@ -33,6 +33,8 @@ AUTH_TOKEN_ENV = "COINBASE_ADMIN_API_BEARER_TOKEN"
 CORS_ORIGINS_ENV = "COINBASE_ADMIN_API_CORS_ORIGINS"
 ENVIRONMENT_ENV = "COINBASE_ADMIN_API_ENVIRONMENT"
 DEPLOYMENT_TIER_ENV = "COINBASE_BACKEND_DEPLOYMENT_TIER"
+OS_TRUSTSTORE_ENV = "COINBASE_ADMIN_API_OS_TRUSTSTORE"
+DISABLED_ENV_VALUES = {"0", "false", "no", "off", "disabled"}
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -73,6 +75,12 @@ def apply_local_environment(
 ) -> dict[str, str]:
     target = environ if environ is not None else os.environ
     applied: dict[str, str] = {}
+    if target.get(OS_TRUSTSTORE_ENV, "").strip().lower() in DISABLED_ENV_VALUES:
+        applied[OS_TRUSTSTORE_ENV] = "disabled"
+    else:
+        truststore_status = enable_os_truststore()
+        target[OS_TRUSTSTORE_ENV] = truststore_status
+        applied[OS_TRUSTSTORE_ENV] = truststore_status
     if args.dev_token and not target.get(AUTH_TOKEN_ENV, "").strip():
         target[AUTH_TOKEN_ENV] = args.dev_token
         applied[AUTH_TOKEN_ENV] = "set_from_dev_token"
@@ -84,6 +92,20 @@ def apply_local_environment(
         target[ENVIRONMENT_ENV] = environment
         applied[ENVIRONMENT_ENV] = environment
     return applied
+
+
+def enable_os_truststore() -> str:
+    """Enable OS certificate verification for local Coinbase REST reads."""
+
+    try:
+        import truststore
+    except Exception:
+        return "unavailable"
+    try:
+        truststore.inject_into_ssl()
+    except Exception:
+        return "failed"
+    return "enabled"
 
 
 def build_request_context(headers: Any) -> AdminMvpRequestContext:

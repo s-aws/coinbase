@@ -1,6 +1,7 @@
 """Data models - Core dataclasses for orders, positions, products."""
 
 from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
 from typing import List, Optional, Dict, Any, TypedDict
 from datetime import datetime
 
@@ -123,6 +124,33 @@ def _required_str(data: Dict[str, Any], key: str, owner: str) -> str:
     return value
 
 
+def _money_value_text(value: Any, default: str = "0") -> str:
+    if isinstance(value, dict):
+        value = value.get("value", default)
+    if value is None or value == "":
+        return default
+    return str(value)
+
+
+def _decimal_money_value(value: Any) -> Optional[Decimal]:
+    try:
+        return Decimal(_money_value_text(value, ""))
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _wallet_total_balance_text(data: Dict[str, Any]) -> str:
+    explicit_total = data.get("total_balance", data.get("balance"))
+    if explicit_total not in (None, ""):
+        return _money_value_text(explicit_total)
+
+    available = _decimal_money_value(data.get("available_balance"))
+    hold = _decimal_money_value(data.get("hold", data.get("hold_balance")))
+    if available is None or hold is None:
+        return "0"
+    return str(available + hold)
+
+
 @dataclass
 class Product:
     """Trading product metadata."""
@@ -184,8 +212,8 @@ class Wallet:
         """Create Wallet from API response dict."""
         return cls(
             currency=_required_str(data, 'currency', 'Wallet'),
-            available_balance=str(data.get('available_balance', '0')),
-            total_balance=str(data.get('total_balance', '0')),
+            available_balance=_money_value_text(data.get('available_balance')),
+            total_balance=_wallet_total_balance_text(data),
             created_at=data.get('created_at'),
             updated_at=data.get('updated_at'),
             deleted_at=data.get('deleted_at'),

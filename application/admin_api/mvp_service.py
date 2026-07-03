@@ -1184,7 +1184,7 @@ class AdminMvpService:
             for error in (wallet_error, portfolio_error, positions_error)
             if error is not None
         ]
-        spot_wallet_ready = wallet_inventory["status"] == "ready"
+        spot_wallet_ready = _spot_admission_quote_ready(wallet_inventory)
         futures_scope_ready = positions_read and positions_error is None
         readiness = {
             "spot_account_ready": portfolios_read and portfolio_error is None and spot_wallet_ready,
@@ -1411,7 +1411,11 @@ class AdminMvpService:
                 "currency": wallet_inventory["currency"],
                 "available_notional_usdc": wallet_inventory["available_notional_usdc"],
                 "proof_id": snapshot["account_reality"]["proof_id"],
-                "first_blocker": "none" if spot_wallet_ready else "spot_wallet_inventory_ready",
+                "first_blocker": (
+                    "none"
+                    if spot_wallet_ready
+                    else str(wallet_inventory.get("quote_wallet_error") or "spot_wallet_inventory_ready")
+                ),
             },
             "futures_risk_input": {
                 "status": "ready" if futures_risk_ready else "blocked",
@@ -2863,9 +2867,11 @@ def _wallet_inventory_from_wallets(wallets: list[dict[str, Any]]) -> dict[str, A
             "hold_notional_usdc": "0",
             "total_notional_usdc": "0",
             "source": BACKEND_REST_CLIENT_SOURCE,
-            "freshness_status": "backend_rest_missing_quote_wallet",
-            "status": "blocked",
-            "error": "quote_wallet_missing",
+            "freshness_status": BACKEND_REST_FRESHNESS,
+            "status": "ready",
+            "error": "none",
+            "quote_wallet_status": "blocked",
+            "quote_wallet_error": "quote_wallet_missing",
         }
     return {
         "currency": quote_wallet["currency"],
@@ -2876,7 +2882,15 @@ def _wallet_inventory_from_wallets(wallets: list[dict[str, Any]]) -> dict[str, A
         "freshness_status": BACKEND_REST_FRESHNESS,
         "status": "ready",
         "error": "none",
+        "quote_wallet_status": "ready",
+        "quote_wallet_error": "none",
     }
+
+
+def _spot_admission_quote_ready(wallet_inventory: Mapping[str, Any]) -> bool:
+    return str(
+        wallet_inventory.get("quote_wallet_status") or wallet_inventory.get("status")
+    ) == "ready"
 
 
 def _spot_admission_quote_wallet(

@@ -7,6 +7,7 @@ Tests order models, enums, and state tracking.
 import pytest
 from datetime import datetime, timezone
 from core.enums import StealthOrderStatus, OrderStatus
+from core.models import Wallet
 
 
 class TestOrderModels:
@@ -145,6 +146,36 @@ class TestAccountAndPortfolio:
         }
         
         assert account["available"] + account["hold"] == account["total"]
+
+    def test_wallet_from_dict_normalizes_coinbase_money_values(self):
+        """Wallet balances accept Coinbase money-object response fields."""
+        wallet = Wallet.from_dict(
+            {
+                "currency": "USD",
+                "available_balance": {"value": "9.25", "currency": "USD"},
+                "total_balance": {"value": "10.00", "currency": "USD"},
+                "created_at": "2026-07-03T00:00:00Z",
+                "updated_at": "2026-07-03T00:02:00Z",
+                "deleted_at": None,
+            }
+        )
+
+        assert wallet.currency == "USD"
+        assert wallet.available_balance == "9.25"
+        assert wallet.total_balance == "10.00"
+        assert wallet.deleted_at is None
+
+    def test_wallet_from_dict_derives_total_from_available_and_hold(self):
+        """Wallet total can be derived from Coinbase account hold fields."""
+        wallet = Wallet.from_dict(
+            {
+                "currency": "USD",
+                "available_balance": {"value": "9.25", "currency": "USD"},
+                "hold": {"value": "0.75", "currency": "USD"},
+            }
+        )
+
+        assert wallet.total_balance == "10.00"
     
     def test_portfolio_tracks_positions(self):
         """Portfolio tracks all open positions."""

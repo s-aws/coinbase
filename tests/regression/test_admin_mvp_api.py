@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 import json
+from pathlib import Path
+import tomllib
 
 import pytest
 
@@ -631,6 +633,44 @@ def test_admin_wallet_read_accepts_usd_quote_wallet_when_usdc_wallet_is_missing(
     assert body["live_coinbase_orders_ran"] is False
 
 
+def test_admin_wallet_read_keeps_inventory_live_when_quote_wallet_is_missing():
+    rest_client = FakeAccountRestClient()
+    rest_client.account_wallets = {
+        "BTC": {
+            "currency": "BTC",
+            "available_balance": "0.01000000",
+            "total_balance": "0.01500000",
+            "hold_balance": "0.00500000",
+            "updated_at": "2026-07-03T00:04:00Z",
+        },
+    }
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+
+    result = service.get_read_response(
+        "/api/v1/admin/wallet",
+        {},
+        context(idempotency_key="wallet-live-no-quote-read"),
+    )
+
+    assert result.status_code == 200
+    body = result.body
+    assert body["wallet_inventory"]["status"] == "ready"
+    assert body["wallet_inventory"]["freshness_status"] == "backend_rest_fresh"
+    assert body["wallet_inventory"]["quote_wallet_status"] == "blocked"
+    assert body["wallet_inventory"]["quote_wallet_error"] == "quote_wallet_missing"
+    assert body["wallet_count"] == 1
+    assert body["readiness"]["spot_wallet_inventory_ready"] is False
+    assert body["spot_admission_input"]["status"] == "blocked"
+    assert body["spot_admission_input"]["first_blocker"] == "quote_wallet_missing"
+    wallet_rows = {wallet["currency"]: wallet for wallet in body["wallets"]}
+    assert wallet_rows["BTC"]["admission_asset"] is False
+    assert wallet_rows["BTC"]["admission_ready"] is False
+    assert body["live_coinbase_read_ran"] is True
+    assert body["live_coinbase_orders_ran"] is False
+
+
 def test_cap_guard_uses_usd_quote_wallet_from_backend_snapshot():
     rest_client = FakeAccountRestClient()
     rest_client.account_wallets = {
@@ -1157,6 +1197,34 @@ def test_admin_mvp_runner_matches_frontend_local_stack_contract():
     assert environ[run_admin_api.CORS_ORIGINS_ENV] == "http://127.0.0.1:3000"
     assert environ[run_admin_api.ENVIRONMENT_ENV] == "local"
     assert applied[run_admin_api.AUTH_TOKEN_ENV] == "set_from_dev_token"
+
+
+def test_admin_mvp_runner_enables_os_truststore_for_live_wallet_reads(monkeypatch):
+    calls: list[bool] = []
+
+    def fake_enable_os_truststore() -> str:
+        calls.append(True)
+        return "enabled"
+
+    monkeypatch.setattr(
+        run_admin_api,
+        "enable_os_truststore",
+        fake_enable_os_truststore,
+    )
+    args = run_admin_api.parse_args(["--dev-token", "local-admin-token"])
+
+    applied = run_admin_api.apply_local_environment(args, environ={})
+
+    assert calls == [True]
+    assert applied[run_admin_api.OS_TRUSTSTORE_ENV] == "enabled"
+
+
+def test_admin_mvp_declares_os_truststore_dependency_for_local_live_reads():
+    pyproject = tomllib.loads(
+        (Path(__file__).resolve().parents[2] / "pyproject.toml").read_text()
+    )
+
+    assert "truststore>=0.10.4" in pyproject["project"]["dependencies"]
 
 
 def test_admin_mvp_live_execution_env_requires_coinbase_specific_opt_in(monkeypatch):
