@@ -8,7 +8,7 @@ backend Admin proof-chain gates before the REST client is called.
 from __future__ import annotations
 
 import argparse
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping, MutableMapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
@@ -26,6 +26,13 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from application.admin_api.mvp_service import (  # noqa: E402
+    APPROVAL_LOG_PATH_ENV,
+    AUDIT_LOG_PATH_ENV,
+    CAP_GUARD_LOG_PATH_ENV,
+    IDEMPOTENCY_LOG_PATH_ENV,
+    LIVE_ADAPTER_DECISION_LOG_PATH_ENV,
+    LIVE_SERVICE_DECISION_LOG_PATH_ENV,
+    RECONCILIATION_LOG_PATH_ENV,
     AdminMvpRequestContext,
     AdminMvpService,
     get_admin_mvp_service,
@@ -44,6 +51,15 @@ MAX_DEFAULT_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_DEFAULT_EXECUTED_NOTIONAL_USDC = "1.00"
 DEFAULT_QUOTE_SIZE = "1.00"
 DEFAULT_LIMIT_PRICE = "1000000.00"
+STATE_LOG_FILENAMES = {
+    APPROVAL_LOG_PATH_ENV: "admin_api_approvals.jsonl",
+    IDEMPOTENCY_LOG_PATH_ENV: "admin_api_idempotency.jsonl",
+    AUDIT_LOG_PATH_ENV: "admin_api_audit.jsonl",
+    CAP_GUARD_LOG_PATH_ENV: "admin_api_cap_guard.jsonl",
+    RECONCILIATION_LOG_PATH_ENV: "admin_api_reconciliation_plan.jsonl",
+    LIVE_SERVICE_DECISION_LOG_PATH_ENV: "admin_api_live_service_decisions.jsonl",
+    LIVE_ADAPTER_DECISION_LOG_PATH_ENV: "admin_api_live_adapter_decisions.jsonl",
+}
 
 
 class LiveSubmitConfirmationError(RuntimeError):
@@ -66,6 +82,7 @@ class ManualLiveSubmitConfig:
     roles: tuple[str, ...] = ("admin", "trader")
     max_submitted_notional_usdc: str = MAX_DEFAULT_SUBMITTED_NOTIONAL_USDC
     max_executed_notional_usdc: str = MAX_DEFAULT_EXECUTED_NOTIONAL_USDC
+    state_dir: str | None = None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -75,6 +92,12 @@ def build_parser() -> argparse.ArgumentParser:
         description="Submit one capped manual order through backend Admin gates."
     )
     parser.add_argument("--summary-output", type=Path, default=DEFAULT_SUMMARY_OUTPUT)
+    parser.add_argument(
+        "--state-dir",
+        type=Path,
+        default=default_state_dir(),
+        help="Directory for restart-safe local Admin evidence logs.",
+    )
     parser.add_argument("--confirm-live-submit", action="store_true")
     parser.add_argument("--product-id", default="BTC-USDC")
     parser.add_argument("--side", choices=("BUY", "SELL"), default="BUY")
@@ -116,7 +139,38 @@ def config_from_args(args: argparse.Namespace) -> ManualLiveSubmitConfig:
         roles=roles or ("admin", "trader"),
         max_submitted_notional_usdc=str(args.max_submitted_notional_usdc),
         max_executed_notional_usdc=str(args.max_executed_notional_usdc),
+        state_dir=str(args.state_dir) if args.state_dir else None,
     )
+
+
+def default_state_dir() -> Path:
+    """Return the local Admin state directory used by the deployed MVP."""
+
+    explicit_state_dir = os.environ.get("COINBASE_ADMIN_API_STATE_DIR", "").strip()
+    if explicit_state_dir:
+        return Path(explicit_state_dir)
+
+    local_root = Path("C:/coinbase-local")
+    if local_root.exists():
+        return local_root / "state"
+    return Path("artifacts") / "admin-api-state"
+
+
+def apply_manual_live_submit_state_environment(
+    state_dir: Path,
+    environ: MutableMapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Point Admin evidence logs at one local state directory."""
+
+    target = os.environ if environ is None else environ
+    resolved_state_dir = state_dir.resolve()
+    resolved_state_dir.mkdir(parents=True, exist_ok=True)
+    applied: dict[str, str] = {}
+    for env_name, filename in STATE_LOG_FILENAMES.items():
+        path = resolved_state_dir / filename
+        target[env_name] = str(path)
+        applied[env_name] = str(path)
+    return applied
 
 
 def build_manual_order_body(config: ManualLiveSubmitConfig) -> dict[str, Any]:
@@ -294,6 +348,7 @@ def build_summary(
         "limit_price": body.get("limit_price"),
         "max_submitted_notional_usdc": config.max_submitted_notional_usdc,
         "max_executed_notional_usdc": config.max_executed_notional_usdc,
+        "state_dir": config.state_dir,
         "client_order_id": str(
             final_submit.get("client_order_id")
             or admission.get("identity_value")
@@ -402,6 +457,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             "Manual live submission requires --confirm-live-submit."
         )
     assert_live_credentials_present(os.environ)
+    if config.state_dir:
+        apply_manual_live_submit_state_environment(Path(config.state_dir))
     os.environ[LIVE_EXECUTION_ENV] = "1"
     apply_runner_environment()
     summary = run_manual_live_submit(get_admin_mvp_service(), config)

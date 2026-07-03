@@ -2,11 +2,17 @@ from __future__ import annotations
 
 import pytest
 
-from application.admin_api.mvp_service import AdminMvpDependencies, AdminMvpService
+from application.admin_api.mvp_service import (
+    AdminMvpDependencies,
+    AdminMvpEvidenceLog,
+    AdminMvpRequestContext,
+    AdminMvpService,
+)
 from tests.regression.test_admin_mvp_api import FakeAccountRestClient, FakeRestClient
 from tools.run_admin_api_manual_order_live_submit import (
     ManualLiveSubmitConfig,
     LiveSubmitConfirmationError,
+    apply_manual_live_submit_state_environment,
     build_manual_order_body,
     run_manual_live_submit,
 )
@@ -85,3 +91,52 @@ def test_manual_live_submit_records_admin_proof_chain_before_backend_rest_submis
             },
         }
     ]
+
+
+def test_manual_live_submit_persists_local_admin_evidence_for_restart(tmp_path):
+    environ: dict[str, str] = {}
+    applied_paths = apply_manual_live_submit_state_environment(tmp_path, environ)
+    rest_client = FakeAccountRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        ),
+        evidence_log=AdminMvpEvidenceLog.from_env(environ),
+    )
+
+    summary = run_manual_live_submit(
+        service,
+        ManualLiveSubmitConfig(
+            confirm_live_submit=True,
+            idempotency_key="manual-live-submit-persisted-test",
+            correlation_id="manual-live-submit-persisted-test-correlation",
+        ),
+    )
+
+    restarted_service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=FakeAccountRestClient(),
+            rest_client_available=True,
+        ),
+        evidence_log=AdminMvpEvidenceLog.from_env(environ),
+    )
+    health = restarted_service.get_read_response(
+        "/api/v1/admin/health",
+        {},
+        AdminMvpRequestContext(
+            idempotency_key="read-persisted-live-submit",
+            correlation_id="read-persisted-live-submit-correlation",
+            operator_intent="read_admin_api",
+            actor_id="operator-1",
+            roles=("operator",),
+        ),
+    )
+
+    assert summary["status"] == "passed"
+    assert summary["live_coinbase_execution"] == "submitted"
+    assert health.body["live_coinbase_orders_ran"] is True
+    assert health.body["live_coinbase_execution"] == "submitted"
+    assert health.body["notional_usdc"] == "1.00"
+    assert all(path.endswith(".jsonl") for path in applied_paths.values())
