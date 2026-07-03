@@ -1780,6 +1780,22 @@
     },
     {
       "module_id": "spot_operations",
+      "surface": "POST /api/v1/spot/cancel-order/proof-chain",
+      "method": "POST",
+      "path": "/api/v1/spot/cancel-order/proof-chain",
+      "action_class": "local_state_mutation",
+      "permission": "spot_order_cancel_proof:record",
+      "idempotency": "required",
+      "approval": "not required for no-live cancel proof evidence",
+      "caps": "not applicable to cancel proof evidence",
+      "audit": "required backend cancel audit and reconciliation evidence",
+      "shared_method": "record_spot_cancel_order_proof_chain",
+      "parity_test": "backend-owned local cancel proof-chain evidence only; no Coinbase cancel submission",
+      "compatibility_mode": "backend_admin_api_only",
+      "command_contract": true
+    },
+    {
+      "module_id": "spot_operations",
       "surface": "GET /api/v1/spot/recovery/preview",
       "method": "GET",
       "path": "/api/v1/spot/recovery/preview",

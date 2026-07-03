@@ -86,9 +86,15 @@ MANUAL_ORDER_MODULE_ID = "spot_operations"
 MANUAL_ORDER_ACTION_CLASS = "live_exchange_place"
 MANUAL_ORDER_PERMISSION = "order:create"
 MANUAL_ORDER_SERVICE_METHOD = "place_manual_order"
+CANCEL_ORDER_ACTION_CLASS = "live_exchange_cancel"
+CANCEL_ORDER_PERMISSION = "order:cancel"
+CANCEL_ORDER_SERVICE_METHOD = "cancel_order_by_client_order_id"
 SPOT_MANUAL_ORDER_PROOF_CHAIN_ROUTE = "/api/v1/spot/manual-order/proof-chain"
 SPOT_MANUAL_ORDER_PROOF_CHAIN_PERMISSION = "spot_manual_order_proof:record"
 SPOT_MANUAL_ORDER_PROOF_CHAIN_SERVICE_METHOD = "record_spot_manual_order_proof_chain"
+SPOT_CANCEL_ORDER_PROOF_CHAIN_ROUTE = "/api/v1/spot/cancel-order/proof-chain"
+SPOT_CANCEL_ORDER_PROOF_CHAIN_PERMISSION = "spot_order_cancel_proof:record"
+SPOT_CANCEL_ORDER_PROOF_CHAIN_SERVICE_METHOD = "record_spot_cancel_order_proof_chain"
 SPOT_MANUAL_PROOF_GATES = (
     "approval_snapshot",
     "admission_audit",
@@ -101,6 +107,7 @@ SPOT_MANUAL_PROOF_GATE_FIELDS = {
     "cap_guard": "cap_guard_present",
     "reconciliation_plan": "reconciliation_plan_present",
 }
+SPOT_CANCEL_PROOF_GATES = ("cancel_proof_chain",)
 LIVE_SERVICE_DECISION_ROUTE = "/api/v1/admin/live-execution/service-decisions"
 LIVE_SERVICE_DECISION_PERMISSION = "config:update"
 LIVE_SERVICE_DECISION_SERVICE_METHOD = "record_live_service_decision"
@@ -770,6 +777,145 @@ class AdminMvpService:
             roles=context.roles,
         )
 
+    def record_spot_cancel_order_proof_chain(
+        self,
+        body: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+    ) -> AdminMvpApiResult:
+        """Record backend-owned proof-chain evidence for one spot cancel request."""
+
+        proof_context = _spot_cancel_order_context_from_body(body)
+        if proof_context is None:
+            return self._error(
+                400,
+                "Spot cancel-order proof chain requires route, client_order_id, command idempotency key, and payload hash evidence.",
+                context,
+            )
+
+        record_ids = self._spot_cancel_order_proof_chain_record_ids(body, proof_context)
+        evidence = self._record_spot_cancel_order_proof_chain_evidence(
+            body=body,
+            context=context,
+            proof_context=proof_context,
+            record_ids=record_ids,
+        )
+        cancel_proof = self._matching_cancel_proof(
+            proof_context["identity_value"],
+            proof_context["command_idempotency_key"],
+            proof_context["payload_hash"],
+        )
+        missing_gate_chain = [] if cancel_proof else list(SPOT_CANCEL_PROOF_GATES)
+        resolved_gate_chain = [
+            gate for gate in SPOT_CANCEL_PROOF_GATES if gate not in missing_gate_chain
+        ]
+        proof_chain_status = (
+            AdminMvpGateStatus.PASSED.value
+            if not missing_gate_chain
+            else AdminMvpGateStatus.BLOCKED.value
+        )
+        return self._ok(
+            {
+                "type": "spot_cancel_order_proof_chain_result",
+                "status": AdminMvpCommandStatus.ACCEPTED.value,
+                "route": SPOT_CANCEL_ORDER_PROOF_CHAIN_ROUTE,
+                "method": "POST",
+                "module_id": MANUAL_ORDER_MODULE_ID,
+                "action_class": "local_state_mutation",
+                "required_permission": SPOT_CANCEL_ORDER_PROOF_CHAIN_PERMISSION,
+                "service_method": SPOT_CANCEL_ORDER_PROOF_CHAIN_SERVICE_METHOD,
+                "message": "Spot cancel-order proof-chain evidence recorded by backend Admin API.",
+                "target_route": proof_context["route"],
+                "target_method": proof_context["method"],
+                "identity_key": proof_context["identity_key"],
+                "identity_value": proof_context["identity_value"],
+                "command_idempotency_key": proof_context["command_idempotency_key"],
+                "payload_hash": proof_context["payload_hash"],
+                "proof_chain_status": proof_chain_status,
+                "resolved_gate_chain": resolved_gate_chain,
+                "missing_gate_chain": missing_gate_chain,
+                "admission_audit_id": record_ids["admission_audit_id"],
+                "cancel_proof_chain_id": record_ids["cancel_proof_chain_id"],
+                "evidence": evidence,
+                "correlation_id": context.correlation_id,
+                "idempotency_key": context.idempotency_key,
+                "audit_id": f"audit-{context.idempotency_key}",
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                "coinbase_cancel_submission_allowed": False,
+                "live_exchange_submitted": False,
+                **self._live_outputs(False, Decimal("0")),
+            },
+            context,
+        )
+
+    def _spot_cancel_order_proof_chain_record_ids(
+        self,
+        body: Mapping[str, Any],
+        proof_context: Mapping[str, Any],
+    ) -> dict[str, str]:
+        suffix = _proof_chain_record_key(proof_context)
+        return {
+            "admission_audit_id": str(
+                body.get("admission_audit_id") or f"mvp-cancel-admission-audit-{suffix}"
+            ),
+            "cancel_proof_chain_id": str(
+                body.get("cancel_proof_chain_id") or f"mvp-cancel-proof-chain-{suffix}"
+            ),
+        }
+
+    def _record_spot_cancel_order_proof_chain_evidence(
+        self,
+        *,
+        body: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+        proof_context: Mapping[str, Any],
+        record_ids: Mapping[str, str],
+    ) -> dict[str, Any]:
+        proof_base = {
+            "route": proof_context["route"],
+            "method": proof_context["method"],
+            "module_id": proof_context["module_id"],
+            "identity_key": proof_context["identity_key"],
+            "identity_value": proof_context["identity_value"],
+            "action_class": proof_context["action_class"],
+            "required_permission": proof_context["required_permission"],
+            "service_method": proof_context["service_method"],
+            "actor_id": proof_context["actor_id"],
+            "operator_intent": proof_context["operator_intent"],
+            "command_idempotency_key": proof_context["command_idempotency_key"],
+            "payload_hash": proof_context["payload_hash"],
+        }
+        admission_audit = self.record_admission_audit(
+            {
+                **proof_base,
+                "admission_audit_id": record_ids["admission_audit_id"],
+                "allowed": True,
+                "status": AdminMvpGateStatus.PASSED.value,
+            },
+            self._proof_chain_phase_context(context, "cancel-admission-audit"),
+        )
+        cancel_proof = self.record_reconciliation_plan(
+            {
+                **proof_base,
+                "plan_id": record_ids["cancel_proof_chain_id"],
+                "admission_audit_id": record_ids["admission_audit_id"],
+                "allowed": True,
+                "status": AdminMvpGateStatus.PASSED.value,
+                "exchange_submission_required": False,
+                "max_submitted_notional_usdc": "0",
+                "max_executed_notional_usdc": "0",
+                "cancel_proof_reason": str(
+                    body.get("cancel_proof_reason")
+                    or "Backend spot cancel proof-chain evidence."
+                ),
+            },
+            self._proof_chain_phase_context(context, "cancel-proof-chain"),
+        )
+        return {
+            "admission_audit": admission_audit.body.get("admission_audit"),
+            "cancel_proof_chain": cancel_proof.body.get("plan"),
+        }
+
     def submit_manual_order(
         self,
         body: Mapping[str, Any],
@@ -824,18 +970,27 @@ class AdminMvpService:
         body: Mapping[str, Any],
         context: AdminMvpRequestContext,
     ) -> AdminMvpApiResult:
-        """Return a fail-closed cancel response until cancel proof gates exist."""
+        """Return a fail-closed cancel response with backend proof context."""
 
+        proof_context = _spot_cancel_order_context_from_cancel_request(
+            client_order_id,
+            body,
+            context,
+        )
         response = {
             "type": "admin_api_command_result",
             "status": AdminMvpCommandStatus.NOT_IMPLEMENTED.value,
-            "action_class": "live_exchange_cancel",
-            "required_permission": "order:cancel",
-            "service_method": "cancel_order_by_client_order_id",
-            "message": "Cancel remains backend-owned and disabled until cancel proof gates are implemented.",
+            "action_class": CANCEL_ORDER_ACTION_CLASS,
+            "required_permission": CANCEL_ORDER_PERMISSION,
+            "service_method": CANCEL_ORDER_SERVICE_METHOD,
+            "message": (
+                "Cancel remains backend-owned and live-disabled; record cancel "
+                "proof-chain evidence separately before any future live enablement."
+            ),
             "client_order_id": client_order_id,
             "correlation_id": context.correlation_id,
             "idempotency_key": context.idempotency_key,
+            "proof_context": proof_context,
             "failure_stage": "durable_audit_required",
             "live_exchange_submitted": False,
             **self._runtime_evidence(),
@@ -1473,6 +1628,21 @@ class AdminMvpService:
             idempotency_key,
             payload_hash,
             required_allowed=True,
+        )
+
+    def _matching_cancel_proof(
+        self,
+        identity_value: str,
+        idempotency_key: str,
+        payload_hash: str,
+    ) -> dict[str, Any] | None:
+        return _find_matching_record(
+            self.store.reconciliation_plans.values(),
+            identity_value,
+            idempotency_key,
+            payload_hash,
+            required_allowed=True,
+            service_method=CANCEL_ORDER_SERVICE_METHOD,
         )
 
     def _client_order_id(self, idempotency_key: str) -> str:
@@ -2278,7 +2448,12 @@ class AdminMvpService:
             admission=admission,
             admission_context=proof_context,
         )
-        commands = [manual_command, _cancel_order_command()]
+        cancel_context, cancel_proof = self._spot_cancel_order_proof(query)
+        cancel_command = _cancel_order_command(
+            cancel_context=cancel_context,
+            cancel_proof=cancel_proof,
+        )
+        commands = [manual_command, cancel_command]
         return {
             "type": "spot_command_suite",
             "status": "approval_required",
@@ -2291,6 +2466,10 @@ class AdminMvpService:
             "manual_order_missing_gate_count": len(manual_command["missing_gate_chain"]),
             "manual_order_resolved_gate_count": len(manual_command["resolved_gate_chain"]),
             "manual_order_admission_context_present": proof_context is not None,
+            "cancel_order_proof_chain_status": cancel_command["proof_chain_status"],
+            "cancel_order_missing_gate_count": len(cancel_command["missing_gate_chain"]),
+            "cancel_order_resolved_gate_count": len(cancel_command["resolved_gate_chain"]),
+            "cancel_order_context_present": cancel_context is not None,
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
             "spot_rules_platform_default": False,
@@ -2324,6 +2503,22 @@ class AdminMvpService:
             payload_hash=proof_context["payload_hash"],
         )
         return proof_context, admission
+
+    def _spot_cancel_order_proof(
+        self,
+        query: Mapping[str, Any],
+    ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+        proof_context = self._spot_cancel_order_context_from_query(query)
+        if proof_context is None:
+            proof_context = self._latest_spot_cancel_order_proof_context()
+        if proof_context is None:
+            return None, None
+        cancel_proof = self._matching_cancel_proof(
+            proof_context["identity_value"],
+            proof_context["command_idempotency_key"],
+            proof_context["payload_hash"],
+        )
+        return proof_context, cancel_proof
 
     def _spot_manual_order_context_from_query(
         self,
@@ -2373,6 +2568,55 @@ class AdminMvpService:
         ):
             for record in reversed(list(records.values())):
                 proof_context = _spot_manual_order_context_from_record(record)
+                if proof_context is not None:
+                    return proof_context
+        return None
+
+    def _spot_cancel_order_context_from_query(
+        self,
+        query: Mapping[str, Any],
+    ) -> dict[str, Any] | None:
+        route = _query_text(query, "route") or CANCEL_ORDER_ROUTE
+        identity_key = _query_text(query, "identity_key") or "client_order_id"
+        service_method = _query_text(query, "service_method") or CANCEL_ORDER_SERVICE_METHOD
+        if route != CANCEL_ORDER_ROUTE:
+            return None
+        if identity_key != "client_order_id":
+            return None
+        if service_method != CANCEL_ORDER_SERVICE_METHOD:
+            return None
+        identity_value = _query_text(query, "identity_value")
+        idempotency_key = _query_text(query, "command_idempotency_key") or _query_text(
+            query,
+            "idempotency_key",
+        )
+        payload_hash = _query_text(query, "payload_hash")
+        if not (identity_value and idempotency_key and payload_hash):
+            return None
+        return {
+            "route": route,
+            "method": _query_text(query, "method") or "POST",
+            "module_id": _query_text(query, "module_id") or MANUAL_ORDER_MODULE_ID,
+            "identity_key": identity_key,
+            "identity_value": identity_value,
+            "action_class": _query_text(query, "action_class") or CANCEL_ORDER_ACTION_CLASS,
+            "required_permission": _query_text(query, "required_permission")
+            or CANCEL_ORDER_PERMISSION,
+            "service_method": service_method,
+            "actor_id": _query_text(query, "actor_id") or "local-operator",
+            "operator_intent": _query_text(query, "operator_intent") or "read_admin_api",
+            "command_idempotency_key": idempotency_key,
+            "payload_hash": payload_hash,
+            "source": "query",
+        }
+
+    def _latest_spot_cancel_order_proof_context(self) -> dict[str, Any] | None:
+        for records in (
+            self.store.reconciliation_plans,
+            self.store.admission_audits,
+        ):
+            for record in reversed(list(records.values())):
+                proof_context = _spot_cancel_order_context_from_record(record)
                 if proof_context is not None:
                     return proof_context
         return None
@@ -3171,9 +3415,9 @@ class AdminMvpService:
             ),
             _command_capability(
                 route=CANCEL_ORDER_ROUTE,
-                action_class="live_exchange_cancel",
-                required_permission="order:cancel",
-                shared_method="cancel_order_by_client_order_id",
+                action_class=CANCEL_ORDER_ACTION_CLASS,
+                required_permission=CANCEL_ORDER_PERMISSION,
+                shared_method=CANCEL_ORDER_SERVICE_METHOD,
                 live_enabled=False,
             ),
             _command_capability(
@@ -3220,6 +3464,14 @@ class AdminMvpService:
                 module_id=MANUAL_ORDER_MODULE_ID,
             ),
             _command_capability(
+                route=SPOT_CANCEL_ORDER_PROOF_CHAIN_ROUTE,
+                action_class="local_state_mutation",
+                required_permission=SPOT_CANCEL_ORDER_PROOF_CHAIN_PERMISSION,
+                shared_method=SPOT_CANCEL_ORDER_PROOF_CHAIN_SERVICE_METHOD,
+                live_enabled=False,
+                module_id=MANUAL_ORDER_MODULE_ID,
+            ),
+            _command_capability(
                 route="/api/v1/admin/live-execution/service-decisions",
                 action_class="local_state_mutation",
                 required_permission="config:update",
@@ -3259,15 +3511,15 @@ class AdminMvpService:
             "module_id": MANUAL_ORDER_MODULE_ID,
             "identity_key": "client_order_id",
             "action_class": (
-                MANUAL_ORDER_ACTION_CLASS if route == MANUAL_ORDER_ROUTE else "live_exchange_cancel"
+                MANUAL_ORDER_ACTION_CLASS if route == MANUAL_ORDER_ROUTE else CANCEL_ORDER_ACTION_CLASS
             ),
             "required_permission": (
-                MANUAL_ORDER_PERMISSION if route == MANUAL_ORDER_ROUTE else "order:cancel"
+                MANUAL_ORDER_PERMISSION if route == MANUAL_ORDER_ROUTE else CANCEL_ORDER_PERMISSION
             ),
             "service_method": (
                 MANUAL_ORDER_SERVICE_METHOD
                 if route == MANUAL_ORDER_ROUTE
-                else "cancel_order_by_client_order_id"
+                else CANCEL_ORDER_SERVICE_METHOD
             ),
             "live_enabled": live_enabled,
             "live_eligible": live_eligible,
@@ -4163,6 +4415,7 @@ def _find_matching_record(
     status_field: str | None = None,
     required_status: str | None = None,
     required_allowed: bool | None = None,
+    service_method: str | None = None,
 ) -> dict[str, Any] | None:
     for record in records:
         if record.get("identity_value") != identity_value:
@@ -4170,6 +4423,8 @@ def _find_matching_record(
         if record.get("command_idempotency_key") != idempotency_key:
             continue
         if record.get("payload_hash") != payload_hash:
+            continue
+        if service_method is not None and record.get("service_method") != service_method:
             continue
         if status_field and str(record.get(status_field)) != required_status:
             continue
@@ -4226,6 +4481,70 @@ def _spot_manual_order_context_from_body(
         "action_class": str(source.get("action_class") or MANUAL_ORDER_ACTION_CLASS),
         "required_permission": str(
             source.get("required_permission") or MANUAL_ORDER_PERMISSION
+        ),
+        "service_method": service_method,
+        "actor_id": str(source.get("actor_id") or "local-operator"),
+        "operator_intent": str(source.get("operator_intent") or "read_admin_api"),
+        "command_idempotency_key": idempotency_key,
+        "payload_hash": payload_hash,
+        "source": "request_body",
+    }
+
+
+def _spot_cancel_order_context_from_cancel_request(
+    client_order_id: str,
+    body: Mapping[str, Any],
+    context: AdminMvpRequestContext,
+) -> dict[str, Any]:
+    payload = {"client_order_id": client_order_id, **dict(body)}
+    return {
+        "route": CANCEL_ORDER_ROUTE,
+        "method": "POST",
+        "module_id": MANUAL_ORDER_MODULE_ID,
+        "identity_key": "client_order_id",
+        "identity_value": client_order_id,
+        "action_class": CANCEL_ORDER_ACTION_CLASS,
+        "required_permission": CANCEL_ORDER_PERMISSION,
+        "service_method": CANCEL_ORDER_SERVICE_METHOD,
+        "actor_id": context.actor_id,
+        "operator_intent": context.operator_intent,
+        "command_idempotency_key": context.idempotency_key,
+        "payload_hash": _payload_hash(payload),
+        "source": "cancel_request",
+    }
+
+
+def _spot_cancel_order_context_from_body(
+    body: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    source = body.get("proof_context")
+    if not isinstance(source, Mapping):
+        source = body
+    route = str(source.get("route") or CANCEL_ORDER_ROUTE)
+    identity_key = str(source.get("identity_key") or "client_order_id")
+    service_method = str(source.get("service_method") or CANCEL_ORDER_SERVICE_METHOD)
+    identity_value = str(source.get("identity_value") or source.get("client_order_id") or "")
+    idempotency_key = str(
+        source.get("command_idempotency_key") or source.get("idempotency_key") or ""
+    )
+    payload_hash = str(source.get("payload_hash") or "")
+    if route != CANCEL_ORDER_ROUTE:
+        return None
+    if identity_key != "client_order_id":
+        return None
+    if service_method != CANCEL_ORDER_SERVICE_METHOD:
+        return None
+    if not (identity_value and idempotency_key and payload_hash):
+        return None
+    return {
+        "route": route,
+        "method": str(source.get("method") or "POST"),
+        "module_id": str(source.get("module_id") or MANUAL_ORDER_MODULE_ID),
+        "identity_key": identity_key,
+        "identity_value": identity_value,
+        "action_class": str(source.get("action_class") or CANCEL_ORDER_ACTION_CLASS),
+        "required_permission": str(
+            source.get("required_permission") or CANCEL_ORDER_PERMISSION
         ),
         "service_method": service_method,
         "actor_id": str(source.get("actor_id") or "local-operator"),
@@ -4293,6 +4612,44 @@ def _spot_manual_order_context_from_record(
             or record.get("requested_by_actor_id")
             or "local-operator"
         ),
+        "operator_intent": str(record.get("operator_intent") or "read_admin_api"),
+        "command_idempotency_key": idempotency_key,
+        "payload_hash": payload_hash,
+        "source": "latest_backend_proof_record",
+    }
+
+
+def _spot_cancel_order_context_from_record(
+    record: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    if record is None:
+        return None
+    route = str(record.get("route") or "")
+    identity_key = str(record.get("identity_key") or "")
+    service_method = str(record.get("service_method") or "")
+    identity_value = str(record.get("identity_value") or "")
+    idempotency_key = str(record.get("command_idempotency_key") or "")
+    payload_hash = str(record.get("payload_hash") or "")
+    if route != CANCEL_ORDER_ROUTE:
+        return None
+    if identity_key != "client_order_id":
+        return None
+    if service_method != CANCEL_ORDER_SERVICE_METHOD:
+        return None
+    if not (identity_value and idempotency_key and payload_hash):
+        return None
+    return {
+        "route": route,
+        "method": str(record.get("method") or "POST"),
+        "module_id": str(record.get("module_id") or MANUAL_ORDER_MODULE_ID),
+        "identity_key": identity_key,
+        "identity_value": identity_value,
+        "action_class": str(record.get("action_class") or CANCEL_ORDER_ACTION_CLASS),
+        "required_permission": str(
+            record.get("required_permission") or CANCEL_ORDER_PERMISSION
+        ),
+        "service_method": service_method,
+        "actor_id": str(record.get("actor_id") or "local-operator"),
         "operator_intent": str(record.get("operator_intent") or "read_admin_api"),
         "command_idempotency_key": idempotency_key,
         "payload_hash": payload_hash,
@@ -4568,21 +4925,66 @@ def _manual_order_command(
     }
 
 
-def _cancel_order_command() -> dict[str, Any]:
+def _cancel_order_command(
+    *,
+    cancel_context: Mapping[str, Any] | None = None,
+    cancel_proof: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    missing_gate_chain = [] if cancel_proof is not None else list(SPOT_CANCEL_PROOF_GATES)
+    resolved_gate_chain = [
+        gate for gate in SPOT_CANCEL_PROOF_GATES if gate not in missing_gate_chain
+    ]
+    proof_chain_status = (
+        AdminMvpGateStatus.PASSED.value
+        if not missing_gate_chain
+        else AdminMvpGateStatus.BLOCKED.value
+    )
     return {
         "mutation_family": "spot_order_cancel",
         "route": CANCEL_ORDER_ROUTE,
         "method": "POST",
         "identity_key": "client_order_id",
-        "shared_method": "cancel_order_by_client_order_id",
+        "shared_method": CANCEL_ORDER_SERVICE_METHOD,
         "status": "blocked",
         "live_execution_status": AdminMvpLiveServiceStatus.LIVE_DISABLED.value,
         "live_enabled": False,
         "live_eligible": False,
         "executable": False,
         "live_adapter_configured": False,
-        "missing_gate_chain": ["cancel_proof_chain"],
-        "proof_routes": [],
+        "proof_chain_status": proof_chain_status,
+        "proof_chain_blocker_count": len(missing_gate_chain),
+        "resolved_gate_chain": resolved_gate_chain,
+        "missing_gate_chain": missing_gate_chain,
+        "cancel_context": dict(cancel_context) if cancel_context else None,
+        "cancel_proof": (
+            {
+                "cancel_proof_chain_id": cancel_proof.get("plan_id"),
+                "status": cancel_proof.get("status"),
+                "allowed": bool(cancel_proof.get("allowed")),
+                "exchange_submission_required": bool(
+                    cancel_proof.get("exchange_submission_required")
+                ),
+                "live_exchange_submitted": False,
+            }
+            if cancel_proof is not None
+            else None
+        ),
+        "live_exchange_submitted": False,
+        "live_coinbase_orders_ran": False,
+        "proof_routes": [
+            {
+                "gate": "cancel_proof_chain",
+                "route": SPOT_CANCEL_ORDER_PROOF_CHAIN_ROUTE,
+                "method": "POST",
+                "identity_key": "cancel_proof_chain_id",
+                "command_identity_key": "client_order_id",
+                "shared_method": SPOT_CANCEL_ORDER_PROOF_CHAIN_SERVICE_METHOD,
+                "status": "available",
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                "detail": "Backend cancel proof-chain evidence route.",
+            }
+        ],
         "readiness_preconditions": [],
         "readiness_precondition_count": 0,
         "blocking_readiness_precondition_count": 0,

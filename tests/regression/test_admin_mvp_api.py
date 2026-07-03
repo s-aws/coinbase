@@ -1207,6 +1207,12 @@ def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
         if item["method"] == "POST"
         and item["route"] == "/api/v1/spot/manual-order/proof-chain"
     )
+    cancel_proof_chain_capability = next(
+        item
+        for item in capabilities.body["capabilities"]
+        if item["method"] == "POST"
+        and item["route"] == "/api/v1/spot/cancel-order/proof-chain"
+    )
     command_permissions = {
         item["route"]: item["permission"]
         for item in capabilities.body["capabilities"]
@@ -1231,6 +1237,14 @@ def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
     assert proof_chain_capability["shared_method"] == "record_spot_manual_order_proof_chain"
     assert proof_chain_capability["frontend_safe"] is True
     assert proof_chain_capability["live_enabled"] is False
+    assert cancel_proof_chain_capability["module_id"] == "spot_operations"
+    assert cancel_proof_chain_capability["permission"] == "spot_order_cancel_proof:record"
+    assert (
+        cancel_proof_chain_capability["shared_method"]
+        == "record_spot_cancel_order_proof_chain"
+    )
+    assert cancel_proof_chain_capability["frontend_safe"] is True
+    assert cancel_proof_chain_capability["live_enabled"] is False
     assert command_permissions["/api/v1/admin/approvals/requests"] == "approval:request"
     assert (
         command_permissions[
@@ -1242,6 +1256,10 @@ def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
     assert command_permissions["/api/v1/admin/cap-guard/decisions"] == "cap_guard:record"
     assert command_permissions["/api/v1/admin/reconciliation/plans"] == "reconciliation:record"
     assert command_permissions["/api/v1/futures/risk-proofs"] == "futures_risk_proof:record"
+    assert (
+        command_permissions["/api/v1/spot/cancel-order/proof-chain"]
+        == "spot_order_cancel_proof:record"
+    )
     assert (
         command_permissions["/api/v1/admin/live-execution/adapter-decisions"]
         == "config:update"
@@ -1445,6 +1463,79 @@ def test_spot_manual_order_proof_chain_route_records_backend_evidence_from_comma
     assert admitted_submit.body["admission_decision"]["allowed"] is True
     assert admitted_submit.body["live_exchange_submitted"] is False
     assert admitted_submit.body["live_coinbase_orders_ran"] is False
+    assert rest_client.create_order_calls == []
+
+
+def test_spot_cancel_order_proof_chain_route_records_backend_evidence_from_client_order_context():
+    rest_client = FakeAccountRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+    cancel_body = {
+        "route": "/api/v1/orders/{client_order_id}/cancel",
+        "method": "POST",
+        "module_id": "spot_operations",
+        "identity_key": "client_order_id",
+        "identity_value": "client-cancel-proof",
+        "action_class": "live_exchange_cancel",
+        "required_permission": "order:cancel",
+        "service_method": "cancel_order_by_client_order_id",
+        "actor_id": "operator-1",
+        "operator_intent": "cancel_by_client_order_id",
+        "command_idempotency_key": "cancel-command-proof",
+        "payload_hash": "d" * 64,
+    }
+
+    recorded = service.record_spot_cancel_order_proof_chain(
+        cancel_body,
+        context(idempotency_key="spot-cancel-order-proof-chain-record"),
+    )
+
+    assert recorded.status_code == 200
+    assert recorded.body["type"] == "spot_cancel_order_proof_chain_result"
+    assert recorded.body["status"] == "accepted"
+    assert recorded.body["proof_chain_status"] == "passed"
+    assert recorded.body["missing_gate_chain"] == []
+    assert recorded.body["resolved_gate_chain"] == ["cancel_proof_chain"]
+    assert recorded.body["identity_value"] == "client-cancel-proof"
+    assert recorded.body["command_idempotency_key"] == "cancel-command-proof"
+    assert recorded.body["cancel_proof_chain_id"]
+    assert recorded.body["live_exchange_submitted"] is False
+    assert recorded.body["live_coinbase_orders_ran"] is False
+    assert rest_client.create_order_calls == []
+
+    suite = service.get_read_response(
+        "/api/v1/spot/command-suite",
+        {},
+        context(),
+    )
+    cancel_command = next(
+        command
+        for command in suite.body["commands"]
+        if command["route"] == "/api/v1/orders/{client_order_id}/cancel"
+    )
+    assert suite.body["cancel_order_proof_chain_status"] == "passed"
+    assert suite.body["cancel_order_missing_gate_count"] == 0
+    assert cancel_command["proof_chain_status"] == "passed"
+    assert cancel_command["missing_gate_chain"] == []
+    assert cancel_command["resolved_gate_chain"] == ["cancel_proof_chain"]
+    assert cancel_command["proof_chain_blocker_count"] == 0
+    assert cancel_command["cancel_context"]["identity_value"] == "client-cancel-proof"
+    assert cancel_command["live_enabled"] is False
+    assert cancel_command["executable"] is False
+    assert cancel_command["live_exchange_submitted"] is False
+    assert cancel_command["live_coinbase_orders_ran"] is False
+
+    cancel_result = service.cancel_order_by_client_order_id(
+        "client-cancel-proof",
+        {"reason": "operator_requested_cancel"},
+        context(idempotency_key="cancel-command-proof"),
+    )
+    assert cancel_result.status_code == 501
+    assert cancel_result.body["status"] == "not_implemented"
+    assert cancel_result.body["proof_context"]["identity_value"] == "client-cancel-proof"
+    assert cancel_result.body["live_exchange_submitted"] is False
+    assert cancel_result.body["live_coinbase_orders_ran"] is False
     assert rest_client.create_order_calls == []
 
 

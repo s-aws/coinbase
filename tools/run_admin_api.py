@@ -22,6 +22,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from application.admin_api.mvp_service import (
     AdminMvpRequestContext,
+    SPOT_CANCEL_ORDER_PROOF_CHAIN_ROUTE,
     SPOT_MANUAL_ORDER_PROOF_CHAIN_ROUTE,
     get_admin_mvp_service,
 )
@@ -212,6 +213,8 @@ class AdminMvpRequestHandler(BaseHTTPRequestHandler):
             result = service.record_reconciliation_plan(body, context)
         elif path == SPOT_MANUAL_ORDER_PROOF_CHAIN_ROUTE:
             result = service.record_spot_manual_order_proof_chain(body, context)
+        elif path == SPOT_CANCEL_ORDER_PROOF_CHAIN_ROUTE:
+            result = service.record_spot_cancel_order_proof_chain(body, context)
         elif path == "/api/v1/futures/risk-proofs":
             result = service.record_futures_risk_proof(body, context)
         else:
