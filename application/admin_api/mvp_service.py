@@ -191,6 +191,7 @@ class AdminMvpStore:
     live_adapter_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
     spot_command_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
     futures_risk_proofs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    futures_command_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
     futures_executor_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
     submitted_notional_usdc: Decimal = Decimal("0")
     executed_notional_usdc: Decimal = Decimal("0")
@@ -1439,6 +1440,8 @@ class AdminMvpService:
                 "admission_decision": admission_decision,
                 "executor_decision_id": executor_decision["decision_id"],
                 "executor_decision": executor_decision,
+                "submission_event_recorded": True,
+                "submission_event_id": executor_decision["decision_id"],
                 "required_evidence_refs": [
                     ref
                     for blocker in command_suite["command_enablement_blocker_summaries"]
@@ -1461,6 +1464,27 @@ class AdminMvpService:
                 **self._live_outputs(False, Decimal("0")),
             }
             return self._result(400, response, context)
+        command_record = self._record_futures_command_decision(
+            status=AdminMvpCommandStatus.NOT_IMPLEMENTED.value,
+            message=(
+                "Futures/Perpetual command drafts are backend-owned and "
+                "auditable; live execution remains disabled."
+            ),
+            command=command,
+            mutation_family="futures_contract_required",
+            action_class=str(spec["action_class"]),
+            route=route,
+            service_method=str(spec["service_method"]),
+            identity_key=identity_key,
+            identity_value=identity_value,
+            required_permission=str(spec["required_permission"]),
+            payload_hash=payload_hash,
+            readiness_decision=readiness_decision,
+            admission_decision=admission_decision,
+            risk_proof_id=command_evidence.get("risk_proof_id"),
+            failure_stage=first_blocker,
+            context=context,
+        )
         response = {
             "type": "admin_api_command_result",
             "status": AdminMvpCommandStatus.NOT_IMPLEMENTED.value,
@@ -1493,6 +1517,8 @@ class AdminMvpService:
             ],
             "risk_proof_id": command_evidence.get("risk_proof_id"),
             "failure_stage": first_blocker,
+            "submission_event_recorded": True,
+            "submission_event_id": command_record["decision_id"],
             "command_route_registered": True,
             "command_draft_allowed": True,
             "execution_allowed": False,
@@ -1638,6 +1664,78 @@ class AdminMvpService:
             ),
         }
         self.store.futures_executor_decisions[decision_id] = record
+        return record
+
+    def _record_futures_command_decision(
+        self,
+        *,
+        status: str,
+        message: str,
+        command: str,
+        mutation_family: str,
+        action_class: str,
+        route: str,
+        service_method: str,
+        identity_key: str,
+        identity_value: str,
+        required_permission: str,
+        payload_hash: str,
+        readiness_decision: Mapping[str, Any],
+        admission_decision: Mapping[str, Any],
+        risk_proof_id: Any,
+        failure_stage: str,
+        context: AdminMvpRequestContext,
+    ) -> dict[str, Any]:
+        decision_id = f"futures-command-{self.dependencies.uuid_factory()}"
+        record = {
+            "decision_id": decision_id,
+            "recorded_at": self._now_iso(),
+            "source": "admin_api_futures_command_log",
+            "status": status,
+            "module_id": FUTURES_MODULE_ID,
+            "command": command,
+            "mutation_family": mutation_family,
+            "action_class": action_class,
+            "route": route,
+            "method": "POST",
+            "required_permission": required_permission,
+            "service_method": service_method,
+            "identity_key": identity_key,
+            "identity_value": identity_value,
+            "payload_hash": payload_hash,
+            "account_family": FUTURES_ACCOUNT_FAMILY_US_CFM,
+            "intx_applicability": FUTURES_INTX_APPLICABILITY_US_ACCOUNT,
+            "product_scope": list(FUTURES_CONFIGURED_PRODUCT_SCOPE),
+            "admission_decision": dict(admission_decision),
+            "readiness_decision": dict(readiness_decision),
+            "risk_proof_id": risk_proof_id,
+            "failure_stage": failure_stage,
+            "execution_allowed": False,
+            "local_state_mutated": False,
+            "exchange_state_mutated": False,
+            "coinbase_order_submitted": False,
+            "coinbase_order_cancel_submitted": False,
+            "live_exchange_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
+            "spot_rule_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "actor_id": context.actor_id,
+            "operator_intent": context.operator_intent,
+            "idempotency_key": context.idempotency_key,
+            "command_idempotency_key": context.idempotency_key,
+            "correlation_id": context.correlation_id,
+            "audit_id": f"audit-{context.idempotency_key}",
+            "message": message,
+            "detail": (
+                "Backend Futures command submission was recorded as an "
+                "auditable draft-only event; execution remains disabled and "
+                "no Coinbase request was submitted."
+            ),
+        }
+        self.store.futures_command_decisions[decision_id] = record
         return record
 
     def preview_admission(
@@ -3945,6 +4043,12 @@ class AdminMvpService:
         ]
         events.extend(
             [
+                self._futures_command_audit_event(record)
+                for record in self.store.futures_command_decisions.values()
+            ]
+        )
+        events.extend(
+            [
                 self._futures_executor_audit_event(record)
                 for record in self.store.futures_executor_decisions.values()
             ]
@@ -3989,6 +4093,49 @@ class AdminMvpService:
             "message": record.get("message"),
             "admission_decision": admission_decision,
             "live_coinbase_orders_ran": bool(record.get("live_coinbase_orders_ran")),
+            "raw_event": dict(record),
+        }
+
+    def _futures_command_audit_event(
+        self,
+        record: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        identity_key = str(record.get("identity_key") or "")
+        identity_value = str(record.get("identity_value") or "")
+        position_key = identity_value if identity_key == "position_key" else None
+        product_id = identity_value if identity_key == "product_id" else None
+        client_order_id = identity_value if identity_key == "client_order_id" else None
+        admission_decision = dict(_mapping(record.get("admission_decision")))
+        return {
+            "event_id": record.get("decision_id"),
+            "module": FUTURES_MODULE_ID,
+            "source": record.get("source") or "admin_api_futures_command_log",
+            "action_class": record.get("action_class"),
+            "endpoint": record.get("route"),
+            "status": record.get("status"),
+            "actor_id": record.get("actor_id"),
+            "permission": record.get("required_permission"),
+            "client_order_id": client_order_id,
+            "stealth_order_id": None,
+            "position_key": position_key,
+            "product_id": product_id or _first_text(record.get("product_scope")),
+            "correlation_id": record.get("correlation_id"),
+            "audit_id": record.get("audit_id"),
+            "request_id": record.get("correlation_id"),
+            "idempotency_key": record.get("idempotency_key"),
+            "exchange_order_id": None,
+            "exchange_order_id_evidence_only": True,
+            "live_exchange_submitted": False,
+            "live_command_runtime_enabled": False,
+            "live_command_rest_client_available": False,
+            "live_command_runtime_ready": False,
+            "live_command_runtime_missing_reason": record.get("failure_stage"),
+            "live_command_runtime_source": record.get("source"),
+            "recorded_at": record.get("recorded_at"),
+            "message": record.get("message") or record.get("detail"),
+            "admission_decision": admission_decision,
+            "readiness_decision": dict(_mapping(record.get("readiness_decision"))),
+            "live_coinbase_orders_ran": False,
             "raw_event": dict(record),
         }
 
@@ -5645,8 +5792,8 @@ def _audit_workbench_module_summary(
                 {str(event.get("endpoint") or "") for event in module_events}
             ),
             "notes": (
-                "Futures executor decisions are read-only audit evidence; live "
-                "Coinbase execution remains disabled."
+                "Futures command and executor decisions are read-only audit "
+                "evidence; live Coinbase execution remains disabled."
                 if module == FUTURES_MODULE_ID
                 else (
                     "Spot command decisions are backend-recorded audit evidence; "

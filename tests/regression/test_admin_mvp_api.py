@@ -1485,6 +1485,8 @@ def test_admin_futures_command_routes_are_registered_as_blocked_drafts():
     assert result.body["live_coinbase_orders_ran"] is False
     assert result.body["notional_usdc"] == "0.00"
     assert result.body["readiness_decision"]["first_blocker"] == "execution_disabled"
+    assert result.body["submission_event_recorded"] is True
+    assert result.body["submission_event_id"] in service.store.futures_command_decisions
 
     cancel = service.submit_futures_command(
         "/api/v1/futures/orders/client-futures-001/cancel",
@@ -1496,6 +1498,51 @@ def test_admin_futures_command_routes_are_registered_as_blocked_drafts():
     assert cancel.body["identity_key"] == "client_order_id"
     assert cancel.body["identity_value"] == "client-futures-001"
     assert cancel.body["live_coinbase_orders_ran"] is False
+    assert cancel.body["submission_event_recorded"] is True
+    assert cancel.body["submission_event_id"] in service.store.futures_command_decisions
+
+    workbench = service.get_read_response(
+        "/api/v1/admin/audit-workbench",
+        {"module": "futures_perpetuals"},
+        context(),
+    )
+
+    assert workbench.status_code == 200
+    assert workbench.body["count"] == 2
+    assert workbench.body["module_summary"][0]["module"] == "futures_perpetuals"
+    assert workbench.body["module_summary"][0]["primary_identity"] == (
+        "position_key/product_id/client_order_id"
+    )
+    assert workbench.body["module_summary"][0]["notes"] == (
+        "Futures command and executor decisions are read-only audit evidence; live "
+        "Coinbase execution remains disabled."
+    )
+    place_event = next(
+        event
+        for event in workbench.body["events"]
+        if event["event_id"] == result.body["submission_event_id"]
+    )
+    assert place_event["source"] == "admin_api_futures_command_log"
+    assert place_event["endpoint"] == "/api/v1/futures/orders"
+    assert place_event["status"] == "not_implemented"
+    assert place_event["product_id"] == "BIP-20DEC30-CDE"
+    assert place_event["client_order_id"] is None
+    assert place_event["admission_decision"]["failure_stage"] == "execution_disabled"
+    assert place_event["readiness_decision"]["first_blocker"] == "execution_disabled"
+    assert place_event["exchange_order_id_evidence_only"] is True
+    assert place_event["live_exchange_submitted"] is False
+    assert place_event["live_coinbase_orders_ran"] is False
+
+    cancel_workbench = service.get_read_response(
+        "/api/v1/admin/audit-workbench",
+        {"module": "futures_perpetuals", "client_order_id": "client-futures-001"},
+        context(),
+    )
+    assert cancel_workbench.status_code == 200
+    assert cancel_workbench.body["count"] == 1
+    assert cancel_workbench.body["events"][0]["event_id"] == cancel.body["submission_event_id"]
+    assert cancel_workbench.body["events"][0]["client_order_id"] == "client-futures-001"
+    assert cancel_workbench.body["events"][0]["product_id"] == "BIP-20DEC30-CDE"
 
 
 def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
