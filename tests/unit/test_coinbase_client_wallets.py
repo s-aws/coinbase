@@ -12,19 +12,50 @@ class FakeAccount:
 
 
 class FakeAccountsResponse:
-    def __init__(self, accounts: list):
+    def __init__(
+        self,
+        accounts: list,
+        *,
+        has_next: bool = False,
+        cursor: str | None = None,
+    ):
         self._accounts = accounts
+        self._has_next = has_next
+        self._cursor = cursor
 
     def to_dict(self) -> dict:
-        return {"accounts": list(self._accounts)}
+        return {
+            "accounts": list(self._accounts),
+            "has_next": self._has_next,
+            "cursor": self._cursor,
+        }
 
 
 class FakeSdkClient:
     def __init__(self, accounts: list):
         self._accounts = accounts
+        self.account_calls: list[dict] = []
 
-    def get_accounts(self) -> FakeAccountsResponse:
+    def get_accounts(self, **kwargs) -> FakeAccountsResponse:
+        self.account_calls.append(dict(kwargs))
         return FakeAccountsResponse(self._accounts)
+
+
+class FakePaginatedAccountsSdkClient(FakeSdkClient):
+    def __init__(self, pages: list[dict]):
+        super().__init__([])
+        self._pages = pages
+
+    def get_accounts(self, **kwargs) -> FakeAccountsResponse:
+        self.account_calls.append(dict(kwargs))
+        cursor = kwargs.get("cursor")
+        page_index = 0 if cursor is None else int(str(cursor).removeprefix("page-"))
+        page = self._pages[page_index]
+        return FakeAccountsResponse(
+            page["accounts"],
+            has_next=page.get("has_next", False),
+            cursor=page.get("cursor"),
+        )
 
 
 class FakePortfoliosResponse:
@@ -125,6 +156,51 @@ def test_get_account_wallets_normalizes_sdk_account_objects():
     assert sorted(wallets) == ["USD"]
     assert wallets["USD"].available_balance == "9.25"
     assert wallets["USD"].total_balance == "10.00"
+
+
+def test_get_account_wallets_paginates_until_quote_wallet_is_loaded():
+    sdk = FakePaginatedAccountsSdkClient(
+        [
+            {
+                "accounts": [
+                    FakeAccount(
+                        {
+                            "currency": "BTC",
+                            "available_balance": {"value": "0.01", "currency": "BTC"},
+                            "total_balance": {"value": "0.01", "currency": "BTC"},
+                            "deleted_at": None,
+                        }
+                    )
+                ],
+                "has_next": True,
+                "cursor": "page-1",
+            },
+            {
+                "accounts": [
+                    FakeAccount(
+                        {
+                            "currency": "USD",
+                            "available_balance": {"value": "9.25", "currency": "USD"},
+                            "total_balance": {"value": "10.00", "currency": "USD"},
+                            "deleted_at": None,
+                        }
+                    )
+                ],
+                "has_next": False,
+                "cursor": None,
+            },
+        ]
+    )
+    client = CoinbaseRestClient(sdk)
+
+    wallets = client.get_account_wallets()
+
+    assert sorted(wallets) == ["BTC", "USD"]
+    assert wallets["USD"].available_balance == "9.25"
+    assert sdk.account_calls == [
+        {"limit": 250},
+        {"limit": 250, "cursor": "page-1"},
+    ]
 
 
 def test_list_portfolios_uses_current_sdk_get_portfolios_method():

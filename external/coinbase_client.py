@@ -26,6 +26,9 @@ from core.models import Product, Wallet, Position, Order
 from core.enums import OrderSide, TimeInForce
 
 
+ACCOUNT_PAGE_LIMIT = 250
+
+
 class CoinbaseRestClient:
     """Wrapper around Coinbase REST SDK client.
     
@@ -69,7 +72,7 @@ class CoinbaseRestClient:
             >>> if btc_wallet:
             ...     print(f"BTC available: {btc_wallet.available_balance}")
         """
-        accounts_list = _accounts_from_response(self._client.get_accounts())
+        accounts_list = _all_accounts_from_client(self._client)
         
         wallets = {}
         for account in accounts_list:
@@ -787,3 +790,21 @@ def _accounts_from_response(response: Any) -> List[Any]:
     if isinstance(response, dict) and isinstance(response.get("accounts"), list):
         return response["accounts"]
     return []
+
+
+def _all_accounts_from_client(client: Any) -> List[Any]:
+    accounts: List[Any] = []
+    cursor: Optional[str] = None
+    while True:
+        kwargs: Dict[str, Any] = {"limit": ACCOUNT_PAGE_LIMIT}
+        if cursor:
+            kwargs["cursor"] = cursor
+        response = client.get_accounts(**kwargs)
+        response_data = _object_to_dict(response)
+        accounts.extend(_accounts_from_response(response))
+        if not bool(response_data.get("has_next")):
+            return accounts
+        next_cursor = response_data.get("cursor")
+        if not next_cursor:
+            return accounts
+        cursor = str(next_cursor)
