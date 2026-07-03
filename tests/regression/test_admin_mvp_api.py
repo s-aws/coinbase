@@ -1170,6 +1170,72 @@ def test_admin_futures_command_suite_resolves_account_and_risk_proof_evidence():
     assert recorded_detail.body["record"]["command_execution_allowed"] is False
 
 
+def test_admin_futures_command_routes_are_registered_as_blocked_drafts():
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
+    )
+
+    capabilities = service.get_read_response("/api/v1/admin/capabilities", {}, context())
+    futures_commands = {
+        item["route"]: item
+        for item in capabilities.body["capabilities"]
+        if item["method"] == "POST" and item["module_id"] == "futures_perpetuals"
+    }
+
+    assert set(futures_commands) >= {
+        "/api/v1/futures/orders",
+        "/api/v1/futures/positions/{position_key}/close-reduce",
+        "/api/v1/futures/orders/{client_order_id}/cancel",
+        "/api/v1/futures/positions/{position_key}/reconciliation",
+        "/api/v1/futures/risk-proofs",
+    }
+    assert futures_commands["/api/v1/futures/orders"]["shared_method"] == "place_futures_order"
+    assert futures_commands["/api/v1/futures/orders"]["live_enabled"] is False
+    assert futures_commands["/api/v1/futures/orders"]["frontend_safe"] is True
+
+    result = service.submit_futures_command(
+        "/api/v1/futures/orders",
+        {
+            "product_id": "BIP-20DEC30-CDE",
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "limit_price": "0.50",
+            "number_of_contracts": "1",
+        },
+        context(idempotency_key="futures-place-draft"),
+    )
+
+    assert result.status_code == 501
+    assert result.body["type"] == "admin_api_command_result"
+    assert result.body["module_id"] == "futures_perpetuals"
+    assert result.body["command"] == "futures_place"
+    assert result.body["route"] == "/api/v1/futures/orders"
+    assert result.body["identity_key"] == "product_id"
+    assert result.body["identity_value"] == "BIP-20DEC30-CDE"
+    assert result.body["status"] == "not_implemented"
+    assert result.body["failure_stage"] == "execution_disabled"
+    assert result.body["command_route_registered"] is True
+    assert result.body["command_draft_allowed"] is True
+    assert result.body["execution_allowed"] is False
+    assert result.body["local_state_mutated"] is False
+    assert result.body["exchange_state_mutated"] is False
+    assert result.body["live_exchange_submitted"] is False
+    assert result.body["live_coinbase_orders_ran"] is False
+    assert result.body["notional_usdc"] == "0.00"
+    assert result.body["readiness_decision"]["first_blocker"] == "execution_disabled"
+
+    cancel = service.submit_futures_command(
+        "/api/v1/futures/orders/client-futures-001/cancel",
+        {"operator_reason": "operator_cancel_review"},
+        context(idempotency_key="futures-cancel-draft"),
+    )
+    assert cancel.status_code == 501
+    assert cancel.body["command"] == "futures_cancel"
+    assert cancel.body["identity_key"] == "client_order_id"
+    assert cancel.body["identity_value"] == "client-futures-001"
+    assert cancel.body["live_coinbase_orders_ran"] is False
+
+
 def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=FakeRestClient(), rest_client_available=True)

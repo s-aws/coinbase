@@ -1307,6 +1307,83 @@ class AdminMvpService:
             context,
         )
 
+    def submit_futures_command(
+        self,
+        path: str,
+        body: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+    ) -> AdminMvpApiResult:
+        """Return an auditable fail-closed Futures command draft response."""
+
+        route_match = _futures_command_route_match(path)
+        if route_match is None:
+            return self._error(404, f"Futures command route not found: {path}", context)
+
+        spec = route_match["spec"]
+        command = str(spec["command"])
+        route = str(spec["route"])
+        identity_key = str(spec["identity_key"])
+        identity_value = str(
+            route_match.get("identity_value") or body.get(identity_key) or ""
+        )
+        command_suite = self._futures_command_suite()
+        command_evidence = next(
+            (
+                item
+                for item in command_suite["commands"]
+                if item.get("command") == command
+            ),
+            {},
+        )
+        readiness_decision = dict(command_evidence.get("readiness_decision") or {})
+        first_blocker = str(readiness_decision.get("first_blocker") or "execution_disabled")
+        response = {
+            "type": "admin_api_command_result",
+            "status": AdminMvpCommandStatus.NOT_IMPLEMENTED.value,
+            "module_id": FUTURES_MODULE_ID,
+            "command": command,
+            "mutation_family": "futures_contract_required",
+            "action_class": str(spec["action_class"]),
+            "route": route,
+            "method": "POST",
+            "required_permission": str(spec["required_permission"]),
+            "service_method": str(spec["service_method"]),
+            "identity_key": identity_key,
+            "identity_value": identity_value,
+            "message": (
+                "Futures/Perpetual command drafts are backend-owned and "
+                "auditable; live execution remains disabled."
+            ),
+            "correlation_id": context.correlation_id,
+            "idempotency_key": context.idempotency_key,
+            "operator_intent": context.operator_intent,
+            "actor_id": context.actor_id,
+            "payload_hash": _payload_hash(body),
+            "command_suite_status": command_suite["status"],
+            "readiness_decision": readiness_decision,
+            "required_evidence_refs": [
+                ref
+                for blocker in command_suite["command_enablement_blocker_summaries"]
+                for ref in blocker.get("required_evidence_refs", [])
+            ],
+            "risk_proof_id": command_evidence.get("risk_proof_id"),
+            "failure_stage": first_blocker,
+            "command_route_registered": True,
+            "command_draft_allowed": True,
+            "execution_allowed": False,
+            "local_state_mutated": False,
+            "exchange_state_mutated": False,
+            "live_exchange_submitted": False,
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
+            "spot_rule_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            **self._runtime_evidence(),
+            **self._live_outputs(False, Decimal("0")),
+        }
+        return self._result(501, response, context)
+
     def preview_admission(
         self,
         query: Mapping[str, Any],
@@ -3485,6 +3562,17 @@ class AdminMvpService:
                 live_enabled=False,
                 module_id=MANUAL_ORDER_MODULE_ID,
             ),
+            *(
+                _command_capability(
+                    route=str(spec["route"]),
+                    action_class=str(spec["action_class"]),
+                    required_permission=str(spec["required_permission"]),
+                    shared_method=str(spec["service_method"]),
+                    live_enabled=False,
+                    module_id=FUTURES_MODULE_ID,
+                )
+                for spec in FUTURES_COMMAND_SPECS
+            ),
             _command_capability(
                 route="/api/v1/admin/live-execution/service-decisions",
                 action_class="local_state_mutation",
@@ -4769,6 +4857,53 @@ def _pagination(limit: int, count: int, offset: int) -> dict[str, Any]:
 
 def _normalize_path(path: str) -> str:
     return "/" + path.strip().split("?", 1)[0].strip("/")
+
+
+def _futures_command_route_match(path: str) -> dict[str, Any] | None:
+    normalized_path = _normalize_path(path)
+    if normalized_path == "/api/v1/futures/orders":
+        return {"spec": _futures_command_spec("futures_place"), "identity_value": None}
+    if (
+        normalized_path.startswith("/api/v1/futures/positions/")
+        and normalized_path.endswith("/close-reduce")
+    ):
+        position_key = normalized_path.split("/api/v1/futures/positions/", 1)[1].rsplit(
+            "/close-reduce",
+            1,
+        )[0]
+        return {
+            "spec": _futures_command_spec("futures_close_reduce"),
+            "identity_value": unquote(position_key),
+        }
+    if (
+        normalized_path.startswith("/api/v1/futures/orders/")
+        and normalized_path.endswith("/cancel")
+    ):
+        client_order_id = normalized_path.split("/api/v1/futures/orders/", 1)[1].rsplit(
+            "/cancel",
+            1,
+        )[0]
+        return {
+            "spec": _futures_command_spec("futures_cancel"),
+            "identity_value": unquote(client_order_id),
+        }
+    if (
+        normalized_path.startswith("/api/v1/futures/positions/")
+        and normalized_path.endswith("/reconciliation")
+    ):
+        position_key = normalized_path.split("/api/v1/futures/positions/", 1)[1].rsplit(
+            "/reconciliation",
+            1,
+        )[0]
+        return {
+            "spec": _futures_command_spec("futures_reconcile"),
+            "identity_value": unquote(position_key),
+        }
+    return None
+
+
+def _futures_command_spec(command: str) -> Mapping[str, Any]:
+    return next(spec for spec in FUTURES_COMMAND_SPECS if spec["command"] == command)
 
 
 def _last_path_part(path: str) -> str:

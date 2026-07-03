@@ -215,6 +215,14 @@ class AdminMvpRequestHandler(BaseHTTPRequestHandler):
             result = service.record_spot_manual_order_proof_chain(body, context)
         elif path == SPOT_CANCEL_ORDER_PROOF_CHAIN_ROUTE:
             result = service.record_spot_cancel_order_proof_chain(body, context)
+        elif path == "/api/v1/futures/orders":
+            result = service.submit_futures_command(path, body, context)
+        elif path.startswith("/api/v1/futures/positions/") and (
+            path.endswith("/close-reduce") or path.endswith("/reconciliation")
+        ):
+            result = service.submit_futures_command(path, body, context)
+        elif path.startswith("/api/v1/futures/orders/") and path.endswith("/cancel"):
+            result = service.submit_futures_command(path, body, context)
         elif path == "/api/v1/futures/risk-proofs":
             result = service.record_futures_risk_proof(body, context)
         else:
