@@ -983,7 +983,22 @@ class AdminMvpService:
             )
 
         result_data = _object_to_dict(result)
-        order_id = str(result_data.get("order_id") or "")
+        if not _coinbase_create_order_succeeded(result_data):
+            return self._manual_order_blocked_response(
+                status_code=400,
+                command_status=AdminMvpCommandStatus.REJECTED,
+                message=(
+                    "Coinbase order submission was not accepted: "
+                    f"{_coinbase_create_order_error_message(result_data)}"
+                ),
+                failure_stage="coinbase_rest",
+                client_order_id=client_order_id,
+                notional=notional,
+                admission=admission,
+                context=context,
+            )
+
+        order_id = _coinbase_order_id_from_create_order_result(result_data)
         self.store.submitted_notional_usdc += notional
         self.store.live_coinbase_orders_ran = True
         response = {
@@ -999,6 +1014,7 @@ class AdminMvpService:
             "idempotency_key": context.idempotency_key,
             "admission_decision": admission,
             "live_exchange_submitted": True,
+            "paired_sell_required": False,
             "submission_event_recorded": False,
             **self._runtime_evidence(),
             **self._live_outputs(True, notional),
@@ -3055,6 +3071,18 @@ def _wallet_inventory_failure(
 def _manual_order_configuration(body: Mapping[str, Any]) -> dict[str, Any]:
     order_type = str(body.get("order_type") or "MARKET").upper()
     if order_type == "LIMIT":
+        time_in_force = str(body.get("time_in_force") or "").upper()
+        if time_in_force in {"IOC", "IMMEDIATE_OR_CANCEL"}:
+            inner = {
+                "base_size": str(body.get("base_size") or ""),
+                "quote_size": str(body.get("quote_size") or ""),
+                "limit_price": str(body.get("limit_price") or ""),
+            }
+            return {
+                "sor_limit_ioc": {
+                    key: value for key, value in inner.items() if value != ""
+                }
+            }
         inner = {
             "base_size": str(body.get("base_size") or ""),
             "limit_price": str(body.get("limit_price") or ""),
@@ -3074,6 +3102,42 @@ def _manual_live_acknowledged(body: Mapping[str, Any]) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in TRUTHY_ENV_VALUES
     return bool(value)
+
+
+def _coinbase_create_order_succeeded(result_data: Mapping[str, Any]) -> bool:
+    success = result_data.get("success")
+    if success is None:
+        return True
+    if isinstance(success, str):
+        return success.strip().lower() in TRUTHY_ENV_VALUES
+    return bool(success)
+
+
+def _coinbase_order_id_from_create_order_result(result_data: Mapping[str, Any]) -> str:
+    success_response = result_data.get("success_response")
+    success_data = (
+        dict(success_response)
+        if isinstance(success_response, Mapping)
+        else _object_to_dict(success_response)
+    )
+    return str(success_data.get("order_id") or result_data.get("order_id") or "")
+
+
+def _coinbase_create_order_error_message(result_data: Mapping[str, Any]) -> str:
+    error_response = result_data.get("error_response")
+    error_data = (
+        dict(error_response)
+        if isinstance(error_response, Mapping)
+        else _object_to_dict(error_response)
+    )
+    details = [
+        str(error_data.get(key) or "").strip()
+        for key in ("message", "error_details", "error")
+        if str(error_data.get(key) or "").strip()
+    ]
+    if details:
+        return "; ".join(details)
+    return "Coinbase returned success=false."
 
 
 def _object_to_dict(value: Any) -> dict[str, Any]:

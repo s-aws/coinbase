@@ -5,7 +5,7 @@ from tests.regression.test_admin_mvp_api import (
     FakeRestClient,
     context,
     first_manual_submit,
-    manual_order_body,
+    limit_ioc_manual_order_body,
     preview_query,
     record_live_service_decision,
     record_proof_chain,
@@ -21,11 +21,12 @@ def test_admin_api_order_live_execution_service_dependency_reads_decision_log():
             live_coinbase_execution_enabled=True,
         )
     )
-    admission = first_manual_submit(service)
+    body = limit_ioc_manual_order_body()
+    admission = first_manual_submit(service, body)
     record_proof_chain(service, admission)
 
     blocked = service.submit_manual_order(
-        manual_order_body(),
+        body,
         context(idempotency_key="manual-order-proof-chain"),
     )
     assert blocked.status_code == 400
@@ -36,7 +37,7 @@ def test_admin_api_order_live_execution_service_dependency_reads_decision_log():
     record_live_service_decision(service)
 
     accepted = service.submit_manual_order(
-        manual_order_body(),
+        body,
         context(idempotency_key="manual-order-proof-chain"),
     )
     assert accepted.status_code == 200
@@ -105,12 +106,13 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
             live_coinbase_execution_enabled=True,
         )
     )
+    body = limit_ioc_manual_order_body()
     record_live_service_decision(service)
-    admission = first_manual_submit(service)
+    admission = first_manual_submit(service, body)
     record_proof_chain(service, admission)
 
     result = service.submit_manual_order(
-        manual_order_body(),
+        body,
         context(idempotency_key="manual-order-proof-chain"),
     )
 
@@ -126,7 +128,10 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
             "product_id": "BTC-USDC",
             "side": "BUY",
             "order_configuration": {
-                "market_market_ioc": {"quote_size": "1.00"},
+                "sor_limit_ioc": {
+                    "quote_size": "1.00",
+                    "limit_price": "100000.00",
+                },
             },
         }
     ]
@@ -142,7 +147,7 @@ def test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap():
         )
     )
     record_live_service_decision(service)
-    body = manual_order_body()
+    body = limit_ioc_manual_order_body()
     body["quote_size"] = "5.00"
     first_submit = service.submit_manual_order(
         body,

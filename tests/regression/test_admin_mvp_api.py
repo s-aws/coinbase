@@ -29,10 +29,16 @@ PRE_COINBASE_FAILURE_STAGES = {
 @dataclass
 class FakeRestClient:
     create_order_calls: list[dict] = field(default_factory=list)
+    create_order_response: dict = field(
+        default_factory=lambda: {
+            "success": True,
+            "success_response": {"order_id": "exchange-order-live-1"},
+        }
+    )
 
     def create_order(self, **kwargs):
         self.create_order_calls.append(kwargs)
-        return {"success": True, "order_id": "exchange-order-live-1"}
+        return self.create_order_response
 
 
 @dataclass
@@ -150,6 +156,14 @@ def manual_order_body() -> dict:
     }
 
 
+def limit_ioc_manual_order_body() -> dict:
+    body = manual_order_body()
+    body["order_type"] = "LIMIT"
+    body["limit_price"] = "100000.00"
+    body["time_in_force"] = "IOC"
+    return body
+
+
 def record_live_service_decision(service: AdminMvpService) -> None:
     result = service.record_live_service_decision(
         {
@@ -219,9 +233,9 @@ def record_live_adapter_decision(service: AdminMvpService) -> None:
     assert decision["live_exchange_submitted"] is False
 
 
-def first_manual_submit(service: AdminMvpService) -> dict:
+def first_manual_submit(service: AdminMvpService, body: dict | None = None) -> dict:
     result = service.submit_manual_order(
-        manual_order_body(),
+        body or manual_order_body(),
         context(idempotency_key="manual-order-proof-chain"),
     )
     assert result.status_code == 501
@@ -1360,12 +1374,13 @@ def test_admin_mvp_explicit_live_execution_flows_through_backend_service_only():
             live_coinbase_execution_enabled=True,
         )
     )
+    body = limit_ioc_manual_order_body()
     record_live_service_decision(service)
-    admission = first_manual_submit(service)
+    admission = first_manual_submit(service, body)
     record_proof_chain(service, admission)
 
     live_submit = service.submit_manual_order(
-        manual_order_body(),
+        body,
         context(idempotency_key="manual-order-proof-chain"),
     )
 
@@ -1375,13 +1390,69 @@ def test_admin_mvp_explicit_live_execution_flows_through_backend_service_only():
     assert live_submit.body["live_coinbase_orders_ran"] is True
     assert live_submit.body["notional_usdc"] == "1.00"
     assert live_submit.body["coinbase_order_id"] == "exchange-order-live-1"
+    assert live_submit.body["paired_sell_required"] is False
     assert rest_client.create_order_calls == [
         {
             "client_order_id": admission["identity_value"],
             "product_id": "BTC-USDC",
             "side": "BUY",
             "order_configuration": {
-                "market_market_ioc": {"quote_size": "1.00"},
+                "sor_limit_ioc": {
+                    "quote_size": "1.00",
+                    "limit_price": "100000.00",
+                },
+            },
+        }
+    ]
+    assert all(call["side"] != "SELL" for call in rest_client.create_order_calls)
+
+
+def test_admin_mvp_live_execution_rejects_unsuccessful_coinbase_create_order_response():
+    rest_client = FakeRestClient(
+        create_order_response={
+            "success": False,
+            "error_response": {
+                "message": "The order configuration was invalid",
+                "error_details": "quote_size is below the product minimum",
+            },
+        }
+    )
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        )
+    )
+    body = limit_ioc_manual_order_body()
+    record_live_service_decision(service)
+    admission = first_manual_submit(service, body)
+    record_proof_chain(service, admission)
+
+    live_submit = service.submit_manual_order(
+        body,
+        context(idempotency_key="manual-order-proof-chain"),
+    )
+
+    assert live_submit.status_code == 400
+    assert live_submit.body["status"] == "rejected"
+    assert live_submit.body["failure_stage"] == "coinbase_rest"
+    assert live_submit.body["message"] == (
+        "Coinbase order submission was not accepted: "
+        "The order configuration was invalid; quote_size is below the product minimum"
+    )
+    assert live_submit.body["live_exchange_submitted"] is False
+    assert live_submit.body["live_coinbase_orders_ran"] is False
+    assert rest_client.create_order_calls == [
+        {
+            "client_order_id": admission["identity_value"],
+            "product_id": "BTC-USDC",
+            "side": "BUY",
+            "order_configuration": {
+                "sor_limit_ioc": {
+                    "quote_size": "1.00",
+                    "limit_price": "100000.00",
+                },
             },
         }
     ]
