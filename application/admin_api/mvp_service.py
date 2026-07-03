@@ -111,6 +111,45 @@ FUTURES_COMMAND_SPECS = (
         "required_permission": "reconciliation:record",
     },
 )
+FUTURES_COMMAND_REQUEST_FIELDS = {
+    "futures_place": (
+        {
+            "field": "product_id",
+            "payload_key": "product_id",
+            "identity_field": True,
+            "risk_field": True,
+        },
+        {"field": "order_side", "payload_key": "side"},
+        {"field": "order_type", "payload_key": "order_type"},
+        {"field": "limit_price", "payload_key": "limit_price", "risk_field": True},
+        {"field": "size", "payload_key": "size", "risk_field": True},
+    ),
+    "futures_close_reduce": (
+        {
+            "field": "position_key",
+            "payload_key": "position_key",
+            "identity_field": True,
+            "risk_field": True,
+        },
+        {"field": "limit_price", "payload_key": "limit_price", "risk_field": True},
+        {"field": "size", "payload_key": "size", "risk_field": True},
+    ),
+    "futures_cancel": (
+        {
+            "field": "client_order_id",
+            "payload_key": "client_order_id",
+            "identity_field": True,
+        },
+    ),
+    "futures_reconcile": (
+        {
+            "field": "position_key",
+            "payload_key": "position_key",
+            "identity_field": True,
+        },
+        {"field": "reconciliation_reason", "payload_key": "reconciliation_reason"},
+    ),
+}
 MANUAL_ORDER_MODULE_ID = "spot_operations"
 MANUAL_ORDER_ACTION_CLASS = "live_exchange_place"
 MANUAL_ORDER_PERMISSION = "order:create"
@@ -283,6 +322,18 @@ def _unique_paths(paths: Iterable[Path]) -> list[Path]:
             continue
         seen.add(key)
         unique.append(path)
+    return unique
+
+
+def _unique_texts(values: Iterable[Any]) -> list[str]:
+    seen: set[str] = set()
+    unique: list[str] = []
+    for value in values:
+        text = str(value).strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        unique.append(text)
     return unique
 
 
@@ -1558,6 +1609,15 @@ class AdminMvpService:
         )
         readiness_decision = dict(command_evidence.get("readiness_decision") or {})
         first_blocker = str(readiness_decision.get("first_blocker") or "execution_disabled")
+        payload_validation = _validate_futures_command_payload(
+            command=command,
+            identity_key=identity_key,
+            identity_value=identity_value,
+            body=body,
+        )
+        payload_validation_failed = (
+            str(payload_validation["status"]) == AdminMvpGateStatus.BLOCKED.value
+        )
         admission_decision = self._futures_admission_decision(
             command=command,
             route=route,
@@ -1566,9 +1626,84 @@ class AdminMvpService:
             identity_value=identity_value,
             payload_hash=payload_hash,
             readiness_decision=readiness_decision,
+            payload_validation=payload_validation,
             risk_proof_id=command_evidence.get("risk_proof_id"),
             context=context,
         )
+        if payload_validation_failed:
+            command_record = self._record_futures_command_decision(
+                status=AdminMvpCommandStatus.REJECTED.value,
+                message=(
+                    "Futures/Perpetual command payload failed backend validation; "
+                    "no executor boundary or Coinbase call was reached."
+                ),
+                command=command,
+                mutation_family="futures_payload_validation",
+                action_class=str(spec["action_class"]),
+                route=route,
+                service_method=str(spec["service_method"]),
+                identity_key=identity_key,
+                identity_value=identity_value,
+                required_permission=str(spec["required_permission"]),
+                payload_hash=payload_hash,
+                readiness_decision=readiness_decision,
+                admission_decision=admission_decision,
+                payload_validation=payload_validation,
+                risk_proof_id=command_evidence.get("risk_proof_id"),
+                failure_stage="futures_payload_validation_failed",
+                context=context,
+            )
+            response = {
+                "type": "admin_api_command_result",
+                "status": AdminMvpCommandStatus.REJECTED.value,
+                "module_id": FUTURES_MODULE_ID,
+                "command": command,
+                "mutation_family": "futures_payload_validation",
+                "action_class": str(spec["action_class"]),
+                "route": route,
+                "method": "POST",
+                "required_permission": str(spec["required_permission"]),
+                "service_method": str(spec["service_method"]),
+                "identity_key": identity_key,
+                "identity_value": identity_value,
+                "message": (
+                    "Futures/Perpetual command payload failed backend validation; "
+                    "no executor boundary or Coinbase call was reached."
+                ),
+                "correlation_id": context.correlation_id,
+                "idempotency_key": context.idempotency_key,
+                "operator_intent": context.operator_intent,
+                "actor_id": context.actor_id,
+                "payload_hash": payload_hash,
+                "payload_validation": payload_validation,
+                "command_suite_status": command_suite["status"],
+                "readiness_decision": readiness_decision,
+                "admission_decision": admission_decision,
+                "executor_decision_id": None,
+                "submission_event_recorded": True,
+                "submission_event_id": command_record["decision_id"],
+                "required_evidence_refs": [
+                    ref
+                    for blocker in command_suite["command_enablement_blocker_summaries"]
+                    for ref in blocker.get("required_evidence_refs", [])
+                ],
+                "risk_proof_id": command_evidence.get("risk_proof_id"),
+                "failure_stage": "futures_payload_validation_failed",
+                "command_route_registered": True,
+                "command_draft_allowed": True,
+                "execution_allowed": False,
+                "local_state_mutated": False,
+                "exchange_state_mutated": False,
+                "live_exchange_submitted": False,
+                "submitted_notional_usdc": "0",
+                "executed_notional_usdc": "0",
+                "spot_rule_authority": False,
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                **self._runtime_evidence(),
+                **self._live_outputs(False, Decimal("0")),
+            }
+            return self._result(400, response, context)
         if first_blocker == "futures_executor_live_disabled":
             executor_decision = self._record_futures_executor_decision(
                 command=command,
@@ -1607,6 +1742,7 @@ class AdminMvpService:
                 "operator_intent": context.operator_intent,
                 "actor_id": context.actor_id,
                 "payload_hash": payload_hash,
+                "payload_validation": payload_validation,
                 "command_suite_status": command_suite["status"],
                 "readiness_decision": readiness_decision,
                 "admission_decision": admission_decision,
@@ -1653,6 +1789,7 @@ class AdminMvpService:
             payload_hash=payload_hash,
             readiness_decision=readiness_decision,
             admission_decision=admission_decision,
+            payload_validation=payload_validation,
             risk_proof_id=command_evidence.get("risk_proof_id"),
             failure_stage=first_blocker,
             context=context,
@@ -1679,6 +1816,7 @@ class AdminMvpService:
             "operator_intent": context.operator_intent,
             "actor_id": context.actor_id,
             "payload_hash": payload_hash,
+            "payload_validation": payload_validation,
             "command_suite_status": command_suite["status"],
             "readiness_decision": readiness_decision,
             "admission_decision": admission_decision,
@@ -1717,17 +1855,31 @@ class AdminMvpService:
         identity_value: str,
         payload_hash: str,
         readiness_decision: Mapping[str, Any],
+        payload_validation: Mapping[str, Any],
         risk_proof_id: Any,
         context: AdminMvpRequestContext,
     ) -> dict[str, Any]:
         live_decision = dict(readiness_decision.get("live_decision_evidence") or {})
-        failure_stage = str(readiness_decision.get("first_blocker") or "execution_disabled")
+        payload_validation_blocked = (
+            str(payload_validation.get("status") or "") == AdminMvpGateStatus.BLOCKED.value
+        )
+        failure_stage = (
+            "futures_payload_validation_failed"
+            if payload_validation_blocked
+            else str(readiness_decision.get("first_blocker") or "execution_disabled")
+        )
         return {
             "decision_id": f"futures-admission-{context.idempotency_key}",
             "recorded_at": self._now_iso(),
             "status": AdminMvpGateStatus.BLOCKED.value,
             "allowed": False,
             "failure_stage": failure_stage,
+            "payload_validation_status": payload_validation.get("status"),
+            "payload_validation_id": payload_validation.get("validation_id"),
+            "payload_validation_blocking_request_field_count": payload_validation.get(
+                "blocking_request_field_count",
+                0,
+            ),
             "module_id": FUTURES_MODULE_ID,
             "command": command,
             "route": route,
@@ -1855,6 +2007,7 @@ class AdminMvpService:
         payload_hash: str,
         readiness_decision: Mapping[str, Any],
         admission_decision: Mapping[str, Any],
+        payload_validation: Mapping[str, Any] | None = None,
         risk_proof_id: Any,
         failure_stage: str,
         context: AdminMvpRequestContext,
@@ -1881,6 +2034,7 @@ class AdminMvpService:
             "product_scope": list(FUTURES_CONFIGURED_PRODUCT_SCOPE),
             "admission_decision": dict(admission_decision),
             "readiness_decision": dict(readiness_decision),
+            "payload_validation": dict(payload_validation or {}),
             "risk_proof_id": risk_proof_id,
             "failure_stage": failure_stage,
             "execution_allowed": False,
@@ -3844,6 +3998,7 @@ class AdminMvpService:
             if contract not in resolved_contracts
         ]
         live_service_decision = self._futures_live_service_decision()
+        request_field_summaries = _futures_request_field_summaries()
         commands: list[dict[str, Any]] = []
         for spec in FUTURES_COMMAND_SPECS:
             live_adapter_decision = self._futures_live_adapter_decision_for_spec(spec)
@@ -3894,12 +4049,18 @@ class AdminMvpService:
                 bool(snapshot["readiness"]["futures_account_scope_ready"]),
                 bool(proofs),
             ),
-            "request_field_count": 0,
-            "required_request_field_count": 0,
+            "request_field_count": sum(
+                len(_futures_request_fields_for_command(str(spec["command"])))
+                for spec in FUTURES_COMMAND_SPECS
+            ),
+            "required_request_field_count": sum(
+                len(_futures_request_fields_for_command(str(spec["command"])))
+                for spec in FUTURES_COMMAND_SPECS
+            ),
             "blocking_request_field_count": 0,
-            "request_field_summary_count": 0,
+            "request_field_summary_count": len(request_field_summaries),
             "request_field_summary_blocking_count": 0,
-            "request_field_summaries": [],
+            "request_field_summaries": request_field_summaries,
             "command_enablement_blocker_summary_count": len(blockers),
             "command_enablement_blocker_summary_blocking_count": len(blockers),
             "command_enablement_blocker_summaries": blockers,
@@ -3962,6 +4123,7 @@ class AdminMvpService:
         live_decision_evidence: Mapping[str, Any],
     ) -> dict[str, Any]:
         blocking_prerequisite_count = 0 if not missing_contracts else 2
+        request_fields = _futures_request_fields_for_command(command)
         first_blocker = (
             str(live_decision_evidence["first_blocker"])
             if not missing_contracts
@@ -3996,10 +4158,10 @@ class AdminMvpService:
                 account_ready,
                 risk_proof is not None,
             ),
-            "request_field_count": 0,
-            "required_request_field_count": 0,
+            "request_field_count": len(request_fields),
+            "required_request_field_count": len(request_fields),
             "blocking_request_field_count": 0,
-            "request_fields": [],
+            "request_fields": request_fields,
             "required_backend_contracts": list(FUTURES_COMMAND_CONTRACTS),
             "missing_backend_contracts": missing_contracts,
             "risk_proof_id": (
@@ -5275,6 +5437,294 @@ def _futures_prerequisite_summaries(
         }
         for name, ready, route, detail in rows
     ]
+
+
+def _futures_request_fields_for_command(command: str) -> list[dict[str, Any]]:
+    return [
+        _futures_request_field_item(command, field_spec)
+        for field_spec in FUTURES_COMMAND_REQUEST_FIELDS.get(command, ())
+    ]
+
+
+def _futures_request_field_item(
+    command: str,
+    field_spec: Mapping[str, Any],
+    *,
+    status: str = AdminMvpGateStatus.PASSED.value,
+    validation_issue: str = "none",
+) -> dict[str, Any]:
+    field = str(field_spec["field"])
+    blocking = status == AdminMvpGateStatus.BLOCKED.value
+    return {
+        "field": field,
+        "status": status,
+        "source": "backend_contract",
+        "required": True,
+        "identity_field": bool(field_spec.get("identity_field", False)),
+        "risk_field": bool(field_spec.get("risk_field", False)),
+        "payload_field": True,
+        "validation_gate_ready": True,
+        "validation_gate_passed": not blocking,
+        "validator_registered": True,
+        "validator_contract_registered": True,
+        "validation_registered": True,
+        "request_payload_validated": not blocking,
+        "request_payload_contract_ref": (
+            f"admin_futures_request_payload.{command}.{field}"
+        ),
+        "validation_evidence_ref": (
+            f"admin_futures_payload_validation.{command}.{field}"
+        ),
+        "validation_gate_ref": (
+            f"admin_futures_payload_validation_gate.{command}.{field}"
+        ),
+        "validator_contract_ref": (
+            f"admin_futures_payload_validator_contract.{command}.{field}"
+        ),
+        "validator_registration_ref": (
+            f"admin_futures_payload_validator_registration.{command}.{field}"
+        ),
+        "backend_owned": True,
+        "spot_rule_authority": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "detail": _futures_request_field_detail(command, field, validation_issue),
+    }
+
+
+def _futures_request_field_summaries() -> list[dict[str, Any]]:
+    summaries: dict[str, dict[str, Any]] = {}
+    for spec in FUTURES_COMMAND_SPECS:
+        command = str(spec["command"])
+        for field_spec in FUTURES_COMMAND_REQUEST_FIELDS.get(command, ()):
+            field = str(field_spec["field"])
+            request_field = _futures_request_field_item(command, field_spec)
+            summary = summaries.setdefault(
+                field,
+                {
+                    "field": field,
+                    "affected_commands": [],
+                    "identity_field_command_count": 0,
+                    "risk_field_command_count": 0,
+                    "payload_field_command_count": 0,
+                    "request_payload_contract_refs": [],
+                    "validation_gate_refs": [],
+                    "validation_evidence_refs": [],
+                    "validator_contract_refs": [],
+                    "validator_registration_refs": [],
+                },
+            )
+            summary["affected_commands"].append(command)
+            if bool(request_field["identity_field"]):
+                summary["identity_field_command_count"] += 1
+            if bool(request_field["risk_field"]):
+                summary["risk_field_command_count"] += 1
+            if bool(request_field["payload_field"]):
+                summary["payload_field_command_count"] += 1
+            summary["request_payload_contract_refs"].append(
+                str(request_field["request_payload_contract_ref"])
+            )
+            summary["validation_gate_refs"].append(str(request_field["validation_gate_ref"]))
+            summary["validation_evidence_refs"].append(
+                str(request_field["validation_evidence_ref"])
+            )
+            summary["validator_contract_refs"].append(
+                str(request_field["validator_contract_ref"])
+            )
+            summary["validator_registration_refs"].append(
+                str(request_field["validator_registration_ref"])
+            )
+    return [_futures_request_field_summary_item(summary) for summary in summaries.values()]
+
+
+def _futures_request_field_summary_item(summary: Mapping[str, Any]) -> dict[str, Any]:
+    field = str(summary["field"])
+    commands = [str(command) for command in summary["affected_commands"]]
+    request_payload_contract_refs = _unique_texts(
+        summary["request_payload_contract_refs"]
+    )
+    validation_gate_refs = _unique_texts(summary["validation_gate_refs"])
+    validation_evidence_refs = _unique_texts(summary["validation_evidence_refs"])
+    validator_contract_refs = _unique_texts(summary["validator_contract_refs"])
+    validator_registration_refs = _unique_texts(
+        summary["validator_registration_refs"]
+    )
+    return {
+        "field": field,
+        "status": AdminMvpGateStatus.PASSED.value,
+        "blocking": False,
+        "required": True,
+        "command_count": len(commands),
+        "affected_commands": commands,
+        "required_command_count": len(commands),
+        "blocking_command_count": 0,
+        "identity_field_command_count": int(summary["identity_field_command_count"]),
+        "risk_field_command_count": int(summary["risk_field_command_count"]),
+        "payload_field_command_count": int(summary["payload_field_command_count"]),
+        "request_payload_contract_ref_count": len(request_payload_contract_refs),
+        "request_payload_contract_refs": request_payload_contract_refs,
+        "validation_gate_ref_count": len(validation_gate_refs),
+        "validation_gate_refs": validation_gate_refs,
+        "validation_evidence_ref_count": len(validation_evidence_refs),
+        "validation_evidence_refs": validation_evidence_refs,
+        "validator_contract_ref_count": len(validator_contract_refs),
+        "validator_contract_refs": validator_contract_refs,
+        "validator_registration_ref_count": len(validator_registration_refs),
+        "validator_registration_refs": validator_registration_refs,
+        "backend_owned": True,
+        "read_only": True,
+        "spot_rule_authority": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "detail": (
+            f"{field} is a backend-owned Futures command payload field validated "
+            "before executor admission."
+        ),
+    }
+
+
+def _validate_futures_command_payload(
+    *,
+    command: str,
+    identity_key: str,
+    identity_value: str,
+    body: Mapping[str, Any],
+) -> dict[str, Any]:
+    fields: list[dict[str, Any]] = []
+    missing_fields: list[str] = []
+    invalid_fields: list[str] = []
+    for field_spec in FUTURES_COMMAND_REQUEST_FIELDS.get(command, ()):
+        field = str(field_spec["field"])
+        value = _futures_payload_field_value(
+            field_spec=field_spec,
+            identity_key=identity_key,
+            identity_value=identity_value,
+            body=body,
+        )
+        validation_issue = _futures_payload_field_issue(field, value)
+        status = (
+            AdminMvpGateStatus.BLOCKED.value
+            if validation_issue != "none"
+            else AdminMvpGateStatus.PASSED.value
+        )
+        if validation_issue == "missing":
+            missing_fields.append(field)
+        elif validation_issue != "none":
+            invalid_fields.append(field)
+        item = _futures_request_field_item(
+            command,
+            field_spec,
+            status=status,
+            validation_issue=validation_issue,
+        )
+        item["value_present"] = validation_issue != "missing"
+        fields.append(item)
+
+    blocking_count = len(missing_fields) + len(invalid_fields)
+    status = (
+        AdminMvpGateStatus.BLOCKED.value
+        if blocking_count
+        else AdminMvpGateStatus.PASSED.value
+    )
+    return {
+        "validation_id": f"futures-payload-validation-{_payload_hash(body)}",
+        "command": command,
+        "status": status,
+        "request_field_count": len(fields),
+        "required_request_field_count": len(fields),
+        "blocking_request_field_count": blocking_count,
+        "missing_request_fields": missing_fields,
+        "invalid_request_fields": invalid_fields,
+        "request_fields": fields,
+        "validation_gate_passed": blocking_count == 0,
+        "backend_owned": True,
+        "spot_rule_authority": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "detail": (
+            "Futures command payload failed backend validation."
+            if blocking_count
+            else "Futures command payload passed backend validation."
+        ),
+    }
+
+
+def _futures_payload_field_value(
+    *,
+    field_spec: Mapping[str, Any],
+    identity_key: str,
+    identity_value: str,
+    body: Mapping[str, Any],
+) -> Any:
+    field = str(field_spec["field"])
+    payload_key = str(field_spec["payload_key"])
+    candidates: list[Any] = []
+    if field == identity_key and identity_value.strip():
+        candidates.append(identity_value)
+    for key in _futures_payload_field_keys(field, payload_key):
+        if key in body:
+            candidates.append(body.get(key))
+    for candidate in candidates:
+        if not _futures_payload_value_missing(candidate):
+            return candidate
+    return candidates[0] if candidates else None
+
+
+def _futures_payload_field_keys(field: str, payload_key: str) -> list[str]:
+    keys = [payload_key]
+    if field != payload_key:
+        keys.append(field)
+    if field == "size":
+        keys.append("number_of_contracts")
+    return list(dict.fromkeys(keys))
+
+
+def _futures_payload_field_issue(field: str, value: Any) -> str:
+    if _futures_payload_value_missing(value):
+        return "missing"
+    if field in {"limit_price", "size"}:
+        return "none" if _futures_positive_decimal(value) else "must_be_positive_decimal"
+    if field == "product_id":
+        return (
+            "none"
+            if str(value).strip() in FUTURES_CONFIGURED_PRODUCT_SCOPE
+            else "unsupported_product_scope"
+        )
+    if field == "order_side":
+        return "none" if str(value).strip().upper() in {"BUY", "SELL"} else "invalid_side"
+    if field == "order_type":
+        return (
+            "none"
+            if str(value).strip().upper() in {"LIMIT", "MARKET"}
+            else "invalid_order_type"
+        )
+    return "none"
+
+
+def _futures_payload_value_missing(value: Any) -> bool:
+    return value is None or str(value).strip() == ""
+
+
+def _futures_positive_decimal(value: Any) -> bool:
+    try:
+        return Decimal(str(value)) > Decimal("0")
+    except (InvalidOperation, ValueError, TypeError):
+        return False
+
+
+def _futures_request_field_detail(
+    command: str,
+    field: str,
+    validation_issue: str,
+) -> str:
+    if validation_issue == "none":
+        return f"{command} requires backend validation for {field} before admission."
+    if validation_issue == "missing":
+        return f"{command} is missing required backend-owned payload field {field}."
+    return (
+        f"{command} has invalid backend-owned payload field {field}: "
+        f"{validation_issue}."
+    )
 
 
 def _filter_futures_risk_proofs(

@@ -1402,6 +1402,89 @@ def test_admin_futures_command_suite_resolves_account_and_risk_proof_evidence():
     assert recorded_detail.body["record"]["command_execution_allowed"] is False
 
 
+def test_admin_futures_command_suite_exposes_backend_payload_field_contracts():
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
+    )
+
+    suite_result = service.get_read_response(
+        "/api/v1/futures/command-suite",
+        {},
+        context(),
+    )
+
+    assert suite_result.status_code == 200
+    suite = suite_result.body
+    assert suite["request_field_count"] == 11
+    assert suite["required_request_field_count"] == 11
+    assert suite["blocking_request_field_count"] == 0
+    assert suite["request_field_summary_count"] == 8
+    assert suite["request_field_summary_blocking_count"] == 0
+    summaries = {item["field"]: item for item in suite["request_field_summaries"]}
+    assert summaries["product_id"]["affected_commands"] == ["futures_place"]
+    assert summaries["product_id"]["status"] == "passed"
+    assert summaries["product_id"]["validation_gate_ref_count"] == 1
+    assert summaries["position_key"]["affected_commands"] == [
+        "futures_close_reduce",
+        "futures_reconcile",
+    ]
+    assert summaries["client_order_id"]["affected_commands"] == ["futures_cancel"]
+    assert summaries["limit_price"]["risk_field_command_count"] == 2
+    assert summaries["size"]["risk_field_command_count"] == 2
+
+    commands = {command["command"]: command for command in suite["commands"]}
+    place = commands["futures_place"]
+    assert place["request_field_count"] == 5
+    assert place["required_request_field_count"] == 5
+    assert place["blocking_request_field_count"] == 0
+    assert [field["field"] for field in place["request_fields"]] == [
+        "product_id",
+        "order_side",
+        "order_type",
+        "limit_price",
+        "size",
+    ]
+    assert all(field["request_payload_validated"] is True for field in place["request_fields"])
+
+
+def test_admin_futures_place_rejects_invalid_payload_before_executor_boundary():
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
+    )
+    record_futures_live_service_decision(service)
+    record_all_futures_live_adapter_decisions(service)
+
+    result = service.submit_futures_command(
+        "/api/v1/futures/orders",
+        {
+            "product_id": "BIP-20DEC30-CDE",
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "limit_price": "0",
+            "size": "0",
+        },
+        context(idempotency_key="futures-place-invalid-payload"),
+    )
+
+    assert result.status_code == 400
+    assert result.body["status"] == "rejected"
+    assert result.body["failure_stage"] == "futures_payload_validation_failed"
+    assert result.body["payload_validation"]["status"] == "blocked"
+    assert result.body["payload_validation"]["blocking_request_field_count"] == 2
+    assert result.body["payload_validation"]["missing_request_fields"] == []
+    assert set(result.body["payload_validation"]["invalid_request_fields"]) == {
+        "limit_price",
+        "size",
+    }
+    assert result.body["admission_decision"]["failure_stage"] == (
+        "futures_payload_validation_failed"
+    )
+    assert result.body["executor_decision_id"] is None
+    assert service.store.futures_executor_decisions == {}
+    assert result.body["live_exchange_submitted"] is False
+    assert result.body["live_coinbase_orders_ran"] is False
+
+
 def test_admin_futures_command_suite_ignores_intx_live_decisions_for_us_cfm_scope():
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
