@@ -1433,7 +1433,10 @@ class AdminMvpService:
             "read_only": True,
             "submitted_notional_usdc": _decimal_text(self.store.submitted_notional_usdc),
             "executed_notional_usdc": _decimal_text(self.store.executed_notional_usdc),
-            **self._live_outputs(False, Decimal("0")),
+            **self._live_outputs(
+                self.store.live_coinbase_orders_ran,
+                self.store.submitted_notional_usdc,
+            ),
         }
 
     def _admin_session(self, context: AdminMvpRequestContext) -> dict[str, Any]:
@@ -1698,7 +1701,9 @@ class AdminMvpService:
         return {
             "type": "admin_live_enablement",
             "status": self._live_service_status(),
-            "default_live_coinbase_execution": "not_run",
+            "default_live_coinbase_execution": (
+                "submitted" if self.store.live_coinbase_orders_ran else "not_run"
+            ),
             "submitted_notional_usdc": _decimal_text(self.store.submitted_notional_usdc),
             "executed_notional_usdc": _decimal_text(self.store.executed_notional_usdc),
             "quote_currency": "USDC",
@@ -1718,7 +1723,7 @@ class AdminMvpService:
                 }
             ],
             "read_only": True,
-            "live_coinbase_orders_ran": False,
+            "live_coinbase_orders_ran": self.store.live_coinbase_orders_ran,
         }
 
     def _enterprise_readiness(self) -> dict[str, Any]:
@@ -2058,7 +2063,7 @@ class AdminMvpService:
             "executed_notional_usdc": _decimal_text(self.store.executed_notional_usdc),
             "commands": commands,
             "coverage_gaps": [],
-            "live_coinbase_orders_ran": False,
+            "live_coinbase_orders_ran": self.store.live_coinbase_orders_ran,
         }
 
     def _spot_manual_order_admission(

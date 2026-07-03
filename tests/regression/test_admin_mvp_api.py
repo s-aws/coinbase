@@ -1406,6 +1406,25 @@ def test_admin_mvp_explicit_live_execution_flows_through_backend_service_only():
     ]
     assert all(call["side"] != "SELL" for call in rest_client.create_order_calls)
 
+    health = service.get_read_response("/api/v1/admin/health", {}, context())
+    live_enablement = service.get_read_response(
+        "/api/v1/admin/live-enablement",
+        {},
+        context(),
+    )
+    command_suite = service.get_read_response(
+        "/api/v1/spot/command-suite",
+        {},
+        context(),
+    )
+    assert health.body["live_coinbase_orders_ran"] is True
+    assert health.body["live_coinbase_execution"] == "submitted"
+    assert health.body["notional_usdc"] == "1.00"
+    assert live_enablement.body["live_coinbase_orders_ran"] is True
+    assert live_enablement.body["default_live_coinbase_execution"] == "submitted"
+    assert command_suite.body["live_coinbase_orders_ran"] is True
+    assert command_suite.body["submitted_notional_usdc"] == "1.00"
+
 
 def test_admin_mvp_live_execution_rejects_unsuccessful_coinbase_create_order_response():
     rest_client = FakeRestClient(
