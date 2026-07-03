@@ -1168,32 +1168,48 @@ class AdminMvpService:
             rest_client,
             "get_futures_positions",
         )
-        if not any((wallets_read, portfolios_read, positions_read)):
+        futures_margin_collateral, futures_margin_collateral_read, futures_margin_collateral_error = (
+            _read_rest_object(
+                rest_client,
+                "get_futures_margin_collateral_snapshot",
+            )
+        )
+        if not any((wallets_read, portfolios_read, positions_read, futures_margin_collateral_read)):
             return unavailable
 
         wallet_items = _normalize_wallets(wallets)
         portfolio_items = _normalize_portfolios(portfolios)
         position_items = _normalize_futures_positions(positions)
         wallet_inventory = _wallet_inventory_from_wallets(wallet_items)
+        futures_margin_inventory = _futures_margin_collateral_from_cfm_snapshot(
+            futures_margin_collateral,
+            futures_margin_collateral_error,
+        )
         portfolio_scope = _portfolio_scope_from_portfolios(portfolio_items)
         futures_position_scope = [
             item["product_id"] for item in position_items if item.get("product_id")
         ]
         read_errors = [
             error
-            for error in (wallet_error, portfolio_error, positions_error)
+            for error in (
+                wallet_error,
+                portfolio_error,
+                positions_error,
+                futures_margin_collateral_error,
+            )
             if error is not None
         ]
         spot_wallet_ready = _spot_admission_quote_ready(wallet_inventory)
         futures_scope_ready = positions_read and positions_error is None
+        futures_margin_collateral_ready = futures_margin_inventory["status"] == "ready"
         readiness = {
             "spot_account_ready": portfolios_read and portfolio_error is None and spot_wallet_ready,
             "spot_wallet_inventory_ready": spot_wallet_ready,
             "futures_account_scope_ready": futures_scope_ready,
             "futures_observed_position_scope_ready": bool(position_items),
-            "futures_margin_collateral_ready": False,
+            "futures_margin_collateral_ready": futures_margin_collateral_ready,
             "usable_for_spot_admission": spot_wallet_ready,
-            "usable_for_futures_risk": False,
+            "usable_for_futures_risk": futures_scope_ready and futures_margin_collateral_ready,
         }
         account_status = "ready" if any(readiness.values()) else "unavailable"
         source = (
@@ -1227,6 +1243,7 @@ class AdminMvpService:
             "wallets": wallet_items,
             "readiness": readiness,
             "futures_positions": position_items,
+            "futures_margin_collateral": futures_margin_inventory,
             "coinbase_read_enabled": True,
             "coinbase_read_ran": True,
         }
@@ -1394,6 +1411,7 @@ class AdminMvpService:
         wallet_inventory = snapshot["wallet_inventory"]
         spot_wallet_ready = bool(readiness["spot_wallet_inventory_ready"])
         futures_risk_ready = bool(readiness["usable_for_futures_risk"])
+        futures_risk_input = snapshot["futures_margin_collateral"]["risk_input"]
         return {
             "type": "admin_wallet",
             "status": "ready" if spot_wallet_ready else "warning",
@@ -1420,10 +1438,10 @@ class AdminMvpService:
             "futures_risk_input": {
                 "status": "ready" if futures_risk_ready else "blocked",
                 "wallet_check_source": ACCOUNT_SNAPSHOT_WALLET_SOURCE,
-                "currency": wallet_inventory["currency"],
-                "available_notional_usdc": wallet_inventory["available_notional_usdc"],
+                "currency": futures_risk_input["currency"],
+                "available_notional_usdc": futures_risk_input["available_notional_usdc"],
                 "proof_id": snapshot["account_reality"]["proof_id"],
-                "first_blocker": "none" if futures_risk_ready else "futures_margin_collateral_ready",
+                "first_blocker": "none" if futures_risk_ready else futures_risk_input["first_blocker"],
             },
             "audit": {
                 "correlation_id": context.correlation_id,
@@ -2091,18 +2109,8 @@ class AdminMvpService:
             "observed_position_scope": position_scope,
             "account_reality": snapshot["account_reality"],
             "account_readiness": snapshot["readiness"],
-            "collateral": self._futures_evidence(
-                "collateral",
-                "unavailable",
-                "runtime_unavailable",
-                "No Coinbase futures collateral snapshot has been enabled for the local MVP.",
-            ),
-            "margin": self._futures_evidence(
-                "margin",
-                "unavailable",
-                "runtime_unavailable",
-                "No backend futures margin snapshot is available in the local MVP runtime.",
-            ),
+            "collateral": snapshot["futures_margin_collateral"]["collateral"],
+            "margin": snapshot["futures_margin_collateral"]["margin"],
             "funding": self._futures_evidence(
                 "funding",
                 "not_modeled",
@@ -2759,6 +2767,10 @@ def _unavailable_account_snapshot(generated_at: str) -> dict[str, Any]:
         "wallets": [],
         "readiness": readiness,
         "futures_positions": [],
+        "futures_margin_collateral": _blocked_futures_margin_collateral(
+            "rest_client_unavailable",
+            "US Coinbase Futures CFM margin/collateral snapshot is unavailable because the REST client is not configured.",
+        ),
         "coinbase_read_enabled": False,
         "coinbase_read_ran": False,
     }
@@ -2856,6 +2868,218 @@ def _normalize_futures_positions(value: Any) -> list[dict[str, Any]]:
             }
         )
     return positions
+
+
+def _futures_margin_collateral_from_cfm_snapshot(
+    value: Any,
+    read_error: str | None,
+) -> dict[str, Any]:
+    if read_error is not None:
+        return _blocked_futures_margin_collateral(
+            "futures_margin_collateral_read_failed",
+            "US Coinbase Futures CFM margin/collateral snapshot could not be read.",
+            {"read_error": read_error},
+        )
+
+    data = _object_to_dict(value)
+    if not data:
+        return _blocked_futures_margin_collateral(
+            "futures_margin_collateral_missing",
+            "US Coinbase Futures CFM margin/collateral snapshot returned no data.",
+        )
+
+    if str(data.get("status") or "").lower() == "blocked":
+        return _blocked_futures_margin_collateral(
+            _first_cfm_error_blocker(data),
+            "US Coinbase Futures CFM balance summary is blocked by the Coinbase REST reader.",
+            data,
+        )
+
+    balance_summary = _object_to_dict(data.get("balance_summary"))
+    if not balance_summary:
+        return _blocked_futures_margin_collateral(
+            "futures_margin_collateral_missing_balance_summary",
+            "US Coinbase Futures CFM balance summary is missing from the backend snapshot.",
+            data,
+        )
+
+    available_margin = _money_field(balance_summary, "available_margin")
+    if available_margin is None:
+        return _blocked_futures_margin_collateral(
+            "futures_available_margin_missing",
+            "US Coinbase Futures CFM available margin is missing from the balance summary.",
+            data,
+        )
+
+    currency = available_margin["currency"]
+    total_usd_balance = _money_field(balance_summary, "total_usd_balance", currency)
+    cfm_usd_balance = _money_field(balance_summary, "cfm_usd_balance", currency)
+    futures_buying_power = _money_field(balance_summary, "futures_buying_power", currency)
+    initial_margin = _money_field(balance_summary, "initial_margin", currency)
+    liquidation_threshold = _money_field(balance_summary, "liquidation_threshold", currency)
+    margin_window_measure = _active_cfm_margin_window_measure(balance_summary)
+    maintenance_margin = _decimal_text(
+        _decimal_value(margin_window_measure.get("maintenance_margin"), Decimal("0"))
+    )
+    liquidation_buffer = _decimal_text(
+        _decimal_value(margin_window_measure.get("liquidation_buffer"), Decimal("0"))
+    )
+    margin_window_type = str(
+        margin_window_measure.get("margin_window_type") or "FCM_MARGIN_WINDOW_TYPE_UNKNOWN"
+    )
+    account_family = str(data.get("account_family") or "coinbase_futures_us_cfm")
+    intx_applicability = str(data.get("intx_applicability") or "not_applicable_us_account")
+    errors = data.get("errors") if isinstance(data.get("errors"), list) else []
+    collateral_value = {
+        "account_family": account_family,
+        "collateral_source": "cfm_balance_summary",
+        "available_margin": available_margin,
+        "total_usd_balance": total_usd_balance,
+        "cfm_usd_balance": cfm_usd_balance,
+        "futures_buying_power": futures_buying_power,
+        "intx_applicability": intx_applicability,
+        "errors": errors,
+    }
+    margin_value = {
+        "account_family": account_family,
+        "margin_source": "cfm_balance_summary",
+        "initial_margin": initial_margin,
+        "maintenance_margin": {"value": maintenance_margin, "currency": currency},
+        "liquidation_threshold": liquidation_threshold,
+        "liquidation_buffer": {"value": liquidation_buffer, "currency": currency},
+        "margin_window_type": margin_window_type,
+        "intraday_margin_setting": _object_to_dict(data.get("intraday_margin_setting")),
+        "current_margin_windows": data.get("current_margin_windows")
+        if isinstance(data.get("current_margin_windows"), list)
+        else [],
+        "intx_applicability": intx_applicability,
+        "errors": errors,
+    }
+    return {
+        "status": "ready",
+        "source": BACKEND_REST_CLIENT_SOURCE,
+        "blocker": "none",
+        "risk_input": {
+            "status": "ready",
+            "currency": currency,
+            "available_notional_usdc": available_margin["value"],
+            "first_blocker": "none",
+        },
+        "collateral": _futures_evidence_item(
+            "collateral",
+            "ready",
+            BACKEND_REST_CLIENT_SOURCE,
+            "US Coinbase Futures CFM balance summary is available for backend futures risk input.",
+            collateral_value,
+        ),
+        "margin": _futures_evidence_item(
+            "margin",
+            "ready",
+            BACKEND_REST_CLIENT_SOURCE,
+            "US Coinbase Futures CFM margin summary is available for backend futures risk input.",
+            margin_value,
+        ),
+    }
+
+
+def _blocked_futures_margin_collateral(
+    blocker: str,
+    detail: str,
+    raw_value: Any = None,
+) -> dict[str, Any]:
+    value = {
+        "account_family": "coinbase_futures_us_cfm",
+        "collateral_source": "cfm_balance_summary",
+        "intx_applicability": "not_applicable_us_account",
+        "blocker": blocker,
+    }
+    if raw_value is not None:
+        value["raw_status"] = _object_to_dict(raw_value)
+    return {
+        "status": "blocked",
+        "source": BACKEND_REST_CLIENT_SOURCE,
+        "blocker": blocker,
+        "risk_input": {
+            "status": "blocked",
+            "currency": "USD",
+            "available_notional_usdc": "0",
+            "first_blocker": blocker,
+        },
+        "collateral": _futures_evidence_item(
+            "collateral",
+            "blocked",
+            BACKEND_REST_CLIENT_SOURCE,
+            detail,
+            value,
+        ),
+        "margin": _futures_evidence_item(
+            "margin",
+            "blocked",
+            BACKEND_REST_CLIENT_SOURCE,
+            detail,
+            value,
+        ),
+    }
+
+
+def _futures_evidence_item(
+    name: str,
+    status: str,
+    source: str,
+    detail: str,
+    value: Any = None,
+) -> dict[str, Any]:
+    evidence = {
+        "name": name,
+        "status": status,
+        "source": source,
+        "detail": detail,
+    }
+    if value is not None:
+        evidence["value"] = value
+    return evidence
+
+
+def _first_cfm_error_blocker(data: Mapping[str, Any]) -> str:
+    errors = data.get("errors")
+    if isinstance(errors, list) and errors:
+        first = _object_to_dict(errors[0])
+        method = str(first.get("method") or "futures_margin_collateral")
+        return f"{method}_blocked"
+    return "futures_margin_collateral_ready"
+
+
+def _money_field(
+    source: Mapping[str, Any],
+    key: str,
+    default_currency: str = "USD",
+) -> dict[str, str] | None:
+    value = source.get(key)
+    data = _object_to_dict(value)
+    if data:
+        raw_value = data.get("value")
+        if raw_value in (None, ""):
+            return None
+        return {
+            "value": _decimal_text(_decimal_value(raw_value, Decimal("0"))),
+            "currency": str(data.get("currency") or default_currency),
+        }
+    if value in (None, ""):
+        return None
+    return {
+        "value": _decimal_text(_decimal_value(value, Decimal("0"))),
+        "currency": default_currency,
+    }
+
+
+def _active_cfm_margin_window_measure(balance_summary: Mapping[str, Any]) -> dict[str, Any]:
+    intraday = _object_to_dict(balance_summary.get("intraday_margin_window_measure"))
+    if intraday:
+        return intraday
+    overnight = _object_to_dict(balance_summary.get("overnight_margin_window_measure"))
+    if overnight:
+        return overnight
+    return {}
 
 
 def _wallet_inventory_from_wallets(wallets: list[dict[str, Any]]) -> dict[str, Any]:

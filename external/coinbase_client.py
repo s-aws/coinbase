@@ -304,6 +304,105 @@ class CoinbaseRestClient:
             positions[product_id] = position
         
         return positions
+
+    def get_futures_margin_collateral_snapshot(self) -> Dict[str, Any]:
+        """Read US Coinbase Futures CFM margin and collateral evidence.
+
+        The US futures account uses the ``/cfm`` API family. It is separate from
+        the INTX perps portfolio endpoints, which are not applicable to US
+        accounts. This method performs only read calls and records per-item
+        failures so the Admin API can expose exact blockers without crashing the
+        whole wallet inventory read.
+
+        Returns:
+            Dictionary containing the CFM balance summary plus auxiliary margin
+            setting, margin window, and sweep evidence.
+        """
+
+        balance_summary, balance_error = _sdk_dict_or_error(
+            self._client.get_futures_balance_summary
+        )
+        errors = []
+        if balance_error is not None:
+            errors.append(
+                {
+                    "method": "get_futures_balance_summary",
+                    "error": balance_error,
+                }
+            )
+        normalized_balance = _object_to_dict(balance_summary.get("balance_summary"))
+        if not normalized_balance and balance_summary:
+            normalized_balance = balance_summary
+
+        intraday_margin_setting, intraday_error = _sdk_dict_or_error(
+            self._client.get_intraday_margin_setting
+        )
+        if intraday_error is not None:
+            errors.append(
+                {
+                    "method": "get_intraday_margin_setting",
+                    "error": intraday_error,
+                }
+            )
+
+        current_margin_windows = []
+        for profile in (
+            "MARGIN_PROFILE_TYPE_RETAIL_REGULAR",
+            "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1",
+        ):
+            margin_window, margin_window_error = _sdk_dict_or_error(
+                self._client.get_current_margin_window,
+                profile,
+            )
+            if margin_window_error is None:
+                current_margin_windows.append(
+                    {
+                        "profile": profile,
+                        "status": "ready",
+                        **margin_window,
+                    }
+                )
+                continue
+            current_margin_windows.append(
+                {
+                    "profile": profile,
+                    "status": "blocked",
+                    "error": margin_window_error,
+                }
+            )
+            errors.append(
+                {
+                    "method": "get_current_margin_window",
+                    "profile": profile,
+                    "error": margin_window_error,
+                }
+            )
+
+        futures_sweeps_response, futures_sweeps_error = _sdk_dict_or_error(
+            self._client.list_futures_sweeps
+        )
+        if futures_sweeps_error is not None:
+            errors.append(
+                {
+                    "method": "list_futures_sweeps",
+                    "error": futures_sweeps_error,
+                }
+            )
+        futures_sweeps = futures_sweeps_response.get("sweeps")
+        if not isinstance(futures_sweeps, list):
+            futures_sweeps = []
+
+        return {
+            "status": "ready" if normalized_balance and balance_error is None else "blocked",
+            "account_family": "coinbase_futures_us_cfm",
+            "source": "backend_rest_client",
+            "balance_summary": normalized_balance,
+            "intraday_margin_setting": intraday_margin_setting,
+            "current_margin_windows": current_margin_windows,
+            "futures_sweeps": futures_sweeps,
+            "intx_applicability": "not_applicable_us_account",
+            "errors": errors,
+        }
     
     # ========================================================================
     # Portfolio Methods
@@ -649,6 +748,35 @@ def _object_to_dict(value: Any) -> Dict[str, Any]:
     if hasattr(value, "__dict__"):
         return dict(value.__dict__)
     return {}
+
+
+def _sdk_dict_or_error(method: Any, *args: Any) -> tuple[Dict[str, Any], str | None]:
+    try:
+        return _object_to_dict(method(*args)), None
+    except Exception as exc:
+        return {}, _safe_exception_label(exc)
+
+
+def _safe_exception_label(exc: Exception) -> str:
+    text = str(exc)
+    upper = text.upper()
+    for token in (
+        "PERMISSION_DENIED",
+        "UNAUTHORIZED",
+        "FORBIDDEN",
+        "INVALID_ARGUMENT",
+        "NOT_FOUND",
+        "ACCOUNT_RESTRICTED",
+    ):
+        if token in upper:
+            return f"{type(exc).__name__}:{token}"
+    if "403" in text:
+        return f"{type(exc).__name__}:HTTP_403"
+    if "401" in text:
+        return f"{type(exc).__name__}:HTTP_401"
+    if "404" in text:
+        return f"{type(exc).__name__}:HTTP_404"
+    return type(exc).__name__
 
 
 def _accounts_from_response(response: Any) -> List[Any]:

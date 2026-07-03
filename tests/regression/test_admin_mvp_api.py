@@ -68,9 +68,43 @@ class FakeAccountRestClient(FakeRestClient):
             },
         },
     )
+    futures_margin_collateral_snapshot: dict[str, dict] = field(
+        default_factory=lambda: {
+            "status": "ready",
+            "account_family": "coinbase_futures_us_cfm",
+            "source": "backend_rest_client",
+            "balance_summary": {
+                "available_margin": {"value": "250.00", "currency": "USD"},
+                "total_usd_balance": {"value": "500.00", "currency": "USD"},
+                "cfm_usd_balance": {"value": "500.00", "currency": "USD"},
+                "futures_buying_power": {"value": "1000.00", "currency": "USD"},
+                "initial_margin": {"value": "40.00", "currency": "USD"},
+                "liquidation_threshold": {"value": "80.00", "currency": "USD"},
+                "intraday_margin_window_measure": {
+                    "margin_window_type": "FCM_MARGIN_WINDOW_TYPE_INTRADAY",
+                    "maintenance_margin": "20.00",
+                    "liquidation_buffer": "420.00",
+                },
+            },
+            "intraday_margin_setting": {"setting": "INTRADAY_MARGIN_SETTING_ENABLED"},
+            "current_margin_windows": [
+                {
+                    "profile": "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1",
+                    "status": "ready",
+                    "margin_window": {
+                        "margin_window_type": "MARGIN_WINDOW_TYPE_INTRADAY",
+                    },
+                }
+            ],
+            "futures_sweeps": [],
+            "intx_applicability": "not_applicable_us_account",
+        },
+    )
+    futures_margin_collateral_exception: Exception | None = None
     get_account_wallets_calls: int = 0
     list_portfolios_calls: int = 0
     get_futures_positions_calls: int = 0
+    get_futures_margin_collateral_snapshot_calls: int = 0
 
     def get_account_wallets(self):
         self.get_account_wallets_calls += 1
@@ -83,6 +117,12 @@ class FakeAccountRestClient(FakeRestClient):
     def get_futures_positions(self):
         self.get_futures_positions_calls += 1
         return self.futures_positions
+
+    def get_futures_margin_collateral_snapshot(self):
+        self.get_futures_margin_collateral_snapshot_calls += 1
+        if self.futures_margin_collateral_exception is not None:
+            raise self.futures_margin_collateral_exception
+        return self.futures_margin_collateral_snapshot
 
 
 def context(
@@ -525,15 +565,16 @@ def test_admin_account_management_exposes_backend_owned_account_reality():
     assert body["readiness"]["spot_wallet_inventory_ready"] is True
     assert body["readiness"]["futures_account_scope_ready"] is True
     assert body["readiness"]["futures_observed_position_scope_ready"] is True
-    assert body["readiness"]["futures_margin_collateral_ready"] is False
+    assert body["readiness"]["futures_margin_collateral_ready"] is True
     assert body["readiness"]["usable_for_spot_admission"] is True
-    assert body["readiness"]["usable_for_futures_risk"] is False
+    assert body["readiness"]["usable_for_futures_risk"] is True
     readiness = {item["name"]: item for item in body["command_readiness_prerequisites"]}
     assert readiness["backend_account_reality"]["status"] == "ready"
     assert readiness["wallet_inventory_evidence"]["status"] == "ready"
     assert rest_client.get_account_wallets_calls == 1
     assert rest_client.list_portfolios_calls == 1
     assert rest_client.get_futures_positions_calls == 1
+    assert rest_client.get_futures_margin_collateral_snapshot_calls == 1
 
 
 def test_admin_wallet_read_exposes_backend_owned_wallet_reality():
@@ -578,11 +619,14 @@ def test_admin_wallet_read_exposes_backend_owned_wallet_reality():
     assert wallet_rows["BTC"]["admission_ready"] is False
     assert body["readiness"]["spot_wallet_inventory_ready"] is True
     assert body["readiness"]["usable_for_spot_admission"] is True
-    assert body["readiness"]["usable_for_futures_risk"] is False
+    assert body["readiness"]["usable_for_futures_risk"] is True
     assert body["spot_admission_input"]["status"] == "ready"
     assert body["spot_admission_input"]["wallet_check_source"] == "account_management_snapshot"
-    assert body["futures_risk_input"]["status"] == "blocked"
-    assert body["futures_risk_input"]["first_blocker"] == "futures_margin_collateral_ready"
+    assert body["futures_risk_input"]["status"] == "ready"
+    assert body["futures_risk_input"]["wallet_check_source"] == "account_management_snapshot"
+    assert body["futures_risk_input"]["currency"] == "USD"
+    assert body["futures_risk_input"]["available_notional_usdc"] == "250.00"
+    assert body["futures_risk_input"]["first_blocker"] == "none"
     assert body["coinbase_read_enabled"] is True
     assert body["live_coinbase_read_ran"] is True
     assert body["live_coinbase_orders_ran"] is False
@@ -592,6 +636,46 @@ def test_admin_wallet_read_exposes_backend_owned_wallet_reality():
     assert rest_client.get_account_wallets_calls == 1
     assert rest_client.list_portfolios_calls == 1
     assert rest_client.get_futures_positions_calls == 1
+    assert rest_client.get_futures_margin_collateral_snapshot_calls == 1
+
+
+def test_admin_wallet_read_blocks_futures_risk_when_cfm_margin_snapshot_fails():
+    rest_client = FakeAccountRestClient(
+        futures_margin_collateral_exception=RuntimeError("permission denied")
+    )
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+
+    result = service.get_read_response(
+        "/api/v1/admin/wallet",
+        {},
+        context(idempotency_key="wallet-cfm-blocked"),
+    )
+
+    assert result.status_code == 200
+    body = result.body
+    assert body["readiness"]["futures_account_scope_ready"] is True
+    assert body["readiness"]["futures_margin_collateral_ready"] is False
+    assert body["readiness"]["usable_for_futures_risk"] is False
+    assert body["futures_risk_input"]["status"] == "blocked"
+    assert body["futures_risk_input"]["currency"] == "USD"
+    assert body["futures_risk_input"]["available_notional_usdc"] == "0"
+    assert body["futures_risk_input"]["first_blocker"] == "futures_margin_collateral_read_failed"
+    assert "get_futures_margin_collateral_snapshot_failed:RuntimeError" in body["account_reality"]["read_error"]
+
+    futures = service.get_read_response(
+        "/api/v1/futures/account",
+        {},
+        context(idempotency_key="futures-cfm-blocked"),
+    )
+
+    assert futures.status_code == 200
+    assert futures.body["collateral"]["status"] == "blocked"
+    assert futures.body["collateral"]["source"] == "backend_rest_client"
+    assert futures.body["collateral"]["value"]["account_family"] == "coinbase_futures_us_cfm"
+    assert futures.body["margin"]["status"] == "blocked"
+    assert rest_client.get_futures_margin_collateral_snapshot_calls == 2
 
 
 def test_admin_wallet_read_accepts_usd_quote_wallet_when_usdc_wallet_is_missing():
@@ -765,11 +849,17 @@ def test_spot_and_futures_reads_consume_backend_account_snapshot():
     assert futures.body["account_reality"]["source"] == "backend_rest_client"
     assert futures.body["account_readiness"]["futures_account_scope_ready"] is True
     assert futures.body["account_readiness"]["futures_observed_position_scope_ready"] is True
-    assert futures.body["account_readiness"]["futures_margin_collateral_ready"] is False
+    assert futures.body["account_readiness"]["futures_margin_collateral_ready"] is True
+    assert futures.body["account_readiness"]["usable_for_futures_risk"] is True
     assert futures.body["observed_position_scope"] == ["BIP-20DEC30-CDE"]
     assert futures.body["position_count"] == 1
-    assert futures.body["collateral"]["status"] == "unavailable"
-    assert futures.body["margin"]["status"] == "unavailable"
+    assert futures.body["collateral"]["status"] == "ready"
+    assert futures.body["collateral"]["source"] == "backend_rest_client"
+    assert futures.body["collateral"]["value"]["account_family"] == "coinbase_futures_us_cfm"
+    assert futures.body["collateral"]["value"]["available_margin"]["value"] == "250.00"
+    assert futures.body["collateral"]["value"]["intx_applicability"] == "not_applicable_us_account"
+    assert futures.body["margin"]["status"] == "ready"
+    assert futures.body["margin"]["value"]["margin_window_type"] == "FCM_MARGIN_WINDOW_TYPE_INTRADAY"
     assert futures.body["live_coinbase_orders_ran"] is False
 
     positions = service.get_read_response("/api/v1/futures/positions", {}, context())
@@ -826,8 +916,11 @@ def test_admin_futures_perpetuals_read_contract_exposes_blocked_mvp_evidence():
     assert account_body["configured_product_scope"] == ["BIP-20DEC30-CDE"]
     assert account_body["observed_position_scope"] == []
     assert account_body["position_count"] == 0
-    assert account_body["collateral"]["status"] == "unavailable"
+    assert account_body["collateral"]["status"] == "blocked"
+    assert account_body["collateral"]["value"]["account_family"] == "coinbase_futures_us_cfm"
+    assert account_body["collateral"]["value"]["intx_applicability"] == "not_applicable_us_account"
     assert account_body["margin"]["name"] == "margin"
+    assert account_body["margin"]["status"] == "blocked"
     assert account_body["funding"]["status"] == "not_modeled"
     assert account_body["liquidation"]["source"] == "runtime_unavailable"
     assert account_body["reduce_only_close_only"]["status"] == "unavailable"
