@@ -408,6 +408,18 @@ def _refresh_store_live_submission_totals(store: AdminMvpStore) -> None:
             record.get("executed_notional_usdc"),
             Decimal("0"),
         )
+    for record in store.futures_command_decisions.values():
+        if not bool(record.get("live_exchange_submitted")):
+            continue
+        live_orders_ran = True
+        submitted_notional += _decimal_value(
+            record.get("submitted_notional_usdc"),
+            Decimal("0"),
+        )
+        executed_notional += _decimal_value(
+            record.get("executed_notional_usdc"),
+            Decimal("0"),
+        )
 
     store.submitted_notional_usdc = submitted_notional
     store.executed_notional_usdc = executed_notional
@@ -1712,6 +1724,23 @@ class AdminMvpService:
             }
             return self._result(400, response, context)
         if first_blocker == "futures_executor_live_disabled":
+            if _futures_live_place_requested(command, body):
+                return self._execute_futures_place_order(
+                    body=body,
+                    context=context,
+                    command=command,
+                    action_class=str(spec["action_class"]),
+                    route=route,
+                    service_method=str(spec["service_method"]),
+                    identity_key=identity_key,
+                    identity_value=identity_value,
+                    required_permission=str(spec["required_permission"]),
+                    payload_hash=payload_hash,
+                    payload_validation=payload_validation,
+                    readiness_decision=readiness_decision,
+                    admission_decision=admission_decision,
+                    risk_proof_id=command_evidence.get("risk_proof_id"),
+                )
             executor_decision = self._record_futures_executor_decision(
                 command=command,
                 action_class=str(spec["action_class"]),
@@ -1851,6 +1880,369 @@ class AdminMvpService:
             **self._live_outputs(False, Decimal("0")),
         }
         return self._result(501, response, context)
+
+    def _execute_futures_place_order(
+        self,
+        *,
+        body: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+        command: str,
+        action_class: str,
+        route: str,
+        service_method: str,
+        identity_key: str,
+        identity_value: str,
+        required_permission: str,
+        payload_hash: str,
+        payload_validation: Mapping[str, Any],
+        readiness_decision: Mapping[str, Any],
+        admission_decision: Mapping[str, Any],
+        risk_proof_id: Any,
+    ) -> AdminMvpApiResult:
+        """Execute a confirmed, capped US CFM Futures place order via backend REST."""
+
+        notional = _futures_place_notional(body)
+        client_order_id = _futures_client_order_id(body, context)
+        live_admission = self._futures_live_admission_decision(
+            admission_decision,
+            client_order_id=client_order_id,
+            notional=notional,
+        )
+        pre_coinbase_failure = self._futures_pre_coinbase_failure(
+            command=command,
+            body=body,
+            notional=notional,
+            readiness_decision=readiness_decision,
+        )
+        if pre_coinbase_failure is not None:
+            return self._futures_place_blocked_response(
+                status_code=400,
+                message=pre_coinbase_failure["message"],
+                failure_stage=pre_coinbase_failure["failure_stage"],
+                command=command,
+                action_class=action_class,
+                route=route,
+                service_method=service_method,
+                identity_key=identity_key,
+                identity_value=identity_value,
+                required_permission=required_permission,
+                payload_hash=payload_hash,
+                payload_validation=payload_validation,
+                readiness_decision=readiness_decision,
+                admission_decision=live_admission,
+                risk_proof_id=risk_proof_id,
+                client_order_id=client_order_id,
+                notional=notional,
+                context=context,
+            )
+
+        order_configuration = _futures_place_order_configuration(body)
+        try:
+            controller = self.dependencies.runtime_controller_factory()
+            _check_runtime_admission(controller)
+            with _track_runtime_place(controller):
+                result = self.dependencies.rest_client.create_order(
+                    client_order_id=client_order_id,
+                    product_id=str(body.get("product_id") or ""),
+                    side=str(body.get("side") or "").upper(),
+                    order_configuration=order_configuration,
+                    **_futures_create_order_kwargs(body),
+                )
+        except Exception as exc:
+            return self._futures_place_blocked_response(
+                status_code=400,
+                message=f"Coinbase Futures order submission failed: {exc}",
+                failure_stage="coinbase_rest",
+                command=command,
+                action_class=action_class,
+                route=route,
+                service_method=service_method,
+                identity_key=identity_key,
+                identity_value=identity_value,
+                required_permission=required_permission,
+                payload_hash=payload_hash,
+                payload_validation=payload_validation,
+                readiness_decision=readiness_decision,
+                admission_decision=live_admission,
+                risk_proof_id=risk_proof_id,
+                client_order_id=client_order_id,
+                notional=notional,
+                context=context,
+            )
+
+        result_data = _object_to_dict(result)
+        if not _coinbase_create_order_succeeded(result_data):
+            return self._futures_place_blocked_response(
+                status_code=400,
+                message=(
+                    "Coinbase Futures order submission was not accepted: "
+                    f"{_coinbase_create_order_error_message(result_data)}"
+                ),
+                failure_stage="coinbase_rest",
+                command=command,
+                action_class=action_class,
+                route=route,
+                service_method=service_method,
+                identity_key=identity_key,
+                identity_value=identity_value,
+                required_permission=required_permission,
+                payload_hash=payload_hash,
+                payload_validation=payload_validation,
+                readiness_decision=readiness_decision,
+                admission_decision=live_admission,
+                risk_proof_id=risk_proof_id,
+                client_order_id=client_order_id,
+                notional=notional,
+                context=context,
+            )
+
+        order_id = _coinbase_order_id_from_create_order_result(result_data)
+        self.store.submitted_notional_usdc += notional
+        self.store.live_coinbase_orders_ran = True
+        runtime_evidence = self._runtime_evidence()
+        command_record = self._record_futures_command_decision(
+            status=AdminMvpCommandStatus.ACCEPTED.value,
+            message="Futures/Perpetual order submitted to Coinbase by backend Admin API.",
+            command=command,
+            mutation_family="futures_live_place",
+            action_class=action_class,
+            route=route,
+            service_method=service_method,
+            identity_key=identity_key,
+            identity_value=identity_value,
+            required_permission=required_permission,
+            payload_hash=payload_hash,
+            readiness_decision=readiness_decision,
+            admission_decision=live_admission,
+            payload_validation=payload_validation,
+            risk_proof_id=risk_proof_id,
+            failure_stage=None,
+            context=context,
+            client_order_id=client_order_id,
+            coinbase_order_id=order_id or None,
+            live_exchange_submitted=True,
+            submitted_notional=notional,
+            execution_allowed=True,
+            local_state_mutated=True,
+            exchange_state_mutated=True,
+            runtime_evidence=runtime_evidence,
+        )
+        response = {
+            "type": "admin_api_command_result",
+            "status": AdminMvpCommandStatus.ACCEPTED.value,
+            "module_id": FUTURES_MODULE_ID,
+            "command": command,
+            "mutation_family": "futures_live_place",
+            "action_class": action_class,
+            "route": route,
+            "method": "POST",
+            "required_permission": required_permission,
+            "service_method": service_method,
+            "identity_key": identity_key,
+            "identity_value": identity_value,
+            "client_order_id": client_order_id,
+            "coinbase_order_id": order_id or None,
+            "exchange_order_id": order_id or None,
+            "exchange_order_id_evidence_only": True,
+            "message": "Futures/Perpetual order submitted to Coinbase by backend Admin API.",
+            "correlation_id": context.correlation_id,
+            "idempotency_key": context.idempotency_key,
+            "operator_intent": context.operator_intent,
+            "actor_id": context.actor_id,
+            "payload_hash": payload_hash,
+            "payload_validation": dict(payload_validation),
+            "readiness_decision": dict(readiness_decision),
+            "admission_decision": live_admission,
+            "failure_stage": None,
+            "submission_event_recorded": True,
+            "submission_event_id": command_record["decision_id"],
+            "command_route_registered": True,
+            "command_draft_allowed": True,
+            "execution_allowed": True,
+            "local_state_mutated": True,
+            "exchange_state_mutated": True,
+            "live_exchange_submitted": True,
+            "submitted_notional_usdc": _decimal_text(notional),
+            "executed_notional_usdc": "0",
+            "spot_rule_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            **runtime_evidence,
+            **self._live_outputs(True, notional),
+        }
+        return self._result(200, response, context, live_execution_enabled=True)
+
+    def _futures_place_blocked_response(
+        self,
+        *,
+        status_code: int,
+        message: str,
+        failure_stage: str,
+        command: str,
+        action_class: str,
+        route: str,
+        service_method: str,
+        identity_key: str,
+        identity_value: str,
+        required_permission: str,
+        payload_hash: str,
+        payload_validation: Mapping[str, Any],
+        readiness_decision: Mapping[str, Any],
+        admission_decision: Mapping[str, Any],
+        risk_proof_id: Any,
+        client_order_id: str,
+        notional: Decimal,
+        context: AdminMvpRequestContext,
+    ) -> AdminMvpApiResult:
+        runtime_evidence = self._runtime_evidence()
+        command_record = self._record_futures_command_decision(
+            status=AdminMvpCommandStatus.REJECTED.value,
+            message=message,
+            command=command,
+            mutation_family="futures_live_place",
+            action_class=action_class,
+            route=route,
+            service_method=service_method,
+            identity_key=identity_key,
+            identity_value=identity_value,
+            required_permission=required_permission,
+            payload_hash=payload_hash,
+            readiness_decision=readiness_decision,
+            admission_decision=admission_decision,
+            payload_validation=payload_validation,
+            risk_proof_id=risk_proof_id,
+            failure_stage=failure_stage,
+            context=context,
+            client_order_id=client_order_id,
+            submitted_notional=Decimal("0"),
+            runtime_evidence=runtime_evidence,
+        )
+        response = {
+            "type": "admin_api_command_result",
+            "status": AdminMvpCommandStatus.REJECTED.value,
+            "module_id": FUTURES_MODULE_ID,
+            "command": command,
+            "mutation_family": "futures_live_place",
+            "action_class": action_class,
+            "route": route,
+            "method": "POST",
+            "required_permission": required_permission,
+            "service_method": service_method,
+            "identity_key": identity_key,
+            "identity_value": identity_value,
+            "client_order_id": client_order_id,
+            "message": message,
+            "correlation_id": context.correlation_id,
+            "idempotency_key": context.idempotency_key,
+            "operator_intent": context.operator_intent,
+            "actor_id": context.actor_id,
+            "payload_hash": payload_hash,
+            "payload_validation": dict(payload_validation),
+            "readiness_decision": dict(readiness_decision),
+            "admission_decision": dict(admission_decision),
+            "failure_stage": failure_stage,
+            "submission_event_recorded": True,
+            "submission_event_id": command_record["decision_id"],
+            "command_route_registered": True,
+            "command_draft_allowed": True,
+            "execution_allowed": False,
+            "local_state_mutated": False,
+            "exchange_state_mutated": False,
+            "live_exchange_submitted": False,
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
+            "spot_rule_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            **runtime_evidence,
+            **self._live_outputs(False, notional),
+        }
+        return self._result(status_code, response, context)
+
+    def _futures_pre_coinbase_failure(
+        self,
+        *,
+        command: str,
+        body: Mapping[str, Any],
+        notional: Decimal,
+        readiness_decision: Mapping[str, Any],
+    ) -> dict[str, str] | None:
+        if command != "futures_place":
+            return {
+                "failure_stage": "futures_executor_not_implemented",
+                "message": "Only Futures/Perpetual place has a live executor adapter.",
+            }
+        if str(body.get("order_type") or "").upper() != "LIMIT":
+            return {
+                "failure_stage": "futures_limit_order_required",
+                "message": "Futures/Perpetual live place currently requires a limit order.",
+            }
+        if not self.dependencies.live_coinbase_execution_enabled:
+            return {
+                "failure_stage": "futures_live_runtime_disabled",
+                "message": "Live Futures/Perpetual execution is not enabled for this backend process.",
+            }
+        if not self.dependencies.rest_client_available or self.dependencies.rest_client is None:
+            return {
+                "failure_stage": "futures_rest_client_unavailable",
+                "message": "Coinbase REST client is not available to the backend.",
+            }
+        cap = self._futures_live_max_submitted_notional(readiness_decision)
+        if notional > cap:
+            return {
+                "failure_stage": "futures_cap_required",
+                "message": "Futures/Perpetual order notional exceeds backend cap evidence.",
+            }
+        return None
+
+    def _futures_live_max_submitted_notional(
+        self,
+        readiness_decision: Mapping[str, Any],
+    ) -> Decimal:
+        live_decision = dict(readiness_decision.get("live_decision_evidence") or {})
+        caps = [DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC]
+        service_decision_id = str(live_decision.get("matching_service_decision_id") or "")
+        if service_decision_id in self.store.service_decisions:
+            caps.append(
+                _decimal_value(
+                    self.store.service_decisions[service_decision_id].get(
+                        "max_submitted_notional_usdc"
+                    ),
+                    DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC,
+                )
+            )
+        adapter_decision_id = str(live_decision.get("matching_adapter_decision_id") or "")
+        if adapter_decision_id in self.store.live_adapter_decisions:
+            caps.append(
+                _decimal_value(
+                    self.store.live_adapter_decisions[adapter_decision_id].get(
+                        "max_submitted_notional_usdc"
+                    ),
+                    DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC,
+                )
+            )
+        return min(caps)
+
+    def _futures_live_admission_decision(
+        self,
+        admission_decision: Mapping[str, Any],
+        *,
+        client_order_id: str,
+        notional: Decimal,
+    ) -> dict[str, Any]:
+        return {
+            **dict(admission_decision),
+            "status": AdminMvpGateStatus.PASSED.value,
+            "allowed": True,
+            "failure_stage": None,
+            "client_order_id": client_order_id,
+            "submitted_notional_usdc": _decimal_text(notional),
+            "live_execution_acknowledged": True,
+            "detail": (
+                "Backend Futures/Perpetual admission passed for an explicitly "
+                "confirmed, capped live place request."
+            ),
+        }
 
     def _futures_admission_decision(
         self,
@@ -2016,10 +2408,20 @@ class AdminMvpService:
         admission_decision: Mapping[str, Any],
         payload_validation: Mapping[str, Any] | None = None,
         risk_proof_id: Any,
-        failure_stage: str,
+        failure_stage: str | None,
         context: AdminMvpRequestContext,
+        client_order_id: str | None = None,
+        coinbase_order_id: str | None = None,
+        live_exchange_submitted: bool = False,
+        submitted_notional: Decimal = Decimal("0"),
+        executed_notional: Decimal = Decimal("0"),
+        execution_allowed: bool = False,
+        local_state_mutated: bool = False,
+        exchange_state_mutated: bool = False,
+        runtime_evidence: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         decision_id = f"futures-command-{self.dependencies.uuid_factory()}"
+        runtime = dict(runtime_evidence or {})
         record = {
             "decision_id": decision_id,
             "recorded_at": self._now_iso(),
@@ -2039,20 +2441,24 @@ class AdminMvpService:
             "account_family": FUTURES_ACCOUNT_FAMILY_US_CFM,
             "intx_applicability": FUTURES_INTX_APPLICABILITY_US_ACCOUNT,
             "product_scope": list(FUTURES_CONFIGURED_PRODUCT_SCOPE),
+            "client_order_id": client_order_id,
             "admission_decision": dict(admission_decision),
             "readiness_decision": dict(readiness_decision),
             "payload_validation": dict(payload_validation or {}),
             "risk_proof_id": risk_proof_id,
             "failure_stage": failure_stage,
-            "execution_allowed": False,
-            "local_state_mutated": False,
-            "exchange_state_mutated": False,
-            "coinbase_order_submitted": False,
+            "execution_allowed": execution_allowed,
+            "local_state_mutated": local_state_mutated,
+            "exchange_state_mutated": exchange_state_mutated,
+            "coinbase_order_submitted": live_exchange_submitted,
             "coinbase_order_cancel_submitted": False,
-            "live_exchange_submitted": False,
-            "live_coinbase_orders_ran": False,
-            "submitted_notional_usdc": "0",
-            "executed_notional_usdc": "0",
+            "coinbase_order_id": coinbase_order_id,
+            "exchange_order_id": coinbase_order_id,
+            "exchange_order_id_evidence_only": True,
+            "live_exchange_submitted": live_exchange_submitted,
+            "live_coinbase_orders_ran": live_exchange_submitted,
+            "submitted_notional_usdc": _decimal_text(submitted_notional),
+            "executed_notional_usdc": _decimal_text(executed_notional),
             "spot_rule_authority": False,
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
@@ -2064,10 +2470,16 @@ class AdminMvpService:
             "audit_id": f"audit-{context.idempotency_key}",
             "message": message,
             "detail": (
-                "Backend Futures command submission was recorded as an "
-                "auditable draft-only event; execution remains disabled and "
-                "no Coinbase request was submitted."
+                "Backend Futures command submission was recorded after a live "
+                "Coinbase request."
+                if live_exchange_submitted
+                else (
+                    "Backend Futures command submission was recorded as an "
+                    "auditable draft-only event; execution remains disabled and "
+                    "no Coinbase request was submitted."
+                )
             ),
+            **runtime,
         }
         self.store.futures_command_decisions[decision_id] = record
         self._persist_record("futures_command_decisions", decision_id, record)
@@ -4530,7 +4942,11 @@ class AdminMvpService:
         identity_value = str(record.get("identity_value") or "")
         position_key = identity_value if identity_key == "position_key" else None
         product_id = identity_value if identity_key == "product_id" else None
-        client_order_id = identity_value if identity_key == "client_order_id" else None
+        client_order_id = (
+            identity_value
+            if identity_key == "client_order_id"
+            else record.get("client_order_id")
+        )
         admission_decision = dict(_mapping(record.get("admission_decision")))
         return {
             "event_id": record.get("decision_id"),
@@ -4549,19 +4965,21 @@ class AdminMvpService:
             "audit_id": record.get("audit_id"),
             "request_id": record.get("correlation_id"),
             "idempotency_key": record.get("idempotency_key"),
-            "exchange_order_id": None,
+            "exchange_order_id": record.get("exchange_order_id"),
             "exchange_order_id_evidence_only": True,
-            "live_exchange_submitted": False,
-            "live_command_runtime_enabled": False,
-            "live_command_rest_client_available": False,
-            "live_command_runtime_ready": False,
+            "live_exchange_submitted": bool(record.get("live_exchange_submitted")),
+            "live_command_runtime_enabled": record.get("live_command_runtime_enabled"),
+            "live_command_rest_client_available": record.get(
+                "live_command_rest_client_available"
+            ),
+            "live_command_runtime_ready": record.get("live_command_runtime_ready"),
             "live_command_runtime_missing_reason": record.get("failure_stage"),
             "live_command_runtime_source": record.get("source"),
             "recorded_at": record.get("recorded_at"),
             "message": record.get("message") or record.get("detail"),
             "admission_decision": admission_decision,
             "readiness_decision": dict(_mapping(record.get("readiness_decision"))),
-            "live_coinbase_orders_ran": False,
+            "live_coinbase_orders_ran": bool(record.get("live_coinbase_orders_ran")),
             "raw_event": dict(record),
         }
 
@@ -4839,6 +5257,63 @@ def _manual_order_notional(body: Mapping[str, Any]) -> Decimal:
     base_size = _decimal_value(body.get("base_size"), Decimal("0"))
     limit_price = _decimal_value(body.get("limit_price"), Decimal("0"))
     return base_size * limit_price
+
+
+def _futures_place_notional(body: Mapping[str, Any]) -> Decimal:
+    size = _decimal_value(
+        body.get("size", body.get("number_of_contracts")),
+        Decimal("0"),
+    )
+    limit_price = _decimal_value(body.get("limit_price"), Decimal("0"))
+    return size * limit_price
+
+
+def _futures_live_place_requested(command: str, body: Mapping[str, Any]) -> bool:
+    execution_mode = str(body.get("execution_mode") or "").strip().lower()
+    live_mode_requested = execution_mode == "live" or body.get("dry_run") is False
+    return (
+        command == "futures_place"
+        and live_mode_requested
+        and _futures_live_acknowledged(body)
+    )
+
+
+def _futures_live_acknowledged(body: Mapping[str, Any]) -> bool:
+    value = body.get(
+        "futures_live_acknowledgement",
+        body.get(
+            "live_execution_acknowledgement",
+            body.get("manual_live_acknowledgement"),
+        ),
+    )
+    if isinstance(value, str):
+        return value.strip().lower() in TRUTHY_ENV_VALUES
+    return bool(value)
+
+
+def _futures_client_order_id(
+    body: Mapping[str, Any],
+    context: AdminMvpRequestContext,
+) -> str:
+    return str(body.get("client_order_id") or context.idempotency_key)
+
+
+def _futures_place_order_configuration(body: Mapping[str, Any]) -> dict[str, Any]:
+    inner = {
+        "base_size": str(body.get("size") or body.get("number_of_contracts") or ""),
+        "limit_price": str(body.get("limit_price") or ""),
+        "post_only": bool(body.get("post_only", False)),
+    }
+    return {"limit_limit_gtc": {key: value for key, value in inner.items() if value != ""}}
+
+
+def _futures_create_order_kwargs(body: Mapping[str, Any]) -> dict[str, str]:
+    optional_fields = ("leverage", "margin_type", "retail_portfolio_id")
+    return {
+        field: str(body[field])
+        for field in optional_fields
+        if str(body.get(field) or "").strip()
+    }
 
 
 def _wallet_inventory_failure(

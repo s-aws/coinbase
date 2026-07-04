@@ -1851,6 +1851,171 @@ def test_admin_futures_command_suite_binds_us_cfm_live_decisions_to_disabled_exe
     assert event["live_exchange_submitted"] is False
 
 
+def test_admin_futures_place_live_execution_uses_backend_rest_adapter_when_confirmed():
+    rest_client = FakeAccountRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        )
+    )
+    record_futures_live_service_decision(service)
+    record_all_futures_live_adapter_decisions(service)
+
+    result = service.submit_futures_command(
+        "/api/v1/futures/orders",
+        {
+            "product_id": "BIP-20DEC30-CDE",
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "limit_price": "0.50",
+            "size": "1",
+            "dry_run": False,
+            "manual_live_acknowledgement": True,
+        },
+        context(idempotency_key="futures-place-live-submit"),
+    )
+
+    assert result.status_code == 200
+    assert result.body["status"] == "accepted"
+    assert result.body["failure_stage"] is None
+    assert result.body["command"] == "futures_place"
+    assert result.body["client_order_id"] == "futures-place-live-submit"
+    assert result.body["coinbase_order_id"] == "exchange-order-live-1"
+    assert result.body["submitted_notional_usdc"] == "0.50"
+    assert result.body["notional_usdc"] == "0.50"
+    assert result.body["live_exchange_submitted"] is True
+    assert result.body["live_coinbase_orders_ran"] is True
+    assert result.body["live_coinbase_execution"] == "submitted"
+    assert rest_client.create_order_calls == [
+        {
+            "client_order_id": "futures-place-live-submit",
+            "product_id": "BIP-20DEC30-CDE",
+            "side": "BUY",
+            "order_configuration": {
+                "limit_limit_gtc": {
+                    "base_size": "1",
+                    "limit_price": "0.50",
+                    "post_only": False,
+                }
+            },
+        }
+    ]
+
+    workbench = service.get_read_response(
+        "/api/v1/admin/audit-workbench",
+        {"module": "futures_perpetuals"},
+        context(),
+    )
+
+    assert workbench.status_code == 200
+    assert workbench.body["count"] == 1
+    event = workbench.body["events"][0]
+    assert event["event_id"] == result.body["submission_event_id"]
+    assert event["status"] == "accepted"
+    assert event["source"] == "admin_api_futures_command_log"
+    assert event["exchange_order_id"] == "exchange-order-live-1"
+    assert event["exchange_order_id_evidence_only"] is True
+    assert event["live_exchange_submitted"] is True
+    assert event["live_coinbase_orders_ran"] is True
+
+
+def test_admin_futures_place_live_execution_requires_explicit_acknowledgement():
+    rest_client = FakeAccountRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        )
+    )
+    record_futures_live_service_decision(service)
+    record_all_futures_live_adapter_decisions(service)
+
+    result = service.submit_futures_command(
+        "/api/v1/futures/orders",
+        {
+            "product_id": "BIP-20DEC30-CDE",
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "limit_price": "0.50",
+            "size": "1",
+            "dry_run": False,
+        },
+        context(idempotency_key="futures-place-draft-no-ack"),
+    )
+
+    assert result.status_code == 400
+    assert result.body["status"] == "rejected"
+    assert result.body["failure_stage"] == "futures_executor_live_disabled"
+    assert result.body["live_exchange_submitted"] is False
+    assert rest_client.create_order_calls == []
+
+
+def test_admin_futures_place_live_execution_rejects_above_backend_cap():
+    rest_client = FakeAccountRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        )
+    )
+    record_futures_live_service_decision(service)
+    record_all_futures_live_adapter_decisions(service)
+
+    result = service.submit_futures_command(
+        "/api/v1/futures/orders",
+        {
+            "product_id": "BIP-20DEC30-CDE",
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "limit_price": "5.00",
+            "size": "1",
+            "dry_run": False,
+            "manual_live_acknowledgement": True,
+        },
+        context(idempotency_key="futures-place-live-over-cap"),
+    )
+
+    assert result.status_code == 400
+    assert result.body["status"] == "rejected"
+    assert result.body["failure_stage"] == "futures_cap_required"
+    assert result.body["submitted_notional_usdc"] == "0"
+    assert result.body["live_exchange_submitted"] is False
+    assert rest_client.create_order_calls == []
+
+
+def test_admin_futures_place_live_execution_requires_runtime_enablement():
+    rest_client = FakeAccountRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+    record_futures_live_service_decision(service)
+    record_all_futures_live_adapter_decisions(service)
+
+    result = service.submit_futures_command(
+        "/api/v1/futures/orders",
+        {
+            "product_id": "BIP-20DEC30-CDE",
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "limit_price": "0.50",
+            "size": "1",
+            "dry_run": False,
+            "manual_live_acknowledgement": True,
+        },
+        context(idempotency_key="futures-place-live-runtime-disabled"),
+    )
+
+    assert result.status_code == 400
+    assert result.body["status"] == "rejected"
+    assert result.body["failure_stage"] == "futures_live_runtime_disabled"
+    assert result.body["live_exchange_submitted"] is False
+    assert rest_client.create_order_calls == []
+
+
 def test_admin_futures_command_routes_are_registered_as_blocked_drafts():
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
