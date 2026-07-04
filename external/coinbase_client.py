@@ -628,6 +628,36 @@ class CoinbaseRestClient:
             Exception: If API call fails
         """
         return self._client.cancel_orders(order_ids)
+
+    def close_position(
+        self,
+        client_order_id: str,
+        product_id: str,
+        size: Optional[str] = None,
+        **kwargs
+    ):
+        """Close or reduce a Futures position by product ID.
+
+        Args:
+            client_order_id: Custom order ID for idempotency
+            product_id: Futures product identifier
+            size: Optional number of contracts to close or reduce
+            **kwargs: Additional parameters passed to the SDK
+
+        Returns:
+            Raw SDK close-position response
+
+        Raises:
+            Exception: If API call fails
+        """
+        params = {
+            "client_order_id": client_order_id,
+            "product_id": product_id,
+        }
+        if size is not None:
+            params["size"] = size
+        params.update(kwargs)
+        return self._client.close_position(**params)
     
     def limit_order_gtc(
         self,

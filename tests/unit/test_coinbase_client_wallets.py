@@ -103,6 +103,7 @@ class FakeFuturesSdkClient(FakeSdkClient):
         }
         self.balance_error = balance_error
         self.margin_window_profiles: list[str] = []
+        self.close_position_calls: list[dict] = []
 
     def get_futures_balance_summary(self) -> FakeResponse:
         if self.balance_error is not None:
@@ -124,6 +125,17 @@ class FakeFuturesSdkClient(FakeSdkClient):
 
     def list_futures_sweeps(self) -> FakeResponse:
         return FakeResponse({"sweeps": []})
+
+    def close_position(self, **kwargs) -> FakeResponse:
+        self.close_position_calls.append(dict(kwargs))
+        return FakeResponse(
+            {
+                "success": True,
+                "success_response": {
+                    "order_id": "exchange-close-position-1",
+                },
+            }
+        )
 
 
 def test_get_account_wallets_normalizes_sdk_account_objects():
@@ -254,3 +266,23 @@ def test_get_futures_margin_collateral_snapshot_blocks_on_missing_cfm_balance_su
     assert snapshot["balance_summary"] == {}
     assert snapshot["errors"][0]["method"] == "get_futures_balance_summary"
     assert snapshot["errors"][0]["error"] == "RuntimeError:PERMISSION_DENIED"
+
+
+def test_close_position_passes_us_cfm_position_payload_to_sdk():
+    sdk = FakeFuturesSdkClient()
+    client = CoinbaseRestClient(sdk)
+
+    result = client.close_position(
+        client_order_id="futures-close-reduce-client-id",
+        product_id="AVP-20DEC30-CDE",
+        size="1",
+    )
+
+    assert result.to_dict()["success"] is True
+    assert sdk.close_position_calls == [
+        {
+            "client_order_id": "futures-close-reduce-client-id",
+            "product_id": "AVP-20DEC30-CDE",
+            "size": "1",
+        }
+    ]
