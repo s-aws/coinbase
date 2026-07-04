@@ -41,6 +41,15 @@ def ready_read_results() -> dict[str, SimpleNamespace]:
                 "account_readiness": readiness,
                 "collateral": {"status": "ready", "source": "backend_rest_client"},
                 "margin": {"status": "ready", "source": "backend_rest_client"},
+                "funding": {
+                    "status": "ready",
+                    "source": "backend_rest_client",
+                    "value": {
+                        "funding_applicability": "not_applicable_us_cfm",
+                        "funding_required": False,
+                        "intx_applicability": "not_applicable_us_account",
+                    },
+                },
                 "liquidation": {
                     "status": "ready",
                     "source": "backend_rest_client",
@@ -134,6 +143,9 @@ def test_account_reality_live_read_smoke_writes_redacted_ready_summary(tmp_path)
     assert summary["live_coinbase_execution"] == "not_run"
     assert summary["notional_usdc"] == "0"
     assert summary["wallet"]["futures_available_notional_present"] is True
+    assert summary["futures_account"]["funding_status"] == "ready"
+    assert summary["futures_account"]["funding_applicability"] == "not_applicable_us_cfm"
+    assert summary["futures_account"]["funding_required"] is False
     assert summary["futures_account"]["liquidation_status"] == "ready"
     assert summary["futures_account"]["liquidation_threshold_present"] is True
     assert summary["futures_account"]["liquidation_buffer_present"] is True
@@ -161,6 +173,7 @@ def test_account_reality_live_read_smoke_fails_when_futures_risk_is_blocked():
         "available_notional_usdc": "0",
     }
     read_results["futures_account"].body["collateral"]["status"] = "blocked"
+    read_results["futures_account"].body["funding"]["status"] = "unavailable"
     read_results["futures_account"].body["liquidation"]["status"] = "unavailable"
     read_results["futures_account"].body["reduce_only_close_only"]["status"] = "unavailable"
     read_results["futures_positions"].body["count"] = 0
@@ -188,6 +201,7 @@ def test_account_reality_live_read_smoke_fails_when_futures_risk_is_blocked():
     assert "wallet_futures_risk_input_ready" in failed
     assert "futures_observed_position_scope_ready" in failed
     assert "futures_positions_scope_readback" in failed
+    assert "futures_account_funding_ready" in failed
     assert "futures_account_liquidation_ready" in failed
     assert "futures_account_reduce_close_ready" in failed
     assert "futures_margin_collateral_ready" in failed

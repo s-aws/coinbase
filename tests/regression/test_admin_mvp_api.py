@@ -1185,6 +1185,11 @@ def test_spot_and_futures_reads_consume_backend_account_snapshot():
     assert futures.body["collateral"]["value"]["intx_applicability"] == "not_applicable_us_account"
     assert futures.body["margin"]["status"] == "ready"
     assert futures.body["margin"]["value"]["margin_window_type"] == "FCM_MARGIN_WINDOW_TYPE_INTRADAY"
+    assert futures.body["funding"]["status"] == "ready"
+    assert futures.body["funding"]["source"] == "backend_rest_client"
+    assert futures.body["funding"]["value"]["funding_applicability"] == "not_applicable_us_cfm"
+    assert futures.body["funding"]["value"]["funding_required"] is False
+    assert futures.body["funding"]["value"]["intx_applicability"] == "not_applicable_us_account"
     assert futures.body["liquidation"]["status"] == "ready"
     assert futures.body["liquidation"]["source"] == "backend_rest_client"
     assert futures.body["liquidation"]["value"]["liquidation_threshold_present"] is True
@@ -1254,7 +1259,8 @@ def test_admin_futures_perpetuals_read_contract_exposes_blocked_contract_evidenc
     assert account_body["collateral"]["value"]["intx_applicability"] == "not_applicable_us_account"
     assert account_body["margin"]["name"] == "margin"
     assert account_body["margin"]["status"] == "blocked"
-    assert account_body["funding"]["status"] == "not_modeled"
+    assert account_body["funding"]["status"] == "unavailable"
+    assert account_body["funding"]["value"]["funding_required"] is None
     assert account_body["liquidation"]["source"] == "runtime_unavailable"
     assert account_body["reduce_only_close_only"]["status"] == "unavailable"
     assert account_body["position_pnl"]["status"] == "unavailable"
@@ -1390,6 +1396,7 @@ def test_admin_futures_command_suite_resolves_account_and_risk_proof_evidence():
     assert proof["product_id"] == "BIP-20DEC30-CDE"
     assert proof["risk_proof_verified"] is True
     assert proof["risk_proof_accepted"] is False
+    assert proof["funding_validated"] is True
     assert proof["command_execution_allowed"] is False
     assert proof["live_coinbase_orders_ran"] is False
 

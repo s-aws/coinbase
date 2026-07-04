@@ -145,6 +145,8 @@ def account_reality_checks(
     risk_proofs = bodies["futures_risk_proofs"]
     command_suite = bodies["futures_command_suite"]
     readiness = object_record(wallet.get("readiness"))
+    funding = object_record(futures_account.get("funding"))
+    funding_value = object_record(funding.get("value"))
     liquidation = object_record(futures_account.get("liquidation"))
     liquidation_value = object_record(liquidation.get("value"))
     reduce_close = object_record(futures_account.get("reduce_only_close_only"))
@@ -195,6 +197,13 @@ def account_reality_checks(
         check(
             "futures_account_margin_ready",
             object_record(futures_account.get("margin")).get("status") == "ready",
+        ),
+        check(
+            "futures_account_funding_ready",
+            funding.get("status") == "ready"
+            and funding_value.get("funding_applicability") == "not_applicable_us_cfm"
+            and funding_value.get("funding_required") is False
+            and funding_value.get("intx_applicability") == "not_applicable_us_account",
         ),
         check(
             "futures_account_liquidation_ready",
@@ -258,6 +267,8 @@ def redact_futures_account_evidence(body: Mapping[str, Any]) -> dict[str, Any]:
 
     collateral = object_record(body.get("collateral"))
     margin = object_record(body.get("margin"))
+    funding = object_record(body.get("funding"))
+    funding_value = object_record(funding.get("value"))
     liquidation = object_record(body.get("liquidation"))
     liquidation_value = object_record(liquidation.get("value"))
     reduce_close = object_record(body.get("reduce_only_close_only"))
@@ -268,6 +279,11 @@ def redact_futures_account_evidence(body: Mapping[str, Any]) -> dict[str, Any]:
         "collateral_source": collateral.get("source"),
         "margin_status": margin.get("status"),
         "margin_source": margin.get("source"),
+        "funding_status": funding.get("status"),
+        "funding_source": funding.get("source"),
+        "funding_applicability": funding_value.get("funding_applicability"),
+        "funding_required": funding_value.get("funding_required"),
+        "intx_applicability": funding_value.get("intx_applicability"),
         "liquidation_status": liquidation.get("status"),
         "liquidation_source": liquidation.get("source"),
         "liquidation_threshold_present": liquidation_value.get(

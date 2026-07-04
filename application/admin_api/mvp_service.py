@@ -4196,6 +4196,10 @@ class AdminMvpService:
         liquidation = self._futures_liquidation_evidence(
             snapshot["futures_margin_collateral"]["margin"]
         )
+        funding = self._futures_funding_evidence(
+            snapshot["futures_margin_collateral"],
+            snapshot["futures_positions"],
+        )
         reduce_close = self._futures_reduce_close_evidence(snapshot["futures_positions"])
         return {
             "type": "admin_futures_account",
@@ -4205,12 +4209,7 @@ class AdminMvpService:
             "account_readiness": snapshot["readiness"],
             "collateral": snapshot["futures_margin_collateral"]["collateral"],
             "margin": snapshot["futures_margin_collateral"]["margin"],
-            "funding": self._futures_evidence(
-                "funding",
-                "not_modeled",
-                "backend_contract",
-                "Funding status is named evidence but is not yet connected to a futures backend reader.",
-            ),
+            "funding": funding,
             "liquidation": liquidation,
             "reduce_only_close_only": reduce_close,
             "position_pnl": self._futures_evidence(
@@ -4252,6 +4251,64 @@ class AdminMvpService:
             "unavailable",
             "runtime_unavailable",
             "Liquidation threshold and buffer require a ready backend CFM margin snapshot.",
+        )
+
+    def _futures_funding_evidence(
+        self,
+        margin_collateral: Mapping[str, Any],
+        positions: Sequence[Mapping[str, Any]],
+    ) -> dict[str, Any]:
+        collateral = _object_to_dict(margin_collateral.get("collateral"))
+        margin = _object_to_dict(margin_collateral.get("margin"))
+        collateral_value = _object_to_dict(collateral.get("value"))
+        margin_value = _object_to_dict(margin.get("value"))
+        account_family = str(
+            collateral_value.get("account_family")
+            or margin_value.get("account_family")
+            or ""
+        )
+        intx_applicability = str(
+            collateral_value.get("intx_applicability")
+            or margin_value.get("intx_applicability")
+            or ""
+        )
+        product_scope = [
+            item["product_id"] for item in positions if item.get("product_id")
+        ] or list(FUTURES_CONFIGURED_PRODUCT_SCOPE)
+        funding_value = {
+            "funding_applicability": "not_applicable_us_cfm",
+            "funding_required": False,
+            "account_family": account_family or FUTURES_ACCOUNT_FAMILY_US_CFM,
+            "intx_applicability": (
+                intx_applicability or FUTURES_INTX_APPLICABILITY_US_ACCOUNT
+            ),
+            "product_scope": product_scope,
+            "source_ref": "/api/v1/futures/account.margin",
+        }
+        if (
+            margin_collateral.get("status") == "ready"
+            and collateral.get("status") == "ready"
+            and margin.get("status") == "ready"
+            and account_family == FUTURES_ACCOUNT_FAMILY_US_CFM
+            and intx_applicability == FUTURES_INTX_APPLICABILITY_US_ACCOUNT
+        ):
+            return self._futures_evidence(
+                "funding",
+                "ready",
+                BACKEND_REST_CLIENT_SOURCE,
+                "US CFM futures scope has no INTX perpetual funding requirement; funding applicability is backend-owned evidence.",
+                funding_value,
+            )
+        return self._futures_evidence(
+            "funding",
+            "unavailable",
+            "runtime_unavailable",
+            "Funding applicability requires a ready US CFM margin/collateral snapshot.",
+            {
+                **funding_value,
+                "funding_applicability": "unknown",
+                "funding_required": None,
+            },
         )
 
     def _futures_reduce_close_evidence(
@@ -4475,7 +4532,7 @@ class AdminMvpService:
             "margin_validated": verified,
             "collateral_validated": verified,
             "liquidation_validated": verified,
-            "funding_validated": False,
+            "funding_validated": verified,
             "reduce_only_validated": command == "futures_close_reduce",
             "close_only_validated": command == "futures_close_reduce",
             "reconciliation_executed": False,
