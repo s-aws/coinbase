@@ -2025,6 +2025,34 @@ def test_admin_futures_place_live_execution_rejects_above_backend_cap():
     assert result.body["live_exchange_submitted"] is False
     assert rest_client.create_order_calls == []
 
+    command_suite = service.get_read_response(
+        "/api/v1/futures/command-suite",
+        {},
+        context(idempotency_key="futures-place-live-over-cap-suite"),
+    )
+
+    assert command_suite.status_code == 200
+    failure = command_suite.body["latest_live_submit_failure"]
+    assert command_suite.body["latest_live_submit_failure_present"] is True
+    assert failure["failure_stage"] == "futures_cap_required"
+    assert failure["product_id"] == "BIP-20DEC30-CDE"
+    assert failure["client_order_id"] == "futures-place-live-over-cap"
+    assert failure["attempted_notional_usdc"] == "5.00"
+    assert failure["submitted_notional_usdc"] == "0.00"
+    assert failure["max_submitted_notional_usdc"] == "3.10"
+    assert failure["live_exchange_submitted"] is False
+    assert failure["next_required_operator_decision"] == (
+        "choose_lower_notional_us_cfm_product_or_raise_futures_cap"
+    )
+    live_evidence = command_suite.body["futures_live_decision_evidence"]
+    assert live_evidence["latest_live_submit_failure_present"] is True
+    assert live_evidence["latest_live_submit_failure"]["failure_stage"] == (
+        "futures_cap_required"
+    )
+    assert command_suite.body["command_enablement_blocker_summaries"][0][
+        "latest_live_submit_failure"
+    ]["attempted_notional_usdc"] == "5.00"
+
 
 def test_admin_futures_place_live_execution_requires_runtime_enablement():
     rest_client = FakeAccountRestClient()

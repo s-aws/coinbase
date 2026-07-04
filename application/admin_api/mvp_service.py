@@ -3134,6 +3134,56 @@ class AdminMvpService:
             "live_coinbase_orders_ran": False,
         }
 
+    def _latest_futures_live_submit_failure(self) -> dict[str, Any] | None:
+        """Return the latest rejected Futures live-submit attempt evidence."""
+
+        for record in reversed(list(self.store.futures_command_decisions.values())):
+            if str(record.get("command") or "") != "futures_place":
+                continue
+            if str(record.get("mutation_family") or "") != "futures_live_place":
+                continue
+            failure_stage = str(record.get("failure_stage") or "")
+            if not failure_stage:
+                continue
+            admission_decision = _mapping(record.get("admission_decision"))
+            readiness_decision = _mapping(record.get("readiness_decision"))
+            attempted_notional = _decimal_value(
+                admission_decision.get("submitted_notional_usdc"),
+                Decimal("0"),
+            )
+            cap = self._futures_live_max_submitted_notional(readiness_decision)
+            return {
+                "status": AdminMvpGateStatus.BLOCKED.value,
+                "command": "futures_place",
+                "failure_stage": failure_stage,
+                "message": str(record.get("message") or ""),
+                "detail": (
+                    "Latest Futures/Perpetual live submit was rejected before "
+                    "Coinbase order mutation by backend Admin cap evidence."
+                ),
+                "product_id": str(record.get("identity_value") or ""),
+                "client_order_id": str(record.get("client_order_id") or ""),
+                "attempted_notional_usdc": _decimal_text(attempted_notional),
+                "submitted_notional_usdc": _decimal_text(
+                    _decimal_value(record.get("submitted_notional_usdc"), Decimal("0"))
+                ),
+                "max_submitted_notional_usdc": _decimal_text(cap),
+                "live_exchange_submitted": False,
+                "live_coinbase_orders_ran": False,
+                "execution_allowed": False,
+                "backend_owned": True,
+                "read_only": True,
+                "spot_rule_authority": False,
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                "next_required_operator_decision": (
+                    "choose_lower_notional_us_cfm_product_or_raise_futures_cap"
+                    if failure_stage == "futures_cap_required"
+                    else "review_backend_futures_live_submit_failure"
+                ),
+            }
+        return None
+
     def _now_iso(self) -> str:
         return self.dependencies.now_factory().astimezone(timezone.utc).isoformat()
 
@@ -4612,6 +4662,11 @@ class AdminMvpService:
                 )
             )
         live_decision_summary = _futures_live_decision_summary(commands)
+        latest_live_submit_failure = self._latest_futures_live_submit_failure()
+        live_decision_summary["latest_live_submit_failure"] = latest_live_submit_failure
+        live_decision_summary["latest_live_submit_failure_present"] = (
+            latest_live_submit_failure is not None
+        )
         blockers = self._futures_command_blockers(
             [command["command"] for command in commands],
             missing_contracts,
@@ -4674,6 +4729,8 @@ class AdminMvpService:
             "commands": commands,
             "futures_live_execution_scope": _futures_live_execution_scope(),
             "futures_live_decision_evidence": live_decision_summary,
+            "latest_live_submit_failure": latest_live_submit_failure,
+            "latest_live_submit_failure_present": latest_live_submit_failure is not None,
             "account_evidence_routes": ["/api/v1/futures/account"],
             "position_evidence_routes": [
                 "/api/v1/futures/positions",
@@ -4917,8 +4974,11 @@ class AdminMvpService:
                 "detail": "Futures commands remain blocked until futures-specific prerequisites are implemented and proven.",
             })
         execution_blocker = str(live_decision_summary["first_blocker"])
+        latest_live_submit_failure = live_decision_summary.get("latest_live_submit_failure")
         blocker_detail = (
-            "Futures US CFM live-service and live-adapter decisions are bound; the backend Futures executor boundary is present and live-disabled."
+            "Latest Futures/Perpetual live submit was rejected before Coinbase order mutation by backend cap evidence."
+            if latest_live_submit_failure
+            else "Futures US CFM live-service and live-adapter decisions are bound; the backend Futures executor boundary is present and live-disabled."
             if execution_blocker == "futures_executor_live_disabled"
             else "Futures command evidence is available, but live futures execution is intentionally disabled."
         )
@@ -4945,6 +5005,8 @@ class AdminMvpService:
             "bff_authority": "forward_only_no_execution",
             "futures_live_execution_scope": _futures_live_execution_scope(),
             "futures_live_decision_evidence": dict(live_decision_summary),
+            "latest_live_submit_failure": latest_live_submit_failure,
+            "latest_live_submit_failure_present": latest_live_submit_failure is not None,
             "detail": blocker_detail,
         })
         return blockers
