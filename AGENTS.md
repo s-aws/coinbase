@@ -32,6 +32,9 @@ This project runs on **Windows 11 + VS Code**. Linux/bash commands may not work 
   `origin/prod` using non-destructive reads such as `git show origin/prod:<path>`
   or a temporary worktree, then translate only MVP-aligned behavior into the
   backend Admin API/BFF path with focused tests.
+- When available, also read
+  `C:\coinbase-frontend\docs\ORIGIN_PROD_FEATURE_MVP_MAP.md` before translating
+  legacy behavior into Admin MVP work.
 
 ## P0 - Honest Feedback, Not Engagement Optimization
 
