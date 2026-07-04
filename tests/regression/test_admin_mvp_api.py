@@ -2032,6 +2032,36 @@ def test_admin_futures_command_suite_resolves_account_and_risk_proof_evidence():
     assert suite["blocking_request_payload_validation_record_funding_semantic_count"] == 0
     assert suite["ready_request_payload_validation_record_funding_semantic_count"] == 4
     assert suite["runtime_observed_request_payload_validation_record_funding_semantic_count"] == 4
+    for semantic in ("margin", "collateral", "liquidation"):
+        assert suite[f"request_payload_validation_record_{semantic}_semantic_count"] == 4
+        assert (
+            suite[
+                f"blocking_request_payload_validation_record_{semantic}_semantic_count"
+            ]
+            == 0
+        )
+        assert suite[f"ready_request_payload_validation_record_{semantic}_semantic_count"] == 4
+        assert (
+            suite[
+                f"runtime_observed_request_payload_validation_record_{semantic}_semantic_count"
+            ]
+            == 4
+        )
+    for semantic in ("reduce_only", "close_only"):
+        assert suite[f"request_payload_validation_record_{semantic}_semantic_count"] == 1
+        assert (
+            suite[
+                f"blocking_request_payload_validation_record_{semantic}_semantic_count"
+            ]
+            == 0
+        )
+        assert suite[f"ready_request_payload_validation_record_{semantic}_semantic_count"] == 1
+        assert (
+            suite[
+                f"runtime_observed_request_payload_validation_record_{semantic}_semantic_count"
+            ]
+            == 1
+        )
     commands = {command["command"]: command for command in suite["commands"]}
     assert commands["futures_place"]["missing_backend_contracts"] == []
     assert commands["futures_place"]["readiness_decision"]["first_blocker"] == "execution_disabled"
@@ -2064,6 +2094,93 @@ def test_admin_futures_command_suite_resolves_account_and_risk_proof_evidence():
         "/api/v1/admin/fees",
         "/api/v1/futures/risk-proofs",
     ]
+    [margin_semantic] = commands["futures_place"][
+        "request_payload_validation_record_margin_semantics"
+    ]
+    assert margin_semantic["field"] == "product_id"
+    assert margin_semantic["status"] == "passed"
+    assert margin_semantic["blocking"] is False
+    assert margin_semantic["margin_semantics_contract_available"] is True
+    assert margin_semantic["margin_semantics_contract_ready"] is True
+    assert margin_semantic["margin_account_bound"] is True
+    assert margin_semantic["margin_requirement_bound"] is True
+    assert margin_semantic["margin_mode_bound"] is True
+    assert margin_semantic["margin_buffer_bound"] is True
+    assert margin_semantic["runtime_margin_evidence_observed"] is True
+    assert margin_semantic["runtime_evidence_satisfies_margin_semantics"] is True
+    assert margin_semantic["validation_record_margin_semantics_ready"] is True
+
+    [collateral_semantic] = commands["futures_place"][
+        "request_payload_validation_record_collateral_semantics"
+    ]
+    assert collateral_semantic["field"] == "product_id"
+    assert collateral_semantic["status"] == "passed"
+    assert collateral_semantic["blocking"] is False
+    assert collateral_semantic["collateral_semantics_contract_available"] is True
+    assert collateral_semantic["collateral_semantics_contract_ready"] is True
+    assert collateral_semantic["collateral_balance_bound"] is True
+    assert collateral_semantic["collateral_currency_bound"] is True
+    assert collateral_semantic["collateral_requirement_bound"] is True
+    assert collateral_semantic["collateral_source_bound"] is True
+    assert collateral_semantic["runtime_collateral_evidence_observed"] is True
+    assert (
+        collateral_semantic["runtime_evidence_satisfies_collateral_semantics"]
+        is True
+    )
+    assert collateral_semantic["validation_record_collateral_semantics_ready"] is True
+
+    [liquidation_semantic] = commands["futures_place"][
+        "request_payload_validation_record_liquidation_semantics"
+    ]
+    assert liquidation_semantic["field"] == "product_id"
+    assert liquidation_semantic["status"] == "passed"
+    assert liquidation_semantic["blocking"] is False
+    assert liquidation_semantic["liquidation_semantics_contract_available"] is True
+    assert liquidation_semantic["liquidation_semantics_contract_ready"] is True
+    assert liquidation_semantic["liquidation_buffer_bound"] is True
+    assert liquidation_semantic["liquidation_price_bound"] is True
+    assert liquidation_semantic["liquidation_distance_bound"] is True
+    assert liquidation_semantic["liquidation_threshold_bound"] is True
+    assert liquidation_semantic["runtime_liquidation_evidence_observed"] is True
+    assert (
+        liquidation_semantic["runtime_evidence_satisfies_liquidation_semantics"]
+        is True
+    )
+    assert liquidation_semantic["validation_record_liquidation_semantics_ready"] is True
+
+    [reduce_only_semantic] = commands["futures_close_reduce"][
+        "request_payload_validation_record_reduce_only_semantics"
+    ]
+    assert reduce_only_semantic["field"] == "position_key"
+    assert reduce_only_semantic["status"] == "passed"
+    assert reduce_only_semantic["blocking"] is False
+    assert reduce_only_semantic["reduce_only_semantics_contract_available"] is True
+    assert reduce_only_semantic["reduce_only_semantics_contract_ready"] is True
+    assert reduce_only_semantic["reduce_only_flag_bound"] is True
+    assert reduce_only_semantic["reduce_only_position_side_bound"] is True
+    assert reduce_only_semantic["reduce_only_position_size_bound"] is True
+    assert reduce_only_semantic["reduce_only_order_side_bound"] is True
+    assert reduce_only_semantic["runtime_reduce_only_evidence_observed"] is True
+    assert reduce_only_semantic["runtime_evidence_satisfies_reduce_only_semantics"] is True
+    assert reduce_only_semantic["validation_record_reduce_only_semantics_ready"] is True
+
+    [close_only_semantic] = commands["futures_close_reduce"][
+        "request_payload_validation_record_close_only_semantics"
+    ]
+    assert close_only_semantic["field"] == "position_key"
+    assert close_only_semantic["status"] == "passed"
+    assert close_only_semantic["blocking"] is False
+    assert close_only_semantic["close_only_semantics_contract_available"] is True
+    assert close_only_semantic["close_only_semantics_contract_ready"] is True
+    assert close_only_semantic["close_only_flag_bound"] is True
+    assert close_only_semantic["close_only_position_side_bound"] is True
+    assert close_only_semantic["close_only_position_size_bound"] is True
+    assert close_only_semantic["close_only_order_side_bound"] is True
+    assert close_only_semantic["runtime_close_only_evidence_observed"] is True
+    assert close_only_semantic["runtime_evidence_satisfies_close_only_semantics"] is True
+    assert close_only_semantic["validation_record_close_only_semantics_ready"] is True
+    assert commands["futures_cancel"]["request_payload_validation_record_reduce_only_semantics"] == []
+    assert commands["futures_cancel"]["request_payload_validation_record_close_only_semantics"] == []
     assert commands["futures_place"]["execution_allowed"] is False
     assert suite["live_coinbase_orders_ran"] is False
 

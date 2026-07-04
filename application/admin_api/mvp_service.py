@@ -176,6 +176,8 @@ FUTURES_COMMAND_ENABLEMENT_SEQUENCE_STEPS = (
     "register_admin_command_route",
     "bind_live_service_adapter",
 )
+FUTURES_ACCOUNT_SEMANTIC_ARTIFACTS = ("margin", "collateral", "liquidation")
+FUTURES_POSITION_SEMANTIC_ARTIFACTS = ("reduce_only", "close_only")
 FUTURES_LIVE_EXCHANGE_COMMANDS = (
     "futures_place",
     "futures_close_reduce",
@@ -6197,6 +6199,11 @@ class AdminMvpService:
                 "Observed Futures position side is present for backend close/reduce semantics.",
                 {
                     "position_side_observed_count": len(observed),
+                    "position_size_observed_count": sum(
+                        1
+                        for item in observed
+                        if str(item.get("number_of_contracts") or "").strip()
+                    ),
                     "product_scope": [
                         item["product_id"] for item in observed if item.get("product_id")
                     ],
@@ -6500,9 +6507,15 @@ class AdminMvpService:
     def _futures_command_suite(self) -> dict[str, Any]:
         snapshot = self._account_snapshot()
         fee_snapshot = self._read_admin_fee_snapshot()["snapshot"]
+        futures_liquidation_evidence = self._futures_liquidation_evidence(
+            snapshot["futures_margin_collateral"]["margin"]
+        )
         futures_funding_evidence = self._futures_funding_evidence(
             snapshot["futures_margin_collateral"],
             snapshot["futures_positions"],
+        )
+        futures_reduce_close_evidence = self._futures_reduce_close_evidence(
+            snapshot["futures_positions"]
         )
         proofs = self._futures_risk_proof_records(snapshot)
         proof_by_command = {str(proof["command"]): proof for proof in proofs}
@@ -6538,10 +6551,20 @@ class AdminMvpService:
                     risk_proof=proof_by_command.get(str(spec["command"])),
                     account_ready=bool(snapshot["readiness"]["futures_account_scope_ready"]),
                     live_decision_evidence=live_decision_evidence,
+                    futures_margin_collateral=snapshot["futures_margin_collateral"],
+                    futures_liquidation_evidence=futures_liquidation_evidence,
+                    futures_reduce_close_evidence=futures_reduce_close_evidence,
                     futures_funding_evidence=futures_funding_evidence,
                     futures_fee_input=fee_snapshot["futures_fee_input"],
                 )
             )
+        semantic_rows = {
+            semantic: _futures_semantic_rows_from_commands(commands, semantic)
+            for semantic in (
+                *FUTURES_ACCOUNT_SEMANTIC_ARTIFACTS,
+                *FUTURES_POSITION_SEMANTIC_ARTIFACTS,
+            )
+        }
         funding_semantic_rows = _futures_funding_semantic_rows_from_commands(commands)
         live_decision_summary = _futures_live_decision_summary(
             commands,
@@ -6617,6 +6640,16 @@ class AdminMvpService:
             "request_field_summary_count": len(request_field_summaries),
             "request_field_summary_blocking_count": 0,
             "request_field_summaries": request_field_summaries,
+            **_futures_semantic_counts("margin", semantic_rows["margin"]),
+            "request_payload_validation_record_margin_semantics": semantic_rows["margin"],
+            **_futures_semantic_counts("collateral", semantic_rows["collateral"]),
+            "request_payload_validation_record_collateral_semantics": semantic_rows["collateral"],
+            **_futures_semantic_counts("liquidation", semantic_rows["liquidation"]),
+            "request_payload_validation_record_liquidation_semantics": semantic_rows["liquidation"],
+            **_futures_semantic_counts("reduce_only", semantic_rows["reduce_only"]),
+            "request_payload_validation_record_reduce_only_semantics": semantic_rows["reduce_only"],
+            **_futures_semantic_counts("close_only", semantic_rows["close_only"]),
+            "request_payload_validation_record_close_only_semantics": semantic_rows["close_only"],
             **_futures_funding_semantic_counts(funding_semantic_rows),
             "request_payload_validation_record_funding_semantics": funding_semantic_rows,
             "command_enablement_blocker_summary_count": len(blockers),
@@ -6688,11 +6721,22 @@ class AdminMvpService:
         risk_proof: Mapping[str, Any] | None,
         account_ready: bool,
         live_decision_evidence: Mapping[str, Any],
+        futures_margin_collateral: Mapping[str, Any],
+        futures_liquidation_evidence: Mapping[str, Any],
+        futures_reduce_close_evidence: Mapping[str, Any],
         futures_funding_evidence: Mapping[str, Any],
         futures_fee_input: Mapping[str, Any],
     ) -> dict[str, Any]:
         blocking_prerequisite_count = 0 if not missing_contracts else 2
         request_fields = _futures_request_fields_for_command(command)
+        semantic_rows = _futures_request_payload_validation_record_semantics(
+            command,
+            identity_key,
+            request_fields,
+            futures_margin_collateral,
+            futures_liquidation_evidence,
+            futures_reduce_close_evidence,
+        )
         funding_semantics = _futures_request_payload_validation_record_funding_semantics(
             command,
             identity_key,
@@ -6749,6 +6793,16 @@ class AdminMvpService:
             "required_request_field_count": len(request_fields),
             "blocking_request_field_count": 0,
             "request_fields": request_fields,
+            **_futures_semantic_counts("margin", semantic_rows["margin"]),
+            "request_payload_validation_record_margin_semantics": semantic_rows["margin"],
+            **_futures_semantic_counts("collateral", semantic_rows["collateral"]),
+            "request_payload_validation_record_collateral_semantics": semantic_rows["collateral"],
+            **_futures_semantic_counts("liquidation", semantic_rows["liquidation"]),
+            "request_payload_validation_record_liquidation_semantics": semantic_rows["liquidation"],
+            **_futures_semantic_counts("reduce_only", semantic_rows["reduce_only"]),
+            "request_payload_validation_record_reduce_only_semantics": semantic_rows["reduce_only"],
+            **_futures_semantic_counts("close_only", semantic_rows["close_only"]),
+            "request_payload_validation_record_close_only_semantics": semantic_rows["close_only"],
             **_futures_funding_semantic_counts(funding_semantics),
             "request_payload_validation_record_funding_semantics": funding_semantics,
             "semantic_guard_count": 0,
@@ -8894,6 +8948,424 @@ def _futures_request_fields_for_command(command: str) -> list[dict[str, Any]]:
         _futures_request_field_item(command, field_spec)
         for field_spec in FUTURES_COMMAND_REQUEST_FIELDS.get(command, ())
     ]
+
+
+def _futures_request_payload_validation_record_semantics(
+    command: str,
+    identity_key: str,
+    request_fields: Sequence[Mapping[str, Any]],
+    margin_collateral: Mapping[str, Any],
+    liquidation_evidence: Mapping[str, Any],
+    reduce_close_evidence: Mapping[str, Any],
+) -> dict[str, list[dict[str, Any]]]:
+    rows = {
+        semantic: []
+        for semantic in (
+            *FUTURES_ACCOUNT_SEMANTIC_ARTIFACTS,
+            *FUTURES_POSITION_SEMANTIC_ARTIFACTS,
+        )
+    }
+    field = _futures_funding_semantic_field(identity_key, request_fields)
+    if field is None:
+        return rows
+    account_readiness = {
+        "margin": _futures_margin_semantic_readiness(margin_collateral),
+        "collateral": _futures_collateral_semantic_readiness(margin_collateral),
+        "liquidation": _futures_liquidation_semantic_readiness(liquidation_evidence),
+    }
+    for semantic, readiness in account_readiness.items():
+        rows[semantic].append(
+            _futures_request_payload_validation_record_semantic(
+                command,
+                field,
+                semantic,
+                readiness,
+            )
+        )
+    if command == "futures_close_reduce":
+        for semantic in FUTURES_POSITION_SEMANTIC_ARTIFACTS:
+            rows[semantic].append(
+                _futures_request_payload_validation_record_semantic(
+                    command,
+                    field,
+                    semantic,
+                    _futures_reduce_close_semantic_readiness(
+                        reduce_close_evidence,
+                        semantic,
+                    ),
+                )
+            )
+    return rows
+
+
+def _futures_margin_semantic_readiness(
+    margin_collateral: Mapping[str, Any],
+) -> dict[str, Any]:
+    margin = _object_to_dict(margin_collateral.get("margin"))
+    value = _object_to_dict(margin.get("value"))
+    flags = {
+        "margin_account_bound": _futures_us_cfm_account_bound(value),
+        "margin_requirement_bound": (
+            _futures_money_value_present(value, "initial_margin")
+            and _futures_money_value_present(value, "maintenance_margin")
+        ),
+        "margin_mode_bound": bool(
+            str(value.get("margin_window_type") or "").strip()
+            or str(value.get("intraday_margin_setting") or "").strip()
+            or value.get("current_margin_windows")
+        ),
+        "margin_buffer_bound": _futures_money_value_present(
+            value,
+            "liquidation_buffer",
+        ),
+    }
+    return _futures_semantic_readiness(
+        semantic="margin",
+        runtime_observed=str(margin.get("status") or "") == "ready",
+        flags=flags,
+        missing_reason="backend_owned_margin_evidence_missing",
+        detail_ready=(
+            "backend-owned US CFM margin account, requirement, mode, and buffer "
+            "evidence are bound"
+        ),
+        detail_blocked=(
+            "backend-owned US CFM margin evidence must include account, "
+            "requirement, mode, and buffer fields"
+        ),
+        required_evidence_refs=[
+            "/api/v1/futures/account.margin",
+            "/api/v1/futures/risk-proofs",
+        ],
+        evidence_routes=[
+            "/api/v1/futures/account",
+            "/api/v1/futures/risk-proofs",
+        ],
+    )
+
+
+def _futures_collateral_semantic_readiness(
+    margin_collateral: Mapping[str, Any],
+) -> dict[str, Any]:
+    collateral = _object_to_dict(margin_collateral.get("collateral"))
+    value = _object_to_dict(collateral.get("value"))
+    flags = {
+        "collateral_balance_bound": (
+            _futures_money_value_present(value, "cfm_usd_balance")
+            or _futures_money_value_present(value, "total_usd_balance")
+        ),
+        "collateral_currency_bound": _futures_money_currency_present(
+            value,
+            ("cfm_usd_balance", "total_usd_balance", "available_margin"),
+        ),
+        "collateral_requirement_bound": (
+            _futures_money_value_present(value, "available_margin")
+            or _futures_money_value_present(value, "futures_buying_power")
+        ),
+        "collateral_source_bound": bool(
+            str(value.get("collateral_source") or "").strip()
+        ),
+    }
+    return _futures_semantic_readiness(
+        semantic="collateral",
+        runtime_observed=str(collateral.get("status") or "") == "ready",
+        flags=flags,
+        missing_reason="backend_owned_collateral_evidence_missing",
+        detail_ready=(
+            "backend-owned US CFM collateral balance, currency, requirement, "
+            "and source evidence are bound"
+        ),
+        detail_blocked=(
+            "backend-owned US CFM collateral evidence must include balance, "
+            "currency, requirement, and source fields"
+        ),
+        required_evidence_refs=[
+            "/api/v1/futures/account.collateral",
+            "/api/v1/futures/risk-proofs",
+        ],
+        evidence_routes=[
+            "/api/v1/futures/account",
+            "/api/v1/futures/risk-proofs",
+        ],
+    )
+
+
+def _futures_liquidation_semantic_readiness(
+    liquidation_evidence: Mapping[str, Any],
+) -> dict[str, Any]:
+    value = _object_to_dict(liquidation_evidence.get("value"))
+    threshold_bound = bool(value.get("liquidation_threshold_present"))
+    buffer_bound = bool(value.get("liquidation_buffer_present"))
+    flags = {
+        "liquidation_buffer_bound": buffer_bound,
+        "liquidation_price_bound": threshold_bound,
+        "liquidation_distance_bound": buffer_bound,
+        "liquidation_threshold_bound": threshold_bound,
+    }
+    return _futures_semantic_readiness(
+        semantic="liquidation",
+        runtime_observed=str(liquidation_evidence.get("status") or "") == "ready",
+        flags=flags,
+        missing_reason="backend_owned_liquidation_evidence_missing",
+        detail_ready=(
+            "backend-owned US CFM liquidation threshold and buffer evidence are "
+            "bound"
+        ),
+        detail_blocked=(
+            "backend-owned US CFM liquidation evidence must include threshold "
+            "and buffer fields"
+        ),
+        required_evidence_refs=[
+            "/api/v1/futures/account.liquidation",
+            "/api/v1/futures/risk-proofs",
+        ],
+        evidence_routes=[
+            "/api/v1/futures/account",
+            "/api/v1/futures/risk-proofs",
+        ],
+    )
+
+
+def _futures_reduce_close_semantic_readiness(
+    reduce_close_evidence: Mapping[str, Any],
+    semantic: str,
+) -> dict[str, Any]:
+    value = _object_to_dict(reduce_close_evidence.get("value"))
+    position_side_bound = _int_value(value.get("position_side_observed_count")) > 0
+    position_size_bound = _int_value(value.get("position_size_observed_count")) > 0
+    side_derivation_bound = bool(value.get("backend_derives_close_reduce_side"))
+    flags = {
+        f"{semantic}_flag_bound": side_derivation_bound,
+        f"{semantic}_position_side_bound": position_side_bound,
+        f"{semantic}_position_size_bound": position_size_bound,
+        f"{semantic}_order_side_bound": side_derivation_bound,
+    }
+    return _futures_semantic_readiness(
+        semantic=semantic,
+        runtime_observed=str(reduce_close_evidence.get("status") or "") == "ready",
+        flags=flags,
+        missing_reason=f"backend_owned_{semantic}_evidence_missing",
+        detail_ready=(
+            "backend-owned Futures position side and size evidence are bound for "
+            f"{semantic.replace('_', '-')} command semantics"
+        ),
+        detail_blocked=(
+            "backend-owned Futures close/reduce evidence must include observed "
+            f"position side, size, and derived order side for {semantic.replace('_', '-')}"
+        ),
+        required_evidence_refs=[
+            "/api/v1/futures/account.reduce_only_close_only",
+            "/api/v1/futures/positions",
+            "/api/v1/futures/risk-proofs",
+        ],
+        evidence_routes=[
+            "/api/v1/futures/account",
+            "/api/v1/futures/positions",
+            "/api/v1/futures/risk-proofs",
+        ],
+    )
+
+
+def _futures_semantic_readiness(
+    *,
+    semantic: str,
+    runtime_observed: bool,
+    flags: Mapping[str, bool],
+    missing_reason: str,
+    detail_ready: str,
+    detail_blocked: str,
+    required_evidence_refs: Sequence[str],
+    evidence_routes: Sequence[str],
+) -> dict[str, Any]:
+    ready = runtime_observed and all(bool(value) for value in flags.values())
+    return {
+        "ready": ready,
+        "runtime_observed": runtime_observed,
+        "flags": dict(flags),
+        "missing_reason": "none" if ready else missing_reason,
+        "detail": detail_ready if ready else detail_blocked,
+        "required_evidence_refs": list(required_evidence_refs),
+        "evidence_routes": list(evidence_routes),
+        "runtime_key": f"runtime_{semantic}_evidence_observed",
+        "runtime_satisfies_key": f"runtime_evidence_satisfies_{semantic}_semantics",
+        "validation_ready_key": f"validation_record_{semantic}_semantics_ready",
+    }
+
+
+def _futures_us_cfm_account_bound(value: Mapping[str, Any]) -> bool:
+    return (
+        str(value.get("account_family") or "") == FUTURES_ACCOUNT_FAMILY_US_CFM
+        and str(value.get("intx_applicability") or "")
+        == FUTURES_INTX_APPLICABILITY_US_ACCOUNT
+    )
+
+
+def _futures_money_value_present(
+    value: Mapping[str, Any],
+    key: str,
+) -> bool:
+    item = _object_to_dict(value.get(key))
+    return bool(str(item.get("value") or "").strip())
+
+
+def _futures_money_currency_present(
+    value: Mapping[str, Any],
+    keys: Sequence[str],
+) -> bool:
+    return any(
+        bool(str(_object_to_dict(value.get(key)).get("currency") or "").strip())
+        for key in keys
+    )
+
+
+def _int_value(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _futures_request_payload_validation_record_semantic(
+    command: str,
+    field: str,
+    semantic: str,
+    readiness: Mapping[str, Any],
+) -> dict[str, Any]:
+    ready = bool(readiness["ready"])
+    eligibility_ref = (
+        "application/admin_api/"
+        f"futures_request_payload_validation_record_execution_eligibilities.py::{command}_{field}"
+    )
+    semantic_ref = f"{eligibility_ref}_{semantic}_semantics"
+    contract_ref = (
+        "application/admin_api/"
+        f"futures_request_payload_validation_record_{semantic}_semantics.py::{command}_{field}_{semantic}_semantics_contract"
+    )
+    artifact_ref = (
+        "application/admin_api/"
+        f"futures_request_payload_validation_record_semantic_artifacts.py::{command}_{field}_{semantic}_semantics"
+    )
+    definition_ref = (
+        "application/admin_api/"
+        f"futures_request_payload_validation_record_semantic_artifact_definitions.py::{command}_{field}_{semantic}_semantics_definition"
+    )
+    review_ref = (
+        "application/admin_api/"
+        f"futures_request_payload_validation_record_semantic_artifact_definition_reviews.py::{command}_{field}_{semantic}_semantics_definition_review"
+    )
+    runtime_evidence_ref = (
+        "application/admin_api/"
+        f"futures_request_payload_validation_record_semantic_artifact_runtime_evidences.py::{command}_{field}_{semantic}_semantics_runtime_evidence"
+    )
+    acceptance_ref = (
+        "application/admin_api/"
+        f"futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.py::{command}_{field}_{semantic}_semantics_runtime_evidence_acceptance"
+    )
+    required_evidence_refs = [
+        semantic_ref,
+        contract_ref,
+        *list(readiness["required_evidence_refs"]),
+    ]
+    missing_evidence_refs = [] if ready else required_evidence_refs
+    forbidden_execution_claims = [
+        "validation_record_execution_eligible",
+        "command_execution_allowed",
+        "live_coinbase_orders_ran",
+        "browser_execution_authority",
+        "bff_execution_authority",
+        "spot_rule_authority",
+    ]
+    runtime_key = str(readiness["runtime_key"])
+    runtime_satisfies_key = str(readiness["runtime_satisfies_key"])
+    validation_ready_key = str(readiness["validation_ready_key"])
+    return {
+        "field": field,
+        "blocker": f"{semantic}_semantics_missing",
+        "semantic_artifact": f"{semantic}_semantics",
+        "status": (
+            AdminMvpGateStatus.PASSED.value
+            if ready
+            else AdminMvpGateStatus.BLOCKED.value
+        ),
+        "source": "backend_contract",
+        "required": True,
+        "blocking": not ready,
+        "validation_record_execution_eligibility_contract_ref": eligibility_ref,
+        "validation_record_execution_eligibility_blocker_ref": semantic_ref,
+        "semantic_ref": semantic_ref,
+        "semantic_artifact_ref": artifact_ref,
+        "semantic_artifact_contract_ref": f"{artifact_ref}_contract",
+        "semantic_artifact_definition_ref": definition_ref,
+        "semantic_artifact_definition_contract_ref": f"{definition_ref}_contract",
+        "semantic_artifact_definition_review_ref": review_ref,
+        "semantic_artifact_definition_review_contract_ref": f"{review_ref}_contract",
+        "semantic_artifact_runtime_evidence_ref": runtime_evidence_ref,
+        "semantic_artifact_runtime_evidence_contract_ref": f"{runtime_evidence_ref}_contract",
+        "semantic_artifact_runtime_evidence_acceptance_ref": acceptance_ref,
+        "semantic_artifact_runtime_evidence_acceptance_contract_ref": f"{acceptance_ref}_contract",
+        f"{semantic}_semantics_ref": semantic_ref,
+        f"{semantic}_semantics_contract_ref": contract_ref,
+        "evidence_routes": list(readiness["evidence_routes"]),
+        "evidence_route_count": len(readiness["evidence_routes"]),
+        "required_backend_contract": contract_ref,
+        "missing_backend_contract": "none" if ready else contract_ref,
+        "missing_reason": str(readiness["missing_reason"]),
+        "required_evidence_refs": required_evidence_refs,
+        "required_evidence_count": len(required_evidence_refs),
+        "missing_evidence_refs": missing_evidence_refs,
+        "missing_evidence_count": len(missing_evidence_refs),
+        "forbidden_execution_claims": forbidden_execution_claims,
+        "forbidden_execution_claim_count": len(forbidden_execution_claims),
+        "backend_owned": True,
+        "read_only": True,
+        "contextless_review_required": False,
+        "spot_rule_authority": False,
+        f"{semantic}_semantics_contract_available": ready,
+        f"{semantic}_semantics_contract_ready": ready,
+        **dict(readiness["flags"]),
+        runtime_key: bool(readiness["runtime_observed"]),
+        runtime_satisfies_key: ready,
+        "semantic_artifact_runtime_evidence_acceptance_available": ready,
+        "semantic_artifact_runtime_evidence_acceptance_accepted": ready,
+        validation_ready_key: ready,
+        "validation_record_execution_eligible": False,
+        "execution_allowed": False,
+        "live_coinbase_orders_ran": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "detail": (
+            f"{command}.{field}: {readiness['detail']}; command execution remains controlled by separate live enablement gates."
+        ),
+    }
+
+
+def _futures_semantic_rows_from_commands(
+    commands: Sequence[Mapping[str, Any]],
+    semantic: str,
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    key = f"request_payload_validation_record_{semantic}_semantics"
+    for command in commands:
+        rows.extend([dict(item) for item in command.get(key, [])])
+    return rows
+
+
+def _futures_semantic_counts(
+    semantic: str,
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[str, int]:
+    runtime_key = f"runtime_{semantic}_evidence_observed"
+    return {
+        f"request_payload_validation_record_{semantic}_semantic_count": len(rows),
+        f"blocking_request_payload_validation_record_{semantic}_semantic_count": sum(
+            1 for row in rows if bool(row.get("blocking"))
+        ),
+        f"ready_request_payload_validation_record_{semantic}_semantic_count": sum(
+            1 for row in rows if str(row.get("status") or "") == AdminMvpGateStatus.PASSED.value
+        ),
+        f"runtime_observed_request_payload_validation_record_{semantic}_semantic_count": sum(
+            1 for row in rows if bool(row.get(runtime_key))
+        ),
+    }
 
 
 def _futures_request_payload_validation_record_funding_semantics(

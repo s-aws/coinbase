@@ -22935,7 +22935,7 @@ components:
       - missing_reason
       - detail
       title: AdminFuturesCommandRequestPayloadValidationRecordCloseOnlySemanticItem
-      description: One disabled close-only-semantics row required by futures validation
+      description: One backend-owned close-only-semantics row required by futures validation
         records.
     AdminFuturesCommandRequestPayloadValidationRecordCollateralSemanticItem:
       properties:
@@ -23162,7 +23162,7 @@ components:
       - missing_reason
       - detail
       title: AdminFuturesCommandRequestPayloadValidationRecordCollateralSemanticItem
-      description: One disabled collateral-semantics row required by futures validation
+      description: One backend-owned collateral-semantics row required by futures validation
         records.
     AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityBlockerItem:
       properties:
@@ -76620,7 +76620,7 @@ components:
       - missing_reason
       - detail
       title: AdminFuturesCommandRequestPayloadValidationRecordFundingSemanticItem
-      description: One disabled funding-semantics row required by futures validation
+      description: One backend-owned funding-semantics row required by futures validation
         records.
     AdminFuturesCommandRequestPayloadValidationRecordLiquidationSemanticItem:
       properties:
@@ -76847,7 +76847,7 @@ components:
       - missing_reason
       - detail
       title: AdminFuturesCommandRequestPayloadValidationRecordLiquidationSemanticItem
-      description: One disabled liquidation-semantics row required by futures validation
+      description: One backend-owned liquidation-semantics row required by futures validation
         records.
     AdminFuturesCommandRequestPayloadValidationRecordMarginSemanticItem:
       properties:
@@ -77074,7 +77074,7 @@ components:
       - missing_reason
       - detail
       title: AdminFuturesCommandRequestPayloadValidationRecordMarginSemanticItem
-      description: One disabled margin-semantics row required by futures validation
+      description: One backend-owned margin-semantics row required by futures validation
         records.
     AdminFuturesCommandRequestPayloadValidationRecordOrderSemanticItem:
       properties:
@@ -77998,7 +77998,7 @@ components:
       - missing_reason
       - detail
       title: AdminFuturesCommandRequestPayloadValidationRecordReduceOnlySemanticItem
-      description: One disabled reduce-only-semantics row required by futures validation
+      description: One backend-owned reduce-only-semantics row required by futures validation
         records.
     AdminFuturesCommandRequestPayloadValidationRecordReplayGuardItem:
       properties:
