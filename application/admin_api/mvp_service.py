@@ -58,6 +58,7 @@ RECONCILIATION_LOG_PATH_ENV = "COINBASE_ADMIN_API_RECONCILIATION_LOG_PATH"
 LIVE_SERVICE_DECISION_LOG_PATH_ENV = "COINBASE_ADMIN_API_LIVE_SERVICE_DECISION_LOG_PATH"
 LIVE_ADAPTER_DECISION_LOG_PATH_ENV = "COINBASE_ADMIN_API_LIVE_ADAPTER_DECISION_LOG_PATH"
 ACCOUNT_SNAPSHOT_WALLET_SOURCE = "account_management_snapshot"
+FUTURES_MARGIN_COLLATERAL_SOURCE = "futures_us_cfm_margin_collateral"
 BACKEND_REST_CLIENT_SOURCE = "backend_rest_client"
 BACKEND_REST_FRESHNESS = "backend_rest_fresh"
 LOCAL_DEFAULT_FRESHNESS = "local_default_not_connected"
@@ -2695,6 +2696,27 @@ class AdminMvpService:
                 context=context,
             )
 
+        proof_chain = self._record_futures_live_proof_chain(
+            command=command,
+            action_class=action_class,
+            route=route,
+            service_method=service_method,
+            identity_key=identity_key,
+            identity_value=identity_value,
+            required_permission=required_permission,
+            payload_hash=payload_hash,
+            readiness_decision=readiness_decision,
+            admission_decision=live_admission,
+            risk_proof_id=risk_proof_id,
+            context=context,
+        )
+        live_admission = {
+            **live_admission,
+            "cap_guard_present": proof_chain["cap_guard_present"],
+            "cap_guard_decision_id": proof_chain["cap_guard_decision_id"],
+            "reconciliation_plan_present": proof_chain["reconciliation_plan_present"],
+            "reconciliation_plan_id": proof_chain["reconciliation_plan_id"],
+        }
         order_configuration = _futures_place_order_configuration(body)
         try:
             controller = self.dependencies.runtime_controller_factory()
@@ -2727,6 +2749,7 @@ class AdminMvpService:
                 client_order_id=client_order_id,
                 notional=notional,
                 context=context,
+                proof_chain=proof_chain,
             )
 
         result_data = _object_to_dict(result)
@@ -2753,6 +2776,7 @@ class AdminMvpService:
                 client_order_id=client_order_id,
                 notional=notional,
                 context=context,
+                proof_chain=proof_chain,
             )
 
         order_id = _coinbase_order_id_from_create_order_result(result_data)
@@ -2785,6 +2809,8 @@ class AdminMvpService:
             local_state_mutated=True,
             exchange_state_mutated=True,
             runtime_evidence=runtime_evidence,
+            cap_guard_decision_id=proof_chain["cap_guard_decision_id"],
+            reconciliation_plan_id=proof_chain["reconciliation_plan_id"],
         )
         response = {
             "type": "admin_api_command_result",
@@ -2826,6 +2852,7 @@ class AdminMvpService:
             "spot_rule_authority": False,
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
+            **proof_chain,
             **runtime_evidence,
             **self._live_outputs(True, notional),
         }
@@ -2889,6 +2916,27 @@ class AdminMvpService:
                 context=context,
             )
 
+        proof_chain = self._record_futures_live_proof_chain(
+            command=command,
+            action_class=action_class,
+            route=route,
+            service_method=service_method,
+            identity_key=identity_key,
+            identity_value=identity_value,
+            required_permission=required_permission,
+            payload_hash=payload_hash,
+            readiness_decision=readiness_decision,
+            admission_decision=live_admission,
+            risk_proof_id=risk_proof_id,
+            context=context,
+        )
+        live_admission = {
+            **live_admission,
+            "cap_guard_present": proof_chain["cap_guard_present"],
+            "cap_guard_decision_id": proof_chain["cap_guard_decision_id"],
+            "reconciliation_plan_present": proof_chain["reconciliation_plan_present"],
+            "reconciliation_plan_id": proof_chain["reconciliation_plan_id"],
+        }
         try:
             controller = self.dependencies.runtime_controller_factory()
             _check_runtime_cancel_admission(controller)
@@ -2918,6 +2966,7 @@ class AdminMvpService:
                 client_order_id=client_order_id,
                 notional=notional,
                 context=context,
+                proof_chain=proof_chain,
             )
 
         result_data = _object_to_dict(result)
@@ -2944,6 +2993,7 @@ class AdminMvpService:
                 client_order_id=client_order_id,
                 notional=notional,
                 context=context,
+                proof_chain=proof_chain,
             )
 
         order_id = _coinbase_order_id_from_create_order_result(result_data)
@@ -2976,6 +3026,8 @@ class AdminMvpService:
             local_state_mutated=True,
             exchange_state_mutated=True,
             runtime_evidence=runtime_evidence,
+            cap_guard_decision_id=proof_chain["cap_guard_decision_id"],
+            reconciliation_plan_id=proof_chain["reconciliation_plan_id"],
         )
         response = {
             "type": "admin_api_command_result",
@@ -3020,6 +3072,7 @@ class AdminMvpService:
             "spot_rule_authority": False,
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
+            **proof_chain,
             **runtime_evidence,
             **self._live_outputs(True, notional),
         }
@@ -3077,6 +3130,27 @@ class AdminMvpService:
                 context=context,
             )
 
+        proof_chain = self._record_futures_live_proof_chain(
+            command=command,
+            action_class=action_class,
+            route=route,
+            service_method=service_method,
+            identity_key=identity_key,
+            identity_value=identity_value,
+            required_permission=required_permission,
+            payload_hash=payload_hash,
+            readiness_decision=readiness_decision,
+            admission_decision=live_admission,
+            risk_proof_id=risk_proof_id,
+            context=context,
+        )
+        live_admission = {
+            **live_admission,
+            "cap_guard_present": proof_chain["cap_guard_present"],
+            "cap_guard_decision_id": proof_chain["cap_guard_decision_id"],
+            "reconciliation_plan_present": proof_chain["reconciliation_plan_present"],
+            "reconciliation_plan_id": proof_chain["reconciliation_plan_id"],
+        }
         try:
             controller = self.dependencies.runtime_controller_factory()
             _check_runtime_cancel_admission(controller)
@@ -3105,6 +3179,7 @@ class AdminMvpService:
                 client_order_id=client_order_id,
                 notional=Decimal("0"),
                 context=context,
+                proof_chain=proof_chain,
             )
 
         cancel_result = _mapping(cancel_attempt.get("cancel_result"))
@@ -3131,6 +3206,7 @@ class AdminMvpService:
                 client_order_id=client_order_id,
                 notional=Decimal("0"),
                 context=context,
+                proof_chain=proof_chain,
             )
 
         self.store.live_coinbase_orders_ran = True
@@ -3162,6 +3238,8 @@ class AdminMvpService:
             exchange_state_mutated=True,
             runtime_evidence=runtime_evidence,
             coinbase_order_cancel_submitted=True,
+            cap_guard_decision_id=proof_chain["cap_guard_decision_id"],
+            reconciliation_plan_id=proof_chain["reconciliation_plan_id"],
         )
         response = {
             "type": "admin_api_command_result",
@@ -3230,6 +3308,7 @@ class AdminMvpService:
             "spot_rule_authority": False,
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
+            **proof_chain,
             **runtime_evidence,
             **self._live_outputs(True, Decimal("0")),
         }
@@ -3256,6 +3335,7 @@ class AdminMvpService:
         client_order_id: str,
         notional: Decimal,
         context: AdminMvpRequestContext,
+        proof_chain: Mapping[str, Any] | None = None,
     ) -> AdminMvpApiResult:
         mutation_family = (
             "futures_live_cancel"
@@ -3265,6 +3345,7 @@ class AdminMvpService:
             else "futures_live_place"
         )
         runtime_evidence = self._runtime_evidence()
+        proof_chain_fields = dict(proof_chain or {})
         command_record = self._record_futures_command_decision(
             status=AdminMvpCommandStatus.REJECTED.value,
             message=message,
@@ -3286,6 +3367,8 @@ class AdminMvpService:
             client_order_id=client_order_id,
             submitted_notional=Decimal("0"),
             runtime_evidence=runtime_evidence,
+            cap_guard_decision_id=proof_chain_fields.get("cap_guard_decision_id"),
+            reconciliation_plan_id=proof_chain_fields.get("reconciliation_plan_id"),
         )
         response = {
             "type": "admin_api_command_result",
@@ -3324,6 +3407,7 @@ class AdminMvpService:
             "spot_rule_authority": False,
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
+            **proof_chain_fields,
             **runtime_evidence,
             **self._live_outputs(False, notional),
         }
@@ -3600,6 +3684,87 @@ class AdminMvpService:
         self._futures_product_metadata_cache[product_id] = result
         return result
 
+    def _record_futures_live_proof_chain(
+        self,
+        *,
+        command: str,
+        action_class: str,
+        route: str,
+        service_method: str,
+        identity_key: str,
+        identity_value: str,
+        required_permission: str,
+        payload_hash: str,
+        readiness_decision: Mapping[str, Any],
+        admission_decision: Mapping[str, Any],
+        risk_proof_id: Any,
+        context: AdminMvpRequestContext,
+    ) -> dict[str, Any]:
+        """Record backend-local proof-chain evidence for a Futures live submit."""
+
+        cap_guard_decision_id = f"futures-cap-guard-{context.idempotency_key}"
+        reconciliation_plan_id = f"futures-reconciliation-{context.idempotency_key}"
+        status = AdminMvpGateStatus.PASSED.value
+        cap = self._futures_live_max_submitted_notional(readiness_decision)
+        command_evidence = {
+            "route": route,
+            "method": "POST",
+            "module_id": FUTURES_MODULE_ID,
+            "identity_key": identity_key,
+            "identity_value": identity_value,
+            "action_class": action_class,
+            "required_permission": required_permission,
+            "service_method": service_method,
+            "operator_intent": context.operator_intent,
+            "command_idempotency_key": context.idempotency_key,
+            "payload_hash": payload_hash,
+        }
+        cap_result = self.record_cap_guard_decision(
+            {
+                **command_evidence,
+                "decision_id": cap_guard_decision_id,
+                "allowed": True,
+                "status": status,
+                "admission_audit_id": admission_decision.get("audit_id"),
+                "max_submitted_notional_usdc": _decimal_text(cap),
+                "max_executed_notional_usdc": _decimal_text(cap),
+                "wallet_check_required": False,
+                "wallet_check_status": status,
+                "wallet_available_notional_usdc": _decimal_text(cap),
+                "wallet_check_source": FUTURES_MARGIN_COLLATERAL_SOURCE,
+            },
+            context,
+        )
+        reconciliation_result = self.record_reconciliation_plan(
+            {
+                **command_evidence,
+                "plan_id": reconciliation_plan_id,
+                "allowed": True,
+                "status": status,
+                "admission_audit_id": admission_decision.get("audit_id"),
+                "cap_guard_decision_id": cap_guard_decision_id,
+                "position_key": (
+                    identity_value if identity_key == "position_key" else None
+                ),
+                "futures_risk_proof_id": risk_proof_id,
+                "reconciliation_reason": f"{command}_post_submit_reconciliation",
+                "exchange_submission_required": True,
+                "max_submitted_notional_usdc": _decimal_text(cap),
+                "max_executed_notional_usdc": _decimal_text(cap),
+            },
+            context,
+        )
+        cap_guard = dict(_mapping(cap_result.body.get("decision")))
+        reconciliation = dict(_mapping(reconciliation_result.body.get("plan")))
+        return {
+            "cap_guard_present": True,
+            "cap_guard_decision_id": cap_guard_decision_id,
+            "cap_guard_decision": cap_guard,
+            "reconciliation_plan_present": True,
+            "reconciliation_plan_id": reconciliation_plan_id,
+            "reconciliation_plan": reconciliation,
+        }
+
     def _futures_live_admission_decision(
         self,
         admission_decision: Mapping[str, Any],
@@ -3798,6 +3963,8 @@ class AdminMvpService:
         exchange_state_mutated: bool = False,
         runtime_evidence: Mapping[str, Any] | None = None,
         coinbase_order_cancel_submitted: bool = False,
+        cap_guard_decision_id: str | None = None,
+        reconciliation_plan_id: str | None = None,
     ) -> dict[str, Any]:
         decision_id = f"futures-command-{self.dependencies.uuid_factory()}"
         runtime = dict(runtime_evidence or {})
@@ -3825,6 +3992,10 @@ class AdminMvpService:
             "readiness_decision": dict(readiness_decision),
             "payload_validation": dict(payload_validation or {}),
             "risk_proof_id": risk_proof_id,
+            "cap_guard_present": cap_guard_decision_id is not None,
+            "cap_guard_decision_id": cap_guard_decision_id,
+            "reconciliation_plan_present": reconciliation_plan_id is not None,
+            "reconciliation_plan_id": reconciliation_plan_id,
             "failure_stage": failure_stage,
             "execution_allowed": execution_allowed,
             "local_state_mutated": local_state_mutated,
@@ -7191,6 +7362,8 @@ class AdminMvpService:
             "message": record.get("message") or record.get("detail"),
             "admission_decision": admission_decision,
             "readiness_decision": dict(_mapping(record.get("readiness_decision"))),
+            "cap_guard_decision_id": record.get("cap_guard_decision_id"),
+            "reconciliation_plan_id": record.get("reconciliation_plan_id"),
             "live_coinbase_orders_ran": bool(record.get("live_coinbase_orders_ran")),
             "raw_event": dict(record),
         }

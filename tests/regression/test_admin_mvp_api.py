@@ -527,6 +527,64 @@ def record_all_futures_live_adapter_decisions(
     )
 
 
+def assert_futures_live_proof_chain(
+    service: AdminMvpService,
+    result_body: dict,
+    *,
+    command: str,
+    route: str,
+    identity_key: str,
+    identity_value: str,
+    client_order_id: str,
+) -> None:
+    cap_guard_decision_id = result_body["cap_guard_decision_id"]
+    reconciliation_plan_id = result_body["reconciliation_plan_id"]
+    assert result_body["cap_guard_present"] is True
+    assert result_body["reconciliation_plan_present"] is True
+    assert cap_guard_decision_id in service.store.cap_guard_decisions
+    assert reconciliation_plan_id in service.store.reconciliation_plans
+
+    cap_guard = service.store.cap_guard_decisions[cap_guard_decision_id]
+    assert cap_guard["status"] == "passed"
+    assert cap_guard["allowed"] is True
+    assert cap_guard["route"] == route
+    assert cap_guard["module_id"] == "futures_perpetuals"
+    assert cap_guard["identity_key"] == identity_key
+    assert cap_guard["identity_value"] == identity_value
+    assert cap_guard["command_idempotency_key"] == result_body["idempotency_key"]
+    assert cap_guard["payload_hash"] == result_body["payload_hash"]
+    assert cap_guard["wallet_check_required"] is False
+    assert cap_guard["wallet_check_source"] == "futures_us_cfm_margin_collateral"
+
+    reconciliation = service.store.reconciliation_plans[reconciliation_plan_id]
+    assert reconciliation["status"] == "passed"
+    assert reconciliation["allowed"] is True
+    assert reconciliation["route"] == route
+    assert reconciliation["module_id"] == "futures_perpetuals"
+    assert reconciliation["identity_key"] == identity_key
+    assert reconciliation["identity_value"] == identity_value
+    assert reconciliation["command_idempotency_key"] == result_body["idempotency_key"]
+    assert reconciliation["payload_hash"] == result_body["payload_hash"]
+    assert reconciliation["cap_guard_decision_id"] == cap_guard_decision_id
+    assert reconciliation["reconciliation_reason"] == (
+        f"{command}_post_submit_reconciliation"
+    )
+
+    workbench = service.get_read_response(
+        "/api/v1/admin/audit-workbench",
+        {"module": "futures_perpetuals", "client_order_id": client_order_id},
+        context(),
+    )
+    assert workbench.status_code == 200
+    accepted_event = next(
+        event
+        for event in workbench.body["events"]
+        if event["event_id"] == result_body["submission_event_id"]
+    )
+    assert accepted_event["cap_guard_decision_id"] == cap_guard_decision_id
+    assert accepted_event["reconciliation_plan_id"] == reconciliation_plan_id
+
+
 def first_manual_submit(service: AdminMvpService, body: dict | None = None) -> dict:
     result = service.submit_manual_order(
         body or manual_order_body(),
@@ -2925,6 +2983,15 @@ def test_admin_futures_place_live_execution_uses_backend_rest_adapter_when_confi
     assert result.body["live_exchange_submitted"] is True
     assert result.body["live_coinbase_orders_ran"] is True
     assert result.body["live_coinbase_execution"] == "submitted"
+    assert_futures_live_proof_chain(
+        service,
+        result.body,
+        command="futures_place",
+        route="/api/v1/futures/orders",
+        identity_key="product_id",
+        identity_value="BIP-20DEC30-CDE",
+        client_order_id="futures-place-live-submit",
+    )
     assert rest_client.create_order_calls == [
         {
             "client_order_id": "futures-place-live-submit",
@@ -3247,6 +3314,15 @@ def test_admin_futures_close_reduce_live_execution_uses_backend_rest_adapter_whe
     assert result.body["live_coinbase_execution"] == "submitted"
     assert result.body["spot_rule_authority"] is False
     assert result.body["exchange_order_id_evidence_only"] is True
+    assert_futures_live_proof_chain(
+        service,
+        result.body,
+        command="futures_close_reduce",
+        route="/api/v1/futures/positions/{position_key}/close-reduce",
+        identity_key="position_key",
+        identity_value="futures_position:runtime:AVP-20DEC30-CDE",
+        client_order_id="futures-close-reduce-live-submit",
+    )
     assert rest_client.close_position_calls == [
         {
             "client_order_id": "futures-close-reduce-live-submit",
@@ -3333,6 +3409,15 @@ def test_admin_futures_cancel_live_execution_uses_backend_rest_adapter_when_conf
     assert result.body["coinbase_cancel_fallback_attempted"] is False
     assert result.body["coinbase_cancel_fallback_reason"] is None
     assert result.body["coinbase_cancel_fallback_identity_used"] is None
+    assert_futures_live_proof_chain(
+        service,
+        result.body,
+        command="futures_cancel",
+        route="/api/v1/futures/orders/{client_order_id}/cancel",
+        identity_key="client_order_id",
+        identity_value="client-futures-live-cancel",
+        client_order_id="client-futures-live-cancel",
+    )
     assert rest_client.cancel_order_calls == [
         {"order_ids": ["client-futures-live-cancel"]}
     ]
