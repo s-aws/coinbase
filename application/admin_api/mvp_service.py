@@ -6565,6 +6565,11 @@ class AdminMvpService:
                 *FUTURES_POSITION_SEMANTIC_ARTIFACTS,
             )
         }
+        semantic_guard_rows = _futures_semantic_guard_rows_from_commands(commands)
+        semantic_guard_summaries = _futures_semantic_guard_summaries(
+            commands,
+            semantic_guard_rows,
+        )
         funding_semantic_rows = _futures_funding_semantic_rows_from_commands(commands)
         live_decision_summary = _futures_live_decision_summary(
             commands,
@@ -6652,6 +6657,12 @@ class AdminMvpService:
             "request_payload_validation_record_close_only_semantics": semantic_rows["close_only"],
             **_futures_funding_semantic_counts(funding_semantic_rows),
             "request_payload_validation_record_funding_semantics": funding_semantic_rows,
+            **_futures_semantic_guard_counts(semantic_guard_rows),
+            "semantic_guard_summary_count": len(semantic_guard_summaries),
+            "semantic_guard_summary_blocking_count": sum(
+                1 for item in semantic_guard_summaries if bool(item["blocking"])
+            ),
+            "semantic_guard_summaries": semantic_guard_summaries,
             "command_enablement_blocker_summary_count": len(blockers),
             "command_enablement_blocker_summary_blocking_count": len(blockers),
             "command_enablement_blocker_summaries": blockers,
@@ -6744,6 +6755,17 @@ class AdminMvpService:
             futures_funding_evidence,
             futures_fee_input,
         )
+        semantic_guards = _futures_command_semantic_guards(
+            command=command,
+            identity_key=identity_key,
+            request_fields=request_fields,
+            missing_contracts=missing_contracts,
+            risk_proof=risk_proof,
+            semantic_rows=semantic_rows,
+            funding_semantics=funding_semantics,
+            live_decision_evidence=live_decision_evidence,
+        )
+        semantic_guard_counts = _futures_semantic_guard_counts(semantic_guards)
         first_blocker = (
             str(live_decision_evidence["first_blocker"])
             if not missing_contracts
@@ -6805,10 +6827,8 @@ class AdminMvpService:
             "request_payload_validation_record_close_only_semantics": semantic_rows["close_only"],
             **_futures_funding_semantic_counts(funding_semantics),
             "request_payload_validation_record_funding_semantics": funding_semantics,
-            "semantic_guard_count": 0,
-            "blocking_semantic_guard_count": 0,
-            "risk_semantic_guard_count": 0,
-            "semantic_guards": [],
+            **semantic_guard_counts,
+            "semantic_guards": semantic_guards,
             "required_backend_contracts": list(FUTURES_COMMAND_CONTRACTS),
             "missing_backend_contracts": missing_contracts,
             "risk_proof_id": (
@@ -6832,7 +6852,9 @@ class AdminMvpService:
                 ),
                 "blocking_prerequisite_count": blocking_prerequisite_count,
                 "blocking_request_field_count": 0,
-                "blocking_semantic_guard_count": 0,
+                "blocking_semantic_guard_count": semantic_guard_counts[
+                    "blocking_semantic_guard_count"
+                ],
                 "missing_backend_contract_count": len(missing_contracts),
                 "missing_evidence_ref_count": 0 if not missing_contracts else 2,
                 "evidence_route_count": 4,
@@ -9366,6 +9388,513 @@ def _futures_semantic_counts(
             1 for row in rows if bool(row.get(runtime_key))
         ),
     }
+
+
+def _futures_command_semantic_guards(
+    *,
+    command: str,
+    identity_key: str,
+    request_fields: Sequence[Mapping[str, Any]],
+    missing_contracts: Sequence[str],
+    risk_proof: Mapping[str, Any] | None,
+    semantic_rows: Mapping[str, Sequence[Mapping[str, Any]]],
+    funding_semantics: Sequence[Mapping[str, Any]],
+    live_decision_evidence: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    fields = [str(item.get("field") or "") for item in request_fields]
+    identity_fields = [identity_key] if identity_key in fields else fields[:1]
+    risk_ready = risk_proof is not None and not missing_contracts
+    margin_ready = _futures_semantic_family_ready(semantic_rows.get("margin", []))
+    collateral_ready = _futures_semantic_family_ready(
+        semantic_rows.get("collateral", [])
+    )
+    liquidation_ready = _futures_semantic_family_ready(
+        semantic_rows.get("liquidation", [])
+    )
+    funding_ready = _futures_semantic_family_ready(funding_semantics)
+    reduce_only_ready = _futures_semantic_family_ready(
+        semantic_rows.get("reduce_only", [])
+    )
+    close_only_ready = _futures_semantic_family_ready(
+        semantic_rows.get("close_only", [])
+    )
+    product_scope_ready = risk_ready and command == "futures_place"
+    position_scope_ready = risk_ready and command in {
+        "futures_close_reduce",
+        "futures_reconcile",
+    }
+    live_execution_ready = bool(live_decision_evidence.get("execution_allowed"))
+    live_missing_refs = _futures_live_execution_boundary_missing_refs(
+        live_decision_evidence
+    )
+    guards: list[dict[str, Any]] = []
+    if command == "futures_place":
+        guards.append(
+            _futures_semantic_guard(
+                semantic_guard="product_scope",
+                ready=product_scope_ready,
+                applies_to_fields=["product_id"],
+                evidence_routes=["/api/v1/futures/account", "/api/v1/futures/positions"],
+                required_evidence_refs=[
+                    "futures_product_scope_readback",
+                    "futures_command_product_scope_contract",
+                ],
+                identity_semantic=True,
+                risk_semantic=True,
+                detail=(
+                    "Backend Futures product scope is bound to the configured US CFM "
+                    "product set before live placement."
+                ),
+            )
+        )
+    if command in {"futures_close_reduce", "futures_reconcile"}:
+        guards.append(
+            _futures_semantic_guard(
+                semantic_guard="position_scope",
+                ready=position_scope_ready,
+                applies_to_fields=["position_key"],
+                evidence_routes=[
+                    "/api/v1/futures/positions",
+                    "/api/v1/futures/positions/{position_key}",
+                ],
+                required_evidence_refs=[
+                    "futures_position_scope_readback",
+                    "futures_command_position_scope_contract",
+                ],
+                identity_semantic=True,
+                risk_semantic=True,
+                detail=(
+                    "Backend Futures position scope is bound before close/reduce or "
+                    "reconciliation commands."
+                ),
+            )
+        )
+    if command in {"futures_place", "futures_close_reduce", "futures_reconcile"}:
+        guards.extend(
+            [
+                _futures_semantic_guard(
+                    semantic_guard="margin_collateral",
+                    ready=margin_ready and collateral_ready,
+                    applies_to_fields=_futures_risk_fields(fields),
+                    evidence_routes=[
+                        "/api/v1/futures/account",
+                        "/api/v1/futures/risk-proofs",
+                    ],
+                    required_evidence_refs=[
+                        "futures_margin_collateral_risk_contract",
+                        "futures_account_margin_collateral_readback",
+                    ],
+                    risk_semantic=True,
+                    detail=(
+                        "Backend Futures margin and collateral evidence are bound "
+                        "to the command risk proof."
+                    ),
+                ),
+                _futures_semantic_guard(
+                    semantic_guard="liquidation_buffer",
+                    ready=liquidation_ready,
+                    applies_to_fields=_futures_risk_fields(fields),
+                    evidence_routes=[
+                        "/api/v1/futures/account",
+                        "/api/v1/futures/risk-proofs",
+                    ],
+                    required_evidence_refs=[
+                        "futures_liquidation_buffer_risk_contract",
+                        "futures_account_liquidation_readback",
+                    ],
+                    risk_semantic=True,
+                    detail=(
+                        "Backend Futures liquidation threshold and buffer evidence "
+                        "are bound to risk admission."
+                    ),
+                ),
+                _futures_semantic_guard(
+                    semantic_guard="funding_fee",
+                    ready=funding_ready,
+                    applies_to_fields=_futures_risk_fields(fields),
+                    evidence_routes=[
+                        "/api/v1/futures/account",
+                        ACCOUNT_FEES_ROUTE,
+                        "/api/v1/futures/risk-proofs",
+                    ],
+                    required_evidence_refs=[
+                        "futures_funding_fee_risk_contract",
+                        "futures_fee_tier_readback",
+                    ],
+                    risk_semantic=True,
+                    detail=(
+                        "Backend Futures funding applicability and fee-tier "
+                        "evidence are bound to risk admission."
+                    ),
+                ),
+            ]
+        )
+    if command == "futures_close_reduce":
+        guards.extend(
+            [
+                _futures_semantic_guard(
+                    semantic_guard="reduce_only",
+                    ready=reduce_only_ready,
+                    applies_to_fields=["position_key", "size"],
+                    evidence_routes=[
+                        "/api/v1/futures/account",
+                        "/api/v1/futures/positions",
+                        "/api/v1/futures/risk-proofs",
+                    ],
+                    required_evidence_refs=[
+                        "futures_reduce_only_position_contract",
+                        "futures_position_side_readback",
+                    ],
+                    risk_semantic=True,
+                    detail=(
+                        "Backend derives reduce-only side from observed Futures "
+                        "position evidence."
+                    ),
+                ),
+                _futures_semantic_guard(
+                    semantic_guard="close_only",
+                    ready=close_only_ready,
+                    applies_to_fields=["position_key", "size"],
+                    evidence_routes=[
+                        "/api/v1/futures/account",
+                        "/api/v1/futures/positions",
+                        "/api/v1/futures/risk-proofs",
+                    ],
+                    required_evidence_refs=[
+                        "futures_close_only_position_contract",
+                        "futures_position_side_readback",
+                    ],
+                    risk_semantic=True,
+                    detail=(
+                        "Backend derives close-only side from observed Futures "
+                        "position evidence."
+                    ),
+                ),
+            ]
+        )
+    guards.append(
+        _futures_semantic_guard(
+            semantic_guard="idempotency",
+            ready=bool(identity_fields),
+            applies_to_fields=identity_fields,
+            evidence_routes=["/api/v1/admin/admission-audits"],
+            required_evidence_refs=[
+                "futures_client_order_id_idempotency_contract",
+                "futures_payload_hash_admission_audit_link",
+            ],
+            identity_semantic=True,
+            audit_semantic=True,
+            proof_writer_enabled=True,
+            detail=(
+                "Backend command identity, payload hash, idempotency key, and "
+                "correlation id are bound before command admission."
+            ),
+        )
+    )
+    if command in {"futures_place", "futures_close_reduce"}:
+        guards.append(
+            _futures_semantic_guard(
+                semantic_guard="cap_guard",
+                ready=risk_ready,
+                applies_to_fields=_futures_risk_fields(fields),
+                evidence_routes=[
+                    "/api/v1/futures/account",
+                    "/api/v1/admin/cap-guard/decisions",
+                ],
+                required_evidence_refs=[
+                    "futures_cap_guard_decision_contract",
+                    "futures_cap_guard_notional_limit",
+                ],
+                risk_semantic=True,
+                audit_semantic=True,
+                proof_writer_enabled=True,
+                detail=(
+                    "Backend Futures cap evidence is available before live "
+                    "notional admission."
+                ),
+            )
+        )
+    guards.extend(
+        [
+            _futures_semantic_guard(
+                semantic_guard="admission_audit",
+                ready=True,
+                applies_to_fields=identity_fields,
+                evidence_routes=["/api/v1/admin/admission-audits"],
+                required_evidence_refs=["futures_admission_audit_contract"],
+                audit_semantic=True,
+                proof_writer_enabled=True,
+                detail=(
+                    "Backend Futures admission audit evidence is recorded with "
+                    "operator intent and request correlation."
+                ),
+            ),
+            _futures_semantic_guard(
+                semantic_guard="reconciliation_plan",
+                ready=risk_ready,
+                applies_to_fields=identity_fields,
+                evidence_routes=["/api/v1/admin/reconciliation/plans"],
+                required_evidence_refs=["futures_reconciliation_plan_contract"],
+                execution_semantic=True,
+                proof_writer_enabled=True,
+                detail=(
+                    "Backend Futures reconciliation evidence route is bound for "
+                    "post-command local evidence."
+                ),
+            ),
+            _futures_semantic_guard(
+                semantic_guard="live_execution_boundary",
+                ready=live_execution_ready,
+                applies_to_fields=identity_fields,
+                evidence_routes=[
+                    "/api/v1/admin/live-enablement",
+                    LIVE_SERVICE_DECISION_ROUTE,
+                    LIVE_ADAPTER_DECISION_ROUTE,
+                ],
+                required_evidence_refs=[
+                    LIVE_SERVICE_DECISION_ROUTE,
+                    LIVE_ADAPTER_DECISION_ROUTE,
+                ],
+                missing_evidence_refs=live_missing_refs,
+                execution_semantic=True,
+                proof_writer_enabled=True,
+                detail=(
+                    "Backend Futures live-service, live-adapter, runtime opt-in, "
+                    "and explicit acknowledgement gates control exchange submission."
+                ),
+            ),
+        ]
+    )
+    return guards
+
+
+def _futures_risk_fields(fields: Sequence[str]) -> list[str]:
+    risk_fields = [
+        field
+        for field in fields
+        if field
+        in {
+            "product_id",
+            "position_key",
+            "limit_price",
+            "size",
+            "order_side",
+            "order_type",
+        }
+    ]
+    return risk_fields or [field for field in fields if field]
+
+
+def _futures_semantic_family_ready(rows: Sequence[Mapping[str, Any]]) -> bool:
+    return bool(rows) and all(
+        str(row.get("status") or "") == AdminMvpGateStatus.PASSED.value
+        and not bool(row.get("blocking"))
+        for row in rows
+    )
+
+
+def _futures_live_execution_boundary_missing_refs(
+    live_decision_evidence: Mapping[str, Any],
+) -> list[str]:
+    if bool(live_decision_evidence.get("execution_allowed")):
+        return []
+    missing: list[str] = []
+    if str(live_decision_evidence.get("service_decision_status") or "") != "ready":
+        missing.append(LIVE_SERVICE_DECISION_ROUTE)
+    if str(live_decision_evidence.get("adapter_decision_status") or "") != "ready":
+        missing.append(LIVE_ADAPTER_DECISION_ROUTE)
+    if (
+        bool(live_decision_evidence.get("executor_boundary_ready"))
+        and not bool(live_decision_evidence.get("live_runtime_ready"))
+        and bool(live_decision_evidence.get("live_exchange_command"))
+    ):
+        missing.append("COINBASE_ADMIN_LIVE_COINBASE_EXECUTION")
+    return missing
+
+
+def _futures_semantic_guard(
+    *,
+    semantic_guard: str,
+    ready: bool,
+    applies_to_fields: Sequence[str],
+    evidence_routes: Sequence[str],
+    required_evidence_refs: Sequence[str],
+    detail: str,
+    missing_evidence_refs: Sequence[str] | None = None,
+    identity_semantic: bool = False,
+    risk_semantic: bool = False,
+    audit_semantic: bool = False,
+    execution_semantic: bool = False,
+    proof_writer_enabled: bool = False,
+) -> dict[str, Any]:
+    missing_refs = list(missing_evidence_refs) if missing_evidence_refs is not None else (
+        [] if ready else list(required_evidence_refs)
+    )
+    routes = _unique_texts(evidence_routes)
+    required_refs = _unique_texts(required_evidence_refs)
+    missing_refs = _unique_texts(missing_refs)
+    return {
+        "semantic_guard": semantic_guard,
+        "status": (
+            AdminMvpGateStatus.PASSED.value
+            if ready
+            else AdminMvpGateStatus.BLOCKED.value
+        ),
+        "source": "backend_contract",
+        "applies_to_fields": _unique_texts(applies_to_fields),
+        "evidence_routes": routes,
+        "evidence_route_count": len(routes),
+        "required_evidence_refs": required_refs,
+        "required_evidence_count": len(required_refs),
+        "missing_evidence_refs": missing_refs,
+        "missing_evidence_count": len(missing_refs),
+        "required": True,
+        "identity_semantic": identity_semantic,
+        "risk_semantic": risk_semantic,
+        "audit_semantic": audit_semantic,
+        "execution_semantic": execution_semantic,
+        "evidence_backend_owned": True,
+        "evidence_read_only": True,
+        "proof_route_required": True,
+        "proof_route_registered": True,
+        "proof_writer_enabled": proof_writer_enabled,
+        "proof_evidence_only": True,
+        "backend_owned": True,
+        "spot_rule_authority": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "detail": detail,
+    }
+
+
+def _futures_semantic_guard_counts(
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[str, int]:
+    return {
+        "semantic_guard_count": len(rows),
+        "blocking_semantic_guard_count": sum(
+            1 for row in rows if str(row.get("status") or "") != AdminMvpGateStatus.PASSED.value
+        ),
+        "risk_semantic_guard_count": sum(
+            1 for row in rows if bool(row.get("risk_semantic"))
+        ),
+    }
+
+
+def _futures_semantic_guard_rows_from_commands(
+    commands: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for command in commands:
+        command_name = str(command.get("command") or "")
+        for row in command.get("semantic_guards", []):
+            rows.append({"command": command_name, **dict(row)})
+    return rows
+
+
+def _futures_semantic_guard_summaries(
+    commands: Sequence[Mapping[str, Any]],
+    rows: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    ordered_guards = _unique_texts(row.get("semantic_guard") for row in rows)
+    summaries: list[dict[str, Any]] = []
+    command_ids = [str(command.get("command") or "") for command in commands]
+    for semantic_guard in ordered_guards:
+        guard_rows = [
+            row for row in rows if str(row.get("semantic_guard") or "") == semantic_guard
+        ]
+        affected_commands = _unique_texts(row.get("command") for row in guard_rows)
+        blocking_rows = [
+            row
+            for row in guard_rows
+            if str(row.get("status") or "") != AdminMvpGateStatus.PASSED.value
+        ]
+        applies_to_fields = _unique_texts(
+            field
+            for row in guard_rows
+            for field in row.get("applies_to_fields", [])
+        )
+        evidence_routes = _unique_texts(
+            route
+            for row in guard_rows
+            for route in row.get("evidence_routes", [])
+        )
+        required_refs = _unique_texts(
+            ref
+            for row in guard_rows
+            for ref in row.get("required_evidence_refs", [])
+        )
+        missing_refs = _unique_texts(
+            ref
+            for row in guard_rows
+            for ref in row.get("missing_evidence_refs", [])
+        )
+        summaries.append({
+            "semantic_guard": semantic_guard,
+            "status": (
+                AdminMvpGateStatus.BLOCKED.value
+                if blocking_rows
+                else AdminMvpGateStatus.PASSED.value
+            ),
+            "blocking": bool(blocking_rows),
+            "command_count": len(affected_commands),
+            "affected_commands": [
+                command for command in command_ids if command in affected_commands
+            ],
+            "blocking_command_count": len(
+                _unique_texts(row.get("command") for row in blocking_rows)
+            ),
+            "identity_semantic_command_count": len(
+                _unique_texts(
+                    row.get("command") for row in guard_rows if row.get("identity_semantic")
+                )
+            ),
+            "risk_semantic_command_count": len(
+                _unique_texts(
+                    row.get("command") for row in guard_rows if row.get("risk_semantic")
+                )
+            ),
+            "audit_semantic_command_count": len(
+                _unique_texts(
+                    row.get("command") for row in guard_rows if row.get("audit_semantic")
+                )
+            ),
+            "execution_semantic_command_count": len(
+                _unique_texts(
+                    row.get("command") for row in guard_rows if row.get("execution_semantic")
+                )
+            ),
+            "applies_to_field_count": len(applies_to_fields),
+            "applies_to_fields": applies_to_fields,
+            "evidence_route_count": len(evidence_routes),
+            "evidence_routes": evidence_routes,
+            "required_evidence_ref_count": len(required_refs),
+            "required_evidence_refs": required_refs,
+            "missing_evidence_ref_count": len(missing_refs),
+            "missing_evidence_refs": missing_refs,
+            "proof_route_required_count": sum(
+                1 for row in guard_rows if bool(row.get("proof_route_required"))
+            ),
+            "proof_route_registered_count": sum(
+                1 for row in guard_rows if bool(row.get("proof_route_registered"))
+            ),
+            "proof_writer_enabled_count": sum(
+                1 for row in guard_rows if bool(row.get("proof_writer_enabled"))
+            ),
+            "proof_evidence_only_count": sum(
+                1 for row in guard_rows if bool(row.get("proof_evidence_only"))
+            ),
+            "backend_owned": True,
+            "read_only": True,
+            "spot_rule_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "detail": (
+                f"{semantic_guard} guard is backend-owned evidence across "
+                f"{len(affected_commands)} Futures/Perpetual command(s)."
+            ),
+        })
+    return summaries
 
 
 def _futures_request_payload_validation_record_funding_semantics(

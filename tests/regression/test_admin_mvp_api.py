@@ -2255,6 +2255,97 @@ def test_admin_futures_command_suite_exposes_backend_payload_field_contracts():
     assert all(field["request_payload_validated"] is True for field in place["request_fields"])
 
 
+def test_admin_futures_command_suite_exposes_backend_semantic_guards():
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
+    )
+
+    suite_result = service.get_read_response(
+        "/api/v1/futures/command-suite",
+        {},
+        context(),
+    )
+
+    assert suite_result.status_code == 200
+    suite = suite_result.body
+    assert suite["semantic_guard_count"] == 32
+    assert suite["blocking_semantic_guard_count"] == 4
+    assert suite["risk_semantic_guard_count"] == 16
+    assert suite["semantic_guard_summary_count"] == 12
+    assert suite["semantic_guard_summary_blocking_count"] == 1
+    summaries = {item["semantic_guard"]: item for item in suite["semantic_guard_summaries"]}
+    assert summaries["live_execution_boundary"]["status"] == "blocked"
+    assert summaries["live_execution_boundary"]["blocking_command_count"] == 4
+    assert summaries["live_execution_boundary"]["affected_commands"] == [
+        "futures_place",
+        "futures_close_reduce",
+        "futures_cancel",
+        "futures_reconcile",
+    ]
+    assert summaries["live_execution_boundary"]["missing_evidence_refs"] == [
+        "/api/v1/admin/live-execution/service-decisions",
+        "/api/v1/admin/live-execution/adapter-decisions",
+    ]
+    assert summaries["margin_collateral"]["status"] == "passed"
+    assert summaries["margin_collateral"]["risk_semantic_command_count"] == 3
+    assert summaries["cap_guard"]["affected_commands"] == [
+        "futures_place",
+        "futures_close_reduce",
+    ]
+    assert summaries["cap_guard"]["proof_route_registered_count"] == 2
+
+    commands = {command["command"]: command for command in suite["commands"]}
+    place_guards = {
+        guard["semantic_guard"]: guard
+        for guard in commands["futures_place"]["semantic_guards"]
+    }
+    assert commands["futures_place"]["semantic_guard_count"] == 9
+    assert commands["futures_place"]["blocking_semantic_guard_count"] == 1
+    assert commands["futures_place"]["risk_semantic_guard_count"] == 5
+    assert place_guards["product_scope"]["status"] == "passed"
+    assert place_guards["product_scope"]["identity_semantic"] is True
+    assert place_guards["margin_collateral"]["status"] == "passed"
+    assert place_guards["margin_collateral"]["risk_semantic"] is True
+    assert place_guards["cap_guard"]["status"] == "passed"
+    assert place_guards["cap_guard"]["proof_writer_enabled"] is True
+    assert place_guards["admission_audit"]["status"] == "passed"
+    assert place_guards["admission_audit"]["audit_semantic"] is True
+    assert place_guards["live_execution_boundary"]["status"] == "blocked"
+    assert place_guards["live_execution_boundary"]["execution_semantic"] is True
+    assert place_guards["live_execution_boundary"]["missing_evidence_refs"] == [
+        "/api/v1/admin/live-execution/service-decisions",
+        "/api/v1/admin/live-execution/adapter-decisions",
+    ]
+    assert place_guards["live_execution_boundary"]["browser_authority"] == "display_only"
+    assert place_guards["live_execution_boundary"]["bff_authority"] == (
+        "forward_only_no_execution"
+    )
+
+    close_guards = {
+        guard["semantic_guard"]: guard
+        for guard in commands["futures_close_reduce"]["semantic_guards"]
+    }
+    assert commands["futures_close_reduce"]["semantic_guard_count"] == 11
+    assert close_guards["reduce_only"]["status"] == "passed"
+    assert close_guards["reduce_only"]["risk_semantic"] is True
+    assert close_guards["close_only"]["status"] == "passed"
+    assert close_guards["close_only"]["risk_semantic"] is True
+
+    cancel_guards = {
+        guard["semantic_guard"]: guard
+        for guard in commands["futures_cancel"]["semantic_guards"]
+    }
+    assert commands["futures_cancel"]["semantic_guard_count"] == 4
+    assert set(cancel_guards) == {
+        "idempotency",
+        "admission_audit",
+        "reconciliation_plan",
+        "live_execution_boundary",
+    }
+    assert cancel_guards["idempotency"]["status"] == "passed"
+    assert cancel_guards["reconciliation_plan"]["status"] == "passed"
+
+
 def test_admin_futures_command_suite_exposes_backend_enablement_sequence_traces():
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
@@ -2359,8 +2450,13 @@ def test_admin_futures_commands_expose_readiness_closure_steps():
         for command in suite_result.body["commands"]
     }
     place = commands["futures_place"]
-    assert place["semantic_guard_count"] == 0
-    assert place["blocking_semantic_guard_count"] == 0
+    assert place["semantic_guard_count"] == 9
+    assert place["blocking_semantic_guard_count"] == 1
+    place_guards = {guard["semantic_guard"]: guard for guard in place["semantic_guards"]}
+    assert place_guards["live_execution_boundary"]["status"] == "blocked"
+    assert place_guards["live_execution_boundary"]["missing_evidence_refs"] == [
+        "COINBASE_ADMIN_LIVE_COINBASE_EXECUTION"
+    ]
     assert place["readiness_closure_step_count"] == 5
     assert place["blocking_readiness_closure_step_count"] == 1
     assert [
