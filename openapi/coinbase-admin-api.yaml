@@ -777,6 +777,69 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/fees:
+    get:
+      tags:
+      - admin
+      summary: Read backend-owned fee tier evidence for admission and risk gates
+      description: Backend-owned fee evidence read. Reads Coinbase transaction-summary fee tiers through the backend REST client and never submits or cancels Coinbase orders.
+      operationId: admin_fees_api_v1_admin_fees_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminFeeEvidenceReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/products:
     get:
       tags:
@@ -13899,6 +13962,280 @@ components:
       - error
       title: AdminAccountManagementWalletInventory
       description: Wallet and balance evidence without live Coinbase reads.
+    AdminFeeMoney:
+      properties:
+        value:
+          type: string
+          title: Value
+        currency:
+          type: string
+          title: Currency
+      additionalProperties: false
+      type: object
+      required:
+      - value
+      - currency
+      title: AdminFeeMoney
+      description: Decimal money value from backend-owned Coinbase fee evidence.
+    AdminFeeTierEvidence:
+      properties:
+        status:
+          type: string
+          title: Status
+        source:
+          type: string
+          title: Source
+        name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Name
+        pricing_tier:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Pricing Tier
+        maker_fee_rate:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Maker Fee Rate
+        taker_fee_rate:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Taker Fee Rate
+        read_error:
+          type: string
+          title: Read Error
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+        bff_authority:
+          type: string
+          title: Bff Authority
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - source
+      - name
+      - pricing_tier
+      - maker_fee_rate
+      - taker_fee_rate
+      - read_error
+      - backend_owned
+      - read_only
+      - browser_authority
+      - bff_authority
+      title: AdminFeeTierEvidence
+      description: Backend-normalized Coinbase transaction-summary fee tier evidence.
+    AdminSpotFeeInput:
+      properties:
+        status:
+          type: string
+          title: Status
+        source:
+          type: string
+          title: Source
+        maker_fee_rate:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Maker Fee Rate
+        taker_fee_rate:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Taker Fee Rate
+        post_only_rate_source:
+          type: string
+          title: Post Only Rate Source
+        non_post_only_rate_source:
+          type: string
+          title: Non Post Only Rate Source
+        first_blocker:
+          type: string
+          title: First Blocker
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+        bff_authority:
+          type: string
+          title: Bff Authority
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - source
+      - maker_fee_rate
+      - taker_fee_rate
+      - post_only_rate_source
+      - non_post_only_rate_source
+      - first_blocker
+      - backend_owned
+      - browser_authority
+      - bff_authority
+      title: AdminSpotFeeInput
+      description: Backend-owned Spot fee input evidence for admission visibility.
+    AdminFuturesFeeInput:
+      properties:
+        status:
+          type: string
+          title: Status
+        source:
+          type: string
+          title: Source
+        account_family:
+          type: string
+          title: Account Family
+        intx_applicability:
+          type: string
+          title: Intx Applicability
+        maker_fee_rate:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Maker Fee Rate
+        taker_fee_rate:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Taker Fee Rate
+        first_blocker:
+          type: string
+          title: First Blocker
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+        bff_authority:
+          type: string
+          title: Bff Authority
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - source
+      - account_family
+      - intx_applicability
+      - maker_fee_rate
+      - taker_fee_rate
+      - first_blocker
+      - backend_owned
+      - browser_authority
+      - bff_authority
+      title: AdminFuturesFeeInput
+      description: Backend-owned US CFM Futures fee input evidence for risk visibility.
+    AdminFeeEvidenceReadResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_fee_evidence
+        status:
+          type: string
+          title: Status
+        module_id:
+          type: string
+          title: Module Id
+          default: account_management
+        route:
+          type: string
+          title: Route
+          default: /api/v1/admin/fees
+        account_family:
+          type: string
+          title: Account Family
+        source:
+          type: string
+          title: Source
+        fee_tier:
+          $ref: '#/components/schemas/AdminFeeTierEvidence'
+        spot_fee_input:
+          $ref: '#/components/schemas/AdminSpotFeeInput'
+        futures_fee_input:
+          $ref: '#/components/schemas/AdminFuturesFeeInput'
+        volume_30day:
+          $ref: '#/components/schemas/AdminFeeMoney'
+        perpetuals_volume_30day:
+          $ref: '#/components/schemas/AdminFeeMoney'
+        stablecoin_conversions_enabled:
+          type: boolean
+          title: Stablecoin Conversions Enabled
+          default: false
+        audit:
+          $ref: '#/components/schemas/AdminAccountManagementAudit'
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+        browser_authority:
+          type: string
+          title: Browser Authority
+        bff_authority:
+          type: string
+          title: Bff Authority
+        coinbase_read_enabled:
+          type: boolean
+          title: Coinbase Read Enabled
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+        notional_usdc:
+          type: string
+          title: Notional Usdc
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - account_family
+      - source
+      - fee_tier
+      - spot_fee_input
+      - futures_fee_input
+      - volume_30day
+      - perpetuals_volume_30day
+      - stablecoin_conversions_enabled
+      - audit
+      - read_only
+      - command_routes_mode
+      - browser_authority
+      - bff_authority
+      - coinbase_read_enabled
+      - live_coinbase_read_ran
+      - live_coinbase_execution
+      - notional_usdc
+      - live_coinbase_orders_ran
+      title: AdminFeeEvidenceReadResponse
+      description: Backend-owned fee tier evidence for Account Management, Spot admission, and US CFM Futures risk visibility.
     AdminWalletItem:
       properties:
         currency:

@@ -44,6 +44,7 @@ ACCOUNT_MANAGEMENT_ROUTE = "/api/v1/admin/account-management"
 ACCOUNT_WALLET_ROUTE = "/api/v1/admin/wallet"
 ACCOUNT_PRODUCTS_ROUTE = "/api/v1/admin/products"
 ACCOUNT_PRODUCTS_REFRESH_ROUTE = "/api/v1/admin/products/refresh"
+ACCOUNT_FEES_ROUTE = "/api/v1/admin/fees"
 ACCOUNT_MANAGEMENT_MODULE_ID = "account_management"
 PRODUCTS_JSON_PATH_ENV = "COINBASE_ADMIN_PRODUCTS_JSON_PATH"
 DEFAULT_PRODUCTS_JSON_PATH = Path(__file__).resolve().parents[2] / "products.json"
@@ -633,6 +634,8 @@ class AdminMvpService:
             return self._ok(self._admin_wallet(context), context)
         if normalized_path == ACCOUNT_PRODUCTS_ROUTE:
             return self._ok(self._admin_products(query, context), context)
+        if normalized_path == ACCOUNT_FEES_ROUTE:
+            return self._ok(self._admin_fees(context), context)
         if normalized_path == "/api/v1/admin/live-enablement":
             return self._ok(self._live_enablement(), context)
         if normalized_path == "/api/v1/admin/enterprise-readiness":
@@ -4993,6 +4996,55 @@ class AdminMvpService:
             return {}, "product_metadata_missing"
         return metadata, None
 
+    def _admin_fees(self, context: AdminMvpRequestContext) -> dict[str, Any]:
+        rest_client_ready = (
+            self.dependencies.rest_client_available
+            and self.dependencies.rest_client is not None
+        )
+        summary: Any = {}
+        summary_read = False
+        summary_error = "rest_client_unavailable"
+        if rest_client_ready:
+            summary, summary_read, summary_error = _read_rest_object(
+                self.dependencies.rest_client,
+                "get_transaction_summary",
+            )
+        snapshot = _admin_fee_evidence_snapshot(
+            summary,
+            summary_read=summary_read,
+            read_error=summary_error,
+        )
+        return {
+            "type": "admin_fee_evidence",
+            "status": snapshot["status"],
+            "module_id": ACCOUNT_MANAGEMENT_MODULE_ID,
+            "route": ACCOUNT_FEES_ROUTE,
+            "account_family": FUTURES_ACCOUNT_FAMILY_US_CFM,
+            "source": snapshot["source"],
+            "fee_tier": snapshot["fee_tier"],
+            "spot_fee_input": snapshot["spot_fee_input"],
+            "futures_fee_input": snapshot["futures_fee_input"],
+            "volume_30day": snapshot["volume_30day"],
+            "perpetuals_volume_30day": snapshot["perpetuals_volume_30day"],
+            "stablecoin_conversions_enabled": snapshot["stablecoin_conversions_enabled"],
+            "audit": {
+                "correlation_id": context.correlation_id,
+                "idempotency_key": context.idempotency_key,
+                "operator_intent": context.operator_intent,
+                "audit_surface": ACCOUNT_FEES_ROUTE,
+            },
+            "read_only": True,
+            "command_routes_mode": "backend_admin_api_read_only",
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "coinbase_read_enabled": rest_client_ready,
+            "live_coinbase_read_ran": (
+                rest_client_ready and summary_read and summary_error is None
+            ),
+            **self._live_outputs(False, Decimal("0")),
+            "notional_usdc": "0",
+        }
+
     def refresh_admin_products(
         self,
         body: Mapping[str, Any],
@@ -5321,7 +5373,7 @@ class AdminMvpService:
                 ACCOUNT_MANAGEMENT_MODULE_ID,
                 "Account Management",
                 "mvp_read_ready",
-                [ACCOUNT_MANAGEMENT_ROUTE, ACCOUNT_WALLET_ROUTE],
+                [ACCOUNT_MANAGEMENT_ROUTE, ACCOUNT_WALLET_ROUTE, ACCOUNT_FEES_ROUTE],
             ),
             _module_registry(
                 "spot_operations",
@@ -7119,6 +7171,7 @@ class AdminMvpService:
             ACCOUNT_MANAGEMENT_ROUTE,
             ACCOUNT_WALLET_ROUTE,
             ACCOUNT_PRODUCTS_ROUTE,
+            ACCOUNT_FEES_ROUTE,
             "/api/v1/admin/live-enablement",
             "/api/v1/admin/enterprise-readiness",
             "/api/v1/admin/release-gate",
@@ -8017,6 +8070,136 @@ def _admin_products_json_metadata(row: Mapping[str, Any]) -> dict[str, Any]:
         "trading_disabled": bool(row.get("trading_disabled", False)),
         "contract_size": row.get("contract_size"),
         "expiry": row.get("expiry"),
+    }
+
+
+def _admin_fee_evidence_snapshot(
+    summary: Any,
+    *,
+    summary_read: bool,
+    read_error: str | None,
+) -> dict[str, Any]:
+    data = _mapping(summary)
+    if not summary_read or read_error is not None:
+        return _blocked_admin_fee_evidence(read_error or "transaction_summary_unavailable")
+
+    fee_tier = _admin_fee_tier(
+        data,
+        tier_key="fee_tier",
+        source="coinbase_transaction_summary.fee_tier",
+    )
+    futures_tier = _admin_fee_tier(
+        data,
+        tier_key="perpetuals_fee_tier",
+        source="coinbase_transaction_summary.perpetuals_fee_tier",
+    )
+    if futures_tier["status"] != "ready":
+        futures_tier = {**fee_tier, "source": fee_tier["source"]}
+    status = "ready" if fee_tier["status"] == "ready" else "blocked"
+    return {
+        "status": status,
+        "source": BACKEND_REST_CLIENT_SOURCE if status == "ready" else "backend_rest_unavailable",
+        "fee_tier": fee_tier,
+        "spot_fee_input": _spot_fee_input(fee_tier),
+        "futures_fee_input": _futures_fee_input(futures_tier),
+        "volume_30day": _admin_fee_money(data.get("volume_30day")),
+        "perpetuals_volume_30day": _admin_fee_money(data.get("perpetuals_volume_30day")),
+        "stablecoin_conversions_enabled": bool(data.get("stablecoin_conversions_enabled", False)),
+    }
+
+
+def _blocked_admin_fee_evidence(read_error: str) -> dict[str, Any]:
+    fee_tier = _blocked_admin_fee_tier(read_error)
+    return {
+        "status": "blocked",
+        "source": "backend_rest_unavailable",
+        "fee_tier": fee_tier,
+        "spot_fee_input": _spot_fee_input(fee_tier),
+        "futures_fee_input": _futures_fee_input(fee_tier),
+        "volume_30day": _admin_fee_money(None),
+        "perpetuals_volume_30day": _admin_fee_money(None),
+        "stablecoin_conversions_enabled": False,
+    }
+
+
+def _admin_fee_tier(
+    summary: Mapping[str, Any],
+    *,
+    tier_key: str,
+    source: str,
+) -> dict[str, Any]:
+    tier = _mapping(summary.get(tier_key))
+    source_data = tier if tier else summary
+    maker_fee_rate = _optional_text(source_data.get("maker_fee_rate"))
+    taker_fee_rate = _optional_text(source_data.get("taker_fee_rate"))
+    if not maker_fee_rate or not taker_fee_rate:
+        return _blocked_admin_fee_tier(f"{tier_key}_rate_missing")
+    return {
+        "status": "ready",
+        "source": source,
+        "name": _optional_text(source_data.get("name")),
+        "pricing_tier": _optional_text(source_data.get("pricing_tier")),
+        "maker_fee_rate": maker_fee_rate,
+        "taker_fee_rate": taker_fee_rate,
+        "read_error": "none",
+        "backend_owned": True,
+        "read_only": True,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+    }
+
+
+def _blocked_admin_fee_tier(read_error: str) -> dict[str, Any]:
+    return {
+        "status": "blocked",
+        "source": "backend_rest_unavailable",
+        "name": None,
+        "pricing_tier": None,
+        "maker_fee_rate": None,
+        "taker_fee_rate": None,
+        "read_error": read_error,
+        "backend_owned": True,
+        "read_only": True,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+    }
+
+
+def _spot_fee_input(fee_tier: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "status": fee_tier["status"],
+        "source": fee_tier["source"],
+        "maker_fee_rate": fee_tier.get("maker_fee_rate"),
+        "taker_fee_rate": fee_tier.get("taker_fee_rate"),
+        "post_only_rate_source": "maker_fee_rate",
+        "non_post_only_rate_source": "taker_fee_rate",
+        "first_blocker": "none" if fee_tier["status"] == "ready" else fee_tier["read_error"],
+        "backend_owned": True,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+    }
+
+
+def _futures_fee_input(fee_tier: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "status": fee_tier["status"],
+        "source": fee_tier["source"],
+        "account_family": FUTURES_ACCOUNT_FAMILY_US_CFM,
+        "intx_applicability": FUTURES_INTX_APPLICABILITY_US_ACCOUNT,
+        "maker_fee_rate": fee_tier.get("maker_fee_rate"),
+        "taker_fee_rate": fee_tier.get("taker_fee_rate"),
+        "first_blocker": "none" if fee_tier["status"] == "ready" else fee_tier["read_error"],
+        "backend_owned": True,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+    }
+
+
+def _admin_fee_money(value: Any) -> dict[str, str]:
+    data = _mapping(value)
+    return {
+        "value": str(data.get("value") or "0"),
+        "currency": str(data.get("currency") or "USD"),
     }
 
 
@@ -10317,7 +10500,12 @@ def _nested_manifest_text(
 
 
 def _read_capability_module_id(route: str) -> str:
-    if route in {ACCOUNT_MANAGEMENT_ROUTE, ACCOUNT_WALLET_ROUTE, ACCOUNT_PRODUCTS_ROUTE}:
+    if route in {
+        ACCOUNT_MANAGEMENT_ROUTE,
+        ACCOUNT_WALLET_ROUTE,
+        ACCOUNT_PRODUCTS_ROUTE,
+        ACCOUNT_FEES_ROUTE,
+    }:
         return ACCOUNT_MANAGEMENT_MODULE_ID
     if route in FUTURES_READ_ROUTES:
         return FUTURES_MODULE_ID

@@ -1716,6 +1716,22 @@
     },
     {
       "module_id": "account_management",
+      "surface": "GET /api/v1/admin/fees",
+      "method": "GET",
+      "path": "/api/v1/admin/fees",
+      "action_class": "read_only",
+      "permission": "analytics:read",
+      "idempotency": "not required",
+      "approval": "not required",
+      "caps": "not applicable",
+      "audit": "optional read audit",
+      "shared_method": "build_admin_fee_evidence",
+      "parity_test": "backend-owned Coinbase transaction-summary fee tier evidence for Spot and US CFM Futures risk visibility; no Coinbase mutation",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
+      "module_id": "account_management",
       "surface": "GET /api/v1/admin/products",
       "method": "GET",
       "path": "/api/v1/admin/products",

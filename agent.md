@@ -69,6 +69,21 @@ When adding order lifecycle behavior, validate flat hierarchy explicitly.
 
 ---
 
+## Legacy Reference For MVP Work
+
+The backend `origin/prod` branch is useful source material for the legacy
+system. Before recreating account, wallet, product, fee, order, fill, spot,
+futures/perpetual, movement, repricing, or dashboard behavior from memory,
+inspect `origin/prod` with read-only commands such as
+`git show origin/prod:<path>`.
+
+Use that branch to understand historical behavior and tests, not to revive the
+legacy dashboard as product authority. MVP behavior must still be translated
+into backend-owned Admin API/BFF contracts with authorization, caps,
+idempotency, audit evidence, local deployment evidence, and focused tests.
+
+---
+
 ## Runtime and Dashboard Surface
 
 Dashboard transport is WebSocket at `ws://localhost:8765` via `dashboard_server.py`.

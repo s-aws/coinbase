@@ -245,6 +245,26 @@ class FakeAccountRestClient(FakeRestClient):
         },
     )
     futures_margin_collateral_exception: Exception | None = None
+    transaction_summary: dict = field(
+        default_factory=lambda: {
+            "fee_tier": {
+                "name": "Advanced",
+                "maker_fee_rate": "0.0040",
+                "taker_fee_rate": "0.0060",
+                "pricing_tier": "tier-1",
+            },
+            "volume_30day": {"value": "50000.00", "currency": "USD"},
+            "perpetuals_fee_tier": {
+                "name": "Perpetuals",
+                "maker_fee_rate": "0.0002",
+                "taker_fee_rate": "0.0006",
+                "pricing_tier": "perps-1",
+            },
+            "perpetuals_volume_30day": {"value": "1200.00", "currency": "USD"},
+            "stablecoin_conversions_enabled": True,
+        },
+    )
+    transaction_summary_exception: Exception | None = None
     product_dicts: dict[str, dict] = field(
         default_factory=lambda: {
             "AVP-20DEC30-CDE": {
@@ -274,6 +294,7 @@ class FakeAccountRestClient(FakeRestClient):
     get_futures_positions_calls: int = 0
     get_futures_margin_collateral_snapshot_calls: int = 0
     get_product_dict_calls: list[str] = field(default_factory=list)
+    get_transaction_summary_calls: int = 0
 
     def get_account_wallets(self):
         self.get_account_wallets_calls += 1
@@ -296,6 +317,12 @@ class FakeAccountRestClient(FakeRestClient):
     def get_product_dict(self, product_id: str):
         self.get_product_dict_calls.append(product_id)
         return self.product_dicts.get(product_id)
+
+    def get_transaction_summary(self):
+        self.get_transaction_summary_calls += 1
+        if self.transaction_summary_exception is not None:
+            raise self.transaction_summary_exception
+        return self.transaction_summary
 
 
 def context(
@@ -943,6 +970,7 @@ def test_admin_account_management_read_contract_exposes_local_operator_scope(
     assert account_module["read_routes"] == [
         "GET /api/v1/admin/account-management",
         "GET /api/v1/admin/wallet",
+        "GET /api/v1/admin/fees",
     ]
     assert account_module["action_posture"]["browser_authority"] == "display_only"
 
@@ -1183,6 +1211,88 @@ def test_admin_wallet_read_exposes_backend_owned_wallet_reality():
     assert rest_client.list_portfolios_calls == 1
     assert rest_client.get_futures_positions_calls == 1
     assert rest_client.get_futures_margin_collateral_snapshot_calls == 1
+
+
+def test_admin_fee_evidence_reads_backend_transaction_summary_without_order_execution():
+    rest_client = FakeAccountRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+
+    result = service.get_read_response(
+        "/api/v1/admin/fees",
+        {},
+        context(idempotency_key="fees-read", operator_intent="verify_fee_evidence"),
+    )
+
+    assert result.status_code == 200
+    body = result.body
+    assert body["type"] == "admin_fee_evidence"
+    assert body["status"] == "ready"
+    assert body["module_id"] == "account_management"
+    assert body["route"] == "/api/v1/admin/fees"
+    assert body["read_only"] is True
+    assert body["account_family"] == "coinbase_futures_us_cfm"
+    assert body["fee_tier"]["source"] == "coinbase_transaction_summary.fee_tier"
+    assert body["fee_tier"]["maker_fee_rate"] == "0.0040"
+    assert body["fee_tier"]["taker_fee_rate"] == "0.0060"
+    assert body["spot_fee_input"]["status"] == "ready"
+    assert body["spot_fee_input"]["maker_fee_rate"] == "0.0040"
+    assert body["spot_fee_input"]["taker_fee_rate"] == "0.0060"
+    assert body["spot_fee_input"]["post_only_rate_source"] == "maker_fee_rate"
+    assert body["futures_fee_input"]["status"] == "ready"
+    assert body["futures_fee_input"]["account_family"] == "coinbase_futures_us_cfm"
+    assert body["futures_fee_input"]["intx_applicability"] == "not_applicable_us_account"
+    assert body["futures_fee_input"]["maker_fee_rate"] == "0.0002"
+    assert body["futures_fee_input"]["taker_fee_rate"] == "0.0006"
+    assert body["futures_fee_input"]["source"] == (
+        "coinbase_transaction_summary.perpetuals_fee_tier"
+    )
+    assert body["volume_30day"]["value"] == "50000.00"
+    assert body["perpetuals_volume_30day"]["value"] == "1200.00"
+    assert body["stablecoin_conversions_enabled"] is True
+    assert body["coinbase_read_enabled"] is True
+    assert body["live_coinbase_read_ran"] is True
+    assert body["live_coinbase_execution"] == "not_run"
+    assert body["notional_usdc"] == "0"
+    assert body["live_coinbase_orders_ran"] is False
+    assert body["audit"]["operator_intent"] == "verify_fee_evidence"
+    assert rest_client.get_transaction_summary_calls == 1
+    assert rest_client.create_order_calls == []
+    assert rest_client.cancel_order_calls == []
+
+    capabilities = service.get_read_response("/api/v1/admin/capabilities", {}, context())
+    fee_capability = next(
+        item
+        for item in capabilities.body["capabilities"]
+        if item["method"] == "GET" and item["route"] == "/api/v1/admin/fees"
+    )
+    assert fee_capability["module_id"] == "account_management"
+    assert fee_capability["frontend_safe"] is True
+    assert fee_capability["live_enabled"] is False
+
+
+def test_admin_fee_evidence_blocks_when_transaction_summary_unavailable():
+    rest_client = FakeAccountRestClient(
+        transaction_summary_exception=RuntimeError("permission denied")
+    )
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+
+    result = service.get_read_response("/api/v1/admin/fees", {}, context())
+
+    assert result.status_code == 200
+    body = result.body
+    assert body["status"] == "blocked"
+    assert body["fee_tier"]["status"] == "blocked"
+    assert body["fee_tier"]["read_error"] == (
+        "get_transaction_summary_failed:RuntimeError"
+    )
+    assert body["spot_fee_input"]["status"] == "blocked"
+    assert body["futures_fee_input"]["status"] == "blocked"
+    assert body["live_coinbase_read_ran"] is False
+    assert body["live_coinbase_orders_ran"] is False
 
 
 def test_admin_products_read_exposes_backend_owned_product_metadata():
