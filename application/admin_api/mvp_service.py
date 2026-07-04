@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_DOWN, ROUND_UP
 from enum import Enum
 import hashlib
 import json
@@ -483,6 +483,9 @@ class AdminMvpService:
         )
         self.evidence_log = evidence_log or AdminMvpEvidenceLog.from_env()
         self.store = store or self.evidence_log.load_store()
+        self._futures_product_metadata_cache: dict[
+            str, tuple[dict[str, Any], str | None]
+        ] = {}
 
     def _persist_record(self, collection: str, key: str, record: Any) -> None:
         self.evidence_log.append(collection, key, record)
@@ -2230,6 +2233,135 @@ class AdminMvpService:
                 )
             )
         return min(caps)
+
+    def _futures_product_exposure_evidence(
+        self,
+        live_decision_summary: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Return configured Futures product exposure versus backend cap evidence."""
+
+        cap = self._futures_live_max_submitted_notional(
+            {"live_decision_evidence": live_decision_summary}
+        )
+        items = [
+            self._futures_product_exposure_item(product_id, cap)
+            for product_id in FUTURES_CONFIGURED_PRODUCT_SCOPE
+        ]
+        any_within_cap = any(bool(item["within_backend_cap"]) for item in items)
+        return {
+            "status": "ready" if any_within_cap else AdminMvpGateStatus.BLOCKED.value,
+            "account_family": FUTURES_ACCOUNT_FAMILY_US_CFM,
+            "intx_applicability": FUTURES_INTX_APPLICABILITY_US_ACCOUNT,
+            "product_scope": list(FUTURES_CONFIGURED_PRODUCT_SCOPE),
+            "max_submitted_notional_usdc": _decimal_text(cap),
+            "product_count": len(items),
+            "product_within_backend_cap_count": sum(
+                1 for item in items if bool(item["within_backend_cap"])
+            ),
+            "any_product_within_backend_cap": any_within_cap,
+            "items": items,
+            "next_required_operator_decision": (
+                "select_configured_us_cfm_product_within_cap"
+                if any_within_cap
+                else "configure_lower_exposure_us_cfm_product_or_raise_futures_cap"
+            ),
+            "execution_allowed": False,
+            "live_coinbase_orders_ran": False,
+            "backend_owned": True,
+            "read_only": True,
+            "spot_rule_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "detail": (
+                "Backend-owned Futures/Perpetual product exposure evidence compares "
+                "one configured US CFM contract against the active backend cap."
+            ),
+        }
+
+    def _futures_product_exposure_item(
+        self,
+        product_id: str,
+        cap: Decimal,
+    ) -> dict[str, Any]:
+        """Return one configured Futures product exposure row."""
+
+        metadata, read_error = self._futures_product_metadata(product_id)
+        limit_price = _futures_default_limit_price(metadata, side="BUY")
+        price_increment = _first_positive_decimal(
+            metadata,
+            ("price_increment", "quote_increment"),
+        )
+        contract_size = futures_contract_size_for_product(product_id, metadata)
+        minimum_notional = (
+            futures_place_notional_usdc(
+                {
+                    "product_id": product_id,
+                    "limit_price": limit_price,
+                    "size": "1",
+                },
+                metadata,
+            )
+            if limit_price is not None and contract_size > 0
+            else Decimal("0")
+        )
+        metadata_ready = read_error is None and limit_price is not None and contract_size > 0
+        within_cap = metadata_ready and minimum_notional <= cap
+        return {
+            "product_id": product_id,
+            "status": "ready" if within_cap else AdminMvpGateStatus.BLOCKED.value,
+            "metadata_read_status": "ready" if read_error is None else "blocked",
+            "metadata_read_error": read_error,
+            "source": BACKEND_REST_CLIENT_SOURCE,
+            "reference_side": "BUY",
+            "reference_limit_price": _decimal_text(limit_price or Decimal("0")),
+            "price_increment": (
+                _decimal_text(price_increment) if price_increment is not None else None
+            ),
+            "contract_size": _decimal_text(contract_size),
+            "minimum_contracts": "1",
+            "minimum_contract_notional_usdc": _decimal_text(minimum_notional),
+            "max_submitted_notional_usdc": _decimal_text(cap),
+            "within_backend_cap": within_cap,
+            "execution_allowed": False,
+            "live_coinbase_orders_ran": False,
+            "backend_owned": True,
+            "read_only": True,
+            "spot_rule_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        }
+
+    def _futures_product_metadata(
+        self,
+        product_id: str,
+    ) -> tuple[dict[str, Any], str | None]:
+        """Read backend product metadata for one configured Futures product."""
+
+        if product_id in self._futures_product_metadata_cache:
+            metadata, read_error = self._futures_product_metadata_cache[product_id]
+            return dict(metadata), read_error
+        if not self.dependencies.rest_client_available or self.dependencies.rest_client is None:
+            result = ({}, "rest_client_unavailable")
+            self._futures_product_metadata_cache[product_id] = result
+            return result
+        method = getattr(self.dependencies.rest_client, "get_product_dict", None)
+        if not callable(method):
+            result = ({}, "get_product_dict_unavailable")
+            self._futures_product_metadata_cache[product_id] = result
+            return result
+        try:
+            value = method(product_id)
+        except Exception as exc:  # pragma: no cover - defensive around live SDK failures
+            result = ({}, f"get_product_dict_failed:{type(exc).__name__}")
+            self._futures_product_metadata_cache[product_id] = result
+            return result
+        if not isinstance(value, Mapping):
+            result = ({}, "product_metadata_missing")
+            self._futures_product_metadata_cache[product_id] = result
+            return result
+        result = (dict(value), None)
+        self._futures_product_metadata_cache[product_id] = result
+        return result
 
     def _futures_live_admission_decision(
         self,
@@ -4663,9 +4795,15 @@ class AdminMvpService:
             )
         live_decision_summary = _futures_live_decision_summary(commands)
         latest_live_submit_failure = self._latest_futures_live_submit_failure()
+        futures_product_exposure_evidence = self._futures_product_exposure_evidence(
+            live_decision_summary
+        )
         live_decision_summary["latest_live_submit_failure"] = latest_live_submit_failure
         live_decision_summary["latest_live_submit_failure_present"] = (
             latest_live_submit_failure is not None
+        )
+        live_decision_summary["futures_product_exposure_evidence"] = (
+            futures_product_exposure_evidence
         )
         blockers = self._futures_command_blockers(
             [command["command"] for command in commands],
@@ -4729,6 +4867,7 @@ class AdminMvpService:
             "commands": commands,
             "futures_live_execution_scope": _futures_live_execution_scope(),
             "futures_live_decision_evidence": live_decision_summary,
+            "futures_product_exposure_evidence": futures_product_exposure_evidence,
             "latest_live_submit_failure": latest_live_submit_failure,
             "latest_live_submit_failure_present": latest_live_submit_failure is not None,
             "account_evidence_routes": ["/api/v1/futures/account"],
@@ -5439,6 +5578,77 @@ def _manual_order_notional(body: Mapping[str, Any]) -> Decimal:
     base_size = _decimal_value(body.get("base_size"), Decimal("0"))
     limit_price = _decimal_value(body.get("limit_price"), Decimal("0"))
     return base_size * limit_price
+
+
+def _futures_default_limit_price(
+    product_metadata: Mapping[str, Any],
+    *,
+    side: str,
+) -> Decimal | None:
+    """Return the backend default Futures limit price for an order side."""
+
+    price = _first_positive_decimal(product_metadata, _futures_price_fields_for_side(side))
+    if price is None:
+        return None
+    increment = _first_positive_decimal(
+        product_metadata,
+        ("price_increment", "quote_increment"),
+    )
+    if increment is None:
+        return price
+    return _quantize_decimal_to_increment(
+        price,
+        increment,
+        direction="down" if side.upper() == "BUY" else "up",
+    )
+
+
+def _futures_price_fields_for_side(side: str) -> tuple[str, ...]:
+    """Return metadata price fields for a Futures limit order side."""
+
+    return (
+        ("best_bid", "mid_price", "price", "best_ask")
+        if side.upper() == "BUY"
+        else ("best_ask", "mid_price", "price", "best_bid")
+    )
+
+
+def _first_positive_decimal(
+    source: Mapping[str, Any],
+    fields: Sequence[str],
+) -> Decimal | None:
+    """Return the first positive Decimal found in mapped fields."""
+
+    for field in fields:
+        value = _decimal_value_or_none(source.get(field))
+        if value is not None and value > 0:
+            return value
+    return None
+
+
+def _decimal_value_or_none(value: Any) -> Decimal | None:
+    """Return Decimal for a numeric value, otherwise None."""
+
+    try:
+        number = Decimal(str(value).strip())
+    except Exception:
+        return None
+    return number
+
+
+def _quantize_decimal_to_increment(
+    value: Decimal,
+    increment: Decimal,
+    *,
+    direction: str,
+) -> Decimal:
+    """Quantize a Decimal value to a positive increment."""
+
+    if increment <= 0:
+        return value
+    rounding = ROUND_DOWN if direction == "down" else ROUND_UP
+    ticks = (value / increment).to_integral_value(rounding=rounding)
+    return ticks * increment
 
 
 def futures_contract_size_for_product(

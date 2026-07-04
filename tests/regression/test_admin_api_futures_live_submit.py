@@ -101,4 +101,7 @@ def test_futures_live_submit_records_backend_evidence_before_rest_submission():
             },
         }
     ]
-    assert rest_client.get_product_dict_calls == ["BIP-20DEC30-CDE"]
+    assert rest_client.get_product_dict_calls == [
+        "BIP-20DEC30-CDE",
+        "BIP-20DEC30-CDE",
+    ]

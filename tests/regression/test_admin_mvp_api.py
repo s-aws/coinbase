@@ -1993,6 +1993,16 @@ def test_admin_futures_place_live_execution_requires_explicit_acknowledgement():
 
 def test_admin_futures_place_live_execution_rejects_above_backend_cap():
     rest_client = FakeAccountRestClient()
+    rest_client.product_dicts["BIP-20DEC30-CDE"] = {
+        "product_id": "BIP-20DEC30-CDE",
+        "product_type": "FUTURE",
+        "price": "62625",
+        "best_bid": "62625",
+        "best_ask": "62630",
+        "price_increment": "5",
+        "base_increment": "1",
+        "future_product_details": {"contract_size": "0.01"},
+    }
     service = AdminMvpService(
         AdminMvpDependencies(
             rest_client=rest_client,
@@ -2032,6 +2042,40 @@ def test_admin_futures_place_live_execution_rejects_above_backend_cap():
     )
 
     assert command_suite.status_code == 200
+    exposure = command_suite.body["futures_product_exposure_evidence"]
+    assert exposure["status"] == "blocked"
+    assert exposure["max_submitted_notional_usdc"] == "3.10"
+    assert exposure["any_product_within_backend_cap"] is False
+    assert exposure["next_required_operator_decision"] == (
+        "configure_lower_exposure_us_cfm_product_or_raise_futures_cap"
+    )
+    assert exposure["items"] == [
+        {
+            "product_id": "BIP-20DEC30-CDE",
+            "status": "blocked",
+            "metadata_read_status": "ready",
+            "metadata_read_error": None,
+            "source": "backend_rest_client",
+            "reference_side": "BUY",
+            "reference_limit_price": "62625.00",
+            "price_increment": "5.00",
+            "contract_size": "0.01",
+            "minimum_contracts": "1",
+            "minimum_contract_notional_usdc": "626.25",
+            "max_submitted_notional_usdc": "3.10",
+            "within_backend_cap": False,
+            "execution_allowed": False,
+            "live_coinbase_orders_ran": False,
+            "backend_owned": True,
+            "read_only": True,
+            "spot_rule_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        }
+    ]
+    assert command_suite.body["futures_live_decision_evidence"][
+        "futures_product_exposure_evidence"
+    ]["any_product_within_backend_cap"] is False
     failure = command_suite.body["latest_live_submit_failure"]
     assert command_suite.body["latest_live_submit_failure_present"] is True
     assert failure["failure_stage"] == "futures_cap_required"
