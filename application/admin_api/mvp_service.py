@@ -7331,6 +7331,20 @@ class AdminMvpService:
             else record.get("client_order_id")
         )
         admission_decision = dict(_mapping(record.get("admission_decision")))
+        cap_guard_decision_id = record.get("cap_guard_decision_id")
+        reconciliation_plan_id = record.get("reconciliation_plan_id")
+        cap_guard = self.store.cap_guard_decisions.get(str(cap_guard_decision_id or ""))
+        reconciliation = self.store.reconciliation_plans.get(str(reconciliation_plan_id or ""))
+        cap_guard_present = (
+            record.get("cap_guard_present")
+            if isinstance(record.get("cap_guard_present"), bool)
+            else cap_guard_decision_id is not None
+        )
+        reconciliation_plan_present = (
+            record.get("reconciliation_plan_present")
+            if isinstance(record.get("reconciliation_plan_present"), bool)
+            else reconciliation_plan_id is not None
+        )
         return {
             "event_id": record.get("decision_id"),
             "module": FUTURES_MODULE_ID,
@@ -7362,8 +7376,24 @@ class AdminMvpService:
             "message": record.get("message") or record.get("detail"),
             "admission_decision": admission_decision,
             "readiness_decision": dict(_mapping(record.get("readiness_decision"))),
-            "cap_guard_decision_id": record.get("cap_guard_decision_id"),
-            "reconciliation_plan_id": record.get("reconciliation_plan_id"),
+            "cap_guard_present": cap_guard_present,
+            "cap_guard_decision_id": cap_guard_decision_id,
+            "cap_guard_source": "admin_api_cap_guard_log" if cap_guard else None,
+            "cap_guard_recorded_at": cap_guard.get("recorded_at") if cap_guard else None,
+            "cap_guard_missing_reason": (
+                None if cap_guard_present else "cap_guard_decision_missing"
+            ),
+            "reconciliation_plan_present": reconciliation_plan_present,
+            "reconciliation_plan_id": reconciliation_plan_id,
+            "reconciliation_plan_source": (
+                "admin_api_reconciliation_plan_log" if reconciliation else None
+            ),
+            "reconciliation_plan_recorded_at": (
+                reconciliation.get("recorded_at") if reconciliation else None
+            ),
+            "reconciliation_plan_missing_reason": (
+                None if reconciliation_plan_present else "reconciliation_plan_missing"
+            ),
             "live_coinbase_orders_ran": bool(record.get("live_coinbase_orders_ran")),
             "raw_event": dict(record),
         }

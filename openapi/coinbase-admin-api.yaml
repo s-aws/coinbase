@@ -12786,6 +12786,7 @@ components:
       - movement_repricing
       - futures_positions
       - admin_api_futures_executor_boundary
+      - admin_api_futures_command_log
       - guard_risk_policy
       - backend_contract
       - runtime_unavailable
@@ -12949,6 +12950,56 @@ components:
           - type: string
           - type: 'null'
           title: Live Command Runtime Source
+        cap_guard_present:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Cap Guard Present
+        cap_guard_decision_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Decision Id
+        cap_guard_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Source
+        cap_guard_recorded_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Recorded At
+        cap_guard_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Missing Reason
+        reconciliation_plan_present:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Reconciliation Plan Present
+        reconciliation_plan_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Plan Id
+        reconciliation_plan_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Plan Source
+        reconciliation_plan_recorded_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Plan Recorded At
+        reconciliation_plan_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Plan Missing Reason
         recorded_at:
           anyOf:
           - type: string

@@ -76,6 +76,29 @@ def test_admin_command_openapi_exposes_proof_chain_response_fields():
     assert proof_chain_fields <= set(command_response["properties"])
 
 
+def test_admin_audit_workbench_openapi_exposes_futures_command_proof_chain_fields():
+    openapi = yaml.safe_load(
+        Path("openapi/coinbase-admin-api.yaml").read_text(encoding="utf-8")
+    )
+    schemas = openapi["components"]["schemas"]
+    event_item = schemas["AdminAuditWorkbenchEventItem"]
+    proof_chain_fields = {
+        "cap_guard_present",
+        "cap_guard_decision_id",
+        "cap_guard_source",
+        "cap_guard_recorded_at",
+        "cap_guard_missing_reason",
+        "reconciliation_plan_present",
+        "reconciliation_plan_id",
+        "reconciliation_plan_source",
+        "reconciliation_plan_recorded_at",
+        "reconciliation_plan_missing_reason",
+    }
+
+    assert "admin_api_futures_command_log" in schemas["AdminAuditEvidenceSource"]["enum"]
+    assert proof_chain_fields <= set(event_item["properties"])
+
+
 def test_admin_runtime_openapi_exposes_status_and_control_paths():
     openapi = yaml.safe_load(
         Path("openapi/coinbase-admin-api.yaml").read_text(encoding="utf-8")
@@ -3040,6 +3063,16 @@ def test_admin_futures_place_live_execution_uses_backend_rest_adapter_when_confi
     assert event["exchange_order_id_evidence_only"] is True
     assert event["live_exchange_submitted"] is True
     assert event["live_coinbase_orders_ran"] is True
+    assert event["cap_guard_present"] is True
+    assert event["cap_guard_decision_id"] == result.body["cap_guard_decision_id"]
+    assert event["cap_guard_source"] == "admin_api_cap_guard_log"
+    assert event["cap_guard_recorded_at"]
+    assert event["cap_guard_missing_reason"] is None
+    assert event["reconciliation_plan_present"] is True
+    assert event["reconciliation_plan_id"] == result.body["reconciliation_plan_id"]
+    assert event["reconciliation_plan_source"] == "admin_api_reconciliation_plan_log"
+    assert event["reconciliation_plan_recorded_at"]
+    assert event["reconciliation_plan_missing_reason"] is None
 
 
 def test_admin_futures_place_live_execution_requires_explicit_acknowledgement():
