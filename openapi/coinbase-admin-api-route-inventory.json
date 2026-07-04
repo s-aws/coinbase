@@ -788,6 +788,22 @@
     },
     {
       "module_id": "futures_perpetuals",
+      "surface": "GET /api/v1/futures/orders/{client_order_id}/fill-readback",
+      "method": "GET",
+      "path": "/api/v1/futures/orders/{client_order_id}/fill-readback",
+      "action_class": "read_only",
+      "permission": "analytics:read",
+      "idempotency": "not required",
+      "approval": "not required",
+      "caps": "not applicable",
+      "audit": "optional read audit",
+      "shared_method": "read_futures_order_fill_readback",
+      "parity_test": "client_order_id identity; read-only filled-order and fill evidence with exchange order_id as evidence only; no order/cancel submission, browser authority, BFF authority, or spot-rule authority",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
+      "module_id": "futures_perpetuals",
       "surface": "POST /api/v1/futures/positions/{position_key}/reconciliation",
       "method": "POST",
       "path": "/api/v1/futures/positions/{position_key}/reconciliation",

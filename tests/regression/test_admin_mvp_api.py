@@ -101,6 +101,8 @@ class FakeRestClient:
     )
     cancel_orders_responses: list[dict] = field(default_factory=list)
     list_orders_response: dict = field(default_factory=lambda: {"orders": []})
+    list_fills_response: dict = field(default_factory=lambda: {"fills": []})
+    list_fills_calls: list[dict] = field(default_factory=list)
     close_position_response: dict = field(
         default_factory=lambda: {
             "success": True,
@@ -126,6 +128,10 @@ class FakeRestClient:
     def list_orders(self, **kwargs):
         self.list_orders_calls.append(kwargs)
         return self.list_orders_response
+
+    def list_fills(self, **kwargs):
+        self.list_fills_calls.append(kwargs)
+        return self.list_fills_response
 
 
 @dataclass
@@ -1471,6 +1477,7 @@ def test_admin_futures_perpetuals_read_contract_exposes_blocked_contract_evidenc
         "/api/v1/futures/account",
         "/api/v1/futures/positions",
         "/api/v1/futures/positions/{position_key}",
+        "/api/v1/futures/orders/{client_order_id}/fill-readback",
         "/api/v1/futures/risk-proofs",
         "/api/v1/futures/risk-proofs/{futures_risk_proof_id}",
     }.issubset(futures_read_routes)
@@ -2094,6 +2101,78 @@ def test_admin_futures_reconciliation_route_records_local_execution_when_ready()
     assert rest_client.create_order_calls == []
     assert rest_client.cancel_order_calls == []
     assert rest_client.close_position_calls == []
+
+
+def test_admin_futures_order_fill_readback_reads_filled_order_by_client_order_id():
+    rest_client = FakeRestClient(
+        list_orders_response={
+            "orders": [
+                {
+                    "client_order_id": "futures-live-submit-test",
+                    "order_id": "exchange-order-live-1",
+                    "product_id": "AVP-20DEC30-CDE",
+                    "status": "FILLED",
+                    "filled_size": "1",
+                    "average_filled_price": "6.87",
+                }
+            ]
+        },
+        list_fills_response={
+            "fills": [
+                {
+                    "entry_id": "entry-1",
+                    "trade_id": "trade-1",
+                    "order_id": "exchange-order-live-1",
+                    "product_id": "AVP-20DEC30-CDE",
+                    "size": "1",
+                    "price": "6.87",
+                }
+            ],
+            "has_next": False,
+        },
+    )
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+
+    result = service.get_read_response(
+        "/api/v1/futures/orders/futures-live-submit-test/fill-readback",
+        {"product_id": "AVP-20DEC30-CDE", "fill_limit": "25"},
+        context(),
+    )
+
+    assert result.status_code == 200
+    body = result.body
+    assert body["type"] == "admin_futures_order_fill_readback"
+    assert body["module_id"] == "futures_perpetuals"
+    assert body["route"] == "/api/v1/futures/orders/{client_order_id}/fill-readback"
+    assert body["method"] == "GET"
+    assert body["action_class"] == "read_only"
+    assert body["client_order_id"] == "futures-live-submit-test"
+    assert body["operator_identity_key"] == "client_order_id"
+    assert body["status"] == "passed"
+    assert body["order_status"] == "FILLED"
+    assert body["filled_order_found"] is True
+    assert body["exchange_order_id_evidence_only"] is True
+    assert body["fill_count"] == 1
+    assert body["fill_read_status"] == "filled"
+    assert body["fill_order_id_matches_exchange_order_id"] is True
+    assert body["fill_product_id_matches_order"] is True
+    assert body["executed_notional_usdc"] == "68.70"
+    assert body["submitted_notional_usdc"] == "0"
+    assert body["notional_usdc"] == "0"
+    assert body["live_coinbase_read_ran"] is True
+    assert body["live_coinbase_orders_ran"] is False
+    assert body["read_only"] is True
+    assert body["browser_authority"] == "display_only"
+    assert body["bff_authority"] == "forward_only_no_execution"
+    assert all(check["passed"] for check in body["checks"])
+    assert rest_client.list_orders_calls == [{"order_status": ["FILLED"]}]
+    assert rest_client.list_fills_calls == [
+        {"order_id": "exchange-order-live-1", "limit": 25}
+    ]
+    assert rest_client.create_order_calls == []
+    assert rest_client.cancel_order_calls == []
 
 
 def test_admin_futures_place_live_execution_uses_backend_rest_adapter_when_confirmed():

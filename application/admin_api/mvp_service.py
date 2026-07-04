@@ -78,6 +78,7 @@ FUTURES_READ_ROUTES = (
     "/api/v1/futures/account",
     "/api/v1/futures/positions",
     "/api/v1/futures/positions/{position_key}",
+    "/api/v1/futures/orders/{client_order_id}/fill-readback",
     "/api/v1/futures/risk-proofs",
     "/api/v1/futures/risk-proofs/{futures_risk_proof_id}",
 )
@@ -601,7 +602,10 @@ class AdminMvpService:
                 context,
             )
         if normalized_path.startswith("/api/v1/futures/"):
-            return self._ok(self._futures_placeholder(normalized_path, query), context)
+            return self._ok(
+                self._futures_placeholder(normalized_path, query, context),
+                context,
+            )
         return self._error(404, f"Admin MVP route not found: {normalized_path}", context)
 
     def record_live_service_decision(
@@ -5620,6 +5624,7 @@ class AdminMvpService:
         self,
         path: str,
         query: Mapping[str, Any],
+        context: AdminMvpRequestContext,
     ) -> dict[str, Any]:
         if path == "/api/v1/futures/command-suite":
             return self._futures_command_suite()
@@ -5627,6 +5632,18 @@ class AdminMvpService:
             return self._futures_account()
         if path == "/api/v1/futures/positions":
             return self._futures_positions(query)
+        if path.startswith("/api/v1/futures/orders/") and path.endswith(
+            "/fill-readback"
+        ):
+            client_order_id = path.split("/api/v1/futures/orders/", 1)[1].rsplit(
+                "/fill-readback",
+                1,
+            )[0]
+            return self._futures_order_fill_readback(
+                unquote(client_order_id),
+                query,
+                context,
+            )
         if path == "/api/v1/futures/risk-proofs":
             return self._futures_risk_proofs(query)
         if "/risk-proofs/" in path:
@@ -5802,6 +5819,68 @@ class AdminMvpService:
             "read_only": True,
             "command_routes_mode": "backend_admin_api_blocked",
             "live_coinbase_orders_ran": False,
+        }
+
+    def _futures_order_fill_readback(
+        self,
+        client_order_id: str,
+        query: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+    ) -> dict[str, Any]:
+        """Read filled Futures order evidence by client_order_id without mutation."""
+
+        from tools.run_admin_api_futures_live_fill_readback import (
+            FuturesLiveFillReadbackConfig,
+            run_futures_live_fill_readback,
+        )
+
+        rest_client = (
+            self.dependencies.rest_client
+            if self.dependencies.rest_client_available
+            else None
+        )
+        summary = run_futures_live_fill_readback(
+            rest_client,
+            FuturesLiveFillReadbackConfig(
+                client_order_id=client_order_id,
+                product_id=_query_text(query, "product_id") or None,
+                backend_contract_ref=_query_text(query, "backend_contract_ref") or None,
+                fill_limit=max(_query_int(query, "fill_limit", 100), 1),
+            ),
+        )
+        return {
+            "type": "admin_futures_order_fill_readback",
+            "module_id": FUTURES_MODULE_ID,
+            "route": "/api/v1/futures/orders/{client_order_id}/fill-readback",
+            "method": "GET",
+            "action_class": "read_only",
+            "required_permission": "analytics:read",
+            "service_method": "read_futures_order_fill_readback",
+            "identity_key": "client_order_id",
+            "identity_value": client_order_id,
+            "client_order_id": client_order_id,
+            "operator_identity_key": "client_order_id",
+            "correlation_id": context.correlation_id,
+            "idempotency_key": context.idempotency_key,
+            "actor_id": context.actor_id,
+            "operator_intent": context.operator_intent,
+            "audit_id": f"audit-{context.idempotency_key}",
+            "exchange_order_id_evidence_only": True,
+            "coinbase_read_attempted": bool(summary.get("live_coinbase_read_ran")),
+            "coinbase_read_succeeded": bool(
+                summary.get("order_read_succeeded")
+                and summary.get("fill_read_succeeded")
+            ),
+            "coinbase_order_submitted": False,
+            "coinbase_order_cancel_submitted": False,
+            "local_state_mutated": False,
+            "exchange_state_mutated": False,
+            "live_exchange_submitted": False,
+            "command_routes_mode": "backend_admin_api_confirmed_live_readback",
+            "spot_rule_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            **summary,
         }
 
     def _futures_position_detail(self, position_key: str) -> dict[str, Any]:
