@@ -4193,6 +4193,10 @@ class AdminMvpService:
         position_scope = [
             item["product_id"] for item in snapshot["futures_positions"] if item.get("product_id")
         ]
+        liquidation = self._futures_liquidation_evidence(
+            snapshot["futures_margin_collateral"]["margin"]
+        )
+        reduce_close = self._futures_reduce_close_evidence(snapshot["futures_positions"])
         return {
             "type": "admin_futures_account",
             "configured_product_scope": list(FUTURES_CONFIGURED_PRODUCT_SCOPE),
@@ -4207,18 +4211,8 @@ class AdminMvpService:
                 "backend_contract",
                 "Funding status is named evidence but is not yet connected to a futures backend reader.",
             ),
-            "liquidation": self._futures_evidence(
-                "liquidation",
-                "unavailable",
-                "runtime_unavailable",
-                "Liquidation threshold and buffer require a futures-specific backend risk proof.",
-            ),
-            "reduce_only_close_only": self._futures_evidence(
-                "reduce_only_close_only",
-                "unavailable",
-                "runtime_unavailable",
-                "Close/reduce sides require an observed futures position side.",
-            ),
+            "liquidation": liquidation,
+            "reduce_only_close_only": reduce_close,
             "position_pnl": self._futures_evidence(
                 "position_pnl",
                 "unavailable",
@@ -4230,6 +4224,67 @@ class AdminMvpService:
             "command_routes_mode": "backend_admin_api_blocked",
             "live_coinbase_orders_ran": False,
         }
+
+    def _futures_liquidation_evidence(
+        self,
+        margin: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        value = _object_to_dict(margin.get("value"))
+        threshold = _object_to_dict(value.get("liquidation_threshold"))
+        buffer = _object_to_dict(value.get("liquidation_buffer"))
+        threshold_present = bool(str(threshold.get("value") or "").strip())
+        buffer_present = bool(str(buffer.get("value") or "").strip())
+        if margin.get("status") == "ready" and threshold_present and buffer_present:
+            return self._futures_evidence(
+                "liquidation",
+                "ready",
+                BACKEND_REST_CLIENT_SOURCE,
+                "US CFM liquidation threshold and buffer are present in the backend margin snapshot.",
+                {
+                    "liquidation_threshold_present": True,
+                    "liquidation_buffer_present": True,
+                    "margin_window_type": value.get("margin_window_type"),
+                    "source_ref": "/api/v1/futures/account.margin",
+                },
+            )
+        return self._futures_evidence(
+            "liquidation",
+            "unavailable",
+            "runtime_unavailable",
+            "Liquidation threshold and buffer require a ready backend CFM margin snapshot.",
+        )
+
+    def _futures_reduce_close_evidence(
+        self,
+        positions: Sequence[Mapping[str, Any]],
+    ) -> dict[str, Any]:
+        observed = [
+            item
+            for item in positions
+            if str(item.get("position_side") or "").strip().upper()
+            not in {"", "UNKNOWN"}
+        ]
+        if observed:
+            return self._futures_evidence(
+                "reduce_only_close_only",
+                "ready",
+                "runtime_positions",
+                "Observed Futures position side is present for backend close/reduce semantics.",
+                {
+                    "position_side_observed_count": len(observed),
+                    "product_scope": [
+                        item["product_id"] for item in observed if item.get("product_id")
+                    ],
+                    "backend_derives_close_reduce_side": True,
+                    "source_ref": "/api/v1/futures/positions",
+                },
+            )
+        return self._futures_evidence(
+            "reduce_only_close_only",
+            "unavailable",
+            "runtime_unavailable",
+            "Close/reduce sides require an observed futures position side.",
+        )
 
     def _futures_positions(self, query: Mapping[str, Any]) -> dict[str, Any]:
         limit = _query_int(query, "limit", 10)

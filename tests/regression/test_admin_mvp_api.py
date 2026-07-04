@@ -1185,6 +1185,14 @@ def test_spot_and_futures_reads_consume_backend_account_snapshot():
     assert futures.body["collateral"]["value"]["intx_applicability"] == "not_applicable_us_account"
     assert futures.body["margin"]["status"] == "ready"
     assert futures.body["margin"]["value"]["margin_window_type"] == "FCM_MARGIN_WINDOW_TYPE_INTRADAY"
+    assert futures.body["liquidation"]["status"] == "ready"
+    assert futures.body["liquidation"]["source"] == "backend_rest_client"
+    assert futures.body["liquidation"]["value"]["liquidation_threshold_present"] is True
+    assert futures.body["liquidation"]["value"]["liquidation_buffer_present"] is True
+    assert futures.body["reduce_only_close_only"]["status"] == "ready"
+    assert futures.body["reduce_only_close_only"]["source"] == "runtime_positions"
+    assert futures.body["reduce_only_close_only"]["value"]["position_side_observed_count"] == 1
+    assert futures.body["reduce_only_close_only"]["value"]["backend_derives_close_reduce_side"] is True
     assert futures.body["live_coinbase_orders_ran"] is False
 
     positions = service.get_read_response("/api/v1/futures/positions", {}, context())

@@ -145,6 +145,10 @@ def account_reality_checks(
     risk_proofs = bodies["futures_risk_proofs"]
     command_suite = bodies["futures_command_suite"]
     readiness = object_record(wallet.get("readiness"))
+    liquidation = object_record(futures_account.get("liquidation"))
+    liquidation_value = object_record(liquidation.get("value"))
+    reduce_close = object_record(futures_account.get("reduce_only_close_only"))
+    reduce_close_value = object_record(reduce_close.get("value"))
     return [
         check("wallet_http_ok", read_results["wallet"].status_code == 200),
         check(
@@ -191,6 +195,18 @@ def account_reality_checks(
         check(
             "futures_account_margin_ready",
             object_record(futures_account.get("margin")).get("status") == "ready",
+        ),
+        check(
+            "futures_account_liquidation_ready",
+            liquidation.get("status") == "ready"
+            and liquidation_value.get("liquidation_threshold_present") is True
+            and liquidation_value.get("liquidation_buffer_present") is True,
+        ),
+        check(
+            "futures_account_reduce_close_ready",
+            reduce_close.get("status") == "ready"
+            and reduce_close_value.get("backend_derives_close_reduce_side") is True
+            and int(reduce_close_value.get("position_side_observed_count") or 0) > 0,
         ),
         check("futures_risk_proofs_ready", risk_proofs.get("status") == "ready"),
         check(
@@ -242,12 +258,32 @@ def redact_futures_account_evidence(body: Mapping[str, Any]) -> dict[str, Any]:
 
     collateral = object_record(body.get("collateral"))
     margin = object_record(body.get("margin"))
+    liquidation = object_record(body.get("liquidation"))
+    liquidation_value = object_record(liquidation.get("value"))
+    reduce_close = object_record(body.get("reduce_only_close_only"))
+    reduce_close_value = object_record(reduce_close.get("value"))
     return {
         "account_readiness": object_record(body.get("account_readiness")),
         "collateral_status": collateral.get("status"),
         "collateral_source": collateral.get("source"),
         "margin_status": margin.get("status"),
         "margin_source": margin.get("source"),
+        "liquidation_status": liquidation.get("status"),
+        "liquidation_source": liquidation.get("source"),
+        "liquidation_threshold_present": liquidation_value.get(
+            "liquidation_threshold_present"
+        ),
+        "liquidation_buffer_present": liquidation_value.get(
+            "liquidation_buffer_present"
+        ),
+        "reduce_only_close_only_status": reduce_close.get("status"),
+        "reduce_only_close_only_source": reduce_close.get("source"),
+        "position_side_observed_count": reduce_close_value.get(
+            "position_side_observed_count"
+        ),
+        "backend_derives_close_reduce_side": reduce_close_value.get(
+            "backend_derives_close_reduce_side"
+        ),
         "command_routes_mode": body.get("command_routes_mode"),
         "live_coinbase_orders_ran": body.get("live_coinbase_orders_ran"),
     }
