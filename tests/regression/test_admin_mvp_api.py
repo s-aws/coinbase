@@ -1477,8 +1477,23 @@ def test_admin_wallet_route_is_registered_as_account_management_capability():
 
 
 def test_spot_and_futures_reads_consume_backend_account_snapshot():
+    rest_client = FakeAccountRestClient()
+    rest_client.product_dicts["BTC-USDC"] = {
+        "product_id": "BTC-USDC",
+        "product_type": "SPOT",
+        "base_currency": "BTC",
+        "quote_currency": "USDC",
+        "base_increment": "0.00000001",
+        "quote_increment": "0.01",
+        "price_increment": "0.01",
+        "base_min_size": "0.00001",
+        "quote_min_size": "1",
+        "display_name": "BTC-USDC",
+        "status": "online",
+        "trading_disabled": False,
+    }
     service = AdminMvpService(
-        AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
     )
 
     spot = service.get_read_response(
@@ -1506,9 +1521,21 @@ def test_spot_and_futures_reads_consume_backend_account_snapshot():
     }
     assert spot.body["account_readiness"]["spot_wallet_inventory_ready"] is True
     assert spot.body["account_readiness"]["usable_for_spot_admission"] is True
-    assert spot.body["products"][0]["product_id"] == "BTC-USDC"
-    assert spot.body["products"][0]["capabilities"]["wallet_inventory"]["mode"] == "enabled"
-    assert spot.body["products"][0]["capabilities"]["product_capability_contract"]["mode"] == "pending"
+    [spot_product] = spot.body["products"]
+    assert spot_product["product_id"] == "BTC-USDC"
+    assert spot_product["product_type"] == "SPOT"
+    assert spot_product["product_family"] == "spot"
+    assert spot_product["product_read_status"] == "ready"
+    assert spot_product["product_read_error"] is None
+    assert spot_product["base_min_size"] == "0.00001"
+    assert spot_product["quote_min_size"] == "1"
+    assert spot_product["trading_disabled"] is False
+    assert spot_product["capabilities"]["wallet_inventory"]["mode"] == "enabled"
+    assert spot_product["capabilities"]["product_capability_contract"]["mode"] == "enabled"
+    assert (
+        spot_product["capabilities"]["product_capability_contract"]["source"]
+        == "backend_rest_client"
+    )
     guards = {
         item["condition"]: item
         for item in spot.body["action_guard_summary"]
@@ -1516,11 +1543,13 @@ def test_spot_and_futures_reads_consume_backend_account_snapshot():
     assert guards["backend_account_reality"]["mode"] == "enabled"
     assert guards["spot_wallet_inventory"]["mode"] == "enabled"
     assert guards["spot_admission_input"]["mode"] == "enabled"
-    assert guards["product_capability_contract"]["mode"] == "pending"
+    assert guards["product_capability_contract"]["mode"] == "enabled"
+    assert guards["product_capability_contract"]["source"] == "backend_rest_client"
     assert spot.body["browser_authority"] == "display_only"
     assert spot.body["bff_authority"] == "read_only_forward"
     assert spot.body["live_coinbase_execution"] == "not_run"
     assert spot.body["live_coinbase_orders_ran"] is False
+    assert rest_client.get_product_dict_calls == ["BTC-USDC"]
 
     futures = service.get_read_response("/api/v1/futures/account", {}, context())
     assert futures.status_code == 200

@@ -5783,7 +5783,11 @@ class AdminMvpService:
     def _spot_readiness(self, query: Mapping[str, Any]) -> dict[str, Any]:
         snapshot = self._account_snapshot()
         spot_admission_input = _spot_admission_input_from_snapshot(snapshot)
-        products = _spot_readiness_products(query, snapshot)
+        product_rows = [
+            self._admin_product_row(product_id)
+            for product_id in _query_values(query, "product_id")
+        ]
+        products = _spot_readiness_products(product_rows, snapshot)
         return {
             "type": "spot_readiness",
             "status": _spot_readiness_status(snapshot),
@@ -7950,30 +7954,45 @@ def _spot_readiness_wallet_snapshot(
 
 
 def _spot_readiness_products(
-    query: Mapping[str, Any],
+    product_rows: Sequence[Mapping[str, Any]],
     snapshot: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
-    return [
-        _spot_readiness_product(product_id, snapshot)
-        for product_id in _query_values(query, "product_id")
-    ]
+    return [_spot_readiness_product(product_row, snapshot) for product_row in product_rows]
 
 
 def _spot_readiness_product(
-    product_id: str,
+    product_row: Mapping[str, Any],
     snapshot: Mapping[str, Any],
 ) -> dict[str, Any]:
     readiness = _mapping(snapshot.get("readiness"))
     wallet_inventory = _mapping(snapshot.get("wallet_inventory"))
-    quote_currency = _product_quote_currency(
-        product_id,
-        str(wallet_inventory.get("currency") or "USDC"),
+    product_id = str(product_row.get("product_id") or "")
+    quote_currency = str(
+        product_row.get("quote_currency")
+        or _product_quote_currency(product_id, str(wallet_inventory.get("currency") or "USDC"))
     )
     quote_supported = quote_currency in SPOT_ADMISSION_QUOTE_CURRENCIES
     wallet_ready = bool(readiness.get("spot_wallet_inventory_ready")) and quote_supported
+    product_capability = _spot_product_capability_contract(
+        product_row,
+        quote_supported,
+    )
     return {
         "product_id": product_id,
+        "product_type": product_row.get("product_type"),
+        "product_family": product_row.get("product_family"),
         "quote_currency": quote_currency,
+        "base_currency": product_row.get("base_currency"),
+        "base_increment": product_row.get("base_increment"),
+        "quote_increment": product_row.get("quote_increment"),
+        "price_increment": product_row.get("price_increment"),
+        "base_min_size": product_row.get("base_min_size"),
+        "quote_min_size": product_row.get("quote_min_size"),
+        "display_name": product_row.get("display_name"),
+        "trading_disabled": bool(product_row.get("trading_disabled", False)),
+        "product_read_status": product_row.get("read_status"),
+        "product_read_error": product_row.get("read_error"),
+        "product_metadata_source": product_row.get("source"),
         "capabilities": {
             "wallet_inventory": {
                 "mode": "enabled" if wallet_ready else "blocked",
@@ -7995,15 +8014,7 @@ def _spot_readiness_product(
                 "required": True,
                 "detail": "Backend account snapshot is the wallet input for Spot admission.",
             },
-            "product_capability_contract": {
-                "mode": "pending",
-                "source": "coinbase_product_capability_contract_pending",
-                "required": True,
-                "detail": (
-                    "Coinbase product capability reads are not exposed by this local MVP "
-                    "readiness route; live order admission still checks backend product gates."
-                ),
-            },
+            "product_capability_contract": product_capability,
         },
         "inventory": {
             "imported_baselines": {
@@ -8013,6 +8024,45 @@ def _spot_readiness_product(
                 "lots": [],
             },
         },
+        "backend_owned": True,
+        "browser_authority": "display_only",
+        "bff_authority": "read_only_forward",
+    }
+
+
+def _spot_product_capability_contract(
+    product_row: Mapping[str, Any],
+    quote_supported: bool,
+) -> dict[str, Any]:
+    read_status = str(product_row.get("read_status") or "blocked")
+    read_error = str(product_row.get("read_error") or "none")
+    product_family = str(product_row.get("product_family") or "unknown")
+    source = str(product_row.get("source") or "backend_rest_unavailable")
+    trading_disabled = bool(product_row.get("trading_disabled", False))
+    enabled = (
+        read_status == "ready"
+        and product_family == "spot"
+        and quote_supported
+        and not trading_disabled
+    )
+    if enabled:
+        detail = "Backend Coinbase product metadata is ready for this Spot quote scope."
+    elif read_status != "ready":
+        detail = f"Backend Coinbase product metadata is blocked: {read_error}."
+    elif product_family != "spot":
+        detail = "Backend product metadata is not a Spot product."
+    elif not quote_supported:
+        detail = "Backend product metadata quote currency is not supported for Spot admission."
+    else:
+        detail = "Backend product metadata reports trading disabled for this product."
+    return {
+        "mode": "enabled" if enabled else "blocked",
+        "source": source,
+        "required": True,
+        "detail": detail,
+        "read_status": read_status,
+        "read_error": None if read_error == "none" else read_error,
+        "product_family": product_family,
         "backend_owned": True,
         "browser_authority": "display_only",
         "bff_authority": "read_only_forward",
@@ -8032,6 +8082,7 @@ def _spot_readiness_guard_summary(
         if products
         else "No product_id filter was supplied; product capability checks remain backend pending."
     )
+    product_contract = _spot_readiness_product_contract_summary(products)
     return [
         {
             "condition": "backend_account_reality",
@@ -8063,12 +8114,44 @@ def _spot_readiness_guard_summary(
         {
             "condition": "product_capability_contract",
             "label": "Product capability contract",
-            "mode": "pending",
-            "reason": product_scope_detail,
-            "source": "coinbase_product_capability_contract_pending",
+            "mode": product_contract["mode"],
+            "reason": product_contract["reason"] or product_scope_detail,
+            "source": product_contract["source"],
             "backend_owned": True,
         },
     ]
+
+
+def _spot_readiness_product_contract_summary(
+    products: Sequence[Mapping[str, Any]],
+) -> dict[str, str]:
+    if not products:
+        return {
+            "mode": "pending",
+            "reason": "No product_id filter was supplied; product capability checks remain backend pending.",
+            "source": "coinbase_product_capability_contract_pending",
+        }
+    capability_rows = [
+        _mapping(_mapping(product.get("capabilities")).get("product_capability_contract"))
+        for product in products
+    ]
+    blocked_rows = [
+        row
+        for row in capability_rows
+        if str(row.get("mode") or "blocked") != "enabled"
+    ]
+    if blocked_rows:
+        first_blocker = blocked_rows[0]
+        return {
+            "mode": "blocked",
+            "reason": str(first_blocker.get("detail") or "Backend product capability is blocked."),
+            "source": str(first_blocker.get("source") or "backend_rest_unavailable"),
+        }
+    return {
+        "mode": "enabled",
+        "reason": f"{len(products)} requested product capability row(s) are backend-ready.",
+        "source": BACKEND_REST_CLIENT_SOURCE,
+    }
 
 
 def _product_quote_currency(product_id: str, default_currency: str) -> str:
