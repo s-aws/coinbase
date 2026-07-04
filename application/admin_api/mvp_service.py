@@ -62,6 +62,14 @@ FUTURES_INTX_APPLICABILITY_US_ACCOUNT = (
 )
 UNSCOPED_LIVE_DECISION_VALUE = "unscoped"
 FUTURES_CONFIGURED_PRODUCT_SCOPE = ("BIP-20DEC30-CDE",)
+FUTURES_CDE_CONTRACT_SIZE_BY_SYMBOL = {
+    "BIP": "0.01",
+    "BIT": "0.01",
+    "ET": "0.10",
+    "ETP": "0.10",
+    "SLP": "5",
+    "XPP": "500",
+}
 FUTURES_READ_ROUTES = (
     "/api/v1/futures/command-suite",
     "/api/v1/futures/account",
@@ -5371,13 +5379,49 @@ def _manual_order_notional(body: Mapping[str, Any]) -> Decimal:
     return base_size * limit_price
 
 
-def _futures_place_notional(body: Mapping[str, Any]) -> Decimal:
+def futures_contract_size_for_product(
+    product_id: object,
+    product_metadata: Mapping[str, Any] | None = None,
+) -> Decimal:
+    """Return backend-owned contract size for Futures notional calculations."""
+
+    metadata = _object_to_dict(product_metadata)
+    future_details = _object_to_dict(metadata.get("future_product_details"))
+    for raw_value in (
+        future_details.get("contract_size"),
+        metadata.get("contract_size"),
+    ):
+        contract_size = _decimal_value(raw_value, Decimal("0"))
+        if contract_size > 0:
+            return contract_size
+
+    symbol = str(product_id or "").split("-", 1)[0].upper()
+    configured = FUTURES_CDE_CONTRACT_SIZE_BY_SYMBOL.get(symbol)
+    if configured is not None:
+        return Decimal(configured)
+    return Decimal("1")
+
+
+def futures_place_notional_usdc(
+    body: Mapping[str, Any],
+    product_metadata: Mapping[str, Any] | None = None,
+) -> Decimal:
+    """Return Futures order notional as contracts times price times contract size."""
+
     size = _decimal_value(
         body.get("size", body.get("number_of_contracts")),
         Decimal("0"),
     )
     limit_price = _decimal_value(body.get("limit_price"), Decimal("0"))
-    return size * limit_price
+    contract_size = futures_contract_size_for_product(
+        body.get("product_id"),
+        product_metadata,
+    )
+    return size * limit_price * contract_size
+
+
+def _futures_place_notional(body: Mapping[str, Any]) -> Decimal:
+    return futures_place_notional_usdc(body)
 
 
 def _futures_live_place_requested(command: str, body: Mapping[str, Any]) -> bool:

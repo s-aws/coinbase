@@ -158,10 +158,25 @@ class FakeAccountRestClient(FakeRestClient):
         },
     )
     futures_margin_collateral_exception: Exception | None = None
+    product_dicts: dict[str, dict] = field(
+        default_factory=lambda: {
+            "BIP-20DEC30-CDE": {
+                "product_id": "BIP-20DEC30-CDE",
+                "product_type": "FUTURE",
+                "price": "102.75",
+                "best_bid": "102.75",
+                "best_ask": "105.25",
+                "price_increment": "5",
+                "base_increment": "1",
+                "future_product_details": {"contract_size": "0.01"},
+            },
+        },
+    )
     get_account_wallets_calls: int = 0
     list_portfolios_calls: int = 0
     get_futures_positions_calls: int = 0
     get_futures_margin_collateral_snapshot_calls: int = 0
+    get_product_dict_calls: list[str] = field(default_factory=list)
 
     def get_account_wallets(self):
         self.get_account_wallets_calls += 1
@@ -180,6 +195,10 @@ class FakeAccountRestClient(FakeRestClient):
         if self.futures_margin_collateral_exception is not None:
             raise self.futures_margin_collateral_exception
         return self.futures_margin_collateral_snapshot
+
+    def get_product_dict(self, product_id: str):
+        self.get_product_dict_calls.append(product_id)
+        return self.product_dicts.get(product_id)
 
 
 def context(
@@ -1888,7 +1907,7 @@ def test_admin_futures_place_live_execution_uses_backend_rest_adapter_when_confi
             "product_id": "BIP-20DEC30-CDE",
             "side": "BUY",
             "order_type": "LIMIT",
-            "limit_price": "0.50",
+            "limit_price": "100",
             "size": "1",
             "dry_run": False,
             "manual_live_acknowledgement": True,
@@ -1902,8 +1921,8 @@ def test_admin_futures_place_live_execution_uses_backend_rest_adapter_when_confi
     assert result.body["command"] == "futures_place"
     assert result.body["client_order_id"] == "futures-place-live-submit"
     assert result.body["coinbase_order_id"] == "exchange-order-live-1"
-    assert result.body["submitted_notional_usdc"] == "0.50"
-    assert result.body["notional_usdc"] == "0.50"
+    assert result.body["submitted_notional_usdc"] == "1.00"
+    assert result.body["notional_usdc"] == "1.00"
     assert result.body["live_exchange_submitted"] is True
     assert result.body["live_coinbase_orders_ran"] is True
     assert result.body["live_coinbase_execution"] == "submitted"
@@ -1915,7 +1934,7 @@ def test_admin_futures_place_live_execution_uses_backend_rest_adapter_when_confi
             "order_configuration": {
                 "limit_limit_gtc": {
                     "base_size": "1",
-                    "limit_price": "0.50",
+                    "limit_price": "100",
                     "post_only": False,
                 }
             },
@@ -1990,7 +2009,7 @@ def test_admin_futures_place_live_execution_rejects_above_backend_cap():
             "product_id": "BIP-20DEC30-CDE",
             "side": "BUY",
             "order_type": "LIMIT",
-            "limit_price": "5.00",
+            "limit_price": "500",
             "size": "1",
             "dry_run": False,
             "manual_live_acknowledgement": True,
@@ -2002,6 +2021,7 @@ def test_admin_futures_place_live_execution_rejects_above_backend_cap():
     assert result.body["status"] == "rejected"
     assert result.body["failure_stage"] == "futures_cap_required"
     assert result.body["submitted_notional_usdc"] == "0"
+    assert result.body["notional_usdc"] == "5.00"
     assert result.body["live_exchange_submitted"] is False
     assert rest_client.create_order_calls == []
 

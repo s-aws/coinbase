@@ -14,14 +14,14 @@ from tools.run_admin_api_futures_live_submit import (
 
 def test_futures_live_submit_body_defaults_to_small_limit_buy():
     body = build_futures_live_submit_body(
-        FuturesLiveSubmitConfig(confirm_live_submit=True)
+        FuturesLiveSubmitConfig(confirm_live_submit=True, limit_price="100")
     )
 
     assert body == {
         "product_id": "BIP-20DEC30-CDE",
         "side": "BUY",
         "order_type": "LIMIT",
-        "limit_price": "1",
+        "limit_price": "100",
         "size": "1",
         "post_only": False,
         "dry_run": False,
@@ -77,6 +77,8 @@ def test_futures_live_submit_records_backend_evidence_before_rest_submission():
     assert summary["final_status"] == "accepted"
     assert summary["failure_stage"] is None
     assert summary["client_order_id"] == "futures-live-submit-test"
+    assert summary["limit_price"] == "100"
+    assert summary["contract_size"] == "0.01"
     assert summary["live_exchange_submitted"] is True
     assert summary["live_coinbase_orders_ran"] is True
     assert summary["paired_sell_required"] is False
@@ -93,9 +95,10 @@ def test_futures_live_submit_records_backend_evidence_before_rest_submission():
             "order_configuration": {
                 "limit_limit_gtc": {
                     "base_size": "1",
-                    "limit_price": "1",
+                    "limit_price": "100",
                     "post_only": False,
                 }
             },
         }
     ]
+    assert rest_client.get_product_dict_calls == ["BIP-20DEC30-CDE"]

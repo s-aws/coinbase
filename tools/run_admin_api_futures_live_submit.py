@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, ROUND_DOWN, ROUND_UP
 import json
 import os
 from pathlib import Path
@@ -30,6 +30,8 @@ if str(REPO_ROOT) not in sys.path:
 from application.admin_api.mvp_service import (  # noqa: E402
     AdminMvpRequestContext,
     AdminMvpService,
+    futures_contract_size_for_product,
+    futures_place_notional_usdc,
     get_admin_mvp_service,
 )
 from tools.run_admin_api_futures_executor_boundary_smoke import (  # noqa: E402
@@ -59,7 +61,7 @@ DEFAULT_SUMMARY_OUTPUT = (
 )
 ARTIFACT_TYPE = "coinbase_admin_api_futures_live_submit"
 SCHEMA_VERSION = "1"
-DEFAULT_LIMIT_PRICE = "1"
+DEFAULT_LIMIT_PRICE = None
 DEFAULT_SIZE = "1"
 MAX_DEFAULT_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_DEFAULT_EXECUTED_NOTIONAL_USDC = "1.00"
@@ -75,7 +77,7 @@ class FuturesLiveSubmitConfig:
     summary_output: Path = DEFAULT_SUMMARY_OUTPUT
     backend_contract_ref: str | None = None
     product_id: str = FUTURES_PRODUCT_ID
-    limit_price: str = DEFAULT_LIMIT_PRICE
+    limit_price: str | None = DEFAULT_LIMIT_PRICE
     size: str = DEFAULT_SIZE
     idempotency_key: str = "futures-live-submit"
     correlation_id: str = "futures-live-submit-correlation"
@@ -136,7 +138,7 @@ def config_from_args(args: argparse.Namespace) -> FuturesLiveSubmitConfig:
         summary_output=args.summary_output,
         backend_contract_ref=args.backend_contract_ref,
         product_id=str(args.product_id),
-        limit_price=str(args.limit_price),
+        limit_price=optional_text(args.limit_price),
         size=str(args.size),
         idempotency_key=idempotency_key,
         correlation_id=correlation_id,
@@ -153,6 +155,8 @@ def config_from_args(args: argparse.Namespace) -> FuturesLiveSubmitConfig:
 def build_futures_live_submit_body(config: FuturesLiveSubmitConfig) -> dict[str, Any]:
     """Return the bounded buy-limit Futures place payload."""
 
+    if config.limit_price is None:
+        raise ValueError("limit_price must be resolved before building the Futures payload.")
     body: dict[str, Any] = {
         "product_id": config.product_id,
         "side": "BUY",
@@ -180,7 +184,11 @@ def run_futures_live_submit(
     """Record backend evidence, submit one live Futures order, and summarize."""
 
     validate_futures_live_submit_config(config)
-    body = build_futures_live_submit_body(config)
+    product_metadata = futures_live_submit_product_metadata(service, config.product_id)
+    body = build_futures_live_submit_body(
+        resolve_futures_live_submit_config(config, product_metadata)
+    )
+    validate_futures_live_submit_body(body)
     started_at = current_utc_timestamp()
     started = time.perf_counter()
 
@@ -207,6 +215,7 @@ def run_futures_live_submit(
         body=body,
         started_at=started_at,
         duration_seconds=time.perf_counter() - started,
+        product_metadata=product_metadata,
         live_service=live_service,
         adapters=adapters,
         command_suite=command_suite.body,
@@ -223,19 +232,164 @@ def validate_futures_live_submit_config(config: FuturesLiveSubmitConfig) -> None
         raise LiveSubmitConfirmationError(
             "Futures live submission requires --confirm-live-submit."
         )
-    limit_price = decimal_value(config.limit_price)
     size = decimal_value(config.size)
+    if config.limit_price is not None:
+        limit_price = decimal_value(config.limit_price)
+        if limit_price <= 0:
+            raise ValueError("limit_price must be greater than zero.")
+    if size <= 0:
+        raise ValueError("size must be greater than zero.")
+
+
+def validate_futures_live_submit_body(body: Mapping[str, Any]) -> None:
+    """Validate the resolved Futures live-submission body shape."""
+
+    limit_price = decimal_value(str(body.get("limit_price") or "0"))
+    size = decimal_value(str(body.get("size") or "0"))
     if limit_price <= 0:
         raise ValueError("limit_price must be greater than zero.")
     if size <= 0:
         raise ValueError("size must be greater than zero.")
-    notional = futures_notional_usdc(config)
-    if notional < decimal_value(MIN_DEFAULT_NOTIONAL_USDC):
-        raise ValueError("Futures live submit notional must be at least 1.00 USDC.")
-    if notional > decimal_value(config.max_submitted_notional_usdc):
+
+
+def futures_live_submit_product_metadata(
+    service: AdminMvpService,
+    product_id: str,
+) -> dict[str, Any]:
+    """Return merged local and live product metadata for one Futures product."""
+
+    local_metadata = local_product_metadata(product_id)
+    rest_client = service.dependencies.rest_client
+    get_product_dict = getattr(rest_client, "get_product_dict", None)
+    live_metadata: dict[str, Any] = {}
+    if callable(get_product_dict):
+        try:
+            value = get_product_dict(product_id)
+        except Exception as exc:
+            value = None
+            local_metadata["product_metadata_error"] = type(exc).__name__
+        if isinstance(value, Mapping):
+            live_metadata = dict(value)
+    merged = dict(local_metadata)
+    for key, value in live_metadata.items():
+        if value not in (None, ""):
+            merged[key] = value
+    merged["product_id"] = product_id
+    return merged
+
+
+def local_product_metadata(product_id: str) -> dict[str, Any]:
+    """Read local products.json metadata without calling Coinbase."""
+
+    products_path = REPO_ROOT / "products.json"
+    try:
+        data = json.loads(products_path.read_text(encoding="utf-8"))
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+    metadata = data.get("metadata")
+    if not isinstance(metadata, Mapping):
+        return {}
+    product = metadata.get(product_id)
+    return dict(product) if isinstance(product, Mapping) else {}
+
+
+def resolve_futures_live_submit_config(
+    config: FuturesLiveSubmitConfig,
+    product_metadata: Mapping[str, Any],
+) -> FuturesLiveSubmitConfig:
+    """Return config with a metadata-derived limit price when omitted."""
+
+    if config.limit_price is not None:
+        return config
+    return replace(
+        config,
+        limit_price=default_futures_limit_price(product_metadata, side="BUY"),
+    )
+
+
+def default_futures_limit_price(
+    product_metadata: Mapping[str, Any],
+    *,
+    side: str,
+) -> str:
+    """Return a tick-aligned limit price from backend product metadata."""
+
+    price = first_positive_decimal(
+        product_metadata,
+        price_fields_for_side(side),
+    )
+    if price is None:
+        product_id = product_metadata.get("product_id", "unknown")
         raise ValueError(
-            "Futures live submit notional must not exceed max_submitted_notional_usdc."
+            f"Product metadata for {product_id} does not include a usable price."
         )
+    increment = first_positive_decimal(
+        product_metadata,
+        ("price_increment", "quote_increment"),
+    )
+    if increment is None:
+        return decimal_output_text(price)
+    return decimal_output_text(
+        quantize_decimal_to_increment(
+            price,
+            increment,
+            direction="down" if side.upper() == "BUY" else "up",
+        )
+    )
+
+
+def price_fields_for_side(side: str) -> tuple[str, ...]:
+    """Return preferred metadata price fields for a limit order side."""
+
+    return (
+        ("best_bid", "mid_price", "price", "best_ask")
+        if side.upper() == "BUY"
+        else ("best_ask", "mid_price", "price", "best_bid")
+    )
+
+
+def first_positive_decimal(
+    source: Mapping[str, Any],
+    fields: Sequence[str],
+) -> Decimal | None:
+    """Return the first positive Decimal found in source fields."""
+
+    for field in fields:
+        value = decimal_value_or_none(source.get(field))
+        if value is not None and value > 0:
+            return value
+    return None
+
+
+def decimal_value_or_none(value: object) -> Decimal | None:
+    """Return Decimal for a numeric value, otherwise None."""
+
+    try:
+        number = Decimal(str(value).strip())
+    except Exception:
+        return None
+    return number
+
+
+def quantize_decimal_to_increment(
+    value: Decimal,
+    increment: Decimal,
+    *,
+    direction: str,
+) -> Decimal:
+    """Quantize a Decimal value to a positive increment."""
+
+    if increment <= 0:
+        raise ValueError("increment must be greater than zero.")
+    rounding = ROUND_DOWN if direction == "down" else ROUND_UP
+    ticks = (value / increment).to_integral_value(rounding=rounding)
+    return ticks * increment
+
+
+def decimal_output_text(value: Decimal) -> str:
+    """Return plain decimal text without scientific notation."""
+
+    return format(value.normalize(), "f")
 
 
 def build_request_context(
@@ -259,6 +413,7 @@ def build_summary(
     body: Mapping[str, Any],
     started_at: str,
     duration_seconds: float,
+    product_metadata: Mapping[str, Any],
     live_service: Any,
     adapters: Sequence[Any],
     command_suite: Mapping[str, Any],
@@ -269,7 +424,7 @@ def build_summary(
     """Return redacted Futures live-submit evidence."""
 
     submitted_notional = str(
-        final_submit.get("submitted_notional_usdc") or decimal_text(futures_notional_usdc(config))
+        final_submit.get("submitted_notional_usdc") or decimal_text(futures_notional_usdc(body))
     )
     notional = str(final_submit.get("notional_usdc") or submitted_notional)
     checks = futures_live_submit_checks(
@@ -304,6 +459,9 @@ def build_summary(
         "order_type": body.get("order_type"),
         "limit_price": body.get("limit_price"),
         "size": body.get("size"),
+        "contract_size": decimal_text(
+            futures_contract_size_for_product(body.get("product_id"), product_metadata)
+        ),
         "max_submitted_notional_usdc": config.max_submitted_notional_usdc,
         "max_executed_notional_usdc": config.max_executed_notional_usdc,
         "client_order_id": str(final_submit.get("client_order_id") or ""),
@@ -402,10 +560,10 @@ def check(name: str, passed: bool) -> dict[str, Any]:
     return {"name": name, "passed": bool(passed)}
 
 
-def futures_notional_usdc(config: FuturesLiveSubmitConfig) -> Decimal:
-    """Return the submitted Futures notional for this runner config."""
+def futures_notional_usdc(body: Mapping[str, Any]) -> Decimal:
+    """Return the backend-owned Futures notional for a resolved payload."""
 
-    return decimal_value(config.size) * decimal_value(config.limit_price)
+    return futures_place_notional_usdc(body)
 
 
 def optional_text(value: object) -> str | None:
