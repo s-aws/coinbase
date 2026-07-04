@@ -35,6 +35,12 @@ PAYLOAD_PATHS = (
     "integration",
     "market_intel",
     "tools",
+    "tests/__init__.py",
+    "tests/pytest.ini",
+    "tests/conftest.py",
+    "tests/regression/__init__.py",
+    "tests/regression/test_admin_api_contract.py",
+    "tests/regression/test_admin_mvp_api.py",
     "websocket",
     "configuration.py",
     "dashboard_server.py",
@@ -47,6 +53,8 @@ PAYLOAD_PATHS = (
 REQUIRED_PAYLOAD_PATHS = (
     "application/admin_api/mvp_service.py",
     "tools/run_admin_api.py",
+    "tests/regression/test_admin_api_contract.py",
+    "tests/regression/test_admin_mvp_api.py",
     "pyproject.toml",
 )
 EXCLUDED_PACKAGE_NAMES = {"__pycache__", ".git", ".pytest_cache", ".mypy_cache"}

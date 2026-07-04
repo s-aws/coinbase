@@ -77,6 +77,13 @@ def test_apply_backend_local_deployment_writes_current_release(tmp_path: Path):
     assert Path(current_manifest["current_path"]) == deploy_root / "current"
     assert Path(current_manifest["release_path"]) == deploy_root / "releases" / "abc123"
     assert (deploy_root / "current" / "tools" / "run_admin_api.py").exists()
+    assert (deploy_root / "current" / "tests" / "pytest.ini").exists()
+    assert (
+        deploy_root / "current" / "tests" / "regression" / "test_admin_api_contract.py"
+    ).exists()
+    assert (
+        deploy_root / "current" / "tests" / "regression" / "test_admin_mvp_api.py"
+    ).exists()
     assert not (deploy_root / "current" / "tools" / "__pycache__").exists()
     assert (
         deploy_root / "current" / "coinbase-backend-local-deployment-manifest.json"
@@ -91,6 +98,12 @@ def _write_minimal_backend_source(source_root: Path) -> None:
         "application/admin_api/mvp_service.py",
         "tools/__init__.py",
         "tools/run_admin_api.py",
+        "tests/__init__.py",
+        "tests/pytest.ini",
+        "tests/conftest.py",
+        "tests/regression/__init__.py",
+        "tests/regression/test_admin_api_contract.py",
+        "tests/regression/test_admin_mvp_api.py",
         "configuration.py",
         "dashboard_server.py",
         "pyproject.toml",
