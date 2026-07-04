@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import os
 from types import SimpleNamespace
 
 from tools import run_admin_api_account_reality_live_read_smoke as smoke
+from tools.run_admin_api_manual_order_live_submit import STATE_LOG_FILENAMES
 
 
 def result(body: dict, status_code: int = 200) -> SimpleNamespace:
@@ -282,7 +284,7 @@ def test_account_reality_live_read_smoke_main_writes_artifact(monkeypatch, tmp_p
     monkeypatch.setattr(
         smoke,
         "apply_runner_environment",
-        lambda: {smoke.run_admin_api.OS_TRUSTSTORE_ENV: "enabled"},
+        lambda state_dir=None: {smoke.run_admin_api.OS_TRUSTSTORE_ENV: "enabled"},
     )
     monkeypatch.setattr(
         smoke,
@@ -303,3 +305,32 @@ def test_account_reality_live_read_smoke_main_writes_artifact(monkeypatch, tmp_p
     assert summary["status"] == "passed"
     assert summary["backend_git_commit"] == "abc1234"
     assert summary["backend_git_branch"] == "codex/account-futures-mvp-local-cd"
+
+
+def test_account_reality_live_read_smoke_applies_restart_safe_state_paths(
+    monkeypatch, tmp_path
+):
+    state_dir = tmp_path / "state"
+    monkeypatch.setattr(
+        smoke.run_admin_api,
+        "apply_local_environment",
+        lambda args: {smoke.run_admin_api.OS_TRUSTSTORE_ENV: "enabled"},
+    )
+    monkeypatch.setenv("COINBASE_ADMIN_API_STATE_DIR", str(state_dir))
+    for env_name in STATE_LOG_FILENAMES:
+        os.environ.pop(env_name, None)
+    os.environ.pop("COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED", None)
+
+    try:
+        applied = smoke.apply_runner_environment()
+
+        for env_name, filename in STATE_LOG_FILENAMES.items():
+            expected_path = str((state_dir / filename).resolve())
+            assert os.environ[env_name] == expected_path
+            assert applied[env_name] == expected_path
+
+        assert os.environ["COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED"] == "true"
+    finally:
+        os.environ.pop("COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED", None)
+        for env_name in STATE_LOG_FILENAMES:
+            os.environ.pop(env_name, None)

@@ -31,6 +31,10 @@ from tools.run_admin_api_futures_executor_boundary_smoke import (
     record_futures_live_adapter_decisions,
     record_futures_live_service_decision,
 )
+from tools.run_admin_api_manual_order_live_submit import (
+    apply_manual_live_submit_state_environment,
+    default_state_dir,
+)
 
 
 DEFAULT_SUMMARY_OUTPUT = (
@@ -50,6 +54,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--summary-output", type=Path, default=DEFAULT_SUMMARY_OUTPUT)
     parser.add_argument(
+        "--state-dir",
+        type=Path,
+        default=default_state_dir(),
+        help="Directory for restart-safe local Admin evidence logs.",
+    )
+    parser.add_argument(
         "--backend-contract-ref",
         default=None,
         help="Backend contract ref to record. Defaults to the current git commit.",
@@ -57,10 +67,11 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def apply_runner_environment() -> dict[str, str]:
-    """Apply the same local TLS/auth environment setup as the Admin API runner."""
+def apply_runner_environment(state_dir: Path | None = None) -> dict[str, str]:
+    """Apply local TLS/auth and durable Admin state environment setup."""
 
     applied = run_admin_api.apply_local_environment(run_admin_api.parse_args([]))
+    applied.update(apply_manual_live_submit_state_environment(state_dir or default_state_dir()))
     os.environ["COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED"] = "true"
     applied["COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED"] = "true"
     return applied
@@ -99,12 +110,13 @@ def record_futures_live_decision_evidence(
     service: Any,
     *,
     summary_output: Path,
+    state_dir: Path,
     backend_contract_ref: str | None,
 ) -> dict[str, Any]:
     """Record local Futures live-service and adapter evidence before readback."""
 
     config = FuturesBoundarySmokeConfig(
-        state_dir=summary_output.parent / "account-reality-live-read-state",
+        state_dir=state_dir,
         summary_output=summary_output,
         backend_contract_ref=backend_contract_ref,
     )
@@ -540,13 +552,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     started_at = current_utc_timestamp()
     started = time.perf_counter()
-    applied_environment = apply_runner_environment()
+    applied_environment = apply_runner_environment(args.state_dir)
     service = get_admin_mvp_service()
     backend_git_commit = read_git_value(["rev-parse", "--short", "HEAD"])
     backend_contract_ref = args.backend_contract_ref or backend_git_commit
     futures_live_decision_records = record_futures_live_decision_evidence(
         service,
         summary_output=args.summary_output,
+        state_dir=args.state_dir,
         backend_contract_ref=backend_contract_ref,
     )
     read_results = read_admin_surfaces(service)

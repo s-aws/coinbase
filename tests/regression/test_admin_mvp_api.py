@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import lru_cache
 import json
 from pathlib import Path
+from typing import Any
 import tomllib
 
 import pytest
@@ -28,10 +30,22 @@ PRE_COINBASE_FAILURE_STAGES = {
 }
 
 
-def test_admin_live_decision_openapi_exposes_futures_scope_fields():
-    openapi = yaml.safe_load(
-        Path("openapi/coinbase-admin-api.yaml").read_text(encoding="utf-8")
+try:
+    from yaml import CSafeLoader as _OPENAPI_SAFE_LOADER
+except ImportError:  # pragma: no cover - depends on the local PyYAML build.
+    from yaml import SafeLoader as _OPENAPI_SAFE_LOADER
+
+
+@lru_cache(maxsize=1)
+def load_admin_openapi() -> dict[str, Any]:
+    return yaml.load(
+        Path("openapi/coinbase-admin-api.yaml").read_text(encoding="utf-8"),
+        Loader=_OPENAPI_SAFE_LOADER,
     )
+
+
+def test_admin_live_decision_openapi_exposes_futures_scope_fields():
+    openapi = load_admin_openapi()
     schemas = openapi["components"]["schemas"]
     service_scope_fields = {
         "target_module_id",
@@ -60,9 +74,7 @@ def test_admin_live_decision_openapi_exposes_futures_scope_fields():
 
 
 def test_admin_command_openapi_exposes_proof_chain_response_fields():
-    openapi = yaml.safe_load(
-        Path("openapi/coinbase-admin-api.yaml").read_text(encoding="utf-8")
-    )
+    openapi = load_admin_openapi()
     command_response = openapi["components"]["schemas"]["AdminApiCommandResponse"]
     proof_chain_fields = {
         "cap_guard_present",
@@ -77,9 +89,7 @@ def test_admin_command_openapi_exposes_proof_chain_response_fields():
 
 
 def test_admin_audit_workbench_openapi_exposes_futures_command_proof_chain_fields():
-    openapi = yaml.safe_load(
-        Path("openapi/coinbase-admin-api.yaml").read_text(encoding="utf-8")
-    )
+    openapi = load_admin_openapi()
     schemas = openapi["components"]["schemas"]
     event_item = schemas["AdminAuditWorkbenchEventItem"]
     proof_chain_fields = {
@@ -100,9 +110,7 @@ def test_admin_audit_workbench_openapi_exposes_futures_command_proof_chain_field
 
 
 def test_admin_runtime_openapi_exposes_status_and_control_paths():
-    openapi = yaml.safe_load(
-        Path("openapi/coinbase-admin-api.yaml").read_text(encoding="utf-8")
-    )
+    openapi = load_admin_openapi()
 
     assert openapi["paths"]["/api/v1/admin/runtime"]["get"]["responses"]["200"][
         "content"
@@ -120,9 +128,7 @@ def test_admin_runtime_openapi_exposes_status_and_control_paths():
 
 
 def test_admin_products_openapi_exposes_product_metadata_path():
-    openapi = yaml.safe_load(
-        Path("openapi/coinbase-admin-api.yaml").read_text(encoding="utf-8")
-    )
+    openapi = load_admin_openapi()
 
     assert openapi["paths"]["/api/v1/admin/products"]["get"]["responses"]["200"][
         "content"
@@ -132,9 +138,7 @@ def test_admin_products_openapi_exposes_product_metadata_path():
 
 
 def test_admin_products_openapi_exposes_product_refresh_path():
-    openapi = yaml.safe_load(
-        Path("openapi/coinbase-admin-api.yaml").read_text(encoding="utf-8")
-    )
+    openapi = load_admin_openapi()
 
     assert openapi["paths"]["/api/v1/admin/products/refresh"]["post"]["responses"][
         "200"
@@ -144,9 +148,7 @@ def test_admin_products_openapi_exposes_product_refresh_path():
 
 
 def test_admin_account_management_openapi_exposes_live_read_evidence_fields():
-    openapi = yaml.safe_load(
-        Path("openapi/coinbase-admin-api.yaml").read_text(encoding="utf-8")
-    )
+    openapi = load_admin_openapi()
     environment = openapi["components"]["schemas"]["AdminAccountManagementEnvironment"]
     live_read_fields = {
         "backend_account_reality_live_read_status",
