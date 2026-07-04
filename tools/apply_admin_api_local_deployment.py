@@ -44,6 +44,7 @@ PAYLOAD_PATHS = (
     "websocket",
     "configuration.py",
     "dashboard_server.py",
+    "logging_service.py",
     "main.py",
     "products.json",
     "pyproject.toml",
@@ -53,6 +54,7 @@ PAYLOAD_PATHS = (
 REQUIRED_PAYLOAD_PATHS = (
     "application/admin_api/mvp_service.py",
     "tools/run_admin_api.py",
+    "logging_service.py",
     "tests/regression/test_admin_api_contract.py",
     "tests/regression/test_admin_mvp_api.py",
     "pyproject.toml",
