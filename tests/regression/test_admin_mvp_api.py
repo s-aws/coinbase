@@ -2028,11 +2028,42 @@ def test_admin_futures_command_suite_resolves_account_and_risk_proof_evidence():
     assert suite["command_enablement_blocker_summary_count"] == 1
     assert suite["command_enablement_blocker_summaries"][0]["blocker"] == "execution_disabled"
     assert suite["command_enablement_blocker_summaries"][0]["blocking"] is True
+    assert suite["request_payload_validation_record_funding_semantic_count"] == 4
+    assert suite["blocking_request_payload_validation_record_funding_semantic_count"] == 0
+    assert suite["ready_request_payload_validation_record_funding_semantic_count"] == 4
+    assert suite["runtime_observed_request_payload_validation_record_funding_semantic_count"] == 4
     commands = {command["command"]: command for command in suite["commands"]}
     assert commands["futures_place"]["missing_backend_contracts"] == []
     assert commands["futures_place"]["readiness_decision"]["first_blocker"] == "execution_disabled"
     assert commands["futures_place"]["readiness_decision"]["next_required_backend_contract"] is None
     assert commands["futures_place"]["risk_proof_id"] == proof["futures_risk_proof_id"]
+    assert commands["futures_place"]["request_payload_validation_record_funding_semantic_count"] == 1
+    assert commands["futures_place"]["blocking_request_payload_validation_record_funding_semantic_count"] == 0
+    assert commands["futures_place"]["ready_request_payload_validation_record_funding_semantic_count"] == 1
+    assert commands["futures_place"]["runtime_observed_request_payload_validation_record_funding_semantic_count"] == 1
+    [funding_semantic] = commands["futures_place"][
+        "request_payload_validation_record_funding_semantics"
+    ]
+    assert funding_semantic["field"] == "product_id"
+    assert funding_semantic["status"] == "passed"
+    assert funding_semantic["blocking"] is False
+    assert funding_semantic["funding_semantics_contract_available"] is True
+    assert funding_semantic["funding_semantics_contract_ready"] is True
+    assert funding_semantic["funding_rate_bound"] is True
+    assert funding_semantic["funding_fee_bound"] is True
+    assert funding_semantic["funding_interval_bound"] is True
+    assert funding_semantic["funding_cost_bound"] is True
+    assert funding_semantic["runtime_funding_evidence_observed"] is True
+    assert funding_semantic["runtime_evidence_satisfies_funding_semantics"] is True
+    assert funding_semantic["validation_record_funding_semantics_ready"] is True
+    assert funding_semantic["validation_record_execution_eligible"] is False
+    assert funding_semantic["execution_allowed"] is False
+    assert funding_semantic["live_coinbase_orders_ran"] is False
+    assert funding_semantic["evidence_routes"] == [
+        "/api/v1/futures/account",
+        "/api/v1/admin/fees",
+        "/api/v1/futures/risk-proofs",
+    ]
     assert commands["futures_place"]["execution_allowed"] is False
     assert suite["live_coinbase_orders_ran"] is False
 

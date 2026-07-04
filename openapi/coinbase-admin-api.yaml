@@ -20098,6 +20098,7 @@ components:
       - /api/v1/futures/positions
       - /api/v1/futures/positions/{position_key}
       - /api/v1/futures/risk-proofs
+      - /api/v1/admin/fees
       - /api/v1/admin/approvals
       - /api/v1/admin/approvals/requests/{approval_request_id}
       - /api/v1/admin/admission-audits

@@ -4997,23 +4997,8 @@ class AdminMvpService:
         return metadata, None
 
     def _admin_fees(self, context: AdminMvpRequestContext) -> dict[str, Any]:
-        rest_client_ready = (
-            self.dependencies.rest_client_available
-            and self.dependencies.rest_client is not None
-        )
-        summary: Any = {}
-        summary_read = False
-        summary_error = "rest_client_unavailable"
-        if rest_client_ready:
-            summary, summary_read, summary_error = _read_rest_object(
-                self.dependencies.rest_client,
-                "get_transaction_summary",
-            )
-        snapshot = _admin_fee_evidence_snapshot(
-            summary,
-            summary_read=summary_read,
-            read_error=summary_error,
-        )
+        fee_read = self._read_admin_fee_snapshot()
+        snapshot = fee_read["snapshot"]
         return {
             "type": "admin_fee_evidence",
             "status": snapshot["status"],
@@ -5037,12 +5022,38 @@ class AdminMvpService:
             "command_routes_mode": "backend_admin_api_read_only",
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
-            "coinbase_read_enabled": rest_client_ready,
+            "coinbase_read_enabled": fee_read["rest_client_ready"],
             "live_coinbase_read_ran": (
-                rest_client_ready and summary_read and summary_error is None
+                fee_read["rest_client_ready"]
+                and fee_read["summary_read"]
+                and fee_read["summary_error"] is None
             ),
             **self._live_outputs(False, Decimal("0")),
             "notional_usdc": "0",
+        }
+
+    def _read_admin_fee_snapshot(self) -> dict[str, Any]:
+        rest_client_ready = (
+            self.dependencies.rest_client_available
+            and self.dependencies.rest_client is not None
+        )
+        summary: Any = {}
+        summary_read = False
+        summary_error = "rest_client_unavailable"
+        if rest_client_ready:
+            summary, summary_read, summary_error = _read_rest_object(
+                self.dependencies.rest_client,
+                "get_transaction_summary",
+            )
+        return {
+            "snapshot": _admin_fee_evidence_snapshot(
+                summary,
+                summary_read=summary_read,
+                read_error=summary_error,
+            ),
+            "rest_client_ready": rest_client_ready,
+            "summary_read": summary_read,
+            "summary_error": summary_error,
         }
 
     def refresh_admin_products(
@@ -6488,6 +6499,11 @@ class AdminMvpService:
 
     def _futures_command_suite(self) -> dict[str, Any]:
         snapshot = self._account_snapshot()
+        fee_snapshot = self._read_admin_fee_snapshot()["snapshot"]
+        futures_funding_evidence = self._futures_funding_evidence(
+            snapshot["futures_margin_collateral"],
+            snapshot["futures_positions"],
+        )
         proofs = self._futures_risk_proof_records(snapshot)
         proof_by_command = {str(proof["command"]): proof for proof in proofs}
         resolved_contracts = _futures_resolved_contracts(snapshot, proofs)
@@ -6522,8 +6538,11 @@ class AdminMvpService:
                     risk_proof=proof_by_command.get(str(spec["command"])),
                     account_ready=bool(snapshot["readiness"]["futures_account_scope_ready"]),
                     live_decision_evidence=live_decision_evidence,
+                    futures_funding_evidence=futures_funding_evidence,
+                    futures_fee_input=fee_snapshot["futures_fee_input"],
                 )
             )
+        funding_semantic_rows = _futures_funding_semantic_rows_from_commands(commands)
         live_decision_summary = _futures_live_decision_summary(
             commands,
             live_runtime_ready=live_runtime_ready,
@@ -6598,6 +6617,8 @@ class AdminMvpService:
             "request_field_summary_count": len(request_field_summaries),
             "request_field_summary_blocking_count": 0,
             "request_field_summaries": request_field_summaries,
+            **_futures_funding_semantic_counts(funding_semantic_rows),
+            "request_payload_validation_record_funding_semantics": funding_semantic_rows,
             "command_enablement_blocker_summary_count": len(blockers),
             "command_enablement_blocker_summary_blocking_count": len(blockers),
             "command_enablement_blocker_summaries": blockers,
@@ -6667,9 +6688,18 @@ class AdminMvpService:
         risk_proof: Mapping[str, Any] | None,
         account_ready: bool,
         live_decision_evidence: Mapping[str, Any],
+        futures_funding_evidence: Mapping[str, Any],
+        futures_fee_input: Mapping[str, Any],
     ) -> dict[str, Any]:
         blocking_prerequisite_count = 0 if not missing_contracts else 2
         request_fields = _futures_request_fields_for_command(command)
+        funding_semantics = _futures_request_payload_validation_record_funding_semantics(
+            command,
+            identity_key,
+            request_fields,
+            futures_funding_evidence,
+            futures_fee_input,
+        )
         first_blocker = (
             str(live_decision_evidence["first_blocker"])
             if not missing_contracts
@@ -6719,6 +6749,8 @@ class AdminMvpService:
             "required_request_field_count": len(request_fields),
             "blocking_request_field_count": 0,
             "request_fields": request_fields,
+            **_futures_funding_semantic_counts(funding_semantics),
+            "request_payload_validation_record_funding_semantics": funding_semantics,
             "semantic_guard_count": 0,
             "blocking_semantic_guard_count": 0,
             "risk_semantic_guard_count": 0,
@@ -8862,6 +8894,197 @@ def _futures_request_fields_for_command(command: str) -> list[dict[str, Any]]:
         _futures_request_field_item(command, field_spec)
         for field_spec in FUTURES_COMMAND_REQUEST_FIELDS.get(command, ())
     ]
+
+
+def _futures_request_payload_validation_record_funding_semantics(
+    command: str,
+    identity_key: str,
+    request_fields: Sequence[Mapping[str, Any]],
+    funding_evidence: Mapping[str, Any],
+    fee_input: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    field = _futures_funding_semantic_field(identity_key, request_fields)
+    if field is None:
+        return []
+    return [
+        _futures_request_payload_validation_record_funding_semantic(
+            command,
+            field,
+            funding_evidence,
+            fee_input,
+        )
+    ]
+
+
+def _futures_funding_semantic_field(
+    identity_key: str,
+    request_fields: Sequence[Mapping[str, Any]],
+) -> str | None:
+    for item in request_fields:
+        if str(item.get("field") or "") == identity_key:
+            return identity_key
+    if request_fields:
+        return str(request_fields[0].get("field") or "") or None
+    return None
+
+
+def _futures_request_payload_validation_record_funding_semantic(
+    command: str,
+    field: str,
+    funding_evidence: Mapping[str, Any],
+    fee_input: Mapping[str, Any],
+) -> dict[str, Any]:
+    funding_ready = str(funding_evidence.get("status") or "") == "ready"
+    fee_ready = str(fee_input.get("status") or "") == "ready"
+    ready = funding_ready and fee_ready
+    eligibility_ref = (
+        "application/admin_api/"
+        f"futures_request_payload_validation_record_execution_eligibilities.py::{command}_{field}"
+    )
+    semantic_ref = f"{eligibility_ref}_funding_semantics"
+    contract_ref = (
+        "application/admin_api/"
+        f"futures_request_payload_validation_record_funding_semantics.py::{command}_{field}_funding_semantics_contract"
+    )
+    artifact_ref = (
+        "application/admin_api/"
+        f"futures_request_payload_validation_record_semantic_artifacts.py::{command}_{field}_funding_semantics"
+    )
+    definition_ref = (
+        "application/admin_api/"
+        f"futures_request_payload_validation_record_semantic_artifact_definitions.py::{command}_{field}_funding_semantics_definition"
+    )
+    review_ref = (
+        "application/admin_api/"
+        f"futures_request_payload_validation_record_semantic_artifact_definition_reviews.py::{command}_{field}_funding_semantics_definition_review"
+    )
+    runtime_evidence_ref = (
+        "application/admin_api/"
+        f"futures_request_payload_validation_record_semantic_artifact_runtime_evidences.py::{command}_{field}_funding_semantics_runtime_evidence"
+    )
+    acceptance_ref = (
+        "application/admin_api/"
+        f"futures_request_payload_validation_record_semantic_artifact_runtime_evidence_acceptances.py::{command}_{field}_funding_semantics_runtime_evidence_acceptance"
+    )
+    evidence_routes = [
+        "/api/v1/futures/account",
+        ACCOUNT_FEES_ROUTE,
+        "/api/v1/futures/risk-proofs",
+    ]
+    required_evidence_refs = [
+        semantic_ref,
+        contract_ref,
+        "/api/v1/futures/account.funding",
+        f"{ACCOUNT_FEES_ROUTE}.futures_fee_input",
+        "/api/v1/futures/risk-proofs",
+    ]
+    missing_evidence_refs = [] if ready else required_evidence_refs
+    forbidden_execution_claims = [
+        "validation_record_execution_eligible",
+        "command_execution_allowed",
+        "live_coinbase_orders_ran",
+        "browser_execution_authority",
+        "bff_execution_authority",
+        "spot_rule_authority",
+    ]
+    return {
+        "field": field,
+        "blocker": "funding_semantics_missing",
+        "semantic_artifact": "funding_semantics",
+        "status": (
+            AdminMvpGateStatus.PASSED.value
+            if ready
+            else AdminMvpGateStatus.BLOCKED.value
+        ),
+        "source": "backend_contract",
+        "required": True,
+        "blocking": not ready,
+        "validation_record_execution_eligibility_contract_ref": eligibility_ref,
+        "validation_record_execution_eligibility_blocker_ref": semantic_ref,
+        "semantic_ref": semantic_ref,
+        "semantic_artifact_ref": artifact_ref,
+        "semantic_artifact_contract_ref": f"{artifact_ref}_contract",
+        "semantic_artifact_definition_ref": definition_ref,
+        "semantic_artifact_definition_contract_ref": f"{definition_ref}_contract",
+        "semantic_artifact_definition_review_ref": review_ref,
+        "semantic_artifact_definition_review_contract_ref": f"{review_ref}_contract",
+        "semantic_artifact_runtime_evidence_ref": runtime_evidence_ref,
+        "semantic_artifact_runtime_evidence_contract_ref": f"{runtime_evidence_ref}_contract",
+        "semantic_artifact_runtime_evidence_acceptance_ref": acceptance_ref,
+        "semantic_artifact_runtime_evidence_acceptance_contract_ref": f"{acceptance_ref}_contract",
+        "funding_semantics_ref": semantic_ref,
+        "funding_semantics_contract_ref": contract_ref,
+        "evidence_routes": evidence_routes,
+        "evidence_route_count": len(evidence_routes),
+        "required_backend_contract": contract_ref,
+        "missing_backend_contract": "none" if ready else contract_ref,
+        "missing_reason": "none" if ready else "backend_owned_funding_or_fee_evidence_missing",
+        "required_evidence_refs": required_evidence_refs,
+        "required_evidence_count": len(required_evidence_refs),
+        "missing_evidence_refs": missing_evidence_refs,
+        "missing_evidence_count": len(missing_evidence_refs),
+        "forbidden_execution_claims": forbidden_execution_claims,
+        "forbidden_execution_claim_count": len(forbidden_execution_claims),
+        "backend_owned": True,
+        "read_only": True,
+        "contextless_review_required": False,
+        "spot_rule_authority": False,
+        "funding_semantics_contract_available": ready,
+        "funding_semantics_contract_ready": ready,
+        "funding_rate_bound": funding_ready,
+        "funding_fee_bound": fee_ready,
+        "funding_interval_bound": funding_ready,
+        "funding_cost_bound": funding_ready,
+        "runtime_funding_evidence_observed": funding_ready,
+        "runtime_evidence_satisfies_funding_semantics": ready,
+        "semantic_artifact_runtime_evidence_acceptance_available": ready,
+        "semantic_artifact_runtime_evidence_acceptance_accepted": ready,
+        "validation_record_funding_semantics_ready": ready,
+        "validation_record_execution_eligible": False,
+        "execution_allowed": False,
+        "live_coinbase_orders_ran": False,
+        "browser_authority": "display_only",
+        "bff_authority": "forward_only_no_execution",
+        "detail": (
+            f"{command}.{field}: backend-owned US CFM funding applicability and fee-tier evidence are bound for validation-record funding semantics; command execution remains controlled by separate live enablement gates."
+            if ready
+            else f"{command}.{field}: backend-owned funding semantics require ready US CFM funding applicability and fee-tier evidence before validation-record funding semantics can pass."
+        ),
+    }
+
+
+def _futures_funding_semantic_rows_from_commands(
+    commands: Sequence[Mapping[str, Any]],
+) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for command in commands:
+        rows.extend(
+            [
+                dict(item)
+                for item in command.get(
+                    "request_payload_validation_record_funding_semantics",
+                    [],
+                )
+            ]
+        )
+    return rows
+
+
+def _futures_funding_semantic_counts(
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[str, int]:
+    return {
+        "request_payload_validation_record_funding_semantic_count": len(rows),
+        "blocking_request_payload_validation_record_funding_semantic_count": sum(
+            1 for row in rows if bool(row.get("blocking"))
+        ),
+        "ready_request_payload_validation_record_funding_semantic_count": sum(
+            1 for row in rows if str(row.get("status") or "") == AdminMvpGateStatus.PASSED.value
+        ),
+        "runtime_observed_request_payload_validation_record_funding_semantic_count": sum(
+            1 for row in rows if bool(row.get("runtime_funding_evidence_observed"))
+        ),
+    }
 
 
 def _futures_request_field_item(
