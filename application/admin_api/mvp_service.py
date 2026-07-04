@@ -2683,8 +2683,9 @@ class AdminMvpService:
             controller = self.dependencies.runtime_controller_factory()
             _check_runtime_cancel_admission(controller)
             with _track_runtime_cancel(controller):
-                result = self.dependencies.rest_client.cancel_orders(
-                    order_ids=[client_order_id],
+                cancel_attempt = _cancel_futures_order_by_client_order_id(
+                    self.dependencies.rest_client,
+                    client_order_id=client_order_id,
                 )
         except Exception as exc:
             return self._futures_place_blocked_response(
@@ -2708,7 +2709,7 @@ class AdminMvpService:
                 context=context,
             )
 
-        cancel_result = _coinbase_cancel_orders_result_data(result)
+        cancel_result = _mapping(cancel_attempt.get("cancel_result"))
         if not _coinbase_cancel_order_succeeded(cancel_result):
             return self._futures_place_blocked_response(
                 status_code=400,
@@ -2755,6 +2756,7 @@ class AdminMvpService:
             failure_stage=None,
             context=context,
             client_order_id=client_order_id,
+            coinbase_order_id=_optional_text(cancel_attempt.get("exchange_order_id")),
             live_exchange_submitted=True,
             submitted_notional=Decimal("0"),
             execution_allowed=True,
@@ -2790,6 +2792,14 @@ class AdminMvpService:
             "failure_stage": None,
             "coinbase_cancel_submission_allowed": True,
             "coinbase_cancel_result": cancel_result,
+            "coinbase_cancel_identity_used": cancel_attempt.get("identity_used"),
+            "coinbase_cancel_order_read_attempted": bool(
+                cancel_attempt.get("order_read_attempted")
+            ),
+            "coinbase_cancel_order_read_succeeded": bool(
+                cancel_attempt.get("order_read_succeeded")
+            ),
+            "exchange_order_id_present": bool(cancel_attempt.get("exchange_order_id")),
             "submission_event_recorded": True,
             "submission_event_id": command_record["decision_id"],
             "command_route_registered": True,
@@ -6894,6 +6904,93 @@ def _coinbase_cancel_orders_result_data(result: Any) -> dict[str, Any]:
     return _object_to_dict(result)
 
 
+def _cancel_futures_order_by_client_order_id(
+    rest_client: Any,
+    *,
+    client_order_id: str,
+) -> dict[str, Any]:
+    initial_result = rest_client.cancel_orders(order_ids=[client_order_id])
+    initial_data = _coinbase_cancel_orders_result_data(initial_result)
+    if _coinbase_cancel_order_succeeded(initial_data):
+        return {
+            "cancel_result": initial_data,
+            "identity_used": "client_order_id",
+            "order_read_attempted": False,
+            "order_read_succeeded": False,
+            "exchange_order_id": None,
+        }
+
+    order_read = _read_open_coinbase_order_by_client_order_id(
+        rest_client,
+        client_order_id=client_order_id,
+    )
+    exchange_order_id = _coinbase_exchange_order_id(order_read.get("order"))
+    if not exchange_order_id or exchange_order_id == client_order_id:
+        return {
+            "cancel_result": initial_data,
+            "identity_used": "client_order_id",
+            "order_read_attempted": bool(order_read.get("attempted")),
+            "order_read_succeeded": bool(order_read.get("succeeded")),
+            "exchange_order_id": exchange_order_id or None,
+        }
+
+    fallback_result = rest_client.cancel_orders(order_ids=[exchange_order_id])
+    return {
+        "cancel_result": _coinbase_cancel_orders_result_data(fallback_result),
+        "identity_used": "exchange_order_id",
+        "order_read_attempted": bool(order_read.get("attempted")),
+        "order_read_succeeded": bool(order_read.get("succeeded")),
+        "exchange_order_id": exchange_order_id,
+    }
+
+
+def _read_open_coinbase_order_by_client_order_id(
+    rest_client: Any,
+    *,
+    client_order_id: str,
+) -> dict[str, Any]:
+    list_orders = getattr(rest_client, "list_orders", None)
+    if not callable(list_orders):
+        return {"attempted": False, "succeeded": False, "order": None}
+    try:
+        response = list_orders(order_status=["OPEN"])
+    except Exception:
+        return {"attempted": True, "succeeded": False, "order": None}
+    order = _find_coinbase_order_by_client_order_id(
+        _coinbase_order_records(response),
+        client_order_id,
+    )
+    return {"attempted": True, "succeeded": True, "order": order}
+
+
+def _coinbase_order_records(response: Any) -> list[dict[str, Any]]:
+    data = _object_to_dict(response)
+    orders = data.get("orders")
+    if not isinstance(orders, Sequence) or isinstance(orders, (str, bytes, bytearray)):
+        return []
+    return [_object_to_dict(order) for order in orders]
+
+
+def _find_coinbase_order_by_client_order_id(
+    orders: Sequence[Mapping[str, Any]],
+    client_order_id: str,
+) -> dict[str, Any] | None:
+    for order in orders:
+        if str(order.get("client_order_id") or "").strip() == client_order_id:
+            return dict(order)
+    return None
+
+
+def _coinbase_exchange_order_id(order: Any) -> str:
+    data = _mapping(order)
+    return str(
+        data.get("order_id")
+        or data.get("exchange_order_id")
+        or data.get("coinbase_order_id")
+        or ""
+    ).strip()
+
+
 def _coinbase_cancel_order_succeeded(result_data: Mapping[str, Any]) -> bool:
     success = result_data.get("success")
     if success is not None:
@@ -6958,6 +7055,11 @@ def _object_to_dict(value: Any) -> dict[str, Any]:
     if hasattr(value, "__dict__"):
         return dict(value.__dict__)
     return {}
+
+
+def _optional_text(value: Any) -> str | None:
+    text = str(value or "").strip()
+    return text or None
 
 
 def _mapping(value: Any) -> Mapping[str, Any]:

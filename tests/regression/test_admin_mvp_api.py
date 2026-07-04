@@ -82,6 +82,7 @@ class FakeRestClient:
     create_order_calls: list[dict] = field(default_factory=list)
     cancel_order_calls: list[dict] = field(default_factory=list)
     close_position_calls: list[dict] = field(default_factory=list)
+    list_orders_calls: list[dict] = field(default_factory=list)
     create_order_response: dict = field(
         default_factory=lambda: {
             "success": True,
@@ -98,6 +99,8 @@ class FakeRestClient:
             ]
         }
     )
+    cancel_orders_responses: list[dict] = field(default_factory=list)
+    list_orders_response: dict = field(default_factory=lambda: {"orders": []})
     close_position_response: dict = field(
         default_factory=lambda: {
             "success": True,
@@ -111,11 +114,18 @@ class FakeRestClient:
 
     def cancel_orders(self, **kwargs):
         self.cancel_order_calls.append(kwargs)
+        if self.cancel_orders_responses:
+            index = min(len(self.cancel_order_calls) - 1, len(self.cancel_orders_responses) - 1)
+            return self.cancel_orders_responses[index]
         return self.cancel_orders_response
 
     def close_position(self, **kwargs):
         self.close_position_calls.append(kwargs)
         return self.close_position_response
+
+    def list_orders(self, **kwargs):
+        self.list_orders_calls.append(kwargs)
+        return self.list_orders_response
 
 
 @dataclass
@@ -2497,6 +2507,75 @@ def test_admin_futures_cancel_live_execution_uses_backend_rest_adapter_when_conf
     assert event["exchange_order_id_evidence_only"] is True
     assert event["live_exchange_submitted"] is True
     assert event["live_coinbase_orders_ran"] is True
+
+
+def test_admin_futures_cancel_resolves_exchange_order_id_when_client_id_cancel_is_unknown():
+    rest_client = FakeAccountRestClient()
+    rest_client.cancel_orders_responses = [
+        {
+            "results": [
+                {
+                    "success": False,
+                    "failure_reason": "UNKNOWN_CANCEL_ORDER",
+                }
+            ]
+        },
+        {
+            "results": [
+                {
+                    "success": True,
+                    "order_id": "exchange-futures-live-cancel",
+                }
+            ]
+        },
+    ]
+    rest_client.list_orders_response = {
+        "orders": [
+            {
+                "client_order_id": "client-futures-live-cancel",
+                "order_id": "exchange-futures-live-cancel",
+                "product_id": "AVP-20DEC30-CDE",
+                "status": "OPEN",
+            }
+        ]
+    }
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        )
+    )
+    record_futures_live_service_decision(service)
+    record_all_futures_live_adapter_decisions(service)
+
+    result = service.submit_futures_command(
+        "/api/v1/futures/orders/client-futures-live-cancel/cancel",
+        {
+            "product_id": "AVP-20DEC30-CDE",
+            "dry_run": False,
+            "manual_live_acknowledgement": True,
+            "operator_reason": "operator confirmed backend-controlled futures cancel",
+        },
+        context(idempotency_key="futures-cancel-live-submit"),
+    )
+
+    assert result.status_code == 200
+    assert result.body["status"] == "accepted"
+    assert result.body["failure_stage"] is None
+    assert result.body["client_order_id"] == "client-futures-live-cancel"
+    assert result.body["coinbase_cancel_submission_allowed"] is True
+    assert result.body["coinbase_cancel_identity_used"] == "exchange_order_id"
+    assert result.body["coinbase_cancel_order_read_attempted"] is True
+    assert result.body["exchange_order_id_present"] is True
+    assert result.body["exchange_order_id_evidence_only"] is True
+    assert result.body["live_exchange_submitted"] is True
+    assert result.body["live_coinbase_orders_ran"] is True
+    assert rest_client.cancel_order_calls == [
+        {"order_ids": ["client-futures-live-cancel"]},
+        {"order_ids": ["exchange-futures-live-cancel"]},
+    ]
+    assert rest_client.list_orders_calls == [{"order_status": ["OPEN"]}]
 
 
 def test_admin_futures_cancel_live_execution_requires_runtime_enablement():

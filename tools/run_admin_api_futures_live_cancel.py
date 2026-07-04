@@ -287,6 +287,16 @@ def build_summary(
         "coinbase_cancel_submission_allowed": bool(
             final_submit.get("coinbase_cancel_submission_allowed")
         ),
+        "coinbase_cancel_identity_used": final_submit.get(
+            "coinbase_cancel_identity_used"
+        ),
+        "coinbase_cancel_order_read_attempted": bool(
+            final_submit.get("coinbase_cancel_order_read_attempted")
+        ),
+        "coinbase_cancel_order_read_succeeded": bool(
+            final_submit.get("coinbase_cancel_order_read_succeeded")
+        ),
+        "exchange_order_id_present": bool(final_submit.get("exchange_order_id_present")),
         "cancel_result_present": bool(cancel_result),
         "cancel_result_success": cancel_result_succeeded(cancel_result),
         "cancel_result_item_count": cancel_result_item_count(cancel_result),

@@ -95,6 +95,10 @@ def test_futures_live_cancel_records_backend_evidence_before_rest_submission():
     assert summary["client_order_id"] == "client-futures-live-cancel-test"
     assert summary["product_id"] == "AVP-20DEC30-CDE"
     assert summary["coinbase_cancel_submission_allowed"] is True
+    assert summary["coinbase_cancel_identity_used"] == "client_order_id"
+    assert summary["coinbase_cancel_order_read_attempted"] is False
+    assert summary["coinbase_cancel_order_read_succeeded"] is False
+    assert summary["exchange_order_id_present"] is False
     assert summary["cancel_result_present"] is True
     assert summary["cancel_result_success"] is True
     assert summary["live_exchange_submitted"] is True
