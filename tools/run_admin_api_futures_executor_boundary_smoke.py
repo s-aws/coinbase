@@ -3,11 +3,11 @@
 This smoke records backend-owned Futures/Perpetual live-service and
 live-adapter decision evidence, submits one valid route-bound Futures draft,
 then submits explicitly confirmed Futures place and cancel requests plus one
-Futures reconciliation boundary request. It verifies the draft is rejected at
+Futures reconciliation execution request. It verifies the draft is rejected at
 the disabled executor boundary, the confirmed exchange requests are rejected
 before Coinbase because the local no-live runtime remains disabled, and
-reconciliation remains a named no-mutation execution boundary. It is
-intentionally no-live.
+reconciliation records local evidence without Coinbase or exchange mutation.
+It is intentionally no-live.
 """
 
 from __future__ import annotations
@@ -30,6 +30,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from application.admin_api.mvp_service import (  # noqa: E402
+    AdminMvpCommandStatus,
     AdminMvpRequestContext,
     AdminMvpService,
     get_admin_mvp_service,
@@ -277,7 +278,7 @@ def build_confirmed_futures_cancel_body(
 
 
 def build_futures_reconciliation_boundary_body() -> dict[str, Any]:
-    """Return a Futures reconciliation payload for fail-closed boundary evidence."""
+    """Return a Futures reconciliation payload for local execution evidence."""
 
     return {
         "reconciliation_reason": "executor_boundary_reconciliation_review",
@@ -462,8 +463,14 @@ def build_summary(
         "reconciliation_submission_event_id": reconciliation_command_result.get(
             "submission_event_id"
         ),
-        "reconciliation_boundary_id": reconciliation_command_result.get(
-            "futures_reconciliation_execution_boundary_id"
+        "reconciliation_execution_id": reconciliation_command_result.get(
+            "futures_reconciliation_execution_id"
+        ),
+        "reconciliation_plan_id": reconciliation_command_result.get(
+            "reconciliation_plan_id"
+        ),
+        "reconciliation_plan_created": bool(
+            reconciliation_command_result.get("reconciliation_plan_created")
         ),
         "reconciliation_position_key": reconciliation_command_result.get(
             "identity_value"
@@ -588,26 +595,29 @@ def futures_boundary_checks(
             bool(confirmed_cancel_command_result.get("submission_event_id")),
         ),
         check(
-            "futures_reconciliation_execution_boundary_recorded",
-            reconciliation_command_status_code == 501
+            "futures_reconciliation_execution_recorded",
+            reconciliation_command_status_code == 200
             and reconciliation_command_result.get("command") == "futures_reconcile"
             and reconciliation_command_result.get("mutation_family")
-            == "futures_reconciliation_execution_boundary"
-            and reconciliation_command_result.get("failure_stage")
-            == "futures_reconciliation_execution_disabled"
+            == "futures_reconciliation_execution"
+            and reconciliation_command_result.get("status")
+            == AdminMvpCommandStatus.ACCEPTED.value
+            and reconciliation_command_result.get("failure_stage") is None
             and bool(
                 reconciliation_command_result.get(
-                    "futures_reconciliation_execution_boundary_id"
+                    "futures_reconciliation_execution_id"
                 )
-            ),
+            )
+            and bool(reconciliation_command_result.get("reconciliation_plan_id"))
+            and reconciliation_command_result.get("reconciliation_plan_created") is True,
         ),
         check(
-            "futures_reconciliation_execution_not_run",
+            "futures_reconciliation_execution_no_coinbase",
             reconciliation_command_result.get("reconciliation_execution_allowed")
-            is False
+            is True
             and reconciliation_command_result.get("reconciliation_execution_ran")
-            is False
-            and reconciliation_command_result.get("local_state_mutated") is False
+            is True
+            and reconciliation_command_result.get("local_state_mutated") is True
             and reconciliation_command_result.get("exchange_state_mutated") is False
             and reconciliation_command_result.get("live_exchange_submitted") is False
             and reconciliation_command_result.get("live_coinbase_orders_ran") is False,

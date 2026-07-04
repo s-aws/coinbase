@@ -2012,8 +2012,8 @@ def test_admin_futures_command_suite_exposes_confirmed_live_exchange_routes_when
     suite = command_suite.body
     assert suite["status"] == "evidence_ready"
     assert suite["command_routes_mode"] == "backend_admin_api_confirmed_live"
-    assert suite["blocked_command_count"] == 1
-    assert suite["executable_command_count"] == 3
+    assert suite["blocked_command_count"] == 0
+    assert suite["executable_command_count"] == 4
     assert suite["live_coinbase_orders_ran"] is False
     assert suite["futures_live_decision_evidence"]["executor_boundary_status"] == (
         "live_enabled"
@@ -2026,11 +2026,14 @@ def test_admin_futures_command_suite_exposes_confirmed_live_exchange_routes_when
         "futures_place",
         "futures_close_reduce",
         "futures_cancel",
+        "futures_reconcile",
     ):
         command = commands[command_name]
         assert command["status"] == "passed"
         assert command["execution_allowed"] is True
-        assert command["manual_live_acknowledgement_required"] is True
+        assert command["manual_live_acknowledgement_required"] is (
+            command_name != "futures_reconcile"
+        )
         assert command["readiness_decision"]["status"] == "passed"
         assert command["readiness_decision"]["ready"] is True
         assert command["readiness_decision"]["first_blocker"] == "none"
@@ -2038,15 +2041,7 @@ def test_admin_futures_command_suite_exposes_confirmed_live_exchange_routes_when
         assert command["live_coinbase_orders_ran"] is False
         assert command["bff_authority"] == "forward_only_no_execution"
 
-    reconcile = commands["futures_reconcile"]
-    assert reconcile["status"] == "blocked"
-    assert reconcile["execution_allowed"] is False
-    assert reconcile["readiness_decision"]["first_blocker"] == (
-        "futures_reconciliation_execution_disabled"
-    )
-
-
-def test_admin_futures_reconciliation_route_records_explicit_execution_boundary_when_runtime_ready():
+def test_admin_futures_reconciliation_route_records_local_execution_when_ready():
     rest_client = FakeAccountRestClient()
     service = AdminMvpService(
         AdminMvpDependencies(
@@ -2068,28 +2063,34 @@ def test_admin_futures_reconciliation_route_records_explicit_execution_boundary_
         context(idempotency_key="futures-reconcile-boundary"),
     )
 
-    assert result.status_code == 501
+    assert result.status_code == 200
     assert result.body["type"] == "admin_api_command_result"
     assert result.body["module_id"] == "futures_perpetuals"
     assert result.body["command"] == "futures_reconcile"
-    assert result.body["mutation_family"] == "futures_reconciliation_execution_boundary"
-    assert result.body["status"] == "not_implemented"
-    assert result.body["failure_stage"] == "futures_reconciliation_execution_disabled"
+    assert result.body["mutation_family"] == "futures_reconciliation_execution"
+    assert result.body["status"] == "accepted"
+    assert result.body["failure_stage"] is None
     assert result.body["identity_key"] == "position_key"
     assert result.body["identity_value"] == "futures_position:runtime:BIP-20DEC30-CDE"
-    assert result.body["readiness_decision"]["first_blocker"] == (
-        "futures_reconciliation_execution_disabled"
-    )
-    assert result.body["reconciliation_execution_allowed"] is False
-    assert result.body["reconciliation_execution_ran"] is False
-    assert result.body["reconciliation_plan_required"] is True
-    assert result.body["futures_reconciliation_execution_boundary_id"] == (
+    assert result.body["readiness_decision"]["first_blocker"] == "none"
+    assert result.body["reconciliation_execution_allowed"] is True
+    assert result.body["reconciliation_execution_ran"] is True
+    assert result.body["reconciliation_plan_required"] is False
+    assert result.body["reconciliation_plan_created"] is True
+    assert result.body["reconciliation_plan_id"] in service.store.reconciliation_plans
+    assert result.body["futures_reconciliation_execution_id"] == (
         result.body["submission_event_id"]
     )
-    assert result.body["local_state_mutated"] is False
+    assert result.body["local_state_mutated"] is True
     assert result.body["exchange_state_mutated"] is False
     assert result.body["live_exchange_submitted"] is False
     assert result.body["live_coinbase_orders_ran"] is False
+    plan = service.store.reconciliation_plans[result.body["reconciliation_plan_id"]]
+    assert plan["identity_value"] == "futures_position:runtime:BIP-20DEC30-CDE"
+    assert plan["service_method"] == "reconcile_futures_position"
+    assert plan["status"] == "passed"
+    assert plan["allowed"] is True
+    assert plan["exchange_submission_required"] is False
     assert rest_client.create_order_calls == []
     assert rest_client.cancel_order_calls == []
     assert rest_client.close_position_calls == []

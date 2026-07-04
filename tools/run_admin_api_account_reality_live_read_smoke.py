@@ -275,8 +275,8 @@ def account_reality_checks(
         ),
         check(
             "futures_command_suite_executable_commands_ready",
-            int(command_suite.get("executable_command_count") or 0) == 3
-            and int(command_suite.get("blocked_command_count") or 0) == 1,
+            int(command_suite.get("executable_command_count") or 0) == 4
+            and int(command_suite.get("blocked_command_count") or 0) == 0,
         ),
         check(
             "futures_product_exposure_ready",

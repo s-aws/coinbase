@@ -1741,6 +1741,9 @@ class AdminMvpService:
             "approval_snapshot_id": body.get("approval_snapshot_id"),
             "admission_audit_id": body.get("admission_audit_id"),
             "cap_guard_decision_id": body.get("cap_guard_decision_id"),
+            "position_key": body.get("position_key"),
+            "futures_risk_proof_id": body.get("futures_risk_proof_id"),
+            "reconciliation_reason": str(body.get("reconciliation_reason") or ""),
             "exchange_submission_required": bool(
                 body.get("exchange_submission_required", True)
             ),
@@ -1938,6 +1941,25 @@ class AdminMvpService:
                 **self._live_outputs(False, Decimal("0")),
             }
             return self._result(400, response, context)
+        if (
+            command == "futures_reconcile"
+            and readiness_decision.get("execution_allowed") is True
+        ):
+            return self._execute_futures_reconciliation(
+                command=command,
+                action_class=str(spec["action_class"]),
+                route=route,
+                service_method=str(spec["service_method"]),
+                identity_key=identity_key,
+                identity_value=identity_value,
+                required_permission=str(spec["required_permission"]),
+                payload_hash=payload_hash,
+                readiness_decision=readiness_decision,
+                admission_decision=admission_decision,
+                payload_validation=payload_validation,
+                risk_proof_id=command_evidence.get("risk_proof_id"),
+                context=context,
+            )
         if (
             command == "futures_reconcile"
             and first_blocker == "futures_reconciliation_execution_disabled"
@@ -2164,6 +2186,151 @@ class AdminMvpService:
             **self._live_outputs(False, Decimal("0")),
         }
         return self._result(501, response, context)
+
+    def _execute_futures_reconciliation(
+        self,
+        *,
+        command: str,
+        action_class: str,
+        route: str,
+        service_method: str,
+        identity_key: str,
+        identity_value: str,
+        required_permission: str,
+        payload_hash: str,
+        readiness_decision: Mapping[str, Any],
+        admission_decision: Mapping[str, Any],
+        payload_validation: Mapping[str, Any],
+        risk_proof_id: Any,
+        context: AdminMvpRequestContext,
+    ) -> AdminMvpApiResult:
+        """Record Futures reconciliation as backend local evidence only."""
+
+        plan_result = self.record_reconciliation_plan(
+            {
+                "plan_id": f"futures-reconciliation-{self.dependencies.uuid_factory()}",
+                "route": route,
+                "method": "POST",
+                "module_id": FUTURES_MODULE_ID,
+                "identity_key": identity_key,
+                "identity_value": identity_value,
+                "position_key": identity_value,
+                "action_class": action_class,
+                "required_permission": required_permission,
+                "service_method": service_method,
+                "operator_intent": context.operator_intent,
+                "command_idempotency_key": context.idempotency_key,
+                "payload_hash": payload_hash,
+                "allowed": True,
+                "status": AdminMvpGateStatus.PASSED.value,
+                "exchange_submission_required": False,
+                "futures_risk_proof_id": risk_proof_id,
+                "reconciliation_reason": (
+                    payload_validation.get("reconciliation_reason")
+                    or "futures_reconciliation_execution"
+                ),
+                "max_submitted_notional_usdc": "0",
+                "max_executed_notional_usdc": "0",
+            },
+            context,
+        )
+        plan = dict(plan_result.body.get("plan") or {})
+        local_admission = {
+            **dict(admission_decision),
+            "status": AdminMvpGateStatus.PASSED.value,
+            "allowed": True,
+            "failure_stage": None,
+            "execution_allowed": True,
+            "reconciliation_execution_allowed": True,
+            "reconciliation_plan_id": plan.get("plan_id"),
+            "detail": (
+                "Backend Futures reconciliation execution records local "
+                "plan evidence only; no Coinbase or exchange mutation is run."
+            ),
+        }
+        command_record = self._record_futures_command_decision(
+            status=AdminMvpCommandStatus.ACCEPTED.value,
+            message=(
+                "Futures/Perpetual reconciliation recorded as backend local "
+                "evidence; no Coinbase or exchange mutation was performed."
+            ),
+            command=command,
+            mutation_family="futures_reconciliation_execution",
+            action_class=action_class,
+            route=route,
+            service_method=service_method,
+            identity_key=identity_key,
+            identity_value=identity_value,
+            required_permission=required_permission,
+            payload_hash=payload_hash,
+            readiness_decision=readiness_decision,
+            admission_decision=local_admission,
+            payload_validation=payload_validation,
+            risk_proof_id=risk_proof_id,
+            failure_stage=None,
+            context=context,
+            submitted_notional=Decimal("0"),
+            executed_notional=Decimal("0"),
+            execution_allowed=True,
+            local_state_mutated=True,
+            exchange_state_mutated=False,
+            runtime_evidence=self._runtime_evidence(),
+        )
+        return self._result(
+            200,
+            {
+                "type": "admin_api_command_result",
+                "status": AdminMvpCommandStatus.ACCEPTED.value,
+                "module_id": FUTURES_MODULE_ID,
+                "command": command,
+                "mutation_family": "futures_reconciliation_execution",
+                "action_class": action_class,
+                "route": route,
+                "method": "POST",
+                "required_permission": required_permission,
+                "service_method": service_method,
+                "identity_key": identity_key,
+                "identity_value": identity_value,
+                "message": (
+                    "Futures/Perpetual reconciliation recorded as backend local "
+                    "evidence; no Coinbase or exchange mutation was performed."
+                ),
+                "correlation_id": context.correlation_id,
+                "idempotency_key": context.idempotency_key,
+                "operator_intent": context.operator_intent,
+                "actor_id": context.actor_id,
+                "payload_hash": payload_hash,
+                "payload_validation": dict(payload_validation),
+                "command_suite_status": "evidence_ready",
+                "readiness_decision": dict(readiness_decision),
+                "admission_decision": local_admission,
+                "risk_proof_id": risk_proof_id,
+                "failure_stage": None,
+                "submission_event_recorded": True,
+                "submission_event_id": command_record["decision_id"],
+                "futures_reconciliation_execution_id": command_record["decision_id"],
+                "reconciliation_plan_id": plan.get("plan_id"),
+                "reconciliation_plan": plan,
+                "reconciliation_plan_created": bool(plan),
+                "reconciliation_execution_allowed": True,
+                "reconciliation_execution_ran": True,
+                "reconciliation_plan_required": False,
+                "command_route_registered": True,
+                "command_draft_allowed": True,
+                "execution_allowed": True,
+                "local_state_mutated": True,
+                "exchange_state_mutated": False,
+                "live_exchange_submitted": False,
+                "submitted_notional_usdc": "0",
+                "executed_notional_usdc": "0",
+                "spot_rule_authority": False,
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                **self._runtime_evidence(),
+                **self._live_outputs(False, Decimal("0")),
+            },
+            context,
+        )
 
     def _futures_reconciliation_execution_boundary_response(
         self,
@@ -3553,6 +3720,11 @@ class AdminMvpService:
                 "Coinbase request."
                 if live_exchange_submitted
                 else (
+                    "Backend Futures command submission was recorded as local "
+                    "Admin evidence; no Coinbase request was submitted."
+                )
+                if local_state_mutated
+                else (
                     "Backend Futures command submission was recorded as an "
                     "auditable draft-only event; execution remains disabled and "
                     "no Coinbase request was submitted."
@@ -4222,12 +4394,17 @@ class AdminMvpService:
         adapter_ready = live_adapter_decision is not None
         executor_boundary_ready = service_ready and adapter_ready
         live_exchange_command = _futures_live_exchange_command(command)
+        local_reconciliation_command = command == "futures_reconcile"
         execution_allowed = bool(
-            executor_boundary_ready and live_runtime_ready and live_exchange_command
+            executor_boundary_ready
+            and (
+                (live_runtime_ready and live_exchange_command)
+                or local_reconciliation_command
+            )
         )
         executor_boundary_status = (
             AdminMvpFuturesExecutorStatus.LIVE_ENABLED.value
-            if execution_allowed
+            if executor_boundary_ready and live_runtime_ready and live_exchange_command
             else AdminMvpFuturesExecutorStatus.OBSERVED_LIVE_DISABLED.value
             if executor_boundary_ready
             else AdminMvpFuturesExecutorStatus.PENDING_LIVE_DECISION.value
@@ -4269,6 +4446,7 @@ class AdminMvpService:
             "live_decision_scope_ready": service_ready and adapter_ready,
             "live_runtime_ready": live_runtime_ready,
             "live_exchange_command": live_exchange_command,
+            "local_reconciliation_command": local_reconciliation_command,
             "executor_boundary_status": executor_boundary_status,
             "executor_boundary_ready": executor_boundary_ready,
             "executor_boundary_source": (

@@ -798,7 +798,7 @@
       "caps": "required for futures reconciliation admission controls",
       "audit": "required",
       "shared_method": "reconcile_futures_position",
-      "parity_test": "position_key identity; route-bound draft only with no reconciliation execution, futures/order/exchange mutation, live adapter, Coinbase call, browser authority, BFF authority, or spot-rule authority",
+      "parity_test": "position_key identity; backend-local reconciliation evidence only with no futures/order/exchange mutation, live adapter, Coinbase call, browser authority, BFF authority, or spot-rule authority",
       "compatibility_mode": null,
       "command_contract": true
     },

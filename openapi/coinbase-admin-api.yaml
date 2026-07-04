@@ -3647,8 +3647,8 @@ paths:
     post:
       tags:
       - futures
-      summary: Create a futures or perpetual reconciliation draft
-      description: Route-bound no-live futures/perpetual reconciliation command draft.
+      summary: Record futures or perpetual reconciliation evidence
+      description: Backend-local futures/perpetual reconciliation evidence command; no Coinbase call or exchange mutation.
       operationId: reconcile_futures_position_api_v1_futures_positions__position_key__reconciliation_post
       parameters:
       - name: position_key

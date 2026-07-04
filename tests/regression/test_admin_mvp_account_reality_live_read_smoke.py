@@ -115,8 +115,8 @@ def ready_read_results() -> dict[str, SimpleNamespace]:
                 ],
                 "missing_backend_contracts": [],
                 "futures_risk_proof_count": 4,
-                "blocked_command_count": 1,
-                "executable_command_count": 3,
+                "blocked_command_count": 0,
+                "executable_command_count": 4,
                 "futures_live_decision_evidence": {
                     "service_decision_status": "ready",
                     "adapter_decision_ready_count": 4,
@@ -199,7 +199,7 @@ def test_account_reality_live_read_smoke_writes_redacted_ready_summary(tmp_path)
         summary["futures_command_suite"]["command_routes_mode"]
         == "backend_admin_api_confirmed_live"
     )
-    assert summary["futures_command_suite"]["executable_command_count"] == 3
+    assert summary["futures_command_suite"]["executable_command_count"] == 4
     assert (
         summary["futures_command_suite"]["product_exposure"][
             "any_product_within_backend_cap"
