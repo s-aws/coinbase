@@ -96,6 +96,13 @@ def test_futures_live_cancel_records_backend_evidence_before_rest_submission():
     assert summary["product_id"] == "AVP-20DEC30-CDE"
     assert summary["coinbase_cancel_submission_allowed"] is True
     assert summary["coinbase_cancel_identity_used"] == "client_order_id"
+    assert summary["operator_identity_key"] == "client_order_id"
+    assert summary["coinbase_cancel_initial_identity_used"] == "client_order_id"
+    assert summary["coinbase_cancel_initial_result_present"] is True
+    assert summary["coinbase_cancel_initial_result_success"] is True
+    assert summary["coinbase_cancel_fallback_attempted"] is False
+    assert summary["coinbase_cancel_fallback_reason"] is None
+    assert summary["coinbase_cancel_fallback_identity_used"] is None
     assert summary["coinbase_cancel_order_read_attempted"] is False
     assert summary["coinbase_cancel_order_read_succeeded"] is False
     assert summary["exchange_order_id_present"] is False
@@ -112,3 +119,76 @@ def test_futures_live_cancel_records_backend_evidence_before_rest_submission():
         {"order_ids": ["client-futures-live-cancel-test"]}
     ]
     assert rest_client.create_order_calls == []
+
+
+def test_futures_live_cancel_summary_audits_exchange_order_id_fallback():
+    rest_client = FakeAccountRestClient()
+    rest_client.cancel_orders_responses = [
+        {
+            "results": [
+                {
+                    "success": False,
+                    "failure_reason": "UNKNOWN_CANCEL_ORDER",
+                }
+            ]
+        },
+        {
+            "results": [
+                {
+                    "success": True,
+                    "order_id": "exchange-futures-live-cancel-test",
+                }
+            ]
+        },
+    ]
+    rest_client.list_orders_response = {
+        "orders": [
+            {
+                "client_order_id": "client-futures-live-cancel-test",
+                "order_id": "exchange-futures-live-cancel-test",
+                "product_id": "AVP-20DEC30-CDE",
+                "status": "OPEN",
+            }
+        ]
+    }
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        )
+    )
+
+    summary = run_futures_live_cancel(
+        service,
+        FuturesLiveCancelConfig(
+            confirm_live_cancel=True,
+            client_order_id="client-futures-live-cancel-test",
+            product_id="AVP-20DEC30-CDE",
+            idempotency_key="futures-live-cancel-test",
+            correlation_id="futures-live-cancel-test-correlation",
+            backend_contract_ref="backend-ref",
+        ),
+    )
+
+    assert summary["status"] == "passed"
+    assert summary["client_order_id"] == "client-futures-live-cancel-test"
+    assert summary["coinbase_cancel_identity_used"] == "exchange_order_id"
+    assert summary["operator_identity_key"] == "client_order_id"
+    assert summary["coinbase_cancel_initial_identity_used"] == "client_order_id"
+    assert summary["coinbase_cancel_initial_result_present"] is True
+    assert summary["coinbase_cancel_initial_result_success"] is False
+    assert summary["coinbase_cancel_fallback_attempted"] is True
+    assert (
+        summary["coinbase_cancel_fallback_reason"]
+        == "client_order_id_cancel_not_accepted"
+    )
+    assert summary["coinbase_cancel_fallback_identity_used"] == "exchange_order_id"
+    assert summary["coinbase_cancel_order_read_attempted"] is True
+    assert summary["coinbase_cancel_order_read_succeeded"] is True
+    assert summary["exchange_order_id_present"] is True
+    assert all(check["passed"] for check in summary["checks"])
+    assert rest_client.cancel_order_calls == [
+        {"order_ids": ["client-futures-live-cancel-test"]},
+        {"order_ids": ["exchange-futures-live-cancel-test"]},
+    ]

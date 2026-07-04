@@ -3061,6 +3061,9 @@ class AdminMvpService:
             "identity_key": identity_key,
             "identity_value": identity_value,
             "client_order_id": client_order_id,
+            "operator_identity_key": cancel_attempt.get(
+                "operator_identity_key", "client_order_id"
+            ),
             "exchange_order_id_evidence_only": True,
             "message": "Futures/Perpetual order cancel submitted to Coinbase by backend Admin API.",
             "correlation_id": context.correlation_id,
@@ -3075,6 +3078,22 @@ class AdminMvpService:
             "coinbase_cancel_submission_allowed": True,
             "coinbase_cancel_result": cancel_result,
             "coinbase_cancel_identity_used": cancel_attempt.get("identity_used"),
+            "coinbase_cancel_initial_identity_used": cancel_attempt.get(
+                "initial_identity_used"
+            ),
+            "coinbase_cancel_initial_result": _mapping(
+                cancel_attempt.get("initial_cancel_result")
+            ),
+            "coinbase_cancel_initial_result_success": bool(
+                cancel_attempt.get("initial_cancel_succeeded")
+            ),
+            "coinbase_cancel_fallback_attempted": bool(
+                cancel_attempt.get("fallback_attempted")
+            ),
+            "coinbase_cancel_fallback_reason": cancel_attempt.get("fallback_reason"),
+            "coinbase_cancel_fallback_identity_used": cancel_attempt.get(
+                "fallback_identity_used"
+            ),
             "coinbase_cancel_order_read_attempted": bool(
                 cancel_attempt.get("order_read_attempted")
             ),
@@ -7204,10 +7223,18 @@ def _cancel_futures_order_by_client_order_id(
 ) -> dict[str, Any]:
     initial_result = rest_client.cancel_orders(order_ids=[client_order_id])
     initial_data = _coinbase_cancel_orders_result_data(initial_result)
-    if _coinbase_cancel_order_succeeded(initial_data):
+    initial_succeeded = _coinbase_cancel_order_succeeded(initial_data)
+    if initial_succeeded:
         return {
             "cancel_result": initial_data,
             "identity_used": "client_order_id",
+            "operator_identity_key": "client_order_id",
+            "initial_identity_used": "client_order_id",
+            "initial_cancel_result": initial_data,
+            "initial_cancel_succeeded": True,
+            "fallback_attempted": False,
+            "fallback_reason": None,
+            "fallback_identity_used": None,
             "order_read_attempted": False,
             "order_read_succeeded": False,
             "exchange_order_id": None,
@@ -7222,6 +7249,13 @@ def _cancel_futures_order_by_client_order_id(
         return {
             "cancel_result": initial_data,
             "identity_used": "client_order_id",
+            "operator_identity_key": "client_order_id",
+            "initial_identity_used": "client_order_id",
+            "initial_cancel_result": initial_data,
+            "initial_cancel_succeeded": False,
+            "fallback_attempted": False,
+            "fallback_reason": "client_order_id_cancel_not_accepted",
+            "fallback_identity_used": None,
             "order_read_attempted": bool(order_read.get("attempted")),
             "order_read_succeeded": bool(order_read.get("succeeded")),
             "exchange_order_id": exchange_order_id or None,
@@ -7231,6 +7265,13 @@ def _cancel_futures_order_by_client_order_id(
     return {
         "cancel_result": _coinbase_cancel_orders_result_data(fallback_result),
         "identity_used": "exchange_order_id",
+        "operator_identity_key": "client_order_id",
+        "initial_identity_used": "client_order_id",
+        "initial_cancel_result": initial_data,
+        "initial_cancel_succeeded": False,
+        "fallback_attempted": True,
+        "fallback_reason": "client_order_id_cancel_not_accepted",
+        "fallback_identity_used": "exchange_order_id",
         "order_read_attempted": bool(order_read.get("attempted")),
         "order_read_succeeded": bool(order_read.get("succeeded")),
         "exchange_order_id": exchange_order_id,

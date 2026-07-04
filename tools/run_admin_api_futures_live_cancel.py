@@ -241,6 +241,9 @@ def build_summary(
         final_submit.get("notional_usdc") or submitted_notional
     )
     cancel_result = object_record(final_submit.get("coinbase_cancel_result"))
+    initial_cancel_result = object_record(
+        final_submit.get("coinbase_cancel_initial_result")
+    )
     checks = futures_live_cancel_checks(
         config=config,
         body=body,
@@ -252,6 +255,7 @@ def build_summary(
         audit_workbench=audit_workbench,
         notional_usdc=notional,
         cancel_result=cancel_result,
+        initial_cancel_result=initial_cancel_result,
     )
     status = "passed" if all(item["passed"] for item in checks) else "failed"
     return {
@@ -272,6 +276,9 @@ def build_summary(
         "product_id": body.get("product_id"),
         "account_family": FUTURES_ACCOUNT_FAMILY,
         "client_order_id": text_value(config.client_order_id),
+        "operator_identity_key": final_submit.get(
+            "operator_identity_key", "client_order_id"
+        ),
         "service_decision_id": FUTURES_SERVICE_DECISION_ID,
         "service_decision_status": getattr(live_service, "body", {}).get("status"),
         "adapter_decision_ids": [item[0] for item in FUTURES_ADAPTER_DECISIONS],
@@ -289,6 +296,22 @@ def build_summary(
         ),
         "coinbase_cancel_identity_used": final_submit.get(
             "coinbase_cancel_identity_used"
+        ),
+        "coinbase_cancel_initial_identity_used": final_submit.get(
+            "coinbase_cancel_initial_identity_used"
+        ),
+        "coinbase_cancel_initial_result_present": bool(initial_cancel_result),
+        "coinbase_cancel_initial_result_success": cancel_result_succeeded(
+            initial_cancel_result
+        ),
+        "coinbase_cancel_fallback_attempted": bool(
+            final_submit.get("coinbase_cancel_fallback_attempted")
+        ),
+        "coinbase_cancel_fallback_reason": final_submit.get(
+            "coinbase_cancel_fallback_reason"
+        ),
+        "coinbase_cancel_fallback_identity_used": final_submit.get(
+            "coinbase_cancel_fallback_identity_used"
         ),
         "coinbase_cancel_order_read_attempted": bool(
             final_submit.get("coinbase_cancel_order_read_attempted")
@@ -331,12 +354,17 @@ def futures_live_cancel_checks(
     audit_workbench: Mapping[str, Any],
     notional_usdc: str,
     cancel_result: Mapping[str, Any],
+    initial_cancel_result: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
     """Return pass/fail checks for the Futures live-cancel artifact."""
 
     return [
         check("futures_confirm_live_cancel_requested", config.confirm_live_cancel),
         check("futures_client_order_id_present", bool(text_value(config.client_order_id))),
+        check(
+            "futures_operator_identity_key_client_order_id",
+            final_submit.get("operator_identity_key") == "client_order_id",
+        ),
         check("futures_cancel_product_id_present", bool(text_value(body.get("product_id")))),
         check("futures_cancel_acknowledged", body.get("manual_live_acknowledgement") is True),
         check("futures_cancel_notional_zero", decimal_text_is_zero(notional_usdc)),
@@ -363,6 +391,22 @@ def futures_live_cancel_checks(
             final_submit.get("coinbase_cancel_submission_allowed") is True,
         ),
         check("futures_cancel_result_success", cancel_result_succeeded(cancel_result)),
+        check(
+            "futures_cancel_initial_identity_audited",
+            final_submit.get("coinbase_cancel_initial_identity_used")
+            == "client_order_id"
+            and bool(initial_cancel_result),
+        ),
+        check(
+            "futures_cancel_fallback_audited_when_used",
+            not bool(final_submit.get("coinbase_cancel_fallback_attempted"))
+            or (
+                final_submit.get("coinbase_cancel_fallback_reason")
+                == "client_order_id_cancel_not_accepted"
+                and final_submit.get("coinbase_cancel_fallback_identity_used")
+                == "exchange_order_id"
+            ),
+        ),
         check(
             "futures_live_exchange_submitted",
             final_submit.get("live_exchange_submitted") is True,

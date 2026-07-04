@@ -2535,6 +2535,12 @@ def test_admin_futures_cancel_live_execution_uses_backend_rest_adapter_when_conf
     assert result.body["executed_notional_usdc"] == "0"
     assert result.body["spot_rule_authority"] is False
     assert result.body["exchange_order_id_evidence_only"] is True
+    assert result.body["operator_identity_key"] == "client_order_id"
+    assert result.body["coinbase_cancel_initial_identity_used"] == "client_order_id"
+    assert result.body["coinbase_cancel_initial_result_success"] is True
+    assert result.body["coinbase_cancel_fallback_attempted"] is False
+    assert result.body["coinbase_cancel_fallback_reason"] is None
+    assert result.body["coinbase_cancel_fallback_identity_used"] is None
     assert rest_client.cancel_order_calls == [
         {"order_ids": ["client-futures-live-cancel"]}
     ]
@@ -2616,6 +2622,15 @@ def test_admin_futures_cancel_resolves_exchange_order_id_when_client_id_cancel_i
     assert result.body["client_order_id"] == "client-futures-live-cancel"
     assert result.body["coinbase_cancel_submission_allowed"] is True
     assert result.body["coinbase_cancel_identity_used"] == "exchange_order_id"
+    assert result.body["operator_identity_key"] == "client_order_id"
+    assert result.body["coinbase_cancel_initial_identity_used"] == "client_order_id"
+    assert result.body["coinbase_cancel_initial_result_success"] is False
+    assert result.body["coinbase_cancel_fallback_attempted"] is True
+    assert (
+        result.body["coinbase_cancel_fallback_reason"]
+        == "client_order_id_cancel_not_accepted"
+    )
+    assert result.body["coinbase_cancel_fallback_identity_used"] == "exchange_order_id"
     assert result.body["coinbase_cancel_order_read_attempted"] is True
     assert result.body["exchange_order_id_present"] is True
     assert result.body["exchange_order_id_evidence_only"] is True
