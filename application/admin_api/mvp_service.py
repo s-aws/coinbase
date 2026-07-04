@@ -1460,8 +1460,9 @@ class AdminMvpService:
             controller = self.dependencies.runtime_controller_factory()
             _check_runtime_cancel_admission(controller)
             with _track_runtime_cancel(controller):
-                result = self.dependencies.rest_client.cancel_orders(
-                    order_ids=[client_order_id],
+                cancel_attempt = _cancel_futures_order_by_client_order_id(
+                    self.dependencies.rest_client,
+                    client_order_id=client_order_id,
                 )
         except Exception as exc:
             return self._spot_cancel_blocked_response(
@@ -1475,7 +1476,7 @@ class AdminMvpService:
                 context=context,
             )
 
-        cancel_result = _coinbase_cancel_orders_result_data(result)
+        cancel_result = _mapping(cancel_attempt.get("cancel_result"))
         if not _coinbase_cancel_order_succeeded(cancel_result):
             return self._spot_cancel_blocked_response(
                 status_code=400,
@@ -1502,6 +1503,7 @@ class AdminMvpService:
             context=context,
             live_exchange_submitted=True,
             coinbase_cancel_result=cancel_result,
+            cancel_attempt=cancel_attempt,
             failure_stage=None,
             runtime_evidence=runtime_evidence,
         )
@@ -1520,6 +1522,34 @@ class AdminMvpService:
             "failure_stage": None,
             "coinbase_cancel_submission_allowed": True,
             "coinbase_cancel_result": cancel_result,
+            "coinbase_cancel_identity_used": cancel_attempt.get("identity_used"),
+            "operator_identity_key": cancel_attempt.get(
+                "operator_identity_key", "client_order_id"
+            ),
+            "coinbase_cancel_initial_identity_used": cancel_attempt.get(
+                "initial_identity_used"
+            ),
+            "coinbase_cancel_initial_result": _mapping(
+                cancel_attempt.get("initial_cancel_result")
+            ),
+            "coinbase_cancel_initial_result_success": bool(
+                cancel_attempt.get("initial_cancel_succeeded")
+            ),
+            "coinbase_cancel_fallback_attempted": bool(
+                cancel_attempt.get("fallback_attempted")
+            ),
+            "coinbase_cancel_fallback_reason": cancel_attempt.get("fallback_reason"),
+            "coinbase_cancel_fallback_identity_used": cancel_attempt.get(
+                "fallback_identity_used"
+            ),
+            "coinbase_cancel_order_read_attempted": bool(
+                cancel_attempt.get("order_read_attempted")
+            ),
+            "coinbase_cancel_order_read_succeeded": bool(
+                cancel_attempt.get("order_read_succeeded")
+            ),
+            "exchange_order_id_present": bool(cancel_attempt.get("exchange_order_id")),
+            "exchange_order_id_evidence_only": True,
             "live_exchange_submitted": True,
             "cancel_event_recorded": True,
             "submission_event_recorded": True,
@@ -4280,8 +4310,10 @@ class AdminMvpService:
         coinbase_cancel_result: Mapping[str, Any],
         failure_stage: str | None,
         runtime_evidence: Mapping[str, Any],
+        cancel_attempt: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         decision_id = f"spot-cancel-command-{self.dependencies.uuid_factory()}"
+        cancel_attempt_data = dict(cancel_attempt or {})
         record = {
             "decision_id": decision_id,
             "recorded_at": self._now_iso(),
@@ -4308,10 +4340,46 @@ class AdminMvpService:
             "status": status,
             "message": message,
             "failure_stage": failure_stage,
-            "coinbase_order_id": None,
-            "exchange_order_id": None,
+            "coinbase_order_id": _optional_text(
+                cancel_attempt_data.get("exchange_order_id")
+            ),
+            "exchange_order_id": _optional_text(
+                cancel_attempt_data.get("exchange_order_id")
+            ),
             "exchange_order_id_evidence_only": True,
             "coinbase_cancel_result": dict(coinbase_cancel_result),
+            "coinbase_cancel_identity_used": cancel_attempt_data.get("identity_used"),
+            "operator_identity_key": cancel_attempt_data.get(
+                "operator_identity_key",
+                "client_order_id",
+            ),
+            "coinbase_cancel_initial_identity_used": cancel_attempt_data.get(
+                "initial_identity_used"
+            ),
+            "coinbase_cancel_initial_result": _mapping(
+                cancel_attempt_data.get("initial_cancel_result")
+            ),
+            "coinbase_cancel_initial_result_success": bool(
+                cancel_attempt_data.get("initial_cancel_succeeded")
+            ),
+            "coinbase_cancel_fallback_attempted": bool(
+                cancel_attempt_data.get("fallback_attempted")
+            ),
+            "coinbase_cancel_fallback_reason": cancel_attempt_data.get(
+                "fallback_reason"
+            ),
+            "coinbase_cancel_fallback_identity_used": cancel_attempt_data.get(
+                "fallback_identity_used"
+            ),
+            "coinbase_cancel_order_read_attempted": bool(
+                cancel_attempt_data.get("order_read_attempted")
+            ),
+            "coinbase_cancel_order_read_succeeded": bool(
+                cancel_attempt_data.get("order_read_succeeded")
+            ),
+            "exchange_order_id_present": bool(
+                cancel_attempt_data.get("exchange_order_id")
+            ),
             "coinbase_order_cancel_submitted": live_exchange_submitted,
             "live_exchange_submitted": live_exchange_submitted,
             "admission_decision": _spot_cancel_admission_summary(

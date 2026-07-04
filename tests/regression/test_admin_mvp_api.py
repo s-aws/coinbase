@@ -4251,6 +4251,100 @@ def test_spot_cancel_order_live_execution_flows_through_backend_cancel_adapter()
     assert event["live_coinbase_orders_ran"] is True
 
 
+def test_spot_cancel_resolves_exchange_order_id_when_client_id_cancel_is_unknown():
+    rest_client = FakeAccountRestClient()
+    rest_client.cancel_orders_responses = [
+        {
+            "results": [
+                {
+                    "success": False,
+                    "failure_reason": "UNKNOWN_CANCEL_ORDER",
+                }
+            ]
+        },
+        {
+            "results": [
+                {
+                    "success": True,
+                    "order_id": "exchange-spot-live-cancel",
+                }
+            ]
+        },
+    ]
+    rest_client.list_orders_response = {
+        "orders": [
+            {
+                "client_order_id": "client-spot-live-cancel",
+                "order_id": "exchange-spot-live-cancel",
+                "product_id": "USDT-USDC",
+                "status": "OPEN",
+            }
+        ]
+    }
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        )
+    )
+    record_live_service_decision(service)
+    cancel_body = {
+        "route": "/api/v1/orders/{client_order_id}/cancel",
+        "method": "POST",
+        "module_id": "spot_operations",
+        "identity_key": "client_order_id",
+        "identity_value": "client-spot-live-cancel",
+        "action_class": "live_exchange_cancel",
+        "required_permission": "order:cancel",
+        "service_method": "cancel_order_by_client_order_id",
+        "actor_id": "operator-1",
+        "operator_intent": "cancel_by_client_order_id",
+        "command_idempotency_key": "cancel-command-live-fallback",
+        "payload_hash": "f" * 64,
+    }
+    recorded = service.record_spot_cancel_order_proof_chain(
+        cancel_body,
+        context(idempotency_key="spot-cancel-order-live-fallback-proof-chain-record"),
+    )
+    assert recorded.status_code == 200
+
+    cancel_result = service.cancel_order_by_client_order_id(
+        "client-spot-live-cancel",
+        {
+            "reason": "operator_requested_cancel",
+            "payload_hash": "f" * 64,
+            "manual_live_acknowledgement": True,
+        },
+        context(idempotency_key="cancel-command-live-fallback"),
+    )
+
+    assert cancel_result.status_code == 200
+    assert cancel_result.body["status"] == "accepted"
+    assert cancel_result.body["client_order_id"] == "client-spot-live-cancel"
+    assert cancel_result.body["coinbase_cancel_submission_allowed"] is True
+    assert cancel_result.body["coinbase_cancel_identity_used"] == "exchange_order_id"
+    assert cancel_result.body["operator_identity_key"] == "client_order_id"
+    assert cancel_result.body["coinbase_cancel_initial_identity_used"] == "client_order_id"
+    assert cancel_result.body["coinbase_cancel_initial_result_success"] is False
+    assert cancel_result.body["coinbase_cancel_fallback_attempted"] is True
+    assert (
+        cancel_result.body["coinbase_cancel_fallback_reason"]
+        == "client_order_id_cancel_not_accepted"
+    )
+    assert cancel_result.body["coinbase_cancel_fallback_identity_used"] == "exchange_order_id"
+    assert cancel_result.body["coinbase_cancel_order_read_attempted"] is True
+    assert cancel_result.body["exchange_order_id_present"] is True
+    assert cancel_result.body["exchange_order_id_evidence_only"] is True
+    assert cancel_result.body["live_exchange_submitted"] is True
+    assert cancel_result.body["live_coinbase_orders_ran"] is True
+    assert rest_client.cancel_order_calls == [
+        {"order_ids": ["client-spot-live-cancel"]},
+        {"order_ids": ["exchange-spot-live-cancel"]},
+    ]
+    assert rest_client.list_orders_calls == [{"order_status": ["OPEN"]}]
+
+
 def test_admin_mvp_proof_chain_admits_manual_order_but_default_stays_pre_coinbase():
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=FakeRestClient(), rest_client_available=True)
