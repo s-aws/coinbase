@@ -1950,6 +1950,23 @@ class AdminMvpService:
                     admission_decision=admission_decision,
                     risk_proof_id=command_evidence.get("risk_proof_id"),
                 )
+            if _futures_live_close_reduce_requested(command, body):
+                return self._execute_futures_close_reduce_position(
+                    body=body,
+                    context=context,
+                    command=command,
+                    action_class=str(spec["action_class"]),
+                    route=route,
+                    service_method=str(spec["service_method"]),
+                    identity_key=identity_key,
+                    identity_value=identity_value,
+                    required_permission=str(spec["required_permission"]),
+                    payload_hash=payload_hash,
+                    payload_validation=payload_validation,
+                    readiness_decision=readiness_decision,
+                    admission_decision=admission_decision,
+                    risk_proof_id=command_evidence.get("risk_proof_id"),
+                )
             if _futures_live_cancel_requested(command, body):
                 return self._execute_futures_cancel_order(
                     body=body,
@@ -2299,6 +2316,200 @@ class AdminMvpService:
         }
         return self._result(200, response, context, live_execution_enabled=True)
 
+    def _execute_futures_close_reduce_position(
+        self,
+        *,
+        body: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+        command: str,
+        action_class: str,
+        route: str,
+        service_method: str,
+        identity_key: str,
+        identity_value: str,
+        required_permission: str,
+        payload_hash: str,
+        payload_validation: Mapping[str, Any],
+        readiness_decision: Mapping[str, Any],
+        admission_decision: Mapping[str, Any],
+        risk_proof_id: Any,
+    ) -> AdminMvpApiResult:
+        """Execute a confirmed US CFM Futures close/reduce through backend REST."""
+
+        product_id = _futures_close_reduce_product_id(identity_value, body)
+        close_body = {**dict(body), "product_id": product_id}
+        notional = futures_place_notional_usdc(close_body)
+        client_order_id = _futures_client_order_id(body, context)
+        live_admission = self._futures_live_admission_decision(
+            admission_decision,
+            client_order_id=client_order_id,
+            notional=notional,
+            action_label="close/reduce",
+        )
+        pre_coinbase_failure = self._futures_close_reduce_pre_coinbase_failure(
+            command=command,
+            product_id=product_id,
+            notional=notional,
+            readiness_decision=readiness_decision,
+        )
+        if pre_coinbase_failure is not None:
+            return self._futures_place_blocked_response(
+                status_code=400,
+                message=pre_coinbase_failure["message"],
+                failure_stage=pre_coinbase_failure["failure_stage"],
+                command=command,
+                action_class=action_class,
+                route=route,
+                service_method=service_method,
+                identity_key=identity_key,
+                identity_value=identity_value,
+                required_permission=required_permission,
+                payload_hash=payload_hash,
+                payload_validation=payload_validation,
+                readiness_decision=readiness_decision,
+                admission_decision=live_admission,
+                risk_proof_id=risk_proof_id,
+                client_order_id=client_order_id,
+                notional=notional,
+                context=context,
+            )
+
+        try:
+            controller = self.dependencies.runtime_controller_factory()
+            _check_runtime_cancel_admission(controller)
+            with _track_runtime_cancel(controller):
+                result = self.dependencies.rest_client.close_position(
+                    client_order_id=client_order_id,
+                    product_id=product_id,
+                    **_futures_close_position_kwargs(body),
+                )
+        except Exception as exc:
+            return self._futures_place_blocked_response(
+                status_code=400,
+                message=f"Coinbase Futures close/reduce submission failed: {exc}",
+                failure_stage="coinbase_rest",
+                command=command,
+                action_class=action_class,
+                route=route,
+                service_method=service_method,
+                identity_key=identity_key,
+                identity_value=identity_value,
+                required_permission=required_permission,
+                payload_hash=payload_hash,
+                payload_validation=payload_validation,
+                readiness_decision=readiness_decision,
+                admission_decision=live_admission,
+                risk_proof_id=risk_proof_id,
+                client_order_id=client_order_id,
+                notional=notional,
+                context=context,
+            )
+
+        result_data = _object_to_dict(result)
+        if not _coinbase_create_order_succeeded(result_data):
+            return self._futures_place_blocked_response(
+                status_code=400,
+                message=(
+                    "Coinbase Futures close/reduce was not accepted: "
+                    f"{_coinbase_create_order_error_message(result_data)}"
+                ),
+                failure_stage="coinbase_rest",
+                command=command,
+                action_class=action_class,
+                route=route,
+                service_method=service_method,
+                identity_key=identity_key,
+                identity_value=identity_value,
+                required_permission=required_permission,
+                payload_hash=payload_hash,
+                payload_validation=payload_validation,
+                readiness_decision=readiness_decision,
+                admission_decision=live_admission,
+                risk_proof_id=risk_proof_id,
+                client_order_id=client_order_id,
+                notional=notional,
+                context=context,
+            )
+
+        order_id = _coinbase_order_id_from_create_order_result(result_data)
+        self.store.submitted_notional_usdc += notional
+        self.store.live_coinbase_orders_ran = True
+        runtime_evidence = self._runtime_evidence()
+        command_record = self._record_futures_command_decision(
+            status=AdminMvpCommandStatus.ACCEPTED.value,
+            message="Futures/Perpetual close/reduce submitted to Coinbase by backend Admin API.",
+            command=command,
+            mutation_family="futures_live_close_reduce",
+            action_class=action_class,
+            route=route,
+            service_method=service_method,
+            identity_key=identity_key,
+            identity_value=identity_value,
+            required_permission=required_permission,
+            payload_hash=payload_hash,
+            readiness_decision=readiness_decision,
+            admission_decision=live_admission,
+            payload_validation=payload_validation,
+            risk_proof_id=risk_proof_id,
+            failure_stage=None,
+            context=context,
+            client_order_id=client_order_id,
+            coinbase_order_id=order_id or None,
+            live_exchange_submitted=True,
+            submitted_notional=notional,
+            execution_allowed=True,
+            local_state_mutated=True,
+            exchange_state_mutated=True,
+            runtime_evidence=runtime_evidence,
+        )
+        response = {
+            "type": "admin_api_command_result",
+            "status": AdminMvpCommandStatus.ACCEPTED.value,
+            "module_id": FUTURES_MODULE_ID,
+            "command": command,
+            "mutation_family": "futures_live_close_reduce",
+            "action_class": action_class,
+            "route": route,
+            "method": "POST",
+            "required_permission": required_permission,
+            "service_method": service_method,
+            "identity_key": identity_key,
+            "identity_value": identity_value,
+            "product_id": product_id,
+            "client_order_id": client_order_id,
+            "coinbase_order_id": order_id or None,
+            "exchange_order_id": order_id or None,
+            "exchange_order_id_evidence_only": True,
+            "message": "Futures/Perpetual close/reduce submitted to Coinbase by backend Admin API.",
+            "correlation_id": context.correlation_id,
+            "idempotency_key": context.idempotency_key,
+            "operator_intent": context.operator_intent,
+            "actor_id": context.actor_id,
+            "payload_hash": payload_hash,
+            "payload_validation": dict(payload_validation),
+            "readiness_decision": dict(readiness_decision),
+            "admission_decision": live_admission,
+            "failure_stage": None,
+            "coinbase_close_position_submission_allowed": True,
+            "coinbase_close_position_result": result_data,
+            "submission_event_recorded": True,
+            "submission_event_id": command_record["decision_id"],
+            "command_route_registered": True,
+            "command_draft_allowed": True,
+            "execution_allowed": True,
+            "local_state_mutated": True,
+            "exchange_state_mutated": True,
+            "live_exchange_submitted": True,
+            "submitted_notional_usdc": _decimal_text(notional),
+            "executed_notional_usdc": "0",
+            "spot_rule_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            **runtime_evidence,
+            **self._live_outputs(True, notional),
+        }
+        return self._result(200, response, context, live_execution_enabled=True)
+
     def _execute_futures_cancel_order(
         self,
         *,
@@ -2505,6 +2716,8 @@ class AdminMvpService:
         mutation_family = (
             "futures_live_cancel"
             if command == "futures_cancel"
+            else "futures_live_close_reduce"
+            if command == "futures_close_reduce"
             else "futures_live_place"
         )
         runtime_evidence = self._runtime_evidence()
@@ -2627,6 +2840,42 @@ class AdminMvpService:
             return {
                 "failure_stage": "futures_rest_client_unavailable",
                 "message": "Coinbase REST client is not available to the backend.",
+            }
+        return None
+
+    def _futures_close_reduce_pre_coinbase_failure(
+        self,
+        *,
+        command: str,
+        product_id: str,
+        notional: Decimal,
+        readiness_decision: Mapping[str, Any],
+    ) -> dict[str, str] | None:
+        if command != "futures_close_reduce":
+            return {
+                "failure_stage": "futures_executor_not_implemented",
+                "message": "Only Futures/Perpetual close/reduce has this live adapter.",
+            }
+        if product_id not in FUTURES_CONFIGURED_PRODUCT_SCOPE:
+            return {
+                "failure_stage": "unsupported_product_scope",
+                "message": "Futures/Perpetual close/reduce product is outside backend scope.",
+            }
+        if not self.dependencies.live_coinbase_execution_enabled:
+            return {
+                "failure_stage": "futures_live_runtime_disabled",
+                "message": "Live Futures/Perpetual execution is not enabled for this backend process.",
+            }
+        if not self.dependencies.rest_client_available or self.dependencies.rest_client is None:
+            return {
+                "failure_stage": "futures_rest_client_unavailable",
+                "message": "Coinbase REST client is not available to the backend.",
+            }
+        cap = self._futures_live_max_submitted_notional(readiness_decision)
+        if notional > cap:
+            return {
+                "failure_stage": "futures_cap_required",
+                "message": "Futures/Perpetual close/reduce notional exceeds backend cap evidence.",
             }
         return None
 
@@ -6277,6 +6526,16 @@ def _futures_live_cancel_requested(command: str, body: Mapping[str, Any]) -> boo
     )
 
 
+def _futures_live_close_reduce_requested(command: str, body: Mapping[str, Any]) -> bool:
+    execution_mode = str(body.get("execution_mode") or "").strip().lower()
+    live_mode_requested = execution_mode == "live" or body.get("dry_run") is False
+    return (
+        command == "futures_close_reduce"
+        and live_mode_requested
+        and _futures_live_acknowledged(body)
+    )
+
+
 def _futures_live_acknowledged(body: Mapping[str, Any]) -> bool:
     value = body.get(
         "futures_live_acknowledgement",
@@ -6297,6 +6556,19 @@ def _futures_client_order_id(
     return str(body.get("client_order_id") or context.idempotency_key)
 
 
+def _futures_close_reduce_product_id(
+    identity_value: str,
+    body: Mapping[str, Any],
+) -> str:
+    position_key = str(body.get("position_key") or identity_value or "").strip()
+    prefix = "futures_position:runtime:"
+    if position_key.startswith(prefix):
+        return position_key.removeprefix(prefix)
+    if position_key in FUTURES_CONFIGURED_PRODUCT_SCOPE:
+        return position_key
+    return str(body.get("product_id") or "").strip()
+
+
 def _futures_place_order_configuration(body: Mapping[str, Any]) -> dict[str, Any]:
     inner = {
         "base_size": str(body.get("size") or body.get("number_of_contracts") or ""),
@@ -6313,6 +6585,11 @@ def _futures_create_order_kwargs(body: Mapping[str, Any]) -> dict[str, str]:
         for field in optional_fields
         if str(body.get(field) or "").strip()
     }
+
+
+def _futures_close_position_kwargs(body: Mapping[str, Any]) -> dict[str, str]:
+    size = str(body.get("size") or body.get("number_of_contracts") or "").strip()
+    return {"size": size} if size else {}
 
 
 def _wallet_inventory_failure(

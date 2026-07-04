@@ -81,6 +81,7 @@ def test_admin_account_management_openapi_exposes_live_read_evidence_fields():
 class FakeRestClient:
     create_order_calls: list[dict] = field(default_factory=list)
     cancel_order_calls: list[dict] = field(default_factory=list)
+    close_position_calls: list[dict] = field(default_factory=list)
     create_order_response: dict = field(
         default_factory=lambda: {
             "success": True,
@@ -97,6 +98,12 @@ class FakeRestClient:
             ]
         }
     )
+    close_position_response: dict = field(
+        default_factory=lambda: {
+            "success": True,
+            "success_response": {"order_id": "exchange-close-position-live-1"},
+        }
+    )
 
     def create_order(self, **kwargs):
         self.create_order_calls.append(kwargs)
@@ -105,6 +112,10 @@ class FakeRestClient:
     def cancel_orders(self, **kwargs):
         self.cancel_order_calls.append(kwargs)
         return self.cancel_orders_response
+
+    def close_position(self, **kwargs):
+        self.close_position_calls.append(kwargs)
+        return self.close_position_response
 
 
 @dataclass
@@ -2282,6 +2293,81 @@ def test_admin_futures_place_live_execution_requires_runtime_enablement():
     assert result.body["failure_stage"] == "futures_live_runtime_disabled"
     assert result.body["live_exchange_submitted"] is False
     assert rest_client.create_order_calls == []
+
+
+def test_admin_futures_close_reduce_live_execution_uses_backend_rest_adapter_when_confirmed():
+    rest_client = FakeAccountRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        )
+    )
+    record_futures_live_service_decision(service)
+    record_all_futures_live_adapter_decisions(service)
+
+    result = service.submit_futures_command(
+        "/api/v1/futures/positions/futures_position:runtime:AVP-20DEC30-CDE/close-reduce",
+        {
+            "limit_price": "6.92",
+            "size": "1",
+            "dry_run": False,
+            "manual_live_acknowledgement": True,
+            "operator_reason": "operator confirmed backend-controlled futures close reduce",
+        },
+        context(idempotency_key="futures-close-reduce-live-submit"),
+    )
+
+    assert result.status_code == 200
+    assert result.body["status"] == "accepted"
+    assert result.body["failure_stage"] is None
+    assert result.body["command"] == "futures_close_reduce"
+    assert result.body["mutation_family"] == "futures_live_close_reduce"
+    assert result.body["identity_key"] == "position_key"
+    assert result.body["identity_value"] == "futures_position:runtime:AVP-20DEC30-CDE"
+    assert result.body["product_id"] == "AVP-20DEC30-CDE"
+    assert result.body["client_order_id"] == "futures-close-reduce-live-submit"
+    assert result.body["coinbase_order_id"] == "exchange-close-position-live-1"
+    assert result.body["coinbase_close_position_submission_allowed"] is True
+    assert result.body["submitted_notional_usdc"] == "69.20"
+    assert result.body["executed_notional_usdc"] == "0"
+    assert result.body["live_exchange_submitted"] is True
+    assert result.body["live_coinbase_orders_ran"] is True
+    assert result.body["live_coinbase_execution"] == "submitted"
+    assert result.body["spot_rule_authority"] is False
+    assert result.body["exchange_order_id_evidence_only"] is True
+    assert rest_client.close_position_calls == [
+        {
+            "client_order_id": "futures-close-reduce-live-submit",
+            "product_id": "AVP-20DEC30-CDE",
+            "size": "1",
+        }
+    ]
+    assert rest_client.cancel_order_calls == []
+    assert rest_client.create_order_calls == []
+
+    workbench = service.get_read_response(
+        "/api/v1/admin/audit-workbench",
+        {
+            "module": "futures_perpetuals",
+            "client_order_id": "futures-close-reduce-live-submit",
+        },
+        context(),
+    )
+
+    assert workbench.status_code == 200
+    assert workbench.body["count"] == 1
+    event = workbench.body["events"][0]
+    assert event["event_id"] == result.body["submission_event_id"]
+    assert event["status"] == "accepted"
+    assert event["source"] == "admin_api_futures_command_log"
+    assert event["endpoint"] == "/api/v1/futures/positions/{position_key}/close-reduce"
+    assert event["client_order_id"] == "futures-close-reduce-live-submit"
+    assert event["exchange_order_id"] == "exchange-close-position-live-1"
+    assert event["exchange_order_id_evidence_only"] is True
+    assert event["live_exchange_submitted"] is True
+    assert event["live_coinbase_orders_ran"] is True
 
 
 def test_admin_futures_cancel_live_execution_uses_backend_rest_adapter_when_confirmed():
