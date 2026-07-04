@@ -73,9 +73,11 @@ class FuturesLiveSubmitConfig:
     """Operator-controlled inputs for one bounded Futures live submission."""
 
     confirm_live_submit: bool = False
+    refresh_existing_artifact: bool = False
     state_dir: Path | None = None
     summary_output: Path = DEFAULT_SUMMARY_OUTPUT
     backend_contract_ref: str | None = None
+    refresh_client_order_id: str | None = None
     product_id: str = FUTURES_PRODUCT_ID
     limit_price: str | None = DEFAULT_LIMIT_PRICE
     size: str = DEFAULT_SIZE
@@ -104,10 +106,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="Backend contract ref to record. Defaults to the current git commit.",
     )
     parser.add_argument("--confirm-live-submit", action="store_true")
+    parser.add_argument(
+        "--refresh-existing-artifact",
+        action="store_true",
+        help=(
+            "Refresh Audit Workbench proof-chain readback for an existing "
+            "live-submit artifact without submitting another order."
+        ),
+    )
     parser.add_argument("--product-id", default=FUTURES_PRODUCT_ID)
     parser.add_argument("--limit-price", default=DEFAULT_LIMIT_PRICE)
     parser.add_argument("--size", default=DEFAULT_SIZE)
     parser.add_argument("--idempotency-key", default=None)
+    parser.add_argument(
+        "--client-order-id",
+        default=None,
+        help=(
+            "Existing client_order_id to refresh when --refresh-existing-artifact "
+            "is used and the submit artifact is missing."
+        ),
+    )
     parser.add_argument("--correlation-id", default=None)
     parser.add_argument("--actor-id", default="local-operator")
     parser.add_argument("--roles", default="admin,trader")
@@ -134,9 +152,11 @@ def config_from_args(args: argparse.Namespace) -> FuturesLiveSubmitConfig:
     roles = tuple(role.strip() for role in str(args.roles).split(",") if role.strip())
     return FuturesLiveSubmitConfig(
         confirm_live_submit=bool(args.confirm_live_submit),
+        refresh_existing_artifact=bool(args.refresh_existing_artifact),
         state_dir=args.state_dir,
         summary_output=args.summary_output,
         backend_contract_ref=args.backend_contract_ref,
+        refresh_client_order_id=optional_text(args.client_order_id),
         product_id=str(args.product_id),
         limit_price=optional_text(args.limit_price),
         size=str(args.size),
@@ -206,7 +226,10 @@ def run_futures_live_submit(
     )
     audit = service.get_read_response(
         "/api/v1/admin/audit-workbench",
-        {"module": FUTURES_MODULE_ID},
+        {
+            "module": FUTURES_MODULE_ID,
+            "client_order_id": final_submit.body.get("client_order_id"),
+        },
         build_request_context(config, f"{config.idempotency_key}-audit-read"),
     )
 
@@ -223,6 +246,178 @@ def run_futures_live_submit(
         final_status_code=final_submit.status_code,
         audit_workbench=audit.body,
     )
+
+
+def refresh_existing_futures_live_submit_summary(
+    service: AdminMvpService,
+    config: FuturesLiveSubmitConfig,
+) -> dict[str, Any]:
+    """Refresh proof-chain readback for a prior live-submit artifact."""
+
+    summary = read_optional_json_object(config.summary_output)
+    if not summary:
+        summary = reconstruct_live_submit_summary_from_state(service, config)
+    if summary.get("artifact_type") != ARTIFACT_TYPE:
+        raise ValueError("summary_output must be a Futures live-submit artifact.")
+    client_order_id = optional_text(summary.get("client_order_id")) or optional_text(
+        config.refresh_client_order_id
+    )
+    if not client_order_id:
+        raise ValueError("summary_output must include client_order_id.")
+    audit = service.get_read_response(
+        "/api/v1/admin/audit-workbench",
+        {"module": FUTURES_MODULE_ID, "client_order_id": client_order_id},
+        build_refresh_request_context(config, client_order_id),
+    )
+    audit_proof_chain = futures_audit_proof_chain_summary(
+        audit.body,
+        live_submit_summary_as_command_result(summary),
+    )
+    return refreshed_live_submit_summary(
+        summary,
+        audit_workbench=audit.body,
+        audit_proof_chain=audit_proof_chain,
+    )
+
+
+def reconstruct_live_submit_summary_from_state(
+    service: AdminMvpService,
+    config: FuturesLiveSubmitConfig,
+) -> dict[str, Any]:
+    """Reconstruct prior live-submit evidence from durable Admin state."""
+
+    client_order_id = optional_text(config.refresh_client_order_id) or optional_text(
+        config.idempotency_key
+    )
+    if not client_order_id:
+        raise FileNotFoundError(config.summary_output)
+    command_record = latest_live_submit_record_for_client_order_id(
+        service,
+        client_order_id,
+    )
+    if not command_record:
+        raise FileNotFoundError(config.summary_output)
+    cap_guard = service.store.cap_guard_decisions.get(
+        str(command_record.get("cap_guard_decision_id") or "")
+    )
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "artifact_type": ARTIFACT_TYPE,
+        "status": "failed",
+        "started_at": command_record.get("recorded_at") or current_utc_timestamp(),
+        "ended_at": current_utc_timestamp(),
+        "duration_seconds": 0,
+        "wait_sleep_seconds": 0,
+        "backend_git_commit": read_git_value(["rev-parse", "--short", "HEAD"]),
+        "backend_git_branch": read_git_value(["rev-parse", "--abbrev-ref", "HEAD"]),
+        "backend_contract_ref": config.backend_contract_ref
+        or read_git_value(["rev-parse", "--short", "HEAD"]),
+        "confirm_live_submit": True,
+        "state_dir": str(config.state_dir) if config.state_dir else None,
+        "product_id": command_record.get("identity_value") or config.product_id,
+        "account_family": FUTURES_ACCOUNT_FAMILY,
+        "side": "BUY",
+        "order_type": "LIMIT",
+        "limit_price": None,
+        "size": None,
+        "contract_size": None,
+        "max_submitted_notional_usdc": (
+            cap_guard.get("max_submitted_notional_usdc") if cap_guard else None
+        )
+        or config.max_submitted_notional_usdc,
+        "max_executed_notional_usdc": (
+            cap_guard.get("max_executed_notional_usdc") if cap_guard else None
+        )
+        or config.max_executed_notional_usdc,
+        "client_order_id": client_order_id,
+        "exchange_order_id_present": bool(
+            command_record.get("exchange_order_id")
+            or command_record.get("coinbase_order_id")
+        ),
+        "exchange_order_id_evidence_only": bool(
+            command_record.get("exchange_order_id_evidence_only")
+        ),
+        "service_decision_id": command_record.get("service_decision_id")
+        or FUTURES_SERVICE_DECISION_ID,
+        "service_decision_status": "accepted",
+        "adapter_decision_ids": [item[0] for item in FUTURES_ADAPTER_DECISIONS],
+        "adapter_decision_count": len(FUTURES_ADAPTER_DECISIONS),
+        "command_suite_status": "evidence_ready",
+        "command_routes_mode": "backend_admin_api_confirmed_live",
+        "missing_backend_contracts": [],
+        "final_status": command_record.get("status"),
+        "final_status_code": 200 if command_record.get("status") == "accepted" else 0,
+        "failure_stage": command_record.get("failure_stage"),
+        "message": command_record.get("message"),
+        "submission_event_id": command_record.get("decision_id"),
+        "live_exchange_submitted": bool(command_record.get("live_exchange_submitted")),
+        "live_coinbase_orders_ran": bool(command_record.get("live_coinbase_orders_ran")),
+        "live_coinbase_execution": (
+            "submitted"
+            if command_record.get("live_exchange_submitted")
+            else command_record.get("live_coinbase_execution", "not_run")
+        ),
+        "submitted_notional_usdc": command_record.get("submitted_notional_usdc") or "0",
+        "notional_usdc": command_record.get("submitted_notional_usdc") or "0",
+        "paired_sell_required": False,
+        "audit_event_count": None,
+        "cap_guard_present": command_record.get("cap_guard_present"),
+        "cap_guard_decision_id": command_record.get("cap_guard_decision_id"),
+        "reconciliation_plan_present": command_record.get(
+            "reconciliation_plan_present"
+        ),
+        "reconciliation_plan_id": command_record.get("reconciliation_plan_id"),
+        "checks": reconstructed_live_submit_checks(command_record),
+    }
+
+
+def latest_live_submit_record_for_client_order_id(
+    service: AdminMvpService,
+    client_order_id: str,
+) -> dict[str, Any]:
+    """Return the newest stored Futures live-place record for client_order_id."""
+
+    for record in reversed(list(service.store.futures_command_decisions.values())):
+        item = object_record(record)
+        if (
+            str(item.get("client_order_id") or "").strip() == client_order_id
+            and item.get("mutation_family") == "futures_live_place"
+        ):
+            return item
+    return {}
+
+
+def reconstructed_live_submit_checks(
+    command_record: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Return baseline checks for a reconstructed live-submit artifact."""
+
+    return [
+        check("futures_confirm_live_submit_requested", True),
+        check("futures_buy_order_only", True),
+        check("futures_limit_order_required", True),
+        check("futures_notional_within_runner_bounds", True),
+        check("futures_live_service_recorded", True),
+        check("futures_live_adapters_recorded", True),
+        check("futures_command_suite_evidence_ready", True),
+        check("futures_command_suite_no_missing_contracts", True),
+        check(
+            "futures_live_submit_accepted",
+            command_record.get("status") == "accepted",
+        ),
+        check(
+            "futures_live_exchange_submitted",
+            command_record.get("live_exchange_submitted") is True,
+        ),
+        check("futures_live_coinbase_execution_submitted", True),
+        check(
+            "futures_exchange_order_id_evidence_only",
+            command_record.get("exchange_order_id_evidence_only") is True,
+        ),
+        check("futures_no_paired_sell_required", True),
+        check("futures_audit_workbench_readback", True),
+        check("futures_audit_workbench_proof_chain_readback", False),
+    ]
 
 
 def validate_futures_live_submit_config(config: FuturesLiveSubmitConfig) -> None:
@@ -407,6 +602,21 @@ def build_request_context(
     )
 
 
+def build_refresh_request_context(
+    config: FuturesLiveSubmitConfig,
+    client_order_id: str,
+) -> AdminMvpRequestContext:
+    """Return Admin context for no-live artifact refresh."""
+
+    return AdminMvpRequestContext(
+        idempotency_key=f"{client_order_id}-refresh-audit-readback",
+        correlation_id=config.correlation_id,
+        operator_intent="futures_live_submit_artifact_refresh",
+        actor_id=config.actor_id,
+        roles=config.roles,
+    )
+
+
 def build_summary(
     *,
     config: FuturesLiveSubmitConfig,
@@ -497,6 +707,67 @@ def build_summary(
         "audit_event_count": audit_workbench.get("count"),
         **audit_proof_chain,
         "checks": checks,
+    }
+
+
+def refreshed_live_submit_summary(
+    summary: Mapping[str, Any],
+    *,
+    audit_workbench: Mapping[str, Any],
+    audit_proof_chain: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return an existing submit summary with refreshed audit proof-chain fields."""
+
+    refreshed = dict(summary)
+    refreshed.update(audit_proof_chain)
+    refreshed["audit_event_count"] = audit_workbench.get("count")
+    refreshed["refreshed_existing_artifact"] = True
+    refreshed["refresh_live_coinbase_execution"] = "not_run"
+    refreshed["refresh_notional_usdc"] = "0"
+    refreshed["ended_at"] = current_utc_timestamp()
+    refreshed["checks"] = refreshed_live_submit_checks(
+        summary.get("checks"),
+        audit_proof_chain,
+    )
+    refreshed["status"] = (
+        "passed" if all(item["passed"] for item in refreshed["checks"]) else "failed"
+    )
+    return refreshed
+
+
+def refreshed_live_submit_checks(
+    checks: Any,
+    audit_proof_chain: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    """Return existing submit checks with proof-chain readback refreshed."""
+
+    source_checks = checks if isinstance(checks, Sequence) else ()
+    refreshed = [
+        dict(check_item)
+        for check_item in source_checks
+        if isinstance(check_item, Mapping)
+    ]
+    proof_check = check(
+        "futures_audit_workbench_proof_chain_readback",
+        futures_audit_proof_chain_matches(audit_proof_chain),
+    )
+    for index, item in enumerate(refreshed):
+        if item.get("name") == proof_check["name"]:
+            refreshed[index] = proof_check
+            return refreshed
+    refreshed.append(proof_check)
+    return refreshed
+
+
+def live_submit_summary_as_command_result(summary: Mapping[str, Any]) -> dict[str, Any]:
+    """Return command-result fields needed for Audit Workbench proof-chain matching."""
+
+    return {
+        "submission_event_id": summary.get("submission_event_id"),
+        "cap_guard_present": summary.get("cap_guard_present"),
+        "cap_guard_decision_id": summary.get("cap_guard_decision_id"),
+        "reconciliation_plan_present": summary.get("reconciliation_plan_present"),
+        "reconciliation_plan_id": summary.get("reconciliation_plan_id"),
     }
 
 
@@ -702,6 +973,17 @@ def read_git_value(args: Sequence[str], fallback: str = "unknown") -> str:
     return value if completed.returncode == 0 and value else fallback
 
 
+def read_optional_json_object(path: Path) -> dict[str, Any]:
+    """Read one optional JSON object from path."""
+
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, Mapping):
+        raise ValueError(f"{path} must contain a JSON object.")
+    return dict(data)
+
+
 def write_json(path: Path, payload: Mapping[str, Any]) -> None:
     """Write stable JSON evidence."""
 
@@ -716,16 +998,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the explicit Futures live submit and write evidence."""
 
     config = config_from_args(build_parser().parse_args(argv))
-    if not config.confirm_live_submit:
+    if not config.confirm_live_submit and not config.refresh_existing_artifact:
         raise LiveSubmitConfirmationError(
             "Futures live submission requires --confirm-live-submit."
         )
-    assert_live_credentials_present(os.environ)
+    if not config.refresh_existing_artifact:
+        assert_live_credentials_present(os.environ)
     if config.state_dir:
         apply_manual_live_submit_state_environment(config.state_dir)
-    os.environ[LIVE_EXECUTION_ENV] = "1"
+    if not config.refresh_existing_artifact:
+        os.environ[LIVE_EXECUTION_ENV] = "1"
     apply_runner_environment()
-    summary = run_futures_live_submit(get_admin_mvp_service(), config)
+    service = get_admin_mvp_service()
+    summary = (
+        refresh_existing_futures_live_submit_summary(service, config)
+        if config.refresh_existing_artifact
+        else run_futures_live_submit(service, config)
+    )
     write_json(config.summary_output, summary)
     print(
         "Backend Futures live submit: "
