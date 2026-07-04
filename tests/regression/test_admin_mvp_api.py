@@ -14,6 +14,7 @@ from application.admin_api.mvp_service import (
     AdminMvpService,
     live_coinbase_execution_enabled_from_env,
 )
+from core.runtime_controller import RuntimeController
 from tools import run_admin_api
 
 
@@ -56,6 +57,26 @@ def test_admin_live_decision_openapi_exposes_futures_scope_fields():
     )
     assert adapter_scope_fields <= set(schemas["AdminLiveAdapterDecisionItem"]["properties"])
     assert adapter_scope_fields <= set(schemas["AdminLiveAdapterDecisionItem"]["required"])
+
+
+def test_admin_runtime_openapi_exposes_status_and_control_paths():
+    openapi = yaml.safe_load(
+        Path("openapi/coinbase-admin-api.yaml").read_text(encoding="utf-8")
+    )
+
+    assert openapi["paths"]["/api/v1/admin/runtime"]["get"]["responses"]["200"][
+        "content"
+    ]["application/json"]["schema"]["$ref"] == (
+        "#/components/schemas/AdminRuntimeStatusResponse"
+    )
+    for path in (
+        "/api/v1/admin/runtime/pause",
+        "/api/v1/admin/runtime/resume",
+        "/api/v1/admin/runtime/shutdown",
+    ):
+        assert openapi["paths"][path]["post"]["responses"]["200"]["content"][
+            "application/json"
+        ]["schema"]["$ref"] == "#/components/schemas/AdminRuntimeControlResponse"
 
 
 def test_admin_account_management_openapi_exposes_live_read_evidence_fields():
@@ -900,6 +921,133 @@ def test_admin_account_management_read_contract_exposes_local_operator_scope(
         "GET /api/v1/admin/wallet",
     ]
     assert account_module["action_posture"]["browser_authority"] == "display_only"
+
+
+def test_admin_runtime_status_exposes_backend_runtime_controller_state():
+    controller = RuntimeController()
+    service = AdminMvpService(
+        AdminMvpDependencies(runtime_controller_factory=lambda: controller)
+    )
+
+    status = service.get_read_response("/api/v1/admin/runtime", {}, context())
+
+    assert status.status_code == 200
+    assert status.body["type"] == "admin_runtime_status"
+    assert status.body["status"] == "running"
+    assert status.body["route"] == "/api/v1/admin/runtime"
+    assert status.body["method"] == "GET"
+    assert status.body["module_id"] == "admin_system_health"
+    assert status.body["read_only"] is True
+    assert status.body["runtime_state"] == "RUNNING"
+    assert status.body["admitting"] is True
+    assert status.body["stopping"] is False
+    assert status.body["inflight"] == {}
+    assert status.body["total_inflight"] == 0
+    assert status.body["browser_authority"] == "display_only"
+    assert status.body["bff_authority"] == "forward_only_no_execution"
+    assert status.body["live_exchange_submitted"] is False
+    assert status.body["live_coinbase_orders_ran"] is False
+
+    capabilities = service.get_read_response("/api/v1/admin/capabilities", {}, context())
+    capability_by_route = {
+        (item["method"], item["route"]): item
+        for item in capabilities.body["capabilities"]
+    }
+    runtime_read = capability_by_route[("GET", "/api/v1/admin/runtime")]
+    assert runtime_read["module_id"] == "admin_system_health"
+    assert runtime_read["live_enabled"] is False
+    assert runtime_read["frontend_safe"] is True
+    assert capability_by_route[("POST", "/api/v1/admin/runtime/pause")][
+        "permission"
+    ] == "runtime:pause"
+    assert capability_by_route[("POST", "/api/v1/admin/runtime/resume")][
+        "permission"
+    ] == "runtime:resume"
+    assert capability_by_route[("POST", "/api/v1/admin/runtime/shutdown")][
+        "permission"
+    ] == "runtime:shutdown"
+
+
+def test_admin_runtime_control_uses_backend_controller_without_coinbase_submission():
+    controller = RuntimeController()
+    rest_client = FakeRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            runtime_controller_factory=lambda: controller,
+        )
+    )
+
+    paused = service.control_runtime(
+        "pause",
+        {},
+        context(idempotency_key="runtime-pause"),
+    )
+    assert paused.status_code == 200
+    assert paused.body["type"] == "admin_runtime_control"
+    assert paused.body["status"] == "accepted"
+    assert paused.body["route"] == "/api/v1/admin/runtime/pause"
+    assert paused.body["method"] == "POST"
+    assert paused.body["module_id"] == "admin_system_health"
+    assert paused.body["action_class"] == "admin_runtime"
+    assert paused.body["required_permission"] == "runtime:pause"
+    assert paused.body["service_method"] == "pause_runtime"
+    assert paused.body["runtime_state_before"] == "RUNNING"
+    assert paused.body["runtime_state_after"] == "PAUSED"
+    assert paused.body["transition_applied"] is True
+    assert paused.body["runtime_state_mutated"] is True
+    assert paused.body["order_state_mutated"] is False
+    assert paused.body["exchange_state_mutated"] is False
+    assert paused.body["coinbase_order_submitted"] is False
+    assert paused.body["coinbase_order_cancel_submitted"] is False
+    assert paused.body["live_exchange_submitted"] is False
+    assert paused.body["live_coinbase_orders_ran"] is False
+
+    repeated_pause = service.control_runtime(
+        "pause",
+        {},
+        context(idempotency_key="runtime-pause-again"),
+    )
+    assert repeated_pause.status_code == 200
+    assert repeated_pause.body["status"] == "already_in_requested_state"
+    assert repeated_pause.body["runtime_state_before"] == "PAUSED"
+    assert repeated_pause.body["runtime_state_after"] == "PAUSED"
+    assert repeated_pause.body["transition_applied"] is False
+    assert repeated_pause.body["runtime_state_mutated"] is False
+
+    resumed = service.control_runtime(
+        "resume",
+        {},
+        context(idempotency_key="runtime-resume"),
+    )
+    assert resumed.status_code == 200
+    assert resumed.body["status"] == "accepted"
+    assert resumed.body["route"] == "/api/v1/admin/runtime/resume"
+    assert resumed.body["required_permission"] == "runtime:resume"
+    assert resumed.body["service_method"] == "resume_runtime"
+    assert resumed.body["runtime_state_before"] == "PAUSED"
+    assert resumed.body["runtime_state_after"] == "RUNNING"
+    assert resumed.body["admitting"] is True
+    assert resumed.body["stopping"] is False
+
+    shutdown = service.control_runtime(
+        "shutdown",
+        {},
+        context(idempotency_key="runtime-shutdown"),
+    )
+    assert shutdown.status_code == 200
+    assert shutdown.body["status"] == "accepted"
+    assert shutdown.body["route"] == "/api/v1/admin/runtime/shutdown"
+    assert shutdown.body["required_permission"] == "runtime:shutdown"
+    assert shutdown.body["service_method"] == "request_runtime_shutdown"
+    assert shutdown.body["runtime_state_before"] == "RUNNING"
+    assert shutdown.body["runtime_state_after"] == "DRAINING"
+    assert shutdown.body["admitting"] is False
+    assert shutdown.body["stopping"] is True
+    assert shutdown.body["drain_executed"] is False
+    assert rest_client.create_order_calls == []
+    assert rest_client.cancel_order_calls == []
 
 
 def test_admin_account_management_exposes_backend_owned_account_reality():

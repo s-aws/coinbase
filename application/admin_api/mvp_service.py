@@ -39,6 +39,7 @@ class AdminMvpFuturesExecutorStatus(str, Enum):
 ADMIN_API_VERSION = "0.1.0-prod-mvp"
 MANUAL_ORDER_ROUTE = "/api/v1/orders"
 CANCEL_ORDER_ROUTE = "/api/v1/orders/{client_order_id}/cancel"
+ADMIN_RUNTIME_ROUTE = "/api/v1/admin/runtime"
 ACCOUNT_MANAGEMENT_ROUTE = "/api/v1/admin/account-management"
 ACCOUNT_WALLET_ROUTE = "/api/v1/admin/wallet"
 ACCOUNT_MANAGEMENT_MODULE_ID = "account_management"
@@ -206,6 +207,26 @@ LIVE_SERVICE_DECISION_SERVICE_METHOD = "record_live_service_decision"
 LIVE_ADAPTER_DECISION_ROUTE = "/api/v1/admin/live-execution/adapter-decisions"
 LIVE_ADAPTER_DECISION_PERMISSION = "config:update"
 LIVE_ADAPTER_DECISION_SERVICE_METHOD = "record_live_adapter_decision"
+ADMIN_RUNTIME_CONTROL_SPECS = {
+    "pause": {
+        "route": f"{ADMIN_RUNTIME_ROUTE}/pause",
+        "required_permission": "runtime:pause",
+        "service_method": "pause_runtime",
+        "target_states": {"PAUSED"},
+    },
+    "resume": {
+        "route": f"{ADMIN_RUNTIME_ROUTE}/resume",
+        "required_permission": "runtime:resume",
+        "service_method": "resume_runtime",
+        "target_states": {"RUNNING"},
+    },
+    "shutdown": {
+        "route": f"{ADMIN_RUNTIME_ROUTE}/shutdown",
+        "required_permission": "runtime:shutdown",
+        "service_method": "request_runtime_shutdown",
+        "target_states": {"DRAINING", "STOPPED"},
+    },
+}
 DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC = Decimal("3.10")
 DEFAULT_MAX_EXECUTED_NOTIONAL_USDC = Decimal("1.00")
 DEFAULT_FUTURES_MAX_SUBMITTED_NOTIONAL_USDC = Decimal("100.00")
@@ -501,6 +522,81 @@ class AdminMvpService:
     def _persist_record(self, collection: str, key: str, record: Any) -> None:
         self.evidence_log.append(collection, key, record)
 
+    def control_runtime(
+        self,
+        action: str,
+        body: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+    ) -> AdminMvpApiResult:
+        """Request one backend runtime lifecycle transition."""
+
+        normalized_action = action.strip().lower()
+        spec = ADMIN_RUNTIME_CONTROL_SPECS.get(normalized_action)
+        if spec is None:
+            return self._error(
+                404,
+                f"Admin runtime control action not found: {action}",
+                context,
+            )
+
+        controller = self.dependencies.runtime_controller_factory()
+        before = self._runtime_controller_snapshot(controller)
+        transition = self._runtime_transition(controller, normalized_action)
+        transition_applied = bool(transition())
+        after = self._runtime_controller_snapshot(controller)
+        target_states = set(spec["target_states"])
+        if transition_applied:
+            status = AdminMvpCommandStatus.ACCEPTED.value
+            message = "Runtime control transition accepted."
+        elif after["runtime_state"] in target_states:
+            status = "already_in_requested_state"
+            message = "Runtime already reported the requested state."
+        else:
+            status = AdminMvpCommandStatus.REJECTED.value
+            message = "Runtime control transition rejected for the current state."
+
+        runtime_state_mutated = before["runtime_state"] != after["runtime_state"]
+        response = {
+            "type": "admin_runtime_control",
+            "status": status,
+            "message": message,
+            "route": spec["route"],
+            "method": "POST",
+            "module_id": "admin_system_health",
+            "action_class": "admin_runtime",
+            "required_permission": spec["required_permission"],
+            "service_method": spec["service_method"],
+            "operator": {
+                "actor_id": context.actor_id,
+                "roles": list(context.roles),
+                "operator_intent": context.operator_intent,
+            },
+            "audit": {
+                "correlation_id": context.correlation_id,
+                "idempotency_key": context.idempotency_key,
+                "audit_surface": spec["route"],
+            },
+            "runtime_state_before": before["runtime_state"],
+            "runtime_state_after": after["runtime_state"],
+            "transition_applied": transition_applied,
+            "runtime_state_mutated": runtime_state_mutated,
+            "local_state_mutated": runtime_state_mutated,
+            "order_state_mutated": False,
+            "exchange_state_mutated": False,
+            "coinbase_order_submitted": False,
+            "coinbase_order_cancel_submitted": False,
+            "live_exchange_submitted": False,
+            "drain_requested": normalized_action == "shutdown",
+            "drain_executed": False,
+            "read_only": False,
+            "frontend_safe": True,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            **after,
+            **self._live_outputs(False, Decimal("0")),
+        }
+        return self._ok(response, context)
+
     def get_read_response(
         self,
         path: str,
@@ -512,6 +608,8 @@ class AdminMvpService:
         normalized_path = _normalize_path(path)
         if normalized_path == "/api/v1/admin/bootstrap":
             return self._ok(self._admin_bootstrap(context), context)
+        if normalized_path == ADMIN_RUNTIME_ROUTE:
+            return self._ok(self._admin_runtime_status(context), context)
         if normalized_path == "/api/v1/admin/health":
             return self._ok(self._admin_health(), context)
         if normalized_path == "/api/v1/admin/session":
@@ -4601,6 +4699,77 @@ class AdminMvpService:
             "live_coinbase_orders_ran": False,
         }
 
+    def _admin_runtime_status(self, context: AdminMvpRequestContext) -> dict[str, Any]:
+        controller = self.dependencies.runtime_controller_factory()
+        snapshot = self._runtime_controller_snapshot(controller)
+        return {
+            "type": "admin_runtime_status",
+            "status": str(snapshot["runtime_state"]).lower(),
+            "route": ADMIN_RUNTIME_ROUTE,
+            "method": "GET",
+            "module_id": "admin_system_health",
+            "read_only": True,
+            "operator": {
+                "actor_id": context.actor_id,
+                "roles": list(context.roles),
+            },
+            "audit": {
+                "correlation_id": context.correlation_id,
+                "idempotency_key": context.idempotency_key,
+                "audit_surface": ADMIN_RUNTIME_ROUTE,
+            },
+            "frontend_safe": True,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "order_state_mutated": False,
+            "exchange_state_mutated": False,
+            "coinbase_order_submitted": False,
+            "coinbase_order_cancel_submitted": False,
+            "live_exchange_submitted": False,
+            **snapshot,
+            **self._live_outputs(False, Decimal("0")),
+        }
+
+    def _runtime_controller_snapshot(self, controller: Any) -> dict[str, Any]:
+        state = self._runtime_state_value(getattr(controller, "state", "UNKNOWN"))
+        inflight_snapshot = getattr(controller, "inflight_snapshot", None)
+        total_inflight = getattr(controller, "total_inflight", None)
+        is_admitting = getattr(controller, "is_admitting", None)
+        is_stopping = getattr(controller, "is_stopping", None)
+        inflight = inflight_snapshot() if callable(inflight_snapshot) else {}
+        return {
+            "runtime_state": state,
+            "admitting": (
+                bool(is_admitting()) if callable(is_admitting) else state == "RUNNING"
+            ),
+            "stopping": (
+                bool(is_stopping())
+                if callable(is_stopping)
+                else state in {"DRAINING", "STOPPED"}
+            ),
+            "inflight": dict(inflight),
+            "total_inflight": (
+                int(total_inflight())
+                if callable(total_inflight)
+                else sum(int(value) for value in dict(inflight).values())
+            ),
+            "runtime_source": "core.runtime_controller.RuntimeController",
+        }
+
+    def _runtime_transition(self, controller: Any, action: str) -> Callable[[], bool]:
+        method_name_by_action = {
+            "pause": "request_pause",
+            "resume": "resume",
+            "shutdown": "request_shutdown",
+        }
+        transition = getattr(controller, method_name_by_action[action], None)
+        if callable(transition):
+            return transition
+        return lambda: False
+
+    def _runtime_state_value(self, state: Any) -> str:
+        return str(getattr(state, "value", state))
+
     def _admin_health(self) -> dict[str, Any]:
         return {
             "type": "admin_health",
@@ -6767,6 +6936,7 @@ class AdminMvpService:
     def _capability_items(self) -> list[dict[str, Any]]:
         read_routes = [
             "/api/v1/admin/bootstrap",
+            ADMIN_RUNTIME_ROUTE,
             "/api/v1/admin/health",
             "/api/v1/admin/session",
             "/api/v1/admin/oidc-readiness",
@@ -6840,6 +7010,16 @@ class AdminMvpService:
                 required_permission="reconciliation:record",
                 shared_method="record_reconciliation_plan",
                 live_enabled=False,
+            ),
+            *(
+                _command_capability(
+                    route=str(spec["route"]),
+                    action_class="admin_runtime",
+                    required_permission=str(spec["required_permission"]),
+                    shared_method=str(spec["service_method"]),
+                    live_enabled=False,
+                )
+                for spec in ADMIN_RUNTIME_CONTROL_SPECS.values()
             ),
             _command_capability(
                 route=SPOT_MANUAL_ORDER_PROOF_CHAIN_ROUTE,

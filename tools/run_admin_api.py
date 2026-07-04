@@ -21,6 +21,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from application.admin_api.mvp_service import (
+    ADMIN_RUNTIME_ROUTE,
     AdminMvpRequestContext,
     SPOT_CANCEL_ORDER_PROOF_CHAIN_ROUTE,
     SPOT_MANUAL_ORDER_PROOF_CHAIN_ROUTE,
@@ -211,6 +212,12 @@ class AdminMvpRequestHandler(BaseHTTPRequestHandler):
             result = service.record_cap_guard_decision(body, context)
         elif path == "/api/v1/admin/reconciliation/plans":
             result = service.record_reconciliation_plan(body, context)
+        elif path.startswith(f"{ADMIN_RUNTIME_ROUTE}/"):
+            result = service.control_runtime(
+                path.rsplit("/", 1)[-1],
+                body,
+                context,
+            )
         elif path == SPOT_MANUAL_ORDER_PROOF_CHAIN_ROUTE:
             result = service.record_spot_manual_order_proof_chain(body, context)
         elif path == SPOT_CANCEL_ORDER_PROOF_CHAIN_ROUTE:

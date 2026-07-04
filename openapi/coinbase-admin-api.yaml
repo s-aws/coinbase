@@ -68,6 +68,281 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/runtime:
+    get:
+      tags:
+      - admin
+      summary: Read backend runtime lifecycle state
+      operationId: admin_runtime_api_v1_admin_runtime_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRuntimeStatusResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/runtime/pause:
+    post:
+      tags:
+      - admin
+      summary: Request backend runtime pause
+      operationId: admin_runtime_pause_api_v1_admin_runtime_pause_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminRuntimeControlRequest'
+      responses:
+        '200':
+          description: Runtime pause request accepted or already applied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRuntimeControlResponse'
+        '400':
+          description: Runtime pause request rejected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRuntimeControlResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/runtime/resume:
+    post:
+      tags:
+      - admin
+      summary: Request backend runtime resume
+      operationId: admin_runtime_resume_api_v1_admin_runtime_resume_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminRuntimeControlRequest'
+      responses:
+        '200':
+          description: Runtime resume request accepted or already applied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRuntimeControlResponse'
+        '400':
+          description: Runtime resume request rejected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRuntimeControlResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/runtime/shutdown:
+    post:
+      tags:
+      - admin
+      summary: Request backend runtime shutdown drain
+      operationId: admin_runtime_shutdown_api_v1_admin_runtime_shutdown_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminRuntimeControlRequest'
+      responses:
+        '200':
+          description: Runtime shutdown request accepted or already applied.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRuntimeControlResponse'
+        '400':
+          description: Runtime shutdown request rejected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRuntimeControlResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/health:
     get:
       tags:
@@ -98825,6 +99100,251 @@ components:
       - status
       title: AdminGateReadResponse
       description: Read-only gate response for release and recovery views.
+    AdminRuntimeControlRequest:
+      properties:
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+      additionalProperties: false
+      type: object
+      title: AdminRuntimeControlRequest
+      description: Optional operator note for backend runtime lifecycle requests.
+    AdminRuntimeControlResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_runtime_control
+        status:
+          type: string
+          title: Status
+        message:
+          type: string
+          title: Message
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+          default: POST
+        module_id:
+          type: string
+          title: Module Id
+          default: admin_system_health
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+          default: admin_runtime
+        required_permission:
+          $ref: '#/components/schemas/AdminApiPermission'
+        service_method:
+          type: string
+          title: Service Method
+        runtime_state:
+          type: string
+          title: Runtime State
+        runtime_state_before:
+          type: string
+          title: Runtime State Before
+        runtime_state_after:
+          type: string
+          title: Runtime State After
+        transition_applied:
+          type: boolean
+          title: Transition Applied
+        runtime_state_mutated:
+          type: boolean
+          title: Runtime State Mutated
+        local_state_mutated:
+          type: boolean
+          title: Local State Mutated
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        coinbase_order_submitted:
+          type: boolean
+          title: Coinbase Order Submitted
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        drain_requested:
+          type: boolean
+          title: Drain Requested
+          default: false
+        drain_executed:
+          type: boolean
+          title: Drain Executed
+          default: false
+        admitting:
+          type: boolean
+          title: Admitting
+        stopping:
+          type: boolean
+          title: Stopping
+        inflight:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Inflight
+        total_inflight:
+          type: integer
+          title: Total Inflight
+        runtime_source:
+          type: string
+          title: Runtime Source
+        read_only:
+          type: boolean
+          title: Read Only
+          default: false
+        frontend_safe:
+          type: boolean
+          title: Frontend Safe
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          title: Notional Usdc
+          default: '0'
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - message
+      - route
+      - required_permission
+      - service_method
+      - runtime_state
+      - runtime_state_before
+      - runtime_state_after
+      title: AdminRuntimeControlResponse
+      description: Backend-owned runtime lifecycle mutation evidence.
+    AdminRuntimeStatusResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_runtime_status
+        status:
+          type: string
+          title: Status
+        route:
+          type: string
+          title: Route
+          default: /api/v1/admin/runtime
+        method:
+          type: string
+          title: Method
+          default: GET
+        module_id:
+          type: string
+          title: Module Id
+          default: admin_system_health
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        runtime_state:
+          type: string
+          title: Runtime State
+        admitting:
+          type: boolean
+          title: Admitting
+        stopping:
+          type: boolean
+          title: Stopping
+        inflight:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Inflight
+        total_inflight:
+          type: integer
+          title: Total Inflight
+        runtime_source:
+          type: string
+          title: Runtime Source
+        frontend_safe:
+          type: boolean
+          title: Frontend Safe
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        coinbase_order_submitted:
+          type: boolean
+          title: Coinbase Order Submitted
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          title: Notional Usdc
+          default: '0'
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - runtime_state
+      - admitting
+      - stopping
+      - total_inflight
+      title: AdminRuntimeStatusResponse
+      description: Read-only backend runtime lifecycle state evidence.
     AdminHealthResponse:
       properties:
         type:
