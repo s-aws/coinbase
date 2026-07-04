@@ -1229,7 +1229,7 @@ def test_cap_guard_can_use_backend_account_snapshot_for_wallet_evidence():
     assert result.body["live_coinbase_orders_ran"] is False
 
 
-def test_admin_futures_perpetuals_read_contract_exposes_blocked_mvp_evidence():
+def test_admin_futures_perpetuals_read_contract_exposes_blocked_contract_evidence():
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=FakeRestClient(), rest_client_available=True)
     )
@@ -1285,6 +1285,8 @@ def test_admin_futures_perpetuals_read_contract_exposes_blocked_mvp_evidence():
     suite = command_suite.body
     assert suite["type"] == "admin_futures_command_suite"
     assert suite["module_id"] == "futures_perpetuals"
+    assert suite["approved_phase_range"] == "futures-perpetuals-read-contract"
+    assert "mvp" not in suite["approved_phase_range"].lower()
     assert suite["status"] == "blocked"
     assert suite["command_count"] == 4
     assert suite["blocked_command_count"] == 4

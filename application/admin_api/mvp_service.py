@@ -4098,7 +4098,7 @@ class AdminMvpService:
         return {
             "type": "admin_futures_command_suite",
             "module_id": FUTURES_MODULE_ID,
-            "approved_phase_range": "mvp-futures-read-contract",
+            "approved_phase_range": "futures-perpetuals-read-contract",
             "status": status,
             "command_count": len(commands),
             "blocked_command_count": len(commands),
