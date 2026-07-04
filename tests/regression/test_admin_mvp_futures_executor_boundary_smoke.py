@@ -51,15 +51,34 @@ def executor_rejected_command() -> dict:
     }
 
 
+def confirmed_runtime_disabled_command() -> dict:
+    return {
+        "type": "admin_api_command_result",
+        "status": "rejected",
+        "failure_stage": "futures_live_runtime_disabled",
+        "submission_event_id": "futures-executor-futures-executor-boundary-confirmed-place",
+        "submitted_notional_usdc": "0",
+        "live_exchange_submitted": False,
+        "live_coinbase_orders_ran": False,
+    }
+
+
 def audit_workbench() -> dict:
     return {
         "type": "admin_audit_workbench",
-        "count": 1,
+        "count": 2,
         "events": [
             {
                 "event_id": "futures-executor-futures-executor-boundary-place-draft",
                 "module": "futures_perpetuals",
                 "source": "admin_api_futures_executor_boundary",
+                "status": "rejected",
+                "live_exchange_submitted": False,
+            },
+            {
+                "event_id": "futures-executor-futures-executor-boundary-confirmed-place",
+                "module": "futures_perpetuals",
+                "source": "admin_api_futures_command_log",
                 "status": "rejected",
                 "live_exchange_submitted": False,
             }
@@ -85,6 +104,8 @@ def test_futures_executor_boundary_smoke_writes_no_live_summary(tmp_path):
         command_suite=ready_command_suite(),
         command_result=executor_rejected_command(),
         command_status_code=400,
+        confirmed_command_result=confirmed_runtime_disabled_command(),
+        confirmed_command_status_code=400,
         audit_workbench=audit_workbench(),
     )
 
@@ -97,8 +118,17 @@ def test_futures_executor_boundary_smoke_writes_no_live_summary(tmp_path):
     assert summary["first_blocker"] == "futures_executor_live_disabled"
     assert summary["command_status"] == "rejected"
     assert summary["command_status_code"] == 400
+    assert summary["confirmed_command_status"] == "rejected"
+    assert summary["confirmed_command_status_code"] == 400
+    assert summary["confirmed_failure_stage"] == "futures_live_runtime_disabled"
+    assert summary["confirmed_live_exchange_submitted"] is False
+    assert summary["confirmed_live_coinbase_orders_ran"] is False
     assert summary["live_coinbase_orders_ran"] is False
     assert all(check["passed"] for check in summary["checks"])
+    assert {
+        "futures_confirmed_place_rejected_before_coinbase",
+        "futures_confirmed_place_event_recorded",
+    }.issubset({check["name"] for check in summary["checks"]})
 
 
 def test_futures_executor_boundary_smoke_fails_without_ready_adapter(tmp_path):
@@ -122,6 +152,8 @@ def test_futures_executor_boundary_smoke_fails_without_ready_adapter(tmp_path):
         command_suite=command_suite,
         command_result=executor_rejected_command(),
         command_status_code=400,
+        confirmed_command_result=confirmed_runtime_disabled_command(),
+        confirmed_command_status_code=400,
         audit_workbench=audit_workbench(),
     )
 
@@ -150,6 +182,9 @@ def test_futures_executor_boundary_smoke_main_writes_artifact(monkeypatch, tmp_p
         def submit_futures_command(self, path, body, context):
             assert path == smoke.FUTURES_COMMAND_ROUTE
             assert body["product_id"] == smoke.FUTURES_PRODUCT_ID
+            if body.get("dry_run") is False:
+                assert body["manual_live_acknowledgement"] is True
+                return result(confirmed_runtime_disabled_command(), status_code=400)
             return result(executor_rejected_command(), status_code=400)
 
     monkeypatch.setattr(smoke, "get_admin_mvp_service", lambda: FakeService())
@@ -181,3 +216,4 @@ def test_futures_executor_boundary_smoke_main_writes_artifact(monkeypatch, tmp_p
     assert summary["backend_contract_ref"] == "abc1234"
     assert summary["backend_git_commit"] == "abc1234"
     assert summary["backend_git_branch"] == "codex/account-futures-mvp-local-cd"
+    assert summary["confirmed_failure_stage"] == "futures_live_runtime_disabled"
