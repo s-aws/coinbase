@@ -63,10 +63,25 @@ def confirmed_runtime_disabled_command() -> dict:
     }
 
 
+def confirmed_cancel_runtime_disabled_command() -> dict:
+    return {
+        "type": "admin_api_command_result",
+        "status": "rejected",
+        "command": "futures_cancel",
+        "mutation_family": "futures_live_cancel",
+        "failure_stage": "futures_live_runtime_disabled",
+        "submission_event_id": "futures-executor-futures-executor-boundary-confirmed-cancel",
+        "client_order_id": smoke.FUTURES_CANCEL_CLIENT_ORDER_ID,
+        "submitted_notional_usdc": "0",
+        "live_exchange_submitted": False,
+        "live_coinbase_orders_ran": False,
+    }
+
+
 def audit_workbench() -> dict:
     return {
         "type": "admin_audit_workbench",
-        "count": 2,
+        "count": 3,
         "events": [
             {
                 "event_id": "futures-executor-futures-executor-boundary-place-draft",
@@ -77,6 +92,13 @@ def audit_workbench() -> dict:
             },
             {
                 "event_id": "futures-executor-futures-executor-boundary-confirmed-place",
+                "module": "futures_perpetuals",
+                "source": "admin_api_futures_command_log",
+                "status": "rejected",
+                "live_exchange_submitted": False,
+            },
+            {
+                "event_id": "futures-executor-futures-executor-boundary-confirmed-cancel",
                 "module": "futures_perpetuals",
                 "source": "admin_api_futures_command_log",
                 "status": "rejected",
@@ -106,6 +128,8 @@ def test_futures_executor_boundary_smoke_writes_no_live_summary(tmp_path):
         command_status_code=400,
         confirmed_command_result=confirmed_runtime_disabled_command(),
         confirmed_command_status_code=400,
+        confirmed_cancel_command_result=confirmed_cancel_runtime_disabled_command(),
+        confirmed_cancel_command_status_code=400,
         audit_workbench=audit_workbench(),
     )
 
@@ -123,11 +147,19 @@ def test_futures_executor_boundary_smoke_writes_no_live_summary(tmp_path):
     assert summary["confirmed_failure_stage"] == "futures_live_runtime_disabled"
     assert summary["confirmed_live_exchange_submitted"] is False
     assert summary["confirmed_live_coinbase_orders_ran"] is False
+    assert summary["confirmed_cancel_command_status"] == "rejected"
+    assert summary["confirmed_cancel_command_status_code"] == 400
+    assert summary["confirmed_cancel_failure_stage"] == "futures_live_runtime_disabled"
+    assert summary["confirmed_cancel_client_order_id"] == smoke.FUTURES_CANCEL_CLIENT_ORDER_ID
+    assert summary["confirmed_cancel_live_exchange_submitted"] is False
+    assert summary["confirmed_cancel_live_coinbase_orders_ran"] is False
     assert summary["live_coinbase_orders_ran"] is False
     assert all(check["passed"] for check in summary["checks"])
     assert {
         "futures_confirmed_place_rejected_before_coinbase",
         "futures_confirmed_place_event_recorded",
+        "futures_confirmed_cancel_rejected_before_coinbase",
+        "futures_confirmed_cancel_event_recorded",
     }.issubset({check["name"] for check in summary["checks"]})
 
 
@@ -154,6 +186,8 @@ def test_futures_executor_boundary_smoke_fails_without_ready_adapter(tmp_path):
         command_status_code=400,
         confirmed_command_result=confirmed_runtime_disabled_command(),
         confirmed_command_status_code=400,
+        confirmed_cancel_command_result=confirmed_cancel_runtime_disabled_command(),
+        confirmed_cancel_command_status_code=400,
         audit_workbench=audit_workbench(),
     )
 
@@ -180,8 +214,13 @@ def test_futures_executor_boundary_smoke_main_writes_artifact(monkeypatch, tmp_p
             raise AssertionError(f"unexpected route: {route}")
 
         def submit_futures_command(self, path, body, context):
-            assert path == smoke.FUTURES_COMMAND_ROUTE
             assert body["product_id"] == smoke.FUTURES_PRODUCT_ID
+            if path == smoke.FUTURES_CANCEL_COMMAND_ROUTE:
+                assert context.idempotency_key == "futures-executor-boundary-confirmed-cancel"
+                assert body["manual_live_acknowledgement"] is True
+                assert body.get("order_id") is None
+                return result(confirmed_cancel_runtime_disabled_command(), status_code=400)
+            assert path == smoke.FUTURES_COMMAND_ROUTE
             if body.get("dry_run") is False:
                 assert body["manual_live_acknowledgement"] is True
                 return result(confirmed_runtime_disabled_command(), status_code=400)
@@ -217,3 +256,5 @@ def test_futures_executor_boundary_smoke_main_writes_artifact(monkeypatch, tmp_p
     assert summary["backend_git_commit"] == "abc1234"
     assert summary["backend_git_branch"] == "codex/account-futures-mvp-local-cd"
     assert summary["confirmed_failure_stage"] == "futures_live_runtime_disabled"
+    assert summary["confirmed_cancel_failure_stage"] == "futures_live_runtime_disabled"
+    assert summary["confirmed_cancel_client_order_id"] == smoke.FUTURES_CANCEL_CLIENT_ORDER_ID

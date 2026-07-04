@@ -2191,6 +2191,106 @@ def test_admin_futures_place_live_execution_requires_runtime_enablement():
     assert rest_client.create_order_calls == []
 
 
+def test_admin_futures_cancel_live_execution_uses_backend_rest_adapter_when_confirmed():
+    rest_client = FakeAccountRestClient()
+    rest_client.cancel_orders_response = {
+        "results": [
+            {
+                "success": True,
+                "order_id": "client-futures-live-cancel",
+            }
+        ]
+    }
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        )
+    )
+    record_futures_live_service_decision(service)
+    record_all_futures_live_adapter_decisions(service)
+
+    result = service.submit_futures_command(
+        "/api/v1/futures/orders/client-futures-live-cancel/cancel",
+        {
+            "product_id": "BIP-20DEC30-CDE",
+            "dry_run": False,
+            "manual_live_acknowledgement": True,
+            "operator_reason": "operator confirmed backend-controlled futures cancel",
+        },
+        context(idempotency_key="futures-cancel-live-submit"),
+    )
+
+    assert result.status_code == 200
+    assert result.body["status"] == "accepted"
+    assert result.body["failure_stage"] is None
+    assert result.body["command"] == "futures_cancel"
+    assert result.body["mutation_family"] == "futures_live_cancel"
+    assert result.body["identity_key"] == "client_order_id"
+    assert result.body["identity_value"] == "client-futures-live-cancel"
+    assert result.body["client_order_id"] == "client-futures-live-cancel"
+    assert result.body["coinbase_cancel_submission_allowed"] is True
+    assert result.body["live_exchange_submitted"] is True
+    assert result.body["live_coinbase_orders_ran"] is True
+    assert result.body["live_coinbase_execution"] == "submitted"
+    assert result.body["submitted_notional_usdc"] == "0"
+    assert result.body["executed_notional_usdc"] == "0"
+    assert result.body["spot_rule_authority"] is False
+    assert result.body["exchange_order_id_evidence_only"] is True
+    assert rest_client.cancel_order_calls == [
+        {"order_ids": ["client-futures-live-cancel"]}
+    ]
+    assert rest_client.create_order_calls == []
+
+    workbench = service.get_read_response(
+        "/api/v1/admin/audit-workbench",
+        {"module": "futures_perpetuals", "client_order_id": "client-futures-live-cancel"},
+        context(),
+    )
+
+    assert workbench.status_code == 200
+    assert workbench.body["count"] == 1
+    event = workbench.body["events"][0]
+    assert event["event_id"] == result.body["submission_event_id"]
+    assert event["status"] == "accepted"
+    assert event["source"] == "admin_api_futures_command_log"
+    assert event["endpoint"] == "/api/v1/futures/orders/{client_order_id}/cancel"
+    assert event["client_order_id"] == "client-futures-live-cancel"
+    assert event["exchange_order_id_evidence_only"] is True
+    assert event["live_exchange_submitted"] is True
+    assert event["live_coinbase_orders_ran"] is True
+
+
+def test_admin_futures_cancel_live_execution_requires_runtime_enablement():
+    rest_client = FakeAccountRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+    record_futures_live_service_decision(service)
+    record_all_futures_live_adapter_decisions(service)
+
+    result = service.submit_futures_command(
+        "/api/v1/futures/orders/client-futures-runtime-disabled/cancel",
+        {
+            "product_id": "BIP-20DEC30-CDE",
+            "dry_run": False,
+            "manual_live_acknowledgement": True,
+            "operator_reason": "operator confirmed backend-controlled futures cancel",
+        },
+        context(idempotency_key="futures-cancel-live-runtime-disabled"),
+    )
+
+    assert result.status_code == 400
+    assert result.body["status"] == "rejected"
+    assert result.body["mutation_family"] == "futures_live_cancel"
+    assert result.body["failure_stage"] == "futures_live_runtime_disabled"
+    assert result.body["live_exchange_submitted"] is False
+    assert result.body["live_coinbase_orders_ran"] is False
+    assert rest_client.cancel_order_calls == []
+    assert rest_client.create_order_calls == []
+
+
 def test_admin_futures_command_routes_are_registered_as_blocked_drafts():
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)

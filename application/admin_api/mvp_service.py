@@ -1940,6 +1940,23 @@ class AdminMvpService:
                     admission_decision=admission_decision,
                     risk_proof_id=command_evidence.get("risk_proof_id"),
                 )
+            if _futures_live_cancel_requested(command, body):
+                return self._execute_futures_cancel_order(
+                    body=body,
+                    context=context,
+                    command=command,
+                    action_class=str(spec["action_class"]),
+                    route=route,
+                    service_method=str(spec["service_method"]),
+                    identity_key=identity_key,
+                    identity_value=identity_value,
+                    required_permission=str(spec["required_permission"]),
+                    payload_hash=payload_hash,
+                    payload_validation=payload_validation,
+                    readiness_decision=readiness_decision,
+                    admission_decision=admission_decision,
+                    risk_proof_id=command_evidence.get("risk_proof_id"),
+                )
             executor_decision = self._record_futures_executor_decision(
                 command=command,
                 action_class=str(spec["action_class"]),
@@ -2106,6 +2123,7 @@ class AdminMvpService:
             admission_decision,
             client_order_id=client_order_id,
             notional=notional,
+            action_label="place",
         )
         pre_coinbase_failure = self._futures_pre_coinbase_failure(
             command=command,
@@ -2271,6 +2289,187 @@ class AdminMvpService:
         }
         return self._result(200, response, context, live_execution_enabled=True)
 
+    def _execute_futures_cancel_order(
+        self,
+        *,
+        body: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+        command: str,
+        action_class: str,
+        route: str,
+        service_method: str,
+        identity_key: str,
+        identity_value: str,
+        required_permission: str,
+        payload_hash: str,
+        payload_validation: Mapping[str, Any],
+        readiness_decision: Mapping[str, Any],
+        admission_decision: Mapping[str, Any],
+        risk_proof_id: Any,
+    ) -> AdminMvpApiResult:
+        """Cancel one US CFM Futures order through backend live execution gates."""
+
+        client_order_id = identity_value
+        live_admission = self._futures_live_admission_decision(
+            admission_decision,
+            client_order_id=client_order_id,
+            notional=Decimal("0"),
+            action_label="cancel",
+        )
+        pre_coinbase_failure = self._futures_cancel_pre_coinbase_failure(
+            command=command,
+        )
+        if pre_coinbase_failure is not None:
+            return self._futures_place_blocked_response(
+                status_code=400,
+                message=pre_coinbase_failure["message"],
+                failure_stage=pre_coinbase_failure["failure_stage"],
+                command=command,
+                action_class=action_class,
+                route=route,
+                service_method=service_method,
+                identity_key=identity_key,
+                identity_value=identity_value,
+                required_permission=required_permission,
+                payload_hash=payload_hash,
+                payload_validation=payload_validation,
+                readiness_decision=readiness_decision,
+                admission_decision=live_admission,
+                risk_proof_id=risk_proof_id,
+                client_order_id=client_order_id,
+                notional=Decimal("0"),
+                context=context,
+            )
+
+        try:
+            controller = self.dependencies.runtime_controller_factory()
+            _check_runtime_cancel_admission(controller)
+            with _track_runtime_cancel(controller):
+                result = self.dependencies.rest_client.cancel_orders(
+                    order_ids=[client_order_id],
+                )
+        except Exception as exc:
+            return self._futures_place_blocked_response(
+                status_code=400,
+                message=f"Coinbase Futures order cancel failed: {exc}",
+                failure_stage="coinbase_rest",
+                command=command,
+                action_class=action_class,
+                route=route,
+                service_method=service_method,
+                identity_key=identity_key,
+                identity_value=identity_value,
+                required_permission=required_permission,
+                payload_hash=payload_hash,
+                payload_validation=payload_validation,
+                readiness_decision=readiness_decision,
+                admission_decision=live_admission,
+                risk_proof_id=risk_proof_id,
+                client_order_id=client_order_id,
+                notional=Decimal("0"),
+                context=context,
+            )
+
+        cancel_result = _coinbase_cancel_orders_result_data(result)
+        if not _coinbase_cancel_order_succeeded(cancel_result):
+            return self._futures_place_blocked_response(
+                status_code=400,
+                message=(
+                    "Coinbase Futures order cancel was not accepted: "
+                    f"{_coinbase_cancel_order_error_message(cancel_result)}"
+                ),
+                failure_stage="coinbase_rest",
+                command=command,
+                action_class=action_class,
+                route=route,
+                service_method=service_method,
+                identity_key=identity_key,
+                identity_value=identity_value,
+                required_permission=required_permission,
+                payload_hash=payload_hash,
+                payload_validation=payload_validation,
+                readiness_decision=readiness_decision,
+                admission_decision=live_admission,
+                risk_proof_id=risk_proof_id,
+                client_order_id=client_order_id,
+                notional=Decimal("0"),
+                context=context,
+            )
+
+        self.store.live_coinbase_orders_ran = True
+        runtime_evidence = self._runtime_evidence()
+        command_record = self._record_futures_command_decision(
+            status=AdminMvpCommandStatus.ACCEPTED.value,
+            message="Futures/Perpetual order cancel submitted to Coinbase by backend Admin API.",
+            command=command,
+            mutation_family="futures_live_cancel",
+            action_class=action_class,
+            route=route,
+            service_method=service_method,
+            identity_key=identity_key,
+            identity_value=identity_value,
+            required_permission=required_permission,
+            payload_hash=payload_hash,
+            readiness_decision=readiness_decision,
+            admission_decision=live_admission,
+            payload_validation=payload_validation,
+            risk_proof_id=risk_proof_id,
+            failure_stage=None,
+            context=context,
+            client_order_id=client_order_id,
+            live_exchange_submitted=True,
+            submitted_notional=Decimal("0"),
+            execution_allowed=True,
+            local_state_mutated=True,
+            exchange_state_mutated=True,
+            runtime_evidence=runtime_evidence,
+            coinbase_order_cancel_submitted=True,
+        )
+        response = {
+            "type": "admin_api_command_result",
+            "status": AdminMvpCommandStatus.ACCEPTED.value,
+            "module_id": FUTURES_MODULE_ID,
+            "command": command,
+            "mutation_family": "futures_live_cancel",
+            "action_class": action_class,
+            "route": route,
+            "method": "POST",
+            "required_permission": required_permission,
+            "service_method": service_method,
+            "identity_key": identity_key,
+            "identity_value": identity_value,
+            "client_order_id": client_order_id,
+            "exchange_order_id_evidence_only": True,
+            "message": "Futures/Perpetual order cancel submitted to Coinbase by backend Admin API.",
+            "correlation_id": context.correlation_id,
+            "idempotency_key": context.idempotency_key,
+            "operator_intent": context.operator_intent,
+            "actor_id": context.actor_id,
+            "payload_hash": payload_hash,
+            "payload_validation": dict(payload_validation),
+            "readiness_decision": dict(readiness_decision),
+            "admission_decision": live_admission,
+            "failure_stage": None,
+            "coinbase_cancel_submission_allowed": True,
+            "coinbase_cancel_result": cancel_result,
+            "submission_event_recorded": True,
+            "submission_event_id": command_record["decision_id"],
+            "command_route_registered": True,
+            "command_draft_allowed": True,
+            "execution_allowed": True,
+            "local_state_mutated": True,
+            "exchange_state_mutated": True,
+            "live_exchange_submitted": True,
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
+            "spot_rule_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            **runtime_evidence,
+            **self._live_outputs(True, Decimal("0")),
+        }
+        return self._result(200, response, context, live_execution_enabled=True)
+
     def _futures_place_blocked_response(
         self,
         *,
@@ -2293,12 +2492,17 @@ class AdminMvpService:
         notional: Decimal,
         context: AdminMvpRequestContext,
     ) -> AdminMvpApiResult:
+        mutation_family = (
+            "futures_live_cancel"
+            if command == "futures_cancel"
+            else "futures_live_place"
+        )
         runtime_evidence = self._runtime_evidence()
         command_record = self._record_futures_command_decision(
             status=AdminMvpCommandStatus.REJECTED.value,
             message=message,
             command=command,
-            mutation_family="futures_live_place",
+            mutation_family=mutation_family,
             action_class=action_class,
             route=route,
             service_method=service_method,
@@ -2321,7 +2525,7 @@ class AdminMvpService:
             "status": AdminMvpCommandStatus.REJECTED.value,
             "module_id": FUTURES_MODULE_ID,
             "command": command,
-            "mutation_family": "futures_live_place",
+            "mutation_family": mutation_family,
             "action_class": action_class,
             "route": route,
             "method": "POST",
@@ -2391,6 +2595,28 @@ class AdminMvpService:
             return {
                 "failure_stage": "futures_cap_required",
                 "message": "Futures/Perpetual order notional exceeds backend cap evidence.",
+            }
+        return None
+
+    def _futures_cancel_pre_coinbase_failure(
+        self,
+        *,
+        command: str,
+    ) -> dict[str, str] | None:
+        if command != "futures_cancel":
+            return {
+                "failure_stage": "futures_executor_not_implemented",
+                "message": "Only Futures/Perpetual cancel has a live cancel adapter.",
+            }
+        if not self.dependencies.live_coinbase_execution_enabled:
+            return {
+                "failure_stage": "futures_live_runtime_disabled",
+                "message": "Live Futures/Perpetual execution is not enabled for this backend process.",
+            }
+        if not self.dependencies.rest_client_available or self.dependencies.rest_client is None:
+            return {
+                "failure_stage": "futures_rest_client_unavailable",
+                "message": "Coinbase REST client is not available to the backend.",
             }
         return None
 
@@ -2577,6 +2803,7 @@ class AdminMvpService:
         *,
         client_order_id: str,
         notional: Decimal,
+        action_label: str,
     ) -> dict[str, Any]:
         return {
             **dict(admission_decision),
@@ -2588,7 +2815,7 @@ class AdminMvpService:
             "live_execution_acknowledged": True,
             "detail": (
                 "Backend Futures/Perpetual admission passed for an explicitly "
-                "confirmed, capped live place request."
+                f"confirmed, capped live {action_label} request."
             ),
         }
 
@@ -2767,6 +2994,7 @@ class AdminMvpService:
         local_state_mutated: bool = False,
         exchange_state_mutated: bool = False,
         runtime_evidence: Mapping[str, Any] | None = None,
+        coinbase_order_cancel_submitted: bool = False,
     ) -> dict[str, Any]:
         decision_id = f"futures-command-{self.dependencies.uuid_factory()}"
         runtime = dict(runtime_evidence or {})
@@ -2798,8 +3026,10 @@ class AdminMvpService:
             "execution_allowed": execution_allowed,
             "local_state_mutated": local_state_mutated,
             "exchange_state_mutated": exchange_state_mutated,
-            "coinbase_order_submitted": live_exchange_submitted,
-            "coinbase_order_cancel_submitted": False,
+            "coinbase_order_submitted": (
+                live_exchange_submitted and not coinbase_order_cancel_submitted
+            ),
+            "coinbase_order_cancel_submitted": coinbase_order_cancel_submitted,
             "coinbase_order_id": coinbase_order_id,
             "exchange_order_id": coinbase_order_id,
             "exchange_order_id_evidence_only": True,
@@ -6022,6 +6252,16 @@ def _futures_live_place_requested(command: str, body: Mapping[str, Any]) -> bool
     live_mode_requested = execution_mode == "live" or body.get("dry_run") is False
     return (
         command == "futures_place"
+        and live_mode_requested
+        and _futures_live_acknowledged(body)
+    )
+
+
+def _futures_live_cancel_requested(command: str, body: Mapping[str, Any]) -> bool:
+    execution_mode = str(body.get("execution_mode") or "").strip().lower()
+    live_mode_requested = execution_mode == "live" or body.get("dry_run") is False
+    return (
+        command == "futures_cancel"
         and live_mode_requested
         and _futures_live_acknowledged(body)
     )

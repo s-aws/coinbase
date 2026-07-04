@@ -2,10 +2,10 @@
 
 This smoke records backend-owned Futures/Perpetual live-service and
 live-adapter decision evidence, submits one valid route-bound Futures draft,
-then submits one explicitly confirmed Futures place request. It verifies the
-draft is rejected at the disabled executor boundary and the confirmed request
-is rejected before Coinbase because the local no-live runtime remains disabled.
-It is intentionally no-live.
+then submits explicitly confirmed Futures place and cancel requests. It verifies
+the draft is rejected at the disabled executor boundary and the confirmed
+requests are rejected before Coinbase because the local no-live runtime remains
+disabled. It is intentionally no-live.
 """
 
 from __future__ import annotations
@@ -51,6 +51,10 @@ FUTURES_INTX_APPLICABILITY = "not_applicable_us_account"
 FUTURES_PRODUCT_ID = "BIP-20DEC30-CDE"
 FUTURES_COMMAND_ROUTE = "/api/v1/futures/orders"
 FUTURES_COMMAND_SERVICE_METHOD = "place_futures_order"
+FUTURES_CANCEL_CLIENT_ORDER_ID = "futures-executor-boundary-client-order"
+FUTURES_CANCEL_COMMAND_ROUTE = (
+    f"/api/v1/futures/orders/{FUTURES_CANCEL_CLIENT_ORDER_ID}/cancel"
+)
 FUTURES_SERVICE_DECISION_ID = "futures-us-cfm-live-service"
 FUTURES_ADAPTER_DECISIONS = (
     (
@@ -248,6 +252,18 @@ def build_confirmed_futures_place_body(
     return body
 
 
+def build_confirmed_futures_cancel_body(
+    config: FuturesBoundarySmokeConfig,
+) -> dict[str, Any]:
+    """Return a confirmed Futures cancel payload for no-live runtime rejection."""
+
+    return {
+        "product_id": config.product_id,
+        "dry_run": False,
+        "manual_live_acknowledgement": True,
+    }
+
+
 def run_futures_boundary_smoke(
     service: AdminMvpService,
     config: FuturesBoundarySmokeConfig,
@@ -273,6 +289,11 @@ def run_futures_boundary_smoke(
         build_confirmed_futures_place_body(config),
         build_context(config, "futures-executor-boundary-confirmed-place"),
     )
+    confirmed_cancel = service.submit_futures_command(
+        FUTURES_CANCEL_COMMAND_ROUTE,
+        build_confirmed_futures_cancel_body(config),
+        build_context(config, "futures-executor-boundary-confirmed-cancel"),
+    )
     audit = service.get_read_response(
         "/api/v1/admin/audit-workbench",
         {"module": FUTURES_MODULE_ID},
@@ -289,6 +310,8 @@ def run_futures_boundary_smoke(
         command_status_code=draft.status_code,
         confirmed_command_result=confirmed.body,
         confirmed_command_status_code=confirmed.status_code,
+        confirmed_cancel_command_result=confirmed_cancel.body,
+        confirmed_cancel_command_status_code=confirmed_cancel.status_code,
         audit_workbench=audit.body,
     )
 
@@ -305,6 +328,8 @@ def build_summary(
     command_status_code: int,
     confirmed_command_result: Mapping[str, Any],
     confirmed_command_status_code: int,
+    confirmed_cancel_command_result: Mapping[str, Any],
+    confirmed_cancel_command_status_code: int,
     audit_workbench: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Return redacted Futures executor-boundary smoke evidence."""
@@ -318,6 +343,8 @@ def build_summary(
         command_status_code=command_status_code,
         confirmed_command_result=confirmed_command_result,
         confirmed_command_status_code=confirmed_command_status_code,
+        confirmed_cancel_command_result=confirmed_cancel_command_result,
+        confirmed_cancel_command_status_code=confirmed_cancel_command_status_code,
         audit_workbench=audit_workbench,
     )
     status = "passed" if all(item["passed"] for item in checks) else "failed"
@@ -372,10 +399,33 @@ def build_summary(
         "confirmed_live_coinbase_orders_ran": bool(
             confirmed_command_result.get("live_coinbase_orders_ran")
         ),
+        "confirmed_cancel_command_status": confirmed_cancel_command_result.get(
+            "status"
+        ),
+        "confirmed_cancel_command_status_code": confirmed_cancel_command_status_code,
+        "confirmed_cancel_failure_stage": confirmed_cancel_command_result.get(
+            "failure_stage"
+        ),
+        "confirmed_cancel_submission_event_id": confirmed_cancel_command_result.get(
+            "submission_event_id"
+        ),
+        "confirmed_cancel_client_order_id": confirmed_cancel_command_result.get(
+            "client_order_id"
+        ),
+        "confirmed_cancel_submitted_notional_usdc": confirmed_cancel_command_result.get(
+            "submitted_notional_usdc"
+        ),
+        "confirmed_cancel_live_exchange_submitted": bool(
+            confirmed_cancel_command_result.get("live_exchange_submitted")
+        ),
+        "confirmed_cancel_live_coinbase_orders_ran": bool(
+            confirmed_cancel_command_result.get("live_coinbase_orders_ran")
+        ),
         "audit_event_count": audit_workbench.get("count"),
         "live_exchange_submitted": bool(command_result.get("live_exchange_submitted")),
         "live_coinbase_orders_ran": bool(command_result.get("live_coinbase_orders_ran"))
-        or bool(confirmed_command_result.get("live_coinbase_orders_ran")),
+        or bool(confirmed_command_result.get("live_coinbase_orders_ran"))
+        or bool(confirmed_cancel_command_result.get("live_coinbase_orders_ran")),
         "live_coinbase_execution": LIVE_COINBASE_EXECUTION,
         "notional_usdc": NOTIONAL_USDC,
     }
@@ -390,6 +440,8 @@ def futures_boundary_checks(
     command_status_code: int,
     confirmed_command_result: Mapping[str, Any],
     confirmed_command_status_code: int,
+    confirmed_cancel_command_result: Mapping[str, Any],
+    confirmed_cancel_command_status_code: int,
     audit_workbench: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
     """Return pass/fail checks for disabled executor-boundary readiness."""
@@ -449,11 +501,28 @@ def futures_boundary_checks(
             "futures_confirmed_place_event_recorded",
             bool(confirmed_command_result.get("submission_event_id")),
         ),
+        check(
+            "futures_confirmed_cancel_rejected_before_coinbase",
+            confirmed_cancel_command_status_code == 400
+            and confirmed_cancel_command_result.get("failure_stage")
+            == "futures_live_runtime_disabled"
+            and confirmed_cancel_command_result.get("submitted_notional_usdc") == "0"
+            and confirmed_cancel_command_result.get("client_order_id")
+            == FUTURES_CANCEL_CLIENT_ORDER_ID
+            and confirmed_cancel_command_result.get("live_exchange_submitted") is False
+            and confirmed_cancel_command_result.get("live_coinbase_orders_ran") is False,
+        ),
+        check(
+            "futures_confirmed_cancel_event_recorded",
+            bool(confirmed_cancel_command_result.get("submission_event_id")),
+        ),
         check("futures_audit_workbench_readback", audit_workbench.get("count", 0) >= 1),
         check(
             "no_live_coinbase_orders_ran",
             command_result.get("live_coinbase_orders_ran") is False
-            and confirmed_command_result.get("live_coinbase_orders_ran") is False,
+            and confirmed_command_result.get("live_coinbase_orders_ran") is False
+            and confirmed_cancel_command_result.get("live_coinbase_orders_ran")
+            is False,
         ),
     ]
 
