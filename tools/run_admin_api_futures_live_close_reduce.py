@@ -46,7 +46,11 @@ from tools.run_admin_api_futures_live_submit import (  # noqa: E402
     futures_audit_proof_chain_matches,
     futures_audit_proof_chain_summary,
     futures_live_submit_product_metadata,
+    live_submit_summary_as_command_result,
+    read_optional_json_object,
     read_git_value,
+    refresh_summary_backend_identity,
+    refreshed_live_submit_checks,
     write_json,
 )
 from tools.run_admin_api_manual_order_live_submit import (  # noqa: E402
@@ -81,9 +85,11 @@ class FuturesLiveCloseReduceConfig:
     """Operator-controlled inputs for one bounded Futures close/reduce."""
 
     confirm_live_close_reduce: bool = False
+    refresh_existing_artifact: bool = False
     state_dir: Path | None = None
     summary_output: Path = DEFAULT_SUMMARY_OUTPUT
     backend_contract_ref: str | None = None
+    refresh_client_order_id: str | None = None
     product_id: str = FUTURES_PRODUCT_ID
     position_key: str | None = None
     limit_price: str | None = DEFAULT_LIMIT_PRICE
@@ -110,6 +116,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="Backend contract ref to record. Defaults to the current git commit.",
     )
     parser.add_argument("--confirm-live-close-reduce", action="store_true")
+    parser.add_argument(
+        "--refresh-existing-artifact",
+        action="store_true",
+        help=(
+            "Refresh Audit Workbench proof-chain readback for an existing "
+            "live close/reduce artifact without submitting another request."
+        ),
+    )
+    parser.add_argument(
+        "--client-order-id",
+        default=None,
+        help="Existing client_order_id to refresh when the artifact is missing.",
+    )
     parser.add_argument("--product-id", default=FUTURES_PRODUCT_ID)
     parser.add_argument("--position-key", default=None)
     parser.add_argument("--limit-price", default=DEFAULT_LIMIT_PRICE)
@@ -138,9 +157,11 @@ def config_from_args(args: argparse.Namespace) -> FuturesLiveCloseReduceConfig:
     roles = tuple(role.strip() for role in str(args.roles).split(",") if role.strip())
     return FuturesLiveCloseReduceConfig(
         confirm_live_close_reduce=bool(args.confirm_live_close_reduce),
+        refresh_existing_artifact=bool(args.refresh_existing_artifact),
         state_dir=args.state_dir,
         summary_output=args.summary_output,
         backend_contract_ref=args.backend_contract_ref,
+        refresh_client_order_id=optional_text(args.client_order_id),
         product_id=str(args.product_id),
         position_key=optional_text(args.position_key),
         limit_price=optional_text(args.limit_price),
@@ -232,6 +253,52 @@ def run_futures_live_close_reduce(
         final_submit=final_submit.body,
         final_status_code=final_submit.status_code,
         audit_workbench=audit.body,
+    )
+
+
+def refresh_existing_futures_live_close_reduce_summary(
+    service: AdminMvpService,
+    config: FuturesLiveCloseReduceConfig,
+) -> dict[str, Any]:
+    """Refresh proof-chain readback for a prior live close/reduce artifact."""
+
+    summary = read_optional_json_object(config.summary_output)
+    if summary.get("artifact_type") != ARTIFACT_TYPE:
+        raise ValueError("summary_output must be a Futures live close/reduce artifact.")
+    client_order_id = optional_text(summary.get("client_order_id")) or optional_text(
+        config.refresh_client_order_id
+    )
+    if not client_order_id:
+        raise ValueError("summary_output must include client_order_id.")
+    audit = service.get_read_response(
+        "/api/v1/admin/audit-workbench",
+        {"module": FUTURES_MODULE_ID, "client_order_id": client_order_id},
+        build_refresh_request_context(config, client_order_id),
+    )
+    audit_proof_chain = futures_audit_proof_chain_summary(
+        audit.body,
+        live_submit_summary_as_command_result(summary),
+    )
+    return refreshed_live_close_reduce_summary(
+        summary,
+        audit_workbench=audit.body,
+        audit_proof_chain=audit_proof_chain,
+        backend_contract_ref=config.backend_contract_ref,
+    )
+
+
+def build_refresh_request_context(
+    config: FuturesLiveCloseReduceConfig,
+    client_order_id: str,
+) -> AdminMvpRequestContext:
+    """Return Admin context for no-live close/reduce artifact refresh."""
+
+    return AdminMvpRequestContext(
+        idempotency_key=f"{client_order_id}-refresh-audit-readback",
+        correlation_id=config.correlation_id,
+        operator_intent="futures_live_close_reduce_artifact_refresh",
+        actor_id=config.actor_id,
+        roles=config.roles,
     )
 
 
@@ -399,6 +466,33 @@ def build_summary(
     }
 
 
+def refreshed_live_close_reduce_summary(
+    summary: Mapping[str, Any],
+    *,
+    audit_workbench: Mapping[str, Any],
+    audit_proof_chain: Mapping[str, Any],
+    backend_contract_ref: str | None = None,
+) -> dict[str, Any]:
+    """Return an existing close/reduce summary with refreshed audit fields."""
+
+    refreshed = dict(summary)
+    refreshed.update(audit_proof_chain)
+    refresh_summary_backend_identity(refreshed, backend_contract_ref)
+    refreshed["audit_event_count"] = audit_workbench.get("count")
+    refreshed["refreshed_existing_artifact"] = True
+    refreshed["refresh_live_coinbase_execution"] = "not_run"
+    refreshed["refresh_notional_usdc"] = "0"
+    refreshed["ended_at"] = current_utc_timestamp()
+    refreshed["checks"] = refreshed_live_submit_checks(
+        summary.get("checks"),
+        audit_proof_chain,
+    )
+    refreshed["status"] = (
+        "passed" if all(item["passed"] for item in refreshed["checks"]) else "failed"
+    )
+    return refreshed
+
+
 def futures_live_close_reduce_checks(
     *,
     config: FuturesLiveCloseReduceConfig,
@@ -524,16 +618,23 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the explicit Futures live close/reduce and write evidence."""
 
     config = config_from_args(build_parser().parse_args(argv))
-    if not config.confirm_live_close_reduce:
+    if not config.confirm_live_close_reduce and not config.refresh_existing_artifact:
         raise LiveCloseReduceConfirmationError(
             "Futures live close/reduce requires --confirm-live-close-reduce."
         )
-    assert_live_credentials_present(os.environ)
+    if not config.refresh_existing_artifact:
+        assert_live_credentials_present(os.environ)
     if config.state_dir:
         apply_manual_live_submit_state_environment(config.state_dir)
-    os.environ[LIVE_EXECUTION_ENV] = "1"
+    if not config.refresh_existing_artifact:
+        os.environ[LIVE_EXECUTION_ENV] = "1"
     apply_runner_environment()
-    summary = run_futures_live_close_reduce(get_admin_mvp_service(), config)
+    service = get_admin_mvp_service()
+    summary = (
+        refresh_existing_futures_live_close_reduce_summary(service, config)
+        if config.refresh_existing_artifact
+        else run_futures_live_close_reduce(service, config)
+    )
     write_json(config.summary_output, summary)
     print(
         "Backend Futures live close/reduce: "

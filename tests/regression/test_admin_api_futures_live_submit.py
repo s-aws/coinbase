@@ -223,6 +223,7 @@ def test_futures_live_submit_refreshes_existing_artifact_without_second_order(tm
         FuturesLiveSubmitConfig(
             refresh_existing_artifact=True,
             summary_output=artifact_path,
+            backend_contract_ref="current-ref",
             idempotency_key="futures-live-submit-refresh",
             correlation_id="futures-live-submit-refresh-correlation",
         ),
@@ -232,6 +233,7 @@ def test_futures_live_submit_refreshes_existing_artifact_without_second_order(tm
     assert refreshed["refreshed_existing_artifact"] is True
     assert refreshed["refresh_live_coinbase_execution"] == "not_run"
     assert refreshed["refresh_notional_usdc"] == "0"
+    assert refreshed["backend_contract_ref"] == "current-ref"
     assert refreshed["audit_proof_chain_readback_present"] is True
     assert refreshed["audit_submission_event_id"] == refreshed["submission_event_id"]
     assert refreshed["audit_cap_guard_decision_id"] == refreshed["cap_guard_decision_id"]

@@ -277,6 +277,7 @@ def refresh_existing_futures_live_submit_summary(
         summary,
         audit_workbench=audit.body,
         audit_proof_chain=audit_proof_chain,
+        backend_contract_ref=config.backend_contract_ref,
     )
 
 
@@ -715,11 +716,13 @@ def refreshed_live_submit_summary(
     *,
     audit_workbench: Mapping[str, Any],
     audit_proof_chain: Mapping[str, Any],
+    backend_contract_ref: str | None = None,
 ) -> dict[str, Any]:
     """Return an existing submit summary with refreshed audit proof-chain fields."""
 
     refreshed = dict(summary)
     refreshed.update(audit_proof_chain)
+    refresh_summary_backend_identity(refreshed, backend_contract_ref)
     refreshed["audit_event_count"] = audit_workbench.get("count")
     refreshed["refreshed_existing_artifact"] = True
     refreshed["refresh_live_coinbase_execution"] = "not_run"
@@ -733,6 +736,18 @@ def refreshed_live_submit_summary(
         "passed" if all(item["passed"] for item in refreshed["checks"]) else "failed"
     )
     return refreshed
+
+
+def refresh_summary_backend_identity(
+    summary: dict[str, Any],
+    backend_contract_ref: str | None,
+) -> None:
+    """Update backend identity fields for a no-live artifact refresh."""
+
+    backend_git_commit = read_git_value(["rev-parse", "--short", "HEAD"])
+    summary["backend_git_commit"] = backend_git_commit
+    summary["backend_git_branch"] = read_git_value(["rev-parse", "--abbrev-ref", "HEAD"])
+    summary["backend_contract_ref"] = backend_contract_ref or backend_git_commit
 
 
 def refreshed_live_submit_checks(
