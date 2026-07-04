@@ -82,6 +82,10 @@ legacy dashboard as product authority. MVP behavior must still be translated
 into backend-owned Admin API/BFF contracts with authorization, caps,
 idempotency, audit evidence, local deployment evidence, and focused tests.
 
+For backend-facing MVP work, record the `origin/prod` files or references
+inspected in the handoff/summary. If no legacy lookup was needed, state why it
+was not applicable.
+
 ---
 
 ## Runtime and Dashboard Surface

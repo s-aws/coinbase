@@ -35,6 +35,9 @@ This project runs on **Windows 11 + VS Code**. Linux/bash commands may not work 
 - When available, also read
   `C:\coinbase-frontend\docs\ORIGIN_PROD_FEATURE_MVP_MAP.md` before translating
   legacy behavior into Admin MVP work.
+- For backend-facing MVP work, record the `origin/prod` files or references
+  inspected in the handoff/summary. If no legacy lookup was needed, state why it
+  was not applicable.
 
 ## P0 - Honest Feedback, Not Engagement Optimization
 
