@@ -2382,7 +2382,7 @@ class AdminMvpService:
             "audit_id": f"audit-{context.idempotency_key}",
             "detail": (
                 "Backend Futures executor boundary exists for US CFM but is "
-                "live-disabled for the local MVP; no Coinbase order or cancel "
+                "live-disabled for the local runtime; no Coinbase order or cancel "
                 "request was submitted."
             ),
         }
@@ -6496,7 +6496,7 @@ def _futures_command_enablement_sequence_steps(
             ],
             detail=(
                 "Futures live-service and adapter evidence must remain backend-bound; "
-                "execution is still disabled for the local MVP."
+                "execution is still disabled for the local runtime."
             ),
         ),
     ]

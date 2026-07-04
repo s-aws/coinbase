@@ -1554,6 +1554,8 @@ def test_admin_futures_command_suite_exposes_backend_enablement_sequence_traces(
     live_step = suite["command_enablement_sequence_steps"][4]
     assert live_step["status"] == "blocked"
     assert live_step["blocking"] is True
+    assert "local MVP" not in live_step["detail"]
+    assert "local runtime" in live_step["detail"]
     assert live_step["source_blockers"] == ["live_service_adapter"]
     assert live_step["affected_commands"] == [
         "futures_place",
@@ -1835,6 +1837,8 @@ def test_admin_futures_command_suite_binds_us_cfm_live_decisions_to_disabled_exe
     )
     assert result.body["executor_decision"]["payload_hash"] == result.body["payload_hash"]
     assert result.body["executor_decision"]["live_exchange_submitted"] is False
+    assert "local MVP" not in result.body["executor_decision"]["detail"]
+    assert "local runtime" in result.body["executor_decision"]["detail"]
     assert result.body["executor_decision_id"] in service.store.futures_executor_decisions
     assert result.body["execution_allowed"] is False
     assert result.body["live_exchange_submitted"] is False
