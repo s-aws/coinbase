@@ -21,7 +21,7 @@ def test_futures_live_submit_body_defaults_to_small_limit_buy():
         "product_id": "BIP-20DEC30-CDE",
         "side": "BUY",
         "order_type": "LIMIT",
-        "limit_price": "1.00",
+        "limit_price": "1",
         "size": "1",
         "post_only": False,
         "dry_run": False,
@@ -93,7 +93,7 @@ def test_futures_live_submit_records_backend_evidence_before_rest_submission():
             "order_configuration": {
                 "limit_limit_gtc": {
                     "base_size": "1",
-                    "limit_price": "1.00",
+                    "limit_price": "1",
                     "post_only": False,
                 }
             },
