@@ -2356,7 +2356,7 @@ def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
     assert manual_capability["live_enabled"] is True
     assert manual_capability["frontend_safe"] is True
     assert manual_capability["permission"] == "order:create"
-    assert cancel_capability["live_enabled"] is False
+    assert cancel_capability["live_enabled"] is True
     assert cancel_capability["permission"] == "order:cancel"
     assert live_service_capability["permission"] == "config:update"
     assert live_service_capability["shared_method"] == "record_live_service_decision"
@@ -2454,7 +2454,7 @@ def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():
     )
     assert live_enablement.body["status"] == "live_disabled"
     assert live_enablement.body["live_enabled_path_count"] == 0
-    assert live_enablement.body["live_eligible_path_count"] == 1
+    assert live_enablement.body["live_eligible_path_count"] == 2
     assert live_enablement.body["live_executable_path_count"] == 0
     assert live_enablement.body["live_service_decision_enabled"] is True
     assert live_enablement.body["backend_live_execution_opt_in"] is False
@@ -2798,6 +2798,31 @@ def test_spot_cancel_order_live_execution_flows_through_backend_cancel_adapter()
     assert cancel_command["live_eligible"] is True
     assert cancel_command["live_adapter_configured"] is True
 
+    capabilities = service.get_read_response("/api/v1/admin/capabilities", {}, context())
+    cancel_capability = next(
+        capability
+        for capability in capabilities.body["capabilities"]
+        if capability["route"] == "/api/v1/orders/{client_order_id}/cancel"
+    )
+    assert cancel_capability["live_enabled"] is True
+
+    live_enablement = service.get_read_response(
+        "/api/v1/admin/live-enablement",
+        {},
+        context(),
+    )
+    cancel_path = next(
+        path
+        for path in live_enablement.body["paths"]
+        if path["route"] == "/api/v1/orders/{client_order_id}/cancel"
+    )
+    assert live_enablement.body["live_enabled_path_count"] == 2
+    assert live_enablement.body["live_eligible_path_count"] == 2
+    assert live_enablement.body["live_executable_path_count"] == 2
+    assert cancel_path["live_enabled"] is True
+    assert cancel_path["live_eligible"] is True
+    assert cancel_path["live_executable"] is True
+
     workbench = service.get_read_response(
         "/api/v1/admin/audit-workbench",
         {"module": "spot", "client_order_id": "client-cancel-live"},
@@ -2901,8 +2926,8 @@ def test_admin_mvp_explicit_live_execution_flows_through_backend_service_only():
     assert live_enablement.body["live_coinbase_orders_ran"] is True
     assert live_enablement.body["default_live_coinbase_execution"] == "submitted"
     assert live_enablement.body["status"] == "approval_required"
-    assert live_enablement.body["live_enabled_path_count"] == 1
-    assert live_enablement.body["live_executable_path_count"] == 1
+    assert live_enablement.body["live_enabled_path_count"] == 2
+    assert live_enablement.body["live_executable_path_count"] == 2
     assert live_enablement.body["backend_live_execution_opt_in"] is True
     assert command_suite.body["live_coinbase_orders_ran"] is True
     assert command_suite.body["submitted_notional_usdc"] == "1.00"

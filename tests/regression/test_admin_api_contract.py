@@ -76,7 +76,7 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
     )
     assert live_enablement.body["status"] == "live_disabled"
     assert live_enablement.body["live_enabled_path_count"] == 0
-    assert live_enablement.body["live_eligible_path_count"] == 1
+    assert live_enablement.body["live_eligible_path_count"] == 2
     assert live_enablement.body["live_executable_path_count"] == 0
     assert live_enablement.body["live_service_decision_enabled"] is True
     assert live_enablement.body["backend_live_execution_opt_in"] is False

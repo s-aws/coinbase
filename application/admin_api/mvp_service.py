@@ -3914,6 +3914,12 @@ class AdminMvpService:
         manual_path_live_executable = (
             manual_path_live_enabled and bool(runtime["live_command_runtime_ready"])
         )
+        cancel_path_live_enabled = (
+            service_decision_allows_live and backend_live_execution_opt_in
+        )
+        cancel_path_live_executable = (
+            cancel_path_live_enabled and bool(runtime["live_command_runtime_ready"])
+        )
         manual_path = self._live_path(
             route=MANUAL_ORDER_ROUTE,
             method="POST",
@@ -3935,8 +3941,20 @@ class AdminMvpService:
         cancel_path = self._live_path(
             route=CANCEL_ORDER_ROUTE,
             method="POST",
-            live_enabled=False,
-            live_eligible=False,
+            live_enabled=cancel_path_live_enabled,
+            live_eligible=service_decision_allows_live,
+        )
+        cancel_path.update(
+            {
+                "live_service_decision_enabled": service_decision_allows_live,
+                "backend_live_execution_opt_in": backend_live_execution_opt_in,
+                "live_executable": cancel_path_live_executable,
+                "live_blocker": _live_enablement_blocker(
+                    service_decision_allows_live=service_decision_allows_live,
+                    backend_live_execution_opt_in=backend_live_execution_opt_in,
+                    runtime_ready=bool(runtime["live_command_runtime_ready"]),
+                ),
+            }
         )
         live_status = (
             self._live_service_status()
@@ -3954,21 +3972,30 @@ class AdminMvpService:
             "quote_currency": "USDC",
             "max_submitted_notional_usdc": _decimal_text(self._max_submitted_notional()),
             "max_executed_notional_usdc": _decimal_text(DEFAULT_MAX_EXECUTED_NOTIONAL_USDC),
-            "live_enabled_path_count": 1 if manual_path_live_enabled else 0,
-            "live_eligible_path_count": 1 if service_decision_allows_live else 0,
-            "live_executable_path_count": 1 if manual_path_live_executable else 0,
+            "live_enabled_path_count": sum(
+                1 for enabled in (manual_path_live_enabled, cancel_path_live_enabled) if enabled
+            ),
+            "live_eligible_path_count": 2 if service_decision_allows_live else 0,
+            "live_executable_path_count": sum(
+                1
+                for executable in (
+                    manual_path_live_executable,
+                    cancel_path_live_executable,
+                )
+                if executable
+            ),
             "live_service_decision_enabled": service_decision_allows_live,
             "backend_live_execution_opt_in": backend_live_execution_opt_in,
             **runtime,
             "live_command_runtime_ready_path_count": (
-                1 if bool(runtime["live_command_runtime_ready"]) else 0
+                2 if bool(runtime["live_command_runtime_ready"]) else 0
             ),
             "paths": [manual_path, cancel_path],
             "checks": [
                 {
                     "name": "backend_admin_service_gate",
                     "status": self._live_service_status(),
-                    "detail": "Manual order requires backend proof-chain admission before Coinbase execution.",
+                    "detail": "Spot manual order and cancel require backend proof-chain admission before Coinbase execution.",
                 },
                 {
                     "name": "backend_live_execution_opt_in",
@@ -5694,7 +5721,7 @@ class AdminMvpService:
                 action_class=CANCEL_ORDER_ACTION_CLASS,
                 required_permission=CANCEL_ORDER_PERMISSION,
                 shared_method=CANCEL_ORDER_SERVICE_METHOD,
-                live_enabled=False,
+                live_enabled=True,
             ),
             _command_capability(
                 route="/api/v1/admin/approvals/requests",
