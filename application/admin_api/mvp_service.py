@@ -42,6 +42,7 @@ CANCEL_ORDER_ROUTE = "/api/v1/orders/{client_order_id}/cancel"
 ADMIN_RUNTIME_ROUTE = "/api/v1/admin/runtime"
 ACCOUNT_MANAGEMENT_ROUTE = "/api/v1/admin/account-management"
 ACCOUNT_WALLET_ROUTE = "/api/v1/admin/wallet"
+ACCOUNT_PRODUCTS_ROUTE = "/api/v1/admin/products"
 ACCOUNT_MANAGEMENT_MODULE_ID = "account_management"
 FRONTEND_LOCAL_RELEASE_MANIFEST_ENV = "COINBASE_ADMIN_FRONTEND_LOCAL_RELEASE_MANIFEST_PATH"
 BACKEND_LOCAL_RELEASE_MANIFEST_ENV = "COINBASE_BACKEND_LOCAL_RELEASE_MANIFEST_PATH"
@@ -57,6 +58,7 @@ BACKEND_REST_CLIENT_SOURCE = "backend_rest_client"
 BACKEND_REST_FRESHNESS = "backend_rest_fresh"
 LOCAL_DEFAULT_FRESHNESS = "local_default_not_connected"
 SPOT_ADMISSION_QUOTE_CURRENCIES = ("USDC", "USD")
+DEFAULT_SPOT_PRODUCT_SCOPE = ("BTC-USDC",)
 FUTURES_MODULE_ID = "futures_perpetuals"
 FUTURES_ACCOUNT_FAMILY_US_CFM = AdminMvpFuturesAccountFamily.US_CFM.value
 FUTURES_INTX_APPLICABILITY_US_ACCOUNT = (
@@ -624,6 +626,8 @@ class AdminMvpService:
             return self._ok(self._account_management(context), context)
         if normalized_path == ACCOUNT_WALLET_ROUTE:
             return self._ok(self._admin_wallet(context), context)
+        if normalized_path == ACCOUNT_PRODUCTS_ROUTE:
+            return self._ok(self._admin_products(query, context), context)
         if normalized_path == "/api/v1/admin/live-enablement":
             return self._ok(self._live_enablement(), context)
         if normalized_path == "/api/v1/admin/enterprise-readiness":
@@ -4907,6 +4911,83 @@ class AdminMvpService:
             "notional_usdc": "0",
         }
 
+    def _admin_products(
+        self,
+        query: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+    ) -> dict[str, Any]:
+        product_ids = _admin_product_scope(query)
+        rows = [self._admin_product_row(product_id) for product_id in product_ids]
+        ready_rows = [row for row in rows if row["read_status"] == "ready"]
+        missing_count = len(rows) - len(ready_rows)
+        spot_ids = [
+            row["product_id"]
+            for row in ready_rows
+            if row["product_family"] == "spot"
+        ]
+        derivative_ids = [
+            row["product_id"]
+            for row in ready_rows
+            if row["product_family"] == "futures_perpetuals"
+        ]
+        rest_client_ready = (
+            self.dependencies.rest_client_available
+            and self.dependencies.rest_client is not None
+        )
+        return {
+            "type": "admin_products",
+            "status": _admin_products_status(len(ready_rows), missing_count),
+            "module_id": ACCOUNT_MANAGEMENT_MODULE_ID,
+            "route": ACCOUNT_PRODUCTS_ROUTE,
+            "source": BACKEND_REST_CLIENT_SOURCE if rest_client_ready else "backend_rest_unavailable",
+            "configured_product_scope": product_ids,
+            "spot": spot_ids,
+            "derivatives": derivative_ids,
+            "products": rows,
+            "metadata_count": len(ready_rows),
+            "missing_metadata_count": missing_count,
+            "spot_count": len(spot_ids),
+            "derivatives_count": len(derivative_ids),
+            "audit": {
+                "correlation_id": context.correlation_id,
+                "idempotency_key": context.idempotency_key,
+                "operator_intent": context.operator_intent,
+                "audit_surface": ACCOUNT_PRODUCTS_ROUTE,
+            },
+            "read_only": True,
+            "command_routes_mode": "backend_admin_api",
+            "browser_authority": "display_only",
+            "bff_authority": "read_only_forward",
+            "coinbase_read_enabled": rest_client_ready,
+            "live_coinbase_read_ran": rest_client_ready and bool(product_ids),
+            **self._live_outputs(False, Decimal("0")),
+            "notional_usdc": "0",
+        }
+
+    def _admin_product_row(self, product_id: str) -> dict[str, Any]:
+        metadata, read_error = self._read_admin_product_metadata(product_id)
+        if read_error is not None:
+            return _blocked_admin_product_row(product_id, read_error)
+        return _admin_product_metadata_row(product_id, metadata)
+
+    def _read_admin_product_metadata(
+        self,
+        product_id: str,
+    ) -> tuple[dict[str, Any], str | None]:
+        if not self.dependencies.rest_client_available or self.dependencies.rest_client is None:
+            return {}, "rest_client_unavailable"
+        method = getattr(self.dependencies.rest_client, "get_product_dict", None)
+        if not callable(method):
+            return {}, "get_product_dict_unavailable"
+        try:
+            product = method(product_id)
+        except Exception as exc:
+            return {}, f"get_product_dict_failed:{type(exc).__name__}"
+        metadata = _object_to_dict(product)
+        if not metadata:
+            return {}, "product_metadata_missing"
+        return metadata, None
+
     def _account_management_environment(self) -> dict[str, Any]:
         frontend_manifest = _read_json_manifest_from_env(FRONTEND_LOCAL_RELEASE_MANIFEST_ENV)
         backend_manifest = _read_json_manifest_from_env(BACKEND_LOCAL_RELEASE_MANIFEST_ENV)
@@ -6944,6 +7025,7 @@ class AdminMvpService:
             "/api/v1/admin/csrf",
             ACCOUNT_MANAGEMENT_ROUTE,
             ACCOUNT_WALLET_ROUTE,
+            ACCOUNT_PRODUCTS_ROUTE,
             "/api/v1/admin/live-enablement",
             "/api/v1/admin/enterprise-readiness",
             "/api/v1/admin/release-gate",
@@ -7657,6 +7739,107 @@ def _optional_text(value: Any) -> str | None:
 
 def _mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
+
+
+def _admin_product_scope(query: Mapping[str, Any]) -> list[str]:
+    requested = _query_values(query, "product_id")
+    if requested:
+        return list(dict.fromkeys(requested))
+    return list(dict.fromkeys([*DEFAULT_SPOT_PRODUCT_SCOPE, *FUTURES_CONFIGURED_PRODUCT_SCOPE]))
+
+
+def _admin_products_status(ready_count: int, missing_count: int) -> str:
+    if ready_count <= 0:
+        return "blocked"
+    if missing_count > 0:
+        return "warning"
+    return "ready"
+
+
+def _admin_product_metadata_row(
+    product_id: str,
+    metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    product_type = _admin_product_type(metadata, product_id)
+    future_details = _mapping(metadata.get("future_product_details"))
+    return {
+        "product_id": str(metadata.get("product_id") or product_id),
+        "product_type": product_type,
+        "product_family": _admin_product_family(product_type, product_id),
+        "base_currency": _optional_text(metadata.get("base_currency")),
+        "quote_currency": _optional_text(metadata.get("quote_currency")),
+        "base_increment": _optional_text(metadata.get("base_increment")),
+        "quote_increment": _optional_text(metadata.get("quote_increment")),
+        "price_increment": _optional_text(metadata.get("price_increment")),
+        "base_min_size": _optional_text(metadata.get("base_min_size")),
+        "quote_min_size": _optional_text(metadata.get("quote_min_size")),
+        "display_name": _optional_text(metadata.get("display_name")),
+        "status": _optional_text(metadata.get("status")),
+        "mid_price": _optional_text(metadata.get("mid_price") or metadata.get("price")),
+        "trading_disabled": bool(metadata.get("trading_disabled", False)),
+        "contract_size": _optional_text(
+            metadata.get("contract_size") or future_details.get("contract_size")
+        ),
+        "expiry": _optional_text(metadata.get("expiry")),
+        "source": BACKEND_REST_CLIENT_SOURCE,
+        "read_status": "ready",
+        "read_error": None,
+        "backend_owned": True,
+        "read_only": True,
+        "browser_authority": "display_only",
+        "bff_authority": "read_only_forward",
+        "live_coinbase_orders_ran": False,
+    }
+
+
+def _blocked_admin_product_row(product_id: str, read_error: str) -> dict[str, Any]:
+    return {
+        "product_id": product_id,
+        "product_type": "UNKNOWN",
+        "product_family": "unknown",
+        "base_currency": None,
+        "quote_currency": None,
+        "base_increment": None,
+        "quote_increment": None,
+        "price_increment": None,
+        "base_min_size": None,
+        "quote_min_size": None,
+        "display_name": None,
+        "status": None,
+        "mid_price": None,
+        "trading_disabled": False,
+        "contract_size": None,
+        "expiry": None,
+        "source": (
+            BACKEND_REST_CLIENT_SOURCE
+            if read_error == "product_metadata_missing"
+            else "backend_rest_unavailable"
+        ),
+        "read_status": "blocked",
+        "read_error": read_error,
+        "backend_owned": True,
+        "read_only": True,
+        "browser_authority": "display_only",
+        "bff_authority": "read_only_forward",
+        "live_coinbase_orders_ran": False,
+    }
+
+
+def _admin_product_type(metadata: Mapping[str, Any], product_id: str) -> str:
+    product_type = str(metadata.get("product_type") or metadata.get("type") or "").upper()
+    if product_type in {"SPOT", "FUTURE", "PERPETUAL_FUTURE"}:
+        return product_type
+    if product_id.endswith("-CDE"):
+        return "FUTURE"
+    return "UNKNOWN"
+
+
+def _admin_product_family(product_type: str, product_id: str) -> str:
+    if product_type == "SPOT":
+        return "spot"
+    if product_type in {"FUTURE", "PERPETUAL_FUTURE"} or product_id.endswith("-CDE"):
+        return "futures_perpetuals"
+    return "unknown"
 
 
 def _unavailable_account_snapshot(generated_at: str) -> dict[str, Any]:
@@ -9877,7 +10060,7 @@ def _nested_manifest_text(
 
 
 def _read_capability_module_id(route: str) -> str:
-    if route in {ACCOUNT_MANAGEMENT_ROUTE, ACCOUNT_WALLET_ROUTE}:
+    if route in {ACCOUNT_MANAGEMENT_ROUTE, ACCOUNT_WALLET_ROUTE, ACCOUNT_PRODUCTS_ROUTE}:
         return ACCOUNT_MANAGEMENT_MODULE_ID
     if route in FUTURES_READ_ROUTES:
         return FUTURES_MODULE_ID

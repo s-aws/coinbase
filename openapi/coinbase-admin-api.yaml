@@ -777,6 +777,80 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/products:
+    get:
+      tags:
+      - admin
+      summary: Read backend-owned product metadata and product-scope evidence
+      operationId: admin_products_api_v1_admin_products_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      - name: product_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: array
+            items:
+              type: string
+          - type: 'null'
+          title: Product Id
+        description: Optional repeatable product IDs. Defaults to backend configured
+          Spot and US CFM Futures scope.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProductsReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/live-enablement:
     get:
       tags:
@@ -13901,6 +13975,248 @@ components:
       - live_coinbase_orders_ran
       title: AdminWalletReadResponse
       description: Backend-owned wallet inventory and gate-input evidence for the Wallet MVP.
+    AdminProductMetadataItem:
+      properties:
+        product_id:
+          type: string
+          title: Product Id
+        product_type:
+          type: string
+          title: Product Type
+        product_family:
+          type: string
+          title: Product Family
+        base_currency:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Base Currency
+        quote_currency:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Quote Currency
+        base_increment:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Base Increment
+        quote_increment:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Quote Increment
+        price_increment:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Price Increment
+        base_min_size:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Base Min Size
+        quote_min_size:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Quote Min Size
+        display_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Display Name
+        status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Status
+        mid_price:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Mid Price
+        trading_disabled:
+          type: boolean
+          title: Trading Disabled
+          default: false
+        contract_size:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Contract Size
+        expiry:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expiry
+        source:
+          type: string
+          title: Source
+        read_status:
+          type: string
+          title: Read Status
+        read_error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Read Error
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+        bff_authority:
+          type: string
+          title: Bff Authority
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - product_type
+      - product_family
+      - base_currency
+      - quote_currency
+      - base_increment
+      - quote_increment
+      - price_increment
+      - base_min_size
+      - quote_min_size
+      - display_name
+      - status
+      - mid_price
+      - trading_disabled
+      - contract_size
+      - expiry
+      - source
+      - read_status
+      - read_error
+      - backend_owned
+      - read_only
+      - browser_authority
+      - bff_authority
+      - live_coinbase_orders_ran
+      title: AdminProductMetadataItem
+      description: Backend-normalized Coinbase product metadata. It is evidence only.
+    AdminProductsReadResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_products
+        status:
+          type: string
+          title: Status
+        module_id:
+          type: string
+          title: Module Id
+          default: account_management
+        route:
+          type: string
+          title: Route
+          default: /api/v1/admin/products
+        source:
+          type: string
+          title: Source
+        configured_product_scope:
+          items:
+            type: string
+          type: array
+          title: Configured Product Scope
+        spot:
+          items:
+            type: string
+          type: array
+          title: Spot
+        derivatives:
+          items:
+            type: string
+          type: array
+          title: Derivatives
+        products:
+          items:
+            $ref: '#/components/schemas/AdminProductMetadataItem'
+          type: array
+          title: Products
+        metadata_count:
+          type: integer
+          title: Metadata Count
+        missing_metadata_count:
+          type: integer
+          title: Missing Metadata Count
+        spot_count:
+          type: integer
+          title: Spot Count
+        derivatives_count:
+          type: integer
+          title: Derivatives Count
+        audit:
+          $ref: '#/components/schemas/AdminAccountManagementAudit'
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+        browser_authority:
+          type: string
+          title: Browser Authority
+        bff_authority:
+          type: string
+          title: Bff Authority
+        coinbase_read_enabled:
+          type: boolean
+          title: Coinbase Read Enabled
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+        notional_usdc:
+          type: string
+          title: Notional Usdc
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - source
+      - configured_product_scope
+      - spot
+      - derivatives
+      - products
+      - metadata_count
+      - missing_metadata_count
+      - spot_count
+      - derivatives_count
+      - audit
+      - command_routes_mode
+      - browser_authority
+      - bff_authority
+      - coinbase_read_enabled
+      - live_coinbase_read_ran
+      - live_coinbase_execution
+      - notional_usdc
+      - live_coinbase_orders_ran
+      title: AdminProductsReadResponse
+      description: Backend-owned product metadata and product-scope evidence for Account/Wallet/Spot/Futures gates.
     AdminAccountManagementReadResponse:
       properties:
         type:

@@ -1715,6 +1715,22 @@
       "command_contract": false
     },
     {
+      "module_id": "account_management",
+      "surface": "GET /api/v1/admin/products",
+      "method": "GET",
+      "path": "/api/v1/admin/products",
+      "action_class": "read_only",
+      "permission": "analytics:read",
+      "idempotency": "not required",
+      "approval": "not required",
+      "caps": "not applicable",
+      "audit": "optional read audit",
+      "shared_method": "build_admin_products",
+      "parity_test": "backend-owned Coinbase product metadata and product-scope evidence; no Coinbase mutation",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
       "module_id": "admin_system_health",
       "surface": "GET /api/v1/admin/live-enablement",
       "method": "GET",

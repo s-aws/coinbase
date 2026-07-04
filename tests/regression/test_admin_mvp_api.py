@@ -79,6 +79,18 @@ def test_admin_runtime_openapi_exposes_status_and_control_paths():
         ]["schema"]["$ref"] == "#/components/schemas/AdminRuntimeControlResponse"
 
 
+def test_admin_products_openapi_exposes_product_metadata_path():
+    openapi = yaml.safe_load(
+        Path("openapi/coinbase-admin-api.yaml").read_text(encoding="utf-8")
+    )
+
+    assert openapi["paths"]["/api/v1/admin/products"]["get"]["responses"]["200"][
+        "content"
+    ]["application/json"]["schema"]["$ref"] == (
+        "#/components/schemas/AdminProductsReadResponse"
+    )
+
+
 def test_admin_account_management_openapi_exposes_live_read_evidence_fields():
     openapi = yaml.safe_load(
         Path("openapi/coinbase-admin-api.yaml").read_text(encoding="utf-8")
@@ -1159,6 +1171,76 @@ def test_admin_wallet_read_exposes_backend_owned_wallet_reality():
     assert rest_client.list_portfolios_calls == 1
     assert rest_client.get_futures_positions_calls == 1
     assert rest_client.get_futures_margin_collateral_snapshot_calls == 1
+
+
+def test_admin_products_read_exposes_backend_owned_product_metadata():
+    rest_client = FakeAccountRestClient()
+    rest_client.product_dicts["BTC-USDC"] = {
+        "product_id": "BTC-USDC",
+        "product_type": "SPOT",
+        "base_currency": "BTC",
+        "quote_currency": "USDC",
+        "base_increment": "0.00000001",
+        "quote_increment": "0.01",
+        "price_increment": "0.01",
+        "base_min_size": "0.00001",
+        "quote_min_size": "1",
+        "display_name": "BTC-USDC",
+        "status": "online",
+        "trading_disabled": False,
+    }
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+
+    result = service.get_read_response(
+        "/api/v1/admin/products",
+        {"product_id": ["BTC-USDC", "AVP-20DEC30-CDE", "UNKNOWN-USDC"]},
+        context(idempotency_key="product-metadata-read"),
+    )
+
+    assert result.status_code == 200
+    body = result.body
+    assert body["type"] == "admin_products"
+    assert body["status"] == "warning"
+    assert body["module_id"] == "account_management"
+    assert body["route"] == "/api/v1/admin/products"
+    assert body["read_only"] is True
+    assert body["browser_authority"] == "display_only"
+    assert body["bff_authority"] == "read_only_forward"
+    assert body["coinbase_read_enabled"] is True
+    assert body["live_coinbase_read_ran"] is True
+    assert body["live_coinbase_orders_ran"] is False
+    assert body["live_coinbase_execution"] == "not_run"
+    assert body["notional_usdc"] == "0"
+    assert body["metadata_count"] == 2
+    assert body["missing_metadata_count"] == 1
+    assert body["spot_count"] == 1
+    assert body["derivatives_count"] == 1
+    assert body["spot"] == ["BTC-USDC"]
+    assert body["derivatives"] == ["AVP-20DEC30-CDE"]
+    rows = {item["product_id"]: item for item in body["products"]}
+    assert rows["BTC-USDC"]["product_type"] == "SPOT"
+    assert rows["BTC-USDC"]["quote_currency"] == "USDC"
+    assert rows["BTC-USDC"]["base_min_size"] == "0.00001"
+    assert rows["BTC-USDC"]["source"] == "backend_rest_client"
+    assert rows["BTC-USDC"]["read_status"] == "ready"
+    assert rows["BTC-USDC"]["read_error"] is None
+    assert rows["BTC-USDC"]["product_family"] == "spot"
+    assert rows["AVP-20DEC30-CDE"]["product_type"] == "FUTURE"
+    assert rows["AVP-20DEC30-CDE"]["product_family"] == "futures_perpetuals"
+    assert rows["AVP-20DEC30-CDE"]["contract_size"] == "10"
+    assert rows["UNKNOWN-USDC"]["read_status"] == "blocked"
+    assert rows["UNKNOWN-USDC"]["read_error"] == "product_metadata_missing"
+    assert rows["UNKNOWN-USDC"]["source"] == "backend_rest_client"
+    assert body["audit"]["correlation_id"] == "product-metadata-read-correlation"
+    assert rest_client.get_product_dict_calls == [
+        "BTC-USDC",
+        "AVP-20DEC30-CDE",
+        "UNKNOWN-USDC",
+    ]
+    assert rest_client.create_order_calls == []
+    assert rest_client.cancel_order_calls == []
 
 
 def test_admin_wallet_read_blocks_futures_risk_when_cfm_margin_snapshot_fails():
