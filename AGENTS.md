@@ -19,6 +19,20 @@ This project runs on **Windows 11 + VS Code**. Linux/bash commands may not work 
 - All non-agent-file changes must pass `pytest tests/regression/ -v` before being considered done.
   Exception: if the change set is limited to agent-instruction/context files only (`AGENTS.md`, `agent.md`, `ai-context.md`, `genai_data/AGENT_*.md`, `genai_data/agent_state.md`), regression tests may be skipped.
 
+## Legacy Source Material
+
+- The branch `origin/prod` may contain useful information about the legacy
+  system, especially `dashboard_server.py`, `core/order_engine.py`,
+  `core/stealth_order_manager.py`, Coinbase wrapper behavior, product/account/
+  fill references, and historical regression tests.
+- Treat `origin/prod` as source material, not as product authority. Do not
+  restore direct dashboard/WebSocket trading authority or bypass Admin API
+  authorization, caps, idempotency, audit, and local deployment evidence.
+- When a current MVP behavior is unclear, compare the current branch with
+  `origin/prod` using non-destructive reads such as `git show origin/prod:<path>`
+  or a temporary worktree, then translate only MVP-aligned behavior into the
+  backend Admin API/BFF path with focused tests.
+
 ## P0 - Honest Feedback, Not Engagement Optimization
 
 The user has explicitly opted out of yes-man behavior and validation-seeking responses.
