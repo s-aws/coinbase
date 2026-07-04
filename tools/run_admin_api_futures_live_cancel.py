@@ -40,6 +40,8 @@ from tools.run_admin_api_futures_executor_boundary_smoke import (  # noqa: E402
 from tools.run_admin_api_futures_live_submit import (  # noqa: E402
     check,
     current_utc_timestamp,
+    futures_audit_proof_chain_matches,
+    futures_audit_proof_chain_summary,
     read_git_value,
     write_json,
 )
@@ -244,6 +246,10 @@ def build_summary(
     initial_cancel_result = object_record(
         final_submit.get("coinbase_cancel_initial_result")
     )
+    audit_proof_chain = futures_audit_proof_chain_summary(
+        audit_workbench,
+        final_submit,
+    )
     checks = futures_live_cancel_checks(
         config=config,
         body=body,
@@ -253,6 +259,7 @@ def build_summary(
         final_submit=final_submit,
         final_status_code=final_status_code,
         audit_workbench=audit_workbench,
+        audit_proof_chain=audit_proof_chain,
         notional_usdc=notional,
         cancel_result=cancel_result,
         initial_cancel_result=initial_cancel_result,
@@ -338,6 +345,7 @@ def build_summary(
             final_submit.get("exchange_order_id_evidence_only")
         ),
         "audit_event_count": audit_workbench.get("count"),
+        **audit_proof_chain,
         "checks": checks,
     }
 
@@ -352,6 +360,7 @@ def futures_live_cancel_checks(
     final_submit: Mapping[str, Any],
     final_status_code: int,
     audit_workbench: Mapping[str, Any],
+    audit_proof_chain: Mapping[str, Any],
     notional_usdc: str,
     cancel_result: Mapping[str, Any],
     initial_cancel_result: Mapping[str, Any],
@@ -420,6 +429,10 @@ def futures_live_cancel_checks(
             final_submit.get("exchange_order_id_evidence_only") is True,
         ),
         check("futures_audit_workbench_readback", audit_workbench.get("count", 0) >= 1),
+        check(
+            "futures_audit_workbench_proof_chain_readback",
+            futures_audit_proof_chain_matches(audit_proof_chain),
+        ),
     ]
 
 

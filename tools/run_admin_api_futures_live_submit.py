@@ -427,6 +427,10 @@ def build_summary(
         final_submit.get("submitted_notional_usdc") or decimal_text(futures_notional_usdc(body))
     )
     notional = str(final_submit.get("notional_usdc") or submitted_notional)
+    audit_proof_chain = futures_audit_proof_chain_summary(
+        audit_workbench,
+        final_submit,
+    )
     checks = futures_live_submit_checks(
         config=config,
         body=body,
@@ -436,6 +440,7 @@ def build_summary(
         final_submit=final_submit,
         final_status_code=final_status_code,
         audit_workbench=audit_workbench,
+        audit_proof_chain=audit_proof_chain,
         notional_usdc=notional,
     )
     status = "passed" if all(item["passed"] for item in checks) else "failed"
@@ -490,6 +495,7 @@ def build_summary(
         "notional_usdc": notional,
         "paired_sell_required": False,
         "audit_event_count": audit_workbench.get("count"),
+        **audit_proof_chain,
         "checks": checks,
     }
 
@@ -504,6 +510,7 @@ def futures_live_submit_checks(
     final_submit: Mapping[str, Any],
     final_status_code: int,
     audit_workbench: Mapping[str, Any],
+    audit_proof_chain: Mapping[str, Any],
     notional_usdc: str,
 ) -> list[dict[str, Any]]:
     """Return pass/fail checks for the Futures live-submit artifact."""
@@ -551,7 +558,99 @@ def futures_live_submit_checks(
         ),
         check("futures_no_paired_sell_required", True),
         check("futures_audit_workbench_readback", audit_workbench.get("count", 0) >= 1),
+        check(
+            "futures_audit_workbench_proof_chain_readback",
+            futures_audit_proof_chain_matches(audit_proof_chain),
+        ),
     ]
+
+
+def futures_audit_proof_chain_summary(
+    audit_workbench: Mapping[str, Any],
+    command_result: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Return command proof-chain evidence read back through Audit Workbench."""
+
+    event = matching_audit_event(
+        audit_workbench,
+        command_result.get("submission_event_id"),
+    )
+    return {
+        "cap_guard_present": command_result.get("cap_guard_present"),
+        "cap_guard_decision_id": command_result.get("cap_guard_decision_id"),
+        "reconciliation_plan_present": command_result.get(
+            "reconciliation_plan_present"
+        ),
+        "reconciliation_plan_id": command_result.get("reconciliation_plan_id"),
+        "audit_proof_chain_readback_present": bool(event),
+        "audit_submission_event_id": event.get("event_id") if event else None,
+        "audit_cap_guard_present": event.get("cap_guard_present") if event else None,
+        "audit_cap_guard_decision_id": event.get("cap_guard_decision_id")
+        if event
+        else None,
+        "audit_cap_guard_source": event.get("cap_guard_source") if event else None,
+        "audit_cap_guard_recorded_at": event.get("cap_guard_recorded_at")
+        if event
+        else None,
+        "audit_reconciliation_plan_present": event.get(
+            "reconciliation_plan_present"
+        )
+        if event
+        else None,
+        "audit_reconciliation_plan_id": event.get("reconciliation_plan_id")
+        if event
+        else None,
+        "audit_reconciliation_plan_source": event.get("reconciliation_plan_source")
+        if event
+        else None,
+        "audit_reconciliation_plan_recorded_at": event.get(
+            "reconciliation_plan_recorded_at"
+        )
+        if event
+        else None,
+    }
+
+
+def matching_audit_event(
+    audit_workbench: Mapping[str, Any],
+    submission_event_id: Any,
+) -> dict[str, Any]:
+    """Return the Audit Workbench event for a command submission id."""
+
+    expected = str(submission_event_id or "").strip()
+    if not expected:
+        return {}
+    events = audit_workbench.get("events")
+    if not isinstance(events, Sequence) or isinstance(events, (str, bytes, bytearray)):
+        return {}
+    for event in events:
+        item = object_record(event)
+        if str(item.get("event_id") or "").strip() == expected:
+            return item
+    return {}
+
+
+def futures_audit_proof_chain_matches(summary: Mapping[str, Any]) -> bool:
+    """Return whether Audit Workbench readback matches command proof-chain ids."""
+
+    return (
+        summary.get("audit_proof_chain_readback_present") is True
+        and summary.get("cap_guard_present") is True
+        and summary.get("reconciliation_plan_present") is True
+        and bool(summary.get("cap_guard_decision_id"))
+        and bool(summary.get("reconciliation_plan_id"))
+        and summary.get("audit_cap_guard_present") is True
+        and summary.get("audit_reconciliation_plan_present") is True
+        and summary.get("audit_cap_guard_decision_id")
+        == summary.get("cap_guard_decision_id")
+        and summary.get("audit_reconciliation_plan_id")
+        == summary.get("reconciliation_plan_id")
+        and summary.get("audit_cap_guard_source") == "admin_api_cap_guard_log"
+        and summary.get("audit_reconciliation_plan_source")
+        == "admin_api_reconciliation_plan_log"
+        and bool(summary.get("audit_cap_guard_recorded_at"))
+        and bool(summary.get("audit_reconciliation_plan_recorded_at"))
+    )
 
 
 def check(name: str, passed: bool) -> dict[str, Any]:
@@ -571,6 +670,12 @@ def optional_text(value: object) -> str | None:
 
     text = str(value or "").strip()
     return text or None
+
+
+def object_record(value: Any) -> dict[str, Any]:
+    """Return value as a mapping or an empty dict."""
+
+    return dict(value) if isinstance(value, Mapping) else {}
 
 
 def current_utc_timestamp() -> str:

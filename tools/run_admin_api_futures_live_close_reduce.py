@@ -43,6 +43,8 @@ from tools.run_admin_api_futures_live_submit import (  # noqa: E402
     check,
     current_utc_timestamp,
     default_futures_limit_price,
+    futures_audit_proof_chain_matches,
+    futures_audit_proof_chain_summary,
     futures_live_submit_product_metadata,
     read_git_value,
     write_json,
@@ -314,6 +316,10 @@ def build_summary(
         or decimal_text(futures_notional_usdc(body))
     )
     notional = str(final_submit.get("notional_usdc") or submitted_notional)
+    audit_proof_chain = futures_audit_proof_chain_summary(
+        audit_workbench,
+        final_submit,
+    )
     checks = futures_live_close_reduce_checks(
         config=config,
         body=body,
@@ -324,6 +330,7 @@ def build_summary(
         final_submit=final_submit,
         final_status_code=final_status_code,
         audit_workbench=audit_workbench,
+        audit_proof_chain=audit_proof_chain,
         notional_usdc=notional,
     )
     status = "passed" if all(item["passed"] for item in checks) else "failed"
@@ -387,6 +394,7 @@ def build_summary(
         "submitted_notional_usdc": submitted_notional,
         "notional_usdc": notional,
         "audit_event_count": audit_workbench.get("count"),
+        **audit_proof_chain,
         "checks": checks,
     }
 
@@ -402,6 +410,7 @@ def futures_live_close_reduce_checks(
     final_submit: Mapping[str, Any],
     final_status_code: int,
     audit_workbench: Mapping[str, Any],
+    audit_proof_chain: Mapping[str, Any],
     notional_usdc: str,
 ) -> list[dict[str, Any]]:
     """Return pass/fail checks for the close/reduce artifact."""
@@ -462,6 +471,10 @@ def futures_live_close_reduce_checks(
             final_submit.get("exchange_order_id_evidence_only") is True,
         ),
         check("futures_audit_workbench_readback", audit_workbench.get("count", 0) >= 1),
+        check(
+            "futures_audit_workbench_proof_chain_readback",
+            futures_audit_proof_chain_matches(audit_proof_chain),
+        ),
     ]
 
 

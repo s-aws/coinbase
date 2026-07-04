@@ -114,6 +114,27 @@ def test_futures_live_cancel_records_backend_evidence_before_rest_submission():
     assert summary["service_decision_status"] == "accepted"
     assert summary["adapter_decision_count"] == 4
     assert summary["audit_event_count"] == 1
+    assert summary["cap_guard_decision_id"] == (
+        "futures-cap-guard-futures-live-cancel-test"
+    )
+    assert summary["reconciliation_plan_id"] == (
+        "futures-reconciliation-futures-live-cancel-test"
+    )
+    assert summary["audit_proof_chain_readback_present"] is True
+    assert summary["audit_submission_event_id"] == summary["submission_event_id"]
+    assert summary["audit_cap_guard_present"] is True
+    assert summary["audit_cap_guard_decision_id"] == summary["cap_guard_decision_id"]
+    assert summary["audit_cap_guard_source"] == "admin_api_cap_guard_log"
+    assert summary["audit_cap_guard_recorded_at"]
+    assert summary["audit_reconciliation_plan_present"] is True
+    assert summary["audit_reconciliation_plan_id"] == summary["reconciliation_plan_id"]
+    assert summary["audit_reconciliation_plan_source"] == (
+        "admin_api_reconciliation_plan_log"
+    )
+    assert summary["audit_reconciliation_plan_recorded_at"]
+    assert {
+        item["name"]: item["passed"] for item in summary["checks"]
+    }["futures_audit_workbench_proof_chain_readback"] is True
     assert all(check["passed"] for check in summary["checks"])
     assert rest_client.cancel_order_calls == [
         {"order_ids": ["client-futures-live-cancel-test"]}
