@@ -1980,6 +1980,62 @@ def test_admin_futures_command_suite_binds_us_cfm_live_decisions_to_disabled_exe
     assert event["live_exchange_submitted"] is False
 
 
+def test_admin_futures_command_suite_exposes_confirmed_live_exchange_routes_when_runtime_enabled():
+    rest_client = FakeAccountRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        )
+    )
+    record_futures_live_service_decision(service)
+    record_all_futures_live_adapter_decisions(service)
+
+    command_suite = service.get_read_response(
+        "/api/v1/futures/command-suite",
+        {},
+        context(),
+    )
+
+    assert command_suite.status_code == 200
+    suite = command_suite.body
+    assert suite["status"] == "evidence_ready"
+    assert suite["command_routes_mode"] == "backend_admin_api_confirmed_live"
+    assert suite["blocked_command_count"] == 1
+    assert suite["executable_command_count"] == 3
+    assert suite["live_coinbase_orders_ran"] is False
+    assert suite["futures_live_decision_evidence"]["executor_boundary_status"] == (
+        "live_enabled"
+    )
+    assert suite["futures_live_decision_evidence"]["first_blocker"] == "none"
+    assert suite["futures_live_decision_evidence"]["execution_allowed"] is True
+
+    commands = {command["command"]: command for command in suite["commands"]}
+    for command_name in (
+        "futures_place",
+        "futures_close_reduce",
+        "futures_cancel",
+    ):
+        command = commands[command_name]
+        assert command["status"] == "passed"
+        assert command["execution_allowed"] is True
+        assert command["manual_live_acknowledgement_required"] is True
+        assert command["readiness_decision"]["status"] == "passed"
+        assert command["readiness_decision"]["ready"] is True
+        assert command["readiness_decision"]["first_blocker"] == "none"
+        assert command["readiness_decision"]["execution_allowed"] is True
+        assert command["live_coinbase_orders_ran"] is False
+        assert command["bff_authority"] == "forward_only_no_execution"
+
+    reconcile = commands["futures_reconcile"]
+    assert reconcile["status"] == "blocked"
+    assert reconcile["execution_allowed"] is False
+    assert reconcile["readiness_decision"]["first_blocker"] == (
+        "futures_reconciliation_execution_disabled"
+    )
+
+
 def test_admin_futures_place_live_execution_uses_backend_rest_adapter_when_confirmed():
     rest_client = FakeAccountRestClient()
     service = AdminMvpService(
@@ -2077,7 +2133,9 @@ def test_admin_futures_place_live_execution_requires_explicit_acknowledgement():
 
     assert result.status_code == 400
     assert result.body["status"] == "rejected"
-    assert result.body["failure_stage"] == "futures_executor_live_disabled"
+    assert result.body["failure_stage"] == "futures_live_acknowledgement_required"
+    assert result.body["mutation_family"] == "futures_live_acknowledgement_required"
+    assert result.body["manual_live_acknowledgement_required"] is True
     assert result.body["live_exchange_submitted"] is False
     assert rest_client.create_order_calls == []
 

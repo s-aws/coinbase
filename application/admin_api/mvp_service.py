@@ -33,6 +33,7 @@ class AdminMvpFuturesIntxApplicability(str, Enum):
 class AdminMvpFuturesExecutorStatus(str, Enum):
     PENDING_LIVE_DECISION = "pending_live_decision"
     OBSERVED_LIVE_DISABLED = "observed_live_disabled"
+    LIVE_ENABLED = "live_enabled"
 
 
 ADMIN_API_VERSION = "0.1.0-prod-mvp"
@@ -166,6 +167,11 @@ FUTURES_COMMAND_ENABLEMENT_SEQUENCE_STEPS = (
     "define_backend_command_service",
     "register_admin_command_route",
     "bind_live_service_adapter",
+)
+FUTURES_LIVE_EXCHANGE_COMMANDS = (
+    "futures_place",
+    "futures_close_reduce",
+    "futures_cancel",
 )
 MANUAL_ORDER_MODULE_ID = "spot_operations"
 MANUAL_ORDER_ACTION_CLASS = "live_exchange_place"
@@ -1932,7 +1938,7 @@ class AdminMvpService:
                 **self._live_outputs(False, Decimal("0")),
             }
             return self._result(400, response, context)
-        if first_blocker == "futures_executor_live_disabled":
+        if first_blocker in {"futures_executor_live_disabled", "none"}:
             if _futures_live_place_requested(command, body):
                 return self._execute_futures_place_order(
                     body=body,
@@ -1983,6 +1989,22 @@ class AdminMvpService:
                     readiness_decision=readiness_decision,
                     admission_decision=admission_decision,
                     risk_proof_id=command_evidence.get("risk_proof_id"),
+                )
+            if first_blocker == "none":
+                return self._futures_live_acknowledgement_required_response(
+                    command=command,
+                    action_class=str(spec["action_class"]),
+                    route=route,
+                    service_method=str(spec["service_method"]),
+                    identity_key=identity_key,
+                    identity_value=identity_value,
+                    required_permission=str(spec["required_permission"]),
+                    payload_hash=payload_hash,
+                    readiness_decision=readiness_decision,
+                    admission_decision=admission_decision,
+                    payload_validation=payload_validation,
+                    risk_proof_id=command_evidence.get("risk_proof_id"),
+                    context=context,
                 )
             executor_decision = self._record_futures_executor_decision(
                 command=command,
@@ -2123,6 +2145,101 @@ class AdminMvpService:
             **self._live_outputs(False, Decimal("0")),
         }
         return self._result(501, response, context)
+
+    def _futures_live_acknowledgement_required_response(
+        self,
+        *,
+        command: str,
+        action_class: str,
+        route: str,
+        service_method: str,
+        identity_key: str,
+        identity_value: str,
+        required_permission: str,
+        payload_hash: str,
+        readiness_decision: Mapping[str, Any],
+        admission_decision: Mapping[str, Any],
+        payload_validation: Mapping[str, Any],
+        risk_proof_id: Any,
+        context: AdminMvpRequestContext,
+    ) -> AdminMvpApiResult:
+        """Reject a live-ready Futures command that lacks explicit acknowledgement."""
+
+        failure_stage = "futures_live_acknowledgement_required"
+        message = (
+            "Futures/Perpetual live command requires dry_run=false and manual "
+            "live acknowledgement before Coinbase submission."
+        )
+        acknowledgement_admission = {
+            **dict(admission_decision),
+            "failure_stage": failure_stage,
+            "detail": (
+                "Backend Futures live execution is available, but this request "
+                "did not include explicit live acknowledgement."
+            ),
+        }
+        command_record = self._record_futures_command_decision(
+            status=AdminMvpCommandStatus.REJECTED.value,
+            message=message,
+            command=command,
+            mutation_family="futures_live_acknowledgement_required",
+            action_class=action_class,
+            route=route,
+            service_method=service_method,
+            identity_key=identity_key,
+            identity_value=identity_value,
+            required_permission=required_permission,
+            payload_hash=payload_hash,
+            readiness_decision=readiness_decision,
+            admission_decision=acknowledgement_admission,
+            payload_validation=payload_validation,
+            risk_proof_id=risk_proof_id,
+            failure_stage=failure_stage,
+            context=context,
+        )
+        response = {
+            "type": "admin_api_command_result",
+            "status": AdminMvpCommandStatus.REJECTED.value,
+            "module_id": FUTURES_MODULE_ID,
+            "command": command,
+            "mutation_family": "futures_live_acknowledgement_required",
+            "action_class": action_class,
+            "route": route,
+            "method": "POST",
+            "required_permission": required_permission,
+            "service_method": service_method,
+            "identity_key": identity_key,
+            "identity_value": identity_value,
+            "message": message,
+            "correlation_id": context.correlation_id,
+            "idempotency_key": context.idempotency_key,
+            "operator_intent": context.operator_intent,
+            "actor_id": context.actor_id,
+            "payload_hash": payload_hash,
+            "payload_validation": payload_validation,
+            "command_suite_status": "evidence_ready",
+            "readiness_decision": readiness_decision,
+            "admission_decision": acknowledgement_admission,
+            "risk_proof_id": risk_proof_id,
+            "failure_stage": failure_stage,
+            "submission_event_recorded": True,
+            "submission_event_id": command_record["decision_id"],
+            "command_route_registered": True,
+            "command_draft_allowed": True,
+            "execution_allowed": False,
+            "manual_live_acknowledgement_required": True,
+            "local_state_mutated": False,
+            "exchange_state_mutated": False,
+            "live_exchange_submitted": False,
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
+            "spot_rule_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            **self._runtime_evidence(),
+            **self._live_outputs(False, Decimal("0")),
+        }
+        return self._result(400, response, context)
 
     def _execute_futures_place_order(
         self,
@@ -3957,6 +4074,15 @@ class AdminMvpService:
             ),
         )
 
+    def _futures_live_runtime_ready(self) -> bool:
+        """Return whether this process can submit confirmed Futures live commands."""
+
+        return bool(
+            self.dependencies.live_coinbase_execution_enabled
+            and self.dependencies.rest_client_available
+            and self.dependencies.rest_client is not None
+        )
+
     def _futures_live_decision_evidence(
         self,
         *,
@@ -3965,17 +4091,28 @@ class AdminMvpService:
         service_method: str,
         live_service_decision: Mapping[str, Any] | None,
         live_adapter_decision: Mapping[str, Any] | None,
+        live_runtime_ready: bool,
     ) -> dict[str, Any]:
         service_ready = live_service_decision is not None
         adapter_ready = live_adapter_decision is not None
         executor_boundary_ready = service_ready and adapter_ready
+        live_exchange_command = _futures_live_exchange_command(command)
+        execution_allowed = bool(
+            executor_boundary_ready and live_runtime_ready and live_exchange_command
+        )
         executor_boundary_status = (
-            AdminMvpFuturesExecutorStatus.OBSERVED_LIVE_DISABLED.value
+            AdminMvpFuturesExecutorStatus.LIVE_ENABLED.value
+            if execution_allowed
+            else AdminMvpFuturesExecutorStatus.OBSERVED_LIVE_DISABLED.value
             if executor_boundary_ready
             else AdminMvpFuturesExecutorStatus.PENDING_LIVE_DECISION.value
         )
         first_blocker = (
-            "futures_executor_live_disabled"
+            "none"
+            if execution_allowed
+            else "futures_reconciliation_execution_disabled"
+            if executor_boundary_ready and live_runtime_ready and not live_exchange_command
+            else "futures_executor_live_disabled"
             if executor_boundary_ready
             else "execution_disabled"
         )
@@ -4005,12 +4142,15 @@ class AdminMvpService:
                 str(live_adapter_decision["source"]) if adapter_ready else None
             ),
             "live_decision_scope_ready": service_ready and adapter_ready,
+            "live_runtime_ready": live_runtime_ready,
+            "live_exchange_command": live_exchange_command,
             "executor_boundary_status": executor_boundary_status,
             "executor_boundary_ready": executor_boundary_ready,
             "executor_boundary_source": (
                 FUTURES_EXECUTOR_BOUNDARY_SOURCE if executor_boundary_ready else None
             ),
-            "execution_allowed": False,
+            "execution_allowed": execution_allowed,
+            "manual_live_acknowledgement_required": live_exchange_command,
             "first_blocker": first_blocker,
             "required_evidence_refs": [
                 LIVE_SERVICE_DECISION_ROUTE,
@@ -5561,6 +5701,7 @@ class AdminMvpService:
             if contract not in resolved_contracts
         ]
         live_service_decision = self._futures_live_service_decision()
+        live_runtime_ready = self._futures_live_runtime_ready()
         request_field_summaries = _futures_request_field_summaries()
         commands: list[dict[str, Any]] = []
         for spec in FUTURES_COMMAND_SPECS:
@@ -5571,6 +5712,7 @@ class AdminMvpService:
                 service_method=str(spec["service_method"]),
                 live_service_decision=live_service_decision,
                 live_adapter_decision=live_adapter_decision,
+                live_runtime_ready=live_runtime_ready,
             )
             commands.append(
                 self._futures_command(
@@ -5586,7 +5728,10 @@ class AdminMvpService:
                     live_decision_evidence=live_decision_evidence,
                 )
             )
-        live_decision_summary = _futures_live_decision_summary(commands)
+        live_decision_summary = _futures_live_decision_summary(
+            commands,
+            live_runtime_ready=live_runtime_ready,
+        )
         latest_live_submit_failure = self._latest_futures_live_submit_failure()
         futures_product_exposure_evidence = self._futures_product_exposure_evidence(
             live_decision_summary,
@@ -5614,14 +5759,26 @@ class AdminMvpService:
             sequence_steps,
         )
         status = "evidence_ready" if not missing_contracts else "blocked"
+        blocked_command_count = sum(
+            1
+            for command in commands
+            if command["status"] != AdminMvpGateStatus.PASSED.value
+        )
+        executable_command_count = sum(
+            1 for command in commands if bool(command["execution_allowed"])
+        )
+        command_routes_mode = _futures_command_routes_mode(
+            missing_contracts=missing_contracts,
+            executable_command_count=executable_command_count,
+        )
         return {
             "type": "admin_futures_command_suite",
             "module_id": FUTURES_MODULE_ID,
             "approved_phase_range": "futures-perpetuals-read-contract",
             "status": status,
             "command_count": len(commands),
-            "blocked_command_count": len(commands),
-            "executable_command_count": 0,
+            "blocked_command_count": blocked_command_count,
+            "executable_command_count": executable_command_count,
             "command_route_count": len(commands),
             "command_draft_allowed_count": len(commands),
             "prerequisite_count": 4,
@@ -5659,7 +5816,9 @@ class AdminMvpService:
             ),
             "command_enablement_sequence_command_traces": sequence_traces,
             "commands": commands,
-            "futures_live_execution_scope": _futures_live_execution_scope(),
+            "futures_live_execution_scope": _futures_live_execution_scope(
+                execution_allowed=executable_command_count > 0,
+            ),
             "futures_live_decision_evidence": live_decision_summary,
             "futures_product_exposure_evidence": futures_product_exposure_evidence,
             "latest_live_submit_failure": latest_live_submit_failure,
@@ -5689,11 +5848,11 @@ class AdminMvpService:
             "submitted_notional_usdc": "0",
             "executed_notional_usdc": "0",
             "read_only": True,
-            "command_routes_mode": (
-                "backend_admin_api_draft_only" if not missing_contracts else "backend_admin_api_blocked"
-            ),
+            "command_routes_mode": command_routes_mode,
             "message": (
-                "Futures command-suite evidence is ready for draft review; execution remains disabled."
+                "Futures command-suite evidence is ready for confirmed backend live exchange commands; reconciliation remains evidence-only."
+                if executable_command_count
+                else "Futures command-suite evidence is ready for draft review; execution remains disabled."
                 if not missing_contracts
                 else "Futures command readiness is backend-owned and blocked until futures account and risk-proof evidence exist."
             ),
@@ -5720,20 +5879,31 @@ class AdminMvpService:
             if not missing_contracts
             else "futures_margin_collateral_risk_proof"
         )
-        readiness_decision = (
-            "executor_observed_live_disabled"
-            if not missing_contracts
-            and first_blocker == "futures_executor_live_disabled"
-            else (
-                "draft_ready_execution_disabled"
-                if not missing_contracts
-                else "blocked_backend_contracts_required"
-            )
+        execution_allowed = bool(
+            not missing_contracts and live_decision_evidence.get("execution_allowed")
         )
+        live_exchange_command = _futures_live_exchange_command(command)
+        command_status = (
+            AdminMvpGateStatus.PASSED.value
+            if execution_allowed
+            else AdminMvpGateStatus.BLOCKED.value
+        )
+        if execution_allowed:
+            readiness_decision = "confirmed_live_ready"
+        elif not missing_contracts and first_blocker == "futures_executor_live_disabled":
+            readiness_decision = "executor_observed_live_disabled"
+        elif not missing_contracts:
+            readiness_decision = "draft_ready_execution_disabled"
+        else:
+            readiness_decision = "blocked_backend_contracts_required"
         return {
             "command": command,
-            "mutation_family": "futures_contract_required",
-            "status": "blocked",
+            "mutation_family": (
+                "futures_confirmed_live_ready"
+                if execution_allowed
+                else "futures_contract_required"
+            ),
+            "status": command_status,
             "action_class": action_class,
             "route": route,
             "method": "POST",
@@ -5769,9 +5939,15 @@ class AdminMvpService:
             ],
             "readiness_decision": {
                 "decision": readiness_decision,
-                "status": "blocked",
-                "ready": False,
-                "blocker_count": 1 if not missing_contracts else len(missing_contracts),
+                "status": command_status,
+                "ready": execution_allowed,
+                "blocker_count": (
+                    0
+                    if execution_allowed
+                    else 1
+                    if not missing_contracts
+                    else len(missing_contracts)
+                ),
                 "blocking_prerequisite_count": blocking_prerequisite_count,
                 "blocking_request_field_count": 0,
                 "blocking_semantic_guard_count": 0,
@@ -5782,7 +5958,8 @@ class AdminMvpService:
                 "next_required_backend_contract": missing_contracts[0] if missing_contracts else None,
                 "command_route_registered": True,
                 "command_draft_allowed": True,
-                "execution_allowed": False,
+                "execution_allowed": execution_allowed,
+                "manual_live_acknowledgement_required": live_exchange_command,
                 "backend_owned": True,
                 "read_only": True,
                 "spot_rule_authority": False,
@@ -5790,8 +5967,13 @@ class AdminMvpService:
                 "bff_authority": "forward_only_no_execution",
                 "live_decision_evidence": dict(live_decision_evidence),
                 "detail": (
+                    "Futures live-decision evidence is bound to the US CFM scope; confirmed backend live exchange submission is available only after explicit operator acknowledgement."
+                    if execution_allowed
+                    else
                     "Futures live-decision evidence is bound to the US CFM scope; the backend executor boundary is present and live-disabled."
                     if first_blocker == "futures_executor_live_disabled"
+                    else "Futures reconciliation remains backend evidence-only; no live exchange submission is available for this route."
+                    if first_blocker == "futures_reconciliation_execution_disabled"
                     else "Futures command draft evidence is available; live execution remains disabled."
                     if not missing_contracts
                     else "Futures command is visible as a route-bound draft only; execution remains blocked."
@@ -5807,13 +5989,18 @@ class AdminMvpService:
             ),
             "command_route_registered": True,
             "command_draft_allowed": True,
-            "execution_allowed": False,
+            "execution_allowed": execution_allowed,
+            "manual_live_acknowledgement_required": live_exchange_command,
             "live_coinbase_orders_ran": False,
             "submitted_notional_usdc": "0",
             "executed_notional_usdc": "0",
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
-            "detail": "Backend-owned futures command readiness evidence; no Coinbase call, state mutation, or browser/BFF execution authority.",
+            "detail": (
+                "Backend-owned futures command readiness evidence; confirmed live exchange submission is available only through backend Admin API acknowledgement."
+                if execution_allowed
+                else "Backend-owned futures command readiness evidence; no Coinbase call, state mutation, or browser/BFF execution authority."
+            ),
             "spot_rule_authority": False,
         }
 
@@ -5908,9 +6095,13 @@ class AdminMvpService:
             })
         execution_blocker = str(live_decision_summary["first_blocker"])
         latest_live_submit_failure = live_decision_summary.get("latest_live_submit_failure")
+        if execution_blocker == "none" and not latest_live_submit_failure:
+            return blockers
         blocker_detail = (
             "Latest Futures/Perpetual live submit was rejected before Coinbase order mutation by backend cap evidence."
             if latest_live_submit_failure
+            else "Futures confirmed live exchange commands can reach the backend executor with explicit operator acknowledgement."
+            if execution_blocker == "none"
             else "Futures US CFM live-service and live-adapter decisions are bound; the backend Futures executor boundary is present and live-disabled."
             if execution_blocker == "futures_executor_live_disabled"
             else "Futures command evidence is available, but live futures execution is intentionally disabled."
@@ -5936,7 +6127,9 @@ class AdminMvpService:
             "spot_rule_authority": False,
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
-            "futures_live_execution_scope": _futures_live_execution_scope(),
+            "futures_live_execution_scope": _futures_live_execution_scope(
+                execution_allowed=bool(live_decision_summary.get("execution_allowed")),
+            ),
             "futures_live_decision_evidence": dict(live_decision_summary),
             "latest_live_submit_failure": latest_live_submit_failure,
             "latest_live_submit_failure_present": latest_live_submit_failure is not None,
@@ -7719,8 +7912,9 @@ def _futures_command_enablement_sequence_steps(
                 "/api/v1/admin/live-execution/adapter-decisions",
             ],
             detail=(
-                "Futures live-service and adapter evidence must remain backend-bound; "
-                "execution is still disabled for the local runtime."
+                "Futures live-service and adapter evidence are backend-bound; confirmed live exchange commands can reach the backend executor after explicit acknowledgement."
+                if not _futures_live_adapter_sequence_blocking(live_decision_summary)
+                else "Futures live-service and adapter evidence must remain backend-bound; execution is still disabled for the local runtime."
             ),
         ),
     ]
@@ -8558,12 +8752,28 @@ def _string_list(value: Any) -> list[str]:
     return [text] if text else []
 
 
-def _futures_live_execution_scope() -> dict[str, Any]:
+def _futures_command_routes_mode(
+    *,
+    missing_contracts: Sequence[str],
+    executable_command_count: int,
+) -> str:
+    if missing_contracts:
+        return "backend_admin_api_blocked"
+    if executable_command_count:
+        return "backend_admin_api_confirmed_live"
+    return "backend_admin_api_draft_only"
+
+
+def _futures_live_exchange_command(command: str) -> bool:
+    return command in FUTURES_LIVE_EXCHANGE_COMMANDS
+
+
+def _futures_live_execution_scope(execution_allowed: bool = False) -> dict[str, Any]:
     return {
         "account_family": FUTURES_ACCOUNT_FAMILY_US_CFM,
         "intx_applicability": FUTURES_INTX_APPLICABILITY_US_ACCOUNT,
         "product_scope": list(FUTURES_CONFIGURED_PRODUCT_SCOPE),
-        "execution_allowed": False,
+        "execution_allowed": execution_allowed,
     }
 
 
@@ -8611,7 +8821,11 @@ def _futures_product_scope_matches(record: Mapping[str, Any]) -> bool:
     return any(product_id in FUTURES_CONFIGURED_PRODUCT_SCOPE for product_id in product_scope)
 
 
-def _futures_live_decision_summary(commands: list[Mapping[str, Any]]) -> dict[str, Any]:
+def _futures_live_decision_summary(
+    commands: list[Mapping[str, Any]],
+    *,
+    live_runtime_ready: bool,
+) -> dict[str, Any]:
     evidences = [
         command["readiness_decision"]["live_decision_evidence"] for command in commands
     ]
@@ -8624,12 +8838,19 @@ def _futures_live_decision_summary(commands: list[Mapping[str, Any]]) -> dict[st
     missing_adapter_count = len(evidences) - ready_adapter_count
     first_evidence = evidences[0] if evidences else {}
     executor_boundary_ready = service_ready and missing_adapter_count == 0
+    execution_allowed = bool(executor_boundary_ready and live_runtime_ready)
     executor_boundary_status = (
+        AdminMvpFuturesExecutorStatus.LIVE_ENABLED.value
+        if execution_allowed
+        else
         AdminMvpFuturesExecutorStatus.OBSERVED_LIVE_DISABLED.value
         if executor_boundary_ready
         else AdminMvpFuturesExecutorStatus.PENDING_LIVE_DECISION.value
     )
     first_blocker = (
+        "none"
+        if execution_allowed
+        else
         "futures_executor_live_disabled"
         if executor_boundary_ready
         else "execution_disabled"
@@ -8652,7 +8873,9 @@ def _futures_live_decision_summary(commands: list[Mapping[str, Any]]) -> dict[st
         ),
         "first_blocker": first_blocker,
         "required_evidence_refs": [LIVE_SERVICE_DECISION_ROUTE, LIVE_ADAPTER_DECISION_ROUTE],
-        "execution_allowed": False,
+        "execution_allowed": execution_allowed,
+        "manual_live_acknowledgement_required": execution_allowed,
+        "live_runtime_ready": live_runtime_ready,
         "spot_rule_authority": False,
         "browser_authority": "display_only",
         "bff_authority": "forward_only_no_execution",
