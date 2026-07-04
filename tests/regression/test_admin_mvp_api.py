@@ -2008,6 +2008,9 @@ def test_admin_futures_perpetuals_read_contract_exposes_blocked_contract_evidenc
     assert suite["executed_notional_usdc"] == "0"
     assert "spot_no_shorting" in suite["forbidden_spot_assumptions"]
     assert "futures_margin_collateral_risk_proof" in suite["missing_backend_contracts"]
+    assert suite["next_required_operator_decision"] == (
+        "run_backend_account_reality_live_read_smoke_to_refresh_futures_account_and_risk_evidence"
+    )
     commands = {command["command"]: command for command in suite["commands"]}
     assert set(commands) == {
         "futures_place",

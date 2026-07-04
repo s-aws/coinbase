@@ -99561,6 +99561,13 @@ components:
             type: string
           type: array
           title: Missing Backend Contracts
+        next_required_operator_decision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Required Operator Decision
+          description: Backend-owned next operator action for resolving futures/perpetual
+            command-suite blockers.
         forbidden_spot_assumptions:
           items:
             type: string

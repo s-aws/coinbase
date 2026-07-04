@@ -6785,6 +6785,13 @@ class AdminMvpService:
             missing_contracts=missing_contracts,
             executable_command_count=executable_command_count,
         )
+        next_required_operator_decision = (
+            _futures_command_suite_next_required_operator_decision(
+                missing_contracts=missing_contracts,
+                executable_command_count=executable_command_count,
+                live_decision_summary=live_decision_summary,
+            )
+        )
         return {
             "type": "admin_futures_command_suite",
             "module_id": FUTURES_MODULE_ID,
@@ -6863,6 +6870,7 @@ class AdminMvpService:
             "required_backend_contracts": list(FUTURES_COMMAND_CONTRACTS),
             "resolved_backend_contracts": resolved_contracts,
             "missing_backend_contracts": missing_contracts,
+            "next_required_operator_decision": next_required_operator_decision,
             "futures_risk_proof_count": len(proofs),
             "futures_risk_proof_ids": [
                 str(proof["futures_risk_proof_id"]) for proof in proofs
@@ -11507,6 +11515,38 @@ def _futures_command_routes_mode(
     if executable_command_count:
         return "backend_admin_api_confirmed_live"
     return "backend_admin_api_draft_only"
+
+
+def _futures_command_suite_next_required_operator_decision(
+    *,
+    missing_contracts: Sequence[str],
+    executable_command_count: int,
+    live_decision_summary: Mapping[str, Any],
+) -> str:
+    """Return the next operator action for Futures command-suite evidence."""
+
+    missing = set(missing_contracts)
+    if {
+        "futures_account_scope_contract",
+        "futures_margin_collateral_risk_proof",
+    } & missing:
+        return (
+            "run_backend_account_reality_live_read_smoke_to_refresh_futures_account_and_risk_evidence"
+        )
+    product_exposure = _mapping(
+        live_decision_summary.get("futures_product_exposure_evidence")
+    )
+    product_decision = str(
+        product_exposure.get("next_required_operator_decision") or ""
+    ).strip()
+    if product_decision:
+        return product_decision
+    first_blocker = str(live_decision_summary.get("first_blocker") or "").strip()
+    if first_blocker == "futures_executor_live_disabled":
+        return "enable_futures_live_runtime_before_confirmed_exchange_submission"
+    if executable_command_count > 0:
+        return "submit_backend_controlled_futures_command_with_explicit_operator_acknowledgement"
+    return "review_backend_futures_command_suite_evidence"
 
 
 def _futures_live_exchange_command(command: str) -> bool:
