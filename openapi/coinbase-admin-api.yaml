@@ -11730,6 +11730,38 @@ components:
           anyOf:
           - $ref: '#/components/schemas/AdminLiveAdmissionDecisionEvidence'
           - type: 'null'
+        cap_guard_present:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Cap Guard Present
+        cap_guard_decision_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Decision Id
+        cap_guard_decision:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Cap Guard Decision
+        reconciliation_plan_present:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Reconciliation Plan Present
+        reconciliation_plan_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Plan Id
+        reconciliation_plan:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Reconciliation Plan
         stealth_admission_context:
           anyOf:
           - $ref: '#/components/schemas/StealthCommandAdmissionContextEvidence'

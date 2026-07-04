@@ -59,6 +59,23 @@ def test_admin_live_decision_openapi_exposes_futures_scope_fields():
     assert adapter_scope_fields <= set(schemas["AdminLiveAdapterDecisionItem"]["required"])
 
 
+def test_admin_command_openapi_exposes_proof_chain_response_fields():
+    openapi = yaml.safe_load(
+        Path("openapi/coinbase-admin-api.yaml").read_text(encoding="utf-8")
+    )
+    command_response = openapi["components"]["schemas"]["AdminApiCommandResponse"]
+    proof_chain_fields = {
+        "cap_guard_present",
+        "cap_guard_decision_id",
+        "cap_guard_decision",
+        "reconciliation_plan_present",
+        "reconciliation_plan_id",
+        "reconciliation_plan",
+    }
+
+    assert proof_chain_fields <= set(command_response["properties"])
+
+
 def test_admin_runtime_openapi_exposes_status_and_control_paths():
     openapi = yaml.safe_load(
         Path("openapi/coinbase-admin-api.yaml").read_text(encoding="utf-8")
