@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from decimal import Decimal
 import json
@@ -60,6 +60,7 @@ class FuturesLiveFillReadbackConfig:
     backend_contract_ref: str | None = None
     order_statuses: tuple[str, ...] = DEFAULT_ORDER_STATUSES
     fill_limit: int = 100
+    require_submission_artifact: bool = False
 
 
 @dataclass(frozen=True)
@@ -120,6 +121,7 @@ def config_from_args(args: argparse.Namespace) -> FuturesLiveFillReadbackConfig:
         backend_contract_ref=args.backend_contract_ref,
         order_statuses=order_statuses or DEFAULT_ORDER_STATUSES,
         fill_limit=max(int(args.fill_limit or 100), 1),
+        require_submission_artifact=True,
     )
 
 
@@ -131,22 +133,25 @@ def run_futures_live_fill_readback(
 
     started_at = current_utc_timestamp()
     started = time.perf_counter()
-    order_read = read_order_by_client_order_id(rest_client, config)
+    submission_artifact = read_optional_json_object(config.submission_artifact)
+    effective_config = config_with_submission_defaults(config, submission_artifact)
+    order_read = read_order_by_client_order_id(rest_client, effective_config)
     order = order_read.order or {}
     exchange_order_id = text_value(
         order.get("order_id")
         or order.get("exchange_order_id")
         or order.get("coinbase_order_id")
     )
-    product_id = text_value(order.get("product_id")) or text_value(config.product_id)
+    product_id = text_value(order.get("product_id")) or text_value(effective_config.product_id)
     fill_read = read_fills_for_exchange_order(
         rest_client,
         exchange_order_id=exchange_order_id,
         product_id=product_id,
-        limit=config.fill_limit,
+        limit=effective_config.fill_limit,
     )
     return build_summary(
-        config=config,
+        config=effective_config,
+        submission_artifact=submission_artifact,
         started_at=started_at,
         duration_seconds=time.perf_counter() - started,
         order_read=order_read,
@@ -154,6 +159,21 @@ def run_futures_live_fill_readback(
         exchange_order_id=exchange_order_id,
         product_id=product_id,
     )
+
+
+def config_with_submission_defaults(
+    config: FuturesLiveFillReadbackConfig,
+    submission_artifact: Mapping[str, Any],
+) -> FuturesLiveFillReadbackConfig:
+    """Return config with missing order identity filled from submission evidence."""
+
+    client_order_id = optional_text(config.client_order_id) or optional_text(
+        submission_artifact.get("client_order_id")
+    )
+    product_id = optional_text(config.product_id) or optional_text(
+        submission_artifact.get("product_id")
+    )
+    return replace(config, client_order_id=client_order_id, product_id=product_id)
 
 
 def read_order_by_client_order_id(
@@ -222,6 +242,7 @@ def read_fills_for_exchange_order(
 def build_summary(
     *,
     config: FuturesLiveFillReadbackConfig,
+    submission_artifact: Mapping[str, Any],
     started_at: str,
     duration_seconds: float,
     order_read: OrderReadResult,
@@ -238,6 +259,11 @@ def build_summary(
         exchange_order_id=exchange_order_id,
         product_id=product_id,
     )
+    submission_summary = summarize_submission_artifact(
+        submission_artifact,
+        client_order_id=text_value(config.client_order_id),
+        product_id=product_id,
+    )
     filled_order_found = order_status.upper() in FILLED_STATUSES
     checks = futures_live_fill_readback_checks(
         config=config,
@@ -246,6 +272,7 @@ def build_summary(
         order_status=order_status,
         exchange_order_id=exchange_order_id,
         fill_summary=fill_summary,
+        submission_summary=submission_summary,
     )
     return {
         "schema_version": SCHEMA_VERSION,
@@ -292,6 +319,7 @@ def build_summary(
         "live_coinbase_orders_ran": False,
         "read_only": True,
         "operator_identity_key": "client_order_id",
+        **submission_summary,
         "checks": checks,
     }
 
@@ -304,10 +332,11 @@ def futures_live_fill_readback_checks(
     order_status: str,
     exchange_order_id: str,
     fill_summary: Mapping[str, Any],
+    submission_summary: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
     """Return pass/fail checks for the fill-readback artifact."""
 
-    return [
+    checks = [
         check("futures_client_order_id_present", bool(text_value(config.client_order_id))),
         check("futures_order_read_attempted", order_read.attempted),
         check("futures_order_read_succeeded", order_read.succeeded),
@@ -328,6 +357,147 @@ def futures_live_fill_readback_checks(
         ),
         check("futures_live_coinbase_orders_not_run", True),
     ]
+    if not config.require_submission_artifact:
+        return checks
+    checks.extend(
+        [
+            check(
+                "futures_submission_artifact_present",
+                submission_summary.get("submission_artifact_present") is True,
+            ),
+            check(
+                "futures_submission_artifact_type",
+                submission_summary.get("submission_artifact_type")
+                == "coinbase_admin_api_futures_live_submit",
+            ),
+            check(
+                "futures_submission_artifact_passed",
+                submission_summary.get("submission_artifact_status") == "passed",
+            ),
+            check(
+                "futures_submission_artifact_matches_client_order_id",
+                submission_summary.get("submission_artifact_matches_client_order_id")
+                is True,
+            ),
+            check(
+                "futures_submission_artifact_matches_product_id",
+                submission_summary.get("submission_artifact_matches_product_id") is True,
+            ),
+            check(
+                "futures_submission_artifact_live_submitted",
+                submission_summary.get("submission_artifact_live_exchange_submitted")
+                is True
+                and submission_summary.get(
+                    "submission_artifact_live_coinbase_execution"
+                )
+                == "submitted"
+                and submission_summary.get(
+                    "submission_artifact_live_coinbase_orders_ran"
+                )
+                is True,
+            ),
+            check(
+                "futures_submission_artifact_exchange_order_id_evidence_only",
+                submission_summary.get(
+                    "submission_artifact_exchange_order_id_present"
+                )
+                is True
+                and submission_summary.get(
+                    "submission_artifact_exchange_order_id_evidence_only"
+                )
+                is True,
+            ),
+            check(
+                "futures_submission_artifact_audit_proof_chain_readback",
+                submission_summary.get(
+                    "submission_artifact_audit_proof_chain_readback_present"
+                )
+                is True,
+            ),
+            check(
+                "futures_submission_artifact_cap_guard_readback",
+                submission_summary.get("submission_artifact_audit_cap_guard_present")
+                is True
+                and bool(
+                    submission_summary.get(
+                        "submission_artifact_audit_cap_guard_decision_id"
+                    )
+                ),
+            ),
+            check(
+                "futures_submission_artifact_reconciliation_plan_readback",
+                submission_summary.get(
+                    "submission_artifact_audit_reconciliation_plan_present"
+                )
+                is True
+                and bool(
+                    submission_summary.get(
+                        "submission_artifact_audit_reconciliation_plan_id"
+                    )
+                ),
+            ),
+        ]
+    )
+    return checks
+
+
+def summarize_submission_artifact(
+    submission_artifact: Mapping[str, Any],
+    *,
+    client_order_id: str,
+    product_id: str,
+) -> dict[str, Any]:
+    """Return proof that fill readback belongs to the prior live submit."""
+
+    artifact_client_order_id = text_value(submission_artifact.get("client_order_id"))
+    artifact_product_id = text_value(submission_artifact.get("product_id"))
+    return {
+        "submission_artifact_present": bool(submission_artifact),
+        "submission_artifact_type": text_value(submission_artifact.get("artifact_type")),
+        "submission_artifact_status": text_value(submission_artifact.get("status")),
+        "submission_artifact_client_order_id": artifact_client_order_id,
+        "submission_artifact_matches_client_order_id": bool(client_order_id)
+        and artifact_client_order_id == client_order_id,
+        "submission_artifact_product_id": artifact_product_id,
+        "submission_artifact_matches_product_id": bool(product_id)
+        and artifact_product_id == product_id,
+        "submission_artifact_submission_event_id": text_value(
+            submission_artifact.get("submission_event_id")
+        ),
+        "submission_artifact_live_exchange_submitted": bool(
+            submission_artifact.get("live_exchange_submitted")
+        ),
+        "submission_artifact_live_coinbase_execution": text_value(
+            submission_artifact.get("live_coinbase_execution")
+        ),
+        "submission_artifact_live_coinbase_orders_ran": bool(
+            submission_artifact.get("live_coinbase_orders_ran")
+        ),
+        "submission_artifact_exchange_order_id_present": bool(
+            submission_artifact.get("exchange_order_id_present")
+        ),
+        "submission_artifact_exchange_order_id_evidence_only": bool(
+            submission_artifact.get("exchange_order_id_evidence_only")
+        ),
+        "submission_artifact_audit_proof_chain_readback_present": bool(
+            submission_artifact.get("audit_proof_chain_readback_present")
+        ),
+        "submission_artifact_audit_submission_event_id": text_value(
+            submission_artifact.get("audit_submission_event_id")
+        ),
+        "submission_artifact_audit_cap_guard_present": bool(
+            submission_artifact.get("audit_cap_guard_present")
+        ),
+        "submission_artifact_audit_cap_guard_decision_id": text_value(
+            submission_artifact.get("audit_cap_guard_decision_id")
+        ),
+        "submission_artifact_audit_reconciliation_plan_present": bool(
+            submission_artifact.get("audit_reconciliation_plan_present")
+        ),
+        "submission_artifact_audit_reconciliation_plan_id": text_value(
+            submission_artifact.get("audit_reconciliation_plan_id")
+        ),
+    }
 
 
 def summarize_fills(

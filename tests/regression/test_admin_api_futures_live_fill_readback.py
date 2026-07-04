@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 
 from tools.run_admin_api_futures_live_fill_readback import (
     FuturesLiveFillReadbackConfig,
@@ -29,7 +30,36 @@ class FakeFuturesReadbackRestClient:
         return self.list_fills_response
 
 
-def test_futures_live_fill_readback_proves_filled_order_by_client_order_id():
+def write_passed_submission_artifact(tmp_path):
+    artifact = tmp_path / "coinbase-backend-futures-live-submit.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "artifact_type": "coinbase_admin_api_futures_live_submit",
+                "status": "passed",
+                "client_order_id": "futures-live-submit-test",
+                "product_id": "AVP-20DEC30-CDE",
+                "submission_event_id": "submission-event-1",
+                "live_exchange_submitted": True,
+                "live_coinbase_execution": "submitted",
+                "live_coinbase_orders_ran": True,
+                "exchange_order_id_present": True,
+                "exchange_order_id_evidence_only": True,
+                "audit_proof_chain_readback_present": True,
+                "audit_submission_event_id": "submission-event-1",
+                "audit_cap_guard_present": True,
+                "audit_cap_guard_decision_id": "cap-guard-1",
+                "audit_reconciliation_plan_present": True,
+                "audit_reconciliation_plan_id": "reconciliation-plan-1",
+            }
+        ),
+        encoding="utf-8",
+    )
+    return artifact
+
+
+def test_futures_live_fill_readback_proves_filled_order_by_client_order_id(tmp_path):
+    submission_artifact = write_passed_submission_artifact(tmp_path)
     rest_client = FakeFuturesReadbackRestClient(
         list_orders_response={
             "orders": [
@@ -64,7 +94,9 @@ def test_futures_live_fill_readback_proves_filled_order_by_client_order_id():
         FuturesLiveFillReadbackConfig(
             client_order_id="futures-live-submit-test",
             product_id="AVP-20DEC30-CDE",
+            submission_artifact=submission_artifact,
             backend_contract_ref="backend-ref",
+            require_submission_artifact=True,
         ),
     )
 
@@ -82,6 +114,23 @@ def test_futures_live_fill_readback_proves_filled_order_by_client_order_id():
     assert summary["fill_read_status"] == "filled"
     assert summary["executed_notional_usdc"] == "68.70"
     assert summary["notional_usdc"] == "0"
+    assert summary["submission_artifact_present"] is True
+    assert summary["submission_artifact_status"] == "passed"
+    assert summary["submission_artifact_matches_client_order_id"] is True
+    assert summary["submission_artifact_matches_product_id"] is True
+    assert summary["submission_artifact_live_exchange_submitted"] is True
+    assert summary["submission_artifact_live_coinbase_execution"] == "submitted"
+    assert summary["submission_artifact_audit_proof_chain_readback_present"] is True
+    assert summary["submission_artifact_audit_cap_guard_decision_id"] == "cap-guard-1"
+    assert (
+        summary["submission_artifact_audit_reconciliation_plan_id"]
+        == "reconciliation-plan-1"
+    )
+    assert {
+        "futures_submission_artifact_present",
+        "futures_submission_artifact_matches_client_order_id",
+        "futures_submission_artifact_audit_proof_chain_readback",
+    }.issubset({check["name"] for check in summary["checks"]})
     assert all(check["passed"] for check in summary["checks"])
     assert rest_client.list_orders_calls == [{"order_status": ["FILLED"]}]
     assert rest_client.list_fills_calls == [
@@ -89,7 +138,8 @@ def test_futures_live_fill_readback_proves_filled_order_by_client_order_id():
     ]
 
 
-def test_futures_live_fill_readback_fails_when_order_is_not_filled():
+def test_futures_live_fill_readback_fails_when_order_is_not_filled(tmp_path):
+    submission_artifact = write_passed_submission_artifact(tmp_path)
     rest_client = FakeFuturesReadbackRestClient(
         list_orders_responses_by_status={
             "FILLED": {"orders": []},
@@ -113,7 +163,9 @@ def test_futures_live_fill_readback_fails_when_order_is_not_filled():
         FuturesLiveFillReadbackConfig(
             client_order_id="futures-live-submit-test",
             product_id="AVP-20DEC30-CDE",
+            submission_artifact=submission_artifact,
             backend_contract_ref="backend-ref",
+            require_submission_artifact=True,
         ),
     )
 
@@ -131,7 +183,8 @@ def test_futures_live_fill_readback_fails_when_order_is_not_filled():
     ]
 
 
-def test_futures_live_fill_readback_fails_when_fill_order_id_does_not_match():
+def test_futures_live_fill_readback_fails_when_fill_order_id_does_not_match(tmp_path):
+    submission_artifact = write_passed_submission_artifact(tmp_path)
     rest_client = FakeFuturesReadbackRestClient(
         list_orders_response={
             "orders": [
@@ -163,7 +216,9 @@ def test_futures_live_fill_readback_fails_when_fill_order_id_does_not_match():
         FuturesLiveFillReadbackConfig(
             client_order_id="futures-live-submit-test",
             product_id="AVP-20DEC30-CDE",
+            submission_artifact=submission_artifact,
             backend_contract_ref="backend-ref",
+            require_submission_artifact=True,
         ),
     )
 
