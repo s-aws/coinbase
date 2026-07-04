@@ -2507,6 +2507,23 @@ def test_admin_mvp_explicit_live_execution_flows_through_backend_service_only():
     assert accepted_event["live_coinbase_orders_ran"] is True
     assert accepted_event["admission_decision"]["status"] == "passed"
     assert accepted_event["admission_decision"]["allowed"] is True
+    for module_alias in ("spot_operations", "orders"):
+        alias_workbench = service.get_read_response(
+            "/api/v1/admin/audit-workbench",
+            {"module": module_alias, "client_order_id": admission["identity_value"]},
+            context(),
+        )
+        assert alias_workbench.status_code == 200
+        assert alias_workbench.body["count"] == 2
+        assert alias_workbench.body["pagination"]["total_matching_count"] == 2
+        assert alias_workbench.body["module_summary"][0]["module"] == "spot"
+        assert alias_workbench.body["live_coinbase_orders_ran"] is True
+        assert any(
+            event["status"] == "accepted"
+            and event["client_order_id"] == admission["identity_value"]
+            and event["live_exchange_submitted"] is True
+            for event in alias_workbench.body["events"]
+        )
 
 
 def test_admin_mvp_live_execution_rejects_unsuccessful_coinbase_create_order_response():

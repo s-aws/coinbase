@@ -6813,8 +6813,8 @@ def _filter_audit_workbench_events(
     events: list[dict[str, Any]],
     query: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
+    module_filter = _query_text(query, "module")
     filters = {
-        "module": _query_text(query, "module"),
         "product_id": _query_text(query, "product_id"),
         "position_key": _query_text(query, "position_key"),
         "client_order_id": _query_text(query, "client_order_id"),
@@ -6824,11 +6824,27 @@ def _filter_audit_workbench_events(
     return [
         event
         for event in events
-        if all(
+        if _audit_workbench_module_matches(event.get("module"), module_filter)
+        and all(
             not expected or str(event.get(key) or "") == expected
             for key, expected in filters.items()
         )
     ]
+
+
+def _audit_workbench_module_matches(event_module: Any, expected_module: str | None) -> bool:
+    if not expected_module:
+        return True
+    return _audit_workbench_canonical_module(event_module) == _audit_workbench_canonical_module(
+        expected_module
+    )
+
+
+def _audit_workbench_canonical_module(value: Any) -> str:
+    module = str(value or "").strip().lower()
+    if module in {"orders", "spot", MANUAL_ORDER_MODULE_ID}:
+        return "spot"
+    return module
 
 
 def _audit_workbench_module_summary(
