@@ -2062,6 +2062,7 @@ def test_admin_futures_place_live_execution_rejects_above_backend_cap():
             "contract_size": "0.01",
             "minimum_contracts": "1",
             "minimum_contract_notional_usdc": "626.25",
+            "minimum_contract_notional_source": "backend_product_metadata",
             "max_submitted_notional_usdc": "3.10",
             "within_backend_cap": False,
             "execution_allowed": False,
@@ -2096,6 +2097,54 @@ def test_admin_futures_place_live_execution_rejects_above_backend_cap():
     assert command_suite.body["command_enablement_blocker_summaries"][0][
         "latest_live_submit_failure"
     ]["attempted_notional_usdc"] == "5.00"
+
+
+def test_admin_futures_product_exposure_falls_back_to_latest_live_submit_failure():
+    rest_client = FakeAccountRestClient()
+    rest_client.product_dicts = {}
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        )
+    )
+    record_futures_live_service_decision(service)
+    record_all_futures_live_adapter_decisions(service)
+
+    result = service.submit_futures_command(
+        "/api/v1/futures/orders",
+        {
+            "product_id": "BIP-20DEC30-CDE",
+            "side": "BUY",
+            "order_type": "LIMIT",
+            "limit_price": "500",
+            "size": "1",
+            "dry_run": False,
+            "manual_live_acknowledgement": True,
+        },
+        context(idempotency_key="futures-place-live-over-cap-metadata-missing"),
+    )
+
+    assert result.status_code == 400
+    assert result.body["failure_stage"] == "futures_cap_required"
+
+    command_suite = service.get_read_response(
+        "/api/v1/futures/command-suite",
+        {},
+        context(idempotency_key="futures-place-live-over-cap-metadata-missing-suite"),
+    )
+
+    assert command_suite.status_code == 200
+    exposure = command_suite.body["futures_product_exposure_evidence"]
+    assert exposure["status"] == "blocked"
+    assert exposure["items"][0]["metadata_read_status"] == "blocked"
+    assert exposure["items"][0]["metadata_read_error"] == "product_metadata_missing"
+    assert exposure["items"][0]["minimum_contract_notional_usdc"] == "5.00"
+    assert exposure["items"][0]["minimum_contract_notional_source"] == (
+        "latest_live_submit_failure"
+    )
+    assert exposure["items"][0]["within_backend_cap"] is False
 
 
 def test_admin_futures_place_live_execution_requires_runtime_enablement():

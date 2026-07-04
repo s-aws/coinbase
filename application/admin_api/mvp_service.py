@@ -2237,6 +2237,7 @@ class AdminMvpService:
     def _futures_product_exposure_evidence(
         self,
         live_decision_summary: Mapping[str, Any],
+        latest_live_submit_failure: Mapping[str, Any] | None = None,
     ) -> dict[str, Any]:
         """Return configured Futures product exposure versus backend cap evidence."""
 
@@ -2244,7 +2245,11 @@ class AdminMvpService:
             {"live_decision_evidence": live_decision_summary}
         )
         items = [
-            self._futures_product_exposure_item(product_id, cap)
+            self._futures_product_exposure_item(
+                product_id,
+                cap,
+                latest_live_submit_failure,
+            )
             for product_id in FUTURES_CONFIGURED_PRODUCT_SCOPE
         ]
         any_within_cap = any(bool(item["within_backend_cap"]) for item in items)
@@ -2282,6 +2287,7 @@ class AdminMvpService:
         self,
         product_id: str,
         cap: Decimal,
+        latest_live_submit_failure: Mapping[str, Any] | None,
     ) -> dict[str, Any]:
         """Return one configured Futures product exposure row."""
 
@@ -2292,7 +2298,7 @@ class AdminMvpService:
             ("price_increment", "quote_increment"),
         )
         contract_size = futures_contract_size_for_product(product_id, metadata)
-        minimum_notional = (
+        metadata_notional = (
             futures_place_notional_usdc(
                 {
                     "product_id": product_id,
@@ -2304,8 +2310,21 @@ class AdminMvpService:
             if limit_price is not None and contract_size > 0
             else Decimal("0")
         )
+        failure_notional = _futures_latest_submit_failure_notional_for_product(
+            latest_live_submit_failure,
+            product_id,
+        )
+        if metadata_notional > 0:
+            minimum_notional = metadata_notional
+            minimum_notional_source = "backend_product_metadata"
+        elif failure_notional > 0:
+            minimum_notional = failure_notional
+            minimum_notional_source = "latest_live_submit_failure"
+        else:
+            minimum_notional = Decimal("0")
+            minimum_notional_source = "unavailable"
         metadata_ready = read_error is None and limit_price is not None and contract_size > 0
-        within_cap = metadata_ready and minimum_notional <= cap
+        within_cap = minimum_notional > 0 and minimum_notional <= cap
         return {
             "product_id": product_id,
             "status": "ready" if within_cap else AdminMvpGateStatus.BLOCKED.value,
@@ -2320,6 +2339,7 @@ class AdminMvpService:
             "contract_size": _decimal_text(contract_size),
             "minimum_contracts": "1",
             "minimum_contract_notional_usdc": _decimal_text(minimum_notional),
+            "minimum_contract_notional_source": minimum_notional_source,
             "max_submitted_notional_usdc": _decimal_text(cap),
             "within_backend_cap": within_cap,
             "execution_allowed": False,
@@ -4796,7 +4816,8 @@ class AdminMvpService:
         live_decision_summary = _futures_live_decision_summary(commands)
         latest_live_submit_failure = self._latest_futures_live_submit_failure()
         futures_product_exposure_evidence = self._futures_product_exposure_evidence(
-            live_decision_summary
+            live_decision_summary,
+            latest_live_submit_failure,
         )
         live_decision_summary["latest_live_submit_failure"] = latest_live_submit_failure
         live_decision_summary["latest_live_submit_failure_present"] = (
@@ -5578,6 +5599,22 @@ def _manual_order_notional(body: Mapping[str, Any]) -> Decimal:
     base_size = _decimal_value(body.get("base_size"), Decimal("0"))
     limit_price = _decimal_value(body.get("limit_price"), Decimal("0"))
     return base_size * limit_price
+
+
+def _futures_latest_submit_failure_notional_for_product(
+    latest_live_submit_failure: Mapping[str, Any] | None,
+    product_id: str,
+) -> Decimal:
+    """Return latest failed Futures submit notional for one product."""
+
+    if not latest_live_submit_failure:
+        return Decimal("0")
+    if str(latest_live_submit_failure.get("product_id") or "") != product_id:
+        return Decimal("0")
+    return _decimal_value(
+        latest_live_submit_failure.get("attempted_notional_usdc"),
+        Decimal("0"),
+    )
 
 
 def _futures_default_limit_price(
