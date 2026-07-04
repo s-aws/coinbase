@@ -48,7 +48,9 @@ NOTIONAL_USDC = "0"
 FUTURES_MODULE_ID = "futures_perpetuals"
 FUTURES_ACCOUNT_FAMILY = "coinbase_futures_us_cfm"
 FUTURES_INTX_APPLICABILITY = "not_applicable_us_account"
-FUTURES_PRODUCT_ID = "BIP-20DEC30-CDE"
+FUTURES_PRODUCT_ID = "AVP-20DEC30-CDE"
+FUTURES_MAX_SUBMITTED_NOTIONAL_USDC = "100.00"
+FUTURES_MAX_EXECUTED_NOTIONAL_USDC = "100.00"
 FUTURES_COMMAND_ROUTE = "/api/v1/futures/orders"
 FUTURES_COMMAND_SERVICE_METHOD = "place_futures_order"
 FUTURES_CANCEL_CLIENT_ORDER_ID = "futures-executor-boundary-client-order"
@@ -172,8 +174,8 @@ def record_futures_live_service_decision(
             "intx_applicability": FUTURES_INTX_APPLICABILITY,
             "product_scope": [config.product_id],
             "live_coinbase_execution_approved": True,
-            "max_submitted_notional_usdc": "3.10",
-            "max_executed_notional_usdc": "1.00",
+            "max_submitted_notional_usdc": FUTURES_MAX_SUBMITTED_NOTIONAL_USDC,
+            "max_executed_notional_usdc": FUTURES_MAX_EXECUTED_NOTIONAL_USDC,
             "deployment_ref": "coinbase-local",
             "runtime_configuration_ref": "coinbase-local-runtime",
             "decision_reason": (
@@ -211,8 +213,8 @@ def record_futures_live_adapter_decisions(
                     "adapter_constructed": True,
                     "adapter_enabled": True,
                     "live_coinbase_execution_approved": True,
-                    "max_submitted_notional_usdc": "3.10",
-                    "max_executed_notional_usdc": "1.00",
+                    "max_submitted_notional_usdc": FUTURES_MAX_SUBMITTED_NOTIONAL_USDC,
+                    "max_executed_notional_usdc": FUTURES_MAX_EXECUTED_NOTIONAL_USDC,
                     "construction_review_ref": "futures-us-cfm-adapter-construction-review",
                     "decision_reason": (
                         "Record US CFM Futures/Perpetual backend live-adapter "

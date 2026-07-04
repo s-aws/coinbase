@@ -61,8 +61,10 @@ FUTURES_INTX_APPLICABILITY_US_ACCOUNT = (
     AdminMvpFuturesIntxApplicability.NOT_APPLICABLE_US_ACCOUNT.value
 )
 UNSCOPED_LIVE_DECISION_VALUE = "unscoped"
-FUTURES_CONFIGURED_PRODUCT_SCOPE = ("BIP-20DEC30-CDE",)
+FUTURES_CONFIGURED_PRODUCT_SCOPE = ("AVP-20DEC30-CDE", "BIP-20DEC30-CDE")
 FUTURES_CDE_CONTRACT_SIZE_BY_SYMBOL = {
+    "AVA": "10",
+    "AVP": "10",
     "BIP": "0.01",
     "BIT": "0.01",
     "ET": "0.10",
@@ -199,6 +201,8 @@ LIVE_ADAPTER_DECISION_PERMISSION = "config:update"
 LIVE_ADAPTER_DECISION_SERVICE_METHOD = "record_live_adapter_decision"
 DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC = Decimal("3.10")
 DEFAULT_MAX_EXECUTED_NOTIONAL_USDC = Decimal("1.00")
+DEFAULT_FUTURES_MAX_SUBMITTED_NOTIONAL_USDC = Decimal("100.00")
+DEFAULT_FUTURES_MAX_EXECUTED_NOTIONAL_USDC = Decimal("100.00")
 DEFAULT_WALLET_AVAILABLE_NOTIONAL_USDC = Decimal("0")
 TRUTHY_ENV_VALUES = {"1", "true", "yes", "on"}
 ADMIN_MVP_EVIDENCE_LOG_PATH_ENVS = {
@@ -677,13 +681,13 @@ class AdminMvpService:
             "max_submitted_notional_usdc": _decimal_text(
                 _decimal_value(
                     body.get("max_submitted_notional_usdc"),
-                    DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC,
+                    _default_live_max_submitted_notional(body),
                 )
             ),
             "max_executed_notional_usdc": _decimal_text(
                 _decimal_value(
                     body.get("max_executed_notional_usdc"),
-                    DEFAULT_MAX_EXECUTED_NOTIONAL_USDC,
+                    _default_live_max_executed_notional(body),
                 )
             ),
             "enablement_precondition_required": True,
@@ -801,10 +805,16 @@ class AdminMvpService:
                 body.get("live_coinbase_execution_approved", False)
             ),
             "max_submitted_notional_usdc": _decimal_text(
-                _decimal_value(body.get("max_submitted_notional_usdc"), Decimal("0"))
+                _decimal_value(
+                    body.get("max_submitted_notional_usdc"),
+                    _default_live_max_submitted_notional(body),
+                )
             ),
             "max_executed_notional_usdc": _decimal_text(
-                _decimal_value(body.get("max_executed_notional_usdc"), Decimal("0"))
+                _decimal_value(
+                    body.get("max_executed_notional_usdc"),
+                    _default_live_max_executed_notional(body),
+                )
             ),
             "construction_precondition_required": True,
             "construction_precondition_resolved": False,
@@ -1651,13 +1661,13 @@ class AdminMvpService:
             "max_submitted_notional_usdc": _decimal_text(
                 _decimal_value(
                     body.get("max_submitted_notional_usdc"),
-                    DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC,
+                    _default_live_max_submitted_notional(body),
                 )
             ),
             "max_executed_notional_usdc": _decimal_text(
                 _decimal_value(
                     body.get("max_executed_notional_usdc"),
-                    DEFAULT_MAX_EXECUTED_NOTIONAL_USDC,
+                    _default_live_max_executed_notional(body),
                 )
             ),
             "wallet_check_required": bool(body.get("wallet_check_required", True)),
@@ -1731,13 +1741,13 @@ class AdminMvpService:
             "max_submitted_notional_usdc": _decimal_text(
                 _decimal_value(
                     body.get("max_submitted_notional_usdc"),
-                    DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC,
+                    _default_live_max_submitted_notional(body),
                 )
             ),
             "max_executed_notional_usdc": _decimal_text(
                 _decimal_value(
                     body.get("max_executed_notional_usdc"),
-                    DEFAULT_MAX_EXECUTED_NOTIONAL_USDC,
+                    _default_live_max_executed_notional(body),
                 )
             ),
             "correlation_id": context.correlation_id,
@@ -2625,7 +2635,7 @@ class AdminMvpService:
         readiness_decision: Mapping[str, Any],
     ) -> Decimal:
         live_decision = dict(readiness_decision.get("live_decision_evidence") or {})
-        caps = [DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC]
+        caps = [DEFAULT_FUTURES_MAX_SUBMITTED_NOTIONAL_USDC]
         service_decision_id = str(live_decision.get("matching_service_decision_id") or "")
         if service_decision_id in self.store.service_decisions:
             caps.append(
@@ -2633,7 +2643,7 @@ class AdminMvpService:
                     self.store.service_decisions[service_decision_id].get(
                         "max_submitted_notional_usdc"
                     ),
-                    DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC,
+                    DEFAULT_FUTURES_MAX_SUBMITTED_NOTIONAL_USDC,
                 )
             )
         adapter_decision_id = str(live_decision.get("matching_adapter_decision_id") or "")
@@ -2643,7 +2653,7 @@ class AdminMvpService:
                     self.store.live_adapter_decisions[adapter_decision_id].get(
                         "max_submitted_notional_usdc"
                     ),
-                    DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC,
+                    DEFAULT_FUTURES_MAX_SUBMITTED_NOTIONAL_USDC,
                 )
             )
         return min(caps)
@@ -8203,6 +8213,30 @@ def _evidence_refs(*records: dict[str, Any] | None) -> list[str]:
                 refs.append(str(value))
                 break
     return refs
+
+
+def _default_live_max_submitted_notional(body: Mapping[str, Any]) -> Decimal:
+    if _live_decision_targets_futures(body):
+        return DEFAULT_FUTURES_MAX_SUBMITTED_NOTIONAL_USDC
+    return DEFAULT_MAX_SUBMITTED_NOTIONAL_USDC
+
+
+def _default_live_max_executed_notional(body: Mapping[str, Any]) -> Decimal:
+    if _live_decision_targets_futures(body):
+        return DEFAULT_FUTURES_MAX_EXECUTED_NOTIONAL_USDC
+    return DEFAULT_MAX_EXECUTED_NOTIONAL_USDC
+
+
+def _live_decision_targets_futures(body: Mapping[str, Any]) -> bool:
+    module_id = str(body.get("target_module_id") or body.get("module_id") or "")
+    if module_id == FUTURES_MODULE_ID:
+        return True
+    if str(body.get("account_family") or "") == FUTURES_ACCOUNT_FAMILY_US_CFM:
+        return True
+    return any(
+        product_id in FUTURES_CONFIGURED_PRODUCT_SCOPE
+        for product_id in _string_list(body.get("product_scope"))
+    )
 
 
 def _decimal_value(value: Any, default: Decimal) -> Decimal:

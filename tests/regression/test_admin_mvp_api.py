@@ -175,6 +175,16 @@ class FakeAccountRestClient(FakeRestClient):
     futures_margin_collateral_exception: Exception | None = None
     product_dicts: dict[str, dict] = field(
         default_factory=lambda: {
+            "AVP-20DEC30-CDE": {
+                "product_id": "AVP-20DEC30-CDE",
+                "product_type": "FUTURE",
+                "price": "6.92",
+                "best_bid": "6.92",
+                "best_ask": "6.93",
+                "price_increment": "0.01",
+                "base_increment": "1",
+                "future_product_details": {"contract_size": "10"},
+            },
             "BIP-20DEC30-CDE": {
                 "product_id": "BIP-20DEC30-CDE",
                 "product_type": "FUTURE",
@@ -325,6 +335,7 @@ def record_futures_live_service_decision(
     account_family: str = "coinbase_futures_us_cfm",
     intx_applicability: str = "not_applicable_us_account",
     product_scope: list[str] | None = None,
+    max_submitted_notional_usdc: str = "100.00",
 ) -> None:
     result = service.record_live_service_decision(
         {
@@ -335,10 +346,10 @@ def record_futures_live_service_decision(
             "target_module_id": "futures_perpetuals",
             "account_family": account_family,
             "intx_applicability": intx_applicability,
-            "product_scope": product_scope or ["BIP-20DEC30-CDE"],
+            "product_scope": product_scope or ["AVP-20DEC30-CDE"],
             "live_coinbase_execution_approved": True,
-            "max_submitted_notional_usdc": "3.10",
-            "max_executed_notional_usdc": "1.00",
+            "max_submitted_notional_usdc": max_submitted_notional_usdc,
+            "max_executed_notional_usdc": "100.00",
         },
         context(idempotency_key=decision_id),
     )
@@ -355,6 +366,7 @@ def record_futures_live_adapter_decision(
     account_family: str = "coinbase_futures_us_cfm",
     intx_applicability: str = "not_applicable_us_account",
     product_scope: list[str] | None = None,
+    max_submitted_notional_usdc: str = "100.00",
 ) -> None:
     result = service.record_live_adapter_decision(
         {
@@ -370,10 +382,10 @@ def record_futures_live_adapter_decision(
             "adapter_enabled": True,
             "account_family": account_family,
             "intx_applicability": intx_applicability,
-            "product_scope": product_scope or ["BIP-20DEC30-CDE"],
+            "product_scope": product_scope or ["AVP-20DEC30-CDE"],
             "live_coinbase_execution_approved": True,
-            "max_submitted_notional_usdc": "3.10",
-            "max_executed_notional_usdc": "1.00",
+            "max_submitted_notional_usdc": max_submitted_notional_usdc,
+            "max_executed_notional_usdc": "100.00",
         },
         context(idempotency_key=decision_id),
     )
@@ -381,30 +393,38 @@ def record_futures_live_adapter_decision(
     assert result.body["live_coinbase_orders_ran"] is False
 
 
-def record_all_futures_live_adapter_decisions(service: AdminMvpService) -> None:
+def record_all_futures_live_adapter_decisions(
+    service: AdminMvpService,
+    *,
+    max_submitted_notional_usdc: str = "100.00",
+) -> None:
     record_futures_live_adapter_decision(
         service,
         decision_id="futures-us-cfm-place-adapter",
         target_route="/api/v1/futures/orders",
         target_service_method="place_futures_order",
+        max_submitted_notional_usdc=max_submitted_notional_usdc,
     )
     record_futures_live_adapter_decision(
         service,
         decision_id="futures-us-cfm-close-reduce-adapter",
         target_route="/api/v1/futures/positions/{position_key}/close-reduce",
         target_service_method="close_or_reduce_futures_position",
+        max_submitted_notional_usdc=max_submitted_notional_usdc,
     )
     record_futures_live_adapter_decision(
         service,
         decision_id="futures-us-cfm-cancel-adapter",
         target_route="/api/v1/futures/orders/{client_order_id}/cancel",
         target_service_method="cancel_futures_order",
+        max_submitted_notional_usdc=max_submitted_notional_usdc,
     )
     record_futures_live_adapter_decision(
         service,
         decision_id="futures-us-cfm-reconcile-adapter",
         target_route="/api/v1/futures/positions/{position_key}/reconciliation",
         target_service_method="reconcile_futures_position",
+        max_submitted_notional_usdc=max_submitted_notional_usdc,
     )
 
 
@@ -1127,6 +1147,48 @@ def test_cap_guard_uses_usd_quote_wallet_from_backend_snapshot():
     assert result.body["live_coinbase_orders_ran"] is False
 
 
+def test_futures_scoped_cap_records_default_to_futures_notional_cap():
+    service = AdminMvpService(AdminMvpDependencies())
+
+    futures_body = {
+        "route": "/api/v1/futures/orders",
+        "method": "POST",
+        "module_id": "futures_perpetuals",
+        "identity_key": "product_id",
+        "identity_value": "AVP-20DEC30-CDE",
+        "action_class": "live_exchange_place",
+        "required_permission": "order:create",
+        "service_method": "place_futures_order",
+        "account_family": "coinbase_futures_us_cfm",
+        "product_scope": ["AVP-20DEC30-CDE"],
+    }
+
+    cap_guard = service.record_cap_guard_decision(
+        futures_body,
+        context(idempotency_key="futures-default-cap-guard"),
+    )
+    reconciliation = service.record_reconciliation_plan(
+        futures_body,
+        context(idempotency_key="futures-default-reconciliation"),
+    )
+    spot_cap_guard = service.record_cap_guard_decision(
+        {"module_id": "spot_operations"},
+        context(idempotency_key="spot-default-cap-guard"),
+    )
+
+    assert cap_guard.status_code == 200
+    assert cap_guard.body["decision"]["max_submitted_notional_usdc"] == "100.00"
+    assert cap_guard.body["decision"]["max_executed_notional_usdc"] == "100.00"
+    assert reconciliation.status_code == 200
+    assert reconciliation.body["plan"]["max_submitted_notional_usdc"] == "100.00"
+    assert reconciliation.body["plan"]["max_executed_notional_usdc"] == "100.00"
+    assert spot_cap_guard.body["decision"]["max_submitted_notional_usdc"] == "3.10"
+    assert spot_cap_guard.body["decision"]["max_executed_notional_usdc"] == "1.00"
+    assert cap_guard.body["live_coinbase_orders_ran"] is False
+    assert reconciliation.body["live_coinbase_orders_ran"] is False
+    assert spot_cap_guard.body["live_coinbase_orders_ran"] is False
+
+
 def test_admin_wallet_route_is_registered_as_account_management_capability():
     service = AdminMvpService(
         AdminMvpDependencies(rest_client=FakeAccountRestClient(), rest_client_available=True)
@@ -1285,7 +1347,10 @@ def test_admin_futures_perpetuals_read_contract_exposes_blocked_contract_evidenc
     assert account.status_code == 200
     account_body = account.body
     assert account_body["type"] == "admin_futures_account"
-    assert account_body["configured_product_scope"] == ["BIP-20DEC30-CDE"]
+    assert account_body["configured_product_scope"] == [
+        "AVP-20DEC30-CDE",
+        "BIP-20DEC30-CDE",
+    ]
     assert account_body["observed_position_scope"] == []
     assert account_body["position_count"] == 0
     assert account_body["collateral"]["status"] == "blocked"
@@ -1762,7 +1827,7 @@ def test_admin_futures_command_suite_ignores_intx_live_decisions_for_us_cfm_scop
     assert suite["futures_live_execution_scope"] == {
         "account_family": "coinbase_futures_us_cfm",
         "intx_applicability": "not_applicable_us_account",
-        "product_scope": ["BIP-20DEC30-CDE"],
+        "product_scope": ["AVP-20DEC30-CDE", "BIP-20DEC30-CDE"],
         "execution_allowed": False,
     }
     assert suite["futures_live_decision_evidence"]["service_decision_status"] == (
@@ -2034,7 +2099,7 @@ def test_admin_futures_place_live_execution_rejects_above_backend_cap():
             "product_id": "BIP-20DEC30-CDE",
             "side": "BUY",
             "order_type": "LIMIT",
-            "limit_price": "500",
+            "limit_price": "80000",
             "size": "1",
             "dry_run": False,
             "manual_live_acknowledgement": True,
@@ -2046,7 +2111,7 @@ def test_admin_futures_place_live_execution_rejects_above_backend_cap():
     assert result.body["status"] == "rejected"
     assert result.body["failure_stage"] == "futures_cap_required"
     assert result.body["submitted_notional_usdc"] == "0"
-    assert result.body["notional_usdc"] == "5.00"
+    assert result.body["notional_usdc"] == "800.00"
     assert result.body["live_exchange_submitted"] is False
     assert rest_client.create_order_calls == []
 
@@ -2058,13 +2123,36 @@ def test_admin_futures_place_live_execution_rejects_above_backend_cap():
 
     assert command_suite.status_code == 200
     exposure = command_suite.body["futures_product_exposure_evidence"]
-    assert exposure["status"] == "blocked"
-    assert exposure["max_submitted_notional_usdc"] == "3.10"
-    assert exposure["any_product_within_backend_cap"] is False
+    assert exposure["status"] == "ready"
+    assert exposure["max_submitted_notional_usdc"] == "100.00"
+    assert exposure["any_product_within_backend_cap"] is True
     assert exposure["next_required_operator_decision"] == (
-        "configure_lower_exposure_us_cfm_product_or_raise_futures_cap"
+        "select_configured_us_cfm_product_within_cap"
     )
     assert exposure["items"] == [
+        {
+            "product_id": "AVP-20DEC30-CDE",
+            "status": "ready",
+            "metadata_read_status": "ready",
+            "metadata_read_error": None,
+            "source": "backend_rest_client",
+            "reference_side": "BUY",
+            "reference_limit_price": "6.92",
+            "price_increment": "0.01",
+            "contract_size": "10.00",
+            "minimum_contracts": "1",
+            "minimum_contract_notional_usdc": "69.20",
+            "minimum_contract_notional_source": "backend_product_metadata",
+            "max_submitted_notional_usdc": "100.00",
+            "within_backend_cap": True,
+            "execution_allowed": False,
+            "live_coinbase_orders_ran": False,
+            "backend_owned": True,
+            "read_only": True,
+            "spot_rule_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        },
         {
             "product_id": "BIP-20DEC30-CDE",
             "status": "blocked",
@@ -2078,7 +2166,7 @@ def test_admin_futures_place_live_execution_rejects_above_backend_cap():
             "minimum_contracts": "1",
             "minimum_contract_notional_usdc": "626.25",
             "minimum_contract_notional_source": "backend_product_metadata",
-            "max_submitted_notional_usdc": "3.10",
+            "max_submitted_notional_usdc": "100.00",
             "within_backend_cap": False,
             "execution_allowed": False,
             "live_coinbase_orders_ran": False,
@@ -2091,15 +2179,15 @@ def test_admin_futures_place_live_execution_rejects_above_backend_cap():
     ]
     assert command_suite.body["futures_live_decision_evidence"][
         "futures_product_exposure_evidence"
-    ]["any_product_within_backend_cap"] is False
+    ]["any_product_within_backend_cap"] is True
     failure = command_suite.body["latest_live_submit_failure"]
     assert command_suite.body["latest_live_submit_failure_present"] is True
     assert failure["failure_stage"] == "futures_cap_required"
     assert failure["product_id"] == "BIP-20DEC30-CDE"
     assert failure["client_order_id"] == "futures-place-live-over-cap"
-    assert failure["attempted_notional_usdc"] == "5.00"
+    assert failure["attempted_notional_usdc"] == "800.00"
     assert failure["submitted_notional_usdc"] == "0.00"
-    assert failure["max_submitted_notional_usdc"] == "3.10"
+    assert failure["max_submitted_notional_usdc"] == "100.00"
     assert failure["live_exchange_submitted"] is False
     assert failure["next_required_operator_decision"] == (
         "choose_lower_notional_us_cfm_product_or_raise_futures_cap"
@@ -2111,7 +2199,7 @@ def test_admin_futures_place_live_execution_rejects_above_backend_cap():
     )
     assert command_suite.body["command_enablement_blocker_summaries"][0][
         "latest_live_submit_failure"
-    ]["attempted_notional_usdc"] == "5.00"
+    ]["attempted_notional_usdc"] == "800.00"
 
 
 def test_admin_futures_product_exposure_falls_back_to_latest_live_submit_failure():
@@ -2133,7 +2221,7 @@ def test_admin_futures_product_exposure_falls_back_to_latest_live_submit_failure
             "product_id": "BIP-20DEC30-CDE",
             "side": "BUY",
             "order_type": "LIMIT",
-            "limit_price": "500",
+            "limit_price": "80000",
             "size": "1",
             "dry_run": False,
             "manual_live_acknowledgement": True,
@@ -2153,13 +2241,18 @@ def test_admin_futures_product_exposure_falls_back_to_latest_live_submit_failure
     assert command_suite.status_code == 200
     exposure = command_suite.body["futures_product_exposure_evidence"]
     assert exposure["status"] == "blocked"
-    assert exposure["items"][0]["metadata_read_status"] == "blocked"
-    assert exposure["items"][0]["metadata_read_error"] == "product_metadata_missing"
-    assert exposure["items"][0]["minimum_contract_notional_usdc"] == "5.00"
-    assert exposure["items"][0]["minimum_contract_notional_source"] == (
+    bip_exposure = next(
+        item
+        for item in exposure["items"]
+        if item["product_id"] == "BIP-20DEC30-CDE"
+    )
+    assert bip_exposure["metadata_read_status"] == "blocked"
+    assert bip_exposure["metadata_read_error"] == "product_metadata_missing"
+    assert bip_exposure["minimum_contract_notional_usdc"] == "800.00"
+    assert bip_exposure["minimum_contract_notional_source"] == (
         "latest_live_submit_failure"
     )
-    assert exposure["items"][0]["within_backend_cap"] is False
+    assert bip_exposure["within_backend_cap"] is False
 
 
 def test_admin_futures_place_live_execution_requires_runtime_enablement():
@@ -2401,7 +2494,7 @@ def test_admin_futures_command_routes_are_registered_as_blocked_drafts():
     assert cancel_workbench.body["count"] == 1
     assert cancel_workbench.body["events"][0]["event_id"] == cancel.body["submission_event_id"]
     assert cancel_workbench.body["events"][0]["client_order_id"] == "client-futures-001"
-    assert cancel_workbench.body["events"][0]["product_id"] == "BIP-20DEC30-CDE"
+    assert cancel_workbench.body["events"][0]["product_id"] == "AVP-20DEC30-CDE"
 
 
 def test_admin_mvp_read_contract_exposes_frontend_manual_order_readiness():

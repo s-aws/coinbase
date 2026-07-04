@@ -18,7 +18,7 @@ def test_futures_live_submit_body_defaults_to_small_limit_buy():
     )
 
     assert body == {
-        "product_id": "BIP-20DEC30-CDE",
+        "product_id": "AVP-20DEC30-CDE",
         "side": "BUY",
         "order_type": "LIMIT",
         "limit_price": "100",
@@ -71,14 +71,16 @@ def test_futures_live_submit_records_backend_evidence_before_rest_submission():
 
     assert summary["status"] == "passed"
     assert summary["live_coinbase_execution"] == "submitted"
-    assert summary["notional_usdc"] == "1.00"
-    assert summary["submitted_notional_usdc"] == "1.00"
+    assert summary["notional_usdc"] == "69.20"
+    assert summary["submitted_notional_usdc"] == "69.20"
     assert summary["final_status_code"] == 200
     assert summary["final_status"] == "accepted"
     assert summary["failure_stage"] is None
     assert summary["client_order_id"] == "futures-live-submit-test"
-    assert summary["limit_price"] == "100"
-    assert summary["contract_size"] == "0.01"
+    assert summary["limit_price"] == "6.92"
+    assert summary["contract_size"] == "10"
+    assert summary["max_submitted_notional_usdc"] == "100.00"
+    assert summary["max_executed_notional_usdc"] == "100.00"
     assert summary["live_exchange_submitted"] is True
     assert summary["live_coinbase_orders_ran"] is True
     assert summary["paired_sell_required"] is False
@@ -90,18 +92,19 @@ def test_futures_live_submit_records_backend_evidence_before_rest_submission():
     assert rest_client.create_order_calls == [
         {
             "client_order_id": "futures-live-submit-test",
-            "product_id": "BIP-20DEC30-CDE",
+            "product_id": "AVP-20DEC30-CDE",
             "side": "BUY",
             "order_configuration": {
                 "limit_limit_gtc": {
                     "base_size": "1",
-                    "limit_price": "100",
+                    "limit_price": "6.92",
                     "post_only": False,
                 }
             },
         }
     ]
     assert rest_client.get_product_dict_calls == [
-        "BIP-20DEC30-CDE",
+        "AVP-20DEC30-CDE",
+        "AVP-20DEC30-CDE",
         "BIP-20DEC30-CDE",
     ]
