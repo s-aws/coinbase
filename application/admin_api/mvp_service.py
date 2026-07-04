@@ -1938,6 +1938,25 @@ class AdminMvpService:
                 **self._live_outputs(False, Decimal("0")),
             }
             return self._result(400, response, context)
+        if (
+            command == "futures_reconcile"
+            and first_blocker == "futures_reconciliation_execution_disabled"
+        ):
+            return self._futures_reconciliation_execution_boundary_response(
+                command=command,
+                action_class=str(spec["action_class"]),
+                route=route,
+                service_method=str(spec["service_method"]),
+                identity_key=identity_key,
+                identity_value=identity_value,
+                required_permission=str(spec["required_permission"]),
+                payload_hash=payload_hash,
+                readiness_decision=readiness_decision,
+                admission_decision=admission_decision,
+                payload_validation=payload_validation,
+                risk_proof_id=command_evidence.get("risk_proof_id"),
+                context=context,
+            )
         if first_blocker in {"futures_executor_live_disabled", "none"}:
             if _futures_live_place_requested(command, body):
                 return self._execute_futures_place_order(
@@ -2145,6 +2164,102 @@ class AdminMvpService:
             **self._live_outputs(False, Decimal("0")),
         }
         return self._result(501, response, context)
+
+    def _futures_reconciliation_execution_boundary_response(
+        self,
+        *,
+        command: str,
+        action_class: str,
+        route: str,
+        service_method: str,
+        identity_key: str,
+        identity_value: str,
+        required_permission: str,
+        payload_hash: str,
+        readiness_decision: Mapping[str, Any],
+        admission_decision: Mapping[str, Any],
+        payload_validation: Mapping[str, Any],
+        risk_proof_id: Any,
+        context: AdminMvpRequestContext,
+    ) -> AdminMvpApiResult:
+        """Reject Futures reconciliation as an explicit fail-closed boundary."""
+
+        failure_stage = "futures_reconciliation_execution_disabled"
+        message = (
+            "Futures/Perpetual reconciliation execution remains backend "
+            "evidence-only; no local state mutation, exchange mutation, or "
+            "Coinbase call was performed."
+        )
+        command_record = self._record_futures_command_decision(
+            status=AdminMvpCommandStatus.NOT_IMPLEMENTED.value,
+            message=message,
+            command=command,
+            mutation_family="futures_reconciliation_execution_boundary",
+            action_class=action_class,
+            route=route,
+            service_method=service_method,
+            identity_key=identity_key,
+            identity_value=identity_value,
+            required_permission=required_permission,
+            payload_hash=payload_hash,
+            readiness_decision=readiness_decision,
+            admission_decision=admission_decision,
+            payload_validation=payload_validation,
+            risk_proof_id=risk_proof_id,
+            failure_stage=failure_stage,
+            context=context,
+        )
+        return self._result(
+            501,
+            {
+                "type": "admin_api_command_result",
+                "status": AdminMvpCommandStatus.NOT_IMPLEMENTED.value,
+                "module_id": FUTURES_MODULE_ID,
+                "command": command,
+                "mutation_family": "futures_reconciliation_execution_boundary",
+                "action_class": action_class,
+                "route": route,
+                "method": "POST",
+                "required_permission": required_permission,
+                "service_method": service_method,
+                "identity_key": identity_key,
+                "identity_value": identity_value,
+                "message": message,
+                "correlation_id": context.correlation_id,
+                "idempotency_key": context.idempotency_key,
+                "operator_intent": context.operator_intent,
+                "actor_id": context.actor_id,
+                "payload_hash": payload_hash,
+                "payload_validation": payload_validation,
+                "command_suite_status": "evidence_ready",
+                "readiness_decision": readiness_decision,
+                "admission_decision": admission_decision,
+                "risk_proof_id": risk_proof_id,
+                "failure_stage": failure_stage,
+                "submission_event_recorded": True,
+                "submission_event_id": command_record["decision_id"],
+                "futures_reconciliation_execution_boundary_id": command_record[
+                    "decision_id"
+                ],
+                "reconciliation_execution_allowed": False,
+                "reconciliation_execution_ran": False,
+                "reconciliation_plan_required": True,
+                "command_route_registered": True,
+                "command_draft_allowed": True,
+                "execution_allowed": False,
+                "local_state_mutated": False,
+                "exchange_state_mutated": False,
+                "live_exchange_submitted": False,
+                "submitted_notional_usdc": "0",
+                "executed_notional_usdc": "0",
+                "spot_rule_authority": False,
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                **self._runtime_evidence(),
+                **self._live_outputs(False, Decimal("0")),
+            },
+            context,
+        )
 
     def _futures_live_acknowledgement_required_response(
         self,
@@ -4121,7 +4236,7 @@ class AdminMvpService:
             "none"
             if execution_allowed
             else "futures_reconciliation_execution_disabled"
-            if executor_boundary_ready and live_runtime_ready and not live_exchange_command
+            if executor_boundary_ready and not live_exchange_command
             else "futures_executor_live_disabled"
             if executor_boundary_ready
             else "execution_disabled"

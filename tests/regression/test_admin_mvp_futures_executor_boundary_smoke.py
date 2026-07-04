@@ -78,6 +78,29 @@ def confirmed_cancel_runtime_disabled_command() -> dict:
     }
 
 
+def reconciliation_execution_boundary_command() -> dict:
+    return {
+        "type": "admin_api_command_result",
+        "status": "not_implemented",
+        "command": "futures_reconcile",
+        "mutation_family": "futures_reconciliation_execution_boundary",
+        "failure_stage": "futures_reconciliation_execution_disabled",
+        "submission_event_id": "futures-executor-boundary-reconciliation",
+        "futures_reconciliation_execution_boundary_id": (
+            "futures-executor-boundary-reconciliation"
+        ),
+        "identity_key": "position_key",
+        "identity_value": smoke.FUTURES_RECONCILIATION_POSITION_KEY,
+        "reconciliation_execution_allowed": False,
+        "reconciliation_execution_ran": False,
+        "reconciliation_plan_required": True,
+        "local_state_mutated": False,
+        "exchange_state_mutated": False,
+        "live_exchange_submitted": False,
+        "live_coinbase_orders_ran": False,
+    }
+
+
 def audit_workbench() -> dict:
     return {
         "type": "admin_audit_workbench",
@@ -130,6 +153,8 @@ def test_futures_executor_boundary_smoke_writes_no_live_summary(tmp_path):
         confirmed_command_status_code=400,
         confirmed_cancel_command_result=confirmed_cancel_runtime_disabled_command(),
         confirmed_cancel_command_status_code=400,
+        reconciliation_command_result=reconciliation_execution_boundary_command(),
+        reconciliation_command_status_code=501,
         audit_workbench=audit_workbench(),
     )
 
@@ -153,6 +178,16 @@ def test_futures_executor_boundary_smoke_writes_no_live_summary(tmp_path):
     assert summary["confirmed_cancel_client_order_id"] == smoke.FUTURES_CANCEL_CLIENT_ORDER_ID
     assert summary["confirmed_cancel_live_exchange_submitted"] is False
     assert summary["confirmed_cancel_live_coinbase_orders_ran"] is False
+    assert summary["reconciliation_command_status"] == "not_implemented"
+    assert summary["reconciliation_command_status_code"] == 501
+    assert summary["reconciliation_failure_stage"] == (
+        "futures_reconciliation_execution_disabled"
+    )
+    assert summary["reconciliation_position_key"] == smoke.FUTURES_RECONCILIATION_POSITION_KEY
+    assert summary["reconciliation_execution_allowed"] is False
+    assert summary["reconciliation_execution_ran"] is False
+    assert summary["reconciliation_live_exchange_submitted"] is False
+    assert summary["reconciliation_live_coinbase_orders_ran"] is False
     assert summary["live_coinbase_orders_ran"] is False
     assert all(check["passed"] for check in summary["checks"])
     assert {
@@ -160,6 +195,8 @@ def test_futures_executor_boundary_smoke_writes_no_live_summary(tmp_path):
         "futures_confirmed_place_event_recorded",
         "futures_confirmed_cancel_rejected_before_coinbase",
         "futures_confirmed_cancel_event_recorded",
+        "futures_reconciliation_execution_boundary_recorded",
+        "futures_reconciliation_execution_not_run",
     }.issubset({check["name"] for check in summary["checks"]})
 
 
@@ -188,6 +225,8 @@ def test_futures_executor_boundary_smoke_fails_without_ready_adapter(tmp_path):
         confirmed_command_status_code=400,
         confirmed_cancel_command_result=confirmed_cancel_runtime_disabled_command(),
         confirmed_cancel_command_status_code=400,
+        reconciliation_command_result=reconciliation_execution_boundary_command(),
+        reconciliation_command_status_code=501,
         audit_workbench=audit_workbench(),
     )
 
@@ -237,13 +276,19 @@ def test_futures_executor_boundary_smoke_main_writes_artifact(monkeypatch, tmp_p
             raise AssertionError(f"unexpected route: {route}")
 
         def submit_futures_command(self, path, body, context):
-            assert body["product_id"] == smoke.FUTURES_PRODUCT_ID
             if path == smoke.FUTURES_CANCEL_COMMAND_ROUTE:
+                assert body["product_id"] == smoke.FUTURES_PRODUCT_ID
                 assert context.idempotency_key == "futures-executor-boundary-confirmed-cancel"
                 assert body["manual_live_acknowledgement"] is True
                 assert body.get("order_id") is None
                 return result(confirmed_cancel_runtime_disabled_command(), status_code=400)
+            if path == smoke.FUTURES_RECONCILIATION_COMMAND_ROUTE:
+                assert context.idempotency_key == "futures-executor-boundary-reconciliation"
+                assert body["manual_live_acknowledgement"] is True
+                assert body["reconciliation_reason"] == "executor_boundary_reconciliation_review"
+                return result(reconciliation_execution_boundary_command(), status_code=501)
             assert path == smoke.FUTURES_COMMAND_ROUTE
+            assert body["product_id"] == smoke.FUTURES_PRODUCT_ID
             if body.get("dry_run") is False:
                 assert body["manual_live_acknowledgement"] is True
                 return result(confirmed_runtime_disabled_command(), status_code=400)
@@ -281,3 +326,6 @@ def test_futures_executor_boundary_smoke_main_writes_artifact(monkeypatch, tmp_p
     assert summary["confirmed_failure_stage"] == "futures_live_runtime_disabled"
     assert summary["confirmed_cancel_failure_stage"] == "futures_live_runtime_disabled"
     assert summary["confirmed_cancel_client_order_id"] == smoke.FUTURES_CANCEL_CLIENT_ORDER_ID
+    assert summary["reconciliation_failure_stage"] == (
+        "futures_reconciliation_execution_disabled"
+    )

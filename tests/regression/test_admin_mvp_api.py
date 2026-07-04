@@ -2046,6 +2046,55 @@ def test_admin_futures_command_suite_exposes_confirmed_live_exchange_routes_when
     )
 
 
+def test_admin_futures_reconciliation_route_records_explicit_execution_boundary_when_runtime_ready():
+    rest_client = FakeAccountRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        )
+    )
+    record_futures_live_service_decision(service)
+    record_all_futures_live_adapter_decisions(service)
+
+    result = service.submit_futures_command(
+        "/api/v1/futures/positions/futures_position%3Aruntime%3ABIP-20DEC30-CDE/reconciliation",
+        {
+            "reconciliation_reason": "operator_fill_readback_reconciliation_review",
+            "dry_run": False,
+            "manual_live_acknowledgement": True,
+        },
+        context(idempotency_key="futures-reconcile-boundary"),
+    )
+
+    assert result.status_code == 501
+    assert result.body["type"] == "admin_api_command_result"
+    assert result.body["module_id"] == "futures_perpetuals"
+    assert result.body["command"] == "futures_reconcile"
+    assert result.body["mutation_family"] == "futures_reconciliation_execution_boundary"
+    assert result.body["status"] == "not_implemented"
+    assert result.body["failure_stage"] == "futures_reconciliation_execution_disabled"
+    assert result.body["identity_key"] == "position_key"
+    assert result.body["identity_value"] == "futures_position:runtime:BIP-20DEC30-CDE"
+    assert result.body["readiness_decision"]["first_blocker"] == (
+        "futures_reconciliation_execution_disabled"
+    )
+    assert result.body["reconciliation_execution_allowed"] is False
+    assert result.body["reconciliation_execution_ran"] is False
+    assert result.body["reconciliation_plan_required"] is True
+    assert result.body["futures_reconciliation_execution_boundary_id"] == (
+        result.body["submission_event_id"]
+    )
+    assert result.body["local_state_mutated"] is False
+    assert result.body["exchange_state_mutated"] is False
+    assert result.body["live_exchange_submitted"] is False
+    assert result.body["live_coinbase_orders_ran"] is False
+    assert rest_client.create_order_calls == []
+    assert rest_client.cancel_order_calls == []
+    assert rest_client.close_position_calls == []
+
+
 def test_admin_futures_place_live_execution_uses_backend_rest_adapter_when_confirmed():
     rest_client = FakeAccountRestClient()
     service = AdminMvpService(
