@@ -43,7 +43,10 @@ ADMIN_RUNTIME_ROUTE = "/api/v1/admin/runtime"
 ACCOUNT_MANAGEMENT_ROUTE = "/api/v1/admin/account-management"
 ACCOUNT_WALLET_ROUTE = "/api/v1/admin/wallet"
 ACCOUNT_PRODUCTS_ROUTE = "/api/v1/admin/products"
+ACCOUNT_PRODUCTS_REFRESH_ROUTE = "/api/v1/admin/products/refresh"
 ACCOUNT_MANAGEMENT_MODULE_ID = "account_management"
+PRODUCTS_JSON_PATH_ENV = "COINBASE_ADMIN_PRODUCTS_JSON_PATH"
+DEFAULT_PRODUCTS_JSON_PATH = Path(__file__).resolve().parents[2] / "products.json"
 FRONTEND_LOCAL_RELEASE_MANIFEST_ENV = "COINBASE_ADMIN_FRONTEND_LOCAL_RELEASE_MANIFEST_PATH"
 BACKEND_LOCAL_RELEASE_MANIFEST_ENV = "COINBASE_BACKEND_LOCAL_RELEASE_MANIFEST_PATH"
 APPROVAL_LOG_PATH_ENV = "COINBASE_ADMIN_API_APPROVAL_LOG_PATH"
@@ -206,6 +209,8 @@ SPOT_CANCEL_PROOF_GATES = ("cancel_proof_chain",)
 LIVE_SERVICE_DECISION_ROUTE = "/api/v1/admin/live-execution/service-decisions"
 LIVE_SERVICE_DECISION_PERMISSION = "config:update"
 LIVE_SERVICE_DECISION_SERVICE_METHOD = "record_live_service_decision"
+ACCOUNT_PRODUCTS_REFRESH_PERMISSION = "config:update"
+ACCOUNT_PRODUCTS_REFRESH_SERVICE_METHOD = "refresh_admin_products"
 LIVE_ADAPTER_DECISION_ROUTE = "/api/v1/admin/live-execution/adapter-decisions"
 LIVE_ADAPTER_DECISION_PERMISSION = "config:update"
 LIVE_ADAPTER_DECISION_SERVICE_METHOD = "record_live_adapter_decision"
@@ -4988,6 +4993,90 @@ class AdminMvpService:
             return {}, "product_metadata_missing"
         return metadata, None
 
+    def refresh_admin_products(
+        self,
+        body: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+    ) -> AdminMvpApiResult:
+        """Refresh backend products.json from Coinbase product reads."""
+
+        product_ids = _admin_product_scope(body)
+        rows = [self._admin_product_row(product_id) for product_id in product_ids]
+        ready_rows = [row for row in rows if row["read_status"] == "ready"]
+        missing_rows = [row for row in rows if row["read_status"] != "ready"]
+        spot_ids = [
+            str(row["product_id"])
+            for row in ready_rows
+            if row["product_family"] == "spot"
+        ]
+        derivative_ids = [
+            str(row["product_id"])
+            for row in ready_rows
+            if row["product_family"] == "futures_perpetuals"
+        ]
+        rest_client_ready = (
+            self.dependencies.rest_client_available
+            and self.dependencies.rest_client is not None
+        )
+        products_json_written = False
+        write_error: str | None = None
+        preserved_ticker_to_trading = False
+        if rest_client_ready and product_ids and not missing_rows:
+            try:
+                document = _write_admin_products_json(ready_rows)
+                products_json_written = True
+                preserved_ticker_to_trading = "ticker_to_trading" in document
+            except Exception as exc:  # pragma: no cover - defensive filesystem boundary
+                write_error = f"products_json_write_failed:{type(exc).__name__}"
+        status = (
+            AdminMvpCommandStatus.ACCEPTED.value
+            if products_json_written
+            else AdminMvpCommandStatus.REJECTED.value
+        )
+        return self._ok(
+            {
+                "type": "admin_products_refresh",
+                "status": status,
+                "module_id": ACCOUNT_MANAGEMENT_MODULE_ID,
+                "route": ACCOUNT_PRODUCTS_REFRESH_ROUTE,
+                "method": "POST",
+                "action_class": "local_state_mutation",
+                "required_permission": ACCOUNT_PRODUCTS_REFRESH_PERMISSION,
+                "service_method": ACCOUNT_PRODUCTS_REFRESH_SERVICE_METHOD,
+                "configured_product_scope": product_ids,
+                "spot": spot_ids,
+                "derivatives": derivative_ids,
+                "products": rows,
+                "metadata_count": len(ready_rows),
+                "missing_metadata_count": len(missing_rows),
+                "spot_count": len(spot_ids),
+                "derivatives_count": len(derivative_ids),
+                "products_json_written": products_json_written,
+                "products_json_target": "backend_configured_products_json",
+                "preserved_ticker_to_trading": preserved_ticker_to_trading,
+                "write_error": write_error,
+                "coinbase_read_enabled": rest_client_ready,
+                "coinbase_read_attempted": rest_client_ready and bool(product_ids),
+                "coinbase_read_succeeded": rest_client_ready and bool(product_ids) and not missing_rows,
+                "live_coinbase_read_ran": rest_client_ready and bool(product_ids),
+                "local_state_mutated": products_json_written,
+                "exchange_state_mutated": False,
+                "live_exchange_submitted": False,
+                "audit": {
+                    "correlation_id": context.correlation_id,
+                    "idempotency_key": context.idempotency_key,
+                    "operator_intent": context.operator_intent,
+                    "audit_surface": ACCOUNT_PRODUCTS_REFRESH_ROUTE,
+                },
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                "command_routes_mode": "backend_admin_api_local_refresh",
+                **self._live_outputs(False, Decimal("0")),
+                "notional_usdc": "0",
+            },
+            context,
+        )
+
     def _account_management_environment(self) -> dict[str, Any]:
         frontend_manifest = _read_json_manifest_from_env(FRONTEND_LOCAL_RELEASE_MANIFEST_ENV)
         backend_manifest = _read_json_manifest_from_env(BACKEND_LOCAL_RELEASE_MANIFEST_ENV)
@@ -7097,6 +7186,14 @@ class AdminMvpService:
                 shared_method="record_reconciliation_plan",
                 live_enabled=False,
             ),
+            _command_capability(
+                route=ACCOUNT_PRODUCTS_REFRESH_ROUTE,
+                action_class="local_state_mutation",
+                required_permission=ACCOUNT_PRODUCTS_REFRESH_PERMISSION,
+                shared_method=ACCOUNT_PRODUCTS_REFRESH_SERVICE_METHOD,
+                live_enabled=False,
+                module_id=ACCOUNT_MANAGEMENT_MODULE_ID,
+            ),
             *(
                 _command_capability(
                     route=str(spec["route"]),
@@ -7844,6 +7941,83 @@ def _admin_product_family(product_type: str, product_id: str) -> str:
     if product_type in {"FUTURE", "PERPETUAL_FUTURE"} or product_id.endswith("-CDE"):
         return "futures_perpetuals"
     return "unknown"
+
+
+def _write_admin_products_json(
+    product_rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    products_path = _admin_products_json_path()
+    existing = _read_products_json(products_path)
+    document = _admin_products_json_document(product_rows, existing)
+    products_path.parent.mkdir(parents=True, exist_ok=True)
+    products_path.write_text(
+        json.dumps(document, indent=2, default=str) + "\n",
+        encoding="utf-8",
+    )
+    return document
+
+
+def _admin_products_json_path() -> Path:
+    configured = os.environ.get(PRODUCTS_JSON_PATH_ENV, "").strip()
+    return Path(configured) if configured else DEFAULT_PRODUCTS_JSON_PATH
+
+
+def _read_products_json(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return dict(data) if isinstance(data, Mapping) else {}
+
+
+def _admin_products_json_document(
+    product_rows: Sequence[Mapping[str, Any]],
+    existing: Mapping[str, Any],
+) -> dict[str, Any]:
+    ready_rows = [row for row in product_rows if row.get("read_status") == "ready"]
+    spot = sorted(
+        str(row["product_id"])
+        for row in ready_rows
+        if row.get("product_family") == "spot"
+    )
+    derivatives = sorted(
+        str(row["product_id"])
+        for row in ready_rows
+        if row.get("product_family") == "futures_perpetuals"
+    )
+    document: dict[str, Any] = {
+        "spot": spot,
+        "derivatives": derivatives,
+    }
+    ticker_to_trading = existing.get("ticker_to_trading")
+    if isinstance(ticker_to_trading, Mapping):
+        document["ticker_to_trading"] = dict(ticker_to_trading)
+    document["metadata"] = {
+        str(row["product_id"]): _admin_products_json_metadata(row)
+        for row in ready_rows
+    }
+    return document
+
+
+def _admin_products_json_metadata(row: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "type": row.get("product_type") or "UNKNOWN",
+        "base_currency": row.get("base_currency"),
+        "quote_currency": row.get("quote_currency"),
+        "base_increment": str(row.get("base_increment") or ""),
+        "quote_increment": str(row.get("quote_increment") or ""),
+        "price_increment": str(row.get("price_increment") or ""),
+        "base_min_size": str(row.get("base_min_size") or ""),
+        "quote_min_size": str(row.get("quote_min_size") or ""),
+        "display_name": row.get("display_name"),
+        "status": row.get("status"),
+        "mid_price": row.get("mid_price"),
+        "trading_disabled": bool(row.get("trading_disabled", False)),
+        "contract_size": row.get("contract_size"),
+        "expiry": row.get("expiry"),
+    }
 
 
 def _unavailable_account_snapshot(generated_at: str) -> dict[str, Any]:

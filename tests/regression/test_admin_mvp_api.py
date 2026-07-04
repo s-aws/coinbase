@@ -91,6 +91,18 @@ def test_admin_products_openapi_exposes_product_metadata_path():
     )
 
 
+def test_admin_products_openapi_exposes_product_refresh_path():
+    openapi = yaml.safe_load(
+        Path("openapi/coinbase-admin-api.yaml").read_text(encoding="utf-8")
+    )
+
+    assert openapi["paths"]["/api/v1/admin/products/refresh"]["post"]["responses"][
+        "200"
+    ]["content"]["application/json"]["schema"]["$ref"] == (
+        "#/components/schemas/AdminProductsRefreshResponse"
+    )
+
+
 def test_admin_account_management_openapi_exposes_live_read_evidence_fields():
     openapi = yaml.safe_load(
         Path("openapi/coinbase-admin-api.yaml").read_text(encoding="utf-8")
@@ -1241,6 +1253,94 @@ def test_admin_products_read_exposes_backend_owned_product_metadata():
     ]
     assert rest_client.create_order_calls == []
     assert rest_client.cancel_order_calls == []
+
+
+def test_admin_products_refresh_persists_backend_owned_products_json(tmp_path, monkeypatch):
+    products_path = tmp_path / "products.json"
+    products_path.write_text(
+        json.dumps(
+            {
+                "spot": ["OLD-USDC"],
+                "derivatives": [],
+                "ticker_to_trading": {"BTC": "BTC-USDC"},
+                "metadata": {"OLD-USDC": {"type": "SPOT"}},
+            },
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("COINBASE_ADMIN_PRODUCTS_JSON_PATH", str(products_path))
+    rest_client = FakeAccountRestClient()
+    rest_client.product_dicts["BTC-USDC"] = {
+        "product_id": "BTC-USDC",
+        "product_type": "SPOT",
+        "base_currency": "BTC",
+        "quote_currency": "USDC",
+        "base_increment": "0.00000001",
+        "quote_increment": "0.01",
+        "price_increment": "0.01",
+        "base_min_size": "0.00001",
+        "quote_min_size": "1",
+        "display_name": "BTC-USDC",
+        "status": "online",
+        "trading_disabled": False,
+    }
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+
+    result = service.refresh_admin_products(
+        {},
+        context(idempotency_key="product-refresh"),
+    )
+
+    assert result.status_code == 200
+    body = result.body
+    assert body["type"] == "admin_products_refresh"
+    assert body["status"] == "accepted"
+    assert body["module_id"] == "account_management"
+    assert body["route"] == "/api/v1/admin/products/refresh"
+    assert body["method"] == "POST"
+    assert body["action_class"] == "local_state_mutation"
+    assert body["required_permission"] == "config:update"
+    assert body["service_method"] == "refresh_admin_products"
+    assert body["configured_product_scope"] == [
+        "BTC-USDC",
+        "AVP-20DEC30-CDE",
+        "BIP-20DEC30-CDE",
+    ]
+    assert body["spot"] == ["BTC-USDC"]
+    assert body["derivatives"] == ["AVP-20DEC30-CDE", "BIP-20DEC30-CDE"]
+    assert body["metadata_count"] == 3
+    assert body["missing_metadata_count"] == 0
+    assert body["products_json_written"] is True
+    assert body["products_json_target"] == "backend_configured_products_json"
+    assert body["preserved_ticker_to_trading"] is True
+    assert body["coinbase_read_attempted"] is True
+    assert body["coinbase_read_succeeded"] is True
+    assert body["local_state_mutated"] is True
+    assert body["exchange_state_mutated"] is False
+    assert body["live_exchange_submitted"] is False
+    assert body["live_coinbase_orders_ran"] is False
+    assert body["live_coinbase_execution"] == "not_run"
+    assert body["notional_usdc"] == "0"
+    assert body["audit"]["idempotency_key"] == "product-refresh"
+    assert rest_client.get_product_dict_calls == [
+        "BTC-USDC",
+        "AVP-20DEC30-CDE",
+        "BIP-20DEC30-CDE",
+    ]
+    assert rest_client.create_order_calls == []
+    assert rest_client.cancel_order_calls == []
+
+    products_json = json.loads(products_path.read_text(encoding="utf-8"))
+    assert products_json["spot"] == ["BTC-USDC"]
+    assert products_json["derivatives"] == ["AVP-20DEC30-CDE", "BIP-20DEC30-CDE"]
+    assert products_json["ticker_to_trading"] == {"BTC": "BTC-USDC"}
+    assert products_json["metadata"]["BTC-USDC"]["type"] == "SPOT"
+    assert products_json["metadata"]["BTC-USDC"]["base_min_size"] == "0.00001"
+    assert products_json["metadata"]["BTC-USDC"]["quote_min_size"] == "1"
+    assert products_json["metadata"]["AVP-20DEC30-CDE"]["type"] == "FUTURE"
+    assert products_json["metadata"]["AVP-20DEC30-CDE"]["contract_size"] == "10"
 
 
 def test_admin_wallet_read_blocks_futures_risk_when_cfm_margin_snapshot_fails():

@@ -1731,6 +1731,22 @@
       "command_contract": false
     },
     {
+      "module_id": "account_management",
+      "surface": "POST /api/v1/admin/products/refresh",
+      "method": "POST",
+      "path": "/api/v1/admin/products/refresh",
+      "action_class": "local_state_mutation",
+      "permission": "config:update",
+      "idempotency": "required",
+      "approval": "not required for local product metadata refresh",
+      "caps": "not applicable",
+      "audit": "required",
+      "shared_method": "refresh_admin_products",
+      "parity_test": "backend-owned Coinbase product metadata refresh into local products.json; no Coinbase order or exchange mutation",
+      "compatibility_mode": null,
+      "command_contract": true
+    },
+    {
       "module_id": "admin_system_health",
       "surface": "GET /api/v1/admin/live-enablement",
       "method": "GET",

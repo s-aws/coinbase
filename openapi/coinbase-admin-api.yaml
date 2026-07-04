@@ -851,6 +851,108 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/products/refresh:
+    post:
+      tags:
+      - admin
+      summary: Refresh backend-owned local products.json from Coinbase product metadata
+      description: Backend-owned local product metadata refresh. Reads Coinbase product metadata and persists local products.json evidence only; it never submits or cancels Coinbase orders.
+      operationId: refresh_admin_products_api_v1_admin_products_refresh_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminProductsRefreshRequest'
+      responses:
+        '200':
+          description: Refresh accepted or rejected with backend-owned evidence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProductsRefreshResponse'
+        '400':
+          description: Refresh rejected before any local products.json write.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProductsRefreshResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProductsRefreshResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/live-enablement:
     get:
       tags:
@@ -14217,6 +14319,183 @@ components:
       - live_coinbase_orders_ran
       title: AdminProductsReadResponse
       description: Backend-owned product metadata and product-scope evidence for Account/Wallet/Spot/Futures gates.
+    AdminProductsRefreshRequest:
+      properties:
+        product_id:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Product Id
+          description: Optional backend-reviewed product IDs. Empty request refreshes the configured local Admin product scope.
+      additionalProperties: false
+      type: object
+      title: AdminProductsRefreshRequest
+      description: Product metadata refresh request. The backend controls the products.json target path.
+    AdminProductsRefreshResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_products_refresh
+        status:
+          type: string
+          title: Status
+        module_id:
+          type: string
+          title: Module Id
+          default: account_management
+        route:
+          type: string
+          title: Route
+          default: /api/v1/admin/products/refresh
+        method:
+          type: string
+          title: Method
+          default: POST
+        action_class:
+          type: string
+          title: Action Class
+          default: local_state_mutation
+        required_permission:
+          type: string
+          title: Required Permission
+          default: config:update
+        service_method:
+          type: string
+          title: Service Method
+          default: refresh_admin_products
+        configured_product_scope:
+          items:
+            type: string
+          type: array
+          title: Configured Product Scope
+        spot:
+          items:
+            type: string
+          type: array
+          title: Spot
+        derivatives:
+          items:
+            type: string
+          type: array
+          title: Derivatives
+        products:
+          items:
+            $ref: '#/components/schemas/AdminProductMetadataItem'
+          type: array
+          title: Products
+        metadata_count:
+          type: integer
+          title: Metadata Count
+        missing_metadata_count:
+          type: integer
+          title: Missing Metadata Count
+        spot_count:
+          type: integer
+          title: Spot Count
+        derivatives_count:
+          type: integer
+          title: Derivatives Count
+        products_json_written:
+          type: boolean
+          title: Products Json Written
+          default: false
+        products_json_target:
+          type: string
+          title: Products Json Target
+          default: backend_configured_products_json
+        preserved_ticker_to_trading:
+          type: boolean
+          title: Preserved Ticker To Trading
+          default: false
+        write_error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Write Error
+        coinbase_read_enabled:
+          type: boolean
+          title: Coinbase Read Enabled
+          default: false
+        coinbase_read_attempted:
+          type: boolean
+          title: Coinbase Read Attempted
+          default: false
+        coinbase_read_succeeded:
+          type: boolean
+          title: Coinbase Read Succeeded
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        local_state_mutated:
+          type: boolean
+          title: Local State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        audit:
+          $ref: '#/components/schemas/AdminAccountManagementAudit'
+        browser_authority:
+          type: string
+          title: Browser Authority
+        bff_authority:
+          type: string
+          title: Bff Authority
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+        notional_usdc:
+          type: string
+          title: Notional Usdc
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - configured_product_scope
+      - spot
+      - derivatives
+      - products
+      - metadata_count
+      - missing_metadata_count
+      - spot_count
+      - derivatives_count
+      - products_json_written
+      - products_json_target
+      - preserved_ticker_to_trading
+      - write_error
+      - coinbase_read_enabled
+      - coinbase_read_attempted
+      - coinbase_read_succeeded
+      - live_coinbase_read_ran
+      - local_state_mutated
+      - exchange_state_mutated
+      - live_exchange_submitted
+      - audit
+      - browser_authority
+      - bff_authority
+      - command_routes_mode
+      - live_coinbase_execution
+      - notional_usdc
+      - live_coinbase_orders_ran
+      title: AdminProductsRefreshResponse
+      description: Backend-owned product metadata refresh evidence. It writes local products.json only and never submits Coinbase orders.
     AdminAccountManagementReadResponse:
       properties:
         type:

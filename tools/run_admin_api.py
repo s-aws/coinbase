@@ -212,6 +212,8 @@ class AdminMvpRequestHandler(BaseHTTPRequestHandler):
             result = service.record_cap_guard_decision(body, context)
         elif path == "/api/v1/admin/reconciliation/plans":
             result = service.record_reconciliation_plan(body, context)
+        elif path == "/api/v1/admin/products/refresh":
+            result = service.refresh_admin_products(body, context)
         elif path.startswith(f"{ADMIN_RUNTIME_ROUTE}/"):
             result = service.control_runtime(
                 path.rsplit("/", 1)[-1],
