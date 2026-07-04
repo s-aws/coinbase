@@ -47,6 +47,10 @@ SCHEMA_VERSION = "1"
 LIVE_COINBASE_CREDENTIAL_ENV = ("COINBASE_API_KEY", "COINBASE_API_SECRET")
 DEFAULT_ORDER_STATUSES = ("FILLED", "OPEN", "CANCELLED", "EXPIRED", "FAILED")
 FILLED_STATUSES = {"FILLED", "FILLED_ORDER", "DONE", "COMPLETE", "COMPLETED"}
+LIVE_ORDER_ARTIFACT_TYPES = {
+    "coinbase_admin_api_futures_live_submit",
+    "coinbase_admin_api_futures_live_close_reduce",
+}
 
 
 @dataclass(frozen=True)
@@ -368,7 +372,7 @@ def futures_live_fill_readback_checks(
             check(
                 "futures_submission_artifact_type",
                 submission_summary.get("submission_artifact_type")
-                == "coinbase_admin_api_futures_live_submit",
+                in LIVE_ORDER_ARTIFACT_TYPES,
             ),
             check(
                 "futures_submission_artifact_passed",

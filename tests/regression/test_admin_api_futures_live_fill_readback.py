@@ -30,14 +30,19 @@ class FakeFuturesReadbackRestClient:
         return self.list_fills_response
 
 
-def write_passed_submission_artifact(tmp_path):
+def write_passed_submission_artifact(
+    tmp_path,
+    *,
+    artifact_type: str = "coinbase_admin_api_futures_live_submit",
+    client_order_id: str = "futures-live-submit-test",
+):
     artifact = tmp_path / "coinbase-backend-futures-live-submit.json"
     artifact.write_text(
         json.dumps(
             {
-                "artifact_type": "coinbase_admin_api_futures_live_submit",
+                "artifact_type": artifact_type,
                 "status": "passed",
-                "client_order_id": "futures-live-submit-test",
+                "client_order_id": client_order_id,
                 "product_id": "AVP-20DEC30-CDE",
                 "submission_event_id": "submission-event-1",
                 "live_exchange_submitted": True,
@@ -136,6 +141,64 @@ def test_futures_live_fill_readback_proves_filled_order_by_client_order_id(tmp_p
     assert rest_client.list_fills_calls == [
         {"order_id": "exchange-order-live-1", "limit": 100}
     ]
+
+
+def test_futures_live_fill_readback_accepts_close_reduce_artifact(tmp_path):
+    submission_artifact = write_passed_submission_artifact(
+        tmp_path,
+        artifact_type="coinbase_admin_api_futures_live_close_reduce",
+        client_order_id="futures-live-close-reduce-test",
+    )
+    rest_client = FakeFuturesReadbackRestClient(
+        list_orders_response={
+            "orders": [
+                {
+                    "client_order_id": "futures-live-close-reduce-test",
+                    "order_id": "exchange-close-reduce-live-1",
+                    "product_id": "AVP-20DEC30-CDE",
+                    "status": "FILLED",
+                    "filled_size": "1",
+                    "average_filled_price": "6.98",
+                }
+            ]
+        },
+        list_fills_response={
+            "fills": [
+                {
+                    "entry_id": "entry-close",
+                    "trade_id": "trade-close",
+                    "order_id": "exchange-close-reduce-live-1",
+                    "product_id": "AVP-20DEC30-CDE",
+                    "size": "1",
+                    "price": "6.98",
+                }
+            ],
+            "has_next": False,
+        },
+    )
+
+    summary = run_futures_live_fill_readback(
+        rest_client,
+        FuturesLiveFillReadbackConfig(
+            client_order_id="futures-live-close-reduce-test",
+            product_id="AVP-20DEC30-CDE",
+            submission_artifact=submission_artifact,
+            backend_contract_ref="backend-ref",
+            require_submission_artifact=True,
+        ),
+    )
+
+    assert summary["status"] == "passed"
+    assert summary["submission_artifact_type"] == (
+        "coinbase_admin_api_futures_live_close_reduce"
+    )
+    assert summary["live_coinbase_execution"] == "not_run"
+    assert summary["live_coinbase_orders_ran"] is False
+    assert summary["client_order_id"] == "futures-live-close-reduce-test"
+    assert summary["executed_notional_usdc"] == "69.80"
+    assert {
+        item["name"]: item["passed"] for item in summary["checks"]
+    }["futures_submission_artifact_type"] is True
 
 
 def test_futures_live_fill_readback_fails_when_order_is_not_filled(tmp_path):
