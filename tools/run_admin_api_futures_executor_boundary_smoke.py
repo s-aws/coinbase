@@ -15,6 +15,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -136,8 +137,11 @@ def config_from_args(args: argparse.Namespace) -> FuturesBoundarySmokeConfig:
 def apply_runner_environment(config: FuturesBoundarySmokeConfig) -> dict[str, str]:
     """Apply local Admin API environment and durable state paths."""
 
+    os.environ.pop("COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED", None)
+    os.environ.pop("COINBASE_ADMIN_LIVE_COINBASE_EXECUTION", None)
     applied = run_admin_api.apply_local_environment(run_admin_api.parse_args([]))
     applied.update(apply_manual_live_submit_state_environment(config.state_dir))
+    applied["COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED"] = "disabled"
     return applied
 
 

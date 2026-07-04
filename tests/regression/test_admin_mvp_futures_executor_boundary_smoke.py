@@ -198,6 +198,29 @@ def test_futures_executor_boundary_smoke_fails_without_ready_adapter(tmp_path):
     assert "futures_executor_disabled_blocker" in failed
 
 
+def test_futures_executor_boundary_smoke_disables_inherited_live_runtime(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED", "true")
+    monkeypatch.setenv("COINBASE_ADMIN_LIVE_COINBASE_EXECUTION", "true")
+    monkeypatch.setattr(
+        smoke.run_admin_api,
+        "apply_local_environment",
+        lambda args: {"truststore": "enabled"},
+    )
+    monkeypatch.setattr(
+        smoke,
+        "apply_manual_live_submit_state_environment",
+        lambda state_dir: {"state_dir": str(state_dir)},
+    )
+
+    applied = smoke.apply_runner_environment(smoke_config(tmp_path))
+
+    assert "COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED" not in smoke.os.environ
+    assert "COINBASE_ADMIN_LIVE_COINBASE_EXECUTION" not in smoke.os.environ
+    assert applied["COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED"] == "disabled"
+
+
 def test_futures_executor_boundary_smoke_main_writes_artifact(monkeypatch, tmp_path):
     class FakeService:
         def record_live_service_decision(self, body, context):

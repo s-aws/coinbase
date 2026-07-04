@@ -25,6 +25,12 @@ if str(REPO_ROOT) not in sys.path:
 
 from application.admin_api.mvp_service import AdminMvpRequestContext, get_admin_mvp_service
 from tools import run_admin_api
+from tools.run_admin_api_futures_executor_boundary_smoke import (
+    FUTURES_ADAPTER_DECISIONS,
+    FuturesBoundarySmokeConfig,
+    record_futures_live_adapter_decisions,
+    record_futures_live_service_decision,
+)
 
 
 DEFAULT_SUMMARY_OUTPUT = (
@@ -54,7 +60,10 @@ def build_parser() -> argparse.ArgumentParser:
 def apply_runner_environment() -> dict[str, str]:
     """Apply the same local TLS/auth environment setup as the Admin API runner."""
 
-    return run_admin_api.apply_local_environment(run_admin_api.parse_args([]))
+    applied = run_admin_api.apply_local_environment(run_admin_api.parse_args([]))
+    os.environ["COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED"] = "true"
+    applied["COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED"] = "true"
+    return applied
 
 
 def build_request_context() -> AdminMvpRequestContext:
@@ -86,6 +95,31 @@ def read_admin_surfaces(service: Any) -> dict[str, Any]:
     }
 
 
+def record_futures_live_decision_evidence(
+    service: Any,
+    *,
+    summary_output: Path,
+    backend_contract_ref: str | None,
+) -> dict[str, Any]:
+    """Record local Futures live-service and adapter evidence before readback."""
+
+    config = FuturesBoundarySmokeConfig(
+        state_dir=summary_output.parent / "account-reality-live-read-state",
+        summary_output=summary_output,
+        backend_contract_ref=backend_contract_ref,
+    )
+    live_service = record_futures_live_service_decision(service, config)
+    adapters = record_futures_live_adapter_decisions(service, config)
+    return {
+        "service_status_code": getattr(live_service, "status_code", None),
+        "adapter_status_codes": [
+            getattr(adapter, "status_code", None) for adapter in adapters
+        ],
+        "adapter_decision_count": len(adapters),
+        "expected_adapter_decision_count": len(FUTURES_ADAPTER_DECISIONS),
+    }
+
+
 def build_smoke_summary(
     *,
     read_results: Mapping[str, Any],
@@ -97,6 +131,7 @@ def build_smoke_summary(
     backend_git_branch: str,
     backend_contract_ref: str,
     environ: Mapping[str, str],
+    futures_live_decision_records: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return redacted account reality smoke evidence."""
 
@@ -116,6 +151,10 @@ def build_smoke_summary(
         "backend_contract_ref": backend_contract_ref,
         "credentials_present": credentials_present(environ),
         "truststore_status": applied_environment.get(run_admin_api.OS_TRUSTSTORE_ENV),
+        "controlled_live_command_suite_read_enabled": (
+            environ.get("COINBASE_ADMIN_API_LIVE_COINBASE_EXECUTION_ENABLED") == "true"
+        ),
+        "futures_live_decision_records": dict(futures_live_decision_records or {}),
         "checks": checks,
         "wallet": redact_wallet_evidence(bodies["wallet"]),
         "futures_account": redact_futures_account_evidence(bodies["futures_account"]),
@@ -229,6 +268,39 @@ def account_reality_checks(
         check(
             "futures_command_suite_no_missing_contracts",
             command_suite.get("missing_backend_contracts") == [],
+        ),
+        check(
+            "futures_command_suite_confirmed_live_routes",
+            command_suite.get("command_routes_mode") == "backend_admin_api_confirmed_live",
+        ),
+        check(
+            "futures_command_suite_executable_commands_ready",
+            int(command_suite.get("executable_command_count") or 0) == 3
+            and int(command_suite.get("blocked_command_count") or 0) == 1,
+        ),
+        check(
+            "futures_product_exposure_ready",
+            object_record(command_suite.get("futures_product_exposure_evidence")).get(
+                "status"
+            )
+            == "ready"
+            and object_record(
+                command_suite.get("futures_product_exposure_evidence")
+            ).get("any_product_within_backend_cap")
+            is True,
+        ),
+        check(
+            "futures_product_exposure_avp_within_cap",
+            any(
+                object_record(item).get("product_id") == "AVP-20DEC30-CDE"
+                and object_record(item).get("within_backend_cap") is True
+                for item in (
+                    object_record(
+                        command_suite.get("futures_product_exposure_evidence")
+                    ).get("items")
+                    or []
+                )
+            ),
         ),
         check(
             "no_live_coinbase_orders_ran",
@@ -356,6 +428,8 @@ def redact_risk_proof_evidence(body: Mapping[str, Any]) -> dict[str, Any]:
 def redact_command_suite_evidence(body: Mapping[str, Any]) -> dict[str, Any]:
     """Return Futures command-suite readiness without account values."""
 
+    live_decision = object_record(body.get("futures_live_decision_evidence"))
+    product_exposure = object_record(body.get("futures_product_exposure_evidence"))
     return {
         "status": body.get("status"),
         "command_routes_mode": body.get("command_routes_mode"),
@@ -364,7 +438,56 @@ def redact_command_suite_evidence(body: Mapping[str, Any]) -> dict[str, Any]:
         "futures_risk_proof_count": body.get("futures_risk_proof_count"),
         "blocked_command_count": body.get("blocked_command_count"),
         "executable_command_count": body.get("executable_command_count"),
+        "live_decision": {
+            "service_decision_status": live_decision.get("service_decision_status"),
+            "adapter_decision_ready_count": live_decision.get(
+                "adapter_decision_ready_count"
+            ),
+            "adapter_decision_missing_count": live_decision.get(
+                "adapter_decision_missing_count"
+            ),
+            "executor_boundary_status": live_decision.get("executor_boundary_status"),
+            "first_blocker": live_decision.get("first_blocker"),
+        },
+        "product_exposure": redact_product_exposure_evidence(product_exposure),
         "live_coinbase_orders_ran": body.get("live_coinbase_orders_ran"),
+        "submitted_notional_usdc": body.get("submitted_notional_usdc"),
+        "executed_notional_usdc": body.get("executed_notional_usdc"),
+    }
+
+
+def redact_product_exposure_evidence(body: Mapping[str, Any]) -> dict[str, Any]:
+    """Return product exposure readiness without account or order values."""
+
+    items = body.get("items") if isinstance(body.get("items"), list) else []
+    return {
+        "status": body.get("status"),
+        "max_submitted_notional_usdc": body.get("max_submitted_notional_usdc"),
+        "product_count": body.get("product_count"),
+        "product_within_backend_cap_count": body.get(
+            "product_within_backend_cap_count"
+        ),
+        "any_product_within_backend_cap": body.get("any_product_within_backend_cap"),
+        "next_required_operator_decision": body.get(
+            "next_required_operator_decision"
+        ),
+        "items": [
+            {
+                "product_id": object_record(item).get("product_id"),
+                "status": object_record(item).get("status"),
+                "metadata_read_status": object_record(item).get(
+                    "metadata_read_status"
+                ),
+                "minimum_contract_notional_usdc": object_record(item).get(
+                    "minimum_contract_notional_usdc"
+                ),
+                "minimum_contract_notional_source": object_record(item).get(
+                    "minimum_contract_notional_source"
+                ),
+                "within_backend_cap": object_record(item).get("within_backend_cap"),
+            }
+            for item in items
+        ],
     }
 
 
@@ -418,9 +541,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     started_at = current_utc_timestamp()
     started = time.perf_counter()
     applied_environment = apply_runner_environment()
-    read_results = read_admin_surfaces(get_admin_mvp_service())
-    ended_at = current_utc_timestamp()
+    service = get_admin_mvp_service()
     backend_git_commit = read_git_value(["rev-parse", "--short", "HEAD"])
+    backend_contract_ref = args.backend_contract_ref or backend_git_commit
+    futures_live_decision_records = record_futures_live_decision_evidence(
+        service,
+        summary_output=args.summary_output,
+        backend_contract_ref=backend_contract_ref,
+    )
+    read_results = read_admin_surfaces(service)
+    ended_at = current_utc_timestamp()
     summary = build_smoke_summary(
         read_results=read_results,
         applied_environment=applied_environment,
@@ -429,8 +559,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         duration_seconds=time.perf_counter() - started,
         backend_git_commit=backend_git_commit,
         backend_git_branch=read_git_value(["rev-parse", "--abbrev-ref", "HEAD"]),
-        backend_contract_ref=args.backend_contract_ref or backend_git_commit,
+        backend_contract_ref=backend_contract_ref,
         environ=os.environ,
+        futures_live_decision_records=futures_live_decision_records,
     )
     write_json(args.summary_output, summary)
     print(

@@ -106,7 +106,7 @@ def ready_read_results() -> dict[str, SimpleNamespace]:
             {
                 "type": "admin_futures_command_suite",
                 "status": "evidence_ready",
-                "command_routes_mode": "backend_admin_api_draft_only",
+                "command_routes_mode": "backend_admin_api_confirmed_live",
                 "resolved_backend_contracts": [
                     "futures_account_scope_contract",
                     "futures_margin_collateral_risk_proof",
@@ -115,8 +115,49 @@ def ready_read_results() -> dict[str, SimpleNamespace]:
                 ],
                 "missing_backend_contracts": [],
                 "futures_risk_proof_count": 4,
-                "blocked_command_count": 4,
-                "executable_command_count": 0,
+                "blocked_command_count": 1,
+                "executable_command_count": 3,
+                "futures_live_decision_evidence": {
+                    "service_decision_status": "ready",
+                    "adapter_decision_ready_count": 4,
+                    "adapter_decision_missing_count": 0,
+                    "executor_boundary_status": "live_enabled",
+                    "first_blocker": None,
+                },
+                "futures_product_exposure_evidence": {
+                    "status": "ready",
+                    "max_submitted_notional_usdc": "100.00",
+                    "product_count": 2,
+                    "product_within_backend_cap_count": 1,
+                    "any_product_within_backend_cap": True,
+                    "next_required_operator_decision": (
+                        "select_configured_us_cfm_product_within_cap"
+                    ),
+                    "items": [
+                        {
+                            "product_id": "AVP-20DEC30-CDE",
+                            "status": "ready",
+                            "metadata_read_status": "ready",
+                            "minimum_contract_notional_usdc": "68.40",
+                            "minimum_contract_notional_source": (
+                                "backend_product_metadata"
+                            ),
+                            "within_backend_cap": True,
+                        },
+                        {
+                            "product_id": "BIP-20DEC30-CDE",
+                            "status": "blocked",
+                            "metadata_read_status": "ready",
+                            "minimum_contract_notional_usdc": "625.00",
+                            "minimum_contract_notional_source": (
+                                "backend_product_metadata"
+                            ),
+                            "within_backend_cap": False,
+                        },
+                    ],
+                },
+                "submitted_notional_usdc": "0",
+                "executed_notional_usdc": "0",
                 "live_coinbase_orders_ran": False,
             }
         ),
@@ -154,6 +195,17 @@ def test_account_reality_live_read_smoke_writes_redacted_ready_summary(tmp_path)
     assert summary["futures_positions"]["count"] == 1
     assert summary["futures_positions"]["position_scope_present"] is True
     assert summary["futures_positions"]["position_side_present"] is True
+    assert (
+        summary["futures_command_suite"]["command_routes_mode"]
+        == "backend_admin_api_confirmed_live"
+    )
+    assert summary["futures_command_suite"]["executable_command_count"] == 3
+    assert (
+        summary["futures_command_suite"]["product_exposure"][
+            "any_product_within_backend_cap"
+        ]
+        is True
+    )
     assert "available_notional_usdc" not in json.dumps(summary)
     assert "250.00" not in json.dumps(summary)
     assert "number_of_contracts" not in json.dumps(summary)
@@ -210,6 +262,12 @@ def test_account_reality_live_read_smoke_fails_when_futures_risk_is_blocked():
 
 def test_account_reality_live_read_smoke_main_writes_artifact(monkeypatch, tmp_path):
     class FakeService:
+        def record_live_service_decision(self, body, context):
+            return result({"decision": {"decision_id": body["decision_id"]}})
+
+        def record_live_adapter_decision(self, body, context):
+            return result({"decision": {"decision_id": body["decision_id"]}})
+
         def get_read_response(self, route, query, context):
             route_map = {
                 "/api/v1/admin/wallet": "wallet",
