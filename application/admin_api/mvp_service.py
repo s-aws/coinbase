@@ -1264,33 +1264,221 @@ class AdminMvpService:
         body: Mapping[str, Any],
         context: AdminMvpRequestContext,
     ) -> AdminMvpApiResult:
-        """Return a fail-closed cancel response with backend proof context."""
+        """Cancel one spot order through backend proof and live-execution gates."""
 
         proof_context = _spot_cancel_order_context_from_cancel_request(
             client_order_id,
             body,
             context,
         )
+        cancel_proof = self._matching_cancel_proof(
+            proof_context["identity_value"],
+            proof_context["command_idempotency_key"],
+            proof_context["payload_hash"],
+        )
+        pre_coinbase_failure = self._spot_cancel_pre_coinbase_failure(
+            body=body,
+            cancel_proof=cancel_proof,
+        )
+        if pre_coinbase_failure is not None:
+            status_code = int(pre_coinbase_failure["status_code"])
+            return self._spot_cancel_blocked_response(
+                status_code=status_code,
+                command_status=(
+                    AdminMvpCommandStatus.NOT_IMPLEMENTED
+                    if status_code == 501
+                    else AdminMvpCommandStatus.REJECTED
+                ),
+                message=str(pre_coinbase_failure["message"]),
+                failure_stage=str(pre_coinbase_failure["failure_stage"]),
+                client_order_id=client_order_id,
+                proof_context=proof_context,
+                cancel_proof=cancel_proof,
+                context=context,
+            )
+
+        return self._execute_spot_cancel_order(
+            client_order_id=client_order_id,
+            proof_context=proof_context,
+            cancel_proof=cancel_proof,
+            context=context,
+        )
+
+    def _execute_spot_cancel_order(
+        self,
+        *,
+        client_order_id: str,
+        proof_context: Mapping[str, Any],
+        cancel_proof: Mapping[str, Any] | None,
+        context: AdminMvpRequestContext,
+    ) -> AdminMvpApiResult:
+        if not self.dependencies.live_coinbase_execution_enabled:
+            return self._spot_cancel_blocked_response(
+                status_code=400,
+                command_status=AdminMvpCommandStatus.REJECTED,
+                message="Live Coinbase execution is not enabled for this local backend process.",
+                failure_stage="action_condition_guard",
+                client_order_id=client_order_id,
+                proof_context=proof_context,
+                cancel_proof=cancel_proof,
+                context=context,
+            )
+        try:
+            controller = self.dependencies.runtime_controller_factory()
+            _check_runtime_cancel_admission(controller)
+            with _track_runtime_cancel(controller):
+                result = self.dependencies.rest_client.cancel_orders(
+                    order_ids=[client_order_id],
+                )
+        except Exception as exc:
+            return self._spot_cancel_blocked_response(
+                status_code=400,
+                command_status=AdminMvpCommandStatus.REJECTED,
+                message=f"Coinbase order cancel failed: {exc}",
+                failure_stage="coinbase_rest",
+                client_order_id=client_order_id,
+                proof_context=proof_context,
+                cancel_proof=cancel_proof,
+                context=context,
+            )
+
+        cancel_result = _coinbase_cancel_orders_result_data(result)
+        if not _coinbase_cancel_order_succeeded(cancel_result):
+            return self._spot_cancel_blocked_response(
+                status_code=400,
+                command_status=AdminMvpCommandStatus.REJECTED,
+                message=(
+                    "Coinbase order cancel was not accepted: "
+                    f"{_coinbase_cancel_order_error_message(cancel_result)}"
+                ),
+                failure_stage="coinbase_rest",
+                client_order_id=client_order_id,
+                proof_context=proof_context,
+                cancel_proof=cancel_proof,
+                context=context,
+            )
+
+        self.store.live_coinbase_orders_ran = True
+        runtime_evidence = self._runtime_evidence()
+        command_record = self._record_spot_cancel_command_decision(
+            status=AdminMvpCommandStatus.ACCEPTED.value,
+            message="Spot cancel submitted to Coinbase by backend Admin API.",
+            client_order_id=client_order_id,
+            proof_context=proof_context,
+            cancel_proof=cancel_proof,
+            context=context,
+            live_exchange_submitted=True,
+            coinbase_cancel_result=cancel_result,
+            failure_stage=None,
+            runtime_evidence=runtime_evidence,
+        )
         response = {
             "type": "admin_api_command_result",
-            "status": AdminMvpCommandStatus.NOT_IMPLEMENTED.value,
+            "status": AdminMvpCommandStatus.ACCEPTED.value,
             "action_class": CANCEL_ORDER_ACTION_CLASS,
             "required_permission": CANCEL_ORDER_PERMISSION,
             "service_method": CANCEL_ORDER_SERVICE_METHOD,
-            "message": (
-                "Cancel remains backend-owned and live-disabled; record cancel "
-                "proof-chain evidence separately before any future live enablement."
-            ),
+            "message": "Spot cancel submitted to Coinbase by backend Admin API.",
             "client_order_id": client_order_id,
             "correlation_id": context.correlation_id,
             "idempotency_key": context.idempotency_key,
             "proof_context": proof_context,
-            "failure_stage": "durable_audit_required",
-            "live_exchange_submitted": False,
+            "cancel_proof": _spot_cancel_proof_summary(cancel_proof),
+            "failure_stage": None,
+            "coinbase_cancel_submission_allowed": True,
+            "coinbase_cancel_result": cancel_result,
+            "live_exchange_submitted": True,
+            "cancel_event_recorded": True,
+            "submission_event_recorded": True,
+            "submission_event_id": command_record["decision_id"],
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
             **self._runtime_evidence(),
+            **self._live_outputs(True, Decimal("0")),
+        }
+        return self._result(200, response, context, live_execution_enabled=True)
+
+    def _spot_cancel_pre_coinbase_failure(
+        self,
+        *,
+        body: Mapping[str, Any],
+        cancel_proof: Mapping[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        if cancel_proof is None:
+            return {
+                "status_code": 501,
+                "failure_stage": "cancel_proof_chain_required",
+                "message": (
+                    "Spot cancel requires backend cancel proof-chain evidence before "
+                    "Coinbase execution."
+                ),
+            }
+        if not _manual_live_acknowledged(body):
+            return {
+                "status_code": 400,
+                "failure_stage": "manual_live_acknowledgement",
+                "message": "Manual live acknowledgement is required.",
+            }
+        if not self.dependencies.rest_client_available or self.dependencies.rest_client is None:
+            return {
+                "status_code": 400,
+                "failure_stage": "product_capability",
+                "message": "Coinbase REST client is not available to the backend.",
+            }
+        if not self._latest_service_decision_allows_live():
+            return {
+                "status_code": 400,
+                "failure_stage": "durable_audit_required",
+                "message": "Backend live-service decision has not approved live execution.",
+            }
+        return None
+
+    def _spot_cancel_blocked_response(
+        self,
+        *,
+        status_code: int,
+        command_status: AdminMvpCommandStatus,
+        message: str,
+        failure_stage: str,
+        client_order_id: str,
+        proof_context: Mapping[str, Any],
+        cancel_proof: Mapping[str, Any] | None,
+        context: AdminMvpRequestContext,
+    ) -> AdminMvpApiResult:
+        runtime_evidence = self._runtime_evidence()
+        self._record_spot_cancel_command_decision(
+            status=command_status.value,
+            message=message,
+            client_order_id=client_order_id,
+            proof_context=proof_context,
+            cancel_proof=cancel_proof,
+            context=context,
+            live_exchange_submitted=False,
+            coinbase_cancel_result={},
+            failure_stage=failure_stage,
+            runtime_evidence=runtime_evidence,
+        )
+        response = {
+            "type": "admin_api_command_result",
+            "status": command_status.value,
+            "action_class": CANCEL_ORDER_ACTION_CLASS,
+            "required_permission": CANCEL_ORDER_PERMISSION,
+            "service_method": CANCEL_ORDER_SERVICE_METHOD,
+            "message": message,
+            "client_order_id": client_order_id,
+            "correlation_id": context.correlation_id,
+            "idempotency_key": context.idempotency_key,
+            "proof_context": dict(proof_context),
+            "cancel_proof": _spot_cancel_proof_summary(cancel_proof),
+            "failure_stage": failure_stage,
+            "coinbase_cancel_submission_allowed": False,
+            "live_exchange_submitted": False,
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
+            **runtime_evidence,
             **self._live_outputs(False, Decimal("0")),
         }
-        return self._result(501, response, context)
+        return self._result(status_code, response, context)
 
     def create_approval_request(
         self,
@@ -2870,6 +3058,65 @@ class AdminMvpService:
         self._persist_record("spot_command_decisions", decision_id, record)
         return record
 
+    def _record_spot_cancel_command_decision(
+        self,
+        *,
+        status: str,
+        message: str,
+        client_order_id: str,
+        proof_context: Mapping[str, Any],
+        cancel_proof: Mapping[str, Any] | None,
+        context: AdminMvpRequestContext,
+        live_exchange_submitted: bool,
+        coinbase_cancel_result: Mapping[str, Any],
+        failure_stage: str | None,
+        runtime_evidence: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        decision_id = f"spot-cancel-command-{self.dependencies.uuid_factory()}"
+        record = {
+            "decision_id": decision_id,
+            "recorded_at": self._now_iso(),
+            "route": CANCEL_ORDER_ROUTE,
+            "method": "POST",
+            "module_id": MANUAL_ORDER_MODULE_ID,
+            "identity_key": "client_order_id",
+            "identity_value": client_order_id,
+            "action_class": CANCEL_ORDER_ACTION_CLASS,
+            "required_permission": CANCEL_ORDER_PERMISSION,
+            "service_method": CANCEL_ORDER_SERVICE_METHOD,
+            "actor_id": context.actor_id,
+            "operator_intent": context.operator_intent,
+            "idempotency_key": context.idempotency_key,
+            "command_idempotency_key": context.idempotency_key,
+            "correlation_id": context.correlation_id,
+            "audit_id": f"audit-{context.idempotency_key}",
+            "payload_hash": proof_context.get("payload_hash"),
+            "client_order_id": client_order_id,
+            "product_id": "",
+            "notional_usdc": "0",
+            "submitted_notional_usdc": "0",
+            "executed_notional_usdc": "0",
+            "status": status,
+            "message": message,
+            "failure_stage": failure_stage,
+            "coinbase_order_id": None,
+            "exchange_order_id": None,
+            "exchange_order_id_evidence_only": True,
+            "coinbase_cancel_result": dict(coinbase_cancel_result),
+            "coinbase_order_cancel_submitted": live_exchange_submitted,
+            "live_exchange_submitted": live_exchange_submitted,
+            "admission_decision": _spot_cancel_admission_summary(
+                cancel_proof,
+                proof_context,
+            ),
+            "cancel_proof": _spot_cancel_proof_summary(cancel_proof),
+            "live_coinbase_orders_ran": live_exchange_submitted,
+            **dict(runtime_evidence),
+        }
+        self.store.spot_command_decisions[decision_id] = record
+        self._persist_record("spot_command_decisions", decision_id, record)
+        return record
+
     def _pre_coinbase_failure(
         self,
         body: Mapping[str, Any],
@@ -4071,19 +4318,29 @@ class AdminMvpService:
             readiness_preconditions=manual_readiness,
         )
         cancel_context, cancel_proof = self._spot_cancel_order_proof(query)
+        cancel_readiness = _cancel_order_readiness_preconditions(
+            cancel_proof=cancel_proof,
+            runtime_evidence=runtime_evidence,
+            live_coinbase_execution_enabled=(
+                self.dependencies.live_coinbase_execution_enabled
+            ),
+            live_service_decision_allows_live=self._latest_service_decision_allows_live(),
+        )
         cancel_command = _cancel_order_command(
             cancel_context=cancel_context,
             cancel_proof=cancel_proof,
+            readiness_preconditions=cancel_readiness,
         )
         commands = [manual_command, cancel_command]
         blocked_command_count = sum(1 for command in commands if command["status"] != "ready")
         executable_command_count = sum(1 for command in commands if command["executable"])
+        live_enabled_command_count = sum(1 for command in commands if command["live_enabled"])
         return {
             "type": "spot_command_suite",
             "status": "approval_required",
             "command_count": len(commands),
             "blocked_command_count": blocked_command_count,
-            "live_enabled_command_count": 1,
+            "live_enabled_command_count": live_enabled_command_count,
             "executable_command_count": executable_command_count,
             "coverage_gap_count": 0,
             "manual_order_proof_chain_status": manual_command["proof_chain_status"],
@@ -5884,6 +6141,66 @@ def _coinbase_create_order_error_message(result_data: Mapping[str, Any]) -> str:
     return "Coinbase returned success=false."
 
 
+def _coinbase_cancel_orders_result_data(result: Any) -> dict[str, Any]:
+    if isinstance(result, Sequence) and not isinstance(result, (str, bytes, bytearray)):
+        return {"results": [_object_to_dict(item) for item in result]}
+    return _object_to_dict(result)
+
+
+def _coinbase_cancel_order_succeeded(result_data: Mapping[str, Any]) -> bool:
+    success = result_data.get("success")
+    if success is not None:
+        return _truthy_value(success)
+    results = result_data.get("results")
+    if isinstance(results, Sequence) and not isinstance(results, (str, bytes, bytearray)):
+        if not results:
+            return False
+        return all(_coinbase_cancel_result_item_succeeded(item) for item in results)
+    return bool(result_data)
+
+
+def _coinbase_cancel_result_item_succeeded(item: Any) -> bool:
+    item_data = item if isinstance(item, Mapping) else _object_to_dict(item)
+    success = item_data.get("success") if isinstance(item_data, Mapping) else None
+    if success is None:
+        return bool(item_data)
+    return _truthy_value(success)
+
+
+def _coinbase_cancel_order_error_message(result_data: Mapping[str, Any]) -> str:
+    error_response = result_data.get("error_response")
+    error_data = (
+        dict(error_response)
+        if isinstance(error_response, Mapping)
+        else _object_to_dict(error_response)
+    )
+    details = [
+        str(error_data.get(key) or "").strip()
+        for key in ("message", "error_details", "error")
+        if str(error_data.get(key) or "").strip()
+    ]
+    results = result_data.get("results")
+    if not details and isinstance(results, Sequence):
+        for item in results:
+            item_data = item if isinstance(item, Mapping) else _object_to_dict(item)
+            if not isinstance(item_data, Mapping):
+                continue
+            details.extend(
+                str(item_data.get(key) or "").strip()
+                for key in ("failure_reason", "message", "error")
+                if str(item_data.get(key) or "").strip()
+            )
+    if details:
+        return "; ".join(details)
+    return "Coinbase returned cancel success=false."
+
+
+def _truthy_value(value: Any) -> bool:
+    if isinstance(value, str):
+        return value.strip().lower() in TRUTHY_ENV_VALUES
+    return bool(value)
+
+
 def _object_to_dict(value: Any) -> dict[str, Any]:
     if isinstance(value, Mapping):
         return dict(value)
@@ -7259,6 +7576,24 @@ def _track_runtime_place(controller: Any):
     return nullcontext()
 
 
+def _check_runtime_cancel_admission(controller: Any) -> None:
+    from core.runtime_controller import INFLIGHT_REST_CANCEL
+
+    check_admission = getattr(controller, "check_admission", None)
+    if callable(check_admission):
+        check_admission(INFLIGHT_REST_CANCEL)
+
+
+def _track_runtime_cancel(controller: Any):
+    from contextlib import nullcontext
+    from core.runtime_controller import INFLIGHT_REST_CANCEL
+
+    tracker = getattr(controller, "track_inflight", None)
+    if callable(tracker):
+        return tracker(INFLIGHT_REST_CANCEL)
+    return nullcontext()
+
+
 def _find_matching_record(
     records: Any,
     identity_value: str,
@@ -7350,6 +7685,7 @@ def _spot_cancel_order_context_from_cancel_request(
     context: AdminMvpRequestContext,
 ) -> dict[str, Any]:
     payload = {"client_order_id": client_order_id, **dict(body)}
+    payload_hash = str(body.get("payload_hash") or _payload_hash(payload))
     return {
         "route": CANCEL_ORDER_ROUTE,
         "method": "POST",
@@ -7362,7 +7698,7 @@ def _spot_cancel_order_context_from_cancel_request(
         "actor_id": context.actor_id,
         "operator_intent": context.operator_intent,
         "command_idempotency_key": context.idempotency_key,
-        "payload_hash": _payload_hash(payload),
+        "payload_hash": payload_hash,
         "source": "cancel_request",
     }
 
@@ -7539,6 +7875,53 @@ def _spot_command_suite_admission_summary(admission: Mapping[str, Any]) -> dict[
         "evidence": list(admission.get("evidence") or []),
         "browser_authority": admission.get("browser_authority"),
         "live_exchange_submitted": False,
+    }
+
+
+def _spot_cancel_admission_summary(
+    cancel_proof: Mapping[str, Any] | None,
+    proof_context: Mapping[str, Any],
+) -> dict[str, Any]:
+    proof_passed = bool(cancel_proof and cancel_proof.get("allowed"))
+    return {
+        "status": (
+            AdminMvpGateStatus.PASSED.value
+            if proof_passed
+            else AdminMvpGateStatus.BLOCKED.value
+        ),
+        "allowed": proof_passed,
+        "route": proof_context.get("route"),
+        "method": proof_context.get("method"),
+        "module_id": proof_context.get("module_id"),
+        "identity_key": proof_context.get("identity_key"),
+        "identity_value": proof_context.get("identity_value"),
+        "idempotency_key": proof_context.get("command_idempotency_key"),
+        "payload_hash": proof_context.get("payload_hash"),
+        "cancel_proof_chain_present": cancel_proof is not None,
+        "cancel_proof_chain_id": (
+            cancel_proof.get("plan_id") if cancel_proof is not None else None
+        ),
+        "proof_chain_status": (
+            AdminMvpGateStatus.PASSED.value
+            if proof_passed
+            else AdminMvpGateStatus.BLOCKED.value
+        ),
+    }
+
+
+def _spot_cancel_proof_summary(
+    cancel_proof: Mapping[str, Any] | None,
+) -> dict[str, Any] | None:
+    if cancel_proof is None:
+        return None
+    return {
+        "cancel_proof_chain_id": cancel_proof.get("plan_id"),
+        "status": cancel_proof.get("status"),
+        "allowed": bool(cancel_proof.get("allowed")),
+        "exchange_submission_required": bool(
+            cancel_proof.get("exchange_submission_required")
+        ),
+        "payload_hash": cancel_proof.get("payload_hash"),
     }
 
 
@@ -8154,6 +8537,81 @@ def _manual_order_readiness_preconditions(
     ]
 
 
+def _cancel_order_readiness_preconditions(
+    *,
+    cancel_proof: Mapping[str, Any] | None,
+    runtime_evidence: Mapping[str, Any],
+    live_coinbase_execution_enabled: bool,
+    live_service_decision_allows_live: bool,
+) -> list[dict[str, Any]]:
+    proof_chain_passed = bool(cancel_proof and cancel_proof.get("allowed"))
+    runtime_ready = bool(runtime_evidence.get("live_command_runtime_ready"))
+    return [
+        _spot_command_readiness_precondition(
+            precondition="cancel_proof_chain",
+            passed=proof_chain_passed,
+            source="backend_cancel_proof_chain",
+            expected_source="cancel_proof_chain_record",
+            blocker="cancel_proof_chain_missing",
+            evidence=[
+                str(cancel_proof["plan_id"])
+                if cancel_proof is not None and cancel_proof.get("plan_id")
+                else ""
+            ],
+            detail=(
+                "Exact cancel proof-chain record passed for this client_order_id."
+                if proof_chain_passed
+                else "Exact cancel proof-chain record has not passed."
+            ),
+        ),
+        _spot_command_readiness_precondition(
+            precondition="live_service_decision",
+            passed=live_service_decision_allows_live,
+            source="admin_api_live_service_decision_log",
+            expected_source="explicit_backend_live_service_decision",
+            blocker="live_service_decision_missing",
+            evidence=["/api/v1/admin/live-execution/service-decisions"],
+            detail=(
+                "Latest backend live-service decision explicitly approves live execution."
+                if live_service_decision_allows_live
+                else "Backend live-service decision has not approved live execution."
+            ),
+        ),
+        _spot_command_readiness_precondition(
+            precondition="backend_live_execution_opt_in",
+            passed=live_coinbase_execution_enabled,
+            source="backend_runtime_environment",
+            expected_source="COINBASE_ADMIN_LIVE_COINBASE_EXECUTION",
+            blocker="backend_live_execution_disabled",
+            evidence=["application/admin_api/mvp_service.py"],
+            detail=(
+                "This backend process is explicitly opted in for controlled live execution."
+                if live_coinbase_execution_enabled
+                else "This backend process has not opted in to controlled live execution."
+            ),
+        ),
+        _spot_command_readiness_precondition(
+            precondition="live_command_runtime",
+            passed=runtime_ready,
+            source=str(
+                runtime_evidence.get("live_command_runtime_source")
+                or "application/admin_api/mvp_service.py"
+            ),
+            expected_source="coinbase_rest_client_available",
+            blocker=str(
+                runtime_evidence.get("live_command_runtime_missing_reason")
+                or "live_command_runtime_not_ready"
+            ),
+            evidence=[str(runtime_evidence.get("live_command_runtime_source") or "")],
+            detail=(
+                "Backend command runtime has a Coinbase REST client available."
+                if runtime_ready
+                else "Backend command runtime is not ready for Coinbase REST submission."
+            ),
+        ),
+    ]
+
+
 def _cap_guard_wallet_ready(cap_guard: Mapping[str, Any] | None) -> bool:
     if cap_guard is None:
         return False
@@ -8283,7 +8741,13 @@ def _cancel_order_command(
     *,
     cancel_context: Mapping[str, Any] | None = None,
     cancel_proof: Mapping[str, Any] | None = None,
+    readiness_preconditions: Sequence[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    readiness_items = [dict(item) for item in (readiness_preconditions or [])]
+    readiness_blocker_count = sum(1 for item in readiness_items if bool(item.get("blocking")))
+    readiness_passed_count = sum(
+        1 for item in readiness_items if item.get("status") == AdminMvpGateStatus.PASSED.value
+    )
     missing_gate_chain = [] if cancel_proof is not None else list(SPOT_CANCEL_PROOF_GATES)
     resolved_gate_chain = [
         gate for gate in SPOT_CANCEL_PROOF_GATES if gate not in missing_gate_chain
@@ -8293,18 +8757,27 @@ def _cancel_order_command(
         if not missing_gate_chain
         else AdminMvpGateStatus.BLOCKED.value
     )
+    executable = bool(readiness_items) and readiness_blocker_count == 0
     return {
         "mutation_family": "spot_order_cancel",
         "route": CANCEL_ORDER_ROUTE,
         "method": "POST",
         "identity_key": "client_order_id",
         "shared_method": CANCEL_ORDER_SERVICE_METHOD,
-        "status": "blocked",
-        "live_execution_status": AdminMvpLiveServiceStatus.LIVE_DISABLED.value,
-        "live_enabled": False,
-        "live_eligible": False,
-        "executable": False,
-        "live_adapter_configured": False,
+        "status": "ready" if executable else "blocked",
+        "live_execution_status": (
+            AdminMvpLiveServiceStatus.APPROVAL_REQUIRED.value
+            if cancel_proof is not None
+            else AdminMvpLiveServiceStatus.LIVE_DISABLED.value
+        ),
+        "live_enabled": executable,
+        "live_eligible": cancel_proof is not None,
+        "executable": executable,
+        "live_adapter_configured": any(
+            item.get("precondition") == "live_command_runtime"
+            and item.get("status") == AdminMvpGateStatus.PASSED.value
+            for item in readiness_items
+        ),
         "proof_chain_status": proof_chain_status,
         "proof_chain_blocker_count": len(missing_gate_chain),
         "resolved_gate_chain": resolved_gate_chain,
@@ -8339,10 +8812,10 @@ def _cancel_order_command(
                 "detail": "Backend cancel proof-chain evidence route.",
             }
         ],
-        "readiness_preconditions": [],
-        "readiness_precondition_count": 0,
-        "blocking_readiness_precondition_count": 0,
-        "passed_readiness_precondition_count": 0,
+        "readiness_preconditions": readiness_items,
+        "readiness_precondition_count": len(readiness_items),
+        "blocking_readiness_precondition_count": readiness_blocker_count,
+        "passed_readiness_precondition_count": readiness_passed_count,
     }
 
 

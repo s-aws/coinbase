@@ -80,16 +80,31 @@ def test_admin_account_management_openapi_exposes_live_read_evidence_fields():
 @dataclass
 class FakeRestClient:
     create_order_calls: list[dict] = field(default_factory=list)
+    cancel_order_calls: list[dict] = field(default_factory=list)
     create_order_response: dict = field(
         default_factory=lambda: {
             "success": True,
             "success_response": {"order_id": "exchange-order-live-1"},
         }
     )
+    cancel_orders_response: dict = field(
+        default_factory=lambda: {
+            "results": [
+                {
+                    "success": True,
+                    "order_id": "client-cancel-live",
+                }
+            ]
+        }
+    )
 
     def create_order(self, **kwargs):
         self.create_order_calls.append(kwargs)
         return self.create_order_response
+
+    def cancel_orders(self, **kwargs):
+        self.cancel_order_calls.append(kwargs)
+        return self.cancel_orders_response
 
 
 @dataclass
@@ -2711,6 +2726,91 @@ def test_spot_cancel_order_proof_chain_route_records_backend_evidence_from_clien
     assert cancel_result.body["live_exchange_submitted"] is False
     assert cancel_result.body["live_coinbase_orders_ran"] is False
     assert rest_client.create_order_calls == []
+
+
+def test_spot_cancel_order_live_execution_flows_through_backend_cancel_adapter():
+    rest_client = FakeAccountRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        )
+    )
+    record_live_service_decision(service)
+    cancel_body = {
+        "route": "/api/v1/orders/{client_order_id}/cancel",
+        "method": "POST",
+        "module_id": "spot_operations",
+        "identity_key": "client_order_id",
+        "identity_value": "client-cancel-live",
+        "action_class": "live_exchange_cancel",
+        "required_permission": "order:cancel",
+        "service_method": "cancel_order_by_client_order_id",
+        "actor_id": "operator-1",
+        "operator_intent": "cancel_by_client_order_id",
+        "command_idempotency_key": "cancel-command-live",
+        "payload_hash": "e" * 64,
+    }
+    recorded = service.record_spot_cancel_order_proof_chain(
+        cancel_body,
+        context(idempotency_key="spot-cancel-order-live-proof-chain-record"),
+    )
+    assert recorded.status_code == 200
+
+    cancel_result = service.cancel_order_by_client_order_id(
+        "client-cancel-live",
+        {
+            "reason": "operator_requested_cancel",
+            "payload_hash": "e" * 64,
+            "manual_live_acknowledgement": True,
+        },
+        context(idempotency_key="cancel-command-live"),
+    )
+
+    assert cancel_result.status_code == 200
+    assert cancel_result.body["status"] == "accepted"
+    assert cancel_result.body["failure_stage"] is None
+    assert cancel_result.body["client_order_id"] == "client-cancel-live"
+    assert cancel_result.body["coinbase_cancel_submission_allowed"] is True
+    assert cancel_result.body["live_exchange_submitted"] is True
+    assert cancel_result.body["live_coinbase_orders_ran"] is True
+    assert cancel_result.body["live_coinbase_execution"] == "submitted"
+    assert cancel_result.body["submitted_notional_usdc"] == "0"
+    assert cancel_result.body["cancel_event_recorded"] is True
+    assert rest_client.cancel_order_calls == [{"order_ids": ["client-cancel-live"]}]
+    assert rest_client.create_order_calls == []
+
+    suite = service.get_read_response(
+        "/api/v1/spot/command-suite",
+        {},
+        context(),
+    )
+    cancel_command = next(
+        command
+        for command in suite.body["commands"]
+        if command["route"] == "/api/v1/orders/{client_order_id}/cancel"
+    )
+    assert suite.body["cancel_order_proof_chain_status"] == "passed"
+    assert suite.body["cancel_order_missing_gate_count"] == 0
+    assert cancel_command["status"] == "ready"
+    assert cancel_command["live_enabled"] is True
+    assert cancel_command["live_eligible"] is True
+    assert cancel_command["live_adapter_configured"] is True
+
+    workbench = service.get_read_response(
+        "/api/v1/admin/audit-workbench",
+        {"module": "spot", "client_order_id": "client-cancel-live"},
+        context(),
+    )
+    assert workbench.status_code == 200
+    assert workbench.body["count"] == 1
+    event = workbench.body["events"][0]
+    assert event["endpoint"] == "/api/v1/orders/{client_order_id}/cancel"
+    assert event["status"] == "accepted"
+    assert event["client_order_id"] == "client-cancel-live"
+    assert event["live_exchange_submitted"] is True
+    assert event["live_coinbase_orders_ran"] is True
 
 
 def test_admin_mvp_proof_chain_admits_manual_order_but_default_stays_pre_coinbase():
