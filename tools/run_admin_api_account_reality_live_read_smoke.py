@@ -76,6 +76,7 @@ def read_admin_surfaces(service: Any) -> dict[str, Any]:
     routes = {
         "wallet": "/api/v1/admin/wallet",
         "futures_account": "/api/v1/futures/account",
+        "futures_positions": "/api/v1/futures/positions",
         "futures_risk_proofs": "/api/v1/futures/risk-proofs",
         "futures_command_suite": "/api/v1/futures/command-suite",
     }
@@ -118,6 +119,9 @@ def build_smoke_summary(
         "checks": checks,
         "wallet": redact_wallet_evidence(bodies["wallet"]),
         "futures_account": redact_futures_account_evidence(bodies["futures_account"]),
+        "futures_positions": redact_futures_positions_evidence(
+            bodies["futures_positions"]
+        ),
         "futures_risk_proofs": redact_risk_proof_evidence(
             bodies["futures_risk_proofs"]
         ),
@@ -137,6 +141,7 @@ def account_reality_checks(
 
     wallet = bodies["wallet"]
     futures_account = bodies["futures_account"]
+    futures_positions = bodies["futures_positions"]
     risk_proofs = bodies["futures_risk_proofs"]
     command_suite = bodies["futures_command_suite"]
     readiness = object_record(wallet.get("readiness"))
@@ -153,6 +158,23 @@ def account_reality_checks(
         check(
             "futures_account_scope_ready",
             readiness.get("futures_account_scope_ready") is True,
+        ),
+        check(
+            "futures_observed_position_scope_ready",
+            readiness.get("futures_observed_position_scope_ready") is True,
+        ),
+        check(
+            "futures_positions_http_ok",
+            read_results["futures_positions"].status_code == 200,
+        ),
+        check(
+            "futures_positions_scope_readback",
+            futures_positions.get("type") == "admin_futures_positions"
+            and int(futures_positions.get("count") or 0) > 0,
+        ),
+        check(
+            "futures_positions_read_only",
+            futures_positions.get("read_only") is True,
         ),
         check(
             "futures_margin_collateral_ready",
@@ -226,6 +248,39 @@ def redact_futures_account_evidence(body: Mapping[str, Any]) -> dict[str, Any]:
         "collateral_source": collateral.get("source"),
         "margin_status": margin.get("status"),
         "margin_source": margin.get("source"),
+        "command_routes_mode": body.get("command_routes_mode"),
+        "live_coinbase_orders_ran": body.get("live_coinbase_orders_ran"),
+    }
+
+
+def redact_futures_positions_evidence(body: Mapping[str, Any]) -> dict[str, Any]:
+    """Return Futures position scope without size, price, or raw position values."""
+
+    items = body.get("items") if isinstance(body.get("items"), list) else []
+    redacted_items = []
+    for item in items:
+        record = object_record(item)
+        redacted_items.append(
+            {
+                "position_key": record.get("position_key"),
+                "product_id": record.get("product_id"),
+                "position_side_present": bool(str(record.get("position_side") or "")),
+                "source": record.get("source"),
+                "updated_at_present": bool(record.get("updated_at")),
+            }
+        )
+    return {
+        "type": body.get("type"),
+        "count": body.get("count"),
+        "position_scope_present": bool(redacted_items),
+        "product_scope": [
+            item["product_id"] for item in redacted_items if item.get("product_id")
+        ],
+        "position_side_present": any(
+            item["position_side_present"] for item in redacted_items
+        ),
+        "items": redacted_items,
+        "read_only": body.get("read_only"),
         "command_routes_mode": body.get("command_routes_mode"),
         "live_coinbase_orders_ran": body.get("live_coinbase_orders_ran"),
     }

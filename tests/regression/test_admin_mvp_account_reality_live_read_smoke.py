@@ -45,6 +45,27 @@ def ready_read_results() -> dict[str, SimpleNamespace]:
                 "live_coinbase_orders_ran": False,
             }
         ),
+        "futures_positions": result(
+            {
+                "type": "admin_futures_positions",
+                "count": 1,
+                "items": [
+                    {
+                        "position_key": "futures_position:runtime:BIP-20DEC30-CDE",
+                        "product_id": "BIP-20DEC30-CDE",
+                        "position_side": "LONG",
+                        "number_of_contracts": "1",
+                        "current_price": "123.45",
+                        "entry_price": "100.00",
+                        "raw_position": {"sensitive": "raw"},
+                        "source": "runtime_positions",
+                    }
+                ],
+                "read_only": True,
+                "command_routes_mode": "backend_admin_api_blocked",
+                "live_coinbase_orders_ran": False,
+            }
+        ),
         "futures_risk_proofs": result(
             {
                 "type": "admin_futures_risk_proofs",
@@ -97,14 +118,21 @@ def test_account_reality_live_read_smoke_writes_redacted_ready_summary(tmp_path)
     assert summary["live_coinbase_execution"] == "not_run"
     assert summary["notional_usdc"] == "0"
     assert summary["wallet"]["futures_available_notional_present"] is True
+    assert summary["futures_positions"]["count"] == 1
+    assert summary["futures_positions"]["position_scope_present"] is True
+    assert summary["futures_positions"]["position_side_present"] is True
     assert "available_notional_usdc" not in json.dumps(summary)
     assert "250.00" not in json.dumps(summary)
+    assert "number_of_contracts" not in json.dumps(summary)
+    assert "123.45" not in json.dumps(summary)
+    assert "raw_position" not in json.dumps(summary)
     assert all(check["passed"] for check in summary["checks"])
 
 
 def test_account_reality_live_read_smoke_fails_when_futures_risk_is_blocked():
     read_results = ready_read_results()
     read_results["wallet"].body["readiness"]["futures_margin_collateral_ready"] = False
+    read_results["wallet"].body["readiness"]["futures_observed_position_scope_ready"] = False
     read_results["wallet"].body["readiness"]["usable_for_futures_risk"] = False
     read_results["wallet"].body["futures_risk_input"] = {
         "status": "blocked",
@@ -112,6 +140,8 @@ def test_account_reality_live_read_smoke_fails_when_futures_risk_is_blocked():
         "available_notional_usdc": "0",
     }
     read_results["futures_account"].body["collateral"]["status"] = "blocked"
+    read_results["futures_positions"].body["count"] = 0
+    read_results["futures_positions"].body["items"] = []
     read_results["futures_risk_proofs"].body["status"] = "blocked"
     read_results["futures_command_suite"].body["status"] = "blocked"
     read_results["futures_command_suite"].body["missing_backend_contracts"] = [
@@ -133,6 +163,8 @@ def test_account_reality_live_read_smoke_fails_when_futures_risk_is_blocked():
     failed = {check["name"] for check in summary["checks"] if not check["passed"]}
     assert summary["status"] == "failed"
     assert "wallet_futures_risk_input_ready" in failed
+    assert "futures_observed_position_scope_ready" in failed
+    assert "futures_positions_scope_readback" in failed
     assert "futures_margin_collateral_ready" in failed
     assert "futures_command_suite_evidence_ready" in failed
 
@@ -143,6 +175,7 @@ def test_account_reality_live_read_smoke_main_writes_artifact(monkeypatch, tmp_p
             route_map = {
                 "/api/v1/admin/wallet": "wallet",
                 "/api/v1/futures/account": "futures_account",
+                "/api/v1/futures/positions": "futures_positions",
                 "/api/v1/futures/risk-proofs": "futures_risk_proofs",
                 "/api/v1/futures/command-suite": "futures_command_suite",
             }
