@@ -303,7 +303,7 @@ def test_futures_executor_boundary_smoke_main_writes_artifact(monkeypatch, tmp_p
         "read_git_value",
         lambda args, fallback="unknown": {
             ("rev-parse", "--short", "HEAD"): "abc1234",
-            ("rev-parse", "--abbrev-ref", "HEAD"): "codex/account-futures-mvp-local-cd",
+            ("rev-parse", "--abbrev-ref", "HEAD"): "main",
         }.get(tuple(args), fallback),
     )
     summary_path = tmp_path / "futures-boundary.json"
@@ -324,7 +324,7 @@ def test_futures_executor_boundary_smoke_main_writes_artifact(monkeypatch, tmp_p
     assert summary["status"] == "passed"
     assert summary["backend_contract_ref"] == "abc1234"
     assert summary["backend_git_commit"] == "abc1234"
-    assert summary["backend_git_branch"] == "codex/account-futures-mvp-local-cd"
+    assert summary["backend_git_branch"] == "main"
     assert summary["confirmed_failure_stage"] == "futures_live_runtime_disabled"
     assert summary["confirmed_cancel_failure_stage"] == "futures_live_runtime_disabled"
     assert summary["confirmed_cancel_client_order_id"] == smoke.FUTURES_CANCEL_CLIENT_ORDER_ID

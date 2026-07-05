@@ -174,7 +174,7 @@ def test_account_reality_live_read_smoke_writes_redacted_ready_summary(tmp_path)
         ended_at="2026-07-03T20:00:01Z",
         duration_seconds=1.2345,
         backend_git_commit="abc1234",
-        backend_git_branch="codex/account-futures-mvp-local-cd",
+        backend_git_branch="main",
         backend_contract_ref="abc1234",
         environ={"COINBASE_API_KEY": "present", "COINBASE_API_SECRET": "present"},
     )
@@ -245,7 +245,7 @@ def test_account_reality_live_read_smoke_fails_when_futures_risk_is_blocked():
         ended_at="2026-07-03T20:00:01Z",
         duration_seconds=1,
         backend_git_commit="abc1234",
-        backend_git_branch="codex/account-futures-mvp-local-cd",
+        backend_git_branch="main",
         backend_contract_ref="abc1234",
         environ={"COINBASE_API_KEY": "present", "COINBASE_API_SECRET": "present"},
     )
@@ -291,7 +291,7 @@ def test_account_reality_live_read_smoke_main_writes_artifact(monkeypatch, tmp_p
         "read_git_value",
         lambda args, fallback="unknown": {
             ("rev-parse", "--short", "HEAD"): "abc1234",
-            ("rev-parse", "--abbrev-ref", "HEAD"): "codex/account-futures-mvp-local-cd",
+            ("rev-parse", "--abbrev-ref", "HEAD"): "main",
         }.get(tuple(args), fallback),
     )
     monkeypatch.setenv("COINBASE_API_KEY", "present")
@@ -304,7 +304,7 @@ def test_account_reality_live_read_smoke_main_writes_artifact(monkeypatch, tmp_p
     assert exit_code == 0
     assert summary["status"] == "passed"
     assert summary["backend_git_commit"] == "abc1234"
-    assert summary["backend_git_branch"] == "codex/account-futures-mvp-local-cd"
+    assert summary["backend_git_branch"] == "main"
 
 
 def test_account_reality_live_read_smoke_applies_restart_safe_state_paths(
