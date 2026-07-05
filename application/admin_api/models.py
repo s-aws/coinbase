@@ -308,12 +308,12 @@ class AdminLiveAdmissionDecisionEvidence(BaseModel):
     admission_audit_source: str = "missing"
     admission_audit_recorded_at: str | None = None
     admission_audit_missing_reason: str | None = None
-    cap_guard_present: bool = False
+    cap_guard_present: bool | None = None
     cap_guard_decision_id: str | None = None
     cap_guard_source: str = "missing"
     cap_guard_recorded_at: str | None = None
     cap_guard_missing_reason: str | None = None
-    reconciliation_plan_present: bool = False
+    reconciliation_plan_present: bool | None = None
     reconciliation_plan_id: str | None = None
     reconciliation_plan_source: str = "missing"
     reconciliation_plan_recorded_at: str | None = None
@@ -2416,10 +2416,10 @@ class AdminApiCommandResponse(BaseModel):
     submission_event_recorded: bool | None = None
     audit_command: str | None = None
     admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
-    cap_guard_present: bool = False
+    cap_guard_present: bool | None = None
     cap_guard_decision_id: str | None = None
     cap_guard_decision: FlexibleDict | None = None
-    reconciliation_plan_present: bool = False
+    reconciliation_plan_present: bool | None = None
     reconciliation_plan_id: str | None = None
     reconciliation_plan: FlexibleDict | None = None
     stealth_admission_context: StealthCommandAdmissionContextEvidence | None = None
@@ -2513,20 +2513,192 @@ class AdminRuntimeStatusResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminRuntimeControlRequest(BaseModel):
+    """Runtime control request body for audited local lifecycle commands."""
+
+    model_config = ConfigDict(extra="allow")
+
+    reason: str | None = None
+
+
 class AdminRuntimeControlResponse(BaseModel):
     """Result of a backend runtime lifecycle control command."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="allow")
 
     type: str = "admin_runtime_control"
+    status: str
+    message: str
+    route: str
+    method: str = "POST"
+    module_id: str = "admin_system_health"
+    action_class: str = "admin_runtime"
+    required_permission: str
+    service_method: str
     action: str
-    accepted: bool
-    state: EngineState
-    admitting: bool
-    stopping: bool
-    total_inflight: int = Field(ge=0)
+    accepted: bool | None = None
+    state: EngineState | str | None = None
+    runtime_state_before: str
+    runtime_state_after: str
+    transition_applied: bool
+    runtime_state_mutated: bool
+    admitting: bool | None = None
+    stopping: bool | None = None
+    total_inflight: int = Field(default=0, ge=0)
     inflight: dict[str, int] = Field(default_factory=dict)
+    order_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    coinbase_order_submitted: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    live_exchange_submitted: bool = False
     live_coinbase_orders_ran: bool = False
+
+
+class AdminAccountRealityEvidence(BaseModel):
+    """Backend account identity and proof source evidence."""
+
+    model_config = ConfigDict(extra="allow")
+
+    status: str
+    source: str
+    proof_id: str | None = None
+
+
+class AdminAccountOperatorEvidence(BaseModel):
+    """Operator identity evidence supplied to Admin API reads."""
+
+    model_config = ConfigDict(extra="allow")
+
+    actor_id: str
+    roles: list[str]
+
+
+class AdminAccountScopeEvidence(BaseModel):
+    """Backend account scope evidence for local operation."""
+
+    model_config = ConfigDict(extra="allow")
+
+    scope_type: str
+    scope_id: str
+
+
+class AdminPortfolioScopeEvidence(BaseModel):
+    """Portfolio scope freshness evidence."""
+
+    model_config = ConfigDict(extra="allow")
+
+    portfolio_id: str
+    freshness_status: str
+
+
+class AdminWalletInventoryEvidence(BaseModel):
+    """Wallet inventory summary used by admission and risk gates."""
+
+    model_config = ConfigDict(extra="allow")
+
+    status: str
+    freshness_status: str
+    currency: str
+    available_notional_usdc: DecimalString
+
+
+class AdminAccountReadinessEvidence(BaseModel):
+    """Account readiness booleans consumed by Spot and Futures/Perpetual views."""
+
+    model_config = ConfigDict(extra="allow")
+
+    usable_for_spot_admission: bool = False
+    spot_wallet_inventory_ready: bool = False
+    futures_account_scope_ready: bool = False
+    futures_observed_position_scope_ready: bool = False
+    usable_for_futures_risk: bool = False
+    futures_margin_collateral_ready: bool = False
+
+
+class AdminAuditCorrelationEvidence(BaseModel):
+    """Audit correlation values attached to backend-owned read evidence."""
+
+    model_config = ConfigDict(extra="allow")
+
+    correlation_id: str
+    idempotency_key: str
+    operator_intent: str
+    audit_surface: str
+
+
+class AdminCommandReadinessPrerequisiteEvidence(BaseModel):
+    """One backend prerequisite row for command readiness."""
+
+    model_config = ConfigDict(extra="allow")
+
+    name: str
+    status: str
+    detail: str
+
+
+class AdminWalletRowEvidence(BaseModel):
+    """One backend wallet inventory row."""
+
+    model_config = ConfigDict(extra="allow")
+
+    currency: str
+    available_balance: DecimalString
+    hold_balance: DecimalString
+    total_balance: DecimalString
+    admission_asset: bool = False
+    admission_ready: bool = False
+
+
+class AdminSpotAdmissionInputEvidence(BaseModel):
+    """Spot admission wallet input derived by the backend."""
+
+    model_config = ConfigDict(extra="allow")
+
+    status: str
+    wallet_check_source: str
+    first_blocker: str
+
+
+class AdminFuturesRiskInputEvidence(BaseModel):
+    """Futures/Perpetual risk wallet input derived by the backend."""
+
+    model_config = ConfigDict(extra="allow")
+
+    status: str
+    wallet_check_source: str
+    currency: str
+    available_notional_usdc: DecimalString
+    proof_id: str
+    first_blocker: str
+
+
+class AdminFeeTierEvidence(BaseModel):
+    """Backend fee-tier read evidence."""
+
+    model_config = ConfigDict(extra="allow")
+
+    status: str
+    source: str
+
+
+class AdminSpotFeeInputEvidence(BaseModel):
+    """Spot fee input consumed by admission/risk views."""
+
+    model_config = ConfigDict(extra="allow")
+
+    status: str
+    maker_fee_rate: str | None = None
+    taker_fee_rate: str | None = None
+
+
+class AdminFuturesFeeInputEvidence(BaseModel):
+    """Futures/Perpetual fee input consumed by risk views."""
+
+    model_config = ConfigDict(extra="allow")
+
+    status: str
+    account_family: str
+    intx_applicability: str
 
 
 class AdminAccountManagementEnvironment(BaseModel):
@@ -2567,15 +2739,15 @@ class AdminAccountManagementReadResponse(BaseModel):
     status: str
     module_id: str
     environment: AdminAccountManagementEnvironment
-    operator: FlexibleDict
-    account_reality: FlexibleDict
-    account_scope: FlexibleDict
-    portfolio_scope: FlexibleDict
-    wallet_inventory: FlexibleDict
-    readiness: FlexibleDict
+    operator: AdminAccountOperatorEvidence
+    account_reality: AdminAccountRealityEvidence
+    account_scope: AdminAccountScopeEvidence
+    portfolio_scope: AdminPortfolioScopeEvidence
+    wallet_inventory: AdminWalletInventoryEvidence
+    readiness: AdminAccountReadinessEvidence
     permissions: FlexibleDict
-    command_readiness_prerequisites: list[FlexibleDict] = Field(default_factory=list)
-    audit: FlexibleDict
+    command_readiness_prerequisites: list[AdminCommandReadinessPrerequisiteEvidence] = Field(default_factory=list)
+    audit: AdminAuditCorrelationEvidence
     read_only: bool = True
     command_routes_mode: str
     browser_authority: str
@@ -2587,6 +2759,87 @@ class AdminAccountManagementReadResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminWalletReadResponse(BaseModel):
+    """Backend-owned wallet inventory and admission input read evidence."""
+
+    model_config = ConfigDict(extra="allow")
+
+    type: str = "admin_wallet"
+    status: str
+    module_id: str
+    account_reality: AdminAccountRealityEvidence
+    account_scope: AdminAccountScopeEvidence
+    portfolio_scope: AdminPortfolioScopeEvidence
+    wallet_inventory: AdminWalletInventoryEvidence
+    wallets: list[AdminWalletRowEvidence] = Field(default_factory=list)
+    wallet_count: int = Field(ge=0)
+    readiness: AdminAccountReadinessEvidence
+    spot_admission_input: AdminSpotAdmissionInputEvidence
+    futures_risk_input: AdminFuturesRiskInputEvidence
+    audit: AdminAuditCorrelationEvidence
+    read_only: bool = True
+    command_routes_mode: str
+    browser_authority: str
+    bff_authority: str
+    coinbase_read_enabled: bool
+    live_coinbase_read_ran: bool
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminFeesReadResponse(BaseModel):
+    """Backend-owned fee evidence read model for admission and risk gates."""
+
+    model_config = ConfigDict(extra="allow")
+
+    type: str = "admin_fee_evidence"
+    status: str
+    module_id: str
+    route: str
+    account_family: str
+    source: str
+    fee_tier: AdminFeeTierEvidence
+    spot_fee_input: AdminSpotFeeInputEvidence
+    futures_fee_input: AdminFuturesFeeInputEvidence
+    audit: AdminAuditCorrelationEvidence
+    read_only: bool = True
+    command_routes_mode: str
+    browser_authority: str
+    bff_authority: str
+    coinbase_read_enabled: bool
+    live_coinbase_read_ran: bool
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminMvpEvidenceResponse(BaseModel):
+    """Flexible backend-owned MVP evidence response."""
+
+    model_config = ConfigDict(extra="allow")
+
+    type: str
+    status: str
+    module_id: str | None = None
+    route: str | None = None
+    method: str | None = None
+    action_class: str | None = None
+    required_permission: str | None = None
+    service_method: str | None = None
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    live_coinbase_orders_ran: bool = False
+
+
+class FuturesFillReadbackResponse(AdminMvpEvidenceResponse):
+    """Read-only Futures/Perpetual order fill readback evidence."""
+
+    type: str = "admin_futures_order_fill_readback"
+    module_id: str = "futures_perpetuals"
+    route: str = "/api/v1/futures/orders/{client_order_id}/fill-readback"
+    method: str = "GET"
+
 class AdminProductsReadResponse(BaseModel):
     """Backend-owned Coinbase product metadata read evidence."""
 
@@ -2597,7 +2850,7 @@ class AdminProductsReadResponse(BaseModel):
     module_id: str
     route: str
     source: str
-    configured_product_scope: list[str] = Field(default_factory=list)
+    configured_product_scope: list[str]
     spot: list[str] = Field(default_factory=list)
     derivatives: list[str] = Field(default_factory=list)
     products: list[FlexibleDict] = Field(default_factory=list)
@@ -2615,6 +2868,15 @@ class AdminProductsReadResponse(BaseModel):
     live_coinbase_execution: str = "not_run"
     notional_usdc: DecimalString = "0"
     live_coinbase_orders_ran: bool = False
+
+
+class AdminProductsRefreshRequest(BaseModel):
+    """Local product metadata refresh request."""
+
+    model_config = ConfigDict(extra="allow")
+
+    reason: str | None = None
+    product_ids: list[str] | None = None
 
 
 class AdminProductsRefreshResponse(BaseModel):
@@ -4327,6 +4589,8 @@ class AdminFuturesAccountReadResponse(BaseModel):
     type: str = "admin_futures_account"
     configured_product_scope: list[str] = Field(default_factory=list)
     observed_position_scope: list[str] = Field(default_factory=list)
+    account_reality: AdminAccountRealityEvidence
+    account_readiness: AdminAccountReadinessEvidence
     collateral: AdminFuturesEvidenceItem
     margin: AdminFuturesEvidenceItem
     funding: AdminFuturesEvidenceItem
@@ -16873,6 +17137,7 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     submitted_notional_usdc: DecimalString = "0"
     executed_notional_usdc: DecimalString = "0"
     message: str
+    next_required_operator_decision: str | None = None
 
     def model_dump(self, *args: Any, **kwargs: Any) -> dict[str, Any]:
         payload = super().model_dump(*args, **kwargs)
@@ -17004,12 +17269,13 @@ class AdminAuditWorkbenchEventItem(BaseModel):
     recorded_at: str | None = None
     message: str | None = None
     admission_decision: FlexibleDict | None = None
-    cap_guard_present: bool = False
+    executor_decision: FlexibleDict | None = None
+    cap_guard_present: bool | None = None
     cap_guard_decision_id: str | None = None
     cap_guard_source: str | None = None
     cap_guard_recorded_at: str | None = None
     cap_guard_missing_reason: str | None = None
-    reconciliation_plan_present: bool = False
+    reconciliation_plan_present: bool | None = None
     reconciliation_plan_id: str | None = None
     reconciliation_plan_source: str | None = None
     reconciliation_plan_recorded_at: str | None = None

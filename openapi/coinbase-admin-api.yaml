@@ -135,7 +135,7 @@ paths:
       tags:
       - admin
       summary: Read backend runtime lifecycle status
-      operationId: admin_runtime_status_api_v1_admin_runtime_get
+      operationId: admin_runtime_api_v1_admin_runtime_get
       parameters:
       - name: Authorization
         in: header
@@ -199,6 +199,27 @@ paths:
       summary: Pause backend runtime admission
       operationId: admin_runtime_pause_api_v1_admin_runtime_pause_post
       parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
       - name: Authorization
         in: header
         required: true
@@ -229,6 +250,11 @@ paths:
         description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
           Ignored in oidc_jwt mode because role evidence is derived from verified
           JWT claims.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminRuntimeControlRequest'
       responses:
         '200':
           description: Successful Response
@@ -261,6 +287,27 @@ paths:
       summary: Resume backend runtime admission
       operationId: admin_runtime_resume_api_v1_admin_runtime_resume_post
       parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
       - name: Authorization
         in: header
         required: true
@@ -291,6 +338,11 @@ paths:
         description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
           Ignored in oidc_jwt mode because role evidence is derived from verified
           JWT claims.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminRuntimeControlRequest'
       responses:
         '200':
           description: Successful Response
@@ -323,6 +375,27 @@ paths:
       summary: Request backend runtime shutdown
       operationId: admin_runtime_shutdown_api_v1_admin_runtime_shutdown_post
       parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
       - name: Authorization
         in: header
         required: true
@@ -353,6 +426,11 @@ paths:
         description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
           Ignored in oidc_jwt mode because role evidence is derived from verified
           JWT claims.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminRuntimeControlRequest'
       responses:
         '200':
           description: Successful Response
@@ -446,6 +524,178 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminAccountManagementReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/wallet:
+    get:
+      tags:
+      - admin
+      summary: Read backend-owned wallet inventory and admission inputs
+      operationId: admin_wallet_api_v1_admin_wallet_get
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminWalletReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/fees:
+    get:
+      tags:
+      - admin
+      summary: Read backend-owned fee evidence
+      operationId: admin_fees_api_v1_admin_fees_get
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminFeesReadResponse'
         '401':
           description: Missing or invalid Admin API authentication.
           content:
@@ -565,7 +815,7 @@ paths:
       tags:
       - admin
       summary: Refresh backend-owned local product metadata
-      operationId: admin_products_refresh_api_v1_admin_products_refresh_post
+      operationId: refresh_admin_products_api_v1_admin_products_refresh_post
       parameters:
       - name: Idempotency-Key
         in: header
@@ -625,9 +875,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              additionalProperties: true
-              title: Body
+              $ref: '#/components/schemas/AdminProductsRefreshRequest'
       responses:
         '200':
           description: Successful Response
@@ -3703,6 +3951,124 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/futures/orders/{client_order_id}/fill-readback:
+    get:
+      tags:
+      - futures
+      summary: Read Futures/Perpetual order fill evidence by client_order_id
+      operationId: get_futures_order_fill_readback_api_v1_futures_orders__client_order_id__fill_readback_get
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Client Order Id
+      - name: product_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+      - name: backend_contract_ref
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Backend Contract Ref
+      - name: fill_limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Fill Limit
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FuturesFillReadbackResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/futures/orders:
     post:
       tags:
@@ -6639,6 +7005,186 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SpotSweepPnlResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/manual-order/proof-chain:
+    post:
+      tags:
+      - spot
+      summary: Record backend-owned spot manual-order proof-chain evidence
+      operationId: record_spot_manual_order_proof_chain_api_v1_spot_manual_order_proof_chain_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              title: Body
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminMvpEvidenceResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/spot/cancel-order/proof-chain:
+    post:
+      tags:
+      - spot
+      summary: Record backend-owned spot cancel-order proof-chain evidence
+      operationId: record_spot_cancel_order_proof_chain_api_v1_spot_cancel_order_proof_chain_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              title: Body
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminMvpEvidenceResponse'
         '401':
           description: Missing or invalid Admin API authentication.
           content:
@@ -10923,43 +11469,28 @@ components:
         environment:
           $ref: '#/components/schemas/AdminAccountManagementEnvironment'
         operator:
-          additionalProperties: true
-          type: object
-          title: Operator
+          $ref: '#/components/schemas/AdminAccountOperatorEvidence'
         account_reality:
-          additionalProperties: true
-          type: object
-          title: Account Reality
+          $ref: '#/components/schemas/AdminAccountRealityEvidence'
         account_scope:
-          additionalProperties: true
-          type: object
-          title: Account Scope
+          $ref: '#/components/schemas/AdminAccountScopeEvidence'
         portfolio_scope:
-          additionalProperties: true
-          type: object
-          title: Portfolio Scope
+          $ref: '#/components/schemas/AdminPortfolioScopeEvidence'
         wallet_inventory:
-          additionalProperties: true
-          type: object
-          title: Wallet Inventory
+          $ref: '#/components/schemas/AdminWalletInventoryEvidence'
         readiness:
-          additionalProperties: true
-          type: object
-          title: Readiness
+          $ref: '#/components/schemas/AdminAccountReadinessEvidence'
         permissions:
           additionalProperties: true
           type: object
           title: Permissions
         command_readiness_prerequisites:
           items:
-            additionalProperties: true
-            type: object
+            $ref: '#/components/schemas/AdminCommandReadinessPrerequisiteEvidence'
           type: array
           title: Command Readiness Prerequisites
         audit:
-          additionalProperties: true
-          type: object
-          title: Audit
+          $ref: '#/components/schemas/AdminAuditCorrelationEvidence'
         read_only:
           type: boolean
           title: Read Only
@@ -11017,6 +11548,89 @@ components:
       - live_coinbase_read_ran
       title: AdminAccountManagementReadResponse
       description: Backend-owned Account Management read model for local operators.
+    AdminAccountOperatorEvidence:
+      properties:
+        actor_id:
+          type: string
+          title: Actor Id
+        roles:
+          items:
+            type: string
+          type: array
+          title: Roles
+      additionalProperties: true
+      type: object
+      required:
+      - actor_id
+      - roles
+      title: AdminAccountOperatorEvidence
+      description: Operator identity evidence supplied to Admin API reads.
+    AdminAccountReadinessEvidence:
+      properties:
+        usable_for_spot_admission:
+          type: boolean
+          title: Usable For Spot Admission
+          default: false
+        spot_wallet_inventory_ready:
+          type: boolean
+          title: Spot Wallet Inventory Ready
+          default: false
+        futures_account_scope_ready:
+          type: boolean
+          title: Futures Account Scope Ready
+          default: false
+        futures_observed_position_scope_ready:
+          type: boolean
+          title: Futures Observed Position Scope Ready
+          default: false
+        usable_for_futures_risk:
+          type: boolean
+          title: Usable For Futures Risk
+          default: false
+        futures_margin_collateral_ready:
+          type: boolean
+          title: Futures Margin Collateral Ready
+          default: false
+      additionalProperties: true
+      type: object
+      title: AdminAccountReadinessEvidence
+      description: Account readiness booleans consumed by Spot and Futures/Perpetual
+        views.
+    AdminAccountRealityEvidence:
+      properties:
+        status:
+          type: string
+          title: Status
+        source:
+          type: string
+          title: Source
+        proof_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Proof Id
+      additionalProperties: true
+      type: object
+      required:
+      - status
+      - source
+      title: AdminAccountRealityEvidence
+      description: Backend account identity and proof source evidence.
+    AdminAccountScopeEvidence:
+      properties:
+        scope_type:
+          type: string
+          title: Scope Type
+        scope_id:
+          type: string
+          title: Scope Id
+      additionalProperties: true
+      type: object
+      required:
+      - scope_type
+      - scope_id
+      title: AdminAccountScopeEvidence
+      description: Backend account scope evidence for local operation.
     AdminAdmissionAuditCreateRequest:
       properties:
         route:
@@ -11548,9 +12162,10 @@ components:
           - $ref: '#/components/schemas/AdminLiveAdmissionDecisionEvidence'
           - type: 'null'
         cap_guard_present:
-          type: boolean
+          anyOf:
+          - type: boolean
+          - type: 'null'
           title: Cap Guard Present
-          default: false
         cap_guard_decision_id:
           anyOf:
           - type: string
@@ -11563,9 +12178,10 @@ components:
           - type: 'null'
           title: Cap Guard Decision
         reconciliation_plan_present:
-          type: boolean
+          anyOf:
+          - type: boolean
+          - type: 'null'
           title: Reconciliation Plan Present
-          default: false
         reconciliation_plan_id:
           anyOf:
           - type: string
@@ -12580,6 +13196,29 @@ components:
       type: object
       title: AdminApprovalRevokeRequest
       description: Revoke an approved backend approval snapshot.
+    AdminAuditCorrelationEvidence:
+      properties:
+        correlation_id:
+          type: string
+          title: Correlation Id
+        idempotency_key:
+          type: string
+          title: Idempotency Key
+        operator_intent:
+          type: string
+          title: Operator Intent
+        audit_surface:
+          type: string
+          title: Audit Surface
+      additionalProperties: true
+      type: object
+      required:
+      - correlation_id
+      - idempotency_key
+      - operator_intent
+      - audit_surface
+      title: AdminAuditCorrelationEvidence
+      description: Audit correlation values attached to backend-owned read evidence.
     AdminAuditEvidenceSource:
       type: string
       enum:
@@ -12590,6 +13229,7 @@ components:
       - movement_repricing
       - futures_positions
       - admin_api_futures_command_log
+      - admin_api_futures_executor_boundary
       - guard_risk_policy
       - backend_contract
       - runtime_unavailable
@@ -12769,10 +13409,17 @@ components:
             type: object
           - type: 'null'
           title: Admission Decision
+        executor_decision:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Executor Decision
         cap_guard_present:
-          type: boolean
+          anyOf:
+          - type: boolean
+          - type: 'null'
           title: Cap Guard Present
-          default: false
         cap_guard_decision_id:
           anyOf:
           - type: string
@@ -12794,9 +13441,10 @@ components:
           - type: 'null'
           title: Cap Guard Missing Reason
         reconciliation_plan_present:
-          type: boolean
+          anyOf:
+          - type: boolean
+          - type: 'null'
           title: Reconciliation Plan Present
-          default: false
         reconciliation_plan_id:
           anyOf:
           - type: string
@@ -13473,6 +14121,25 @@ components:
       type: object
       title: AdminCapabilityRegistryResponse
       description: Route/capability registry for frontend navigation and diagnostics.
+    AdminCommandReadinessPrerequisiteEvidence:
+      properties:
+        name:
+          type: string
+          title: Name
+        status:
+          type: string
+          title: Status
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: true
+      type: object
+      required:
+      - name
+      - status
+      - detail
+      title: AdminCommandReadinessPrerequisiteEvidence
+      description: One backend prerequisite row for command readiness.
     AdminCsrfContractResponse:
       properties:
         type:
@@ -14196,6 +14863,105 @@ components:
       - status
       title: AdminEnterpriseReadinessResponse
       description: M9 enterprise readiness evidence for the whole admin platform.
+    AdminFeeTierEvidence:
+      properties:
+        status:
+          type: string
+          title: Status
+        source:
+          type: string
+          title: Source
+      additionalProperties: true
+      type: object
+      required:
+      - status
+      - source
+      title: AdminFeeTierEvidence
+      description: Backend fee-tier read evidence.
+    AdminFeesReadResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_fee_evidence
+        status:
+          type: string
+          title: Status
+        module_id:
+          type: string
+          title: Module Id
+        route:
+          type: string
+          title: Route
+        account_family:
+          type: string
+          title: Account Family
+        source:
+          type: string
+          title: Source
+        fee_tier:
+          $ref: '#/components/schemas/AdminFeeTierEvidence'
+        spot_fee_input:
+          $ref: '#/components/schemas/AdminSpotFeeInputEvidence'
+        futures_fee_input:
+          $ref: '#/components/schemas/AdminFuturesFeeInputEvidence'
+        audit:
+          $ref: '#/components/schemas/AdminAuditCorrelationEvidence'
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+        browser_authority:
+          type: string
+          title: Browser Authority
+        bff_authority:
+          type: string
+          title: Bff Authority
+        coinbase_read_enabled:
+          type: boolean
+          title: Coinbase Read Enabled
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: true
+      type: object
+      required:
+      - status
+      - module_id
+      - route
+      - account_family
+      - source
+      - fee_tier
+      - spot_fee_input
+      - futures_fee_input
+      - audit
+      - command_routes_mode
+      - browser_authority
+      - bff_authority
+      - coinbase_read_enabled
+      - live_coinbase_read_ran
+      title: AdminFeesReadResponse
+      description: Backend-owned fee evidence read model for admission and risk gates.
     AdminFrontendFixturesResponse:
       properties:
         type:
@@ -14235,6 +15001,10 @@ components:
             type: string
           type: array
           title: Observed Position Scope
+        account_reality:
+          $ref: '#/components/schemas/AdminAccountRealityEvidence'
+        account_readiness:
+          $ref: '#/components/schemas/AdminAccountReadinessEvidence'
         collateral:
           $ref: '#/components/schemas/AdminFuturesEvidenceItem'
         margin:
@@ -14266,6 +15036,8 @@ components:
       additionalProperties: false
       type: object
       required:
+      - account_reality
+      - account_readiness
       - collateral
       - margin
       - funding
@@ -98045,6 +98817,11 @@ components:
         message:
           type: string
           title: Message
+        next_required_operator_decision:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Required Operator Decision
       additionalProperties: false
       type: object
       required:
@@ -98100,6 +98877,25 @@ components:
       - not_modeled
       title: AdminFuturesEvidenceStatus
       description: Read-only evidence availability for futures/perpetual admin views.
+    AdminFuturesFeeInputEvidence:
+      properties:
+        status:
+          type: string
+          title: Status
+        account_family:
+          type: string
+          title: Account Family
+        intx_applicability:
+          type: string
+          title: Intx Applicability
+      additionalProperties: true
+      type: object
+      required:
+      - status
+      - account_family
+      - intx_applicability
+      title: AdminFuturesFeeInputEvidence
+      description: Futures/Perpetual fee input consumed by risk views.
     AdminFuturesPositionDetailResponse:
       properties:
         type:
@@ -98302,6 +99098,42 @@ components:
       - UNKNOWN
       title: AdminFuturesPositionSide
       description: Derived futures/perpetual position direction.
+    AdminFuturesRiskInputEvidence:
+      properties:
+        status:
+          type: string
+          title: Status
+        wallet_check_source:
+          type: string
+          title: Wallet Check Source
+        currency:
+          type: string
+          title: Currency
+        available_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Available Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        proof_id:
+          type: string
+          title: Proof Id
+        first_blocker:
+          type: string
+          title: First Blocker
+      additionalProperties: true
+      type: object
+      required:
+      - status
+      - wallet_check_source
+      - currency
+      - available_notional_usdc
+      - proof_id
+      - first_blocker
+      title: AdminFuturesRiskInputEvidence
+      description: Futures/Perpetual risk wallet input derived by the backend.
     AdminFuturesRiskProofEvidenceSource:
       type: string
       enum:
@@ -132028,9 +132860,10 @@ components:
           - type: 'null'
           title: Admission Audit Missing Reason
         cap_guard_present:
-          type: boolean
+          anyOf:
+          - type: boolean
+          - type: 'null'
           title: Cap Guard Present
-          default: false
         cap_guard_decision_id:
           anyOf:
           - type: string
@@ -132051,9 +132884,10 @@ components:
           - type: 'null'
           title: Cap Guard Missing Reason
         reconciliation_plan_present:
-          type: boolean
+          anyOf:
+          - type: boolean
+          - type: 'null'
           title: Reconciliation Plan Present
-          default: false
         reconciliation_plan_id:
           anyOf:
           - type: string
@@ -134220,6 +135054,68 @@ components:
       - source
       title: AdminMutationClaimEvidence
       description: Runtime claim evidence for repeatable stealth mutations.
+    AdminMvpEvidenceResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+        status:
+          type: string
+          title: Status
+        module_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Module Id
+        route:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Route
+        method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Method
+        action_class:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Action Class
+        required_permission:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Permission
+        service_method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Service Method
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: true
+      type: object
+      required:
+      - type
+      - status
+      title: AdminMvpEvidenceResponse
+      description: Flexible backend-owned MVP evidence response.
     AdminOidcJwtReadinessResponse:
       properties:
         type:
@@ -134470,6 +135366,21 @@ components:
       - client_order_id
       title: AdminOrderReadItem
       description: Read-only order row keyed by ``client_order_id``.
+    AdminPortfolioScopeEvidence:
+      properties:
+        portfolio_id:
+          type: string
+          title: Portfolio Id
+        freshness_status:
+          type: string
+          title: Freshness Status
+      additionalProperties: true
+      type: object
+      required:
+      - portfolio_id
+      - freshness_status
+      title: AdminPortfolioScopeEvidence
+      description: Portfolio scope freshness evidence.
     AdminProductCapabilityDecisionItem:
       properties:
         product_id:
@@ -134604,6 +135515,7 @@ components:
       - module_id
       - route
       - source
+      - configured_product_scope
       - metadata_count
       - missing_metadata_count
       - spot_count
@@ -134616,6 +135528,24 @@ components:
       - live_coinbase_read_ran
       title: AdminProductsReadResponse
       description: Backend-owned Coinbase product metadata read evidence.
+    AdminProductsRefreshRequest:
+      properties:
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+        product_ids:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Product Ids
+      additionalProperties: true
+      type: object
+      title: AdminProductsRefreshRequest
+      description: Local product metadata refresh request.
     AdminProductsRefreshResponse:
       properties:
         type:
@@ -135437,48 +136367,133 @@ components:
       - detail
       title: AdminRiskRejectionCategoryItem
       description: Backend-owned guard rejection category shown as evidence only.
+    AdminRuntimeControlRequest:
+      properties:
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+      additionalProperties: true
+      type: object
+      title: AdminRuntimeControlRequest
+      description: Runtime control request body for audited local lifecycle commands.
     AdminRuntimeControlResponse:
       properties:
         type:
           type: string
           title: Type
           default: admin_runtime_control
+        status:
+          type: string
+          title: Status
+        message:
+          type: string
+          title: Message
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+          default: POST
+        module_id:
+          type: string
+          title: Module Id
+          default: admin_system_health
+        action_class:
+          type: string
+          title: Action Class
+          default: admin_runtime
+        required_permission:
+          type: string
+          title: Required Permission
+        service_method:
+          type: string
+          title: Service Method
         action:
           type: string
           title: Action
         accepted:
-          type: boolean
+          anyOf:
+          - type: boolean
+          - type: 'null'
           title: Accepted
         state:
-          $ref: '#/components/schemas/EngineState'
-        admitting:
+          anyOf:
+          - $ref: '#/components/schemas/EngineState'
+          - type: string
+          - type: 'null'
+          title: State
+        runtime_state_before:
+          type: string
+          title: Runtime State Before
+        runtime_state_after:
+          type: string
+          title: Runtime State After
+        transition_applied:
           type: boolean
+          title: Transition Applied
+        runtime_state_mutated:
+          type: boolean
+          title: Runtime State Mutated
+        admitting:
+          anyOf:
+          - type: boolean
+          - type: 'null'
           title: Admitting
         stopping:
-          type: boolean
+          anyOf:
+          - type: boolean
+          - type: 'null'
           title: Stopping
         total_inflight:
           type: integer
           minimum: 0.0
           title: Total Inflight
+          default: 0
         inflight:
           additionalProperties:
             type: integer
           type: object
           title: Inflight
+        order_state_mutated:
+          type: boolean
+          title: Order State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        coinbase_order_submitted:
+          type: boolean
+          title: Coinbase Order Submitted
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
         live_coinbase_orders_ran:
           type: boolean
           title: Live Coinbase Orders Ran
           default: false
-      additionalProperties: false
+      additionalProperties: true
       type: object
       required:
+      - status
+      - message
+      - route
+      - required_permission
+      - service_method
       - action
-      - accepted
-      - state
-      - admitting
-      - stopping
-      - total_inflight
+      - runtime_state_before
+      - runtime_state_after
+      - transition_applied
+      - runtime_state_mutated
       title: AdminRuntimeControlResponse
       description: Result of a backend runtime lifecycle control command.
     AdminRuntimeStatusResponse:
@@ -135550,6 +136565,46 @@ components:
       - auth_mode
       title: AdminSessionResponse
       description: Authenticated session/RBAC evidence for the frontend.
+    AdminSpotAdmissionInputEvidence:
+      properties:
+        status:
+          type: string
+          title: Status
+        wallet_check_source:
+          type: string
+          title: Wallet Check Source
+        first_blocker:
+          type: string
+          title: First Blocker
+      additionalProperties: true
+      type: object
+      required:
+      - status
+      - wallet_check_source
+      - first_blocker
+      title: AdminSpotAdmissionInputEvidence
+      description: Spot admission wallet input derived by the backend.
+    AdminSpotFeeInputEvidence:
+      properties:
+        status:
+          type: string
+          title: Status
+        maker_fee_rate:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Maker Fee Rate
+        taker_fee_rate:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Taker Fee Rate
+      additionalProperties: true
+      type: object
+      required:
+      - status
+      title: AdminSpotFeeInputEvidence
+      description: Spot fee input consumed by admission/risk views.
     AdminStealthActivePlacementAuditEvidence:
       properties:
         stealth_order_id:
@@ -136326,6 +137381,174 @@ components:
       - detail
       title: AdminStealthRevealTriggerAuditEvidence
       description: Read-only reveal-trigger evidence for stealth detail views.
+    AdminWalletInventoryEvidence:
+      properties:
+        status:
+          type: string
+          title: Status
+        freshness_status:
+          type: string
+          title: Freshness Status
+        currency:
+          type: string
+          title: Currency
+        available_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Available Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+      additionalProperties: true
+      type: object
+      required:
+      - status
+      - freshness_status
+      - currency
+      - available_notional_usdc
+      title: AdminWalletInventoryEvidence
+      description: Wallet inventory summary used by admission and risk gates.
+    AdminWalletReadResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_wallet
+        status:
+          type: string
+          title: Status
+        module_id:
+          type: string
+          title: Module Id
+        account_reality:
+          $ref: '#/components/schemas/AdminAccountRealityEvidence'
+        account_scope:
+          $ref: '#/components/schemas/AdminAccountScopeEvidence'
+        portfolio_scope:
+          $ref: '#/components/schemas/AdminPortfolioScopeEvidence'
+        wallet_inventory:
+          $ref: '#/components/schemas/AdminWalletInventoryEvidence'
+        wallets:
+          items:
+            $ref: '#/components/schemas/AdminWalletRowEvidence'
+          type: array
+          title: Wallets
+        wallet_count:
+          type: integer
+          minimum: 0.0
+          title: Wallet Count
+        readiness:
+          $ref: '#/components/schemas/AdminAccountReadinessEvidence'
+        spot_admission_input:
+          $ref: '#/components/schemas/AdminSpotAdmissionInputEvidence'
+        futures_risk_input:
+          $ref: '#/components/schemas/AdminFuturesRiskInputEvidence'
+        audit:
+          $ref: '#/components/schemas/AdminAuditCorrelationEvidence'
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+        browser_authority:
+          type: string
+          title: Browser Authority
+        bff_authority:
+          type: string
+          title: Bff Authority
+        coinbase_read_enabled:
+          type: boolean
+          title: Coinbase Read Enabled
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: true
+      type: object
+      required:
+      - status
+      - module_id
+      - account_reality
+      - account_scope
+      - portfolio_scope
+      - wallet_inventory
+      - wallet_count
+      - readiness
+      - spot_admission_input
+      - futures_risk_input
+      - audit
+      - command_routes_mode
+      - browser_authority
+      - bff_authority
+      - coinbase_read_enabled
+      - live_coinbase_read_ran
+      title: AdminWalletReadResponse
+      description: Backend-owned wallet inventory and admission input read evidence.
+    AdminWalletRowEvidence:
+      properties:
+        currency:
+          type: string
+          title: Currency
+        available_balance:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Available Balance
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        hold_balance:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Hold Balance
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        total_balance:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Total Balance
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        admission_asset:
+          type: boolean
+          title: Admission Asset
+          default: false
+        admission_ready:
+          type: boolean
+          title: Admission Ready
+          default: false
+      additionalProperties: true
+      type: object
+      required:
+      - currency
+      - available_balance
+      - hold_balance
+      - total_balance
+      title: AdminWalletRowEvidence
+      description: One backend wallet inventory row.
     CampaignExecutionRequest:
       properties:
         campaign_id:
@@ -136540,6 +137763,65 @@ components:
       type: object
       title: FuturesCloseReduceRequest
       description: Futures/perpetual close/reduce draft request keyed by ``position_key``.
+    FuturesFillReadbackResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_futures_order_fill_readback
+        status:
+          type: string
+          title: Status
+        module_id:
+          type: string
+          title: Module Id
+          default: futures_perpetuals
+        route:
+          type: string
+          title: Route
+          default: /api/v1/futures/orders/{client_order_id}/fill-readback
+        method:
+          type: string
+          title: Method
+          default: GET
+        action_class:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Action Class
+        required_permission:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Permission
+        service_method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Service Method
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: true
+      type: object
+      required:
+      - status
+      title: FuturesFillReadbackResponse
+      description: Read-only Futures/Perpetual order fill readback evidence.
     FuturesPlaceOrderRequest:
       properties:
         product_id:

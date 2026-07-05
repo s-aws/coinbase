@@ -117,6 +117,8 @@ from .live_execution import (
     get_decision_backed_live_execution_service,
 )
 from .models import (
+    AdminAccountReadinessEvidence,
+    AdminAccountRealityEvidence,
     AdminApiActor,
     AdminAuditModuleSummaryItem,
     AdminAuditWorkbenchEventItem,
@@ -49757,6 +49759,17 @@ class AdminApiReadService:
         return AdminFuturesAccountReadResponse(
             configured_product_scope=configured_product_scope,
             observed_position_scope=observed_position_scope,
+            account_reality=AdminAccountRealityEvidence(
+                status="offline_fixture",
+                source="backend_admin_read_contract",
+                proof_id="futures-account-read-offline-fixture",
+            ),
+            account_readiness=AdminAccountReadinessEvidence(
+                futures_account_scope_ready=bool(configured_product_scope),
+                futures_observed_position_scope_ready=bool(observed_position_scope),
+                usable_for_futures_risk=False,
+                futures_margin_collateral_ready=bool(margin_value),
+            ),
             collateral=collateral,
             margin=margin,
             funding=funding,

@@ -1052,6 +1052,7 @@ class AdminAuditEvidenceSource(str, Enum):
     MOVEMENT_REPRICING = "movement_repricing"
     FUTURES_POSITIONS = "futures_positions"
     ADMIN_API_FUTURES_COMMAND_LOG = "admin_api_futures_command_log"
+    ADMIN_API_FUTURES_EXECUTOR_BOUNDARY = "admin_api_futures_executor_boundary"
     GUARD_RISK_POLICY = "guard_risk_policy"
     BACKEND_CONTRACT = "backend_contract"
     RUNTIME_UNAVAILABLE = "runtime_unavailable"

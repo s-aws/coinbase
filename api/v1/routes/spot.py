@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Callable, TypeVar
+from typing import Annotated, Any, Callable, TypeVar
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request, status
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Path, Query, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -20,6 +20,7 @@ from application.admin_api.idempotency import (
 from application.admin_api.models import (
     AdminApiActor,
     AdminApiErrorResponse,
+    AdminMvpEvidenceResponse,
     SpotPnlCheckpointCreateRequest,
     SpotPnlCheckpointItem,
     SpotPnlCheckpointListResponse,
@@ -37,6 +38,7 @@ from application.admin_api.models import (
     SpotSweepStatusResponse,
 )
 from application.admin_api.pnl_checkpoint import FileSpotPnlCheckpointStore
+from application.admin_api.mvp_service import AdminMvpRequestContext, get_admin_mvp_service
 from application.admin_api.pnl_checkpoint_service import (
     AdminApiSpotPnlCheckpointService,
     SpotPnlCheckpointError,
@@ -156,6 +158,22 @@ def _checkpoint_response(
         status_code=_http_status_for_checkpoint(response),
         content=response.model_dump(mode="json"),
         headers=headers,
+    )
+
+
+def _admin_mvp_context(
+    actor: AdminApiActor,
+    *,
+    idempotency_key: str,
+    correlation_id: str,
+    operator_intent: str,
+) -> AdminMvpRequestContext:
+    return AdminMvpRequestContext(
+        idempotency_key=idempotency_key.strip(),
+        correlation_id=correlation_id.strip(),
+        operator_intent=operator_intent.strip(),
+        actor_id=actor.actor_id,
+        roles=tuple(role.value for role in actor.roles),
     )
 
 
@@ -478,6 +496,66 @@ def spot_sweep_pnl(
             product_ids=product_ids,
             include_coinbase_average_cost=include_coinbase_average_cost,
         ),
+    )
+
+
+@router.post(
+    "/spot/manual-order/proof-chain",
+    response_model=AdminMvpEvidenceResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="Record backend-owned spot manual-order proof-chain evidence",
+)
+def record_spot_manual_order_proof_chain(
+    body: Annotated[dict[str, Any], Body(default_factory=dict)],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.ORDER_CREATE)
+    result = get_admin_mvp_service().record_spot_manual_order_proof_chain(
+        body,
+        _admin_mvp_context(
+            actor,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id,
+            operator_intent=operator_intent,
+        ),
+    )
+    return JSONResponse(
+        status_code=result.status_code,
+        content=jsonable_encoder(result.body),
+        headers=result.headers,
+    )
+
+
+@router.post(
+    "/spot/cancel-order/proof-chain",
+    response_model=AdminMvpEvidenceResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="Record backend-owned spot cancel-order proof-chain evidence",
+)
+def record_spot_cancel_order_proof_chain(
+    body: Annotated[dict[str, Any], Body(default_factory=dict)],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.ORDER_CANCEL)
+    result = get_admin_mvp_service().record_spot_cancel_order_proof_chain(
+        body,
+        _admin_mvp_context(
+            actor,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id,
+            operator_intent=operator_intent,
+        ),
+    )
+    return JSONResponse(
+        status_code=result.status_code,
+        content=jsonable_encoder(result.body),
+        headers=result.headers,
     )
 
 

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, TypeVar
+from typing import Annotated, Any, TypeVar
 
 from fastapi import APIRouter, Depends, Header, Path, Query, Request, status
 from fastapi.encoders import jsonable_encoder
@@ -34,6 +34,7 @@ from application.admin_api.models import (
     AdminFuturesPositionListResponse,
     FuturesCancelOrderCommand,
     FuturesCancelOrderRequest,
+    FuturesFillReadbackResponse,
     FuturesCloseReduceCommand,
     FuturesCloseReduceRequest,
     FuturesPlaceOrderCommand,
@@ -46,6 +47,7 @@ from application.admin_api.models import (
     FuturesRiskProofRecordItem,
     FuturesRiskProofRecordRequest,
 )
+from application.admin_api.mvp_service import AdminMvpRequestContext, get_admin_mvp_service
 from application.admin_api.read_service import (
     AdminApiReadService,
     futures_command_suite_api_payload,
@@ -114,6 +116,25 @@ TReadModel = TypeVar("TReadModel", bound=BaseModel)
 
 def _read_model_response(model: type[TReadModel], payload: object) -> JSONResponse:
     return JSONResponse(content=jsonable_encoder(model.model_validate(payload)))
+
+
+def _admin_mvp_context(
+    actor: AdminApiActor,
+    *,
+    idempotency_key: str | None,
+    correlation_id: str | None,
+    operator_intent: str | None,
+) -> AdminMvpRequestContext:
+    return AdminMvpRequestContext(
+        idempotency_key=(idempotency_key or "admin-api-read").strip()
+        or "admin-api-read",
+        correlation_id=(correlation_id or "admin-api-correlation").strip()
+        or "admin-api-correlation",
+        operator_intent=(operator_intent or "read_futures_fill_readback").strip()
+        or "read_futures_fill_readback",
+        actor_id=actor.actor_id,
+        roles=tuple(role.value for role in actor.roles),
+    )
 
 
 def _risk_proof_record_item(record: object) -> FuturesRiskProofRecordItem:
@@ -213,6 +234,45 @@ def get_futures_risk_proof(
         proof_record_created=record is not None,
     )
     return _read_model_response(FuturesRiskProofDetailResponse, response)
+
+
+@router.get(
+    "/futures/orders/{client_order_id}/fill-readback",
+    response_model=FuturesFillReadbackResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="Read Futures/Perpetual order fill evidence by client_order_id",
+)
+def get_futures_order_fill_readback(
+    client_order_id: Annotated[str, Path(min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    product_id: str | None = None,
+    backend_contract_ref: str | None = None,
+    fill_limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    correlation_id: Annotated[str | None, Header(alias="X-Correlation-Id")] = None,
+    operator_intent: Annotated[str | None, Header(alias="X-Operator-Intent")] = None,
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    query: dict[str, Any] = {"fill_limit": str(fill_limit)}
+    if product_id is not None:
+        query["product_id"] = product_id
+    if backend_contract_ref is not None:
+        query["backend_contract_ref"] = backend_contract_ref
+    result = get_admin_mvp_service().get_read_response(
+        f"/api/v1/futures/orders/{client_order_id}/fill-readback",
+        query,
+        _admin_mvp_context(
+            actor,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id,
+            operator_intent=operator_intent or "read_futures_fill_readback",
+        ),
+    )
+    return JSONResponse(
+        status_code=result.status_code,
+        content=jsonable_encoder(result.body),
+        headers=result.headers,
+    )
 
 
 @router.post(

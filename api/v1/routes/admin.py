@@ -17,6 +17,7 @@ from application.admin_api.models import (
     AdminApiActor,
     AdminAccountManagementReadResponse,
     AdminAuditWorkbenchReadResponse,
+    AdminFeesReadResponse,
     AdminApiErrorResponse,
     AdminBootstrapResponse,
     AdminCapabilityRegistryResponse,
@@ -28,8 +29,11 @@ from application.admin_api.models import (
     AdminLiveEnablementReadResponse,
     AdminOidcJwtReadinessResponse,
     AdminProductsReadResponse,
+    AdminProductsRefreshRequest,
     AdminProductsRefreshResponse,
+    AdminWalletReadResponse,
     AdminRiskPolicyReadResponse,
+    AdminRuntimeControlRequest,
     AdminRuntimeControlResponse,
     AdminRuntimeStatusResponse,
     AdminSessionResponse,
@@ -80,19 +84,6 @@ def _runtime_status_response() -> AdminRuntimeStatusResponse:
         stopping=controller.is_stopping(),
         total_inflight=sum(inflight.values()),
         inflight=inflight,
-    )
-
-
-def _runtime_control_response(action: str, accepted: bool) -> AdminRuntimeControlResponse:
-    status = _runtime_status_response()
-    return AdminRuntimeControlResponse(
-        action=action,
-        accepted=accepted,
-        state=status.state,
-        admitting=status.admitting,
-        stopping=status.stopping,
-        total_inflight=status.total_inflight,
-        inflight=status.inflight,
     )
 
 
@@ -147,7 +138,7 @@ def admin_health(
     responses=READ_ROUTE_RESPONSES,
     summary="Read backend runtime lifecycle status",
 )
-def admin_runtime_status(
+def admin_runtime(
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
@@ -161,11 +152,28 @@ def admin_runtime_status(
     summary="Pause backend runtime admission",
 )
 def admin_runtime_pause(
+    body: Annotated[AdminRuntimeControlRequest, Body(default_factory=AdminRuntimeControlRequest)],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.RUNTIME_PAUSE)
-    accepted = get_runtime_controller().request_pause()
-    return _read_response(_runtime_control_response("pause", accepted))
+    result = get_admin_mvp_service().control_runtime(
+        "pause",
+        body.model_dump(mode="json", exclude_none=True),
+        _admin_mvp_context(
+            actor,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id,
+            operator_intent=operator_intent,
+        ),
+    )
+    return JSONResponse(
+        status_code=result.status_code,
+        content=jsonable_encoder(result.body),
+        headers=result.headers,
+    )
 
 
 @router.post(
@@ -175,11 +183,28 @@ def admin_runtime_pause(
     summary="Resume backend runtime admission",
 )
 def admin_runtime_resume(
+    body: Annotated[AdminRuntimeControlRequest, Body(default_factory=AdminRuntimeControlRequest)],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.RUNTIME_RESUME)
-    accepted = get_runtime_controller().resume()
-    return _read_response(_runtime_control_response("resume", accepted))
+    result = get_admin_mvp_service().control_runtime(
+        "resume",
+        body.model_dump(mode="json", exclude_none=True),
+        _admin_mvp_context(
+            actor,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id,
+            operator_intent=operator_intent,
+        ),
+    )
+    return JSONResponse(
+        status_code=result.status_code,
+        content=jsonable_encoder(result.body),
+        headers=result.headers,
+    )
 
 
 @router.post(
@@ -189,11 +214,28 @@ def admin_runtime_resume(
     summary="Request backend runtime shutdown",
 )
 def admin_runtime_shutdown(
+    body: Annotated[AdminRuntimeControlRequest, Body(default_factory=AdminRuntimeControlRequest)],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.RUNTIME_SHUTDOWN)
-    accepted = get_runtime_controller().request_shutdown()
-    return _read_response(_runtime_control_response("shutdown", accepted))
+    result = get_admin_mvp_service().control_runtime(
+        "shutdown",
+        body.model_dump(mode="json", exclude_none=True),
+        _admin_mvp_context(
+            actor,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id,
+            operator_intent=operator_intent,
+        ),
+    )
+    return JSONResponse(
+        status_code=result.status_code,
+        content=jsonable_encoder(result.body),
+        headers=result.headers,
+    )
 
 
 @router.get(
@@ -217,6 +259,66 @@ def admin_account_management(
             idempotency_key=idempotency_key,
             correlation_id=correlation_id,
             operator_intent=operator_intent or "read_account_management",
+        ),
+    )
+    return JSONResponse(
+        status_code=result.status_code,
+        content=jsonable_encoder(result.body),
+        headers=result.headers,
+    )
+
+
+@router.get(
+    "/admin/wallet",
+    response_model=AdminWalletReadResponse,
+    responses=READ_ROUTE_RESPONSES,
+    summary="Read backend-owned wallet inventory and admission inputs",
+)
+def admin_wallet(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    correlation_id: Annotated[str | None, Header(alias="X-Correlation-Id")] = None,
+    operator_intent: Annotated[str | None, Header(alias="X-Operator-Intent")] = None,
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    result = get_admin_mvp_service().get_read_response(
+        "/api/v1/admin/wallet",
+        {},
+        _admin_mvp_context(
+            actor,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id,
+            operator_intent=operator_intent or "read_admin_wallet",
+        ),
+    )
+    return JSONResponse(
+        status_code=result.status_code,
+        content=jsonable_encoder(result.body),
+        headers=result.headers,
+    )
+
+
+@router.get(
+    "/admin/fees",
+    response_model=AdminFeesReadResponse,
+    responses=READ_ROUTE_RESPONSES,
+    summary="Read backend-owned fee evidence",
+)
+def admin_fees(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    correlation_id: Annotated[str | None, Header(alias="X-Correlation-Id")] = None,
+    operator_intent: Annotated[str | None, Header(alias="X-Operator-Intent")] = None,
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    result = get_admin_mvp_service().get_read_response(
+        "/api/v1/admin/fees",
+        {},
+        _admin_mvp_context(
+            actor,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id,
+            operator_intent=operator_intent or "read_admin_fees",
         ),
     )
     return JSONResponse(
@@ -264,16 +366,16 @@ def admin_products(
     responses=READ_ROUTE_RESPONSES,
     summary="Refresh backend-owned local product metadata",
 )
-def admin_products_refresh(
+def refresh_admin_products(
     actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
-    body: Annotated[dict[str, Any], Body(default_factory=dict)],
+    body: Annotated[AdminProductsRefreshRequest, Body(default_factory=AdminProductsRefreshRequest)],
     idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
     correlation_id: Annotated[str | None, Header(alias="X-Correlation-Id")] = None,
     operator_intent: Annotated[str | None, Header(alias="X-Operator-Intent")] = None,
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.CONFIG_UPDATE)
     result = get_admin_mvp_service().refresh_admin_products(
-        body,
+        body.model_dump(mode="json", exclude_none=True),
         _admin_mvp_context(
             actor,
             idempotency_key=idempotency_key,
