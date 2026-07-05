@@ -97,7 +97,16 @@ def test_manual_live_submit_records_admin_proof_chain_before_backend_rest_submis
     assert summary["status"] == "passed"
     assert summary["live_coinbase_execution"] == "submitted"
     assert summary["notional_usdc"] == "1.00"
+    assert summary["submitted_notional_usdc"] == "1.00"
+    assert summary["executed_notional_usdc"] == "0"
     assert summary["proof_chain_status"] == "passed"
+    assert summary["approval_snapshot_id"].startswith("mvp-approval-")
+    assert summary["admission_audit_id"].startswith("mvp-admission-audit-")
+    assert summary["cap_guard_decision_id"].startswith("mvp-cap-guard-")
+    assert summary["reconciliation_plan_id"].startswith("mvp-reconciliation-")
+    assert summary["proof_chain_audit_id"] == "audit-manual-live-submit-test-proof-chain"
+    assert summary["command_idempotency_key"] == "manual-live-submit-test"
+    assert summary["correlation_id"] == "manual-live-submit-test-correlation"
     assert summary["final_status_code"] == 200
     assert summary["final_status"] == "accepted"
     assert summary["live_exchange_submitted"] is True

@@ -396,6 +396,13 @@ def build_summary(
     live_orders_ran = bool(final_submit.get("live_coinbase_orders_ran"))
     status = "passed" if final_status_code == 200 and live_orders_ran else "failed"
     admission = object_record(final_submit.get("admission_decision"))
+    submitted_notional = decimal_text(
+        final_submit.get("submitted_notional_usdc")
+        or final_submit.get("notional_usdc")
+        or body.get("quote_size")
+        or "0"
+    )
+    executed_notional = decimal_text(final_submit.get("executed_notional_usdc") or "0")
     return {
         "schema_version": SCHEMA_VERSION,
         "artifact_type": ARTIFACT_TYPE,
@@ -426,6 +433,18 @@ def build_summary(
         "first_status": first_submit.get("status"),
         "first_status_code": first_submit.get("status_code"),
         "proof_chain_status": proof_chain.get("proof_chain_status"),
+        "approval_request_id": proof_chain.get("approval_request_id"),
+        "approval_snapshot_id": proof_chain.get("approval_snapshot_id"),
+        "admission_audit_id": proof_chain.get("admission_audit_id"),
+        "cap_guard_decision_id": proof_chain.get("cap_guard_decision_id"),
+        "reconciliation_plan_id": proof_chain.get("reconciliation_plan_id"),
+        "proof_chain_audit_id": proof_chain.get("audit_id"),
+        "command_idempotency_key": (
+            proof_chain.get("command_idempotency_key") or config.idempotency_key
+        ),
+        "proof_chain_idempotency_key": proof_chain.get("idempotency_key"),
+        "correlation_id": proof_chain.get("correlation_id") or config.correlation_id,
+        "payload_hash": proof_chain.get("payload_hash") or admission.get("payload_hash"),
         "final_status": final_submit.get("status"),
         "final_status_code": final_status_code,
         "failure_stage": final_submit.get("failure_stage"),
@@ -434,6 +453,8 @@ def build_summary(
         "live_coinbase_orders_ran": live_orders_ran,
         "live_coinbase_execution": final_submit.get("live_coinbase_execution", "not_run"),
         "notional_usdc": final_submit.get("notional_usdc", body.get("quote_size", "0")),
+        "submitted_notional_usdc": submitted_notional,
+        "executed_notional_usdc": executed_notional,
         "paired_sell_required": final_submit.get("paired_sell_required"),
     }
 
