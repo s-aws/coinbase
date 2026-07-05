@@ -202,6 +202,7 @@ genai_tools/
 # (`*.log` is already covered above under "Django stuff".)
 server_logs.txt
 startup_output.txt
+/artifacts/
 runtime_state/
 !docs/archive/v2/runtime-output/
 !docs/archive/v2/runtime-output/startup_output.txt

@@ -13,6 +13,7 @@ from tools import write_admin_api_deployment_manifest as deployment_manifest
 
 DEPLOY_WORKFLOW_PATH = Path(".github/workflows/deploy.yml")
 PUBLIC_CHECKS_WORKFLOW_PATH = Path(".github/workflows/public-agent-checks.yml")
+GITIGNORE_PATH = Path(".gitignore")
 PYPROJECT_PATH = Path("pyproject.toml")
 TEST_REQUIREMENTS_PATH = Path("tests/requirements.txt")
 OPENAPI_GENERATOR_PATH = Path("tools/generate_admin_api_openapi.py")
@@ -122,6 +123,17 @@ def test_backend_deploy_runs_controlled_live_mvp_smoke_before_packaging() -> Non
     assert workflow.index("Upload deployment payload") > workflow.index(
         CONTROLLED_LIVE_SMOKE_TIMING_PATH
     )
+
+
+def test_backend_generated_artifacts_are_gitignored() -> None:
+    gitignore = GITIGNORE_PATH.read_text(encoding="utf-8")
+
+    assert "/artifacts/" in gitignore
+    result = subprocess.run(
+        ["git", "check-ignore", "-q", CONTROLLED_LIVE_SMOKE_TIMING_PATH],
+        check=False,
+    )
+    assert result.returncode == 0
 
 
 def test_backend_deploy_payload_contains_admin_runtime_contract_files() -> None:
