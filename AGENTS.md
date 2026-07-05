@@ -22,6 +22,25 @@ This project runs on **Windows 11 + VS Code**. Linux/bash commands may not work 
 - Cancel/re-entry is not general hide-again behavior. It is a narrower policy for no-fill revealed stealth placements: cancel the active placement, hold in policy-cancelled hidden state, then re-enter through the normal reveal path.
 - Same-side post-fill retreat is a hidden-order policy only. It may retreat opted-in hidden orders and update their reveal/anchor state, but it must not locally mutate live revealed placements.
 
+## Branch Discipline
+
+- `main` is the primary working branch for this MVP. Do not create durable
+  `codex/*`, phase-range, tightening, or continuation branches to carry work
+  forward.
+- Work directly from the current `origin/main` unless the user explicitly asks
+  for a separate branch or pull request.
+- If a temporary branch is required for an external workflow, branch from
+  current `origin/main`, keep it scoped to the current MVP task, merge it back
+  to `main`, push `main`, and delete the local and remote temporary branch as
+  part of the same closeout.
+- Do not use branches as a backlog, holding area, or place to continue
+  non-MVP tightening. Capture follow-up work in the durable goal or an
+  operator-visible blocker note instead.
+- Before starting new work, if any `codex/*` branch is present locally or on
+  origin, verify whether it is merged into `main`. Delete merged branches; if an
+  unmerged branch exists, summarize its unique commits and get operator
+  direction before building on it.
+
 ## Legacy Source Material
 
 - The branch `origin/prod` may contain useful information about the legacy
