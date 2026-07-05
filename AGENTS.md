@@ -41,6 +41,29 @@ This project runs on **Windows 11 + VS Code**. Linux/bash commands may not work 
   unmerged branch exists, summarize its unique commits and get operator
   direction before building on it.
 
+## EC2 Workspace and Cost Discipline
+
+- The active development workspace for both Coinbase projects is the EC2
+  workspace, not the local laptop, whenever the instance is available.
+- Use `/home/ec2-user/coinbase` for this backend and
+  `/home/ec2-user/coinbase-frontend` for the frontend on EC2. Both projects
+  should stay on `main` unless the user explicitly asks otherwise.
+- The Windows checkouts are fallback/control-plane copies for recovery,
+  inspection, and small instruction-only edits. Do not treat them as the normal
+  place to continue implementation work once EC2 is available.
+- The EC2 instance costs money while running. Start or keep it running only
+  while actively coding, testing, serving the local Admin UI, or performing an
+  operator-requested validation.
+- Before ending a work session, stop repo-owned dev servers, test watchers, and
+  long-running helper processes on EC2, confirm required commits are pushed, and
+  stop the EC2 instance unless the user explicitly says to keep it running.
+- Stop means stop the instance, not terminate it. Do not destroy volumes,
+  delete the workspace, or remove secrets infrastructure as part of routine
+  cost control.
+- If EC2 is stopped or unreachable, state that clearly and either wait for the
+  user to start it or perform only safe local control-plane tasks that can be
+  pushed for EC2 to pull later.
+
 ## Legacy Source Material
 
 - The branch `origin/prod` may contain useful information about the legacy
