@@ -39,6 +39,7 @@ SMOKE_TIMING_SUMMARY_PREFIX = "ADMIN_API_CONTROLLED_LIVE_MVP_SMOKE_SUMMARY"
 DEFAULT_ENVIRONMENT = "local"
 DEPLOYMENT_TIERS = ("local",)
 PAYLOAD_PATHS = (
+    "api",
     "application",
     "bridges",
     "business",
@@ -68,6 +69,7 @@ PAYLOAD_PATHS = (
     "README.admin-api.md",
 )
 REQUIRED_PAYLOAD_PATHS = (
+    "api/v1/app.py",
     "application/admin_api/mvp_service.py",
     "tools/run_admin_api.py",
     "logging_service.py",

@@ -77,6 +77,7 @@ def test_apply_backend_local_deployment_writes_current_release(tmp_path: Path):
     assert Path(current_manifest["current_path"]) == deploy_root / "current"
     assert Path(current_manifest["release_path"]) == deploy_root / "releases" / "abc123"
     assert (deploy_root / "current" / "tools" / "run_admin_api.py").exists()
+    assert (deploy_root / "current" / "api" / "v1" / "app.py").exists()
     assert (deploy_root / "current" / "logging_service.py").exists()
     assert (deploy_root / "current" / "tests" / "pytest.ini").exists()
     assert (
@@ -97,6 +98,9 @@ def _write_minimal_backend_source(source_root: Path) -> None:
         "application/__init__.py",
         "application/admin_api/__init__.py",
         "application/admin_api/mvp_service.py",
+        "api/__init__.py",
+        "api/v1/__init__.py",
+        "api/v1/app.py",
         "tools/__init__.py",
         "tools/run_admin_api.py",
         "logging_service.py",
