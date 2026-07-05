@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import signal
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -19,12 +21,21 @@ SUMMARY_PREFIX = "STALE_TEST_PROCESS_SUMMARY "
 DEFAULT_MAX_TEST_PROCESS_MEMORY_MB = 8192.0
 
 TEST_PROCESS_NAMES = {
+    "bash",
     "cmd.exe",
+    "node",
     "node.exe",
+    "npm",
     "npm.cmd",
+    "npx",
     "npx.cmd",
     "powershell.exe",
+    "pytest",
+    "python",
     "python.exe",
+    "python3",
+    "python3.13",
+    "sh",
 }
 
 TEST_COMMAND_TOKENS = (
@@ -63,8 +74,11 @@ class ProcessInfo:
 
 
 def _normalize_path_variants(path: Path) -> tuple[str, ...]:
+    raw = str(path)
     resolved = path.resolve()
     return (
+        raw.lower(),
+        raw.replace("\\", "/").lower(),
         str(resolved).lower(),
         resolved.as_posix().lower(),
     )
@@ -156,6 +170,32 @@ def parse_process_json(payload: str) -> list[ProcessInfo]:
     return [_coerce_process_row(row) for row in rows if isinstance(row, dict)]
 
 
+def parse_posix_process_list(payload: str) -> list[ProcessInfo]:
+    """Parse `ps -eo pid=,ppid=,comm=,etimes=,rss=,args=` output."""
+
+    processes: list[ProcessInfo] = []
+    for line in payload.splitlines():
+        parts = line.strip().split(maxsplit=5)
+        if len(parts) != 6:
+            continue
+        pid, ppid, name, age_seconds, rss_kb, command_line = parts
+        try:
+            processes.append(
+                ProcessInfo(
+                    name=name,
+                    process_id=int(pid),
+                    parent_process_id=int(ppid),
+                    age_seconds=int(age_seconds),
+                    private_mb=0.0,
+                    working_set_mb=round(int(rss_kb) / 1024, 1),
+                    command_line=command_line,
+                )
+            )
+        except ValueError:
+            continue
+    return processes
+
+
 def query_windows_processes() -> list[ProcessInfo]:
     """Read process rows from Windows CIM through PowerShell."""
 
@@ -188,8 +228,34 @@ Get-CimInstance Win32_Process |
     return parse_process_json(completed.stdout)
 
 
-def kill_process_tree(process: ProcessInfo) -> bool:
-    """Terminate a stale process tree by PID."""
+def query_posix_processes() -> list[ProcessInfo]:
+    """Read process rows from POSIX ps."""
+
+    completed = subprocess.run(
+        ["ps", "-eo", "pid=,ppid=,comm=,etimes=,rss=,args="],
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    processes = parse_posix_process_list(completed.stdout)
+    if processes:
+        return processes
+    if completed.returncode != 0:
+        raise RuntimeError(completed.stderr.strip() or "POSIX process query failed")
+    return []
+
+
+def query_processes() -> list[ProcessInfo]:
+    """Read process rows from the current platform."""
+
+    if sys.platform == "win32":
+        return query_windows_processes()
+    return query_posix_processes()
+
+
+def kill_windows_process_tree(process: ProcessInfo) -> bool:
+    """Terminate a stale Windows process tree by PID."""
 
     completed = subprocess.run(
         ["taskkill.exe", "/PID", str(process.process_id), "/T", "/F"],
@@ -199,6 +265,33 @@ def kill_process_tree(process: ProcessInfo) -> bool:
         encoding="utf-8",
     )
     return completed.returncode == 0
+
+
+def kill_posix_process_tree(process: ProcessInfo) -> bool:
+    """Terminate a stale POSIX process and its direct children by PID."""
+
+    subprocess.run(
+        ["pkill", "-TERM", "-P", str(process.process_id)],
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    try:
+        os.kill(process.process_id, signal.SIGTERM)
+    except ProcessLookupError:
+        return True
+    except PermissionError:
+        return False
+    return True
+
+
+def kill_process_tree(process: ProcessInfo) -> bool:
+    """Terminate a stale process tree by PID."""
+
+    if sys.platform == "win32":
+        return kill_windows_process_tree(process)
+    return kill_posix_process_tree(process)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -296,7 +389,7 @@ def main(argv: list[str] | None = None) -> int:
     roots = resolve_roots(args)
     max_memory_mb = args.max_memory_mb if args.max_memory_mb > 0 else None
     stale = find_stale_test_processes(
-        query_windows_processes(),
+        query_processes(),
         roots=roots,
         min_age_seconds=args.min_age_seconds,
         max_memory_mb=max_memory_mb,

@@ -8,6 +8,7 @@ from tools.check_stale_test_processes import (
     ProcessInfo,
     find_stale_test_processes,
     is_test_process,
+    parse_posix_process_list,
     parse_process_json,
 )
 
@@ -187,6 +188,35 @@ def test_parse_process_json_accepts_single_or_list_payload():
     assert single[0].working_set_mb == 64.5
     assert multiple[0].age_seconds is None
     assert multiple[0].process_id == 124
+
+
+def test_parse_posix_process_list_accepts_ec2_ps_rows():
+    processes = parse_posix_process_list(
+        "\n".join(
+            [
+                (
+                    "101 1 python3 1200 204800 python3 -m pytest "
+                    "/home/ec2-user/coinbase/tests/regression"
+                ),
+                "not-a-process-row",
+            ]
+        )
+    )
+
+    assert processes == [
+        ProcessInfo(
+            name="python3",
+            process_id=101,
+            parent_process_id=1,
+            age_seconds=1200,
+            private_mb=0.0,
+            working_set_mb=200.0,
+            command_line=(
+                "python3 -m pytest /home/ec2-user/coinbase/tests/regression"
+            ),
+        )
+    ]
+    assert is_test_process(processes[0], [Path("/home/ec2-user/coinbase")])
 
 
 def test_summary_prefix_is_machine_readable_contract():
