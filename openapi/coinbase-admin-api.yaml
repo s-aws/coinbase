@@ -12530,8 +12530,12 @@ components:
       - admin_reconciliation_plan
       - admin_live_service_decision
       - admin_live_adapter_decision
+      - admin_account_products_refresh
+      - admin_runtime_control
       - spot_manual_order
       - spot_order_cancel
+      - spot_manual_order_proof_chain
+      - spot_order_cancel_proof_chain
       - spot_campaign_execution
       - spot_sweep_automation
       - spot_pnl_checkpoint
@@ -95723,6 +95727,14 @@ components:
         approved_phase_range:
           type: string
           title: Approved Phase Range
+        futures_live_execution_scope:
+          additionalProperties: true
+          type: object
+          title: Futures Live Execution Scope
+        futures_live_decision_evidence:
+          additionalProperties: true
+          type: object
+          title: Futures Live Decision Evidence
         status:
           $ref: '#/components/schemas/AdminApiGateStatus'
           default: blocked
@@ -137604,6 +137616,10 @@ components:
           - type: string
           - type: 'null'
           title: Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
       additionalProperties: false
       type: object
       title: CancelOrderRequest
