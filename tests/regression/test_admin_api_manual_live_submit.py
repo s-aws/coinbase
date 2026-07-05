@@ -11,8 +11,9 @@ from application.admin_api.mvp_service import (
 from tests.regression.test_admin_mvp_api import FakeAccountRestClient, FakeRestClient
 import tools.run_admin_api_manual_order_live_submit as manual_live_submit
 from tools.run_admin_api_manual_order_live_submit import (
-    ManualLiveSubmitConfig,
+    LiveSubmitCapExceededError,
     LiveSubmitConfirmationError,
+    ManualLiveSubmitConfig,
     apply_manual_live_submit_state_environment,
     build_manual_order_body,
     run_manual_live_submit,
@@ -116,6 +117,45 @@ def test_manual_live_submit_records_admin_proof_chain_before_backend_rest_submis
             },
         }
     ]
+
+
+def test_manual_live_submit_blocks_when_state_would_exceed_submitted_cap(tmp_path):
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    (state_dir / "admin_api_audit.jsonl").write_text(
+        (
+            '{"collection":"spot_command_decisions","record":{'
+            '"action_class":"live_exchange_place",'
+            '"status":"accepted",'
+            '"live_exchange_submitted":true,'
+            '"live_coinbase_orders_ran":true,'
+            '"notional_usdc":"2.50",'
+            '"client_order_id":"previous-manual-live"'
+            "}}\n"
+        ),
+        encoding="utf-8",
+    )
+    rest_client = FakeAccountRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        )
+    )
+
+    with pytest.raises(LiveSubmitCapExceededError, match="Manual live submit would exceed"):
+        run_manual_live_submit(
+            service,
+            ManualLiveSubmitConfig(
+                confirm_live_submit=True,
+                quote_size="1.00",
+                max_submitted_notional_usdc="3.10",
+                state_dir=str(state_dir),
+            ),
+        )
+
+    assert rest_client.create_order_calls == []
 
 
 def test_manual_live_submit_persists_local_admin_evidence_for_restart(tmp_path):

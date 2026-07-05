@@ -66,6 +66,10 @@ class LiveSubmitConfirmationError(RuntimeError):
     """Raised when a live submission is requested without explicit consent."""
 
 
+class LiveSubmitCapExceededError(RuntimeError):
+    """Raised when local live evidence would exceed the submitted cap."""
+
+
 @dataclass(frozen=True)
 class ManualLiveSubmitConfig:
     """Operator-controlled inputs for one bounded manual live submission."""
@@ -265,8 +269,70 @@ def validate_live_submit_config(config: ManualLiveSubmitConfig) -> None:
     max_submitted = decimal_value(config.max_submitted_notional_usdc)
     if quote_size > max_submitted:
         raise ValueError("quote_size must not exceed max_submitted_notional_usdc.")
+    assert_manual_submitted_notional_within_cumulative_cap(config, quote_size)
     if decimal_value(config.limit_price) <= 0:
         raise ValueError("limit_price must be greater than zero.")
+
+
+def assert_manual_submitted_notional_within_cumulative_cap(
+    config: ManualLiveSubmitConfig,
+    quote_size: Decimal,
+) -> None:
+    """Fail before Coinbase if a live submit would exceed local cap evidence."""
+
+    if not config.state_dir:
+        return
+    prior_submitted = live_place_submitted_notional_from_state_dir(Path(config.state_dir))
+    max_submitted = decimal_value(config.max_submitted_notional_usdc)
+    attempted_total = prior_submitted + quote_size
+    if attempted_total > max_submitted:
+        raise LiveSubmitCapExceededError(
+            "Manual live submit would exceed submitted notional cap: "
+            f"prior={decimal_text(prior_submitted)} USDC, "
+            f"order={decimal_text(quote_size)} USDC, "
+            f"cap={decimal_text(max_submitted)} USDC."
+        )
+
+
+def live_place_submitted_notional_from_state_dir(state_dir: Path) -> Decimal:
+    """Return accepted live-place notional already recorded in Admin state."""
+
+    audit_log = state_dir / "admin_api_audit.jsonl"
+    total = Decimal("0")
+    if not audit_log.exists():
+        return total
+    for entry in iter_jsonl_objects(audit_log):
+        record = object_record(entry.get("record"))
+        if record.get("action_class") != "live_exchange_place":
+            continue
+        if record.get("status") != "accepted":
+            continue
+        if record.get("live_exchange_submitted") is not True:
+            continue
+        if record.get("live_coinbase_orders_ran") is not True:
+            continue
+        total += decimal_value(
+            record.get("submitted_notional_usdc")
+            or record.get("notional_usdc")
+            or "0"
+        )
+    return total
+
+
+def iter_jsonl_objects(path: Path):
+    """Yield JSON object rows from a local Admin state JSONL file."""
+
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                parsed = json.loads(stripped)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, Mapping):
+                yield parsed
 
 
 def record_manual_live_service_decision(
@@ -457,7 +523,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         apply_manual_live_submit_state_environment(Path(config.state_dir))
     os.environ[LIVE_EXECUTION_ENV] = "1"
     apply_runner_environment()
-    summary = run_manual_live_submit(get_admin_mvp_service(), config)
+    try:
+        summary = run_manual_live_submit(get_admin_mvp_service(), config)
+    except LiveSubmitCapExceededError as exc:
+        print(f"Backend manual live submit blocked: {exc}")
+        return 1
     write_json(args.summary_output, summary)
     print(
         "Backend manual live submit: "
