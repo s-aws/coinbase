@@ -75,6 +75,18 @@ backend-controlled execution, demo readiness, or continuous deployment.
 
 Default next action is `work_mvp_cd_blockers_before_phase_range`.
 
+Durable future plan:
+[USDC Pair Snapshot Limit Automation MVP](USDC_PAIR_SNAPSHOT_LIMIT_AUTOMATION_MVP.md)
+records the approved backend-owned path toward discovering eligible Coinbase
+spot `*-USDC` products, snapshotting a price for each product, and deriving
+limit-order plans at the captured snapshot price with per-product notional
+capped at `N` or less. It is M58 future work, not the default active lane. The
+first useful slice is non-live Phase A plus Phase B only: backend contract
+discovery plus durable product/price snapshot dry-run evidence with
+`live_coinbase_execution=not_run` and notional `0`. Do not begin live fan-out,
+scheduler work, browser planning logic, or BFF trading authority from this
+plan without explicit approval and the backend proof-chain prerequisites.
+
 Forbidden default actions:
 
 - `complete_current_approved_range`

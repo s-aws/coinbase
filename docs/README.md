@@ -44,6 +44,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Admin Module Capability Matrix](ADMIN_MODULE_CAPABILITY_MATRIX.md)
 - [Maintainer Handoff](MAINTAINER_HANDOFF.md)
 - [Admin Platform Durable Milestones](plans/ADMIN_PLATFORM_DURABLE_MILESTONES.md)
+- [USDC Pair Snapshot Limit Automation MVP](plans/USDC_PAIR_SNAPSHOT_LIMIT_AUTOMATION_MVP.md)
 - [Frontend Association](FRONTEND_ASSOCIATION.md)
 - [Admin API E2E Plan](plans/ADMIN_API_E2E_PLAN.md)
 - [Admin API Route Inventory](plans/ADMIN_API_ROUTE_INVENTORY.md)
