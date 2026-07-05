@@ -59,6 +59,10 @@ class AdminApiCapGuardDecisionService:
             product_scope=body.product_scope,
             max_submitted_notional_usdc=body.max_submitted_notional_usdc,
             max_executed_notional_usdc=body.max_executed_notional_usdc,
+            wallet_check_required=body.wallet_check_required,
+            wallet_check_status=body.wallet_check_status,
+            wallet_available_notional_usdc=body.wallet_available_notional_usdc,
+            wallet_check_source=body.wallet_check_source,
             reason=body.reason,
         )
         store.append(record)
@@ -173,6 +177,10 @@ def _item_from_record(record: CapGuardDecisionRecord) -> AdminCapGuardDecisionIt
         product_scope=record.product_scope,
         max_submitted_notional_usdc=record.max_submitted_notional_usdc,
         max_executed_notional_usdc=record.max_executed_notional_usdc,
+        wallet_check_required=record.wallet_check_required,
+        wallet_check_status=record.wallet_check_status,
+        wallet_available_notional_usdc=record.wallet_available_notional_usdc,
+        wallet_check_source=record.wallet_check_source,
         reason=record.reason,
         resolver_eligible=resolver_eligible,
         browser_authority="display_only",

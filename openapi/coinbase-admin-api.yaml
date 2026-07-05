@@ -13051,6 +13051,23 @@ components:
             the API contract.
           examples:
           - '1.00'
+        wallet_check_required:
+          type: boolean
+          title: Wallet Check Required
+        wallet_check_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        wallet_available_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Wallet Available Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        wallet_check_source:
+          type: string
+          minLength: 1
+          title: Wallet Check Source
         reason:
           type: string
           minLength: 1
@@ -13080,6 +13097,10 @@ components:
       - product_scope
       - max_submitted_notional_usdc
       - max_executed_notional_usdc
+      - wallet_check_required
+      - wallet_check_status
+      - wallet_available_notional_usdc
+      - wallet_check_source
       - reason
       title: AdminCapGuardDecisionCreateRequest
       description: Append one backend-owned cap/guard decision for command admission.
@@ -13168,6 +13189,22 @@ components:
             the API contract.
           examples:
           - '1.00'
+        wallet_check_required:
+          type: boolean
+          title: Wallet Check Required
+        wallet_check_status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+        wallet_available_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Wallet Available Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        wallet_check_source:
+          type: string
+          title: Wallet Check Source
         reason:
           type: string
           title: Reason
@@ -13220,6 +13257,10 @@ components:
       - product_scope
       - max_submitted_notional_usdc
       - max_executed_notional_usdc
+      - wallet_check_required
+      - wallet_check_status
+      - wallet_available_notional_usdc
+      - wallet_check_source
       - reason
       - detail
       title: AdminCapGuardDecisionItem

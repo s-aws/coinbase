@@ -1200,6 +1200,10 @@ def _append_manual_order_cap_guard_decision(
         product_scope="USDC spot product scope",
         max_submitted_notional_usdc="3.10",
         max_executed_notional_usdc="1.00",
+        wallet_check_required=True,
+        wallet_check_status=AdminApiGateStatus.PASSED,
+        wallet_available_notional_usdc="3.10",
+        wallet_check_source="coinbase_accounts:list_account_available_balance",
         reason="Exact backend-owned cap/guard proof for no-live admission tests.",
     )
     store.append(record)
@@ -1247,6 +1251,10 @@ def _cap_guard_decision_payload(
         "product_scope": "USDC spot product scope",
         "max_submitted_notional_usdc": "3.10",
         "max_executed_notional_usdc": "1.00",
+        "wallet_check_required": True,
+        "wallet_check_status": status.value,
+        "wallet_available_notional_usdc": "3.10",
+        "wallet_check_source": "coinbase_accounts:list_account_available_balance",
         "reason": "Exact backend-owned cap/guard decision for route tests.",
     }
 
@@ -3141,6 +3149,24 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "/api/v1/spot/command-suite" in written["paths"]
     assert "/api/v1/spot/readiness" in written["paths"]
     assert "/api/v1/spot/direct-orders/{client_order_id}/audit" in written["paths"]
+    wallet_evidence_fields = {
+        "wallet_check_required",
+        "wallet_check_status",
+        "wallet_available_notional_usdc",
+        "wallet_check_source",
+    }
+    cap_guard_create_schema = written["components"]["schemas"][
+        "AdminCapGuardDecisionCreateRequest"
+    ]
+    cap_guard_item_schema = written["components"]["schemas"][
+        "AdminCapGuardDecisionItem"
+    ]
+    assert cap_guard_create_schema["additionalProperties"] is False
+    assert cap_guard_item_schema["additionalProperties"] is False
+    assert wallet_evidence_fields <= set(cap_guard_create_schema["properties"])
+    assert wallet_evidence_fields <= set(cap_guard_item_schema["properties"])
+    assert wallet_evidence_fields <= set(cap_guard_create_schema["required"])
+    assert wallet_evidence_fields <= set(cap_guard_item_schema["required"])
     assert written["info"]["title"] == "Coinbase Admin API"
     order_operation = written["paths"]["/api/v1/orders"]["post"]
     header_params = {
@@ -34505,6 +34531,13 @@ def test_admin_api_cap_guard_decision_routes_record_replay_and_resolve(monkeypat
     assert decision["resolver_eligible"] is True
     assert decision["browser_authority"] == "display_only"
     assert decision["bff_authority"] == "forward_only_no_execution"
+    assert decision["wallet_check_required"] is True
+    assert decision["wallet_check_status"] == AdminApiGateStatus.PASSED.value
+    assert decision["wallet_available_notional_usdc"] == "3.10"
+    assert (
+        decision["wallet_check_source"]
+        == "coinbase_accounts:list_account_available_balance"
+    )
 
     listed = client.get(
         "/api/v1/admin/cap-guard/decisions",
@@ -34526,6 +34559,9 @@ def test_admin_api_cap_guard_decision_routes_record_replay_and_resolve(monkeypat
     )
     assert detail.status_code == 200
     assert detail.json()["decision"]["decision_id"] == approval.cap_guard_decision_ref
+    assert detail.json()["decision"]["wallet_check_status"] == (
+        AdminApiGateStatus.PASSED.value
+    )
 
     proof = resolve_cap_guard_decision(
         store=client.admin_api_test_cap_guard_store,
