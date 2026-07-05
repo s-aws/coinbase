@@ -38,6 +38,7 @@ from application.admin_api.mvp_service import (  # noqa: E402
     get_admin_mvp_service,
 )
 from tools import run_admin_api  # noqa: E402
+from tools.coinbase_live_credentials import ensure_live_coinbase_credentials  # noqa: E402
 
 
 DEFAULT_SUMMARY_OUTPUT = (
@@ -46,7 +47,6 @@ DEFAULT_SUMMARY_OUTPUT = (
 ARTIFACT_TYPE = "coinbase_admin_api_manual_order_live_submit"
 SCHEMA_VERSION = "1"
 LIVE_EXECUTION_ENV = "COINBASE_ADMIN_LIVE_COINBASE_EXECUTION"
-LIVE_COINBASE_CREDENTIAL_ENV = ("COINBASE_API_KEY", "COINBASE_API_SECRET")
 MAX_DEFAULT_SUBMITTED_NOTIONAL_USDC = "3.10"
 MAX_DEFAULT_EXECUTED_NOTIONAL_USDC = "1.00"
 DEFAULT_QUOTE_SIZE = "1.00"
@@ -378,14 +378,10 @@ def apply_runner_environment() -> dict[str, str]:
     return run_admin_api.apply_local_environment(run_admin_api.parse_args([]))
 
 
-def assert_live_credentials_present(environ: Mapping[str, str]) -> None:
-    """Fail before service construction when Coinbase credentials are absent."""
+def assert_live_credentials_present(environ: MutableMapping[str, str]) -> None:
+    """Hydrate live Coinbase credentials before service construction."""
 
-    missing = [key for key in LIVE_COINBASE_CREDENTIAL_ENV if not environ.get(key)]
-    if missing:
-        raise RuntimeError(
-            f"Manual live submit requires {', '.join(missing)} in the environment."
-        )
+    ensure_live_coinbase_credentials(environ)
 
 
 def decimal_value(value: str | Decimal) -> Decimal:

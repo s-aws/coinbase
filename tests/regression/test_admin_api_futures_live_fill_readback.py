@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import json
 
+import pytest
+
+import tools.run_admin_api_futures_live_fill_readback as fill_readback
 from tools.run_admin_api_futures_live_fill_readback import (
     FuturesLiveFillReadbackConfig,
     run_futures_live_fill_readback,
@@ -61,6 +64,30 @@ def write_passed_submission_artifact(
         encoding="utf-8",
     )
     return artifact
+
+
+def test_futures_live_fill_readback_credential_gate_hydrates_from_backend_helper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    environ: dict[str, str] = {}
+    calls: list[dict[str, str]] = []
+
+    def fake_ensure_live_coinbase_credentials(target: dict[str, str]) -> None:
+        calls.append(target)
+        target["COINBASE_API_KEY"] = "secret-manager-key"
+        target["COINBASE_API_SECRET"] = "secret-manager-secret"
+
+    monkeypatch.setattr(
+        fill_readback,
+        "ensure_live_coinbase_credentials",
+        fake_ensure_live_coinbase_credentials,
+    )
+
+    fill_readback.assert_live_read_credentials_present(environ)
+
+    assert calls == [environ]
+    assert environ["COINBASE_API_KEY"] == "secret-manager-key"
+    assert environ["COINBASE_API_SECRET"] == "secret-manager-secret"
 
 
 def test_futures_live_fill_readback_proves_filled_order_by_client_order_id(tmp_path):

@@ -42,12 +42,12 @@ The engine uses the following environment variables:
 - `COINBASE_API_SECRET` - Coinbase API secret for authentication
 - `COINBASE_USE_SANDBOX` - Set to "true" to use Coinbase sandbox environment
 
-Backend-only Admin smoke tools can also load live-read credentials from the
-default AWS Secrets Manager secret id `coinbase`. Override it with
-`COINBASE_SECRETS_MANAGER_SECRET_ID`, `COINBASE_API_CREDENTIALS_SECRET_ID`, or
-`COINBASE_LIVE_CREDENTIALS_SECRET_ID` in the backend shell, plus
-`COINBASE_SECRETS_MANAGER_REGION` when needed. Verify redacted availability
-without printing values:
+Backend-only Admin smoke and controlled-live tools can also load live
+credentials from the default AWS Secrets Manager secret id `coinbase`. Override
+it with `COINBASE_SECRETS_MANAGER_SECRET_ID`,
+`COINBASE_API_CREDENTIALS_SECRET_ID`, or `COINBASE_LIVE_CREDENTIALS_SECRET_ID`
+in the backend shell, plus `COINBASE_SECRETS_MANAGER_REGION` when needed.
+Verify redacted availability without printing values:
 
 ```bash
 python tools/coinbase_live_credentials.py --check

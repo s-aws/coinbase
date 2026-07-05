@@ -8,7 +8,7 @@ the exchange ``order_id`` is used only as backend evidence to read fills.
 from __future__ import annotations
 
 import argparse
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping, MutableMapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -30,6 +30,7 @@ from application.admin_api.mvp_service import (  # noqa: E402
     get_admin_mvp_service,
 )
 from tools import run_admin_api  # noqa: E402
+from tools.coinbase_live_credentials import ensure_live_coinbase_credentials  # noqa: E402
 from tools.run_admin_api_manual_order_live_submit import (  # noqa: E402
     decimal_text,
     decimal_value,
@@ -44,7 +45,6 @@ DEFAULT_SUBMISSION_ARTIFACT = (
 )
 ARTIFACT_TYPE = "coinbase_admin_api_futures_live_fill_readback"
 SCHEMA_VERSION = "1"
-LIVE_COINBASE_CREDENTIAL_ENV = ("COINBASE_API_KEY", "COINBASE_API_SECRET")
 DEFAULT_ORDER_STATUSES = ("FILLED", "OPEN", "CANCELLED", "EXPIRED", "FAILED")
 FILLED_STATUSES = {"FILLED", "FILLED_ORDER", "DONE", "COMPLETE", "COMPLETED"}
 LIVE_ORDER_ARTIFACT_TYPES = {
@@ -665,14 +665,10 @@ def write_json(path: Path, payload: Mapping[str, Any]) -> None:
     )
 
 
-def assert_live_read_credentials_present(environ: Mapping[str, str]) -> None:
-    """Fail before service construction when live-read credentials are absent."""
+def assert_live_read_credentials_present(environ: MutableMapping[str, str]) -> None:
+    """Hydrate live-read Coinbase credentials before service construction."""
 
-    missing = [key for key in LIVE_COINBASE_CREDENTIAL_ENV if not environ.get(key)]
-    if missing:
-        raise RuntimeError(
-            f"Futures fill readback requires {', '.join(missing)} in the environment."
-        )
+    ensure_live_coinbase_credentials(environ)
 
 
 def main(argv: Sequence[str] | None = None) -> int:

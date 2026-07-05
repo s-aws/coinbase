@@ -9,6 +9,7 @@ from application.admin_api.mvp_service import (
     AdminMvpService,
 )
 from tests.regression.test_admin_mvp_api import FakeAccountRestClient, FakeRestClient
+import tools.run_admin_api_manual_order_live_submit as manual_live_submit
 from tools.run_admin_api_manual_order_live_submit import (
     ManualLiveSubmitConfig,
     LiveSubmitConfirmationError,
@@ -31,6 +32,30 @@ def test_manual_live_submit_body_defaults_to_small_limit_ioc_buy():
         "post_only": False,
         "manual_live_acknowledgement": True,
     }
+
+
+def test_manual_live_submit_credential_gate_hydrates_from_backend_helper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    environ: dict[str, str] = {}
+    calls: list[dict[str, str]] = []
+
+    def fake_ensure_live_coinbase_credentials(target: dict[str, str]) -> None:
+        calls.append(target)
+        target["COINBASE_API_KEY"] = "secret-manager-key"
+        target["COINBASE_API_SECRET"] = "secret-manager-secret"
+
+    monkeypatch.setattr(
+        manual_live_submit,
+        "ensure_live_coinbase_credentials",
+        fake_ensure_live_coinbase_credentials,
+    )
+
+    manual_live_submit.assert_live_credentials_present(environ)
+
+    assert calls == [environ]
+    assert environ["COINBASE_API_KEY"] == "secret-manager-key"
+    assert environ["COINBASE_API_SECRET"] == "secret-manager-secret"
 
 
 def test_manual_live_submit_requires_explicit_confirmation_before_service_calls():
