@@ -261,6 +261,7 @@ owners:
       - tools/run_admin_api.py
       - tools/run_admin_api_account_reality_live_read_smoke.py
       - tools/run_admin_api_futures_executor_boundary_smoke.py
+      - tools/run_admin_api_spot_live_cancel.py
     test_owns:
       - tests/regression/test_admin_api_*.py
       - tests/unit/test_admin_api_*.py

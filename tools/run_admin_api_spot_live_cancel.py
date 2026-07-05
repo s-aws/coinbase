@@ -12,6 +12,7 @@ import argparse
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+import json
 import os
 from pathlib import Path
 import sys
@@ -62,6 +63,10 @@ DEFAULT_SEED_TIME_IN_FORCE = "GTC"
 
 class LiveCancelConfirmationError(RuntimeError):
     """Raised when the live cancel confirmation flag is missing."""
+
+
+class LiveCapExceededError(RuntimeError):
+    """Raised when local live evidence would exceed the submitted cap."""
 
 
 @dataclass(frozen=True)
@@ -292,6 +297,70 @@ def validate_spot_live_cancel_config(config: SpotLiveCancelConfig) -> None:
             config.seed_max_executed_notional_usdc,
             "seed_max_executed_notional_usdc",
         )
+        assert_seed_submitted_notional_within_cumulative_cap(config)
+
+
+def assert_seed_submitted_notional_within_cumulative_cap(
+    config: SpotLiveCancelConfig,
+) -> None:
+    """Fail before Coinbase if a seeded live order would exceed local cap evidence."""
+
+    if not config.state_dir:
+        return
+    prior_submitted = live_place_submitted_notional_from_state_dir(config.state_dir)
+    seed_submitted = Decimal(seed_order_notional_usdc(build_spot_cancel_seed_order_body(config)))
+    max_submitted = Decimal(decimal_text(config.seed_max_submitted_notional_usdc))
+    attempted_total = prior_submitted + seed_submitted
+    if attempted_total > max_submitted:
+        raise LiveCapExceededError(
+            "Spot live cancel seed would exceed submitted notional cap: "
+            f"prior={zero_normalized_decimal_text(prior_submitted)} USDC, "
+            f"seed={zero_normalized_decimal_text(seed_submitted)} USDC, "
+            f"cap={zero_normalized_decimal_text(max_submitted)} USDC."
+        )
+
+
+def live_place_submitted_notional_from_state_dir(state_dir: Path) -> Decimal:
+    """Return accepted live-place notional already recorded in Admin state."""
+
+    audit_log = state_dir / "admin_api_audit.jsonl"
+    total = Decimal("0")
+    if not audit_log.exists():
+        return total
+    for entry in iter_jsonl_objects(audit_log):
+        record = object_record(entry.get("record"))
+        if record.get("action_class") != "live_exchange_place":
+            continue
+        if record.get("status") != "accepted":
+            continue
+        if record.get("live_exchange_submitted") is not True:
+            continue
+        if record.get("live_coinbase_orders_ran") is not True:
+            continue
+        total += Decimal(
+            decimal_text(
+                record.get("submitted_notional_usdc")
+                or record.get("notional_usdc")
+                or "0"
+            )
+        )
+    return total
+
+
+def iter_jsonl_objects(path: Path):
+    """Yield JSON object rows from a local Admin state JSONL file."""
+
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            stripped = line.strip()
+            if not stripped:
+                continue
+            try:
+                parsed = json.loads(stripped)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, Mapping):
+                yield parsed
 
 
 def submit_spot_cancel_seed_order(
@@ -987,7 +1056,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         apply_manual_live_submit_state_environment(config.state_dir)
     os.environ[LIVE_EXECUTION_ENV] = "1"
     apply_runner_environment()
-    summary = run_spot_live_cancel(get_admin_mvp_service(), config)
+    try:
+        summary = run_spot_live_cancel(get_admin_mvp_service(), config)
+    except LiveCapExceededError as exc:
+        print(f"Backend Spot live cancel blocked: {exc}")
+        return 1
     write_json(config.summary_output, summary)
     print(
         "Backend Spot live cancel: "

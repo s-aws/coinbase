@@ -5,6 +5,7 @@ import pytest
 from application.admin_api.mvp_service import AdminMvpDependencies, AdminMvpService
 from tests.regression.test_admin_mvp_api import FakeAccountRestClient
 from tools.run_admin_api_spot_live_cancel import (
+    LiveCapExceededError,
     LiveCancelConfirmationError,
     SpotLiveCancelConfig,
     build_spot_live_cancel_body,
@@ -178,6 +179,51 @@ def test_spot_live_cancel_can_seed_resting_gtc_order_before_cancel():
     assert rest_client.cancel_order_calls == [
         {"order_ids": ["spot-live-cancel-seed-test-order"]}
     ]
+
+
+def test_spot_live_cancel_blocks_seed_when_state_would_exceed_submitted_cap(tmp_path):
+    state_dir = tmp_path / "state"
+    state_dir.mkdir()
+    (state_dir / "admin_api_audit.jsonl").write_text(
+        (
+            '{"collection":"spot_command_decisions","record":{'
+            '"action_class":"live_exchange_place",'
+            '"status":"accepted",'
+            '"live_exchange_submitted":true,'
+            '"live_coinbase_orders_ran":true,'
+            '"notional_usdc":"2.00",'
+            '"client_order_id":"previous-live-seed"'
+            "}}\n"
+        ),
+        encoding="utf-8",
+    )
+    rest_client = FakeAccountRestClient()
+    service = AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+            uuid_factory=lambda: "spot-live-cancel-seed-over-cap",
+        )
+    )
+
+    with pytest.raises(LiveCapExceededError, match="Spot live cancel seed would exceed"):
+        run_spot_live_cancel(
+            service,
+            SpotLiveCancelConfig(
+                confirm_live_cancel=True,
+                seed_resting_order=True,
+                state_dir=state_dir,
+                seed_product_id="USDT-USDC",
+                seed_base_size="2.00",
+                seed_limit_price="0.9980",
+                seed_max_submitted_notional_usdc="3.10",
+                backend_contract_ref="backend-ref",
+            ),
+        )
+
+    assert rest_client.create_order_calls == []
+    assert rest_client.cancel_order_calls == []
 
 
 def test_spot_live_cancel_summary_records_exchange_id_fallback_when_needed():
