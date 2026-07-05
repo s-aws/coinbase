@@ -298,6 +298,7 @@ def test_futures_executor_boundary_smoke_main_writes_artifact(monkeypatch, tmp_p
 
     monkeypatch.setattr(smoke, "get_admin_mvp_service", lambda: FakeService())
     monkeypatch.setattr(smoke, "apply_runner_environment", lambda config: {})
+    monkeypatch.setattr(smoke, "ensure_live_coinbase_credentials", lambda environ: None)
     monkeypatch.setattr(
         smoke,
         "read_git_value",

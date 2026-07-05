@@ -35,6 +35,7 @@ from application.admin_api.mvp_service import (  # noqa: E402
     AdminMvpService,
     get_admin_mvp_service,
 )
+from tools.coinbase_live_credentials import ensure_live_coinbase_credentials  # noqa: E402
 from tools import run_admin_api  # noqa: E402
 from tools.run_admin_api_manual_order_live_submit import (  # noqa: E402
     apply_manual_live_submit_state_environment,
@@ -684,6 +685,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the no-live Futures boundary smoke and write evidence."""
 
     config = config_from_args(build_parser().parse_args(argv))
+    ensure_live_coinbase_credentials(os.environ)
     apply_runner_environment(config)
     summary = run_futures_boundary_smoke(get_admin_mvp_service(), config)
     write_json(config.summary_output, summary)

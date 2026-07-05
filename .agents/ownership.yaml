@@ -253,11 +253,20 @@ owners:
       - tools/export_admin_api_route_inventory.py
       - tests/regression/test_admin_api_*.py
       - tests/unit/test_admin_api_*.py
+      - tests/regression/test_admin_mvp_account_reality_live_read_smoke.py
+      - tests/regression/test_admin_mvp_futures_executor_boundary_smoke.py
+      - tests/regression/test_coinbase_live_credentials.py
+      - tools/coinbase_live_credentials.py
       - tools/generate_admin_api_openapi.py
       - tools/run_admin_api.py
+      - tools/run_admin_api_account_reality_live_read_smoke.py
+      - tools/run_admin_api_futures_executor_boundary_smoke.py
     test_owns:
       - tests/regression/test_admin_api_*.py
       - tests/unit/test_admin_api_*.py
+      - tests/regression/test_admin_mvp_account_reality_live_read_smoke.py
+      - tests/regression/test_admin_mvp_futures_executor_boundary_smoke.py
+      - tests/regression/test_coinbase_live_credentials.py
     tests:
       - pytest tests/regression/test_admin_api_contract.py -v --tb=short
     requires_regression: true

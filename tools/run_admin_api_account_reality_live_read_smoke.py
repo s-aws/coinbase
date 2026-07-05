@@ -24,6 +24,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from application.admin_api.mvp_service import AdminMvpRequestContext, get_admin_mvp_service
+from tools.coinbase_live_credentials import ensure_live_coinbase_credentials
 from tools import run_admin_api
 from tools.run_admin_api_futures_executor_boundary_smoke import (
     FUTURES_ADAPTER_DECISIONS,
@@ -552,6 +553,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     started_at = current_utc_timestamp()
     started = time.perf_counter()
+    ensure_live_coinbase_credentials(os.environ)
     applied_environment = apply_runner_environment(args.state_dir)
     service = get_admin_mvp_service()
     backend_git_commit = read_git_value(["rev-parse", "--short", "HEAD"])

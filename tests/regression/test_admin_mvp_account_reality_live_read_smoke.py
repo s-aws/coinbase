@@ -294,6 +294,7 @@ def test_account_reality_live_read_smoke_main_writes_artifact(monkeypatch, tmp_p
             ("rev-parse", "--abbrev-ref", "HEAD"): "main",
         }.get(tuple(args), fallback),
     )
+    monkeypatch.setattr(smoke, "ensure_live_coinbase_credentials", lambda environ: None)
     monkeypatch.setenv("COINBASE_API_KEY", "present")
     monkeypatch.setenv("COINBASE_API_SECRET", "present")
     summary_path = tmp_path / "account-reality-smoke.json"
