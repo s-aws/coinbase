@@ -48,9 +48,10 @@ This project runs on **Windows 11 + VS Code**. Linux/bash commands may not work 
 - Use `/home/ec2-user/coinbase` for this backend and
   `/home/ec2-user/coinbase-frontend` for the frontend on EC2. Both projects
   should stay on `main` unless the user explicitly asks otherwise.
-- The Windows checkouts are fallback/control-plane copies for recovery,
-  inspection, and small instruction-only edits. Do not treat them as the normal
-  place to continue implementation work once EC2 is available.
+- The Windows checkouts are not active workspaces. Do not read, edit,
+  build, test, or continue implementation from local repo copies. Use the
+  local machine only as an AWS/SSH control plane to start, stop, or access
+  EC2.
 - The EC2 instance costs money while running. Start or keep it running only
   while actively coding, testing, serving the local Admin UI, or performing an
   operator-requested validation.
@@ -60,9 +61,9 @@ This project runs on **Windows 11 + VS Code**. Linux/bash commands may not work 
 - Stop means stop the instance, not terminate it. Do not destroy volumes,
   delete the workspace, or remove secrets infrastructure as part of routine
   cost control.
-- If EC2 is stopped or unreachable, state that clearly and either wait for the
-  user to start it or perform only safe local control-plane tasks that can be
-  pushed for EC2 to pull later.
+- If EC2 is stopped or unreachable, state that clearly and either start it for
+  the requested work or wait for the user to start it. Do not perform repo
+  work in local checkouts as a substitute for the EC2 workspace.
 
 ## Legacy Source Material
 
