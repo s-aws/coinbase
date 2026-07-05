@@ -146,6 +146,36 @@ def _read_model_response(model: type[TReadModel], payload: object) -> JSONRespon
     return JSONResponse(content=jsonable_encoder(model.model_validate(payload)))
 
 
+def _futures_account_payload(payload: object) -> object:
+    if isinstance(payload, BaseModel) or not isinstance(payload, dict):
+        return payload
+
+    normalized: dict[str, Any] = dict(payload)
+    margin = normalized.get("margin")
+    configured_product_scope = normalized.get("configured_product_scope") or []
+    observed_position_scope = normalized.get("observed_position_scope") or []
+    normalized.setdefault(
+        "account_reality",
+        {
+            "status": "offline_fixture",
+            "source": "backend_admin_read_contract",
+            "proof_id": "futures-account-read-route-default",
+        },
+    )
+    normalized.setdefault(
+        "account_readiness",
+        {
+            "futures_account_scope_ready": bool(configured_product_scope),
+            "futures_observed_position_scope_ready": bool(observed_position_scope),
+            "usable_for_futures_risk": False,
+            "futures_margin_collateral_ready": (
+                isinstance(margin, dict) and margin.get("status") == "observed"
+            ),
+        },
+    )
+    return normalized
+
+
 def _admin_mvp_context(
     actor: AdminApiActor,
     *,
@@ -704,7 +734,7 @@ def get_futures_account(
     require_permission(actor, AdminApiPermission.ANALYTICS_READ)
     return _read_model_response(
         AdminFuturesAccountReadResponse,
-        service.build_futures_account(),
+        _futures_account_payload(service.build_futures_account()),
     )
 
 

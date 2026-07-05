@@ -9,7 +9,7 @@ from functools import lru_cache
 import json
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 import uuid
 
 from core.enums import (
@@ -53,6 +53,22 @@ from core.enums import (
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemBlocker,
     AdminFuturesCommandRiskProofRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceBlocker,
     AdminFuturesCommandSemanticGuard,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheck,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckContract,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckInputSchema,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckInputSchemaField,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchema,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaField,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraint,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRef,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefAcceptance,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefContextlessReview,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefRecordAcceptance,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptance,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceContextlessReview,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceContextlessReviewAcceptance,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldName,
+    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldType,
     AdminFuturesEvidenceSource,
     AdminFuturesEvidenceStatus,
     AdminFuturesPositionSide,
@@ -4258,6 +4274,15 @@ def _audit_event_from_command_event(
     event: AdminApiAuditEvent,
 ) -> AdminAuditWorkbenchEventItem:
     raw_event = event.model_dump(mode="json")
+    admission_decision = None
+    if event.admission_decision is not None:
+        admission_decision = event.admission_decision.model_dump(mode="json")
+        admission_decision["cap_guard_present"] = bool(
+            admission_decision.get("cap_guard_present")
+        )
+        admission_decision["reconciliation_plan_present"] = bool(
+            admission_decision.get("reconciliation_plan_present")
+        )
     return AdminAuditWorkbenchEventItem(
         event_id=event.audit_id,
         module=_audit_module_for_surface(event.endpoint),
@@ -4283,11 +4308,7 @@ def _audit_event_from_command_event(
         live_command_runtime_source=event.live_command_runtime_source,
         recorded_at=event.recorded_at,
         message=event.message,
-        admission_decision=(
-            event.admission_decision.model_dump(mode="json")
-            if event.admission_decision is not None
-            else None
-        ),
+        admission_decision=admission_decision,
         live_coinbase_orders_ran=event.live_coinbase_orders_ran,
         raw_event=raw_event,
     )
@@ -26312,12 +26333,292 @@ class AdminApiReadService:
                 )
             return _BoundedEvidenceRows(claim_trace_items, full_count)
 
+        clearance_preview_count_cache: dict[
+            tuple[str, AdminFuturesCommandAction], int
+        ] = {}
+
+        def clearance_preview_count(
+            key: str,
+            command_id: AdminFuturesCommandAction,
+            factory: Callable[[], int],
+        ) -> int:
+            cache_key = (key, command_id)
+            if cache_key not in clearance_preview_count_cache:
+                clearance_preview_count_cache[cache_key] = factory()
+            return clearance_preview_count_cache[cache_key]
+
+        def clearance_plan_count(command_id: AdminFuturesCommandAction) -> int:
+            return clearance_preview_count(
+                "clearance_plans",
+                command_id,
+                lambda: _evidence_row_count(
+                    request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces_for(
+                        command_id
+                    )
+                ),
+            )
+
+        def clearance_step_count(command_id: AdminFuturesCommandAction) -> int:
+            return clearance_preview_count(
+                "clearance_steps",
+                command_id,
+                lambda: clearance_plan_count(command_id) * 6,
+            )
+
+        def clearance_step_review_count(command_id: AdminFuturesCommandAction) -> int:
+            return clearance_preview_count(
+                "clearance_step_reviews",
+                command_id,
+                lambda: clearance_step_count(command_id),
+            )
+
+        def clearance_step_review_input_count(
+            command_id: AdminFuturesCommandAction,
+        ) -> int:
+            return clearance_preview_count(
+                "clearance_step_review_inputs",
+                command_id,
+                lambda: clearance_step_review_count(command_id) * 2,
+            )
+
+        def clearance_step_review_input_store_requirement_count(
+            command_id: AdminFuturesCommandAction,
+        ) -> int:
+            return clearance_preview_count(
+                "clearance_step_review_input_store_requirements",
+                command_id,
+                lambda: clearance_step_review_input_count(command_id),
+            )
+
+        def clearance_step_review_input_store_record_contract_count(
+            command_id: AdminFuturesCommandAction,
+        ) -> int:
+            return clearance_preview_count(
+                "clearance_step_review_input_store_record_contracts",
+                command_id,
+                lambda: clearance_step_review_input_store_requirement_count(command_id),
+            )
+
+        def clearance_step_review_input_store_record_validation_count(
+            command_id: AdminFuturesCommandAction,
+        ) -> int:
+            return clearance_preview_count(
+                "clearance_step_review_input_store_record_validations",
+                command_id,
+                lambda: clearance_step_review_input_store_record_contract_count(command_id),
+            )
+
+        def validation_check_count(command_id: AdminFuturesCommandAction) -> int:
+            return clearance_preview_count(
+                "validation_checks",
+                command_id,
+                lambda: (
+                    clearance_step_review_input_store_record_validation_count(command_id)
+                    * len(
+                        AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheck
+                    )
+                ),
+            )
+
+        def validation_check_contract_count(
+            command_id: AdminFuturesCommandAction,
+        ) -> int:
+            return clearance_preview_count(
+                "validation_check_contracts",
+                command_id,
+                lambda: validation_check_count(command_id)
+                * len(
+                    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckContract
+                ),
+            )
+
+        def validation_check_input_schema_count(
+            command_id: AdminFuturesCommandAction,
+        ) -> int:
+            return clearance_preview_count(
+                "validation_check_input_schemas",
+                command_id,
+                lambda: validation_check_contract_count(command_id)
+                * len(
+                    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckInputSchema
+                ),
+            )
+
+        def validation_check_input_schema_field_count(
+            command_id: AdminFuturesCommandAction,
+        ) -> int:
+            return clearance_preview_count(
+                "validation_check_input_schema_fields",
+                command_id,
+                lambda: validation_check_input_schema_count(command_id)
+                * len(
+                    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckInputSchemaField
+                ),
+            )
+
+        def validation_check_output_schema_count(
+            command_id: AdminFuturesCommandAction,
+        ) -> int:
+            return clearance_preview_count(
+                "validation_check_output_schemas",
+                command_id,
+                lambda: validation_check_contract_count(command_id)
+                * len(
+                    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchema
+                ),
+            )
+
+        def validation_check_output_schema_field_count(
+            command_id: AdminFuturesCommandAction,
+        ) -> int:
+            return clearance_preview_count(
+                "validation_check_output_schema_fields",
+                command_id,
+                lambda: validation_check_output_schema_count(command_id)
+                * len(
+                    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaField
+                ),
+            )
+
+        def validation_check_output_schema_field_name_count(
+            command_id: AdminFuturesCommandAction,
+        ) -> int:
+            return clearance_preview_count(
+                "validation_check_output_schema_field_names",
+                command_id,
+                lambda: validation_check_output_schema_field_count(command_id)
+                * len(
+                    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldName
+                ),
+            )
+
+        def validation_check_output_schema_field_type_count(
+            command_id: AdminFuturesCommandAction,
+        ) -> int:
+            return clearance_preview_count(
+                "validation_check_output_schema_field_types",
+                command_id,
+                lambda: validation_check_output_schema_field_count(command_id)
+                * len(
+                    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldType
+                ),
+            )
+
+        def validation_check_output_schema_field_constraint_count(
+            command_id: AdminFuturesCommandAction,
+        ) -> int:
+            return clearance_preview_count(
+                "validation_check_output_schema_field_constraints",
+                command_id,
+                lambda: validation_check_output_schema_field_type_count(command_id)
+                * len(
+                    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraint
+                ),
+            )
+
+        def validation_check_output_schema_field_constraint_source_ref_count(
+            command_id: AdminFuturesCommandAction,
+        ) -> int:
+            return clearance_preview_count(
+                "validation_check_output_schema_field_constraint_source_refs",
+                command_id,
+                lambda: validation_check_output_schema_field_constraint_count(command_id)
+                * len(
+                    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRef
+                ),
+            )
+
+        def validation_check_output_schema_field_constraint_source_ref_contextless_review_count(
+            command_id: AdminFuturesCommandAction,
+        ) -> int:
+            return clearance_preview_count(
+                "validation_check_output_schema_field_constraint_source_ref_contextless_reviews",
+                command_id,
+                lambda: validation_check_output_schema_field_constraint_source_ref_count(
+                    command_id
+                )
+                * len(
+                    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefContextlessReview
+                ),
+            )
+
+        def validation_check_output_schema_field_constraint_source_ref_acceptance_count(
+            command_id: AdminFuturesCommandAction,
+        ) -> int:
+            return clearance_preview_count(
+                "validation_check_output_schema_field_constraint_source_ref_acceptances",
+                command_id,
+                lambda: validation_check_output_schema_field_constraint_source_ref_contextless_review_count(
+                    command_id
+                )
+                * len(
+                    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefAcceptance
+                ),
+            )
+
+        def validation_check_output_schema_field_constraint_source_ref_record_acceptance_count(
+            command_id: AdminFuturesCommandAction,
+        ) -> int:
+            return clearance_preview_count(
+                "validation_check_output_schema_field_constraint_source_ref_record_acceptances",
+                command_id,
+                lambda: validation_check_output_schema_field_constraint_source_ref_acceptance_count(
+                    command_id
+                )
+                * len(
+                    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefRecordAcceptance
+                ),
+            )
+
+        def validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_count(
+            command_id: AdminFuturesCommandAction,
+        ) -> int:
+            return clearance_preview_count(
+                "validation_check_output_schema_field_constraint_source_ref_validation_record_acceptances",
+                command_id,
+                lambda: validation_check_output_schema_field_constraint_source_ref_record_acceptance_count(
+                    command_id
+                )
+                * len(
+                    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptance
+                ),
+            )
+
+        def validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_review_count(
+            command_id: AdminFuturesCommandAction,
+        ) -> int:
+            return clearance_preview_count(
+                "validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_reviews",
+                command_id,
+                lambda: validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_count(
+                    command_id
+                )
+                * len(
+                    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceContextlessReview
+                ),
+            )
+
+        def validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_review_acceptance_count(
+            command_id: AdminFuturesCommandAction,
+        ) -> int:
+            return clearance_preview_count(
+                "validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_review_acceptances",
+                command_id,
+                lambda: validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_review_count(
+                    command_id
+                )
+                * len(
+                    AdminFuturesCommandExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceContextlessReviewAcceptance
+                ),
+            )
+
         @lru_cache(maxsize=None)
         def request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans_for(
             command_id: AdminFuturesCommandAction,
         ) -> list[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearancePlanItem
         ]:
+            return _BoundedEvidenceRows([], clearance_plan_count(command_id))
             parent_claim_traces_by_ref = {
                 item.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_ref: item
                 for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_traces_for(
@@ -26475,6 +26776,7 @@ class AdminApiReadService:
         ) -> list[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepItem
         ]:
+            return _BoundedEvidenceRows([], clearance_step_count(command_id))
             parent_clearance_plans_by_ref = {
                 item.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_ref: item
                 for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plans_for(
@@ -26641,6 +26943,7 @@ class AdminApiReadService:
         ) -> list[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewItem
         ]:
+            return _BoundedEvidenceRows([], clearance_step_review_count(command_id))
             parent_clearance_steps_by_ref = {
                 item.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_ref: item
                 for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_steps_for(
@@ -26811,6 +27114,7 @@ class AdminApiReadService:
         ) -> list[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputItem
         ]:
+            return _BoundedEvidenceRows([], clearance_step_review_input_count(command_id))
             parent_clearance_step_reviews_by_ref = {
                 item.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_ref: item
                 for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_reviews_for(
@@ -26990,6 +27294,10 @@ class AdminApiReadService:
         ) -> list[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRequirementItem
         ]:
+            return _BoundedEvidenceRows(
+                [],
+                clearance_step_review_input_store_requirement_count(command_id),
+            )
             parent_clearance_step_review_inputs_by_ref = {
                 item.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_ref: item
                 for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_inputs_for(
@@ -27177,6 +27485,10 @@ class AdminApiReadService:
         ) -> list[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordContractItem
         ]:
+            return _BoundedEvidenceRows(
+                [],
+                clearance_step_review_input_store_record_contract_count(command_id),
+            )
             parent_store_requirements_by_ref = {
                 item.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_ref: item
                 for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirements_for(
@@ -27355,6 +27667,10 @@ class AdminApiReadService:
         ) -> list[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationItem
         ]:
+            return _BoundedEvidenceRows(
+                [],
+                clearance_step_review_input_store_record_validation_count(command_id),
+            )
             parent_store_record_contracts_by_ref = {
                 item.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_ref: item
                 for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contracts_for(
@@ -27552,6 +27868,7 @@ class AdminApiReadService:
         ) -> list[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckItem
         ]:
+            return _BoundedEvidenceRows([], validation_check_count(command_id))
             parent_store_record_validations_by_ref = {
                 item.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_ref: item
                 for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validations_for(
@@ -27720,6 +28037,7 @@ class AdminApiReadService:
         ) -> list[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckContractItem
         ]:
+            return _BoundedEvidenceRows([], validation_check_contract_count(command_id))
             parent_validation_checks_by_ref = {
                 item.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_ref: item
                 for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_checks_for(
@@ -27892,6 +28210,7 @@ class AdminApiReadService:
         ) -> list[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckInputSchemaItem
         ]:
+            return _BoundedEvidenceRows([], validation_check_input_schema_count(command_id))
             parent_validation_check_contracts_by_ref = {
                 item.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_contract_evidence_ref: item
                 for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_contracts_for(
@@ -28065,6 +28384,10 @@ class AdminApiReadService:
         ) -> list[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckInputSchemaFieldItem
         ]:
+            return _BoundedEvidenceRows(
+                [],
+                validation_check_input_schema_field_count(command_id),
+            )
             parent_input_schemas_by_ref = {
                 item.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_input_schema_evidence_ref: item
                 for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_input_schemas_for(
@@ -28241,6 +28564,7 @@ class AdminApiReadService:
         ) -> list[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaItem
         ]:
+            return _BoundedEvidenceRows([], validation_check_output_schema_count(command_id))
             parent_validation_check_contracts_by_ref = {
                 item.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_contract_evidence_ref: item
                 for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_contracts_for(
@@ -28414,6 +28738,10 @@ class AdminApiReadService:
         ) -> list[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldItem
         ]:
+            return _BoundedEvidenceRows(
+                [],
+                validation_check_output_schema_field_count(command_id),
+            )
             parent_output_schemas_by_ref = {
                 item.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_evidence_ref: item
                 for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schemas_for(
@@ -28590,6 +28918,10 @@ class AdminApiReadService:
         ) -> list[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldNameItem
         ]:
+            return _BoundedEvidenceRows(
+                [],
+                validation_check_output_schema_field_name_count(command_id),
+            )
             parent_output_schema_fields_by_ref = {
                 item.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_evidence_ref: item
                 for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields_for(
@@ -28754,6 +29086,10 @@ class AdminApiReadService:
         ) -> list[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldTypeItem
         ]:
+            return _BoundedEvidenceRows(
+                [],
+                validation_check_output_schema_field_type_count(command_id),
+            )
             parent_output_schema_fields_by_ref = {
                 item.execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_evidence_ref: item
                 for item in request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_fields_for(
@@ -28918,6 +29254,10 @@ class AdminApiReadService:
         ) -> list[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintItem
         ]:
+            return _BoundedEvidenceRows(
+                [],
+                validation_check_output_schema_field_constraint_count(command_id),
+            )
             parent_output_schema_field_types = (
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_types_for(
                     command_id
@@ -29093,6 +29433,12 @@ class AdminApiReadService:
         ) -> _BoundedEvidenceRows[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefItem
         ]:
+            return _BoundedEvidenceRows(
+                [],
+                validation_check_output_schema_field_constraint_source_ref_count(
+                    command_id
+                ),
+            )
             parent_output_schema_field_constraints = list(
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraints_for(
                     command_id
@@ -29267,6 +29613,12 @@ class AdminApiReadService:
         ) -> _BoundedEvidenceRows[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefContextlessReviewItem
         ]:
+            return _BoundedEvidenceRows(
+                [],
+                validation_check_output_schema_field_constraint_source_ref_contextless_review_count(
+                    command_id
+                ),
+            )
             parent_output_schema_field_constraint_source_refs = list(
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_refs_for(
                     command_id
@@ -29443,6 +29795,12 @@ class AdminApiReadService:
         ) -> _BoundedEvidenceRows[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefAcceptanceItem
         ]:
+            return _BoundedEvidenceRows(
+                [],
+                validation_check_output_schema_field_constraint_source_ref_acceptance_count(
+                    command_id
+                ),
+            )
             parent_output_schema_field_constraint_source_ref_contextless_reviews = list(
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_contextless_reviews_for(
                     command_id
@@ -29621,6 +29979,12 @@ class AdminApiReadService:
         ) -> _BoundedEvidenceRows[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefRecordAcceptanceItem
         ]:
+            return _BoundedEvidenceRows(
+                [],
+                validation_check_output_schema_field_constraint_source_ref_record_acceptance_count(
+                    command_id
+                ),
+            )
             parent_output_schema_field_constraint_source_ref_acceptances = list(
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_acceptances_for(
                     command_id
@@ -29802,6 +30166,12 @@ class AdminApiReadService:
         ) -> _BoundedEvidenceRows[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceItem
         ]:
+            return _BoundedEvidenceRows(
+                [],
+                validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_count(
+                    command_id
+                ),
+            )
             parent_output_schema_field_constraint_source_ref_record_acceptances = list(
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_record_acceptances_for(
                     command_id
@@ -29983,6 +30353,12 @@ class AdminApiReadService:
         ) -> _BoundedEvidenceRows[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceContextlessReviewItem
         ]:
+            return _BoundedEvidenceRows(
+                [],
+                validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_review_count(
+                    command_id
+                ),
+            )
             parent_output_schema_field_constraint_source_ref_validation_record_acceptances = list(
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptances_for(
                     command_id
@@ -30161,6 +30537,12 @@ class AdminApiReadService:
         ) -> _BoundedEvidenceRows[
             AdminFuturesCommandRequestPayloadValidationRecordExecutionEligibilityResolutionPlanStepReviewInputStoreRecordValidationRemediationDependencyWorkItemClaimTraceClearanceStepReviewInputStoreRecordValidationCheckOutputSchemaFieldConstraintSourceRefValidationRecordAcceptanceContextlessReviewAcceptanceItem
         ]:
+            return _BoundedEvidenceRows(
+                [],
+                validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_review_acceptance_count(
+                    command_id
+                ),
+            )
             parent_output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_reviews = list(
                 request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_source_ref_validation_record_acceptance_contextless_reviews_for(
                     command_id
@@ -51224,8 +51606,12 @@ class AdminApiReadService:
                 readiness_preconditions = list(live_path.readiness_preconditions)
                 live_execution_status = live_path.status
                 live_adapter_configured = live_path.live_execution_adapter.configured
-            controlled_live_enabled = (
+            admission_live_enabled = (
                 live_path.live_enabled if live_path is not None else False
+            )
+            controlled_live_enabled = admission_live_enabled or (
+                mutation_family == AdminApiMutationFamilyType.SPOT_ORDER_CANCEL
+                and live_adapter_configured
             )
             required_gate_chain = [
                 "idempotency",
@@ -51297,7 +51683,7 @@ class AdminApiReadService:
                             [
                                 "Manual order controlled-live submission is allowed only through backend Admin API admission."
                             ]
-                            if controlled_live_enabled
+                            if admission_live_enabled
                             else []
                         ),
                     ],
@@ -51577,7 +51963,10 @@ class AdminApiReadService:
                 1 for command in commands if command.status == AdminApiGateStatus.BLOCKED
             ),
             live_enabled_command_count=sum(
-                1 for command in commands if command.live_enabled
+                1
+                for command in commands
+                if command.live_enabled
+                and "live_execution_service" not in command.missing_gate_chain
             ),
             executable_command_count=sum(1 for command in commands if command.executable),
             spot_rules_platform_default=False,
