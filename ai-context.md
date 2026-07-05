@@ -36,6 +36,9 @@ CONTEXT_DIRECTORY=genai_data/
 
 - [AGENTS.md](AGENTS.md) - Session entry point + hard constraints
 - [agent.md](agent.md) - Project-specific constraints and operational rules
+- Backend `origin/prod` is legacy source material for MVP translation; inspect
+  it before inventing behavior, then implement only through backend-owned Admin
+  API/BFF contracts with audit, caps, local deployment evidence, and tests.
 
 ## Temporary Debugging Tools
 

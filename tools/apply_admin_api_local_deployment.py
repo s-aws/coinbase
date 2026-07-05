@@ -38,6 +38,45 @@ SMOKE_TIMING_ARTIFACT_NAME = "coinbase-backend-controlled-live-mvp-smoke-timing.
 SMOKE_TIMING_SUMMARY_PREFIX = "ADMIN_API_CONTROLLED_LIVE_MVP_SMOKE_SUMMARY"
 DEFAULT_ENVIRONMENT = "local"
 DEPLOYMENT_TIERS = ("local",)
+PAYLOAD_PATHS = (
+    "application",
+    "bridges",
+    "business",
+    "calculation",
+    "core",
+    "data",
+    "database",
+    "external",
+    "integration",
+    "market_intel",
+    "openapi",
+    "tools",
+    "tests/__init__.py",
+    "tests/pytest.ini",
+    "tests/conftest.py",
+    "tests/regression/__init__.py",
+    "tests/regression/test_admin_api_contract.py",
+    "tests/regression/test_admin_mvp_api.py",
+    "websocket",
+    "configuration.py",
+    "dashboard_server.py",
+    "logging_service.py",
+    "main.py",
+    "products.json",
+    "pyproject.toml",
+    "README.md",
+    "README.admin-api.md",
+)
+REQUIRED_PAYLOAD_PATHS = (
+    "application/admin_api/mvp_service.py",
+    "tools/run_admin_api.py",
+    "logging_service.py",
+    "tests/regression/test_admin_api_contract.py",
+    "tests/regression/test_admin_mvp_api.py",
+    "pyproject.toml",
+)
+EXCLUDED_PACKAGE_NAMES = {"__pycache__", ".git", ".pytest_cache", ".mypy_cache"}
+EXCLUDED_PACKAGE_SUFFIXES = {".pyc", ".pyo"}
 
 
 def build_local_deployment_manifest(
@@ -49,13 +88,14 @@ def build_local_deployment_manifest(
     deploy_root: Path,
     current_path: Path,
     release_path: Path,
-    smoke_timing: Mapping[str, Any],
     generated_at: str,
+    smoke_timing: Mapping[str, Any] | None = None,
+    source_manifest: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return metadata for the applied local backend Admin API release."""
 
-    timing = normalize_smoke_timing(smoke_timing)
-    return {
+    source_manifest = source_manifest or {}
+    payload: dict[str, Any] = {
         "schema_version": "1",
         "artifact_type": "coinbase_admin_api_local_deployment_manifest",
         "generated_at": generated_at,
@@ -69,49 +109,71 @@ def build_local_deployment_manifest(
         "release_path": str(release_path),
         "artifact": ARTIFACT_NAME,
         "manifest": MANIFEST_NAME,
-        "smoke_timing_artifact": SMOKE_TIMING_ARTIFACT_NAME,
-        "smoke_timing_summary": SMOKE_TIMING_SUMMARY_PREFIX,
-        "smoke_timing": timing,
-        "live_coinbase_execution": "not_run",
-        "notional_usdc": "0",
+        "live_coinbase_execution": non_empty_string(
+            source_manifest.get("live_coinbase_execution"),
+            "not_run",
+        ),
+        "notional_usdc": non_empty_string(source_manifest.get("notional_usdc"), "0"),
     }
+    if smoke_timing is not None:
+        timing = normalize_smoke_timing(smoke_timing)
+        payload["smoke_timing_artifact"] = SMOKE_TIMING_ARTIFACT_NAME
+        payload["smoke_timing_summary"] = SMOKE_TIMING_SUMMARY_PREFIX
+        payload["smoke_timing"] = timing
+        payload["live_coinbase_execution"] = "not_run"
+        payload["notional_usdc"] = "0"
+    return payload
 
 
 def apply_local_deployment(
     *,
-    archive_path: Path,
-    manifest_path: Path,
-    smoke_timing_path: Path,
-    output_path: Path,
     deploy_root: Path,
-    target_name: str,
-    repository: str,
-    commit: str,
-    deployment_tier: str,
-    generated_at: str,
+    archive_path: Path = DEFAULT_ARCHIVE_PATH,
+    manifest_path: Path = DEFAULT_MANIFEST_PATH,
+    smoke_timing_path: Path | None = None,
+    output_path: Path | None = None,
+    target_name: str = DEFAULT_TARGET_NAME,
+    repository: str = "local",
+    commit: str | None = None,
+    deployment_tier: str = DEFAULT_ENVIRONMENT,
+    generated_at: str | None = None,
+    source_root: Path | None = None,
 ) -> dict[str, Any]:
     """Extract the checked deployment artifact into the local release target."""
 
+    manifest = read_json(manifest_path)
+    payload_commit = non_empty_string(commit, non_empty_string(manifest.get("commit"), "unknown"))
+    payload_tier = non_empty_string(
+        deployment_tier,
+        non_empty_string(manifest.get("deployment_tier"), DEFAULT_ENVIRONMENT),
+    )
+    if source_root is not None:
+        write_deployment_archive(
+            source_root=source_root.resolve(),
+            manifest_path=manifest_path.resolve(),
+            archive_path=archive_path.resolve(),
+        )
     assert_archive_exists(archive_path)
-    assert_deployment_manifest(manifest_path, commit, deployment_tier)
-    smoke_timing = read_json(smoke_timing_path)
+    assert_deployment_manifest(manifest_path, payload_commit, payload_tier)
+    smoke_timing = read_json(smoke_timing_path) if smoke_timing_path is not None else None
 
     root = deploy_root.resolve()
-    release_path = root / "releases" / release_label(commit)
+    release_path = root / "releases" / release_label(payload_commit)
     current_path = root / "current"
     assert_child_path(root, release_path, "release path")
     assert_child_path(root, current_path, "current path")
 
     local_manifest = build_local_deployment_manifest(
         repository=repository,
-        commit=commit,
-        deployment_tier=deployment_tier,
+        commit=payload_commit,
+        deployment_tier=payload_tier,
         target_name=target_name,
         deploy_root=root,
         current_path=current_path,
         release_path=release_path,
         smoke_timing=smoke_timing,
-        generated_at=generated_at,
+        generated_at=generated_at or current_utc_timestamp(),
+        source_manifest=manifest,
     )
 
     root.mkdir(parents=True, exist_ok=True)
@@ -123,7 +185,8 @@ def apply_local_deployment(
     remove_path(current_path, root)
     shutil.copytree(release_path, current_path)
     write_json(root / "current-release.json", local_manifest)
-    write_json(output_path, local_manifest)
+    if output_path is not None:
+        write_json(output_path, local_manifest)
     return local_manifest
 
 
@@ -382,6 +445,73 @@ def extract_archive_safely(archive_path: Path, destination: Path) -> None:
         archive.extractall(destination, filter="data")
 
 
+def write_deployment_archive(
+    *,
+    source_root: Path,
+    manifest_path: Path,
+    archive_path: Path,
+) -> None:
+    """Write a gzipped deployment archive from known backend payload paths."""
+
+    validate_required_payload(source_root)
+    archive_path.parent.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(archive_path, "w:gz") as archive:
+        for path in iter_payload_paths(source_root):
+            add_payload_path(archive, source_root, path)
+        archive.add(manifest_path, arcname=MANIFEST_NAME)
+
+
+def add_payload_path(tar: tarfile.TarFile, source_root: Path, path: Path) -> None:
+    """Add a file or filtered directory tree to the deployment archive."""
+
+    if path.is_file():
+        if should_package_path(path):
+            tar.add(path, arcname=archive_name_for(source_root, path))
+        return
+    for child in path.rglob("*"):
+        if child.is_file() and should_package_path(child):
+            tar.add(child, arcname=archive_name_for(source_root, child))
+
+
+def should_package_path(path: Path) -> bool:
+    """Return True when a local file should be copied into the release."""
+
+    if any(part in EXCLUDED_PACKAGE_NAMES for part in path.parts):
+        return False
+    return path.suffix not in EXCLUDED_PACKAGE_SUFFIXES
+
+
+def iter_payload_paths(source_root: Path) -> list[Path]:
+    """Return existing files and directories included in the backend artifact."""
+
+    paths = []
+    for relative_path in PAYLOAD_PATHS:
+        path = source_root / relative_path
+        if path.exists():
+            paths.append(path)
+    return paths
+
+
+def validate_required_payload(source_root: Path) -> None:
+    """Fail when the minimal local backend runtime files are absent."""
+
+    missing = [
+        relative_path
+        for relative_path in REQUIRED_PAYLOAD_PATHS
+        if not (source_root / relative_path).exists()
+    ]
+    if missing:
+        raise FileNotFoundError(
+            "Backend local deployment payload is missing: " + ", ".join(missing)
+        )
+
+
+def archive_name_for(source_root: Path, path: Path) -> str:
+    """Return a POSIX-style archive name for a source path."""
+
+    return path.relative_to(source_root).as_posix()
+
+
 def read_git_commit() -> str:
     """Return the local git short SHA for deployment metadata."""
 
@@ -425,6 +555,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser = argparse.ArgumentParser(
         description="Apply the Admin API deployment artifact to a local target."
+    )
+    parser.add_argument(
+        "--source-root",
+        type=Path,
+        help="Optional backend source root to package before applying.",
     )
     parser.add_argument(
         "--archive",
@@ -504,6 +639,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         commit=args.commit,
         deployment_tier=args.deployment_tier,
         generated_at=args.generated_at,
+        source_root=args.source_root,
     )
     print(f"Backend local deployment manifest written: {args.output.resolve()}")
     print(f"Backend local deployment applied: {manifest['current_path']}")

@@ -301,6 +301,51 @@ ORDER_DIRECTION = {
     "BUY": -1
 }
 
+
+def _truthy_env(name: str) -> bool:
+    return getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _coinbase_rest_products_allowed_on_import() -> bool:
+    """Return True only when import-time Coinbase product refresh is explicit."""
+
+    return _truthy_env("COINBASE_REFRESH_PRODUCTS_ON_IMPORT")
+
+
+def _local_product_dict(product_id: str, metadata: dict[str, Any]) -> dict[str, Any]:
+    """Normalize products.json metadata to the Coinbase product dict shape."""
+
+    product_type = metadata.get("product_type") or metadata.get("type") or ProductType.SPOT.value
+    product = {
+        **metadata,
+        "product_id": product_id,
+        "product_type": product_type,
+        "trading_disabled": bool(metadata.get("trading_disabled", False)),
+    }
+    if product_type == ProductType.FUTURE.value:
+        product.setdefault(
+            "future_product_details",
+            {"contract_size": metadata.get("contract_size") or 1},
+        )
+    return product
+
+
+def local_products_from_metadata() -> dict[str, dict[str, Any]]:
+    """Return local product metadata without Coinbase network access."""
+
+    products: dict[str, dict[str, Any]] = {}
+    for product_id in DERIVATIVES_PRODUCT_IDS + SPOT_PRODUCT_IDS:
+        metadata = PRODUCT_METADATA.get(product_id) or PRODUCT_METADATA.get(
+            get_trading_product_id(product_id),
+            {},
+        )
+        products[product_id] = _local_product_dict(product_id, dict(metadata))
+    return {
+        product_id: product
+        for product_id, product in products.items()
+        if product.get("trading_disabled") is False
+    }
+
 # DERIVATIVES_PER_SIDE_FEE_* and DEFAULT_MAX_ORDER_REPLACEMENT
 # are imported above from ``core.constants`` (canonical source of truth).
 # Do NOT redefine them here â€” see 2026-04-30 audit.
@@ -1012,9 +1057,14 @@ class OrderBook():
         # ``core.orderbook`` here is safe: it has no module-level side effects.
         from core.orderbook import OrderBook as _OrderBookV2
 
-        # Compute legacy startup data exactly as the original class did, so
-        # that production behaviour at import time is preserved.
-        products = rest_get_products()
+        # Local MVP/CI startup must not call Coinbase just to import modules.
+        # Runtime refresh can still use rest_get_products explicitly.
+        if _coinbase_rest_products_allowed_on_import():
+            products = rest_get_products()
+            positions = {"FUTURE": get_futures_positions()}
+        else:
+            products = local_products_from_metadata()
+            positions = {"FUTURE": {}}
         # ``mandatory_fee_per_contract`` is consumed by
         # ``calculate_new_order_move_from_snapshot`` as a price offset to
         # recover the **round-trip** mandatory commission on a single
@@ -1034,8 +1084,6 @@ class OrderBook():
             "FUTURE": {"BUY": 0.001, "SELL": 0.001},
             "BIP-20DEC30-CDE": {"BUY": 0.001, "SELL": 0.001},
         }
-        positions = {"FUTURE": get_futures_positions()}
-
         self._impl = _OrderBookV2(
             products=products,
             profit=profit,

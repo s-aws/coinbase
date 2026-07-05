@@ -1051,6 +1051,7 @@ class AdminAuditEvidenceSource(str, Enum):
     STEALTH_ORDERS = "stealth_orders"
     MOVEMENT_REPRICING = "movement_repricing"
     FUTURES_POSITIONS = "futures_positions"
+    ADMIN_API_FUTURES_COMMAND_LOG = "admin_api_futures_command_log"
     GUARD_RISK_POLICY = "guard_risk_policy"
     BACKEND_CONTRACT = "backend_contract"
     RUNTIME_UNAVAILABLE = "runtime_unavailable"

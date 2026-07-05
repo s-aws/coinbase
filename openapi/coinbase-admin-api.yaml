@@ -130,6 +130,529 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/runtime:
+    get:
+      tags:
+      - admin
+      summary: Read backend runtime lifecycle status
+      operationId: admin_runtime_status_api_v1_admin_runtime_get
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRuntimeStatusResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/runtime/pause:
+    post:
+      tags:
+      - admin
+      summary: Pause backend runtime admission
+      operationId: admin_runtime_pause_api_v1_admin_runtime_pause_post
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRuntimeControlResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/runtime/resume:
+    post:
+      tags:
+      - admin
+      summary: Resume backend runtime admission
+      operationId: admin_runtime_resume_api_v1_admin_runtime_resume_post
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRuntimeControlResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/runtime/shutdown:
+    post:
+      tags:
+      - admin
+      summary: Request backend runtime shutdown
+      operationId: admin_runtime_shutdown_api_v1_admin_runtime_shutdown_post
+      parameters:
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminRuntimeControlResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/account-management:
+    get:
+      tags:
+      - admin
+      summary: Read backend-owned Account Management reality
+      operationId: admin_account_management_api_v1_admin_account_management_get
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAccountManagementReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/products:
+    get:
+      tags:
+      - admin
+      summary: Read backend-owned Coinbase product metadata
+      operationId: admin_products_api_v1_admin_products_get
+      parameters:
+      - name: product_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: array
+            items:
+              type: string
+          - type: 'null'
+          title: Product Id
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProductsReadResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/products/refresh:
+    post:
+      tags:
+      - admin
+      summary: Refresh backend-owned local product metadata
+      operationId: admin_products_refresh_api_v1_admin_products_refresh_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+              title: Body
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminProductsRefreshResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/session:
     get:
       tags:
@@ -10279,6 +10802,221 @@ components:
       - reveal
       title: ActionGuardPhase
       description: Action-condition guard evaluation phase.
+    AdminAccountManagementEnvironment:
+      properties:
+        environment:
+          type: string
+          title: Environment
+        deployment_target:
+          type: string
+          title: Deployment Target
+        backend_repository:
+          type: string
+          title: Backend Repository
+        admin_api_version:
+          type: string
+          title: Admin Api Version
+        deployment_evidence_status:
+          type: string
+          title: Deployment Evidence Status
+        frontend_release_commit:
+          type: string
+          title: Frontend Release Commit
+        frontend_current_path:
+          type: string
+          title: Frontend Current Path
+        frontend_release_path:
+          type: string
+          title: Frontend Release Path
+        backend_release_commit:
+          type: string
+          title: Backend Release Commit
+        backend_current_path:
+          type: string
+          title: Backend Current Path
+        backend_release_path:
+          type: string
+          title: Backend Release Path
+        deployment_smoke_status:
+          type: string
+          title: Deployment Smoke Status
+        backend_smoke_status:
+          type: string
+          title: Backend Smoke Status
+        backend_account_reality_live_read_status:
+          type: string
+          title: Backend Account Reality Live Read Status
+        backend_account_reality_live_read_backend_ref:
+          type: string
+          title: Backend Account Reality Live Read Backend Ref
+        backend_account_reality_live_read_check_count:
+          type: integer
+          minimum: 0.0
+          title: Backend Account Reality Live Read Check Count
+        backend_account_reality_live_read_credentials_present:
+          type: boolean
+          title: Backend Account Reality Live Read Credentials Present
+        backend_account_reality_live_read_truststore_status:
+          type: string
+          title: Backend Account Reality Live Read Truststore Status
+        backend_account_reality_live_read_live_coinbase_execution:
+          type: string
+          title: Backend Account Reality Live Read Live Coinbase Execution
+        backend_account_reality_live_read_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Backend Account Reality Live Read Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        deployment_live_coinbase_execution:
+          type: string
+          title: Deployment Live Coinbase Execution
+        deployment_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Deployment Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+      additionalProperties: false
+      type: object
+      required:
+      - environment
+      - deployment_target
+      - backend_repository
+      - admin_api_version
+      - deployment_evidence_status
+      - frontend_release_commit
+      - frontend_current_path
+      - frontend_release_path
+      - backend_release_commit
+      - backend_current_path
+      - backend_release_path
+      - deployment_smoke_status
+      - backend_smoke_status
+      - backend_account_reality_live_read_status
+      - backend_account_reality_live_read_backend_ref
+      - backend_account_reality_live_read_check_count
+      - backend_account_reality_live_read_credentials_present
+      - backend_account_reality_live_read_truststore_status
+      - backend_account_reality_live_read_live_coinbase_execution
+      - backend_account_reality_live_read_notional_usdc
+      - deployment_live_coinbase_execution
+      - deployment_notional_usdc
+      title: AdminAccountManagementEnvironment
+      description: Local deployment and live-read evidence for Account Management.
+    AdminAccountManagementReadResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_account_management
+        status:
+          type: string
+          title: Status
+        module_id:
+          type: string
+          title: Module Id
+        environment:
+          $ref: '#/components/schemas/AdminAccountManagementEnvironment'
+        operator:
+          additionalProperties: true
+          type: object
+          title: Operator
+        account_reality:
+          additionalProperties: true
+          type: object
+          title: Account Reality
+        account_scope:
+          additionalProperties: true
+          type: object
+          title: Account Scope
+        portfolio_scope:
+          additionalProperties: true
+          type: object
+          title: Portfolio Scope
+        wallet_inventory:
+          additionalProperties: true
+          type: object
+          title: Wallet Inventory
+        readiness:
+          additionalProperties: true
+          type: object
+          title: Readiness
+        permissions:
+          additionalProperties: true
+          type: object
+          title: Permissions
+        command_readiness_prerequisites:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Command Readiness Prerequisites
+        audit:
+          additionalProperties: true
+          type: object
+          title: Audit
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+        browser_authority:
+          type: string
+          title: Browser Authority
+        bff_authority:
+          type: string
+          title: Bff Authority
+        coinbase_read_enabled:
+          type: boolean
+          title: Coinbase Read Enabled
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - module_id
+      - environment
+      - operator
+      - account_reality
+      - account_scope
+      - portfolio_scope
+      - wallet_inventory
+      - readiness
+      - permissions
+      - audit
+      - command_routes_mode
+      - browser_authority
+      - bff_authority
+      - coinbase_read_enabled
+      - live_coinbase_read_ran
+      title: AdminAccountManagementReadResponse
+      description: Backend-owned Account Management read model for local operators.
     AdminAdmissionAuditCreateRequest:
       properties:
         route:
@@ -10809,6 +11547,36 @@ components:
           anyOf:
           - $ref: '#/components/schemas/AdminLiveAdmissionDecisionEvidence'
           - type: 'null'
+        cap_guard_present:
+          type: boolean
+          title: Cap Guard Present
+          default: false
+        cap_guard_decision_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Decision Id
+        cap_guard_decision:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Cap Guard Decision
+        reconciliation_plan_present:
+          type: boolean
+          title: Reconciliation Plan Present
+          default: false
+        reconciliation_plan_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Plan Id
+        reconciliation_plan:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Reconciliation Plan
         stealth_admission_context:
           anyOf:
           - $ref: '#/components/schemas/StealthCommandAdmissionContextEvidence'
@@ -11821,6 +12589,7 @@ components:
       - stealth_orders
       - movement_repricing
       - futures_positions
+      - admin_api_futures_command_log
       - guard_risk_policy
       - backend_contract
       - runtime_unavailable
@@ -12000,6 +12769,54 @@ components:
             type: object
           - type: 'null'
           title: Admission Decision
+        cap_guard_present:
+          type: boolean
+          title: Cap Guard Present
+          default: false
+        cap_guard_decision_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Decision Id
+        cap_guard_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Source
+        cap_guard_recorded_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Recorded At
+        cap_guard_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Missing Reason
+        reconciliation_plan_present:
+          type: boolean
+          title: Reconciliation Plan Present
+          default: false
+        reconciliation_plan_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Plan Id
+        reconciliation_plan_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Plan Source
+        reconciliation_plan_recorded_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Plan Recorded At
+        reconciliation_plan_missing_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Plan Missing Reason
         live_coinbase_orders_ran:
           type: boolean
           title: Live Coinbase Orders Ran
@@ -130581,6 +131398,26 @@ components:
           type: string
           minLength: 1
           title: Target Service Method
+        account_family:
+          type: string
+          minLength: 1
+          title: Account Family
+          default: unscoped
+        venue_scope:
+          type: string
+          minLength: 1
+          title: Venue Scope
+          default: unscoped
+        intx_applicability:
+          type: string
+          minLength: 1
+          title: Intx Applicability
+          default: not_applicable
+        product_scope:
+          items:
+            type: string
+          type: array
+          title: Product Scope
         adapter_reference:
           type: string
           minLength: 1
@@ -130678,6 +131515,20 @@ components:
         target_service_method:
           type: string
           title: Target Service Method
+        account_family:
+          type: string
+          title: Account Family
+        venue_scope:
+          type: string
+          title: Venue Scope
+        intx_applicability:
+          type: string
+          title: Intx Applicability
+        product_scope:
+          items:
+            type: string
+          type: array
+          title: Product Scope
         adapter_reference:
           type: string
           title: Adapter Reference
@@ -130796,6 +131647,10 @@ components:
       - target_method
       - target_module_id
       - target_service_method
+      - account_family
+      - venue_scope
+      - intx_applicability
+      - product_scope
       - adapter_reference
       - construction_review_ref
       - decision_reason
@@ -132663,6 +133518,31 @@ components:
           type: boolean
           title: Service Enabled
           default: false
+        target_module_id:
+          type: string
+          minLength: 1
+          title: Target Module Id
+          default: admin_system_health
+        account_family:
+          type: string
+          minLength: 1
+          title: Account Family
+          default: unscoped
+        venue_scope:
+          type: string
+          minLength: 1
+          title: Venue Scope
+          default: unscoped
+        intx_applicability:
+          type: string
+          minLength: 1
+          title: Intx Applicability
+          default: not_applicable
+        product_scope:
+          items:
+            type: string
+          type: array
+          title: Product Scope
         deployment_ref:
           type: string
           minLength: 1
@@ -132740,6 +133620,23 @@ components:
           type: boolean
           title: Service Enabled
           default: false
+        target_module_id:
+          type: string
+          title: Target Module Id
+        account_family:
+          type: string
+          title: Account Family
+        venue_scope:
+          type: string
+          title: Venue Scope
+        intx_applicability:
+          type: string
+          title: Intx Applicability
+        product_scope:
+          items:
+            type: string
+          type: array
+          title: Product Scope
         source:
           type: string
           title: Source
@@ -132838,6 +133735,11 @@ components:
       - status
       - requested_service_status
       - live_execution_service_status
+      - target_module_id
+      - account_family
+      - venue_scope
+      - intx_applicability
+      - product_scope
       - deployment_ref
       - runtime_configuration_ref
       - decision_reason
@@ -133559,6 +134461,279 @@ components:
       - reason
       title: AdminProductCapabilityDecisionItem
       description: Read-only product capability policy decision for one capability.
+    AdminProductsReadResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_products
+        status:
+          type: string
+          title: Status
+        module_id:
+          type: string
+          title: Module Id
+        route:
+          type: string
+          title: Route
+        source:
+          type: string
+          title: Source
+        configured_product_scope:
+          items:
+            type: string
+          type: array
+          title: Configured Product Scope
+        spot:
+          items:
+            type: string
+          type: array
+          title: Spot
+        derivatives:
+          items:
+            type: string
+          type: array
+          title: Derivatives
+        products:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Products
+        metadata_count:
+          type: integer
+          minimum: 0.0
+          title: Metadata Count
+        missing_metadata_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Metadata Count
+        spot_count:
+          type: integer
+          minimum: 0.0
+          title: Spot Count
+        derivatives_count:
+          type: integer
+          minimum: 0.0
+          title: Derivatives Count
+        audit:
+          additionalProperties: true
+          type: object
+          title: Audit
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+        browser_authority:
+          type: string
+          title: Browser Authority
+        bff_authority:
+          type: string
+          title: Bff Authority
+        coinbase_read_enabled:
+          type: boolean
+          title: Coinbase Read Enabled
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - module_id
+      - route
+      - source
+      - metadata_count
+      - missing_metadata_count
+      - spot_count
+      - derivatives_count
+      - audit
+      - command_routes_mode
+      - browser_authority
+      - bff_authority
+      - coinbase_read_enabled
+      - live_coinbase_read_ran
+      title: AdminProductsReadResponse
+      description: Backend-owned Coinbase product metadata read evidence.
+    AdminProductsRefreshResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_products_refresh
+        status:
+          type: string
+          title: Status
+        module_id:
+          type: string
+          title: Module Id
+        route:
+          type: string
+          title: Route
+        method:
+          type: string
+          title: Method
+          default: POST
+        action_class:
+          type: string
+          title: Action Class
+        required_permission:
+          type: string
+          title: Required Permission
+        service_method:
+          type: string
+          title: Service Method
+        configured_product_scope:
+          items:
+            type: string
+          type: array
+          title: Configured Product Scope
+        spot:
+          items:
+            type: string
+          type: array
+          title: Spot
+        derivatives:
+          items:
+            type: string
+          type: array
+          title: Derivatives
+        products:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Products
+        metadata_count:
+          type: integer
+          minimum: 0.0
+          title: Metadata Count
+        missing_metadata_count:
+          type: integer
+          minimum: 0.0
+          title: Missing Metadata Count
+        spot_count:
+          type: integer
+          minimum: 0.0
+          title: Spot Count
+        derivatives_count:
+          type: integer
+          minimum: 0.0
+          title: Derivatives Count
+        products_json_written:
+          type: boolean
+          title: Products Json Written
+        products_json_target:
+          type: string
+          title: Products Json Target
+        preserved_ticker_to_trading:
+          type: boolean
+          title: Preserved Ticker To Trading
+        write_error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Write Error
+        coinbase_read_enabled:
+          type: boolean
+          title: Coinbase Read Enabled
+        coinbase_read_attempted:
+          type: boolean
+          title: Coinbase Read Attempted
+        coinbase_read_succeeded:
+          type: boolean
+          title: Coinbase Read Succeeded
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+        local_state_mutated:
+          type: boolean
+          title: Local State Mutated
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+        audit:
+          additionalProperties: true
+          type: object
+          title: Audit
+        browser_authority:
+          type: string
+          title: Browser Authority
+        bff_authority:
+          type: string
+          title: Bff Authority
+        command_routes_mode:
+          type: string
+          title: Command Routes Mode
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - module_id
+      - route
+      - action_class
+      - required_permission
+      - service_method
+      - metadata_count
+      - missing_metadata_count
+      - spot_count
+      - derivatives_count
+      - products_json_written
+      - products_json_target
+      - preserved_ticker_to_trading
+      - coinbase_read_enabled
+      - coinbase_read_attempted
+      - coinbase_read_succeeded
+      - live_coinbase_read_ran
+      - local_state_mutated
+      - exchange_state_mutated
+      - live_exchange_submitted
+      - audit
+      - browser_authority
+      - bff_authority
+      - command_routes_mode
+      title: AdminProductsRefreshResponse
+      description: Backend-owned local product metadata refresh evidence.
     AdminReconciliationPlanCreateRequest:
       properties:
         route:
@@ -134221,6 +135396,86 @@ components:
       - detail
       title: AdminRiskRejectionCategoryItem
       description: Backend-owned guard rejection category shown as evidence only.
+    AdminRuntimeControlResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_runtime_control
+        action:
+          type: string
+          title: Action
+        accepted:
+          type: boolean
+          title: Accepted
+        state:
+          $ref: '#/components/schemas/EngineState'
+        admitting:
+          type: boolean
+          title: Admitting
+        stopping:
+          type: boolean
+          title: Stopping
+        total_inflight:
+          type: integer
+          minimum: 0.0
+          title: Total Inflight
+        inflight:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Inflight
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - action
+      - accepted
+      - state
+      - admitting
+      - stopping
+      - total_inflight
+      title: AdminRuntimeControlResponse
+      description: Result of a backend runtime lifecycle control command.
+    AdminRuntimeStatusResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_runtime_status
+        state:
+          $ref: '#/components/schemas/EngineState'
+        admitting:
+          type: boolean
+          title: Admitting
+        stopping:
+          type: boolean
+          title: Stopping
+        total_inflight:
+          type: integer
+          minimum: 0.0
+          title: Total Inflight
+        inflight:
+          additionalProperties:
+            type: integer
+          type: object
+          title: Inflight
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - state
+      - admitting
+      - stopping
+      - total_inflight
+      title: AdminRuntimeStatusResponse
+      description: Backend runtime lifecycle status for local operators.
     AdminSessionResponse:
       properties:
         type:
@@ -135089,6 +136344,29 @@ components:
       type: object
       title: CancelOrderRequest
       description: Cancel request body keyed by path ``client_order_id``.
+    EngineState:
+      type: string
+      enum:
+      - RUNNING
+      - PAUSING
+      - PAUSED
+      - DRAINING
+      - STOPPED
+      title: EngineState
+      description: "Engine lifecycle states for graceful shutdown / pause / restart.\n\
+        \nState machine (industry-standard quiesce-drain-stop model):\n\n    RUNNING\
+        \  --request_pause()-->     PAUSING  --(drain)-->  PAUSED\n    PAUSED   --resume()-->\
+        \            RUNNING\n    RUNNING  --request_shutdown()-->  DRAINING --(drain)-->\
+        \  STOPPED\n    PAUSED   --request_shutdown()-->  DRAINING --(drain)-->  STOPPED\n\
+        \nAdmission rules (what is accepted at each state):\n\n    | State    | New\
+        \ orders | Cancellations | Fill processing | DB writes |\n    | RUNNING  |\
+        \    yes     |     yes       |       yes       |    yes    |\n    | PAUSING\
+        \  |    no      |     yes       |       yes       |    yes    |\n    | PAUSED\
+        \   |    no      |     yes       |       yes       |    yes    |\n    | DRAINING\
+        \ |    no      |     yes       |       yes       |    yes    |\n    | STOPPED\
+        \  |    no      |     no        |       no        |    no     |\n\n\"Soft\
+        \ pause\" -- pause stops *originating* new orders but keeps WS, fills,\nand\
+        \ cancellations active so existing positions remain manageable."
     FuturesCancelOrderRequest:
       properties:
         product_id:

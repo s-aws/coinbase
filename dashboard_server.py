@@ -19,12 +19,19 @@ from typing import Set, Dict, Any, Optional, Mapping
 import websockets
 from websockets.server import WebSocketServerProtocol
 
-# Import REST client for order placement
+# Import REST client for backend-owned command execution. Import must fail
+# closed so tests and local UI startup do not reach Coinbase at module import.
 try:
     from configuration import REST_CLIENT, rest_get_products
     REST_CLIENT_AVAILABLE = True
-except ImportError:
+    REST_CLIENT_IMPORT_ERROR = None
+except Exception as exc:
+    REST_CLIENT = None
+    REST_CLIENT_IMPORT_ERROR = exc
     REST_CLIENT_AVAILABLE = False
+
+    def rest_get_products():
+        return {}
 
 # Use custom logging service
 from logging_service import get_logger

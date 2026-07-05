@@ -92,6 +92,25 @@ Stealth visibility is not just a UI label.
 
 ---
 
+## Legacy Reference For MVP Work
+
+The backend `origin/prod` branch is useful source material for the legacy
+system. Before recreating account, wallet, product, fee, order, fill, spot,
+futures/perpetual, movement, repricing, or dashboard behavior from memory,
+inspect `origin/prod` with read-only commands such as
+`git show origin/prod:<path>`.
+
+Use that branch to understand historical behavior and tests, not to revive the
+legacy dashboard as product authority. MVP behavior must still be translated
+into backend-owned Admin API/BFF contracts with authorization, caps,
+idempotency, audit evidence, local deployment evidence, and focused tests.
+
+For backend-facing MVP work, record the `origin/prod` files or references
+inspected in the handoff/summary. If no legacy lookup was needed, state why it
+was not applicable.
+
+---
+
 ## Runtime and Dashboard Surface
 
 Dashboard transport is WebSocket at `ws://localhost:8765` via `dashboard_server.py`.

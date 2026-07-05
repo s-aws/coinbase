@@ -154,6 +154,7 @@ from core.enums import (
     AdminRiskEvidenceStatus,
     ActionConditionType,
     ActionGuardPhase,
+    EngineState,
     OrderSide,
     OrderType,
     ProductCapability,
@@ -2066,6 +2067,11 @@ class AdminLiveServiceDecisionCreateRequest(BaseModel):
         AdminApiLiveExecutionStatus.LIVE_DISABLED
     )
     service_enabled: bool = False
+    target_module_id: str = Field("admin_system_health", min_length=1)
+    account_family: str = Field("unscoped", min_length=1)
+    venue_scope: str = Field("unscoped", min_length=1)
+    intx_applicability: str = Field("not_applicable", min_length=1)
+    product_scope: list[str] = Field(default_factory=list)
     deployment_ref: str = Field(min_length=1)
     runtime_configuration_ref: str = Field(min_length=1)
     decision_reason: str = Field(min_length=1)
@@ -2091,6 +2097,11 @@ class AdminLiveServiceDecisionItem(BaseModel):
     requested_service_status: AdminApiLiveExecutionStatus
     live_execution_service_status: AdminApiLiveExecutionStatus
     service_enabled: bool = False
+    target_module_id: str
+    account_family: str
+    venue_scope: str
+    intx_applicability: str
+    product_scope: list[str]
     source: str = "admin_api_live_service_decision_log"
     deployment_ref: str
     runtime_configuration_ref: str
@@ -2163,6 +2174,10 @@ class AdminLiveAdapterDecisionCreateRequest(BaseModel):
     target_method: str = Field(min_length=1)
     target_module_id: str = Field(min_length=1)
     target_service_method: str = Field(min_length=1)
+    account_family: str = Field("unscoped", min_length=1)
+    venue_scope: str = Field("unscoped", min_length=1)
+    intx_applicability: str = Field("not_applicable", min_length=1)
+    product_scope: list[str] = Field(default_factory=list)
     adapter_reference: str = Field(min_length=1)
     adapter_constructed: bool = False
     adapter_enabled: bool = False
@@ -2193,6 +2208,10 @@ class AdminLiveAdapterDecisionItem(BaseModel):
     target_method: str
     target_module_id: str
     target_service_method: str
+    account_family: str
+    venue_scope: str
+    intx_applicability: str
+    product_scope: list[str]
     adapter_reference: str
     adapter_constructed: bool = False
     adapter_enabled: bool = False
@@ -2389,6 +2408,12 @@ class AdminApiCommandResponse(BaseModel):
     submission_event_recorded: bool | None = None
     audit_command: str | None = None
     admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
+    cap_guard_present: bool = False
+    cap_guard_decision_id: str | None = None
+    cap_guard_decision: FlexibleDict | None = None
+    reconciliation_plan_present: bool = False
+    reconciliation_plan_id: str | None = None
+    reconciliation_plan: FlexibleDict | None = None
     stealth_admission_context: StealthCommandAdmissionContextEvidence | None = None
     selected_create_pre_execution_contract: (
         StealthCreatePreExecutionContractEvidence | None
@@ -2463,6 +2488,165 @@ class AdminHealthResponse(BaseModel):
     diagnostics: list[AdminApiRouteDiagnostic] = Field(default_factory=list)
     failed_route_count: int = 0
     live_execution_enabled: bool = False
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminRuntimeStatusResponse(BaseModel):
+    """Backend runtime lifecycle status for local operators."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_runtime_status"
+    state: EngineState
+    admitting: bool
+    stopping: bool
+    total_inflight: int = Field(ge=0)
+    inflight: dict[str, int] = Field(default_factory=dict)
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminRuntimeControlResponse(BaseModel):
+    """Result of a backend runtime lifecycle control command."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_runtime_control"
+    action: str
+    accepted: bool
+    state: EngineState
+    admitting: bool
+    stopping: bool
+    total_inflight: int = Field(ge=0)
+    inflight: dict[str, int] = Field(default_factory=dict)
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminAccountManagementEnvironment(BaseModel):
+    """Local deployment and live-read evidence for Account Management."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    environment: str
+    deployment_target: str
+    backend_repository: str
+    admin_api_version: str
+    deployment_evidence_status: str
+    frontend_release_commit: str
+    frontend_current_path: str
+    frontend_release_path: str
+    backend_release_commit: str
+    backend_current_path: str
+    backend_release_path: str
+    deployment_smoke_status: str
+    backend_smoke_status: str
+    backend_account_reality_live_read_status: str
+    backend_account_reality_live_read_backend_ref: str
+    backend_account_reality_live_read_check_count: int = Field(ge=0)
+    backend_account_reality_live_read_credentials_present: bool
+    backend_account_reality_live_read_truststore_status: str
+    backend_account_reality_live_read_live_coinbase_execution: str
+    backend_account_reality_live_read_notional_usdc: DecimalString
+    deployment_live_coinbase_execution: str
+    deployment_notional_usdc: DecimalString
+
+
+class AdminAccountManagementReadResponse(BaseModel):
+    """Backend-owned Account Management read model for local operators."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_account_management"
+    status: str
+    module_id: str
+    environment: AdminAccountManagementEnvironment
+    operator: FlexibleDict
+    account_reality: FlexibleDict
+    account_scope: FlexibleDict
+    portfolio_scope: FlexibleDict
+    wallet_inventory: FlexibleDict
+    readiness: FlexibleDict
+    permissions: FlexibleDict
+    command_readiness_prerequisites: list[FlexibleDict] = Field(default_factory=list)
+    audit: FlexibleDict
+    read_only: bool = True
+    command_routes_mode: str
+    browser_authority: str
+    bff_authority: str
+    coinbase_read_enabled: bool
+    live_coinbase_read_ran: bool
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminProductsReadResponse(BaseModel):
+    """Backend-owned Coinbase product metadata read evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_products"
+    status: str
+    module_id: str
+    route: str
+    source: str
+    configured_product_scope: list[str] = Field(default_factory=list)
+    spot: list[str] = Field(default_factory=list)
+    derivatives: list[str] = Field(default_factory=list)
+    products: list[FlexibleDict] = Field(default_factory=list)
+    metadata_count: int = Field(ge=0)
+    missing_metadata_count: int = Field(ge=0)
+    spot_count: int = Field(ge=0)
+    derivatives_count: int = Field(ge=0)
+    audit: FlexibleDict
+    read_only: bool = True
+    command_routes_mode: str
+    browser_authority: str
+    bff_authority: str
+    coinbase_read_enabled: bool
+    live_coinbase_read_ran: bool
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    live_coinbase_orders_ran: bool = False
+
+
+class AdminProductsRefreshResponse(BaseModel):
+    """Backend-owned local product metadata refresh evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_products_refresh"
+    status: str
+    module_id: str
+    route: str
+    method: str = "POST"
+    action_class: str
+    required_permission: str
+    service_method: str
+    configured_product_scope: list[str] = Field(default_factory=list)
+    spot: list[str] = Field(default_factory=list)
+    derivatives: list[str] = Field(default_factory=list)
+    products: list[FlexibleDict] = Field(default_factory=list)
+    metadata_count: int = Field(ge=0)
+    missing_metadata_count: int = Field(ge=0)
+    spot_count: int = Field(ge=0)
+    derivatives_count: int = Field(ge=0)
+    products_json_written: bool
+    products_json_target: str
+    preserved_ticker_to_trading: bool
+    write_error: str | None = None
+    coinbase_read_enabled: bool
+    coinbase_read_attempted: bool
+    coinbase_read_succeeded: bool
+    live_coinbase_read_ran: bool
+    local_state_mutated: bool
+    exchange_state_mutated: bool
+    live_exchange_submitted: bool
+    audit: FlexibleDict
+    browser_authority: str
+    bff_authority: str
+    command_routes_mode: str
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
     live_coinbase_orders_ran: bool = False
 
 
@@ -16812,6 +16996,16 @@ class AdminAuditWorkbenchEventItem(BaseModel):
     recorded_at: str | None = None
     message: str | None = None
     admission_decision: FlexibleDict | None = None
+    cap_guard_present: bool = False
+    cap_guard_decision_id: str | None = None
+    cap_guard_source: str | None = None
+    cap_guard_recorded_at: str | None = None
+    cap_guard_missing_reason: str | None = None
+    reconciliation_plan_present: bool = False
+    reconciliation_plan_id: str | None = None
+    reconciliation_plan_source: str | None = None
+    reconciliation_plan_recorded_at: str | None = None
+    reconciliation_plan_missing_reason: str | None = None
     live_coinbase_orders_ran: bool = False
     raw_event: FlexibleDict = Field(default_factory=dict)
 

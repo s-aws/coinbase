@@ -10,6 +10,7 @@ import sys
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -30,6 +31,8 @@ SMOKE_NODE_IDS = (
     "tests/regression/test_admin_api_contract.py::"
     "test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap",
 )
+REQUIRED_BACKEND_CONTROLLED_LIVE_MVP_SMOKE_NODE_IDS = list(SMOKE_NODE_IDS)
+LIVE_COINBASE_EXECUTION_VALUES = ("not_run", "submitted", "failed", "unknown")
 
 
 @dataclass(frozen=True)
@@ -46,14 +49,20 @@ class BackendGitEvidence:
     branch: str
 
 
+def resolve_python() -> str:
+    """Return the Python executable used for the smoke run."""
+
+    return sys.executable
+
+
 def build_pytest_command() -> list[str]:
     """Return the controlled-live route smoke pytest command."""
 
     return [
-        sys.executable,
+        resolve_python(),
         "-m",
         "pytest",
-        *SMOKE_NODE_IDS,
+        *REQUIRED_BACKEND_CONTROLLED_LIVE_MVP_SMOKE_NODE_IDS,
         "-q",
         "--tb=short",
     ]
@@ -80,9 +89,14 @@ def build_timing_summary(
     command: Sequence[str],
     backend_git: BackendGitEvidence,
     backend_contract_ref: str,
+    live_coinbase_execution: str = "not_run",
+    notional_usdc: str = "0",
 ) -> dict[str, Any]:
     """Build the machine-readable smoke timing summary."""
 
+    if live_coinbase_execution not in LIVE_COINBASE_EXECUTION_VALUES:
+        raise ValueError(f"Invalid live_coinbase_execution: {live_coinbase_execution!r}")
+    notional_text = decimal_text(notional_usdc)
     return {
         "schema_version": "1",
         "artifact_type": "coinbase_admin_api_controlled_live_mvp_smoke_timing",
@@ -96,9 +110,9 @@ def build_timing_summary(
         "backend_git_branch": backend_git.branch,
         "backend_contract_ref": backend_contract_ref,
         "command": list(command),
-        "smoke_node_ids": list(SMOKE_NODE_IDS),
-        "live_coinbase_execution": "not_run",
-        "notional_usdc": "0",
+        "smoke_node_ids": list(REQUIRED_BACKEND_CONTROLLED_LIVE_MVP_SMOKE_NODE_IDS),
+        "live_coinbase_execution": live_coinbase_execution,
+        "notional_usdc": notional_text,
     }
 
 
@@ -132,7 +146,31 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Only print the machine-readable summary line after pytest output.",
     )
+    parser.add_argument(
+        "--live-coinbase-execution",
+        choices=LIVE_COINBASE_EXECUTION_VALUES,
+        default=os.getenv("COINBASE_ADMIN_LAST_LIVE_COINBASE_EXECUTION", "not_run"),
+        help="Recorded live execution state for the run being packaged.",
+    )
+    parser.add_argument(
+        "--notional-usdc",
+        default=os.getenv("COINBASE_ADMIN_LAST_NOTIONAL_USDC", "0"),
+        help="Recorded notional used by the run being packaged. Defaults to 0.",
+    )
     return parser
+
+
+def decimal_text(value: str | Decimal) -> str:
+    """Return a non-negative decimal string without scientific notation."""
+
+    text = str(value).strip()
+    try:
+        number = Decimal(text)
+    except (InvalidOperation, ValueError) as exc:
+        raise ValueError(f"Invalid notional_usdc: {value!r}") from exc
+    if number < 0:
+        raise ValueError("notional_usdc must be non-negative.")
+    return format(number, "f")
 
 
 def utc_now_iso() -> str:
@@ -200,6 +238,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         backend_contract_ref=resolve_backend_contract_ref(
             git_evidence=git_evidence,
         ),
+        live_coinbase_execution=args.live_coinbase_execution,
+        notional_usdc=args.notional_usdc,
     )
     write_timing_summary(args.summary_output, summary)
     if not args.summary_only:

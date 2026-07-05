@@ -26,6 +26,8 @@ AUTH_TOKEN_ENV = "COINBASE_ADMIN_API_BEARER_TOKEN"
 CORS_ORIGINS_ENV = "COINBASE_ADMIN_API_CORS_ORIGINS"
 ENVIRONMENT_ENV = "COINBASE_ADMIN_API_ENVIRONMENT"
 DEPLOYMENT_TIER_ENV = "COINBASE_BACKEND_DEPLOYMENT_TIER"
+OS_TRUSTSTORE_ENV = "COINBASE_ADMIN_API_OS_TRUSTSTORE"
+DISABLED_ENV_VALUES = {"0", "false", "no", "off", "disabled"}
 OIDC_REQUIRED_ENV_VARS = (
     "COINBASE_ADMIN_API_OIDC_ISSUER",
     "COINBASE_ADMIN_API_OIDC_AUDIENCE",
@@ -102,6 +104,12 @@ def parse_run_config(argv: Sequence[str] | None = None) -> AdminApiRunConfig:
     )
 
 
+def parse_args(argv: Sequence[str] | None = None) -> AdminApiRunConfig:
+    """Parse local runner arguments for frontend stack compatibility tests."""
+
+    return parse_run_config(argv)
+
+
 def apply_local_environment(
     config: AdminApiRunConfig,
     *,
@@ -111,6 +119,13 @@ def apply_local_environment(
 
     target = environ if environ is not None else os.environ
     applied: dict[str, str] = {}
+
+    if target.get(OS_TRUSTSTORE_ENV, "").strip().lower() in DISABLED_ENV_VALUES:
+        applied[OS_TRUSTSTORE_ENV] = "disabled"
+    else:
+        truststore_status = enable_os_truststore()
+        target[OS_TRUSTSTORE_ENV] = truststore_status
+        applied[OS_TRUSTSTORE_ENV] = truststore_status
 
     if config.dev_token and not target.get(AUTH_TOKEN_ENV, "").strip():
         target[AUTH_TOKEN_ENV] = config.dev_token
@@ -126,6 +141,20 @@ def apply_local_environment(
         applied[ENVIRONMENT_ENV] = environment
 
     return applied
+
+
+def enable_os_truststore() -> str:
+    """Enable OS certificate verification for local Coinbase REST reads."""
+
+    try:
+        import truststore
+    except Exception:
+        return "unavailable"
+    try:
+        truststore.inject_into_ssl()
+    except Exception:
+        return "failed"
+    return "enabled"
 
 
 def build_uvicorn_kwargs(config: AdminApiRunConfig) -> dict[str, Any]:

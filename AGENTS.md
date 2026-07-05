@@ -22,6 +22,26 @@ This project runs on **Windows 11 + VS Code**. Linux/bash commands may not work 
 - Cancel/re-entry is not general hide-again behavior. It is a narrower policy for no-fill revealed stealth placements: cancel the active placement, hold in policy-cancelled hidden state, then re-enter through the normal reveal path.
 - Same-side post-fill retreat is a hidden-order policy only. It may retreat opted-in hidden orders and update their reveal/anchor state, but it must not locally mutate live revealed placements.
 
+## Legacy Source Material
+
+- The branch `origin/prod` may contain useful information about the legacy
+  system, especially `dashboard_server.py`, `core/order_engine.py`,
+  `core/stealth_order_manager.py`, Coinbase wrapper behavior, product/account/
+  fill references, and historical regression tests.
+- Treat `origin/prod` as source material, not as product authority. Do not
+  restore direct dashboard/WebSocket trading authority or bypass Admin API
+  authorization, caps, idempotency, audit, and local deployment evidence.
+- When a current MVP behavior is unclear, compare the current branch with
+  `origin/prod` using non-destructive reads such as `git show origin/prod:<path>`
+  or a temporary worktree, then translate only MVP-aligned behavior into the
+  backend Admin API/BFF path with focused tests.
+- When available, also read
+  `C:\coinbase-frontend\docs\ORIGIN_PROD_FEATURE_MVP_MAP.md` before translating
+  legacy behavior into Admin MVP work.
+- For backend-facing MVP work, record the `origin/prod` files or references
+  inspected in the handoff/summary. If no legacy lookup was needed, state why it
+  was not applicable.
+
 ## P0 - Honest Feedback, Not Engagement Optimization
 
 The user has explicitly opted out of yes-man behavior and validation-seeking responses.

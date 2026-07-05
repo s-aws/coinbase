@@ -3,6 +3,7 @@
     "BTC-USD"
   ],
   "derivatives": [
+    "AVP-20DEC30-CDE",
     "BIP-20DEC30-CDE",
     "BIT-26JUN26-CDE",
     "ET-26JUN26-CDE",
@@ -12,6 +13,22 @@
   ],
   "ticker_to_trading": {},
   "metadata": {
+    "AVP-20DEC30-CDE": {
+      "type": "FUTURE",
+      "base_currency": null,
+      "quote_currency": null,
+      "base_increment": "1",
+      "quote_increment": "0.01",
+      "price_increment": "0.01",
+      "base_min_size": "1",
+      "quote_min_size": "0",
+      "display_name": "AVAX PERP",
+      "status": "",
+      "mid_price": null,
+      "trading_disabled": false,
+      "contract_size": "10",
+      "expiry": null
+    },
     "BIP-20DEC30-CDE": {
       "type": "FUTURE",
       "base_currency": null,

@@ -1649,6 +1649,11 @@ class LiveServiceDecisionRecord(BaseModel):
     )
     service_enabled: bool = False
     source: str = LIVE_SERVICE_DECISION_SOURCE
+    target_module_id: str = "admin_system_health"
+    account_family: str = "unscoped"
+    venue_scope: str = "unscoped"
+    intx_applicability: str = "not_applicable"
+    product_scope: list[str] = Field(default_factory=list)
     deployment_ref: str = Field(min_length=1)
     runtime_configuration_ref: str = Field(min_length=1)
     decision_reason: str = Field(min_length=1)
@@ -1674,6 +1679,10 @@ class LiveAdapterDecisionRecord(BaseModel):
     target_method: str = Field(min_length=1)
     target_module_id: str = Field(min_length=1)
     target_service_method: str = Field(min_length=1)
+    account_family: str = "unscoped"
+    venue_scope: str = "unscoped"
+    intx_applicability: str = "not_applicable"
+    product_scope: list[str] = Field(default_factory=list)
     adapter_reference: str = Field(min_length=1)
     adapter_constructed: bool = False
     adapter_enabled: bool = False
