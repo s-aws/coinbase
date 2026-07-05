@@ -31,6 +31,22 @@ from .models import (
 )
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 
+CONTROLLED_FUTURES_MODULE_ID = "futures_perpetuals"
+CONTROLLED_FUTURES_ACCOUNT_FAMILY = "coinbase_futures_us_cfm"
+CONTROLLED_FUTURES_INTX_APPLICABILITY = "not_applicable_us_account"
+CONTROLLED_FUTURES_PRODUCT_SCOPE = frozenset({"AVP-20DEC30-CDE", "BIP-20DEC30-CDE"})
+CONTROLLED_FUTURES_MAX_NOTIONAL_USDC = Decimal("100.00")
+CONTROLLED_FUTURES_ADAPTER_TARGETS = {
+    "/api/v1/futures/orders": "place_futures_order",
+    "/api/v1/futures/positions/{position_key}/close-reduce": (
+        "close_or_reduce_futures_position"
+    ),
+    "/api/v1/futures/orders/{client_order_id}/cancel": "cancel_futures_order",
+    "/api/v1/futures/positions/{position_key}/reconciliation": (
+        "reconcile_futures_position"
+    ),
+}
+
 
 class LiveAdapterDecisionError(ValueError):
     """Raised when a live-adapter decision record is invalid."""
@@ -172,6 +188,8 @@ class AdminApiLiveAdapterDecisionService:
     def _validate_decision_consistency(
         body: AdminLiveAdapterDecisionCreateRequest,
     ) -> None:
+        if _is_controlled_us_cfm_futures_adapter_decision(body):
+            return
         if body.adapter_constructed:
             raise LiveAdapterDecisionError(
                 "This phase cannot record constructed live-adapter decisions."
@@ -205,12 +223,23 @@ class AdminApiLiveAdapterDecisionService:
 def _item_from_record(
     record: LiveAdapterDecisionRecord,
 ) -> AdminLiveAdapterDecisionItem:
+    controlled_futures_record = _is_controlled_us_cfm_futures_adapter_record(record)
     required_artifacts = list(LIVE_EXECUTION_ADAPTER_REQUIRED_CONSTRUCTION_ARTIFACTS)
-    recorded_artifacts = ["explicit_backend_live_adapter_construction_decision"]
+    recorded_artifacts = (
+        required_artifacts
+        if controlled_futures_record
+        else ["explicit_backend_live_adapter_construction_decision"]
+    )
+    missing_artifacts = [] if controlled_futures_record else required_artifacts
     detail = (
-        "Live-adapter decision evidence is recorded as fail-closed local state; "
-        "it does not construct an adapter, resolve construction, or permit "
-        "Coinbase execution."
+        "Controlled US CFM Futures live-adapter decision evidence is recorded "
+        "as backend-owned route binding; it does not call Coinbase by itself."
+        if controlled_futures_record
+        else (
+            "Live-adapter decision evidence is recorded as fail-closed local state; "
+            "it does not construct an adapter, resolve construction, or permit "
+            "Coinbase execution."
+        )
     )
     return AdminLiveAdapterDecisionItem(
         decision_id=record.decision_id,
@@ -223,7 +252,11 @@ def _item_from_record(
         service_method=LIVE_ADAPTER_DECISION_SERVICE_METHOD,
         status=record.status,
         requested_adapter_status=record.requested_adapter_status,
-        live_execution_adapter_status=AdminApiLiveExecutionStatus.LIVE_DISABLED,
+        live_execution_adapter_status=(
+            record.requested_adapter_status
+            if controlled_futures_record
+            else AdminApiLiveExecutionStatus.LIVE_DISABLED
+        ),
         target_route=record.target_route,
         target_method=record.target_method,
         target_module_id=record.target_module_id,
@@ -242,21 +275,102 @@ def _item_from_record(
         max_submitted_notional_usdc=record.max_submitted_notional_usdc,
         max_executed_notional_usdc=record.max_executed_notional_usdc,
         construction_precondition_required=True,
-        construction_precondition_resolved=False,
+        construction_precondition_resolved=controlled_futures_record,
         construction_precondition_authority=(
             LIVE_EXECUTION_ADAPTER_CONSTRUCTION_AUTHORITY
         ),
         required_construction_artifacts=required_artifacts,
         recorded_construction_artifacts=recorded_artifacts,
-        missing_construction_artifacts=required_artifacts,
-        route_mapping_satisfies_construction=False,
-        adapter_configuration_satisfies_construction=False,
-        resolver_eligible=False,
+        missing_construction_artifacts=missing_artifacts,
+        route_mapping_satisfies_construction=controlled_futures_record,
+        adapter_configuration_satisfies_construction=controlled_futures_record,
+        resolver_eligible=controlled_futures_record,
         browser_authority="display_only",
         bff_authority="forward_only_no_execution",
         live_exchange_submitted=False,
         live_coinbase_orders_ran=False,
         detail=detail,
+    )
+
+
+def _is_controlled_us_cfm_futures_adapter_decision(
+    body: AdminLiveAdapterDecisionCreateRequest,
+) -> bool:
+    return _controlled_us_cfm_futures_adapter_fields(
+        status=body.status,
+        requested_adapter_status=body.requested_adapter_status,
+        target_route=body.target_route,
+        target_module_id=body.target_module_id,
+        target_service_method=body.target_service_method,
+        account_family=body.account_family,
+        venue_scope=body.venue_scope,
+        intx_applicability=body.intx_applicability,
+        product_scope=body.product_scope,
+        adapter_constructed=body.adapter_constructed,
+        adapter_enabled=body.adapter_enabled,
+        live_coinbase_execution_approved=body.live_coinbase_execution_approved,
+        max_submitted_notional_usdc=body.max_submitted_notional_usdc,
+        max_executed_notional_usdc=body.max_executed_notional_usdc,
+    )
+
+
+def _is_controlled_us_cfm_futures_adapter_record(
+    record: LiveAdapterDecisionRecord,
+) -> bool:
+    return _controlled_us_cfm_futures_adapter_fields(
+        status=record.status,
+        requested_adapter_status=record.requested_adapter_status,
+        target_route=record.target_route,
+        target_module_id=record.target_module_id,
+        target_service_method=record.target_service_method,
+        account_family=record.account_family,
+        venue_scope=record.venue_scope,
+        intx_applicability=record.intx_applicability,
+        product_scope=record.product_scope,
+        adapter_constructed=record.adapter_constructed,
+        adapter_enabled=record.adapter_enabled,
+        live_coinbase_execution_approved=record.live_coinbase_execution_approved,
+        max_submitted_notional_usdc=record.max_submitted_notional_usdc,
+        max_executed_notional_usdc=record.max_executed_notional_usdc,
+    )
+
+
+def _controlled_us_cfm_futures_adapter_fields(
+    *,
+    status: AdminApiGateStatus,
+    requested_adapter_status: AdminApiLiveExecutionStatus,
+    target_route: str,
+    target_module_id: str,
+    target_service_method: str,
+    account_family: str,
+    venue_scope: str,
+    intx_applicability: str,
+    product_scope: list[str],
+    adapter_constructed: bool,
+    adapter_enabled: bool,
+    live_coinbase_execution_approved: bool,
+    max_submitted_notional_usdc: str,
+    max_executed_notional_usdc: str,
+) -> bool:
+    product_ids = {str(product_id).strip() for product_id in product_scope if str(product_id).strip()}
+    return (
+        target_module_id == CONTROLLED_FUTURES_MODULE_ID
+        and account_family == CONTROLLED_FUTURES_ACCOUNT_FAMILY
+        and venue_scope == CONTROLLED_FUTURES_ACCOUNT_FAMILY
+        and intx_applicability == CONTROLLED_FUTURES_INTX_APPLICABILITY
+        and CONTROLLED_FUTURES_ADAPTER_TARGETS.get(target_route)
+        == target_service_method
+        and bool(product_ids)
+        and product_ids.issubset(CONTROLLED_FUTURES_PRODUCT_SCOPE)
+        and status == AdminApiGateStatus.PASSED
+        and requested_adapter_status == AdminApiLiveExecutionStatus.APPROVAL_REQUIRED
+        and adapter_constructed
+        and adapter_enabled
+        and live_coinbase_execution_approved
+        and Decimal("0") < _decimal_value(max_submitted_notional_usdc)
+        <= CONTROLLED_FUTURES_MAX_NOTIONAL_USDC
+        and Decimal("0") < _decimal_value(max_executed_notional_usdc)
+        <= CONTROLLED_FUTURES_MAX_NOTIONAL_USDC
     )
 
 

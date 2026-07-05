@@ -416,6 +416,7 @@ class CancelOrderRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     reason: str | None = None
+    manual_live_acknowledgement: bool = False
 
 
 class StealthCancelRequest(BaseModel):
@@ -15452,6 +15453,8 @@ class AdminFuturesCommandSuiteResponse(BaseModel):
     type: str = "admin_futures_command_suite"
     module_id: str = "futures_perpetuals"
     approved_phase_range: str
+    futures_live_execution_scope: dict[str, Any] = Field(default_factory=dict)
+    futures_live_decision_evidence: dict[str, Any] = Field(default_factory=dict)
     status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
     command_count: int = Field(default=0, ge=0)
     blocked_command_count: int = Field(default=0, ge=0)

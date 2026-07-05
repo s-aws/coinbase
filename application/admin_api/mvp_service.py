@@ -12416,6 +12416,22 @@ def _cancel_order_command(
         if not missing_gate_chain
         else AdminMvpGateStatus.BLOCKED.value
     )
+    readiness_by_name = {
+        str(item.get("precondition")): item for item in readiness_items
+    }
+    live_service_ready = (
+        readiness_by_name.get("live_service_decision", {}).get("status")
+        == AdminMvpGateStatus.PASSED.value
+    )
+    backend_live_opted_in = (
+        readiness_by_name.get("backend_live_execution_opt_in", {}).get("status")
+        == AdminMvpGateStatus.PASSED.value
+    )
+    runtime_ready = (
+        readiness_by_name.get("live_command_runtime", {}).get("status")
+        == AdminMvpGateStatus.PASSED.value
+    )
+    route_live_enabled = live_service_ready and backend_live_opted_in
     executable = bool(readiness_items) and readiness_blocker_count == 0
     return {
         "mutation_family": "spot_order_cancel",
@@ -12426,17 +12442,13 @@ def _cancel_order_command(
         "status": "ready" if executable else "blocked",
         "live_execution_status": (
             AdminMvpLiveServiceStatus.APPROVAL_REQUIRED.value
-            if cancel_proof is not None
+            if route_live_enabled
             else AdminMvpLiveServiceStatus.LIVE_DISABLED.value
         ),
-        "live_enabled": executable,
-        "live_eligible": cancel_proof is not None,
+        "live_enabled": route_live_enabled,
+        "live_eligible": route_live_enabled,
         "executable": executable,
-        "live_adapter_configured": any(
-            item.get("precondition") == "live_command_runtime"
-            and item.get("status") == AdminMvpGateStatus.PASSED.value
-            for item in readiness_items
-        ),
+        "live_adapter_configured": runtime_ready,
         "proof_chain_status": proof_chain_status,
         "proof_chain_blocker_count": len(missing_gate_chain),
         "resolved_gate_chain": resolved_gate_chain,

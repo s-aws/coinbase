@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 import json
 import os
@@ -112,9 +113,19 @@ from .live_execution import (
     DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
     DISABLED_STEALTH_LIVE_EXECUTION_ADAPTER_SOURCE,
     AdminApiLiveExecutionServiceState,
+    FileAdminApiLiveAdapterDecisionStore,
+    FileAdminApiLiveServiceDecisionStore,
     build_live_execution_adapter_contract,
     build_live_execution_service_contract,
     get_decision_backed_live_execution_service,
+)
+from .live_adapter_decision_service import (
+    CONTROLLED_FUTURES_ACCOUNT_FAMILY,
+    CONTROLLED_FUTURES_ADAPTER_TARGETS,
+    CONTROLLED_FUTURES_INTX_APPLICABILITY,
+    CONTROLLED_FUTURES_MAX_NOTIONAL_USDC,
+    CONTROLLED_FUTURES_MODULE_ID,
+    CONTROLLED_FUTURES_PRODUCT_SCOPE,
 )
 from .models import (
     AdminAccountReadinessEvidence,
@@ -773,7 +784,10 @@ def _route_availability(surface: str, action_class: AdminApiActionClass) -> Admi
     return AdminApiRouteAvailability.AVAILABLE
 
 
-CONTROLLED_LIVE_MVP_ROUTE = ("POST", "/api/v1/orders")
+CONTROLLED_LIVE_MVP_ROUTES = {
+    ("POST", "/api/v1/orders"),
+    ("POST", "/api/v1/orders/{client_order_id}/cancel"),
+}
 
 
 def _decision_backed_live_service_state() -> AdminApiLiveExecutionServiceState:
@@ -804,7 +818,7 @@ def _controlled_live_mvp_route_enabled(
     """Return whether the current MVP route may expose controlled-live submit."""
 
     return (
-        (method, path) == CONTROLLED_LIVE_MVP_ROUTE
+        (method, path) in CONTROLLED_LIVE_MVP_ROUTES
         and _live_service_state_allows_backend_admission(live_service_state)
     )
 
@@ -1727,7 +1741,10 @@ def futures_command_suite_frontend_fixture_payload(
     return compacted
 
 
-def lightweight_futures_command_suite_frontend_fixture_payload() -> dict[str, Any]:
+def lightweight_futures_command_suite_frontend_fixture_payload(
+    *,
+    live_decision_context: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Return a fast offline futures command-suite fixture summary."""
 
     output_schema_field_type_count_key = (
@@ -1750,10 +1767,57 @@ def lightweight_futures_command_suite_frontend_fixture_payload() -> dict[str, An
         }
         for command in AdminFuturesCommandAction
     ]
+    product_scope = sorted(CONTROLLED_FUTURES_PRODUCT_SCOPE)
+    default_live_decision_context = {
+        "futures_live_execution_scope": {
+            "account_family": CONTROLLED_FUTURES_ACCOUNT_FAMILY,
+            "intx_applicability": CONTROLLED_FUTURES_INTX_APPLICABILITY,
+            "product_scope": product_scope,
+            "execution_allowed": False,
+        },
+        "futures_live_decision_evidence": {
+            "account_family": CONTROLLED_FUTURES_ACCOUNT_FAMILY,
+            "intx_applicability": CONTROLLED_FUTURES_INTX_APPLICABILITY,
+            "product_scope": product_scope,
+            "service_decision_status": (
+                "missing_matching_us_cfm_service_decision"
+            ),
+            "matching_service_decision_id": None,
+            "adapter_decision_ready_count": 0,
+            "adapter_decision_missing_count": len(
+                CONTROLLED_FUTURES_ADAPTER_TARGETS
+            ),
+            "all_command_adapters_ready": False,
+            "executor_boundary_status": "pending_live_decision",
+            "executor_boundary_ready": False,
+            "executor_boundary_source": None,
+            "first_blocker": "execution_disabled",
+            "required_evidence_refs": [
+                FUTURES_LIVE_DECISION_SERVICE_ROUTE,
+                FUTURES_LIVE_DECISION_ADAPTER_ROUTE,
+            ],
+            "execution_allowed": False,
+            "manual_live_acknowledgement_required": False,
+            "live_runtime_ready": False,
+            "spot_rule_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            "live_coinbase_orders_ran": False,
+        },
+    }
+    resolved_live_decision_context = (
+        live_decision_context or default_live_decision_context
+    )
     return {
         "type": "admin_futures_command_suite",
         "module_id": "futures_perpetuals",
         "approved_phase_range": AUTONOMOUS_APPROVED_PHASE_RANGE,
+        "futures_live_execution_scope": resolved_live_decision_context[
+            "futures_live_execution_scope"
+        ],
+        "futures_live_decision_evidence": resolved_live_decision_context[
+            "futures_live_decision_evidence"
+        ],
         "status": AdminApiGateStatus.BLOCKED.value,
         "command_count": len(commands),
         "blocked_command_count": len(commands),
@@ -5745,6 +5809,103 @@ def _stealth_post_write_reconciliation_policy_item_from_record(
     )
 
 
+FUTURES_LIVE_DECISION_SERVICE_ROUTE = (
+    "/api/v1/admin/live-execution/service-decisions"
+)
+FUTURES_LIVE_DECISION_ADAPTER_ROUTE = (
+    "/api/v1/admin/live-execution/adapter-decisions"
+)
+FUTURES_EXECUTOR_BOUNDARY_SOURCE = "admin_api_futures_executor_boundary"
+
+
+def _json_record(record: Any) -> dict[str, Any]:
+    if hasattr(record, "model_dump"):
+        return record.model_dump(mode="json")
+    if isinstance(record, dict):
+        return dict(record)
+    return {}
+
+
+def _record_text(value: Any) -> str:
+    if value is None:
+        return ""
+    enum_value = getattr(value, "value", None)
+    if enum_value is not None:
+        return str(enum_value)
+    return str(value)
+
+
+def _record_decimal(value: Any) -> Decimal:
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return Decimal("-1")
+
+
+def _futures_product_scope_matches_record(record: dict[str, Any]) -> bool:
+    product_scope = [
+        str(product_id)
+        for product_id in record.get("product_scope") or []
+        if str(product_id)
+    ]
+    if not product_scope:
+        return True
+    return any(
+        product_id in CONTROLLED_FUTURES_PRODUCT_SCOPE
+        for product_id in product_scope
+    )
+
+
+def _is_controlled_futures_live_service_record(record: dict[str, Any]) -> bool:
+    return (
+        _record_text(record.get("target_module_id")) == CONTROLLED_FUTURES_MODULE_ID
+        and _record_text(record.get("account_family"))
+        == CONTROLLED_FUTURES_ACCOUNT_FAMILY
+        and _record_text(record.get("intx_applicability"))
+        == CONTROLLED_FUTURES_INTX_APPLICABILITY
+        and _futures_product_scope_matches_record(record)
+        and _record_text(record.get("status")) == AdminApiGateStatus.PASSED.value
+        and _record_text(record.get("requested_service_status"))
+        != AdminApiLiveExecutionStatus.LIVE_DISABLED.value
+        and bool(record.get("service_enabled"))
+        and bool(record.get("live_coinbase_execution_approved"))
+        and Decimal("0") < _record_decimal(record.get("max_submitted_notional_usdc"))
+        <= CONTROLLED_FUTURES_MAX_NOTIONAL_USDC
+        and Decimal("0") < _record_decimal(record.get("max_executed_notional_usdc"))
+        <= CONTROLLED_FUTURES_MAX_NOTIONAL_USDC
+    )
+
+
+def _is_controlled_futures_live_adapter_record(
+    record: dict[str, Any],
+    *,
+    target_route: str,
+    target_service_method: str,
+) -> bool:
+    return (
+        _record_text(record.get("target_module_id")) == CONTROLLED_FUTURES_MODULE_ID
+        and _record_text(record.get("account_family"))
+        == CONTROLLED_FUTURES_ACCOUNT_FAMILY
+        and _record_text(record.get("intx_applicability"))
+        == CONTROLLED_FUTURES_INTX_APPLICABILITY
+        and _futures_product_scope_matches_record(record)
+        and _record_text(record.get("target_route")) == target_route
+        and _record_text(record.get("target_method")).upper() == "POST"
+        and _record_text(record.get("target_service_method"))
+        == target_service_method
+        and _record_text(record.get("status")) == AdminApiGateStatus.PASSED.value
+        and _record_text(record.get("requested_adapter_status"))
+        != AdminApiLiveExecutionStatus.LIVE_DISABLED.value
+        and bool(record.get("adapter_constructed"))
+        and bool(record.get("adapter_enabled"))
+        and bool(record.get("live_coinbase_execution_approved"))
+        and Decimal("0") < _record_decimal(record.get("max_submitted_notional_usdc"))
+        <= CONTROLLED_FUTURES_MAX_NOTIONAL_USDC
+        and Decimal("0") < _record_decimal(record.get("max_executed_notional_usdc"))
+        <= CONTROLLED_FUTURES_MAX_NOTIONAL_USDC
+    )
+
+
 class AdminApiReadService:
     """Read-only status service for operator views.
 
@@ -5813,6 +5974,12 @@ class AdminApiReadService:
             FileStealthPostWriteReconciliationVerificationStore | None
         ) = None,
         futures_risk_proof_store: FileFuturesRiskProofStore | None = None,
+        live_service_decision_store: (
+            FileAdminApiLiveServiceDecisionStore | None
+        ) = None,
+        live_adapter_decision_store: (
+            FileAdminApiLiveAdapterDecisionStore | None
+        ) = None,
     ) -> None:
         self.spot_recovery_proof_store = (
             spot_recovery_proof_store or FileSpotRecoveryProofStore()
@@ -5892,6 +6059,12 @@ class AdminApiReadService:
         )
         self.futures_risk_proof_store = (
             futures_risk_proof_store or FileFuturesRiskProofStore()
+        )
+        self.live_service_decision_store = (
+            live_service_decision_store or FileAdminApiLiveServiceDecisionStore()
+        )
+        self.live_adapter_decision_store = (
+            live_adapter_decision_store or FileAdminApiLiveAdapterDecisionStore()
         )
 
     def build_admin_bootstrap(self) -> AdminBootstrapResponse:
@@ -8358,6 +8531,36 @@ class AdminApiReadService:
             route_inventory_item(surface)
             for surface in reconciliation_plan_surfaces
         ]
+        account_products_refresh_surfaces = [
+            "POST /api/v1/admin/products/refresh",
+        ]
+        account_products_refresh_rows = [
+            route_inventory_item(surface)
+            for surface in account_products_refresh_surfaces
+        ]
+        admin_runtime_control_surfaces = [
+            "POST /api/v1/admin/runtime/pause",
+            "POST /api/v1/admin/runtime/resume",
+            "POST /api/v1/admin/runtime/shutdown",
+        ]
+        admin_runtime_control_rows = [
+            route_inventory_item(surface)
+            for surface in admin_runtime_control_surfaces
+        ]
+        spot_manual_order_proof_chain_surfaces = [
+            "POST /api/v1/spot/manual-order/proof-chain",
+        ]
+        spot_manual_order_proof_chain_rows = [
+            route_inventory_item(surface)
+            for surface in spot_manual_order_proof_chain_surfaces
+        ]
+        spot_order_cancel_proof_chain_surfaces = [
+            "POST /api/v1/spot/cancel-order/proof-chain",
+        ]
+        spot_order_cancel_proof_chain_rows = [
+            route_inventory_item(surface)
+            for surface in spot_order_cancel_proof_chain_surfaces
+        ]
         mutation_taxonomy = [
             mutation_taxonomy_item(
                 mutation_id="admin.approval_lifecycle",
@@ -8831,6 +9034,130 @@ class AdminApiReadService:
                 reconciliation_required=True,
                 live_adapter_required=False,
             ),
+            mutation_taxonomy_item(
+                mutation_id="admin.account_products_refresh",
+                mutation_family=(
+                    AdminApiMutationFamilyType.ADMIN_ACCOUNT_PRODUCTS_REFRESH
+                ),
+                workflow_id="account_management_products_refresh",
+                module_id="account_management",
+                module="Account Management / Wallet / Market Metadata",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Product refresh is a backend-owned account/product metadata "
+                    "mutation; it refreshes read evidence without creating wallet "
+                    "authority, browser guard authority, or trading approval."
+                ),
+                command_surfaces=account_products_refresh_surfaces,
+                action_classes=[
+                    row.action_class for row in account_products_refresh_rows
+                ],
+                required_permissions=[
+                    row.permission for row in account_products_refresh_rows
+                ],
+                identity_keys=["request_id", "correlation_id"],
+                idempotency_contract="required",
+                approval_contract="not required for metadata refresh",
+                cap_guard_contract="not applicable; no trading command admitted",
+                admission_audit_contract="Admin API audit event required",
+                reconciliation_contract=(
+                    "not applicable; no exchange order state mutation"
+                ),
+                owning_backend_service="application/admin_api/mvp_service.py",
+                shared_command_service_method="refresh_admin_products",
+                route_inventory_refs=account_products_refresh_surfaces,
+                backend_contract_refs=[
+                    "application/admin_api/mvp_service.py::refresh_admin_products",
+                    "api/v1/routes/admin.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=["README.admin-api.md"],
+                frontend_boundary=(
+                    "The frontend may request backend product metadata refresh "
+                    "through the Admin API only; it must not call Coinbase, "
+                    "validate wallets, or infer trading authority."
+                ),
+                bff_boundary=(
+                    "BFF may forward refresh requests with server-held Admin API "
+                    "authority; it must not expose Coinbase credentials."
+                ),
+                route_local_boundary=(
+                    "The route may refresh backend-owned product metadata evidence "
+                    "only and must not place, cancel, or approve orders."
+                ),
+                spot_rule_boundary=(
+                    "Spot product metadata can inform spot evidence, but spot "
+                    "wallet or USDC rules must not be copied into non-spot modules."
+                ),
+                approval_required=False,
+                cap_guard_required=False,
+                reconciliation_required=False,
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_item(
+                mutation_id="admin.runtime_control",
+                mutation_family=AdminApiMutationFamilyType.ADMIN_RUNTIME_CONTROL,
+                workflow_id="admin.runtime_control",
+                module_id="admin_system_health",
+                module="Admin / System Health",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Runtime pause, resume, and shutdown are backend-owned "
+                    "operator controls. They are operational controls, not "
+                    "frontend trading decisions."
+                ),
+                command_surfaces=admin_runtime_control_surfaces,
+                action_classes=[
+                    row.action_class for row in admin_runtime_control_rows
+                ],
+                required_permissions=[
+                    row.permission for row in admin_runtime_control_rows
+                ],
+                identity_keys=["runtime_id", "request_id", "correlation_id"],
+                idempotency_contract="required",
+                approval_contract="backend runtime authority required",
+                cap_guard_contract="not applicable; no order command admitted",
+                admission_audit_contract="Admin API audit event required",
+                reconciliation_contract=(
+                    "not applicable; no exchange order state mutation"
+                ),
+                owning_backend_service="application/admin_api/mvp_service.py",
+                shared_command_service_method="control_runtime",
+                route_inventory_refs=admin_runtime_control_surfaces,
+                backend_contract_refs=[
+                    "application/admin_api/mvp_service.py::control_runtime",
+                    "core/runtime_controller.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=["README.admin-api.md"],
+                frontend_boundary=(
+                    "The frontend may submit operator intent for backend runtime "
+                    "controls only; it must not duplicate runtime state, bypass "
+                    "backend authority, or issue trading commands."
+                ),
+                bff_boundary=(
+                    "BFF may forward runtime control requests to the Admin API "
+                    "with server-held authority; it must not become the runtime controller."
+                ),
+                route_local_boundary=(
+                    "Runtime routes must call the shared runtime controller path "
+                    "and must not implement route-local trading behavior."
+                ),
+                spot_rule_boundary=(
+                    "Runtime controls are platform primitives and carry no spot "
+                    "wallet, cost-basis, or no-shorting authority."
+                ),
+                approval_required=False,
+                cap_guard_required=False,
+                reconciliation_required=False,
+                live_adapter_required=False,
+            ),
             mutation_taxonomy_from_surface(
                 surface="POST /api/v1/admin/live-execution/service-decisions",
                 mutation_id="admin.live_service_decisions",
@@ -8970,6 +9297,118 @@ class AdminApiReadService:
                     "order state."
                 ),
                 live_adapter_required=False,
+            ),
+            mutation_taxonomy_item(
+                mutation_id="spot.manual_order_proof_chain",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_MANUAL_ORDER_PROOF_CHAIN
+                ),
+                workflow_id="spot.manual_order_controlled_live",
+                module_id="spot_operations",
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Manual-order proof-chain recording persists backend-owned "
+                    "approval, admission-audit, cap/guard, and reconciliation "
+                    "evidence for an exact spot client_order_id."
+                ),
+                command_surfaces=spot_manual_order_proof_chain_surfaces,
+                action_classes=[
+                    row.action_class for row in spot_manual_order_proof_chain_rows
+                ],
+                required_permissions=[
+                    row.permission for row in spot_manual_order_proof_chain_rows
+                ],
+                identity_keys=["client_order_id", "request_id", "correlation_id"],
+                idempotency_contract="required",
+                approval_contract=(
+                    "backend proof-chain approval snapshot evidence required"
+                ),
+                cap_guard_contract="backend cap/guard decision evidence required",
+                admission_audit_contract="backend admission audit evidence required",
+                reconciliation_contract=(
+                    "backend reconciliation plan evidence required"
+                ),
+                owning_backend_service="application/admin_api/mvp_service.py",
+                shared_command_service_method=(
+                    "record_spot_manual_order_proof_chain"
+                ),
+                route_inventory_refs=spot_manual_order_proof_chain_surfaces,
+                backend_contract_refs=[
+                    "application/admin_api/mvp_service.py::record_spot_manual_order_proof_chain",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=["README.admin-api.md", "README.spot-trading.md"],
+                blockers=["live_execution_disabled_until_exact_proof_chain_passes"],
+                live_adapter_required=False,
+                frontend_boundary=(
+                    "The frontend may record and display proof-chain evidence "
+                    "only; it must not approve, guard, reconcile, or submit "
+                    "Coinbase orders."
+                ),
+                spot_rule_boundary=(
+                    "This proof-chain route is spot-specific and must not be "
+                    "copied into futures/perpetual admission."
+                ),
+            ),
+            mutation_taxonomy_item(
+                mutation_id="spot.order_cancel_proof_chain",
+                mutation_family=(
+                    AdminApiMutationFamilyType.SPOT_ORDER_CANCEL_PROOF_CHAIN
+                ),
+                workflow_id="spot.order_cancel_controlled_live",
+                module_id="spot_operations",
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "Cancel proof-chain recording persists backend-owned cancel "
+                    "admission evidence for an exact spot client_order_id before "
+                    "controlled-live cancellation can be considered."
+                ),
+                command_surfaces=spot_order_cancel_proof_chain_surfaces,
+                action_classes=[
+                    row.action_class for row in spot_order_cancel_proof_chain_rows
+                ],
+                required_permissions=[
+                    row.permission for row in spot_order_cancel_proof_chain_rows
+                ],
+                identity_keys=["client_order_id", "request_id", "correlation_id"],
+                idempotency_contract="required",
+                approval_contract="backend cancel proof-chain evidence required",
+                cap_guard_contract="not applicable to cancel proof evidence",
+                admission_audit_contract="backend admission audit evidence required",
+                reconciliation_contract=(
+                    "backend cancel reconciliation evidence required"
+                ),
+                owning_backend_service="application/admin_api/mvp_service.py",
+                shared_command_service_method=(
+                    "record_spot_cancel_order_proof_chain"
+                ),
+                route_inventory_refs=spot_order_cancel_proof_chain_surfaces,
+                backend_contract_refs=[
+                    "application/admin_api/mvp_service.py::record_spot_cancel_order_proof_chain",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=["README.admin-api.md", "README.spot-trading.md"],
+                blockers=[
+                    "live_execution_disabled_until_exact_cancel_proof_chain_passes"
+                ],
+                cap_guard_required=False,
+                live_adapter_required=False,
+                frontend_boundary=(
+                    "The frontend may record and display cancel proof-chain "
+                    "evidence only; it must not call Coinbase or decide cancel admission."
+                ),
+                spot_rule_boundary=(
+                    "This cancel proof-chain route is spot-specific and does not "
+                    "create futures/perpetual close/reduce or cancel authority."
+                ),
             ),
             mutation_taxonomy_from_surface(
                 surface="POST /api/v1/orders",
@@ -11466,7 +11905,7 @@ class AdminApiReadService:
                 action_class=item.action_class,
                 live_execution_service=(
                     get_decision_backed_live_execution_service()
-                    if (method, path) == CONTROLLED_LIVE_MVP_ROUTE
+                    if (method, path) in CONTROLLED_LIVE_MVP_ROUTES
                     else None
                 ),
             )
@@ -11483,7 +11922,7 @@ class AdminApiReadService:
                 if controlled_live_enabled and not command_runtime.runtime_ready
                 else None
             )
-            if not controlled_live_enabled and (method, path) != CONTROLLED_LIVE_MVP_ROUTE:
+            if not controlled_live_enabled and (method, path) not in CONTROLLED_LIVE_MVP_ROUTES:
                 command_runtime_missing_reason = "not_controlled_live_mvp_route"
             path_live_status = live_execution_adapter.get(
                 "status",
@@ -21410,11 +21849,127 @@ class AdminApiReadService:
             items=evidence.items,
         )
 
+    def build_futures_live_decision_context(
+        self,
+        *,
+        live_runtime_ready: bool | None = None,
+    ) -> dict[str, Any]:
+        """Return route-bound US CFM Futures live-decision readback evidence."""
+
+        runtime_ready = (
+            build_admin_api_command_runtime_readiness().runtime_ready
+            if live_runtime_ready is None
+            else live_runtime_ready
+        )
+        product_scope = sorted(CONTROLLED_FUTURES_PRODUCT_SCOPE)
+        service_decision = next(
+            (
+                record
+                for record in (
+                    _json_record(item)
+                    for item in self.live_service_decision_store.read_recent(
+                        limit=500
+                    )
+                )
+                if _is_controlled_futures_live_service_record(record)
+            ),
+            None,
+        )
+        adapter_decisions = {
+            route: next(
+                (
+                    record
+                    for record in (
+                        _json_record(item)
+                        for item in self.live_adapter_decision_store.read_recent(
+                            limit=500
+                        )
+                    )
+                    if _is_controlled_futures_live_adapter_record(
+                        record,
+                        target_route=route,
+                        target_service_method=service_method,
+                    )
+                ),
+                None,
+            )
+            for route, service_method in CONTROLLED_FUTURES_ADAPTER_TARGETS.items()
+        }
+        service_ready = service_decision is not None
+        ready_adapter_count = sum(
+            1 for record in adapter_decisions.values() if record is not None
+        )
+        missing_adapter_count = (
+            len(CONTROLLED_FUTURES_ADAPTER_TARGETS) - ready_adapter_count
+        )
+        executor_boundary_ready = service_ready and missing_adapter_count == 0
+        execution_allowed = bool(executor_boundary_ready and runtime_ready)
+        executor_boundary_status = (
+            "live_enabled"
+            if execution_allowed
+            else "observed_live_disabled"
+            if executor_boundary_ready
+            else "pending_live_decision"
+        )
+        first_blocker = (
+            "none"
+            if execution_allowed
+            else "futures_executor_live_disabled"
+            if executor_boundary_ready
+            else "execution_disabled"
+        )
+        return {
+            "futures_live_execution_scope": {
+                "account_family": CONTROLLED_FUTURES_ACCOUNT_FAMILY,
+                "intx_applicability": CONTROLLED_FUTURES_INTX_APPLICABILITY,
+                "product_scope": product_scope,
+                "execution_allowed": execution_allowed,
+            },
+            "futures_live_decision_evidence": {
+                "account_family": CONTROLLED_FUTURES_ACCOUNT_FAMILY,
+                "intx_applicability": CONTROLLED_FUTURES_INTX_APPLICABILITY,
+                "product_scope": product_scope,
+                "service_decision_status": (
+                    "ready"
+                    if service_ready
+                    else "missing_matching_us_cfm_service_decision"
+                ),
+                "matching_service_decision_id": (
+                    str(service_decision["decision_id"])
+                    if service_decision is not None
+                    else None
+                ),
+                "adapter_decision_ready_count": ready_adapter_count,
+                "adapter_decision_missing_count": missing_adapter_count,
+                "all_command_adapters_ready": missing_adapter_count == 0,
+                "executor_boundary_status": executor_boundary_status,
+                "executor_boundary_ready": executor_boundary_ready,
+                "executor_boundary_source": (
+                    FUTURES_EXECUTOR_BOUNDARY_SOURCE
+                    if executor_boundary_ready
+                    else None
+                ),
+                "first_blocker": first_blocker,
+                "required_evidence_refs": [
+                    FUTURES_LIVE_DECISION_SERVICE_ROUTE,
+                    FUTURES_LIVE_DECISION_ADAPTER_ROUTE,
+                ],
+                "execution_allowed": execution_allowed,
+                "manual_live_acknowledgement_required": execution_allowed,
+                "live_runtime_ready": runtime_ready,
+                "spot_rule_authority": False,
+                "browser_authority": "display_only",
+                "bff_authority": "forward_only_no_execution",
+                "live_coinbase_orders_ran": False,
+            },
+        }
+
     def build_futures_command_suite(self) -> AdminFuturesCommandSuiteResponse:
         """Return read-only M57 futures/perpetual command contract evidence."""
 
         account = self.build_futures_account()
         positions = self.build_futures_positions(limit=500, offset=0)
+        futures_live_decision_context = self.build_futures_live_decision_context()
         observed_position_scope = bool(positions.items)
         observed_product_scope = bool(
             account.configured_product_scope or account.observed_position_scope
@@ -47714,6 +48269,12 @@ class AdminApiReadService:
 
         return AdminFuturesCommandSuiteResponse(
             approved_phase_range=AUTONOMOUS_APPROVED_PHASE_RANGE,
+            futures_live_execution_scope=(
+                futures_live_decision_context["futures_live_execution_scope"]
+            ),
+            futures_live_decision_evidence=(
+                futures_live_decision_context["futures_live_decision_evidence"]
+            ),
             command_count=len(commands),
             blocked_command_count=len(commands),
             executable_command_count=0,
@@ -50101,7 +50662,11 @@ class AdminApiReadService:
                 ),
                 "futures.account": self.build_futures_account().model_dump(mode="json"),
                 "futures.commandSuite": (
-                    lightweight_futures_command_suite_frontend_fixture_payload()
+                    lightweight_futures_command_suite_frontend_fixture_payload(
+                        live_decision_context=(
+                            self.build_futures_live_decision_context()
+                        ),
+                    )
                 ),
                 "futures.positions": self.build_futures_positions().model_dump(mode="json"),
                 "futures.position.empty": self.build_futures_position_detail(

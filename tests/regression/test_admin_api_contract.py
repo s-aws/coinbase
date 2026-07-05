@@ -540,6 +540,7 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     from api.v1.routes import admission_audit as admission_audit_routes
     from api.v1.routes import approvals as approval_routes
     from api.v1.routes import cap_guard as cap_guard_routes
+    from api.v1.routes import futures as futures_routes
     from api.v1.routes import live_execution as live_execution_routes
     from api.v1.routes import orders as order_routes
     from api.v1.routes import reconciliation as reconciliation_routes
@@ -815,6 +816,12 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
                 stealth_post_write_reconciliation_verification_store
             ),
         )
+    )
+    app.dependency_overrides[futures_routes.get_live_service_decision_store] = (
+        lambda: live_service_decision_store
+    )
+    app.dependency_overrides[futures_routes.get_live_adapter_decision_store] = (
+        lambda: live_adapter_decision_store
     )
     client = _tracked_test_client(app)
     client.admin_api_test_store_dir = store_dir
@@ -33456,6 +33463,27 @@ def test_admin_api_command_audit_is_durable(monkeypatch):
 
 
 @pytest.mark.regression
+def test_admin_api_spot_cancel_accepts_manual_live_acknowledgement(monkeypatch):
+    client = _client(monkeypatch)
+
+    response = client.post(
+        "/api/v1/orders/client-ack/cancel",
+        headers=_headers(idempotency_key="idem-cancel-ack"),
+        json={
+            "reason": "operator_requested_cancel",
+            "manual_live_acknowledgement": True,
+        },
+    )
+
+    assert response.status_code == 501
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
+    assert payload["client_order_id"] == "client-ack"
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+
+
+@pytest.mark.regression
 def test_admin_api_openapi_cancel_request_does_not_accept_order_id():
     schema = create_app().openapi()
     cancel_body_ref = schema["paths"]["/api/v1/orders/{client_order_id}/cancel"][
@@ -33464,6 +33492,7 @@ def test_admin_api_openapi_cancel_request_does_not_accept_order_id():
     model_name = cancel_body_ref.rsplit("/", 1)[-1]
     cancel_schema = schema["components"]["schemas"][model_name]
 
+    assert "manual_live_acknowledgement" in cancel_schema.get("properties", {})
     assert "client_order_id" not in cancel_schema.get("properties", {})
     assert "order_id" not in cancel_schema.get("properties", {})
     assert "client_order_id" in str(
@@ -35155,7 +35184,10 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
 ):
     import configuration
 
-    from application.admin_api.read_service import AdminApiReadService
+    from application.admin_api.read_service import (
+        AdminApiReadService,
+        lightweight_futures_command_suite_frontend_fixture_payload,
+    )
 
     decision_log = tmp_path / "live_service_decisions.jsonl"
     store = FileAdminApiLiveServiceDecisionStore(decision_log)
@@ -35205,21 +35237,22 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
     assert manual_capability["live_enabled"] is True
     assert manual_capability["frontend_safe"] is True
     assert manual_capability["shared_method"] == "place_manual_order"
-    assert cancel_capability["availability"] == "live_disabled"
-    assert cancel_capability["live_enabled"] is False
+    assert cancel_capability["availability"] == "available"
+    assert cancel_capability["live_enabled"] is True
+    assert cancel_capability["frontend_safe"] is True
 
     live_routes = {item["route"]: item for item in live_enablement["paths"]}
     manual_live_route = live_routes["/api/v1/orders"]
     cancel_live_route = live_routes["/api/v1/orders/{client_order_id}/cancel"]
 
     assert live_enablement["status"] == "approval_required"
-    assert live_enablement["live_enabled_path_count"] == 1
-    assert live_enablement["live_eligible_path_count"] == 1
+    assert live_enablement["live_enabled_path_count"] == 2
+    assert live_enablement["live_eligible_path_count"] == 2
     assert live_enablement["live_command_runtime_enabled"] is True
     assert live_enablement["live_command_rest_client_available"] is True
     assert live_enablement["live_command_runtime_ready"] is True
     assert live_enablement["live_command_runtime_missing_reason"] is None
-    assert live_enablement["live_command_runtime_ready_path_count"] == 1
+    assert live_enablement["live_command_runtime_ready_path_count"] == 2
     assert manual_live_route["live_enabled"] is True
     assert manual_live_route["live_eligible"] is True
     assert manual_live_route["live_command_runtime_ready"] is True
@@ -35229,25 +35262,22 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
         and precondition["blocking"]
         for precondition in manual_live_route["readiness_preconditions"]
     )
-    assert cancel_live_route["live_enabled"] is False
-    assert cancel_live_route["live_eligible"] is False
-    assert cancel_live_route["live_command_runtime_ready"] is False
-    assert (
-        cancel_live_route["live_command_runtime_missing_reason"]
-        == "not_controlled_live_mvp_route"
-    )
+    assert cancel_live_route["live_enabled"] is True
+    assert cancel_live_route["live_eligible"] is True
+    assert cancel_live_route["live_command_runtime_ready"] is True
+    assert cancel_live_route["live_command_runtime_missing_reason"] is None
 
     spot_commands = {item["route"]: item for item in spot_suite["commands"]}
     manual_command = spot_commands["/api/v1/orders"]
     cancel_command = spot_commands["/api/v1/orders/{client_order_id}/cancel"]
 
-    assert spot_suite["live_enabled_command_count"] == 1
+    assert spot_suite["live_enabled_command_count"] == 2
     assert manual_command["live_enabled"] is True
     assert manual_command["live_eligible"] is True
     assert "live_execution_service" not in manual_command["missing_gate_chain"]
     assert "approval_snapshot" in manual_command["missing_gate_chain"]
-    assert cancel_command["live_enabled"] is False
-    assert cancel_command["live_eligible"] is False
+    assert cancel_command["live_enabled"] is True
+    assert cancel_command["live_eligible"] is True
 
 
 @pytest.mark.regression
@@ -35257,7 +35287,10 @@ def test_live_enablement_separates_admission_from_missing_command_runtime(
 ):
     import configuration
 
-    from application.admin_api.read_service import AdminApiReadService
+    from application.admin_api.read_service import (
+        AdminApiReadService,
+        lightweight_futures_command_suite_frontend_fixture_payload,
+    )
 
     decision_log = tmp_path / "live_service_decisions.jsonl"
     store = FileAdminApiLiveServiceDecisionStore(decision_log)
@@ -35293,7 +35326,7 @@ def test_live_enablement_separates_admission_from_missing_command_runtime(
         item["route"]: item for item in live_enablement["paths"]
     }["/api/v1/orders"]
 
-    assert live_enablement["live_enabled_path_count"] == 1
+    assert live_enablement["live_enabled_path_count"] == 2
     assert live_enablement["live_command_runtime_enabled"] is True
     assert live_enablement["live_command_rest_client_available"] is False
     assert live_enablement["live_command_runtime_ready"] is False
@@ -35346,6 +35379,42 @@ def _live_adapter_decision_payload(
         "max_submitted_notional_usdc": max_submitted_notional_usdc,
         "max_executed_notional_usdc": max_executed_notional_usdc,
     }
+
+
+def _futures_live_adapter_decision_payload(
+    *,
+    decision_id: str = "futures-us-cfm-place-adapter",
+    target_route: str = "/api/v1/futures/orders",
+    target_service_method: str = "place_futures_order",
+) -> dict:
+    body = _live_adapter_decision_payload(
+        decision_id=decision_id,
+        status=AdminApiGateStatus.PASSED,
+        requested_adapter_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value,
+        target_route=target_route,
+        target_module_id="futures_perpetuals",
+        target_service_method=target_service_method,
+        adapter_reference=f"AdminApiCommandService.{target_service_method}",
+        adapter_constructed=True,
+        adapter_enabled=True,
+        live_coinbase_execution_approved=True,
+        max_submitted_notional_usdc="100.00",
+        max_executed_notional_usdc="100.00",
+    )
+    body.update(
+        {
+            "account_family": "coinbase_futures_us_cfm",
+            "venue_scope": "coinbase_futures_us_cfm",
+            "intx_applicability": "not_applicable_us_account",
+            "product_scope": ["AVP-20DEC30-CDE"],
+            "construction_review_ref": "futures-us-cfm-adapter-construction-review",
+            "decision_reason": (
+                "Record US CFM Futures/Perpetual backend live-adapter evidence "
+                "for local Admin operation."
+            ),
+        }
+    )
+    return body
 
 
 @pytest.mark.regression
@@ -35446,6 +35515,167 @@ def test_admin_api_live_adapter_decision_routes_record_and_replay(monkeypatch):
 
     audit_rows = client.admin_api_test_audit_store.read_recent(limit=20)
     assert any(row.permission == AdminApiPermission.CONFIG_UPDATE for row in audit_rows)
+
+
+@pytest.mark.regression
+def test_admin_api_live_adapter_decision_route_accepts_controlled_us_cfm_futures_records(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    body = _futures_live_adapter_decision_payload()
+
+    created = client.post(
+        "/api/v1/admin/live-execution/adapter-decisions",
+        headers=_headers(
+            idempotency_key="futures-live-adapter-decision-idem",
+            operator_intent="record_futures_live_adapter_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=body,
+    )
+
+    assert created.status_code == 200
+    created_payload = created.json()
+    assert created_payload["status"] == "accepted"
+    assert created_payload["live_coinbase_orders_ran"] is False
+    decision = created_payload["decision"]
+    assert decision["decision_id"] == "futures-us-cfm-place-adapter"
+    assert decision["status"] == "passed"
+    assert decision["requested_adapter_status"] == "approval_required"
+    assert decision["live_execution_adapter_status"] == "approval_required"
+    assert decision["target_route"] == "/api/v1/futures/orders"
+    assert decision["target_service_method"] == "place_futures_order"
+    assert decision["adapter_constructed"] is True
+    assert decision["adapter_enabled"] is True
+    assert decision["live_coinbase_execution_approved"] is True
+    assert decision["construction_precondition_resolved"] is True
+    assert decision["route_mapping_satisfies_construction"] is True
+    assert decision["adapter_configuration_satisfies_construction"] is True
+    assert decision["missing_construction_artifacts"] == []
+    assert decision["resolver_eligible"] is True
+    assert decision["live_exchange_submitted"] is False
+
+
+@pytest.mark.regression
+def test_admin_api_futures_command_suite_reads_persisted_live_decision_records(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    service_body = _live_service_decision_payload(
+        decision_id="futures-us-cfm-live-service",
+        status=AdminApiGateStatus.PASSED,
+        requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value,
+        service_enabled=True,
+        live_coinbase_execution_approved=True,
+        max_submitted_notional_usdc="100.00",
+        max_executed_notional_usdc="100.00",
+    )
+    service_body.update(
+        {
+            "target_module_id": "futures_perpetuals",
+            "account_family": "coinbase_futures_us_cfm",
+            "venue_scope": "coinbase_futures_us_cfm",
+            "intx_applicability": "not_applicable_us_account",
+            "product_scope": ["AVP-20DEC30-CDE"],
+            "deployment_ref": "futures-us-cfm-controlled-live-deployment",
+            "runtime_configuration_ref": "futures-us-cfm-controlled-live-runtime",
+            "decision_reason": (
+                "Record US CFM Futures/Perpetual backend live-service evidence "
+                "for local Admin operation."
+            ),
+        }
+    )
+
+    service_recorded = client.post(
+        "/api/v1/admin/live-execution/service-decisions",
+        headers=_headers(
+            idempotency_key="futures-live-service-decision-idem",
+            operator_intent="record_futures_live_service_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=service_body,
+    )
+    assert service_recorded.status_code == 200
+
+    adapter_targets = (
+        (
+            "futures-us-cfm-place-adapter",
+            "/api/v1/futures/orders",
+            "place_futures_order",
+        ),
+        (
+            "futures-us-cfm-close-reduce-adapter",
+            "/api/v1/futures/positions/{position_key}/close-reduce",
+            "close_or_reduce_futures_position",
+        ),
+        (
+            "futures-us-cfm-cancel-adapter",
+            "/api/v1/futures/orders/{client_order_id}/cancel",
+            "cancel_futures_order",
+        ),
+        (
+            "futures-us-cfm-reconcile-adapter",
+            "/api/v1/futures/positions/{position_key}/reconciliation",
+            "reconcile_futures_position",
+        ),
+    )
+    for decision_id, target_route, target_service_method in adapter_targets:
+        created = client.post(
+            "/api/v1/admin/live-execution/adapter-decisions",
+            headers=_headers(
+                idempotency_key=f"{decision_id}-idem",
+                operator_intent="record_futures_live_adapter_decision",
+                roles=AdminApiRole.ADMIN.value,
+            ),
+            json=_futures_live_adapter_decision_payload(
+                decision_id=decision_id,
+                target_route=target_route,
+                target_service_method=target_service_method,
+            ),
+        )
+        assert created.status_code == 200
+
+    from application.admin_api.read_service import (
+        AdminApiReadService,
+        lightweight_futures_command_suite_frontend_fixture_payload,
+    )
+
+    service = AdminApiReadService(
+        live_service_decision_store=client.admin_api_test_live_service_decision_store,
+        live_adapter_decision_store=client.admin_api_test_live_adapter_decision_store,
+    )
+    payload = service.build_futures_live_decision_context(
+        live_runtime_ready=False,
+    )
+
+    assert payload["futures_live_execution_scope"] == {
+        "account_family": "coinbase_futures_us_cfm",
+        "intx_applicability": "not_applicable_us_account",
+        "product_scope": ["AVP-20DEC30-CDE", "BIP-20DEC30-CDE"],
+        "execution_allowed": False,
+    }
+    live_evidence = payload["futures_live_decision_evidence"]
+    assert live_evidence["service_decision_status"] == "ready"
+    assert live_evidence["matching_service_decision_id"] == (
+        "futures-us-cfm-live-service"
+    )
+    assert live_evidence["adapter_decision_ready_count"] == 4
+    assert live_evidence["adapter_decision_missing_count"] == 0
+    assert live_evidence["all_command_adapters_ready"] is True
+    assert live_evidence["executor_boundary_status"] == "observed_live_disabled"
+    assert live_evidence["executor_boundary_ready"] is True
+    assert live_evidence["first_blocker"] == "futures_executor_live_disabled"
+    assert live_evidence["execution_allowed"] is False
+    assert live_evidence["live_coinbase_orders_ran"] is False
+    fixture = lightweight_futures_command_suite_frontend_fixture_payload(
+        live_decision_context=payload,
+    )
+    assert fixture["futures_live_decision_evidence"]["service_decision_status"] == (
+        "ready"
+    )
+    assert fixture["futures_live_decision_evidence"][
+        "adapter_decision_ready_count"
+    ] == 4
 
 
 @pytest.mark.regression
@@ -37678,12 +37908,19 @@ def test_admin_api_live_pilots_are_route_bound_dry_run_only():
         service_method="place_manual_order",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
     )
-    non_pilot = build_live_execution_adapter_contract(
+    cancel_pilot = build_live_execution_adapter_contract(
         method="POST",
         route="/api/v1/orders/{client_order_id}/cancel",
         module_id="spot_operations",
         service_method="cancel_order_by_client_order_id",
         action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+    )
+    non_pilot = build_live_execution_adapter_contract(
+        method="POST",
+        route="/api/v1/spot/campaign/executions",
+        module_id="spot_operations",
+        service_method="execute_spot_campaign",
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
     )
     reveal_pilot = build_live_execution_adapter_contract(
         method="POST",
@@ -37751,6 +37988,19 @@ def test_admin_api_live_pilots_are_route_bound_dry_run_only():
     ]
     assert any("dry-run only" in item for item in pilot["evidence"])
     assert "non-executable" in pilot["detail"]
+
+    assert cancel_pilot["configured"] is True
+    assert cancel_pilot["route"] == "/api/v1/orders/{client_order_id}/cancel"
+    assert cancel_pilot["method"] == "POST"
+    assert cancel_pilot["service_method"] == "cancel_order_by_client_order_id"
+    assert (
+        cancel_pilot["adapter_reference"]
+        == "AdminApiCommandService.cancel_order_by_client_order_id"
+    )
+    assert cancel_pilot["status"] == AdminApiLiveExecutionStatus.APPROVAL_REQUIRED
+    assert cancel_pilot["source"] == "m53_backend_pilot_dry_run"
+    assert cancel_pilot["missing_reason"] == "pilot_dry_run_only"
+    assert cancel_pilot["executable"] is False
 
     assert reveal_pilot["configured"] is True
     assert reveal_pilot["route"] == (
@@ -44329,11 +44579,14 @@ def test_admin_api_spot_command_suite_is_read_only_backend_evidence(monkeypatch)
     cancel = commands[AdminApiMutationFamilyType.SPOT_ORDER_CANCEL.value]
     assert cancel["route"] == "/api/v1/orders/{client_order_id}/cancel"
     assert cancel["identity_key"] == "client_order_id"
-    assert cancel["live_adapter_configured"] is False
+    assert cancel["live_adapter_configured"] is True
     assert (
         cancel["live_execution_status"]
-        == AdminApiLiveExecutionStatus.LIVE_DISABLED.value
+        == AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value
     )
+    assert cancel["live_enabled"] is True
+    assert cancel["live_eligible"] is True
+    assert cancel["executable"] is False
     assert "cancel_order(client_order_id)" in cancel["backend_contract_refs"]
     assert all(
         item["command_identity_key"] == "client_order_id"
@@ -45059,11 +45312,11 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert live_payload["cap_guard_requirement_count"] == 154
     assert live_payload["cap_guard_missing_requirement_count"] == 154
     assert live_payload["live_execution_adapter_required_count"] == 11
-    assert live_payload["live_execution_adapter_configured_count"] == 2
-    assert live_payload["live_execution_adapter_missing_count"] == 9
+    assert live_payload["live_execution_adapter_configured_count"] == 3
+    assert live_payload["live_execution_adapter_missing_count"] == 8
     assert live_payload["readiness_precondition_count"] == 99
-    assert live_payload["blocking_readiness_precondition_count"] == 63
-    assert live_payload["passed_readiness_precondition_count"] == 36
+    assert live_payload["blocking_readiness_precondition_count"] == 62
+    assert live_payload["passed_readiness_precondition_count"] == 37
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
@@ -45100,6 +45353,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert all(item["live_enabled"] is False for item in live_routes.values())
     configured_adapter_routes = {
         "/api/v1/orders",
+        "/api/v1/orders/{client_order_id}/cancel",
         "/api/v1/stealth/orders/{stealth_order_id}/reveal",
     }
     assert live_routes["/api/v1/orders"]["status"] == "approval_required"
@@ -46400,7 +46654,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         in spot_module["read_routes"]
     )
     assert spot_module["action_posture"]["read_route_count"] == 15
-    assert spot_module["action_posture"]["command_route_count"] == 11
+    assert spot_module["action_posture"]["command_route_count"] == 13
     assert spot_module["action_posture"]["live_route_count"] == 4
     assert spot_module["action_posture"]["command_gap_count"] == 2
     admin_module = registry_by_id["admin_system_health"]
@@ -46408,8 +46662,8 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "GET /api/v1/admin/audit-workbench" not in admin_module["read_routes"]
     assert "GET /api/v1/admin/approvals" in admin_module["read_routes"]
     assert "POST /api/v1/admin/approvals/requests" in admin_module["command_routes"]
-    assert admin_module["action_posture"]["read_route_count"] == 24
-    assert admin_module["action_posture"]["command_route_count"] == 8
+    assert admin_module["action_posture"]["read_route_count"] == 26
+    assert admin_module["action_posture"]["command_route_count"] == 11
     assert registry_by_id["guard_risk_policy"]["read_routes"] == [
         "GET /api/v1/admin/guard-risk-policy"
     ]
@@ -46451,7 +46705,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         in futures_module["command_routes"]
     )
     assert "POST /api/v1/futures/risk-proofs" in futures_module["command_routes"]
-    assert futures_module["action_posture"]["read_route_count"] == 6
+    assert futures_module["action_posture"]["read_route_count"] == 7
     assert futures_module["action_posture"]["command_route_count"] == 5
     assert futures_module["action_posture"]["live_route_count"] == 3
     assert futures_module["action_posture"]["command_gap_count"] == 3

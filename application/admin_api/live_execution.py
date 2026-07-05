@@ -816,6 +816,22 @@ M53_PILOT_LIVE_ADAPTER_ROUTE = "/api/v1/orders"
 M53_PILOT_LIVE_ADAPTER_METHOD = "POST"
 M53_PILOT_LIVE_ADAPTER_MODULE_ID = "spot_operations"
 M53_PILOT_LIVE_ADAPTER_SERVICE_METHOD = "place_manual_order"
+M53_PILOT_LIVE_ADAPTER_CANCEL_ROUTE = "/api/v1/orders/{client_order_id}/cancel"
+M53_PILOT_LIVE_ADAPTER_CANCEL_SERVICE_METHOD = "cancel_order_by_client_order_id"
+M53_PILOT_LIVE_ADAPTER_ROUTES = {
+    (
+        M53_PILOT_LIVE_ADAPTER_METHOD,
+        M53_PILOT_LIVE_ADAPTER_ROUTE,
+        M53_PILOT_LIVE_ADAPTER_MODULE_ID,
+        M53_PILOT_LIVE_ADAPTER_SERVICE_METHOD,
+    ),
+    (
+        M53_PILOT_LIVE_ADAPTER_METHOD,
+        M53_PILOT_LIVE_ADAPTER_CANCEL_ROUTE,
+        M53_PILOT_LIVE_ADAPTER_MODULE_ID,
+        M53_PILOT_LIVE_ADAPTER_CANCEL_SERVICE_METHOD,
+    ),
+}
 M53_PILOT_LIVE_ADAPTER_SOURCE = "m53_backend_pilot_dry_run"
 M53_PILOT_LIVE_ADAPTER_MISSING_REASON = "pilot_dry_run_only"
 M55_STEALTH_REVEAL_DRY_RUN_ADAPTER_ROUTE = (
@@ -16633,7 +16649,7 @@ def build_m53_pilot_live_execution_adapter_contract(
         "bff_authority": "forward_only_no_execution",
         "forbidden_methods": list(DISABLED_LIVE_EXECUTION_FORBIDDEN_METHODS),
         "evidence": [
-            "M53 pilot maps one route to the shared backend command service.",
+            "M53 pilot maps a route-bound spot command to the shared backend command service.",
             "Pilot adapter admission is dry-run only and exposes no submit method.",
             "Live execution service admission remains required before Coinbase submission.",
             "Backend live adapter construction preconditions remain unresolved.",
@@ -16750,12 +16766,7 @@ def build_live_execution_adapter_contract(
 ) -> dict[str, Any]:
     """Return route-specific live adapter evidence for Admin API readiness."""
 
-    if (
-        method == M53_PILOT_LIVE_ADAPTER_METHOD
-        and route == M53_PILOT_LIVE_ADAPTER_ROUTE
-        and module_id == M53_PILOT_LIVE_ADAPTER_MODULE_ID
-        and service_method == M53_PILOT_LIVE_ADAPTER_SERVICE_METHOD
-    ):
+    if (method, route, module_id, service_method) in M53_PILOT_LIVE_ADAPTER_ROUTES:
         return build_m53_pilot_live_execution_adapter_contract(
             method=method,
             route=route,

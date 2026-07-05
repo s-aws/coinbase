@@ -16,7 +16,11 @@ from application.admin_api.cap_guard import FileAdminApiCapGuardStore
 from application.admin_api.command_service import AdminApiCommandService
 from application.admin_api.futures_risk_proof import FileFuturesRiskProofStore
 from application.admin_api.idempotency import FileIdempotencyStore
-from application.admin_api.live_execution import AdminApiLiveExecutionService
+from application.admin_api.live_execution import (
+    AdminApiLiveExecutionService,
+    FileAdminApiLiveAdapterDecisionStore,
+    FileAdminApiLiveServiceDecisionStore,
+)
 from application.admin_api.futures_route_contracts import (
     FUTURES_CANCEL_ROUTE_CONTRACT,
     FUTURES_CLOSE_REDUCE_ROUTE_CONTRACT,
@@ -100,15 +104,39 @@ def get_futures_risk_proof_store() -> FileFuturesRiskProofStore:
     return FileFuturesRiskProofStore()
 
 
+def get_live_service_decision_store() -> FileAdminApiLiveServiceDecisionStore:
+    """Return the append-only live-service decision store."""
+
+    return FileAdminApiLiveServiceDecisionStore()
+
+
+def get_live_adapter_decision_store() -> FileAdminApiLiveAdapterDecisionStore:
+    """Return the append-only live-adapter decision store."""
+
+    return FileAdminApiLiveAdapterDecisionStore()
+
+
 def get_read_service(
     futures_risk_proof_store: Annotated[
         FileFuturesRiskProofStore,
         Depends(get_futures_risk_proof_store),
     ],
+    live_service_decision_store: Annotated[
+        FileAdminApiLiveServiceDecisionStore,
+        Depends(get_live_service_decision_store),
+    ],
+    live_adapter_decision_store: Annotated[
+        FileAdminApiLiveAdapterDecisionStore,
+        Depends(get_live_adapter_decision_store),
+    ],
 ) -> AdminApiReadService:
     """Return the read-only Admin API status service."""
 
-    return AdminApiReadService(futures_risk_proof_store=futures_risk_proof_store)
+    return AdminApiReadService(
+        futures_risk_proof_store=futures_risk_proof_store,
+        live_service_decision_store=live_service_decision_store,
+        live_adapter_decision_store=live_adapter_decision_store,
+    )
 
 
 TReadModel = TypeVar("TReadModel", bound=BaseModel)
