@@ -151,9 +151,11 @@ Notes:
 ### "Coinbase API credentials not set"
 
 - Ensure `COINBASE_API_KEY` and `COINBASE_API_SECRET` are set in the current shell.
-- For backend-only Admin live-read smoke tools, you may instead set
-  `COINBASE_SECRETS_MANAGER_SECRET_ID`, `COINBASE_API_CREDENTIALS_SECRET_ID`,
-  or `COINBASE_LIVE_CREDENTIALS_SECRET_ID`; the backend helper
+- Backend-only Admin live-read smoke tools use the default AWS Secrets Manager
+  secret id `coinbase` when direct environment credentials are absent. Override
+  it with `COINBASE_SECRETS_MANAGER_SECRET_ID`,
+  `COINBASE_API_CREDENTIALS_SECRET_ID`, or
+  `COINBASE_LIVE_CREDENTIALS_SECRET_ID`; the backend helper
   `python tools/coinbase_live_credentials.py --check` reports redacted
   presence/source evidence without printing credential values.
 

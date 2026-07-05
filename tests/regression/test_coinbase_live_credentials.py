@@ -81,6 +81,34 @@ def test_resolves_credentials_from_explicit_secrets_manager_secret_id() -> None:
     assert resolved.secret_id_env == "COINBASE_SECRETS_MANAGER_SECRET_ID"
 
 
+def test_resolves_credentials_from_default_coinbase_secret_id() -> None:
+    def fake_lookup(secret_id: str, region: str | None) -> str:
+        assert secret_id == "coinbase"
+        assert region is None
+        return json.dumps(
+            {
+                "SecretString": json.dumps(
+                    {
+                        "COINBASE_API_KEY": "default-key",
+                        "COINBASE_API_SECRET": "default-secret",
+                    }
+                )
+            }
+        )
+
+    resolved = credentials.resolve_live_coinbase_credentials(
+        {},
+        run_secret_lookup=fake_lookup,
+    )
+
+    assert resolved.source == "secrets_manager_default"
+    assert resolved.credentials == {
+        "COINBASE_API_KEY": "default-key",
+        "COINBASE_API_SECRET": "default-secret",
+    }
+    assert resolved.secret_id_env == "default"
+
+
 def test_ensure_credentials_updates_process_environment_from_secret(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -107,9 +135,14 @@ def test_ensure_credentials_updates_process_environment_from_secret(
     assert os.environ["COINBASE_API_SECRET"] == "aws-secret"
 
 
-def test_ensure_credentials_fails_closed_without_env_or_secret_id() -> None:
-    with pytest.raises(RuntimeError, match="COINBASE_API_KEY, COINBASE_API_SECRET"):
-        credentials.ensure_live_coinbase_credentials({})
+def test_ensure_credentials_reports_lookup_failure_without_values() -> None:
+    with pytest.raises(RuntimeError, match="AWS Secrets Manager Coinbase credential lookup failed"):
+        credentials.ensure_live_coinbase_credentials(
+            {},
+            run_secret_lookup=lambda secret_id, region: (_ for _ in ()).throw(
+                RuntimeError("AWS Secrets Manager Coinbase credential lookup failed.")
+            ),
+        )
 
 
 def test_check_command_reports_redacted_presence_only() -> None:

@@ -20,6 +20,7 @@ from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LIVE_COINBASE_CREDENTIAL_ENV = ("COINBASE_API_KEY", "COINBASE_API_SECRET")
+DEFAULT_SECRET_ID = "coinbase"
 SECRET_ID_ENV_NAMES = (
     "COINBASE_SECRETS_MANAGER_SECRET_ID",
     "COINBASE_API_CREDENTIALS_SECRET_ID",
@@ -71,8 +72,9 @@ def ensure_live_coinbase_credentials(
     if resolved.missing:
         raise RuntimeError(
             f"Live Coinbase credentials require {', '.join(LIVE_COINBASE_CREDENTIAL_ENV)} "
-            f"in the environment or one of {', '.join(SECRET_ID_ENV_NAMES)} "
-            "pointing at an AWS Secrets Manager secret."
+            f"in the environment, one of {', '.join(SECRET_ID_ENV_NAMES)} "
+            f"pointing at an AWS Secrets Manager secret, or the default "
+            f"Secrets Manager secret id {DEFAULT_SECRET_ID!r}."
         )
 
     for key, value in resolved.credentials.items():
@@ -94,15 +96,11 @@ def resolve_live_coinbase_credentials(
     if _credentials_complete(current):
         return CoinbaseCredentialResolution(source="environment", credentials=current)
 
-    secret_id_env, secret_id = _first_env_value(environ, SECRET_ID_ENV_NAMES)
-    if not secret_id_env or not secret_id:
-        return CoinbaseCredentialResolution(
-            source="missing",
-            credentials={},
-            missing=_missing_credentials(current),
-        )
+    secret_id_env, configured_secret_id = _first_env_value(environ, SECRET_ID_ENV_NAMES)
+    secret_id = configured_secret_id or DEFAULT_SECRET_ID
 
-    _, region = _first_env_value(environ, SECRET_REGION_ENV_NAMES)
+    _, configured_region = _first_env_value(environ, SECRET_REGION_ENV_NAMES)
+    region = configured_region or None
     lookup = run_secret_lookup or _lookup_secret_with_aws_cli
     credentials = parse_coinbase_credentials_secret(lookup(secret_id, region))
     if not _credentials_complete(credentials):
@@ -112,9 +110,9 @@ def resolve_live_coinbase_credentials(
         )
 
     return CoinbaseCredentialResolution(
-        source="secrets_manager",
+        source="secrets_manager" if configured_secret_id else "secrets_manager_default",
         credentials=credentials,
-        secret_id_env=secret_id_env,
+        secret_id_env=secret_id_env or "default",
     )
 
 
