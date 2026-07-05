@@ -3282,6 +3282,18 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     sweep_operation = written["paths"]["/api/v1/spot/sweep/automation-runs"]["post"]
     assert "200" in sweep_operation["responses"]
     assert "501" in sweep_operation["responses"]
+    usdc_snapshot_path = written["paths"][
+        "/api/v1/automation/usdc-pair-snapshot-runs"
+    ]
+    usdc_snapshot_read_operation = usdc_snapshot_path["get"]
+    assert "200" in usdc_snapshot_read_operation["responses"]
+    assert "content" in usdc_snapshot_read_operation["responses"]["200"]
+    assert "401" in usdc_snapshot_read_operation["responses"]
+    assert "403" in usdc_snapshot_read_operation["responses"]
+    usdc_snapshot_write_operation = usdc_snapshot_path["post"]
+    assert "200" in usdc_snapshot_write_operation["responses"]
+    assert "400" in usdc_snapshot_write_operation["responses"]
+    assert "409" in usdc_snapshot_write_operation["responses"]
     for recovery_command_path in (
         "/api/v1/spot/recovery/apply-executions",
         "/api/v1/spot/recovery/rollback-executions",
@@ -33422,6 +33434,68 @@ def test_admin_api_usdc_pair_snapshot_dry_run_records_backend_snapshot_evidence(
     assert replay.json() == payload
     assert len(store.read_recent(limit=10)) == 1
 
+    readback = client.get(
+        "/api/v1/automation/usdc-pair-snapshot-runs?limit=5",
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-snapshot-read",
+            operator_intent="m58_usdc_snapshot_readback",
+            roles=AdminApiRole.AUDITOR.value,
+        ),
+    )
+
+    assert readback.status_code == 200
+    readback_payload = readback.json()
+    assert readback_payload["type"] == "usdc_pair_snapshot_run_list"
+    assert readback_payload["read_only"] is True
+    assert readback_payload["backend_owned"] is True
+    assert readback_payload["browser_authority"] == "display_only"
+    assert readback_payload["bff_authority"] == "read_only_forward"
+    assert readback_payload["live_exchange_submitted"] is False
+    assert readback_payload["live_coinbase_orders_ran"] is False
+    assert readback_payload["live_coinbase_execution"] == "not_run"
+    assert readback_payload["notional_usdc"] == "0"
+    assert readback_payload["returned_count"] == 1
+    assert readback_payload["total_count"] == 1
+    assert readback_payload["latest_run_id"] == "m58-usdc-snapshot-test"
+    assert readback_payload["returned_eligible_count"] == 1
+    assert readback_payload["returned_skipped_count"] == 4
+    readback_run = readback_payload["runs"][0]
+    assert readback_run["run_id"] == run["run_id"]
+    assert readback_run["snapshot_row_count"] == run["snapshot_row_count"]
+    assert readback_run["snapshot_rows"] == run["snapshot_rows"]
+
+    missing_auth_headers = _headers(
+        idempotency_key="idem-usdc-pair-snapshot-read-missing-auth",
+        operator_intent="m58_usdc_snapshot_readback_missing_auth",
+    )
+    missing_auth_headers.pop("Authorization")
+    missing_auth = client.get(
+        "/api/v1/automation/usdc-pair-snapshot-runs",
+        headers=missing_auth_headers,
+    )
+    assert missing_auth.status_code == 401
+
+    missing_role = client.get(
+        "/api/v1/automation/usdc-pair-snapshot-runs",
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-snapshot-read-missing-role",
+            operator_intent="m58_usdc_snapshot_readback_missing_role",
+            roles="",
+        ),
+    )
+    assert missing_role.status_code == 403
+
+    for invalid_limit in ("0", "501"):
+        invalid_limit_response = client.get(
+            f"/api/v1/automation/usdc-pair-snapshot-runs?limit={invalid_limit}",
+            headers=_headers(
+                idempotency_key=f"idem-usdc-pair-snapshot-read-limit-{invalid_limit}",
+                operator_intent="m58_usdc_snapshot_readback_invalid_limit",
+                roles=AdminApiRole.AUDITOR.value,
+            ),
+        )
+        assert invalid_limit_response.status_code == 422
+
 
 @pytest.mark.regression
 def test_admin_api_idempotency_replays_same_response(monkeypatch):
@@ -59483,6 +59557,14 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert snapshot_run_route.action_class == AdminApiActionClass.LOCAL_STATE_MUTATION
     assert snapshot_run_route.permission == AdminApiPermission.CAMPAIGN_EXECUTE
     assert "no Coinbase order submission" in snapshot_run_route.parity_test
+    snapshot_read_route = rows["GET /api/v1/automation/usdc-pair-snapshot-runs"]
+    assert snapshot_read_route.module_id == "automation"
+    assert snapshot_read_route.shared_method == "list_usdc_pair_snapshot_runs"
+    assert snapshot_read_route.action_class == AdminApiActionClass.READ_ONLY
+    assert snapshot_read_route.permission == AdminApiPermission.AUDIT_READ
+    assert "read-only durable dry-run snapshot evidence" in (
+        snapshot_read_route.parity_test
+    )
     stealth_recovery_route = rows[
         "POST /api/v1/stealth/orders/{stealth_order_id}/recovery"
     ]
@@ -59678,6 +59760,14 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert snapshot_run_doc_row[5] == snapshot_run_route.caps
     assert snapshot_run_doc_row[7].strip("`") == snapshot_run_route.shared_method
     assert snapshot_run_doc_row[8] == snapshot_run_route.parity_test
+    snapshot_read_doc_row = markdown_inventory_rows[snapshot_read_route.surface]
+    assert snapshot_read_doc_row[1].strip("`") == (
+        snapshot_read_route.action_class.value
+    )
+    assert snapshot_read_doc_row[2].strip("`") == snapshot_read_route.permission.value
+    assert snapshot_read_doc_row[5] == snapshot_read_route.caps
+    assert snapshot_read_doc_row[7].strip("`") == snapshot_read_route.shared_method
+    assert snapshot_read_doc_row[8] == snapshot_read_route.parity_test
     for route in (stealth_recovery_route, stealth_reconciliation_route):
         doc_row = markdown_inventory_rows[route.surface]
         assert doc_row[1].strip("`") == route.action_class.value
@@ -59909,6 +59999,14 @@ def test_admin_api_route_inventory_and_openapi_paths_stay_in_sync():
     )
     assert (
         "POST /api/v1/automation/usdc-pair-snapshot-runs"
+        in schema_http_surfaces
+    )
+    assert (
+        "GET /api/v1/automation/usdc-pair-snapshot-runs"
+        in inventory_http_surfaces
+    )
+    assert (
+        "GET /api/v1/automation/usdc-pair-snapshot-runs"
         in schema_http_surfaces
     )
     assert schema_http_surfaces == inventory_http_surfaces

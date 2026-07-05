@@ -95,3 +95,21 @@ class FileUsdcPairSnapshotRunStore:
             if record.run_id == run_id:
                 return record
         return None
+
+    def count_records(self) -> int:
+        """Return the number of readable snapshot run records."""
+
+        with self._lock:
+            if not self.path.exists():
+                return 0
+            lines = self.path.read_text(encoding="utf-8").splitlines()
+        count = 0
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                UsdcPairSnapshotRunRecord.model_validate_json(line)
+            except ValueError:
+                continue
+            count += 1
+        return count

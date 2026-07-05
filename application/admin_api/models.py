@@ -2536,6 +2536,34 @@ class UsdcPairSnapshotRunResponse(BaseModel):
     failure_stage: str | None = None
 
 
+class UsdcPairSnapshotRunListResponse(BaseModel):
+    """Read-only list of backend-owned M58 dry-run snapshot evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "usdc_pair_snapshot_run_list"
+    runs: list[UsdcPairSnapshotRunItem] = Field(default_factory=list)
+    returned_count: int = Field(ge=0)
+    total_count: int = Field(ge=0)
+    latest_run_id: str | None = None
+    returned_eligible_count: int = Field(ge=0)
+    returned_skipped_count: int = Field(ge=0)
+    read_only: bool = True
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    detail: str = (
+        "M58 USDC pair snapshot readback exposes durable backend dry-run "
+        "evidence only; it does not derive order payloads, allocate wallet "
+        "balance, call Coinbase order endpoints, or grant browser execution "
+        "authority."
+    )
+
+
 class AdminApiErrorResponse(BaseModel):
     """Structured error body shared by Admin API routes."""
 

@@ -1011,6 +1011,22 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="automation",
+        surface="GET /api/v1/automation/usdc-pair-snapshot-runs",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="list_usdc_pair_snapshot_runs",
+        parity_test=(
+            "M58 read-only durable dry-run snapshot evidence; no Coinbase order "
+            "submission, no order payload derivation, no wallet allocation, and "
+            "no browser execution authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="automation",
         surface="POST /api/v1/automation/usdc-pair-snapshot-runs",
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
         permission=AdminApiPermission.CAMPAIGN_EXECUTE,

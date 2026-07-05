@@ -1012,6 +1012,22 @@
     },
     {
       "module_id": "automation",
+      "surface": "GET /api/v1/automation/usdc-pair-snapshot-runs",
+      "method": "GET",
+      "path": "/api/v1/automation/usdc-pair-snapshot-runs",
+      "action_class": "read_only",
+      "permission": "audit:read",
+      "idempotency": "not required",
+      "approval": "not required",
+      "caps": "not applicable",
+      "audit": "optional read audit",
+      "shared_method": "list_usdc_pair_snapshot_runs",
+      "parity_test": "M58 read-only durable dry-run snapshot evidence; no Coinbase order submission, no order payload derivation, no wallet allocation, and no browser execution authority",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
+      "module_id": "automation",
       "surface": "POST /api/v1/automation/usdc-pair-snapshot-runs",
       "method": "POST",
       "path": "/api/v1/automation/usdc-pair-snapshot-runs",

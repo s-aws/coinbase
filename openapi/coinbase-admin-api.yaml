@@ -1713,6 +1713,77 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/automation/usdc-pair-snapshot-runs:
+    get:
+      tags:
+      - automation
+      summary: List backend-owned USDC pair snapshot dry-run evidence
+      description: Read durable M58 dry-run snapshot evidence without Coinbase calls.
+      operationId: list_usdc_pair_snapshot_runs_api_v1_automation_usdc_pair_snapshot_runs_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsdcPairSnapshotRunListResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
     post:
       tags:
       - automation
@@ -168955,6 +169026,90 @@ components:
       - detail
       title: UsdcPairSnapshotRunItem
       description: Durable M58 dry-run snapshot run evidence.
+    UsdcPairSnapshotRunListResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: usdc_pair_snapshot_run_list
+        runs:
+          items:
+            $ref: '#/components/schemas/UsdcPairSnapshotRunItem'
+          type: array
+          title: Runs
+        returned_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Count
+        total_count:
+          type: integer
+          minimum: 0.0
+          title: Total Count
+        latest_run_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Run Id
+        returned_eligible_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Eligible Count
+        returned_skipped_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Skipped Count
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+          default: M58 USDC pair snapshot readback exposes durable backend dry-run
+            evidence only; it does not derive order payloads, allocate wallet balance,
+            call Coinbase order endpoints, or grant browser execution authority.
+      additionalProperties: false
+      type: object
+      required:
+      - returned_count
+      - total_count
+      - returned_eligible_count
+      - returned_skipped_count
+      title: UsdcPairSnapshotRunListResponse
+      description: Read-only list of backend-owned M58 dry-run snapshot evidence.
     UsdcPairSnapshotRunRequest:
       properties:
         run_id:

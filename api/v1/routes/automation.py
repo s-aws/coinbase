@@ -5,7 +5,8 @@ from __future__ import annotations
 from typing import Annotated, Callable
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Header, Request, status
+from fastapi import APIRouter, Depends, Header, Query, Request, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
 from application.admin_api.audit import AdminApiAuditEvent, FileAdminApiAuditStore
@@ -19,6 +20,7 @@ from application.admin_api.models import (
     AdminApiActor,
     AdminApiErrorResponse,
     UsdcPairSnapshotRunItem,
+    UsdcPairSnapshotRunListResponse,
     UsdcPairSnapshotRunRequest,
     UsdcPairSnapshotRunResponse,
 )
@@ -26,6 +28,7 @@ from application.admin_api.usdc_pair_snapshot import FileUsdcPairSnapshotRunStor
 from application.admin_api.usdc_pair_snapshot_service import (
     AdminApiUsdcPairSnapshotService,
     UsdcPairSnapshotError,
+    item_from_record,
 )
 from core.enums import (
     AdminApiActionClass,
@@ -60,6 +63,17 @@ AUTOMATION_ROUTE_RESPONSES = {
     409: {
         "model": UsdcPairSnapshotRunResponse,
         "description": "Idempotency key conflict.",
+    },
+}
+
+READ_ONLY_ROUTE_RESPONSES = {
+    401: {
+        "model": AdminApiErrorResponse,
+        "description": "Missing or invalid Admin API authentication.",
+    },
+    403: {
+        "model": AdminApiErrorResponse,
+        "description": "Actor lacks the required Admin API permission.",
     },
 }
 
@@ -124,6 +138,26 @@ def _snapshot_response(
         status_code=_http_status(response),
         content=response.model_dump(mode="json"),
         headers=headers,
+    )
+
+
+def _read_response(payload: object) -> JSONResponse:
+    return JSONResponse(content=jsonable_encoder(payload))
+
+
+def _snapshot_list_response(
+    *,
+    store: FileUsdcPairSnapshotRunStore,
+    limit: int,
+) -> UsdcPairSnapshotRunListResponse:
+    runs = [item_from_record(record) for record in store.read_recent(limit=limit)]
+    return UsdcPairSnapshotRunListResponse(
+        runs=runs,
+        returned_count=len(runs),
+        total_count=store.count_records(),
+        latest_run_id=runs[0].run_id if runs else None,
+        returned_eligible_count=sum(run.eligible_count for run in runs),
+        returned_skipped_count=sum(run.skipped_count for run in runs),
     )
 
 
@@ -256,6 +290,26 @@ def _execute_idempotent_snapshot(
             )
         )
     return _snapshot_response(response)
+
+
+@router.get(
+    "/automation/usdc-pair-snapshot-runs",
+    response_model=UsdcPairSnapshotRunListResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="List backend-owned USDC pair snapshot dry-run evidence",
+)
+def list_usdc_pair_snapshot_runs(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    snapshot_store: Annotated[
+        FileUsdcPairSnapshotRunStore,
+        Depends(get_usdc_pair_snapshot_store),
+    ],
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+) -> JSONResponse:
+    """Read durable M58 dry-run snapshot evidence without Coinbase calls."""
+
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    return _read_response(_snapshot_list_response(store=snapshot_store, limit=limit))
 
 
 @router.post(
