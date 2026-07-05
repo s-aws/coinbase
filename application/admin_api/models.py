@@ -961,6 +961,22 @@ class SpotSweepAutomationRunRequest(BaseModel):
     manual_live_acknowledgement: bool = False
 
 
+class UsdcPairSnapshotRunRequest(BaseModel):
+    """Backend-owned M58 dry-run snapshot request for USDC spot pairs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    run_id: str | None = Field(default=None, min_length=1)
+    side: OrderSide
+    max_notional_per_product_usdc: DecimalString
+    product_ids: list[str] | None = None
+    account_id: str | None = Field(default=None, min_length=1)
+    portfolio_id: str | None = Field(default=None, min_length=1)
+    dry_run: bool = True
+    operator_notes: str | None = None
+    manual_live_acknowledgement: bool = False
+
+
 class SpotRecoveryApplyExecutionRequest(BaseModel):
     """Spot recovery apply request keyed by ``client_order_id``."""
 
@@ -2435,6 +2451,88 @@ class AdminApiCommandResponse(BaseModel):
     ) = None
     guard: FlexibleDict | None = None
     data: Any | None = None
+    failure_stage: str | None = None
+
+
+class UsdcPairSnapshotRowItem(BaseModel):
+    """One immutable product snapshot row for M58 dry-run automation."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    product_id: str = Field(min_length=1)
+    base_currency: str | None = None
+    quote_currency: str | None = None
+    product_type: str | None = None
+    trading_status: str | None = None
+    price_increment: DecimalString | None = None
+    base_increment: DecimalString | None = None
+    quote_increment: DecimalString | None = None
+    min_base_size: DecimalString | None = None
+    min_quote_size: DecimalString | None = None
+    requested_notional_usdc: DecimalString
+    observed_price: DecimalString | None = None
+    price_source: str | None = None
+    snapshot_captured_at: str
+    eligibility_status: str
+    skip_reason: str | None = None
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+
+
+class UsdcPairSnapshotRunItem(BaseModel):
+    """Durable M58 dry-run snapshot run evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    run_id: str = Field(min_length=1)
+    recorded_at: str
+    side: OrderSide
+    max_notional_per_product_usdc: DecimalString
+    product_ids: list[str] = Field(default_factory=list)
+    account_id: str | None = None
+    portfolio_id: str | None = None
+    dry_run: bool = True
+    backend_owned: bool = True
+    read_only_after_write: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    snapshot_row_count: int = Field(ge=0)
+    eligible_count: int = Field(ge=0)
+    skipped_count: int = Field(ge=0)
+    snapshot_rows: list[UsdcPairSnapshotRowItem] = Field(default_factory=list)
+    actor_id: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(min_length=64, max_length=64)
+    audit_id: str | None = None
+    operator_notes: str | None = None
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    detail: str
+
+
+class UsdcPairSnapshotRunResponse(BaseModel):
+    """Response for the backend-owned M58 USDC pair snapshot dry run."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: AdminApiCommandStatus
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission
+    service_method: str
+    message: str
+    correlation_id: str | None = None
+    idempotency_key: str | None = None
+    audit_id: str | None = None
+    run: UsdcPairSnapshotRunItem | None = None
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
     failure_stage: str | None = None
 
 

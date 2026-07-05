@@ -1011,6 +1011,22 @@
       "command_contract": true
     },
     {
+      "module_id": "automation",
+      "surface": "POST /api/v1/automation/usdc-pair-snapshot-runs",
+      "method": "POST",
+      "path": "/api/v1/automation/usdc-pair-snapshot-runs",
+      "action_class": "local_state_mutation",
+      "permission": "campaign:execute",
+      "idempotency": "required",
+      "approval": "not applicable for no-live dry-run evidence",
+      "caps": "records requested per-product cap only; no order planning or wallet allocation",
+      "audit": "required",
+      "shared_method": "record_usdc_pair_snapshot_dry_run",
+      "parity_test": "M58 backend-owned USDC pair snapshot dry-run; no Coinbase order submission, no order payload derivation, and no browser execution authority",
+      "compatibility_mode": null,
+      "command_contract": true
+    },
+    {
       "module_id": "spot_operations",
       "surface": "POST /api/v1/spot/recovery/apply-executions",
       "method": "POST",

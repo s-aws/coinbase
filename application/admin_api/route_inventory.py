@@ -1010,6 +1010,25 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         ),
     ),
     AdminApiRouteInventoryItem(
+        module_id="automation",
+        surface="POST /api/v1/automation/usdc-pair-snapshot-runs",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+        idempotency="required",
+        approval="not applicable for no-live dry-run evidence",
+        caps=(
+            "records requested per-product cap only; no order planning or "
+            "wallet allocation"
+        ),
+        audit="required",
+        shared_method="record_usdc_pair_snapshot_dry_run",
+        parity_test=(
+            "M58 backend-owned USDC pair snapshot dry-run; no Coinbase order "
+            "submission, no order payload derivation, and no browser execution "
+            "authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
         module_id="spot_operations",
         surface="POST /api/v1/spot/recovery/apply-executions",
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,

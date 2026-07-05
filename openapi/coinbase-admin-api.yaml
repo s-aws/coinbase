@@ -1712,6 +1712,109 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/automation/usdc-pair-snapshot-runs:
+    post:
+      tags:
+      - automation
+      summary: Record backend-owned USDC pair snapshot dry-run evidence
+      description: Record M58 dry-run product snapshot rows without Coinbase order
+        calls.
+      operationId: record_usdc_pair_snapshot_dry_run_api_v1_automation_usdc_pair_snapshot_runs_post
+      parameters:
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UsdcPairSnapshotRunRequest'
+      responses:
+        '200':
+          description: USDC pair snapshot dry-run evidence accepted or replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsdcPairSnapshotRunResponse'
+        '400':
+          description: USDC pair snapshot dry-run evidence rejected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsdcPairSnapshotRunResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsdcPairSnapshotRunResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/admission-audits:
     get:
       tags:
@@ -168573,6 +168676,411 @@ components:
         - FOK (FILL_OR_KILL): Fill entire order immediately or cancel (no partial)
 
         - GTD (GOOD_UNTIL_DATE_TIME): Order expires at specified end_time'
+    UsdcPairSnapshotRowItem:
+      properties:
+        product_id:
+          type: string
+          minLength: 1
+          title: Product Id
+        base_currency:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Base Currency
+        quote_currency:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Quote Currency
+        product_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Type
+        trading_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Trading Status
+        price_increment:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Price Increment
+        base_increment:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Base Increment
+        quote_increment:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Quote Increment
+        min_base_size:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Min Base Size
+        min_quote_size:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Min Quote Size
+        requested_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Requested Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        observed_price:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Observed Price
+        price_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Price Source
+        snapshot_captured_at:
+          type: string
+          title: Snapshot Captured At
+        eligibility_status:
+          type: string
+          title: Eligibility Status
+        skip_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Skip Reason
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - requested_notional_usdc
+      - snapshot_captured_at
+      - eligibility_status
+      title: UsdcPairSnapshotRowItem
+      description: One immutable product snapshot row for M58 dry-run automation.
+    UsdcPairSnapshotRunItem:
+      properties:
+        run_id:
+          type: string
+          minLength: 1
+          title: Run Id
+        recorded_at:
+          type: string
+          title: Recorded At
+        side:
+          $ref: '#/components/schemas/OrderSide'
+        max_notional_per_product_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Max Notional Per Product Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        product_ids:
+          items:
+            type: string
+          type: array
+          title: Product Ids
+        account_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Account Id
+        portfolio_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Portfolio Id
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only_after_write:
+          type: boolean
+          title: Read Only After Write
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        snapshot_row_count:
+          type: integer
+          minimum: 0.0
+          title: Snapshot Row Count
+        eligible_count:
+          type: integer
+          minimum: 0.0
+          title: Eligible Count
+        skipped_count:
+          type: integer
+          minimum: 0.0
+          title: Skipped Count
+        snapshot_rows:
+          items:
+            $ref: '#/components/schemas/UsdcPairSnapshotRowItem'
+          type: array
+          title: Snapshot Rows
+        actor_id:
+          type: string
+          minLength: 1
+          title: Actor Id
+        operator_intent:
+          type: string
+          minLength: 1
+          title: Operator Intent
+        idempotency_key:
+          type: string
+          minLength: 1
+          title: Idempotency Key
+        payload_hash:
+          type: string
+          maxLength: 64
+          minLength: 64
+          title: Payload Hash
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        operator_notes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Notes
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - run_id
+      - recorded_at
+      - side
+      - max_notional_per_product_usdc
+      - snapshot_row_count
+      - eligible_count
+      - skipped_count
+      - actor_id
+      - operator_intent
+      - idempotency_key
+      - payload_hash
+      - detail
+      title: UsdcPairSnapshotRunItem
+      description: Durable M58 dry-run snapshot run evidence.
+    UsdcPairSnapshotRunRequest:
+      properties:
+        run_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Run Id
+        side:
+          $ref: '#/components/schemas/OrderSide'
+        max_notional_per_product_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Max Notional Per Product Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        product_ids:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Product Ids
+        account_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Account Id
+        portfolio_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Portfolio Id
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        operator_notes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Notes
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      required:
+      - side
+      - max_notional_per_product_usdc
+      title: UsdcPairSnapshotRunRequest
+      description: Backend-owned M58 dry-run snapshot request for USDC spot pairs.
+    UsdcPairSnapshotRunResponse:
+      properties:
+        status:
+          $ref: '#/components/schemas/AdminApiCommandStatus'
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          $ref: '#/components/schemas/AdminApiPermission'
+        service_method:
+          type: string
+          title: Service Method
+        message:
+          type: string
+          title: Message
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        run:
+          anyOf:
+          - $ref: '#/components/schemas/UsdcPairSnapshotRunItem'
+          - type: 'null'
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        failure_stage:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Failure Stage
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - action_class
+      - required_permission
+      - service_method
+      - message
+      title: UsdcPairSnapshotRunResponse
+      description: Response for the backend-owned M58 USDC pair snapshot dry run.
     ValidationError:
       properties:
         loc:

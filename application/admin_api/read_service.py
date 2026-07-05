@@ -7782,6 +7782,7 @@ class AdminApiReadService:
                 command_routes=[
                     "POST /api/v1/spot/campaign/executions",
                     "POST /api/v1/spot/sweep/automation-runs",
+                    "POST /api/v1/automation/usdc-pair-snapshot-runs",
                 ],
                 automation_routes=[
                     "tools/run_spot_portfolio_sweep_live.py",
@@ -7792,9 +7793,13 @@ class AdminApiReadService:
                     "campaign_id",
                     "config_id",
                     "sweep_config_id",
+                    "run_id",
                     "client_order_id",
                 ],
                 backend_contract_refs=[
+                    "application/admin_api/usdc_pair_snapshot_service.py",
+                    "application/admin_api/usdc_pair_snapshot.py",
+                    "api/v1/routes/automation.py",
                     "business/spot_portfolio_sweep.py",
                     "business/spot_campaign.py",
                     "tools/run_spot_portfolio_sweep_live.py",
@@ -9593,6 +9598,58 @@ class AdminApiReadService:
                     "inventory, average-cost, and known-profitable sell authority "
                     "inside backend gates."
                 ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface="POST /api/v1/automation/usdc-pair-snapshot-runs",
+                mutation_id="spot.usdc_pair_snapshot_dry_run",
+                mutation_family=AdminApiMutationFamilyType.SPOT_SWEEP_AUTOMATION,
+                workflow_id="spot.sweep_automation_and_live_executor",
+                related_workflow_ids=["spot.order_command_drafts"],
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "USDC pair snapshot dry-runs record backend-owned product "
+                    "eligibility and price evidence without deriving order "
+                    "payloads or submitting to Coinbase."
+                ),
+                identity_keys=["run_id", "product_id"],
+                owning_backend_service=(
+                    "application/admin_api/usdc_pair_snapshot_service.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/automation.py::record_usdc_pair_snapshot_dry_run",
+                    "application/admin_api/usdc_pair_snapshot_service.py",
+                    "application/admin_api/usdc_pair_snapshot.py",
+                    "configuration.py::local_products_from_metadata",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/generated/",
+                ],
+                documentation_refs=[
+                    "docs/plans/USDC_PAIR_SNAPSHOT_LIMIT_AUTOMATION_MVP.md",
+                    "docs/ORIGIN_PROD_FEATURE_MVP_MAP.md",
+                ],
+                required_next_contract=(
+                    "Future order planning must add backend wallet allocation, "
+                    "approval, cap/guard, admission audit, reconciliation, and "
+                    "live adapter evidence before Coinbase submission is allowed."
+                ),
+                blockers=[
+                    "live_execution_not_implemented",
+                    "wallet_allocation_not_implemented",
+                    "order_payload_derivation_not_implemented",
+                ],
+                frontend_boundary=(
+                    "Display snapshot evidence only; do not calculate product "
+                    "eligibility, wallet allocation, or limit-order payloads in "
+                    "browser code."
+                ),
+                spot_rule_boundary=(
+                    "This snapshot is spot USDC-pair evidence only and must not "
+                    "be copied into futures, perpetuals, or non-spot modules."
+                ),
+                live_adapter_required=False,
             ),
             mutation_taxonomy_from_surface(
                 surface="POST /api/v1/spot/recovery/apply-executions",

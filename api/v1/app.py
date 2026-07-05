@@ -16,6 +16,7 @@ from core.enums import AdminApiErrorCode, AdminApiErrorSeverity
 
 from .routes.admin import router as admin_router
 from .routes.admission_audit import router as admission_audit_router
+from .routes.automation import router as automation_router
 from .routes.approvals import router as approvals_router
 from .routes.cap_guard import router as cap_guard_router
 from .routes.futures import router as futures_router
@@ -274,6 +275,11 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(admin_router, prefix="/api/v1", tags=["admin"])
+    app.include_router(
+        automation_router,
+        prefix="/api/v1",
+        tags=["automation"],
+    )
     app.include_router(
         admission_audit_router,
         prefix="/api/v1",
