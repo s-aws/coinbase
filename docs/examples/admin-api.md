@@ -927,8 +927,9 @@ for audience. In OIDC mode the backend ignores browser-supplied
 `X-Admin-Actor` and `X-Admin-Roles`; those values are derived from verified
 JWT claims.
 
-Run the no-live OIDC readiness smoke before treating production OIDC evidence
-as available to the frontend release gate:
+Run the no-live OIDC readiness smoke as optional production-auth evidence
+before treating production OIDC evidence as available to frontend
+production-auth evidence:
 
 ```powershell
 python tools\run_admin_oidc_readiness_smoke.py --summary-only
@@ -4864,8 +4865,8 @@ Every response includes `X-Correlation-Id`, `X-Request-Id`,
 ## Frontend Smoke Commands
 
 From `C:\coinbase-frontend`, use the canonical release-hardening gate to
-validate the route inventory, artifact evidence, runtime evidence, autonomous
-queue posture, tests, and dry smokes without contacting Coinbase:
+validate the route inventory, artifact evidence, runtime evidence, tests, and
+dry smokes without contacting Coinbase:
 
 ```powershell
 npm run release:gate
@@ -4902,8 +4903,9 @@ The frontend release artifact bundle includes:
 Those artifacts are no-live deployment evidence. They are not approval for
 live Coinbase execution and not backend approval to place or cancel Coinbase
 orders.
-The autonomous queue remains part of the no-live release gate, and these
-artifacts are not approval for live Coinbase execution.
+The autonomous queue check remains available for historical phase-queue
+maintenance. It is not part of the local MVP release/deployment gate, and
+these artifacts are not approval for live Coinbase execution.
 
 For same-origin BFF smoke, start the frontend with `NEXT_PUBLIC_ADMIN_API_MODE=bff`
 and server-only `ADMIN_API_*` variables, then run:

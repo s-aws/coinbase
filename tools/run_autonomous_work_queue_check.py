@@ -133,6 +133,7 @@ def build_autonomous_work_queue_summary() -> dict[str, Any]:
         _check_doc_exists(body),
         _check_phase_range(body),
         _check_controlled_live_admin_mvp_scope(body),
+        _check_mvp_active_progress_policy(body),
         _check_live_caps(body),
         _check_stop_conditions(body),
         _check_subagent_hygiene_policy(body),
@@ -238,6 +239,30 @@ def _check_controlled_live_admin_mvp_scope(body: str) -> QueueCheck:
                 "continuous_deployment_required"
             ],
             "missing_scope_text": missing,
+        },
+    )
+
+
+def _check_mvp_active_progress_policy(body: str) -> QueueCheck:
+    active_progress = body.split("## Stop Conditions", maxsplit=1)[0]
+    required = [
+        "- `current_phase`: `7960`.",
+        "- `next_phase`: `work_mvp_cd_blockers_before_phase_range`.",
+    ]
+    forbidden = [
+        "- `next_phase`: `complete_current_approved_range`.",
+    ]
+    missing = [text for text in required if text not in active_progress]
+    present_forbidden = [text for text in forbidden if text in active_progress]
+    return QueueCheck(
+        name="mvp_active_progress_policy",
+        passed=not missing and not present_forbidden,
+        evidence={
+            "default_next_action": MVP_SCOPE["active_work_policy"][
+                "default_next_action"
+            ],
+            "missing_progress_text": missing,
+            "forbidden_progress_text": present_forbidden,
         },
     )
 
@@ -1565,6 +1590,8 @@ def _check_frontend_release_docs() -> QueueCheck:
         "artifacts/runtime-evidence.json",
         "notional `$0`",
         "not approval for live Coinbase execution",
+        "release/deployment gate",
+        "optional production-auth evidence",
     ]
     missing: dict[str, list[str]] = {}
     for path in [

@@ -58,9 +58,9 @@ npm run release:gate
 
 This expands to build, typecheck, lint, generated API freshness, command
 security, release/deployment checks, artifact generation, runtime evidence,
-autonomous queue validation, unit tests, dry read/command/BFF/OIDC smokes, and
-Playwright e2e. These checks are dry/no-live checks. They must report live
-Coinbase execution as not run with notional `$0`.
+deployment/MVP/backend smoke evidence, unit tests, dry read/command/BFF
+smokes, and Playwright e2e. These checks are dry/no-live checks. They must
+report live Coinbase execution as not run with notional `$0`.
 
 `npm run release:artifact` writes
 `artifacts/release-readiness.json` in the frontend repository for CI upload.
@@ -76,6 +76,10 @@ not approval for live Coinbase execution. These checks do not replace this
 repository's backend regression closeout gate when a milestone or release is
 being marked complete.
 
+The frontend `npm run autonomous:check` command remains available for
+historical autonomous queue maintenance. It is not part of the local MVP
+release/deployment gate.
+
 Frontend production readiness is conditional on a real backend OIDC/JWT
 session bridge. Current `server_env_static` BFF authority is local or staging
 evidence, not final enterprise production auth. Backend `oidc_jwt` readiness
@@ -85,15 +89,17 @@ Use `GET /api/v1/admin/oidc-readiness` as backend release evidence for active
 auth mode, missing environment settings, claim mapping, JWKS reachability, and
 no-live notional posture.
 
-Backend no-live OIDC readiness smoke evidence is available with:
+Backend no-live OIDC readiness smoke evidence is available as optional
+production-auth evidence with:
 
 ```powershell
 python tools\run_admin_oidc_readiness_smoke.py --summary-only
 ```
 
-The frontend `npm run smoke:oidc:dry` command runs that backend smoke from the
-sibling checkout and must also report live Coinbase execution as not run with
-notional `$0`.
+The frontend `npm run smoke:oidc:dry` command can run that backend smoke from
+the sibling checkout as optional production-auth evidence. It is not part of
+the local MVP release/deployment gate and must also report live Coinbase
+execution as not run with notional `$0`.
 
 ## Browser Smoke Gate
 

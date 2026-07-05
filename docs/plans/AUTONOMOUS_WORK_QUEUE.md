@@ -92,7 +92,7 @@ baseline before the range, not the final phase id in the active range.
 - `gate_status`: `passed`.
 - `live_coinbase_execution`: `not_run`.
 - `blockers`: `[]`.
-- `next_phase`: `complete_current_approved_range`.
+- `next_phase`: `work_mvp_cd_blockers_before_phase_range`.
 
 ## Stop Conditions
 

@@ -115,10 +115,13 @@ Any backend API contract change intended for frontend consumption must update:
 
 `npm run release:gate` expands to build, typecheck, lint, generated API
 freshness, command security, release/deployment checks, release artifact
-generation, runtime evidence, autonomous queue validation, unit tests, dry
-read/command/BFF/OIDC smokes, and Playwright e2e.
+generation, runtime evidence, deployment/MVP/backend smoke evidence, unit
+tests, dry read/command/BFF smokes, and Playwright e2e.
 Frontend release checks are dry/no-live checks. They must report live Coinbase
 execution as not run with notional `$0` and do not replace backend regression.
+The frontend `npm run autonomous:check` command remains available for
+historical autonomous queue maintenance. It is not part of the local MVP
+release/deployment gate.
 The frontend release artifact is `C:\coinbase-frontend\artifacts\release-readiness.json`;
 CI uploads it as `frontend-release-readiness` instead of committing it.
 The same CI artifact includes
@@ -158,15 +161,17 @@ Backend release evidence for this boundary is available at
 required/missing OIDC settings, claim mapping, JWKS reachability, and no-live
 notional posture.
 
-Machine-readable no-live backend smoke evidence is available with:
+Machine-readable no-live backend smoke evidence is available as optional
+production-auth evidence with:
 
 ```powershell
 python tools\run_admin_oidc_readiness_smoke.py --summary-only
 ```
 
-The frontend release gate runs the same backend smoke through
-`npm run smoke:oidc:dry` from the sibling checkout. That cross-repo smoke must
-report live Coinbase execution as not run with notional `$0`.
+The frontend `npm run smoke:oidc:dry` command can run the same backend smoke
+from the sibling checkout as optional production-auth evidence. It is not part
+of the local MVP release/deployment gate and must report live Coinbase
+execution as not run with notional `$0`.
 
 Expected claim mapping is `sub` for subject, `email` for email, `roles` for
 roles, `iss` for issuer, and `aud` for audience. In `backend_oidc_jwt` mode

@@ -131,6 +131,7 @@ def test_autonomous_work_queue_check_covers_approved_20_phase_batch():
         AUTONOMOUS_MAX_EXECUTED_NOTIONAL_USDC
     )
     assert check_results["controlled_live_admin_mvp_scope"]["passed"] is True
+    assert check_results["mvp_active_progress_policy"]["passed"] is True
     assert "subagent_hygiene_policy" in check_results
 
 

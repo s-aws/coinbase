@@ -1961,13 +1961,13 @@ npm run release:gate
 
 That gate expands to build, typecheck, lint, generated API freshness, command
 security, release/deployment checks, release artifact generation, runtime
-evidence, autonomous queue validation, unit tests, dry read/command/BFF/OIDC
-smokes, and Playwright e2e. Those checks are no-live checks and must report
-live Coinbase execution as not run with notional `$0`. They are not approval
-for live Coinbase execution. The release artifact is written in the frontend
-repository at
-`artifacts/release-readiness.json`; the package manifest is
-`artifacts/deployment-package-manifest.json`; and the route/header drill is
+evidence, deployment/MVP/backend smoke evidence, unit tests, dry
+read/command/BFF smokes, and Playwright e2e. Those checks are no-live checks
+and must report live Coinbase execution as not run with notional `$0`. They
+are not approval for live Coinbase execution. The release artifact is written
+in the frontend repository at `artifacts/release-readiness.json`; the package
+manifest is `artifacts/deployment-package-manifest.json`; and the
+route/header drill is
 `artifacts/observability-drill.json`. Synthetic probe evidence is written to
 `artifacts/synthetic-probes.json`, and the public release checklist is written
 to `artifacts/public-release-checklist.json`. Runtime/UI evidence is written
@@ -1980,6 +1980,11 @@ When that full backend gate is required, use
 `python tools/run_parallel_regression.py --workers 4`; sequential
 `pytest tests/regression/ -v --tb=short` is fallback-only when the parallel
 runner cannot be used.
+
+The frontend `npm run autonomous:check` command remains available for
+historical autonomous queue maintenance. It is not part of the local MVP
+release/deployment gate.
+
 In short: runtime evidence is saved, and these artifacts are not approval for
 live Coinbase execution.
 No-live release artifacts are not approval for live Coinbase execution.
@@ -2260,8 +2265,9 @@ hint; backend RBAC is the enforcement authority.
 release checks, including active auth mode, required/missing environment
 settings, claim mapping, JWKS reachability, and no-live notional posture.
 
-Run the no-live OIDC readiness smoke before treating production OIDC evidence
-as usable by the frontend release gate:
+Run the no-live OIDC readiness smoke as optional production-auth evidence
+before treating production OIDC evidence as usable by frontend production-auth
+evidence:
 
 ```powershell
 python tools\run_admin_oidc_readiness_smoke.py --summary-only
