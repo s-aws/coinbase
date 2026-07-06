@@ -265,6 +265,8 @@ owners:
       - tools/run_admin_api_manual_order_live_submit.py
       - tools/run_admin_api_spot_live_cancel.py
       - tools/run_admin_api_spot_live_order_readback.py
+      - tools/run_admin_api_usdc_pair_snapshot_live_readback.py
+      - tools/run_admin_api_usdc_pair_snapshot_live_submit.py
     test_owns:
       - tests/regression/test_admin_api_*.py
       - tests/unit/test_admin_api_*.py

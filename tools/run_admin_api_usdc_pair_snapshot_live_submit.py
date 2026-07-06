@@ -13,7 +13,7 @@ import argparse
 from collections.abc import Mapping, MutableMapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_CEILING, ROUND_FLOOR
 import json
 import os
 from pathlib import Path
@@ -312,6 +312,8 @@ def run_usdc_pair_snapshot_live_submit(
     apply_usdc_pair_state_environment(state_dir)
     os.environ.setdefault(AUTH_TOKEN_ENV, LOCAL_AUTH_TOKEN)
     apply_runner_environment()
+    operator_requested_notional = decimal_text(config.submitted_notional_usdc)
+    requested_notional = decimal_text(planning_request_notional_usdc(config))
     runtime_readiness = None
     if require_credentials:
         ensure_live_coinbase_credentials(os.environ)
@@ -335,7 +337,7 @@ def run_usdc_pair_snapshot_live_submit(
                     "run_id": config.run_id,
                     "side": config.side,
                     "max_notional_per_product_usdc": (
-                        decimal_text(config.submitted_notional_usdc)
+                        requested_notional
                     ),
                     "product_ids": [config.product_id],
                     "account_id": config.account_id,
@@ -356,7 +358,7 @@ def run_usdc_pair_snapshot_live_submit(
                 json_body={
                     "plan_id": config.plan_id,
                     "max_total_notional_usdc": (
-                        decimal_text(config.submitted_notional_usdc)
+                        requested_notional
                     ),
                     "time_in_force": "GOOD_UNTIL_CANCELLED",
                     "dry_run": True,
@@ -482,6 +484,8 @@ def run_usdc_pair_snapshot_live_submit(
         "state_dir": str(state_dir.resolve()),
         "product_id": config.product_id,
         "side": config.side,
+        "operator_requested_notional_usdc": operator_requested_notional,
+        "requested_notional_usdc": requested_notional,
         "submitted_notional_usdc": submission.get("submitted_notional_usdc"),
         "executed_notional_usdc": submission.get("executed_notional_usdc"),
         "max_executed_notional_usdc": submission.get("max_executed_notional_usdc"),
@@ -902,6 +906,104 @@ def decimal_text(value: str | Decimal) -> str:
     """Return a stable non-negative decimal string."""
 
     return format(decimal_value(value), "f")
+
+
+def planning_request_notional_usdc(
+    config: UsdcPairSnapshotLiveSubmitConfig,
+) -> Decimal:
+    """Return the smallest planning cap that can yield the requested live size."""
+
+    requested = decimal_value(config.submitted_notional_usdc)
+    reference_price = decimal_value(config.reference_bid_price)
+    price_increment = require_positive_decimal(
+        config.price_increment,
+        "price_increment",
+    )
+    base_increment = require_positive_decimal(config.base_increment, "base_increment")
+    base_min_size = require_positive_decimal(config.base_min_size, "base_min_size")
+    quote_increment = require_positive_decimal(
+        config.quote_increment,
+        "quote_increment",
+    )
+    quote_min_size = require_positive_decimal(
+        config.quote_min_size,
+        "quote_min_size",
+    )
+    if requested < quote_min_size:
+        raise ValueError(
+            "submitted_notional_usdc must be at least quote_min_size for live submit."
+        )
+
+    limit_price = floor_to_increment(reference_price, price_increment)
+    if limit_price <= 0:
+        raise ValueError("reference_bid_price cannot produce a positive limit price.")
+
+    _, planned = planning_size_for_requested_notional(
+        requested=requested,
+        limit_price=limit_price,
+        base_increment=base_increment,
+        quote_increment=quote_increment,
+    )
+    if planned >= quote_min_size:
+        return requested
+
+    base_size = max(
+        ceil_to_increment(quote_min_size / limit_price, base_increment),
+        base_min_size,
+    )
+    while True:
+        planned = floor_to_increment(base_size * limit_price, quote_increment)
+        if planned >= quote_min_size:
+            break
+        base_size += base_increment
+
+    if planned > requested:
+        raise ValueError(
+            "submitted_notional_usdc cannot satisfy minimum order size without "
+            "exceeding the operator-requested live notional."
+        )
+
+    requested_cap = ceil_to_increment(base_size * limit_price, quote_increment)
+    if requested_cap > MAX_SUBMITTED_NOTIONAL_USDC:
+        raise ValueError("planning request notional must not exceed 10 USDC.")
+    return requested_cap
+
+
+def planning_size_for_requested_notional(
+    *,
+    requested: Decimal,
+    limit_price: Decimal,
+    base_increment: Decimal,
+    quote_increment: Decimal,
+) -> tuple[Decimal, Decimal]:
+    """Mirror M58 order-plan sizing for one requested notional cap."""
+
+    base_size = floor_to_increment(requested / limit_price, base_increment)
+    planned = floor_to_increment(base_size * limit_price, quote_increment)
+    return base_size, planned
+
+
+def require_positive_decimal(value: str | Decimal, label: str) -> Decimal:
+    """Return a positive Decimal or raise a field-specific error."""
+
+    number = decimal_value(value)
+    if number <= 0:
+        raise ValueError(f"{label} must be greater than zero.")
+    return number
+
+
+def floor_to_increment(value: Decimal, increment: Decimal) -> Decimal:
+    """Floor value to an exchange increment."""
+
+    units = (value / increment).to_integral_value(rounding=ROUND_FLOOR)
+    return units * increment
+
+
+def ceil_to_increment(value: Decimal, increment: Decimal) -> Decimal:
+    """Ceil value to an exchange increment."""
+
+    units = (value / increment).to_integral_value(rounding=ROUND_CEILING)
+    return units * increment
 
 
 def current_utc_timestamp() -> str:

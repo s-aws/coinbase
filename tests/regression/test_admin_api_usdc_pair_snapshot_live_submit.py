@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 from contextlib import nullcontext
+import json
 
 import pytest
 
@@ -102,6 +103,8 @@ def test_usdc_pair_snapshot_live_runner_records_submit_cancel_sequence(
     assert summary["live_coinbase_execution"] == "submitted_cancelled"
     assert summary["live_exchange_submitted"] is True
     assert summary["live_coinbase_orders_ran"] is True
+    assert summary["operator_requested_notional_usdc"] == "1.00"
+    assert summary["requested_notional_usdc"] == "1.00"
     assert summary["submitted_notional_usdc"] == "1.00"
     assert summary["executed_notional_usdc"] == "0"
     assert summary["proof_chain_status_after_submission"] == "accepted"
@@ -129,6 +132,61 @@ def test_usdc_pair_snapshot_live_runner_records_submit_cancel_sequence(
         / "state"
         / "admin_api_usdc_pair_snapshot_order_plan_live_submit.jsonl"
     ).exists()
+
+
+def test_usdc_pair_snapshot_live_runner_bumps_minimum_request_for_high_price(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-admin-token")
+    config = _config(
+        tmp_path,
+        reference_bid_price="64449.36",
+        last_filled_price="64449.36",
+        intended_limit_price="32224.00",
+        submitted_notional_usdc="1.00",
+    )
+    fake_executor = _FakeLiveExecutor()
+
+    summary = runner.run_usdc_pair_snapshot_live_submit(
+        config,
+        live_executor=fake_executor,
+        require_runtime_ready=False,
+        require_credentials=False,
+    )
+
+    assert summary["status"] == "passed"
+    assert summary["operator_requested_notional_usdc"] == "1.00"
+    assert summary["requested_notional_usdc"] == "1.01"
+    assert summary["submitted_notional_usdc"] == "1.00"
+    assert summary["executed_notional_usdc"] == "0"
+    assert summary["live_coinbase_execution"] == "submitted_cancelled"
+    assert fake_executor.calls[0]["order_configuration"] == {
+        "limit_limit_gtc": {
+            "quote_size": "1.00",
+            "limit_price": "32224.00",
+            "post_only": False,
+        }
+    }
+
+    snapshot_rows = [
+        json.loads(line)
+        for line in (
+            tmp_path / "state" / "admin_api_usdc_pair_snapshot_runs.jsonl"
+        ).read_text(encoding="utf-8").splitlines()
+    ]
+    plan_rows = [
+        json.loads(line)
+        for line in (
+            tmp_path / "state" / "admin_api_usdc_pair_snapshot_order_plans.jsonl"
+        ).read_text(encoding="utf-8").splitlines()
+    ]
+    assert snapshot_rows[-1]["max_notional_per_product_usdc"] == "1.01"
+    assert snapshot_rows[-1]["snapshot_rows"][0]["requested_notional_usdc"] == "1.01"
+    planned_row = plan_rows[-1]["order_plan_rows"][0]
+    assert planned_row["requested_notional_usdc"] == "1.01"
+    assert planned_row["quote_size"] == "1.00"
+    assert planned_row["planned_notional_usdc"] == "1.00"
 
 
 def test_usdc_pair_snapshot_live_executor_falls_back_to_exchange_order_id(
