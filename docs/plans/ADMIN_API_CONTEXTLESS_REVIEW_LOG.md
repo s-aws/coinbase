@@ -1,3 +1,73 @@
+## M58 USDC Pair Snapshot Phase D No-Live Proof Evidence - 2026-07-06
+
+Result: PASS for Phase D no-live proof-readiness evidence and for proceeding
+only to explicit-operator-approved single-product controlled-live planning.
+Result is FAIL for live execution, every-pair fan-out, scheduler work, or any
+browser-side trading authority. Actual submitted/executed notional remains `0`
+USDC and live Coinbase execution remains `not_run`.
+
+Scope covered: M58 USDC pair snapshot dry-run evidence, backend order-plan
+evidence, proof-refresh exact approval/admission/cap/reconciliation/live-service
+evidence, manual-live-ack rejection for no-live snapshot runs, route-inventory
+proof-refresh evidence metadata, and row-scoped no-live notional matching for
+cap/guard and reconciliation proofs.
+
+Boundary evidence: this is an `automation` domain module that uses reusable
+Admin API primitives: idempotency, audit, approval lifecycle, cap/guard,
+reconciliation, route inventory, OpenAPI, and live-service decision evidence.
+Spot-only rules include `*-USDC` quote scope, spot product eligibility,
+increments/min sizes, snapshot freshness/acceptance, wallet/notional caps, and
+`client_order_id` order tracking. These rules must not be copied into
+Futures/Perpetuals, stealth, movement/repricing, or non-spot modules.
+
+API contract source: backend FastAPI/Pydantic/OpenAPI and
+`ADMIN_API_ROUTE_INVENTORY`. Frontend behavior remains generated-contract and
+canonical-wrapper based. Generated API client files were not hand-edited, and
+the browser path remains read-only evidence display.
+
+Order/command trace: backend routes persist snapshot, order-plan, and
+proof-refresh evidence with operator intent, actor, audit id, correlation id,
+idempotency key, payload hash, proof references, proof-chain blockers, and
+explicit no-live fields. Backend acceptance/rejection evidence includes
+`status`, `failure_stage`, `service_method`, `required_permission`,
+`correlation_id`, `idempotency_key`, `audit_id`, proof refs,
+`proof_chain_blockers`, `live_exchange_submitted=false`,
+`live_coinbase_orders_ran=false`, `live_coinbase_execution=not_run`, and
+`notional_usdc=0`.
+
+Fresh blind/contextless review: PASS for planning only. Reviewer
+`019f389c-6fb4-77e0-a91e-0e9e6254536c` confirmed the domain/module boundary,
+spot-only rules, backend API contract source, no frontend trading path, required
+roles, backend evidence, required tests, and canonical frontend wrappers. The
+reviewer explicitly failed live execution or fan-out and confirmed no live
+Coinbase calls, no secrets, and no browser-side trading behavior.
+
+Focused validation: PASS. Backend checks included
+`.venv/bin/python -m pytest tests/regression/test_admin_api_contract.py::test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_snapshot -v --tb=short`,
+`.venv/bin/python -m pytest tests/regression/test_admin_api_contract.py -k "usdc_pair_snapshot" -v --tb=short`,
+`.venv/bin/python -m pytest tests/regression/test_admin_api_contract.py -k "cap_guard_decision or reconciliation_plan" -v --tb=short`,
+`.venv/bin/python -m py_compile api/v1/routes/automation.py application/admin_api/cap_guard.py application/admin_api/reconciliation.py tests/regression/test_admin_api_contract.py`,
+`git diff --check`, and
+`.venv/bin/python tools/check_stale_test_processes.py --repo-root /home/ec2-user/coinbase --fail-on-stale`.
+The stale-process checker reported `live_coinbase_execution=false` and
+`live_coinbase_notional_usdc="0"`.
+
+Runner policy note: EC2 local validation is the canonical path for this
+workspace. Do not use GitHub-hosted runners for routine MVP validation or
+closeout unless the operator explicitly asks for a GitHub Actions run. This
+slice is covered by the focused EC2 checks above.
+
+Legacy `origin/prod` lookup: not applicable for this slice because it did not
+recreate legacy product/order/ticker behavior. It tightened backend Admin API
+proof matching, no-live acknowledgement rejection, and route/documentation
+evidence around existing M58 contracts.
+
+Phase-end stale-subagent sweep completed: PASS. Explorers/reviewers
+`019f3895-13cf-7712-a7a4-11d274e729d8`,
+`019f389b-f0a2-7c61-8fc0-e103f8762e63`, and
+`019f389c-6fb4-77e0-a91e-0e9e6254536c` were closed after their findings were
+consumed. No current phase-scoped subagent remains intentionally open.
+
 ## M57 Futures/Perpetual Risk-Proof Record Validation Remediation Summary Evidence - Phases 7961-7980
 
 Result: PASS. Scope: phases `7961-7980`, after completed history through

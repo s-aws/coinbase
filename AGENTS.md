@@ -55,6 +55,10 @@ This project runs on **Windows 11 + VS Code**. Linux/bash commands may not work 
 - The EC2 instance costs money while running. Start or keep it running only
   while actively coding, testing, serving the local Admin UI, or performing an
   operator-requested validation.
+- EC2 local validation is the default for this repository. Do not manually
+  dispatch GitHub Actions or otherwise use GitHub-hosted runners for routine
+  MVP validation, closeout, or deployment evidence unless the operator
+  explicitly asks for a GitHub Actions run.
 - Before ending a work session, stop repo-owned dev servers, test watchers, and
   long-running helper processes on EC2, confirm required commits are pushed, and
   stop the EC2 instance unless the user explicitly says to keep it running.
