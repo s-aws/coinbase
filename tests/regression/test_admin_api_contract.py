@@ -753,6 +753,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[
         automation_routes.get_usdc_pair_snapshot_approval_store
     ] = lambda: approval_store
+    app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_cap_guard_store
+    ] = lambda: cap_guard_store
     app.dependency_overrides[approval_routes.get_idempotency_store] = (
         lambda: idempotency_store
     )
@@ -34156,6 +34159,46 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
         ),
     )
     client.admin_api_test_audit_store.append(durable_admission_audit)
+    invalid_cap_guard = CapGuardDecisionRecord(
+        decision_id="m58-usdc-refresh-cap-guard-approval",
+        route="/api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans",
+        method="POST",
+        module_id="automation",
+        identity_key="client_order_id",
+        identity_value=planned_row["client_order_id"],
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+        service_method="record_usdc_pair_snapshot_order_plan",
+        actor_id=plan["actor_id"],
+        operator_intent=plan["operator_intent"],
+        idempotency_key=planned_row["idempotency_key"],
+        payload_hash=plan["payload_hash"],
+        approval_snapshot_id=approval_id,
+        admission_audit_id="m58-usdc-mismatched-admission-audit",
+        allowed=True,
+        status=AdminApiGateStatus.PASSED,
+        cap_policy_ref="m58_usdc_per_product_notional_cap:1.00",
+        guard_policy_ref="m58_usdc_order_plan_guard:no_live",
+        product_scope="M58 USDC spot order-plan row",
+        max_submitted_notional_usdc=planned_row["planned_notional_usdc"],
+        max_executed_notional_usdc="0",
+        wallet_check_required=True,
+        wallet_check_status=AdminApiGateStatus.PASSED,
+        wallet_available_notional_usdc="1.00",
+        wallet_check_source="m58_usdc_pair_order_plan_no_live_fixture",
+        reason="Mismatched M58 cap/guard proof for refresh.",
+    )
+    client.admin_api_test_cap_guard_store.append(invalid_cap_guard)
+    client.admin_api_test_cap_guard_store.append(
+        invalid_cap_guard.model_copy(
+            update={
+                "admission_audit_id": durable_admission_audit.audit_id,
+                "allowed": False,
+                "status": AdminApiGateStatus.BLOCKED,
+                "reason": "Blocked M58 cap/guard proof for refresh.",
+            }
+        )
+    )
 
     refresh_response = client.post(
         (
@@ -34200,6 +34243,7 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
         refreshed_row["cap_guard_decision_id"]
         == planned_row["cap_guard_decision_id"]
     )
+    assert "cap_guard_decision_blocked" in refreshed_row["proof_chain_blockers"]
     assert (
         refreshed_row["reconciliation_plan_id"]
         == planned_row["reconciliation_plan_id"]
@@ -34210,13 +34254,81 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert refreshed_row["live_coinbase_execution"] == "not_run"
     assert refreshed_row["notional_usdc"] == "0"
 
+    durable_cap_guard = CapGuardDecisionRecord(
+        decision_id="m58-usdc-refresh-cap-guard-approval",
+        route="/api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans",
+        method="POST",
+        module_id="automation",
+        identity_key="client_order_id",
+        identity_value=planned_row["client_order_id"],
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+        service_method="record_usdc_pair_snapshot_order_plan",
+        actor_id=plan["actor_id"],
+        operator_intent=plan["operator_intent"],
+        idempotency_key=planned_row["idempotency_key"],
+        payload_hash=plan["payload_hash"],
+        approval_snapshot_id=approval_id,
+        admission_audit_id=durable_admission_audit.audit_id,
+        allowed=True,
+        status=AdminApiGateStatus.PASSED,
+        cap_policy_ref="m58_usdc_per_product_notional_cap:1.00",
+        guard_policy_ref="m58_usdc_order_plan_guard:no_live",
+        product_scope="M58 USDC spot order-plan row",
+        max_submitted_notional_usdc=planned_row["planned_notional_usdc"],
+        max_executed_notional_usdc="0",
+        wallet_check_required=True,
+        wallet_check_status=AdminApiGateStatus.PASSED,
+        wallet_available_notional_usdc="1.00",
+        wallet_check_source="m58_usdc_pair_order_plan_no_live_fixture",
+        reason="Durable M58 cap/guard proof for refresh.",
+    )
+    client.admin_api_test_cap_guard_store.append(durable_cap_guard)
+
+    cap_refresh_response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "m58-usdc-order-plan-refresh-test/proof-chain-refresh"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-refresh-proof-cap",
+            operator_intent="m58_usdc_snapshot_refresh_proof_cap",
+        ),
+        json={
+            "dry_run": True,
+            "operator_notes": "refresh cap guard evidence only",
+        },
+    )
+    assert cap_refresh_response.status_code == 200
+    cap_refresh_payload = cap_refresh_response.json()
+    cap_refreshed_row = cap_refresh_payload["plan"]["order_plan_rows"][0]
+    assert cap_refreshed_row["approval_snapshot_id"] == approval_id
+    assert cap_refreshed_row["admission_audit_id"] == durable_admission_audit.audit_id
+    assert cap_refreshed_row["cap_guard_decision_id"] == durable_cap_guard.decision_id
+    assert cap_refreshed_row["proof_chain_blockers"] == [
+        "reconciliation_plan_blocked",
+        "live_service_decision_missing",
+    ]
+    assert cap_refreshed_row["proof_chain_status"] == "blocked"
+    assert cap_refreshed_row["reconciliation_plan_id"] == (
+        planned_row["reconciliation_plan_id"]
+    )
+    assert cap_refreshed_row["live_service_decision_id"] is None
+    assert cap_refreshed_row["live_exchange_submitted"] is False
+    assert cap_refreshed_row["live_coinbase_orders_ran"] is False
+    assert cap_refreshed_row["live_coinbase_execution"] == "not_run"
+    assert cap_refreshed_row["notional_usdc"] == "0"
+
     persisted = order_plan_store.find_by_plan_id(
         "m58-usdc-order-plan-refresh-test"
     )
     assert persisted is not None
-    assert persisted.audit_id == refresh_payload["audit_id"]
+    assert persisted.audit_id == cap_refresh_payload["audit_id"]
     assert persisted.order_plan_rows[0].approval_snapshot_id == approval_id
-    assert len(order_plan_store.read_recent(limit=10)) == 3
+    assert persisted.order_plan_rows[0].cap_guard_decision_id == (
+        durable_cap_guard.decision_id
+    )
+    assert len(order_plan_store.read_recent(limit=10)) == 4
 
     replay = client.post(
         (
@@ -34235,7 +34347,7 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert replay.status_code == 200
     assert replay.headers["x-idempotency-replayed"] == "true"
     assert replay.json() == refresh_payload
-    assert len(order_plan_store.read_recent(limit=10)) == 3
+    assert len(order_plan_store.read_recent(limit=10)) == 4
 
     readback = client.get(
         "/api/v1/automation/usdc-pair-snapshot-order-plans?limit=5",
