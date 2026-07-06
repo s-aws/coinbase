@@ -44,8 +44,10 @@ Available building blocks:
   execution. Backend regression coverage now proves row-scoped refresh and
   idempotent replay across multi-product plans.
 - Frontend generated-contract consumption and read-only display of M58
-  snapshot/order-plan evidence, including proof-chain readiness blockers and
-  backend proof-record references.
+  snapshot/order-plan evidence, including proof-chain readiness blockers,
+  backend proof-record references, and generated proof-decision states
+  (`present`, `missing`, `disabled`, or `not_required`) without browser
+  admission logic.
 - Approval, admission audit, cap/guard, reconciliation-plan, live-service,
   idempotency, local deployment, and artifact evidence patterns.
 
@@ -444,12 +446,14 @@ Admin API contracts.
 
 ## Next Useful Non-Live Slice
 
-The next implementation slice should continue Phase D without live fan-out:
+The current Phase D frontend slice now displays the disabled live-service proof
+reference and generated proof-chain decision evidence as read-only backend
+evidence. Default deployment/readiness gates have been rechecked and still
+report `live_coinbase_execution=not_run` and notional `0`.
 
-- read-only frontend display of the disabled live-service proof reference;
-- read-only frontend display of generated proof-chain decision evidence;
-- proof that default gates still report `live_coinbase_execution=not_run` and
-  notional `0`.
+The next implementation slice should continue Phase D without live fan-out by
+adding any remaining backend proof-chain recording evidence needed before a
+contextless review and explicit operator approval for a controlled-live pilot.
 
 Do not start live order fan-out until Phase D proof-chain evidence, contextless
 review, and explicit operator approval for a controlled-live pilot all pass.
