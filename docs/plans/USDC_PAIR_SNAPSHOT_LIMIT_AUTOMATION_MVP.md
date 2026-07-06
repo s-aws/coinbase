@@ -41,7 +41,8 @@ Available building blocks:
   from the backend reconciliation store, and exact disabled live-service
   decision evidence from the backend live-service decision store. The refreshed
   row remains blocked with `live_service_decision_disabled` and no Coinbase
-  execution.
+  execution. Backend regression coverage now proves row-scoped refresh and
+  idempotent replay across multi-product plans.
 - Frontend generated-contract consumption and read-only display of M58
   snapshot/order-plan evidence, including proof-chain readiness blockers and
   backend proof-record references.
@@ -236,7 +237,9 @@ disabled backend live-service decision, replacing
 `live_service_decision_missing` with `live_service_decision_disabled`, while
 keeping `proof_chain_status=blocked`, `live_coinbase_execution=not_run`, and
 notional `0`. Enabled live-service decisions and live submission remain
-unimplemented for this automation.
+unimplemented for this automation. Backend regression coverage proves that
+multi-row proof refresh links only the product row with exact durable evidence
+and that idempotent replay remains stable even if later evidence is recorded.
 
 Deliverables:
 
@@ -443,7 +446,6 @@ Admin API contracts.
 
 The next implementation slice should continue Phase D without live fan-out:
 
-- deterministic replay of proof-chain evidence per product and run;
 - read-only frontend display of the disabled live-service proof reference;
 - read-only frontend display of generated proof-chain decision evidence;
 - proof that default gates still report `live_coinbase_execution=not_run` and

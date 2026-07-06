@@ -34666,6 +34666,400 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_is_row_scoped_and_replayed(
+    monkeypatch,
+):
+    from application.admin_api.usdc_pair_snapshot import (
+        UsdcPairSnapshotOrderPlanRecord,
+    )
+    from application.admin_api.models import UsdcPairSnapshotOrderPlanRowItem
+
+    client = _client(monkeypatch)
+    plan_id = "m58-usdc-order-plan-multi-refresh-test"
+    run_id = "m58-usdc-snapshot-multi-refresh-test"
+    actor_id = "operator-001"
+    operator_intent = "m58_usdc_snapshot_multi_refresh_plan"
+    idempotency_key = "idem-usdc-pair-multi-refresh-plan"
+    payload_hash = "d" * 64
+    route = "/api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans"
+
+    def row(product_id: str, price: str) -> UsdcPairSnapshotOrderPlanRowItem:
+        client_order_id = f"{plan_id}-{product_id}"
+        return UsdcPairSnapshotOrderPlanRowItem(
+            product_id=product_id,
+            plan_status="planned",
+            side="BUY",
+            order_type="LIMIT",
+            time_in_force="GOOD_UNTIL_CANCELLED",
+            client_order_id=client_order_id,
+            idempotency_key=f"{idempotency_key}:{product_id}",
+            requested_notional_usdc="1.00",
+            max_notional_per_product_usdc="1.00",
+            snapshot_price=price,
+            limit_price=price,
+            base_size="0.01",
+            quote_size="1.00",
+            planned_notional_usdc="1.00",
+            price_increment="0.01",
+            base_increment="0.00000001",
+            quote_increment="0.01",
+            min_base_size="0.00000001",
+            min_quote_size="0.01",
+            snapshot_captured_at="2026-07-06T15:00:00+00:00",
+            proof_chain_status="blocked",
+            proof_chain_blockers=[
+                "approval_snapshot_missing",
+                "admission_audit_blocked",
+                "cap_guard_decision_blocked",
+                "reconciliation_plan_blocked",
+                "live_service_decision_missing",
+            ],
+            approval_request_required=True,
+            approval_request_id=f"placeholder-approval-{product_id}",
+            approval_snapshot_required=True,
+            approval_snapshot_id=None,
+            admission_audit_required=True,
+            admission_audit_id=f"placeholder-admission-{product_id}",
+            cap_guard_decision_required=True,
+            cap_guard_decision_id=f"placeholder-cap-{product_id}",
+            reconciliation_plan_required=True,
+            reconciliation_plan_id=f"placeholder-reconciliation-{product_id}",
+            live_service_decision_required=True,
+            live_service_decision_id=None,
+            live_exchange_submitted=False,
+            live_coinbase_orders_ran=False,
+            live_coinbase_execution="not_run",
+            notional_usdc="0",
+        )
+
+    plan_record = UsdcPairSnapshotOrderPlanRecord(
+        plan_id=plan_id,
+        snapshot_run_id=run_id,
+        planned_at="2026-07-06T15:00:00+00:00",
+        side="BUY",
+        max_notional_per_product_usdc="1.00",
+        max_total_notional_usdc="2.00",
+        planned_total_notional_usdc="2.00",
+        product_ids=["BTC-USDC", "ETH-USDC"],
+        time_in_force="GOOD_UNTIL_CANCELLED",
+        dry_run=True,
+        order_plan_rows=[
+            row("BTC-USDC", "100.00"),
+            row("ETH-USDC", "2000.00"),
+        ],
+        actor_id=actor_id,
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        audit_id="audit-m58-usdc-multi-refresh-original",
+        operator_notes="Seeded multi-row M58 proof refresh test.",
+    )
+    client.admin_api_test_usdc_pair_snapshot_order_plan_store.append(plan_record)
+
+    def append_approval(product_id: str) -> AdminApiApprovalRecord:
+        client_order_id = f"{plan_id}-{product_id}"
+        approval = AdminApiApprovalRecord(
+            approval_id=f"approval-{product_id}",
+            expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
+            approved_by_actor_id="admin-001",
+            requested_by_actor_id=actor_id,
+            route=route,
+            method="POST",
+            module_id="automation",
+            identity_key="client_order_id",
+            identity_value=client_order_id,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            operator_intent=operator_intent,
+            idempotency_key=f"{idempotency_key}:{product_id}",
+            payload_hash=payload_hash,
+            cap_guard_decision_ref=f"cap-{product_id}",
+            reconciliation_plan_ref=f"reconciliation-{product_id}",
+            approval_reason=f"M58 row-scoped approval for {product_id}.",
+        )
+        client.admin_api_test_approval_store.append(approval)
+        client.admin_api_test_approval_store.append_lifecycle_event(
+            AdminApiApprovalLifecycleEvent(
+                event_type=AdminApiApprovalLifecycleEventType.DECISION_RECORDED,
+                approval_request_id=f"approval-request-{product_id}",
+                approval_id=approval.approval_id,
+                status=AdminApiApprovalLifecycleStatus.APPROVED,
+                actor_id="admin-001",
+                route=route,
+                method="POST",
+                module_id="automation",
+                identity_key="client_order_id",
+                identity_value=client_order_id,
+                action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+                required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+                requested_by_actor_id=actor_id,
+                operator_intent=operator_intent,
+                idempotency_key=f"{idempotency_key}:{product_id}",
+                payload_hash=payload_hash,
+                expires_at=approval.expires_at,
+                cap_guard_decision_ref=approval.cap_guard_decision_ref,
+                reconciliation_plan_ref=approval.reconciliation_plan_ref,
+                decision_reason=f"M58 row-scoped approval for {product_id}.",
+            )
+        )
+        return approval
+
+    def append_full_row_evidence(product_id: str, approval: AdminApiApprovalRecord) -> None:
+        client_order_id = f"{plan_id}-{product_id}"
+        row_idempotency_key = f"{idempotency_key}:{product_id}"
+        audit_id = f"admission-audit-{product_id}"
+        client.admin_api_test_audit_store.append(
+            AdminApiAuditEvent(
+                audit_id=audit_id,
+                actor_id=actor_id,
+                action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+                permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+                endpoint=f"POST {route}",
+                request_id=f"corr-{product_id}",
+                operator_intent=operator_intent,
+                idempotency_key=row_idempotency_key,
+                approval_id=approval.approval_id,
+                client_order_id=client_order_id,
+                status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+                failure_stage="admission_audit",
+                message=f"Durable M58 admission audit for {product_id}.",
+                admission_decision=AdminLiveAdmissionDecisionEvidence(
+                    status=AdminApiGateStatus.BLOCKED,
+                    allowed=False,
+                    route=route,
+                    method="POST",
+                    module_id="automation",
+                    identity_key="client_order_id",
+                    identity_value=client_order_id,
+                    action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+                    required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+                    service_method="record_usdc_pair_snapshot_order_plan",
+                    actor_id=actor_id,
+                    idempotency_key=row_idempotency_key,
+                    operator_intent=operator_intent,
+                    payload_hash=payload_hash,
+                    approval_snapshot_present=True,
+                    approval_snapshot_id=approval.approval_id,
+                    approval_snapshot_source="approval_store",
+                    admission_audit_present=True,
+                    admission_audit_id=audit_id,
+                    admission_audit_source="admin_api_audit_log",
+                    admission_audit_recorded_at="2026-07-06T15:01:00+00:00",
+                    browser_authority="rejected",
+                    live_exchange_submitted=False,
+                    blockers=[
+                        AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED,
+                        AdminApiLiveAdmissionBlocker.CAP_GUARD_MISSING,
+                        AdminApiLiveAdmissionBlocker.RECONCILIATION_PLAN_MISSING,
+                    ],
+                    evidence=[f"durable m58 admission audit for {product_id}"],
+                    detail=f"Durable no-live admission audit for {product_id}.",
+                ),
+                approval_cap_guard_decision_ref=approval.cap_guard_decision_ref,
+                approval_reconciliation_plan_ref=approval.reconciliation_plan_ref,
+                live_execution_intent_ref=(
+                    "AdminApiCommandService.record_usdc_pair_snapshot_order_plan"
+                ),
+            )
+        )
+        client.admin_api_test_cap_guard_store.append(
+            CapGuardDecisionRecord(
+                decision_id=approval.cap_guard_decision_ref,
+                route=route,
+                method="POST",
+                module_id="automation",
+                identity_key="client_order_id",
+                identity_value=client_order_id,
+                action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+                required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+                service_method="record_usdc_pair_snapshot_order_plan",
+                actor_id=actor_id,
+                operator_intent=operator_intent,
+                idempotency_key=row_idempotency_key,
+                payload_hash=payload_hash,
+                approval_snapshot_id=approval.approval_id,
+                admission_audit_id=audit_id,
+                allowed=True,
+                status=AdminApiGateStatus.PASSED,
+                cap_policy_ref="m58_usdc_per_product_notional_cap:1.00",
+                guard_policy_ref="m58_usdc_order_plan_guard:no_live",
+                product_scope="M58 USDC spot order-plan row",
+                max_submitted_notional_usdc="1.00",
+                max_executed_notional_usdc="0",
+                wallet_check_required=True,
+                wallet_check_status=AdminApiGateStatus.PASSED,
+                wallet_available_notional_usdc="1.00",
+                wallet_check_source="m58_usdc_pair_order_plan_no_live_fixture",
+                reason=f"Durable M58 cap/guard proof for {product_id}.",
+            )
+        )
+        client.admin_api_test_reconciliation_store.append(
+            ReconciliationPlanRecord(
+                plan_id=approval.reconciliation_plan_ref,
+                route=route,
+                method="POST",
+                module_id="automation",
+                identity_key="client_order_id",
+                identity_value=client_order_id,
+                action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+                required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+                service_method="record_usdc_pair_snapshot_order_plan",
+                actor_id=actor_id,
+                operator_intent=operator_intent,
+                idempotency_key=row_idempotency_key,
+                payload_hash=payload_hash,
+                approval_snapshot_id=approval.approval_id,
+                admission_audit_id=audit_id,
+                cap_guard_decision_id=approval.cap_guard_decision_ref,
+                allowed=True,
+                status=AdminApiGateStatus.PASSED,
+                reconciliation_policy_ref="m58_usdc_no_live_reconciliation_policy",
+                product_scope="M58 USDC spot order-plan row",
+                exchange_submission_required=False,
+                post_submit_reconciliation_required=False,
+                retained_inventory_required=True,
+                max_submitted_notional_usdc="1.00",
+                max_executed_notional_usdc="0",
+                reason=f"Durable M58 reconciliation proof for {product_id}.",
+            )
+        )
+        client.admin_api_test_live_service_decision_store.append(
+            LiveServiceDecisionRecord(
+                decision_id=f"m58-usdc-live-service-{client_order_id}",
+                recorded_at="2026-07-06T15:02:00+00:00",
+                status=AdminApiGateStatus.BLOCKED,
+                requested_service_status=AdminApiLiveExecutionStatus.LIVE_DISABLED,
+                service_enabled=False,
+                target_module_id="automation",
+                account_family="coinbase_spot",
+                venue_scope="coinbase_advanced_trade",
+                intx_applicability="not_applicable",
+                product_scope=[product_id],
+                deployment_ref="m58-usdc-live-service-disabled-deployment",
+                runtime_configuration_ref="m58-usdc-live-service-disabled-runtime",
+                decision_reason=(
+                    f"Durable backend-owned disabled live-service evidence for "
+                    f"{product_id}."
+                ),
+                live_coinbase_execution_approved=False,
+                max_submitted_notional_usdc="0",
+                max_executed_notional_usdc="0",
+            )
+        )
+
+    btc_approval = append_approval("BTC-USDC")
+    eth_approval = append_approval("ETH-USDC")
+    append_full_row_evidence("BTC-USDC", btc_approval)
+
+    first_refresh = client.post(
+        (
+            f"/api/v1/automation/usdc-pair-snapshot-order-plans/{plan_id}"
+            "/proof-chain-refresh"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-multi-refresh-proof",
+            operator_intent="m58_usdc_snapshot_multi_refresh_proof",
+        ),
+        json={"dry_run": True},
+    )
+    assert first_refresh.status_code == 200
+    first_payload = first_refresh.json()
+    first_rows = {
+        row["product_id"]: row
+        for row in first_payload["plan"]["order_plan_rows"]
+    }
+    assert first_rows["BTC-USDC"]["approval_snapshot_id"] == btc_approval.approval_id
+    assert first_rows["BTC-USDC"]["cap_guard_decision_id"] == (
+        btc_approval.cap_guard_decision_ref
+    )
+    assert first_rows["BTC-USDC"]["reconciliation_plan_id"] == (
+        btc_approval.reconciliation_plan_ref
+    )
+    assert first_rows["BTC-USDC"]["live_service_decision_id"] == (
+        f"m58-usdc-live-service-{plan_id}-BTC-USDC"
+    )
+    assert first_rows["BTC-USDC"]["proof_chain_blockers"] == [
+        "live_service_decision_disabled",
+    ]
+    assert first_rows["ETH-USDC"]["approval_snapshot_id"] == eth_approval.approval_id
+    assert first_rows["ETH-USDC"]["admission_audit_id"] == (
+        "placeholder-admission-ETH-USDC"
+    )
+    assert first_rows["ETH-USDC"]["proof_chain_blockers"] == [
+        "admission_audit_blocked",
+        "cap_guard_decision_blocked",
+        "reconciliation_plan_blocked",
+        "live_service_decision_missing",
+    ]
+    assert first_rows["BTC-USDC"]["live_coinbase_execution"] == "not_run"
+    assert first_rows["ETH-USDC"]["live_coinbase_execution"] == "not_run"
+    assert first_payload["live_coinbase_orders_ran"] is False
+    assert first_payload["notional_usdc"] == "0"
+    assert (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_store.count_records()
+        == 2
+    )
+
+    append_full_row_evidence("ETH-USDC", eth_approval)
+    replay = client.post(
+        (
+            f"/api/v1/automation/usdc-pair-snapshot-order-plans/{plan_id}"
+            "/proof-chain-refresh"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-multi-refresh-proof",
+            operator_intent="m58_usdc_snapshot_multi_refresh_proof",
+        ),
+        json={"dry_run": True},
+    )
+    assert replay.status_code == 200
+    assert replay.headers["x-idempotency-replayed"] == "true"
+    assert replay.json() == first_payload
+    assert (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_store.count_records()
+        == 2
+    )
+
+    second_refresh = client.post(
+        (
+            f"/api/v1/automation/usdc-pair-snapshot-order-plans/{plan_id}"
+            "/proof-chain-refresh"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-multi-refresh-proof-eth",
+            operator_intent="m58_usdc_snapshot_multi_refresh_proof_eth",
+        ),
+        json={"dry_run": True},
+    )
+    assert second_refresh.status_code == 200
+    second_rows = {
+        row["product_id"]: row
+        for row in second_refresh.json()["plan"]["order_plan_rows"]
+    }
+    assert second_rows["ETH-USDC"]["admission_audit_id"] == (
+        "admission-audit-ETH-USDC"
+    )
+    assert second_rows["ETH-USDC"]["cap_guard_decision_id"] == (
+        eth_approval.cap_guard_decision_ref
+    )
+    assert second_rows["ETH-USDC"]["reconciliation_plan_id"] == (
+        eth_approval.reconciliation_plan_ref
+    )
+    assert second_rows["ETH-USDC"]["live_service_decision_id"] == (
+        f"m58-usdc-live-service-{plan_id}-ETH-USDC"
+    )
+    assert second_rows["ETH-USDC"]["proof_chain_blockers"] == [
+        "live_service_decision_disabled",
+    ]
+    assert second_refresh.json()["live_coinbase_execution"] == "not_run"
+    assert second_refresh.json()["notional_usdc"] == "0"
+    assert (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_store.count_records()
+        == 3
+    )
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_rejects_invalid_snapshots(
     monkeypatch,
 ):
