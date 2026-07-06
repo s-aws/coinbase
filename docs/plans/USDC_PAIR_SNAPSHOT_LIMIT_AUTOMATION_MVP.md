@@ -460,7 +460,28 @@ report `live_coinbase_execution=not_run` and notional `0`.
 The next implementation slice should continue Phase D without live fan-out by
 adding any remaining backend proof-chain validation/readback evidence needed
 before a contextless review and explicit operator approval for a controlled-live
-pilot.
+pilot. A blind contextless review cleared aggregate proof-chain readback counts
+as an M58-domain, read-only slice, but public API field names and formulas must
+be operator-approved before implementation to avoid treating "readiness" as
+execution authority.
+
+Proposed aggregate count fields, pending operator approval:
+
+- Plan item: `proof_chain_planned_count`,
+  `proof_chain_blocked_count`, `proof_chain_live_disabled_count`,
+  `proof_chain_missing_evidence_count`, and
+  `proof_chain_not_applicable_count`.
+- List response: same fields prefixed with `returned_`.
+- Formula source: count only existing `order_plan_rows` fields. Planned means
+  `plan_status == "planned"`. Blocked means
+  `proof_chain_status == "blocked"`. Live-disabled means
+  `proof_chain_blockers` contains `live_service_decision_disabled`. Missing
+  evidence means `proof_chain_blockers` contains any blocker other than
+  `live_service_decision_disabled`. Not-applicable means
+  `proof_chain_status == "not_applicable"`.
+- These counts are readback evidence only. They must not authorize frontend
+  actions, clear backend blockers, enable live-service decisions, submit
+  Coinbase orders, or replace row-level proof references.
 
 Do not start live order fan-out until Phase D proof-chain evidence, contextless
 review, and explicit operator approval for a controlled-live pilot all pass.
