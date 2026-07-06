@@ -1,11 +1,7 @@
 name: Public Agent Checks
 
 on:
-  pull_request:
-  push:
-    branches:
-      - main
-      - master
+  workflow_dispatch:
 
 jobs:
   agent-policy:
