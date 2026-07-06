@@ -169457,6 +169457,15 @@ components:
             type: string
           type: array
           title: Proof Chain Blockers
+        approval_request_required:
+          type: boolean
+          title: Approval Request Required
+          default: false
+        approval_request_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Request Id
         approval_snapshot_required:
           type: boolean
           title: Approval Snapshot Required

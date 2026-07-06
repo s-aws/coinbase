@@ -2605,6 +2605,8 @@ class UsdcPairSnapshotOrderPlanRowItem(BaseModel):
     reject_reason: str | None = None
     proof_chain_status: str = "not_applicable"
     proof_chain_blockers: list[str] = Field(default_factory=list)
+    approval_request_required: bool = False
+    approval_request_id: str | None = None
     approval_snapshot_required: bool = False
     approval_snapshot_id: str | None = None
     admission_audit_required: bool = False

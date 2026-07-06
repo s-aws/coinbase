@@ -51,6 +51,10 @@ class UsdcPairSnapshotError(ValueError):
 
 ProductProvider = Callable[[], Iterable[Mapping[str, Any]]]
 PriceProvider = Callable[[Mapping[str, Any]], Mapping[str, Any] | None]
+OrderPlanProofChainRecorder = Callable[
+    [UsdcPairSnapshotOrderPlanRowItem],
+    Mapping[str, Any] | None,
+]
 
 
 class AdminApiUsdcPairSnapshotService:
@@ -133,6 +137,7 @@ class AdminApiUsdcPairSnapshotService:
         idempotency_key: str,
         payload_hash: str,
         audit_id: str,
+        proof_chain_recorder: OrderPlanProofChainRecorder | None = None,
         now: datetime | None = None,
     ) -> UsdcPairSnapshotOrderPlanItem:
         planned_at = _normalize_now(now).isoformat()
@@ -173,6 +178,7 @@ class AdminApiUsdcPairSnapshotService:
                 time_in_force=time_in_force,
                 max_total_notional=max_total_notional,
                 planned_total=planned_total,
+                proof_chain_recorder=proof_chain_recorder,
             )
             order_plan_rows.append(order_plan_row)
             planned_total += row_notional
@@ -365,6 +371,7 @@ def _order_plan_row(
     time_in_force: TimeInForce,
     max_total_notional: Decimal,
     planned_total: Decimal,
+    proof_chain_recorder: OrderPlanProofChainRecorder | None = None,
 ) -> tuple[UsdcPairSnapshotOrderPlanRowItem, Decimal]:
     base_fields = {
         "product_id": snapshot_row.product_id,
@@ -472,28 +479,32 @@ def _order_plan_row(
             Decimal("0"),
         )
 
-    return (
-        UsdcPairSnapshotOrderPlanRowItem(
-            **{
-                **base_fields,
-                **_proof_chain_blocked_fields(),
-            },
-            plan_status="planned",
-            client_order_id=f"{plan_id}-{snapshot_row.product_id}",
-            idempotency_key=f"{idempotency_key}:{snapshot_row.product_id}",
-            limit_price=_format_decimal(limit_price),
-            base_size=_format_decimal(base_size),
-            quote_size=_format_decimal(planned_notional),
-            planned_notional_usdc=_format_decimal(planned_notional) or "0",
-        ),
-        planned_notional,
+    planned_row = UsdcPairSnapshotOrderPlanRowItem(
+        **{
+            **base_fields,
+            **_proof_chain_blocked_fields(),
+        },
+        plan_status="planned",
+        client_order_id=f"{plan_id}-{snapshot_row.product_id}",
+        idempotency_key=f"{idempotency_key}:{snapshot_row.product_id}",
+        limit_price=_format_decimal(limit_price),
+        base_size=_format_decimal(base_size),
+        quote_size=_format_decimal(planned_notional),
+        planned_notional_usdc=_format_decimal(planned_notional) or "0",
     )
+    if proof_chain_recorder is not None:
+        proof_chain_fields = proof_chain_recorder(planned_row)
+        if proof_chain_fields:
+            planned_row = planned_row.model_copy(update=dict(proof_chain_fields))
+    return planned_row, planned_notional
 
 
 def _proof_chain_not_applicable_fields() -> dict[str, Any]:
     return {
         "proof_chain_status": "not_applicable",
         "proof_chain_blockers": [],
+        "approval_request_required": False,
+        "approval_request_id": None,
         "approval_snapshot_required": False,
         "approval_snapshot_id": None,
         "admission_audit_required": False,
@@ -511,6 +522,8 @@ def _proof_chain_blocked_fields() -> dict[str, Any]:
     return {
         "proof_chain_status": "blocked",
         "proof_chain_blockers": list(USDC_PAIR_ORDER_PLAN_PROOF_CHAIN_BLOCKERS),
+        "approval_request_required": True,
+        "approval_request_id": None,
         "approval_snapshot_required": True,
         "approval_snapshot_id": None,
         "admission_audit_required": True,

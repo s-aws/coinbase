@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Callable
+from typing import Annotated, Any, Callable
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, Query, Request, status
@@ -27,6 +27,11 @@ from application.admin_api.models import (
     UsdcPairSnapshotRunListResponse,
     UsdcPairSnapshotRunRequest,
     UsdcPairSnapshotRunResponse,
+)
+from application.admin_api.mvp_service import (
+    AdminMvpRequestContext,
+    AdminMvpService,
+    get_admin_mvp_service,
 )
 from application.admin_api.usdc_pair_snapshot import (
     FileUsdcPairSnapshotOrderPlanStore,
@@ -56,6 +61,14 @@ USDC_PAIR_SNAPSHOT_ORDER_PLAN_ENDPOINT = (
 USDC_PAIR_SNAPSHOT_ORDER_PLAN_SERVICE_METHOD = (
     "record_usdc_pair_snapshot_order_plan"
 )
+USDC_PAIR_SNAPSHOT_MODULE_ID = "automation"
+USDC_PAIR_SNAPSHOT_PROOF_BLOCKERS = [
+    "approval_snapshot_missing",
+    "admission_audit_blocked",
+    "cap_guard_decision_blocked",
+    "reconciliation_plan_blocked",
+    "live_service_decision_missing",
+]
 
 AUTOMATION_ROUTE_RESPONSES = {
     200: {
@@ -143,6 +156,12 @@ def get_audit_store() -> FileAdminApiAuditStore:
     """Return durable audit storage for automation mutations."""
 
     return FileAdminApiAuditStore()
+
+
+def get_usdc_pair_snapshot_proof_chain_service() -> AdminMvpService:
+    """Return the backend Admin proof-chain service used for M58 evidence."""
+
+    return get_admin_mvp_service()
 
 
 def _payload_hash(
@@ -552,6 +571,156 @@ def list_usdc_pair_snapshot_order_plans(
     )
 
 
+def _proof_phase_context(
+    *,
+    row_idempotency_key: str,
+    phase: str,
+    correlation_id: str,
+    operator_intent: str,
+    actor: AdminApiActor,
+) -> AdminMvpRequestContext:
+    return AdminMvpRequestContext(
+        idempotency_key=f"{row_idempotency_key}:{phase}",
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor_id=actor.actor_id,
+        roles=tuple(role.value for role in actor.roles),
+    )
+
+
+def _usdc_pair_order_plan_proof_chain_recorder(
+    *,
+    proof_chain_service: AdminMvpService,
+    correlation_id: str,
+    operator_intent: str,
+    actor: AdminApiActor,
+    payload_hash: str,
+) -> Callable[[Any], dict[str, Any]]:
+    def record(row: Any) -> dict[str, Any]:
+        client_order_id = str(getattr(row, "client_order_id", "") or "")
+        row_idempotency_key = str(getattr(row, "idempotency_key", "") or "")
+        if not client_order_id or not row_idempotency_key:
+            return {}
+
+        approval_request_id = f"m58-usdc-approval-request-{client_order_id}"
+        admission_audit_id = f"m58-usdc-admission-audit-{client_order_id}"
+        cap_guard_decision_id = f"m58-usdc-cap-guard-{client_order_id}"
+        reconciliation_plan_id = f"m58-usdc-reconciliation-{client_order_id}"
+        command_evidence = {
+            "route": USDC_PAIR_SNAPSHOT_ORDER_PLAN_ENDPOINT,
+            "method": "POST",
+            "module_id": USDC_PAIR_SNAPSHOT_MODULE_ID,
+            "identity_key": "client_order_id",
+            "identity_value": client_order_id,
+            "action_class": AdminApiActionClass.LOCAL_STATE_MUTATION.value,
+            "required_permission": AdminApiPermission.CAMPAIGN_EXECUTE.value,
+            "service_method": USDC_PAIR_SNAPSHOT_ORDER_PLAN_SERVICE_METHOD,
+            "operator_intent": operator_intent,
+            "command_idempotency_key": row_idempotency_key,
+            "payload_hash": payload_hash,
+        }
+        planned_notional = str(getattr(row, "planned_notional_usdc", "") or "0")
+
+        proof_chain_service.create_approval_request(
+            {
+                **command_evidence,
+                "approval_request_id": approval_request_id,
+                "request_reason": (
+                    "M58 USDC pair order-plan proof-chain readiness request."
+                ),
+                "cap_guard_decision_ref": cap_guard_decision_id,
+                "reconciliation_plan_ref": reconciliation_plan_id,
+            },
+            _proof_phase_context(
+                row_idempotency_key=row_idempotency_key,
+                phase="approval-request",
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+                actor=actor,
+            ),
+        )
+        proof_chain_service.record_admission_audit(
+            {
+                **command_evidence,
+                "admission_audit_id": admission_audit_id,
+                "approval_snapshot_id": None,
+                "allowed": False,
+                "status": "blocked",
+            },
+            _proof_phase_context(
+                row_idempotency_key=row_idempotency_key,
+                phase="admission-audit",
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+                actor=actor,
+            ),
+        )
+        proof_chain_service.record_cap_guard_decision(
+            {
+                **command_evidence,
+                "decision_id": cap_guard_decision_id,
+                "approval_snapshot_id": None,
+                "admission_audit_id": admission_audit_id,
+                "allowed": False,
+                "status": "blocked",
+                "max_submitted_notional_usdc": planned_notional,
+                "max_executed_notional_usdc": "0",
+                "wallet_check_required": True,
+                "wallet_check_source": "m58_usdc_pair_order_plan",
+                "wallet_check_status": "blocked",
+            },
+            _proof_phase_context(
+                row_idempotency_key=row_idempotency_key,
+                phase="cap-guard",
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+                actor=actor,
+            ),
+        )
+        proof_chain_service.record_reconciliation_plan(
+            {
+                **command_evidence,
+                "plan_id": reconciliation_plan_id,
+                "approval_snapshot_id": None,
+                "admission_audit_id": admission_audit_id,
+                "cap_guard_decision_id": cap_guard_decision_id,
+                "allowed": False,
+                "status": "blocked",
+                "exchange_submission_required": False,
+                "max_submitted_notional_usdc": planned_notional,
+                "max_executed_notional_usdc": "0",
+                "reconciliation_reason": (
+                    "M58 no-live order-plan proof-chain readiness."
+                ),
+            },
+            _proof_phase_context(
+                row_idempotency_key=row_idempotency_key,
+                phase="reconciliation",
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+                actor=actor,
+            ),
+        )
+        return {
+            "proof_chain_status": "blocked",
+            "proof_chain_blockers": list(USDC_PAIR_SNAPSHOT_PROOF_BLOCKERS),
+            "approval_request_required": True,
+            "approval_request_id": approval_request_id,
+            "approval_snapshot_required": True,
+            "approval_snapshot_id": None,
+            "admission_audit_required": True,
+            "admission_audit_id": admission_audit_id,
+            "cap_guard_decision_required": True,
+            "cap_guard_decision_id": cap_guard_decision_id,
+            "reconciliation_plan_required": True,
+            "reconciliation_plan_id": reconciliation_plan_id,
+            "live_service_decision_required": True,
+            "live_service_decision_id": None,
+        }
+
+    return record
+
+
 @router.post(
     "/automation/usdc-pair-snapshot-runs",
     response_model=UsdcPairSnapshotRunResponse,
@@ -633,6 +802,10 @@ def record_usdc_pair_snapshot_order_plan(
         FileUsdcPairSnapshotOrderPlanStore,
         Depends(get_usdc_pair_snapshot_order_plan_store),
     ],
+    proof_chain_service: Annotated[
+        AdminMvpService,
+        Depends(get_usdc_pair_snapshot_proof_chain_service),
+    ],
     idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
     audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
 ) -> JSONResponse:
@@ -663,5 +836,12 @@ def record_usdc_pair_snapshot_order_plan(
             idempotency_key=idempotency_key,
             payload_hash=payload_hash,
             audit_id=audit_id,
+            proof_chain_recorder=_usdc_pair_order_plan_proof_chain_recorder(
+                proof_chain_service=proof_chain_service,
+                correlation_id=correlation_id,
+                operator_intent=operator_intent,
+                actor=actor,
+                payload_hash=payload_hash,
+            ),
         ),
     )

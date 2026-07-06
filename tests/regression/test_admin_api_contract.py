@@ -551,6 +551,11 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
         FileUsdcPairSnapshotOrderPlanStore,
         FileUsdcPairSnapshotRunStore,
     )
+    from application.admin_api.mvp_service import (
+        AdminMvpDependencies,
+        AdminMvpService,
+        AdminMvpStore,
+    )
 
     monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-admin-token")
     app = create_app()
@@ -576,6 +581,10 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     )
     usdc_pair_snapshot_order_plan_store = FileUsdcPairSnapshotOrderPlanStore(
         store_dir / "usdc_pair_snapshot_order_plans.jsonl"
+    )
+    admin_mvp_service = AdminMvpService(
+        AdminMvpDependencies(live_coinbase_execution_enabled=False),
+        store=AdminMvpStore(),
     )
     spot_recovery_proof_store = FileSpotRecoveryProofStore(
         store_dir / "spot_recovery_proofs.jsonl"
@@ -738,6 +747,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[
         automation_routes.get_usdc_pair_snapshot_order_plan_store
     ] = lambda: usdc_pair_snapshot_order_plan_store
+    app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_proof_chain_service
+    ] = lambda: admin_mvp_service
     app.dependency_overrides[approval_routes.get_idempotency_store] = (
         lambda: idempotency_store
     )
@@ -858,6 +870,7 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     client.admin_api_test_usdc_pair_snapshot_order_plan_store = (
         usdc_pair_snapshot_order_plan_store
     )
+    client.admin_api_test_mvp_service = admin_mvp_service
     client.admin_api_test_spot_recovery_proof_store = spot_recovery_proof_store
     client.admin_api_test_spot_recovery_snapshot_store = (
         spot_recovery_snapshot_store
@@ -33696,31 +33709,66 @@ def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
     assert btc_row["proof_chain_status"] == "blocked"
     assert btc_row["proof_chain_blockers"] == [
         "approval_snapshot_missing",
-        "admission_audit_missing",
-        "cap_guard_decision_missing",
-        "reconciliation_plan_missing",
+        "admission_audit_blocked",
+        "cap_guard_decision_blocked",
+        "reconciliation_plan_blocked",
         "live_service_decision_missing",
     ]
+    assert btc_row["approval_request_required"] is True
+    assert btc_row["approval_request_id"] == (
+        "m58-usdc-approval-request-m58-usdc-order-plan-test-BTC-USDC"
+    )
     assert btc_row["approval_snapshot_required"] is True
     assert btc_row["approval_snapshot_id"] is None
     assert btc_row["admission_audit_required"] is True
-    assert btc_row["admission_audit_id"] is None
+    assert btc_row["admission_audit_id"] == (
+        "m58-usdc-admission-audit-m58-usdc-order-plan-test-BTC-USDC"
+    )
     assert btc_row["cap_guard_decision_required"] is True
-    assert btc_row["cap_guard_decision_id"] is None
+    assert btc_row["cap_guard_decision_id"] == (
+        "m58-usdc-cap-guard-m58-usdc-order-plan-test-BTC-USDC"
+    )
     assert btc_row["reconciliation_plan_required"] is True
-    assert btc_row["reconciliation_plan_id"] is None
+    assert btc_row["reconciliation_plan_id"] == (
+        "m58-usdc-reconciliation-m58-usdc-order-plan-test-BTC-USDC"
+    )
     assert btc_row["live_service_decision_required"] is True
     assert btc_row["live_service_decision_id"] is None
     assert rows_by_product["ETH-USDC"]["plan_status"] == "skipped"
     assert rows_by_product["ETH-USDC"]["skip_reason"] == "run_total_cap_exceeded"
     assert rows_by_product["ETH-USDC"]["proof_chain_status"] == "not_applicable"
     assert rows_by_product["ETH-USDC"]["proof_chain_blockers"] == []
+    assert rows_by_product["ETH-USDC"]["approval_request_required"] is False
+    assert rows_by_product["ETH-USDC"]["approval_request_id"] is None
     assert rows_by_product["DOGE-USDC"]["plan_status"] == "skipped"
     assert rows_by_product["DOGE-USDC"]["skip_reason"] == (
         "snapshot_not_eligible:trading_disabled"
     )
     assert rows_by_product["DOGE-USDC"]["proof_chain_status"] == "not_applicable"
     assert rows_by_product["DOGE-USDC"]["proof_chain_blockers"] == []
+    assert rows_by_product["DOGE-USDC"]["approval_request_required"] is False
+    assert rows_by_product["DOGE-USDC"]["approval_request_id"] is None
+
+    mvp_service = client.admin_api_test_mvp_service
+    assert btc_row["approval_request_id"] in mvp_service.store.approval_requests
+    assert btc_row["admission_audit_id"] in mvp_service.store.admission_audits
+    assert btc_row["cap_guard_decision_id"] in mvp_service.store.cap_guard_decisions
+    assert btc_row["reconciliation_plan_id"] in mvp_service.store.reconciliation_plans
+    approval_record = mvp_service.store.approval_requests[
+        btc_row["approval_request_id"]
+    ]
+    assert approval_record["status"] == "requested"
+    assert approval_record["identity_value"] == btc_row["client_order_id"]
+    assert mvp_service.store.admission_audits[
+        btc_row["admission_audit_id"]
+    ]["status"] == "blocked"
+    assert mvp_service.store.cap_guard_decisions[
+        btc_row["cap_guard_decision_id"]
+    ]["status"] == "blocked"
+    assert mvp_service.store.reconciliation_plans[
+        btc_row["reconciliation_plan_id"]
+    ]["status"] == "blocked"
+    assert mvp_service.store.service_decisions == {}
 
     persisted = order_plan_store.find_by_plan_id("m58-usdc-order-plan-test")
     assert persisted is not None
