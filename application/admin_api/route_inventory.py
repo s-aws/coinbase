@@ -1099,6 +1099,24 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     AdminApiRouteInventoryItem(
         module_id="automation",
         surface=(
+            "GET /api/v1/automation/usdc-pair-snapshot-allowlist-run-states"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="list_usdc_pair_snapshot_allowlist_run_states",
+        parity_test=(
+            "M58 read-only allowlist run-state evidence; no Coinbase order "
+            "submission, no fan-out execution, no scheduler, and no browser "
+            "execution authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="automation",
+        surface=(
             "GET /api/v1/automation/usdc-pair-snapshot-order-plan-live-submissions"
         ),
         action_class=AdminApiActionClass.READ_ONLY,
@@ -1162,6 +1180,34 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
             "candidate and blocker evidence; no Coinbase order submission, "
             "no fan-out execution, no scheduler, and no browser execution "
             "authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="automation",
+        surface=(
+            "POST /api/v1/automation/"
+            "usdc-pair-snapshot-order-plan-allowlist-readiness/"
+            "{readiness_id}/run-state"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+        idempotency="required",
+        approval=(
+            "records no-live allowlist run-state rehearsal from existing "
+            "backend-owned readiness evidence; does not grant Coinbase "
+            "submission"
+        ),
+        caps=(
+            "required no-live fan-out testing cap evidence with maximum "
+            "fan-out notional <= 100 USDC; no wallet allocation"
+        ),
+        audit="required",
+        shared_method="record_usdc_pair_snapshot_allowlist_run_state",
+        parity_test=(
+            "M58 backend-owned allowlist run-state persists no-live queued, "
+            "blocked, retry, recovery, rate-limit, and cap evidence; no "
+            "Coinbase order submission, no fan-out execution, no scheduler, "
+            "and no browser execution authority"
         ),
     ),
     AdminApiRouteInventoryItem(

@@ -37,11 +37,13 @@ Available building blocks:
 - M58 single-product controlled-live submit/cancel tooling and read-only
   exchange readback/recovery evidence for one prior live submission. This is
   backend-only and does not authorize fan-out or scheduling.
-- M58 Phase F no-live allowlist-readiness evidence for explicit product sets.
-  It records product-level failure isolation status, run rate-limit budget
-  refs, retry budget status, cancel/recovery refs, partial-success status,
-  retryable products, and recovery-required products without submitting
-  Coinbase orders or running a scheduler.
+- M58 Phase F no-live allowlist-readiness and run-state evidence for explicit
+  product sets. It records product-level failure isolation status, run
+  rate-limit budget refs, retry budget status, cancel/recovery refs,
+  partial-success status, retryable products, recovery-required products,
+  queued/blocked product states, run lock, pause, abort, and a maximum 100
+  USDC fan-out testing cap without submitting Coinbase orders or running a
+  scheduler.
 - Backend proof-refresh mutation for existing order plans that resolves exact,
   unexpired, non-revoked approval lifecycle snapshots without browser
   authority or live execution, and can link exact durable admission-audit
@@ -71,7 +73,8 @@ Missing before live automation:
 - Durable approval, admission-audit, cap/guard, reconciliation, and enabled
   live-service decisions for every planned order.
 - Runtime fan-out rate-limit handling, retry execution, partial failure,
-  pause/resume, abort, and recovery semantics.
+  pause/resume, abort, and recovery semantics beyond the no-live run-state
+  rehearsal.
 - Release-gate evidence and contextless review for any live pilot.
 
 ## Milestone Alignment
@@ -358,13 +361,15 @@ Non-goals:
 
 Broaden from one product to a small explicit allowlist.
 
-Backend status: no-live readiness contract implemented. The backend can record
-explicit allowlist readiness, per-product failure isolation status, run
-rate-limit budget refs, retry budget status, cancel/recovery refs,
-partial-success status, retryable products, and recovery-required products.
-This evidence remains `fanout_readiness_status=blocked`,
-`live_coinbase_execution=not_run`, and notional `0`; it does not submit
-Coinbase orders, fan out execution, or run a scheduler.
+Backend status: no-live readiness and run-state contracts implemented. The
+backend can record explicit allowlist readiness, per-product failure isolation
+status, run rate-limit budget refs, retry budget status, cancel/recovery refs,
+partial-success status, retryable products, recovery-required products,
+queued/blocked product states, run lock, pause, abort, and a maximum 100 USDC
+fan-out testing cap. This evidence remains `fanout_readiness_status=blocked`,
+`fanout_execution_status=blocked`, `live_coinbase_execution=not_run`, and
+notional `0`; it does not submit Coinbase orders, fan out execution, or run a
+scheduler.
 
 Deliverables:
 
@@ -540,5 +545,6 @@ Proposed aggregate count fields, pending operator approval:
   actions, clear backend blockers, enable live-service decisions, submit
   Coinbase orders, or replace row-level proof references.
 
-Do not start live order fan-out until Phase D proof-chain evidence, contextless
-review, and explicit operator approval for a controlled-live pilot all pass.
+Do not start multiple live orders or live fan-out until Phase D proof-chain
+evidence, contextless review, and explicit operator approval for that concrete
+controlled-live scope all pass.

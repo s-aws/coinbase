@@ -40,6 +40,11 @@ from application.admin_api.live_execution import (
 from application.admin_api.models import (
     AdminApiActor,
     AdminApiErrorResponse,
+    UsdcPairSnapshotAllowlistRunStateItem,
+    UsdcPairSnapshotAllowlistRunStateListResponse,
+    UsdcPairSnapshotAllowlistRunStateProductItem,
+    UsdcPairSnapshotAllowlistRunStateRequest,
+    UsdcPairSnapshotAllowlistRunStateResponse,
     UsdcPairSnapshotOrderPlanAllowlistReadinessItem,
     UsdcPairSnapshotOrderPlanAllowlistReadinessListResponse,
     UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem,
@@ -69,11 +74,13 @@ from application.admin_api.mvp_service import (
     get_admin_mvp_service,
 )
 from application.admin_api.usdc_pair_snapshot import (
+    FileUsdcPairSnapshotAllowlistRunStateStore,
     FileUsdcPairSnapshotOrderPlanAllowlistReadinessStore,
     FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
     FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
     FileUsdcPairSnapshotOrderPlanStore,
     FileUsdcPairSnapshotRunStore,
+    UsdcPairSnapshotAllowlistRunStateRecord,
     UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
     UsdcPairSnapshotOrderPlanLiveReadinessRecord,
     UsdcPairSnapshotOrderPlanLiveSubmitRecord,
@@ -137,6 +144,16 @@ USDC_PAIR_SNAPSHOT_ORDER_PLAN_ALLOWLIST_READINESS_ENDPOINT = (
 )
 USDC_PAIR_SNAPSHOT_ORDER_PLAN_ALLOWLIST_READINESS_SERVICE_METHOD = (
     "record_usdc_pair_snapshot_order_plan_allowlist_readiness"
+)
+USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_ROUTE = (
+    "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+    "{readiness_id}/run-state"
+)
+USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_ENDPOINT = (
+    f"POST {USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_ROUTE}"
+)
+USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_SERVICE_METHOD = (
+    "record_usdc_pair_snapshot_allowlist_run_state"
 )
 USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_READINESS_ROUTE = (
     "/api/v1/automation/usdc-pair-snapshot-order-plans/"
@@ -242,6 +259,28 @@ ALLOWLIST_READINESS_ROUTE_RESPONSES = {
     },
 }
 
+ALLOWLIST_RUN_STATE_ROUTE_RESPONSES = {
+    200: {
+        "model": UsdcPairSnapshotAllowlistRunStateResponse,
+        "description": (
+            "USDC pair snapshot allowlist run-state evidence accepted, "
+            "rejected, or replayed without Coinbase submission."
+        ),
+    },
+    401: {
+        "model": AdminApiErrorResponse,
+        "description": "Missing or invalid Admin API authentication.",
+    },
+    403: {
+        "model": AdminApiErrorResponse,
+        "description": "Actor lacks the required Admin API permission.",
+    },
+    409: {
+        "model": UsdcPairSnapshotAllowlistRunStateResponse,
+        "description": "Idempotency key conflict.",
+    },
+}
+
 LIVE_READINESS_ROUTE_RESPONSES = {
     200: {
         "model": UsdcPairSnapshotOrderPlanLiveReadinessResponse,
@@ -322,6 +361,14 @@ def get_usdc_pair_snapshot_order_plan_allowlist_readiness_store() -> (
     """Return durable M58 allowlist-readiness evidence storage."""
 
     return FileUsdcPairSnapshotOrderPlanAllowlistReadinessStore()
+
+
+def get_usdc_pair_snapshot_allowlist_run_state_store() -> (
+    FileUsdcPairSnapshotAllowlistRunStateStore
+):
+    """Return durable M58 allowlist run-state evidence storage."""
+
+    return FileUsdcPairSnapshotAllowlistRunStateStore()
 
 
 def get_usdc_pair_snapshot_order_plan_live_readiness_store() -> (
@@ -580,6 +627,86 @@ def _allowlist_readiness_list_response(
         ),
         recovery_required_product_count=sum(
             len(item.recovery_required_product_ids) for item in readiness
+        ),
+    )
+
+
+def _allowlist_run_state_item_from_record(
+    record: UsdcPairSnapshotAllowlistRunStateRecord,
+) -> UsdcPairSnapshotAllowlistRunStateItem:
+    return UsdcPairSnapshotAllowlistRunStateItem(
+        run_state_id=record.run_state_id,
+        readiness_id=record.readiness_id,
+        plan_id=record.plan_id,
+        snapshot_run_id=record.snapshot_run_id,
+        recorded_at=record.recorded_at,
+        execution_mode=record.execution_mode,
+        max_fanout_notional_usdc=record.max_fanout_notional_usdc,
+        planned_fanout_notional_usdc=record.planned_fanout_notional_usdc,
+        fanout_notional_status=record.fanout_notional_status,
+        product_ids=record.product_ids,
+        queued_product_ids=record.queued_product_ids,
+        blocked_product_ids=record.blocked_product_ids,
+        retryable_product_ids=record.retryable_product_ids,
+        recovery_required_product_ids=record.recovery_required_product_ids,
+        queued_product_count=record.queued_product_count,
+        blocked_product_count=record.blocked_product_count,
+        retryable_product_count=record.retryable_product_count,
+        recovery_required_product_count=record.recovery_required_product_count,
+        run_lock_status=record.run_lock_status,
+        run_lock_ref=record.run_lock_ref,
+        pause_resume_status=record.pause_resume_status,
+        abort_status=record.abort_status,
+        rate_limit_status=record.rate_limit_status,
+        rate_limit_window_ref=record.rate_limit_window_ref,
+        retry_budget_status=record.retry_budget_status,
+        recovery_status=record.recovery_status,
+        partial_success_status=record.partial_success_status,
+        fanout_execution_status=record.fanout_execution_status,
+        run_state_status=record.run_state_status,
+        fanout_blockers=record.fanout_blockers,
+        product_states=record.product_states,
+        actor_id=record.actor_id,
+        operator_intent=record.operator_intent,
+        idempotency_key=record.idempotency_key,
+        payload_hash=record.payload_hash,
+        audit_id=record.audit_id,
+        operator_notes=record.operator_notes,
+        live_exchange_submitted=record.live_exchange_submitted,
+        live_coinbase_orders_ran=record.live_coinbase_orders_ran,
+        live_coinbase_execution=record.live_coinbase_execution,
+        notional_usdc=record.notional_usdc,
+        detail=record.detail,
+    )
+
+
+def _allowlist_run_state_list_response(
+    *,
+    store: FileUsdcPairSnapshotAllowlistRunStateStore,
+    limit: int,
+) -> UsdcPairSnapshotAllowlistRunStateListResponse:
+    run_states = [
+        _allowlist_run_state_item_from_record(record)
+        for record in store.read_recent(limit=limit)
+    ]
+    return UsdcPairSnapshotAllowlistRunStateListResponse(
+        run_states=run_states,
+        returned_count=len(run_states),
+        total_count=store.count_records(),
+        latest_run_state_id=(
+            run_states[0].run_state_id if run_states else None
+        ),
+        queued_product_count=sum(
+            item.queued_product_count for item in run_states
+        ),
+        blocked_product_count=sum(
+            item.blocked_product_count for item in run_states
+        ),
+        retryable_product_count=sum(
+            item.retryable_product_count for item in run_states
+        ),
+        recovery_required_product_count=sum(
+            item.recovery_required_product_count for item in run_states
         ),
     )
 
@@ -853,6 +980,53 @@ def _allowlist_readiness_base_response(
     )
 
 
+def _allowlist_run_state_http_status(
+    response: UsdcPairSnapshotAllowlistRunStateResponse,
+) -> int:
+    if response.status == AdminApiCommandStatus.CONFLICT:
+        return status.HTTP_409_CONFLICT
+    return status.HTTP_200_OK
+
+
+def _allowlist_run_state_response(
+    response: UsdcPairSnapshotAllowlistRunStateResponse,
+    *,
+    replayed: bool = False,
+) -> JSONResponse:
+    headers = {"X-Correlation-Id": response.correlation_id or ""}
+    if replayed:
+        headers["X-Idempotency-Replayed"] = "true"
+    return JSONResponse(
+        status_code=_allowlist_run_state_http_status(response),
+        content=response.model_dump(mode="json"),
+        headers=headers,
+    )
+
+
+def _allowlist_run_state_base_response(
+    *,
+    status_value: AdminApiCommandStatus,
+    message: str,
+    correlation_id: str,
+    idempotency_key: str,
+    run_state: UsdcPairSnapshotAllowlistRunStateItem | None = None,
+    audit_id: str | None = None,
+    failure_stage: str | None = None,
+) -> UsdcPairSnapshotAllowlistRunStateResponse:
+    return UsdcPairSnapshotAllowlistRunStateResponse(
+        status=status_value,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+        service_method=USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_SERVICE_METHOD,
+        message=message,
+        correlation_id=correlation_id,
+        idempotency_key=idempotency_key,
+        audit_id=audit_id,
+        run_state=run_state,
+        failure_stage=failure_stage,
+    )
+
+
 def _live_readiness_http_status(
     response: UsdcPairSnapshotOrderPlanLiveReadinessResponse,
 ) -> int:
@@ -1022,6 +1196,35 @@ def _record_allowlist_readiness_audit(
     request_id: str,
     operator_intent: str,
     response: UsdcPairSnapshotOrderPlanAllowlistReadinessResponse,
+    audit_id: str | None = None,
+) -> str:
+    event_fields = {
+        "actor_id": actor.actor_id,
+        "action_class": response.action_class,
+        "permission": response.required_permission,
+        "endpoint": endpoint,
+        "request_id": request_id,
+        "operator_intent": operator_intent,
+        "idempotency_key": response.idempotency_key,
+        "status": response.status,
+        "failure_stage": response.failure_stage,
+        "message": response.message,
+        "live_exchange_submitted": False,
+        "live_coinbase_orders_ran": False,
+    }
+    if audit_id is not None:
+        event_fields["audit_id"] = audit_id
+    return audit_store.append(AdminApiAuditEvent(**event_fields))
+
+
+def _record_allowlist_run_state_audit(
+    *,
+    audit_store: FileAdminApiAuditStore,
+    actor: AdminApiActor,
+    endpoint: str,
+    request_id: str,
+    operator_intent: str,
+    response: UsdcPairSnapshotAllowlistRunStateResponse,
     audit_id: str | None = None,
 ) -> str:
     event_fields = {
@@ -1356,6 +1559,92 @@ def _execute_idempotent_allowlist_readiness(
     return _allowlist_readiness_response(response)
 
 
+def _execute_idempotent_allowlist_run_state(
+    *,
+    idempotency_key: str,
+    payload_hash: str,
+    actor: AdminApiActor,
+    request_id: str,
+    operator_intent: str,
+    idempotency_store: FileIdempotencyStore,
+    audit_store: FileAdminApiAuditStore,
+    operation: Callable[[str], UsdcPairSnapshotAllowlistRunStateItem],
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.CAMPAIGN_EXECUTE)
+    check = idempotency_store.evaluate(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+    )
+    if check.decision == AdminApiIdempotencyDecision.REPLAY and check.record:
+        return _allowlist_run_state_response(
+            UsdcPairSnapshotAllowlistRunStateResponse.model_validate(
+                check.record.response
+            ),
+            replayed=True,
+        )
+    if check.decision == AdminApiIdempotencyDecision.CONFLICT:
+        response = _allowlist_run_state_base_response(
+            status_value=AdminApiCommandStatus.CONFLICT,
+            message="Idempotency-Key was already used with a different payload.",
+            correlation_id=request_id,
+            idempotency_key=idempotency_key,
+            failure_stage="idempotency",
+        )
+        response.audit_id = _record_allowlist_run_state_audit(
+            audit_store=audit_store,
+            actor=actor,
+            endpoint=USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_ENDPOINT,
+            request_id=request_id,
+            operator_intent=operator_intent,
+            response=response,
+        )
+        return _allowlist_run_state_response(response)
+
+    try:
+        audit_id = str(uuid4())
+        run_state = operation(audit_id)
+        response = _allowlist_run_state_base_response(
+            status_value=AdminApiCommandStatus.ACCEPTED,
+            message=(
+                "USDC pair snapshot allowlist run-state evidence accepted "
+                "without Coinbase submission."
+            ),
+            correlation_id=request_id,
+            idempotency_key=idempotency_key,
+            audit_id=audit_id,
+            run_state=run_state,
+        )
+    except UsdcPairSnapshotError as exc:
+        response = _allowlist_run_state_base_response(
+            status_value=AdminApiCommandStatus.REJECTED,
+            message=str(exc),
+            correlation_id=request_id,
+            idempotency_key=idempotency_key,
+            failure_stage="usdc_pair_snapshot_allowlist_run_state",
+        )
+    response.audit_id = _record_allowlist_run_state_audit(
+        audit_store=audit_store,
+        actor=actor,
+        endpoint=USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_ENDPOINT,
+        request_id=request_id,
+        operator_intent=operator_intent,
+        response=response,
+        audit_id=response.audit_id,
+    )
+    if response.status == AdminApiCommandStatus.ACCEPTED:
+        idempotency_store.put_record(
+            IdempotencyRecord(
+                idempotency_key=idempotency_key,
+                payload_hash=payload_hash,
+                status=response.status,
+                response=response.model_dump(mode="json"),
+                actor_id=actor.actor_id,
+                endpoint=USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_ENDPOINT,
+            )
+        )
+    return _allowlist_run_state_response(response)
+
+
 def _execute_idempotent_live_readiness(
     *,
     idempotency_key: str,
@@ -1590,6 +1879,31 @@ def list_usdc_pair_snapshot_order_plan_allowlist_readiness(
     return _read_response(
         _allowlist_readiness_list_response(
             store=readiness_store,
+            limit=limit,
+        )
+    )
+
+
+@router.get(
+    "/automation/usdc-pair-snapshot-allowlist-run-states",
+    response_model=UsdcPairSnapshotAllowlistRunStateListResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="List backend-owned USDC pair snapshot allowlist run-state evidence",
+)
+def list_usdc_pair_snapshot_allowlist_run_states(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    run_state_store: Annotated[
+        FileUsdcPairSnapshotAllowlistRunStateStore,
+        Depends(get_usdc_pair_snapshot_allowlist_run_state_store),
+    ],
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+) -> JSONResponse:
+    """Read durable M58 no-live allowlist run-state evidence."""
+
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    return _read_response(
+        _allowlist_run_state_list_response(
+            store=run_state_store,
             limit=limit,
         )
     )
@@ -1870,6 +2184,10 @@ def _decimal_value(value: str | None) -> Decimal | None:
     if decimal_value <= Decimal("0"):
         return None
     return decimal_value
+
+
+def _decimal_string(value: Decimal) -> str:
+    return format(value.quantize(Decimal("0.01")), "f")
 
 
 def _find_usdc_pair_order_plan_row(
@@ -2285,6 +2603,175 @@ def _record_usdc_pair_allowlist_readiness(
     )
     readiness_store.append(record)
     return _allowlist_readiness_item_from_record(record)
+
+
+def _allowlist_run_state_product_item(
+    row: UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem,
+) -> UsdcPairSnapshotAllowlistRunStateProductItem:
+    blockers = list(row.blockers or [])
+    queued = row.readiness_status == "candidate" and not blockers
+    execution_state = "queued_no_live" if queued else "blocked"
+    return UsdcPairSnapshotAllowlistRunStateProductItem(
+        product_id=row.product_id,
+        client_order_id=row.client_order_id,
+        readiness_status=row.readiness_status,
+        execution_state=execution_state,
+        retry_state=row.retry_status,
+        rate_limit_state=row.rate_limit_status,
+        recovery_state=row.cancel_recovery_status,
+        retry_attempts_available=row.retry_attempts_available if queued else 0,
+        planned_notional_usdc=row.planned_notional_usdc,
+        recovery_state_ref=row.recovery_state_ref,
+        blockers=blockers,
+    )
+
+
+def _dedupe(values: list[str]) -> list[str]:
+    return list(dict.fromkeys(value for value in values if value))
+
+
+def _allowlist_run_state_status(
+    *,
+    blocked_product_ids: list[str],
+    pause_requested: bool,
+    abort_requested: bool,
+) -> str:
+    if abort_requested:
+        return "aborted_no_live"
+    if pause_requested:
+        return "paused_no_live"
+    if blocked_product_ids:
+        return "blocked"
+    return "ready_no_live"
+
+
+def _record_usdc_pair_allowlist_run_state(
+    *,
+    readiness: UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
+    body: UsdcPairSnapshotAllowlistRunStateRequest,
+    run_state_store: FileUsdcPairSnapshotAllowlistRunStateStore,
+    actor: AdminApiActor,
+    operator_intent: str,
+    idempotency_key: str,
+    payload_hash: str,
+    audit_id: str,
+) -> UsdcPairSnapshotAllowlistRunStateItem:
+    if body.execution_mode != "no_live_rehearsal":
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state only supports no_live_rehearsal."
+        )
+    max_fanout_notional = _decimal_value(body.max_fanout_notional_usdc)
+    if max_fanout_notional is None:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state requires positive max_fanout_notional_usdc."
+        )
+    if max_fanout_notional > Decimal("100"):
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state max_fanout_notional_usdc cannot exceed 100."
+        )
+
+    product_states = [
+        _allowlist_run_state_product_item(row)
+        for row in readiness.product_readiness_rows
+    ]
+    queued_product_ids = [
+        item.product_id
+        for item in product_states
+        if item.execution_state == "queued_no_live"
+    ]
+    planned_fanout_notional = sum(
+        (
+            _decimal_value(item.planned_notional_usdc) or Decimal("0")
+            for item in product_states
+            if item.execution_state == "queued_no_live"
+        ),
+        Decimal("0"),
+    )
+    fanout_notional_status = (
+        "passed"
+        if planned_fanout_notional <= max_fanout_notional
+        else "exceeded"
+    )
+    blocked_product_ids = [
+        item.product_id
+        for item in product_states
+        if item.execution_state == "blocked"
+    ]
+    retryable_product_ids = [
+        item.product_id
+        for item in product_states
+        if item.retry_state == "ready_no_live"
+    ]
+    recovery_required_product_ids = [
+        item.product_id
+        for item in product_states
+        if item.recovery_state == "ready_no_live"
+    ]
+    fanout_blockers = _dedupe(
+        list(readiness.fanout_blockers)
+        + (["product_evidence_blocked"] if blocked_product_ids else [])
+        + (
+            ["fanout_notional_cap_exceeded"]
+            if fanout_notional_status == "exceeded"
+            else []
+        )
+    )
+    run_state_status = _allowlist_run_state_status(
+        blocked_product_ids=blocked_product_ids,
+        pause_requested=body.pause_requested,
+        abort_requested=body.abort_requested,
+    )
+    record = UsdcPairSnapshotAllowlistRunStateRecord(
+        run_state_id=body.run_state_id
+        or f"m58-usdc-allowlist-run-state-{uuid4()}",
+        readiness_id=readiness.readiness_id,
+        plan_id=readiness.plan_id,
+        snapshot_run_id=readiness.snapshot_run_id,
+        execution_mode=body.execution_mode,
+        max_fanout_notional_usdc=str(body.max_fanout_notional_usdc),
+        planned_fanout_notional_usdc=_decimal_string(planned_fanout_notional),
+        fanout_notional_status=fanout_notional_status,
+        product_ids=readiness.product_ids,
+        queued_product_ids=queued_product_ids,
+        blocked_product_ids=blocked_product_ids,
+        retryable_product_ids=retryable_product_ids,
+        recovery_required_product_ids=recovery_required_product_ids,
+        queued_product_count=len(queued_product_ids),
+        blocked_product_count=len(blocked_product_ids),
+        retryable_product_count=len(retryable_product_ids),
+        recovery_required_product_count=len(recovery_required_product_ids),
+        run_lock_status=(
+            "recorded_no_live" if body.run_lock_ref else "missing_run_lock_ref"
+        ),
+        run_lock_ref=body.run_lock_ref,
+        pause_resume_status=(
+            "paused_no_live" if body.pause_requested else "running_no_live"
+        ),
+        abort_status="aborted_no_live" if body.abort_requested else "not_requested",
+        rate_limit_status=readiness.run_rate_limit_status,
+        rate_limit_window_ref=body.rate_limit_window_ref,
+        retry_budget_status=readiness.retry_budget_status,
+        recovery_status=readiness.recovery_readiness_status,
+        partial_success_status=readiness.partial_success_status,
+        fanout_execution_status="blocked",
+        run_state_status=run_state_status,
+        fanout_blockers=fanout_blockers,
+        product_states=product_states,
+        actor_id=actor.actor_id,
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        audit_id=audit_id,
+        operator_notes=body.operator_notes,
+        detail=(
+            "M58 Phase F no-live allowlist run-state rehearsal recorded "
+            "queued, blocked, retryable, and recovery-required products from "
+            "existing backend allowlist-readiness evidence. Fan-out execution "
+            "and scheduling remain blocked."
+        ),
+    )
+    run_state_store.append(record)
+    return _allowlist_run_state_item_from_record(record)
 
 
 def _record_usdc_pair_live_readiness_preflight(
@@ -3217,6 +3704,74 @@ def record_usdc_pair_snapshot_order_plan_allowlist_readiness(
         )
 
     return _execute_idempotent_allowlist_readiness(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        request_id=correlation_id,
+        operator_intent=operator_intent,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        operation=operation,
+    )
+
+
+@router.post(
+    (
+        "/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+        "{readiness_id}/run-state"
+    ),
+    response_model=UsdcPairSnapshotAllowlistRunStateResponse,
+    status_code=status.HTTP_200_OK,
+    responses=ALLOWLIST_RUN_STATE_ROUTE_RESPONSES,
+    summary="Record backend-owned USDC pair allowlist run-state rehearsal",
+)
+def record_usdc_pair_snapshot_allowlist_run_state(
+    request: Request,
+    readiness_id: str,
+    body: UsdcPairSnapshotAllowlistRunStateRequest,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    readiness_store: Annotated[
+        FileUsdcPairSnapshotOrderPlanAllowlistReadinessStore,
+        Depends(get_usdc_pair_snapshot_order_plan_allowlist_readiness_store),
+    ],
+    run_state_store: Annotated[
+        FileUsdcPairSnapshotAllowlistRunStateStore,
+        Depends(get_usdc_pair_snapshot_allowlist_run_state_store),
+    ],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+) -> JSONResponse:
+    """Record no-live M58 allowlist run-state evidence without fan-out."""
+
+    endpoint = f"{request.method} {request.url.path}"
+    payload_hash = _payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        operator_intent=operator_intent,
+        body=body.model_dump(mode="json"),
+    )
+
+    def operation(audit_id: str) -> UsdcPairSnapshotAllowlistRunStateItem:
+        readiness = readiness_store.find_by_readiness_id(readiness_id)
+        if readiness is None:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot allowlist readiness was not found."
+            )
+        return _record_usdc_pair_allowlist_run_state(
+            readiness=readiness,
+            body=body,
+            run_state_store=run_state_store,
+            actor=actor,
+            operator_intent=operator_intent,
+            idempotency_key=idempotency_key,
+            payload_hash=payload_hash,
+            audit_id=audit_id,
+        )
+
+    return _execute_idempotent_allowlist_run_state(
         idempotency_key=idempotency_key,
         payload_hash=payload_hash,
         actor=actor,

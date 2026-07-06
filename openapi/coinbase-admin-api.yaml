@@ -2030,6 +2030,78 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/automation/usdc-pair-snapshot-allowlist-run-states:
+    get:
+      tags:
+      - automation
+      summary: List backend-owned USDC pair snapshot allowlist run-state evidence
+      description: Read durable M58 no-live allowlist run-state evidence.
+      operationId: list_usdc_pair_snapshot_allowlist_run_states_api_v1_automation_usdc_pair_snapshot_allowlist_run_states_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsdcPairSnapshotAllowlistRunStateListResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/automation/usdc-pair-snapshot-order-plan-live-readiness:
     get:
       tags:
@@ -2490,6 +2562,109 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanAllowlistReadinessResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/{readiness_id}/run-state:
+    post:
+      tags:
+      - automation
+      summary: Record backend-owned USDC pair allowlist run-state rehearsal
+      description: Record no-live M58 allowlist run-state evidence without fan-out.
+      operationId: record_usdc_pair_snapshot_allowlist_run_state_api_v1_automation_usdc_pair_snapshot_order_plan_allowlist_readiness__readiness_id__run_state_post
+      parameters:
+      - name: readiness_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Readiness Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UsdcPairSnapshotAllowlistRunStateRequest'
+      responses:
+        '200':
+          description: USDC pair snapshot allowlist run-state evidence accepted, rejected,
+            or replayed without Coinbase submission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsdcPairSnapshotAllowlistRunStateResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsdcPairSnapshotAllowlistRunStateResponse'
         '422':
           description: Validation Error
           content:
@@ -169564,6 +169739,548 @@ components:
         - FOK (FILL_OR_KILL): Fill entire order immediately or cancel (no partial)
 
         - GTD (GOOD_UNTIL_DATE_TIME): Order expires at specified end_time'
+    UsdcPairSnapshotAllowlistRunStateItem:
+      properties:
+        run_state_id:
+          type: string
+          minLength: 1
+          title: Run State Id
+        readiness_id:
+          type: string
+          minLength: 1
+          title: Readiness Id
+        plan_id:
+          type: string
+          minLength: 1
+          title: Plan Id
+        snapshot_run_id:
+          type: string
+          minLength: 1
+          title: Snapshot Run Id
+        recorded_at:
+          type: string
+          title: Recorded At
+        execution_mode:
+          type: string
+          minLength: 1
+          title: Execution Mode
+        max_fanout_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Max Fanout Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        planned_fanout_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Planned Fanout Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        fanout_notional_status:
+          type: string
+          minLength: 1
+          title: Fanout Notional Status
+        product_ids:
+          items:
+            type: string
+          type: array
+          title: Product Ids
+        queued_product_ids:
+          items:
+            type: string
+          type: array
+          title: Queued Product Ids
+        blocked_product_ids:
+          items:
+            type: string
+          type: array
+          title: Blocked Product Ids
+        retryable_product_ids:
+          items:
+            type: string
+          type: array
+          title: Retryable Product Ids
+        recovery_required_product_ids:
+          items:
+            type: string
+          type: array
+          title: Recovery Required Product Ids
+        queued_product_count:
+          type: integer
+          minimum: 0.0
+          title: Queued Product Count
+        blocked_product_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Product Count
+        retryable_product_count:
+          type: integer
+          minimum: 0.0
+          title: Retryable Product Count
+        recovery_required_product_count:
+          type: integer
+          minimum: 0.0
+          title: Recovery Required Product Count
+        run_lock_status:
+          type: string
+          minLength: 1
+          title: Run Lock Status
+        run_lock_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Run Lock Ref
+        pause_resume_status:
+          type: string
+          minLength: 1
+          title: Pause Resume Status
+        abort_status:
+          type: string
+          minLength: 1
+          title: Abort Status
+        rate_limit_status:
+          type: string
+          minLength: 1
+          title: Rate Limit Status
+        rate_limit_window_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rate Limit Window Ref
+        retry_budget_status:
+          type: string
+          minLength: 1
+          title: Retry Budget Status
+        recovery_status:
+          type: string
+          minLength: 1
+          title: Recovery Status
+        partial_success_status:
+          type: string
+          minLength: 1
+          title: Partial Success Status
+        fanout_execution_status:
+          type: string
+          minLength: 1
+          title: Fanout Execution Status
+        run_state_status:
+          type: string
+          minLength: 1
+          title: Run State Status
+        fanout_blockers:
+          items:
+            type: string
+          type: array
+          title: Fanout Blockers
+        product_states:
+          items:
+            $ref: '#/components/schemas/UsdcPairSnapshotAllowlistRunStateProductItem'
+          type: array
+          title: Product States
+        actor_id:
+          type: string
+          minLength: 1
+          title: Actor Id
+        operator_intent:
+          type: string
+          minLength: 1
+          title: Operator Intent
+        idempotency_key:
+          type: string
+          minLength: 1
+          title: Idempotency Key
+        payload_hash:
+          type: string
+          maxLength: 64
+          minLength: 64
+          title: Payload Hash
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        operator_notes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Notes
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only_after_write:
+          type: boolean
+          title: Read Only After Write
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - run_state_id
+      - readiness_id
+      - plan_id
+      - snapshot_run_id
+      - recorded_at
+      - execution_mode
+      - max_fanout_notional_usdc
+      - fanout_notional_status
+      - queued_product_count
+      - blocked_product_count
+      - retryable_product_count
+      - recovery_required_product_count
+      - run_lock_status
+      - pause_resume_status
+      - abort_status
+      - rate_limit_status
+      - retry_budget_status
+      - recovery_status
+      - partial_success_status
+      - fanout_execution_status
+      - run_state_status
+      - actor_id
+      - operator_intent
+      - idempotency_key
+      - payload_hash
+      - detail
+      title: UsdcPairSnapshotAllowlistRunStateItem
+      description: Durable no-live Phase F allowlist run-state evidence.
+    UsdcPairSnapshotAllowlistRunStateListResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: usdc_pair_snapshot_allowlist_run_state_list
+        run_states:
+          items:
+            $ref: '#/components/schemas/UsdcPairSnapshotAllowlistRunStateItem'
+          type: array
+          title: Run States
+        returned_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Count
+        total_count:
+          type: integer
+          minimum: 0.0
+          title: Total Count
+        latest_run_state_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Run State Id
+        queued_product_count:
+          type: integer
+          minimum: 0.0
+          title: Queued Product Count
+        blocked_product_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Product Count
+        retryable_product_count:
+          type: integer
+          minimum: 0.0
+          title: Retryable Product Count
+        recovery_required_product_count:
+          type: integer
+          minimum: 0.0
+          title: Recovery Required Product Count
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+          default: M58 USDC pair snapshot allowlist run-state readback exposes backend-owned
+            no-live rehearsal evidence only; it does not submit Coinbase orders, fan
+            out execution, allocate wallet balance, or run a scheduler.
+      additionalProperties: false
+      type: object
+      required:
+      - returned_count
+      - total_count
+      - queued_product_count
+      - blocked_product_count
+      - retryable_product_count
+      - recovery_required_product_count
+      title: UsdcPairSnapshotAllowlistRunStateListResponse
+      description: Read-only list of no-live M58 Phase F allowlist run-state evidence.
+    UsdcPairSnapshotAllowlistRunStateProductItem:
+      properties:
+        product_id:
+          type: string
+          minLength: 1
+          title: Product Id
+        client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Order Id
+        readiness_status:
+          type: string
+          minLength: 1
+          title: Readiness Status
+        execution_state:
+          type: string
+          minLength: 1
+          title: Execution State
+        retry_state:
+          type: string
+          minLength: 1
+          title: Retry State
+        rate_limit_state:
+          type: string
+          minLength: 1
+          title: Rate Limit State
+        recovery_state:
+          type: string
+          minLength: 1
+          title: Recovery State
+        retry_attempts_available:
+          type: integer
+          minimum: 0.0
+          title: Retry Attempts Available
+          default: 0
+        planned_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Planned Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        recovery_state_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recovery State Ref
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - readiness_status
+      - execution_state
+      - retry_state
+      - rate_limit_state
+      - recovery_state
+      title: UsdcPairSnapshotAllowlistRunStateProductItem
+      description: Per-product no-live Phase F allowlist run-state evidence.
+    UsdcPairSnapshotAllowlistRunStateRequest:
+      properties:
+        run_state_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Run State Id
+        execution_mode:
+          type: string
+          minLength: 1
+          title: Execution Mode
+          default: no_live_rehearsal
+        max_fanout_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Max Fanout Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '100'
+          examples:
+          - '1.00'
+        run_lock_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Run Lock Ref
+        rate_limit_window_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Rate Limit Window Ref
+        pause_requested:
+          type: boolean
+          title: Pause Requested
+          default: false
+        abort_requested:
+          type: boolean
+          title: Abort Requested
+          default: false
+        operator_notes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Notes
+      additionalProperties: false
+      type: object
+      title: UsdcPairSnapshotAllowlistRunStateRequest
+      description: No-live Phase F run-state rehearsal for one M58 allowlist readiness.
+    UsdcPairSnapshotAllowlistRunStateResponse:
+      properties:
+        status:
+          $ref: '#/components/schemas/AdminApiCommandStatus'
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          $ref: '#/components/schemas/AdminApiPermission'
+        service_method:
+          type: string
+          title: Service Method
+        message:
+          type: string
+          title: Message
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        run_state:
+          anyOf:
+          - $ref: '#/components/schemas/UsdcPairSnapshotAllowlistRunStateItem'
+          - type: 'null'
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        failure_stage:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Failure Stage
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - action_class
+      - required_permission
+      - service_method
+      - message
+      title: UsdcPairSnapshotAllowlistRunStateResponse
+      description: Response for no-live M58 Phase F allowlist run-state evidence.
     UsdcPairSnapshotOrderPlanAllowlistReadinessItem:
       properties:
         readiness_id:

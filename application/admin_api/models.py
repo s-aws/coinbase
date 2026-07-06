@@ -3011,6 +3011,151 @@ class UsdcPairSnapshotOrderPlanAllowlistReadinessListResponse(BaseModel):
     )
 
 
+class UsdcPairSnapshotAllowlistRunStateProductItem(BaseModel):
+    """Per-product no-live Phase F allowlist run-state evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    product_id: str = Field(min_length=1)
+    client_order_id: str | None = None
+    readiness_status: str = Field(min_length=1)
+    execution_state: str = Field(min_length=1)
+    retry_state: str = Field(min_length=1)
+    rate_limit_state: str = Field(min_length=1)
+    recovery_state: str = Field(min_length=1)
+    retry_attempts_available: int = Field(default=0, ge=0)
+    planned_notional_usdc: DecimalString = "0"
+    recovery_state_ref: str | None = None
+    blockers: list[str] = Field(default_factory=list)
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+
+
+class UsdcPairSnapshotAllowlistRunStateRequest(BaseModel):
+    """No-live Phase F run-state rehearsal for one M58 allowlist readiness."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    run_state_id: str | None = Field(default=None, min_length=1)
+    execution_mode: str = Field(default="no_live_rehearsal", min_length=1)
+    max_fanout_notional_usdc: DecimalString = "100"
+    run_lock_ref: str | None = Field(default=None, min_length=1)
+    rate_limit_window_ref: str | None = Field(default=None, min_length=1)
+    pause_requested: bool = False
+    abort_requested: bool = False
+    operator_notes: str | None = None
+
+
+class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
+    """Durable no-live Phase F allowlist run-state evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    run_state_id: str = Field(min_length=1)
+    readiness_id: str = Field(min_length=1)
+    plan_id: str = Field(min_length=1)
+    snapshot_run_id: str = Field(min_length=1)
+    recorded_at: str
+    execution_mode: str = Field(min_length=1)
+    max_fanout_notional_usdc: DecimalString
+    planned_fanout_notional_usdc: DecimalString = "0"
+    fanout_notional_status: str = Field(min_length=1)
+    product_ids: list[str] = Field(default_factory=list)
+    queued_product_ids: list[str] = Field(default_factory=list)
+    blocked_product_ids: list[str] = Field(default_factory=list)
+    retryable_product_ids: list[str] = Field(default_factory=list)
+    recovery_required_product_ids: list[str] = Field(default_factory=list)
+    queued_product_count: int = Field(ge=0)
+    blocked_product_count: int = Field(ge=0)
+    retryable_product_count: int = Field(ge=0)
+    recovery_required_product_count: int = Field(ge=0)
+    run_lock_status: str = Field(min_length=1)
+    run_lock_ref: str | None = None
+    pause_resume_status: str = Field(min_length=1)
+    abort_status: str = Field(min_length=1)
+    rate_limit_status: str = Field(min_length=1)
+    rate_limit_window_ref: str | None = None
+    retry_budget_status: str = Field(min_length=1)
+    recovery_status: str = Field(min_length=1)
+    partial_success_status: str = Field(min_length=1)
+    fanout_execution_status: str = Field(min_length=1)
+    run_state_status: str = Field(min_length=1)
+    fanout_blockers: list[str] = Field(default_factory=list)
+    product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem] = Field(
+        default_factory=list
+    )
+    actor_id: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(min_length=64, max_length=64)
+    audit_id: str | None = None
+    operator_notes: str | None = None
+    backend_owned: bool = True
+    read_only_after_write: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    detail: str
+
+
+class UsdcPairSnapshotAllowlistRunStateResponse(BaseModel):
+    """Response for no-live M58 Phase F allowlist run-state evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: AdminApiCommandStatus
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission
+    service_method: str
+    message: str
+    correlation_id: str | None = None
+    idempotency_key: str | None = None
+    audit_id: str | None = None
+    run_state: UsdcPairSnapshotAllowlistRunStateItem | None = None
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    failure_stage: str | None = None
+
+
+class UsdcPairSnapshotAllowlistRunStateListResponse(BaseModel):
+    """Read-only list of no-live M58 Phase F allowlist run-state evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "usdc_pair_snapshot_allowlist_run_state_list"
+    run_states: list[UsdcPairSnapshotAllowlistRunStateItem] = Field(
+        default_factory=list
+    )
+    returned_count: int = Field(ge=0)
+    total_count: int = Field(ge=0)
+    latest_run_state_id: str | None = None
+    queued_product_count: int = Field(ge=0)
+    blocked_product_count: int = Field(ge=0)
+    retryable_product_count: int = Field(ge=0)
+    recovery_required_product_count: int = Field(ge=0)
+    read_only: bool = True
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    detail: str = (
+        "M58 USDC pair snapshot allowlist run-state readback exposes "
+        "backend-owned no-live rehearsal evidence only; it does not submit "
+        "Coinbase orders, fan out execution, allocate wallet balance, or run "
+        "a scheduler."
+    )
+
+
 class UsdcPairSnapshotOrderPlanLiveSubmitRequest(BaseModel):
     """Controlled-live Phase E submit/cancel request for one M58 row."""
 
