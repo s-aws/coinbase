@@ -34673,6 +34673,10 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
     assert run_state["execution_mode"] == "no_live_rehearsal"
     assert run_state["max_fanout_notional_usdc"] == "100"
     assert run_state["planned_fanout_notional_usdc"] == "1.00"
+    assert run_state["allocated_fanout_notional_usdc"] == "1.00"
+    assert run_state["fanout_cap_remaining_usdc"] == "99.00"
+    assert run_state["fanout_cap_overage_usdc"] == "0.00"
+    assert run_state["fanout_cap_allocation_status"] == "passed"
     assert run_state["fanout_notional_status"] == "passed"
     assert run_state["run_lock_status"] == "recorded_no_live"
     assert run_state["pause_resume_status"] == "running_no_live"
@@ -34705,6 +34709,11 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
         item["product_id"]: item for item in run_state["product_states"]
     }
     assert product_states["BTC-USDC"]["execution_state"] == "queued_no_live"
+    assert product_states["BTC-USDC"]["fanout_cap_allocation_status"] == (
+        "allocated_no_live"
+    )
+    assert product_states["BTC-USDC"]["allocated_notional_usdc"] == "1.00"
+    assert product_states["BTC-USDC"]["fanout_cap_remaining_after_usdc"] == "99.00"
     assert product_states["BTC-USDC"]["retry_state"] == "ready_no_live"
     assert product_states["BTC-USDC"]["rate_limit_state"] == "ready_no_live"
     assert product_states["BTC-USDC"]["recovery_state"] == "ready_no_live"
@@ -34712,6 +34721,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
     assert product_states["BTC-USDC"]["blockers"] == []
     assert product_states["BTC-USDC"]["live_coinbase_execution"] == "not_run"
     assert product_states["ETH-USDC"]["execution_state"] == "blocked"
+    assert product_states["ETH-USDC"]["fanout_cap_allocation_status"] == "not_queued"
+    assert product_states["ETH-USDC"]["allocated_notional_usdc"] == "0.00"
+    assert product_states["ETH-USDC"]["fanout_cap_remaining_after_usdc"] == "99.00"
     assert product_states["ETH-USDC"]["blockers"] == [
         "proof_chain_not_accepted"
     ]
@@ -35001,6 +35013,10 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_cap_exceeded(
     run_state = payload["run_state"]
     assert run_state["max_fanout_notional_usdc"] == "0.50"
     assert run_state["planned_fanout_notional_usdc"] == "1.00"
+    assert run_state["allocated_fanout_notional_usdc"] == "0.00"
+    assert run_state["fanout_cap_remaining_usdc"] == "0.50"
+    assert run_state["fanout_cap_overage_usdc"] == "0.50"
+    assert run_state["fanout_cap_allocation_status"] == "exceeded"
     assert run_state["fanout_notional_status"] == "exceeded"
     assert run_state["fanout_execution_status"] == "blocked"
     assert run_state["run_state_status"] == "blocked"
@@ -35008,8 +35024,14 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_cap_exceeded(
         "fanout_execution_not_approved",
         "fanout_notional_cap_exceeded",
     ]
-    assert run_state["queued_product_ids"] == ["BTC-USDC"]
-    assert run_state["blocked_product_ids"] == []
+    assert run_state["queued_product_ids"] == []
+    assert run_state["blocked_product_ids"] == ["BTC-USDC"]
+    product_state = run_state["product_states"][0]
+    assert product_state["execution_state"] == "blocked"
+    assert product_state["fanout_cap_allocation_status"] == "cap_exceeded_no_live"
+    assert product_state["allocated_notional_usdc"] == "0.00"
+    assert product_state["fanout_cap_remaining_after_usdc"] == "0.50"
+    assert product_state["blockers"] == ["fanout_notional_cap_exceeded"]
     assert run_state["live_exchange_submitted"] is False
     assert run_state["live_coinbase_orders_ran"] is False
     assert run_state["live_coinbase_execution"] == "not_run"

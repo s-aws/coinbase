@@ -216,6 +216,13 @@ class UsdcPairSnapshotAllowlistRunStateRecord(BaseModel):
     execution_mode: str = Field(min_length=1)
     max_fanout_notional_usdc: str = Field(min_length=1)
     planned_fanout_notional_usdc: str = "0"
+    allocated_fanout_notional_usdc: str = "0"
+    fanout_cap_remaining_usdc: str = "0"
+    fanout_cap_overage_usdc: str = "0"
+    fanout_cap_allocation_status: str = Field(
+        default="legacy_unverified",
+        min_length=1,
+    )
     fanout_notional_status: str = Field(min_length=1)
     product_ids: list[str] = Field(default_factory=list)
     queued_product_ids: list[str] = Field(default_factory=list)

@@ -3039,6 +3039,12 @@ class UsdcPairSnapshotAllowlistRunStateProductItem(BaseModel):
     recovery_state: str = Field(min_length=1)
     retry_attempts_available: int = Field(default=0, ge=0)
     planned_notional_usdc: DecimalString = "0"
+    allocated_notional_usdc: DecimalString = "0"
+    fanout_cap_allocation_status: str = Field(
+        default="not_evaluated",
+        min_length=1,
+    )
+    fanout_cap_remaining_after_usdc: DecimalString = "0"
     recovery_state_ref: str | None = None
     blockers: list[str] = Field(default_factory=list)
     live_exchange_submitted: bool = False
@@ -3075,6 +3081,10 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
     execution_mode: str = Field(min_length=1)
     max_fanout_notional_usdc: DecimalString
     planned_fanout_notional_usdc: DecimalString = "0"
+    allocated_fanout_notional_usdc: DecimalString = "0"
+    fanout_cap_remaining_usdc: DecimalString = "0"
+    fanout_cap_overage_usdc: DecimalString = "0"
+    fanout_cap_allocation_status: str = Field(min_length=1)
     fanout_notional_status: str = Field(min_length=1)
     product_ids: list[str] = Field(default_factory=list)
     queued_product_ids: list[str] = Field(default_factory=list)

@@ -646,6 +646,10 @@ def _allowlist_run_state_item_from_record(
         execution_mode=record.execution_mode,
         max_fanout_notional_usdc=record.max_fanout_notional_usdc,
         planned_fanout_notional_usdc=record.planned_fanout_notional_usdc,
+        allocated_fanout_notional_usdc=record.allocated_fanout_notional_usdc,
+        fanout_cap_remaining_usdc=record.fanout_cap_remaining_usdc,
+        fanout_cap_overage_usdc=record.fanout_cap_overage_usdc,
+        fanout_cap_allocation_status=record.fanout_cap_allocation_status,
         fanout_notional_status=record.fanout_notional_status,
         product_ids=record.product_ids,
         queued_product_ids=record.queued_product_ids,
@@ -2744,6 +2748,83 @@ def _allowlist_run_state_product_item(
     )
 
 
+def _apply_allowlist_run_state_cap_allocation(
+    *,
+    product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
+    max_fanout_notional: Decimal,
+) -> tuple[list[UsdcPairSnapshotAllowlistRunStateProductItem], dict[str, str]]:
+    planned_total = sum(
+        (
+            _decimal_value(item.planned_notional_usdc) or Decimal("0")
+            for item in product_states
+            if item.execution_state == "queued_no_live"
+        ),
+        Decimal("0"),
+    )
+    allocated_total = Decimal("0")
+    updated: list[UsdcPairSnapshotAllowlistRunStateProductItem] = []
+
+    for item in product_states:
+        remaining = max_fanout_notional - allocated_total
+        if item.execution_state != "queued_no_live":
+            updated.append(
+                item.model_copy(
+                    update={
+                        "allocated_notional_usdc": _decimal_string(Decimal("0")),
+                        "fanout_cap_allocation_status": "not_queued",
+                        "fanout_cap_remaining_after_usdc": _decimal_string(
+                            remaining
+                        ),
+                    }
+                )
+            )
+            continue
+
+        planned_notional = _decimal_value(item.planned_notional_usdc) or Decimal("0")
+        projected_total = allocated_total + planned_notional
+        if projected_total <= max_fanout_notional:
+            allocated_total = projected_total
+            updated.append(
+                item.model_copy(
+                    update={
+                        "allocated_notional_usdc": _decimal_string(planned_notional),
+                        "fanout_cap_allocation_status": "allocated_no_live",
+                        "fanout_cap_remaining_after_usdc": _decimal_string(
+                            max_fanout_notional - allocated_total
+                        ),
+                    }
+                )
+            )
+            continue
+
+        updated.append(
+            item.model_copy(
+                update={
+                    "execution_state": "blocked",
+                    "allocated_notional_usdc": _decimal_string(Decimal("0")),
+                    "fanout_cap_allocation_status": "cap_exceeded_no_live",
+                    "fanout_cap_remaining_after_usdc": _decimal_string(remaining),
+                    "blockers": _dedupe(
+                        list(item.blockers) + ["fanout_notional_cap_exceeded"]
+                    ),
+                }
+            )
+        )
+
+    overage = max(planned_total - max_fanout_notional, Decimal("0"))
+    return updated, {
+        "planned_fanout_notional_usdc": _decimal_string(planned_total),
+        "allocated_fanout_notional_usdc": _decimal_string(allocated_total),
+        "fanout_cap_remaining_usdc": _decimal_string(
+            max_fanout_notional - allocated_total
+        ),
+        "fanout_cap_overage_usdc": _decimal_string(overage),
+        "fanout_cap_allocation_status": (
+            "exceeded" if overage > Decimal("0") else "passed"
+        ),
+    }
+
+
 def _dedupe(values: list[str]) -> list[str]:
     return list(dict.fromkeys(value for value in values if value))
 
@@ -2795,23 +2876,22 @@ def _record_usdc_pair_allowlist_run_state(
         _allowlist_run_state_product_item(row)
         for row in readiness.product_readiness_rows
     ]
+    product_states, cap_allocation = (
+        _apply_allowlist_run_state_cap_allocation(
+            product_states=product_states,
+            max_fanout_notional=max_fanout_notional,
+        )
+    )
     queued_product_ids = [
         item.product_id
         for item in product_states
         if item.execution_state == "queued_no_live"
     ]
-    planned_fanout_notional = sum(
-        (
-            _decimal_value(item.planned_notional_usdc) or Decimal("0")
-            for item in product_states
-            if item.execution_state == "queued_no_live"
-        ),
-        Decimal("0"),
-    )
+    planned_fanout_notional = _decimal_value(
+        cap_allocation["planned_fanout_notional_usdc"]
+    ) or Decimal("0")
     fanout_notional_status = (
-        "passed"
-        if planned_fanout_notional <= max_fanout_notional
-        else "exceeded"
+        cap_allocation["fanout_cap_allocation_status"]
     )
     blocked_product_ids = [
         item.product_id
@@ -2830,7 +2910,15 @@ def _record_usdc_pair_allowlist_run_state(
     ]
     fanout_blockers = _dedupe(
         list(readiness.fanout_blockers)
-        + (["product_evidence_blocked"] if blocked_product_ids else [])
+        + (
+            ["product_evidence_blocked"]
+            if any(
+                item.execution_state == "blocked"
+                and "fanout_notional_cap_exceeded" not in item.blockers
+                for item in product_states
+            )
+            else []
+        )
         + (
             ["fanout_notional_cap_exceeded"]
             if fanout_notional_status == "exceeded"
@@ -2852,6 +2940,14 @@ def _record_usdc_pair_allowlist_run_state(
         execution_mode=body.execution_mode,
         max_fanout_notional_usdc=str(body.max_fanout_notional_usdc),
         planned_fanout_notional_usdc=_decimal_string(planned_fanout_notional),
+        allocated_fanout_notional_usdc=(
+            cap_allocation["allocated_fanout_notional_usdc"]
+        ),
+        fanout_cap_remaining_usdc=cap_allocation["fanout_cap_remaining_usdc"],
+        fanout_cap_overage_usdc=cap_allocation["fanout_cap_overage_usdc"],
+        fanout_cap_allocation_status=(
+            cap_allocation["fanout_cap_allocation_status"]
+        ),
         fanout_notional_status=fanout_notional_status,
         product_ids=readiness.product_ids,
         queued_product_ids=queued_product_ids,

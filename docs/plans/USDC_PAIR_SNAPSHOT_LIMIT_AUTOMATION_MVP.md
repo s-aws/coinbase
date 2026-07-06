@@ -45,7 +45,8 @@ Available building blocks:
   partial-success status, retryable products, recovery-required products,
   queued/blocked product states, run lock, pause, abort, and a maximum 100
   USDC fan-out testing cap without submitting Coinbase orders or running a
-  scheduler.
+  scheduler. Run-state evidence now records no-live run-cap allocation,
+  allocated notional, cap remaining, and cap overage per product.
 - Backend proof-refresh mutation for existing order plans that resolves exact,
   unexpired, non-revoked approval lifecycle snapshots without browser
   authority or live execution, and can link exact durable admission-audit
@@ -72,10 +73,12 @@ Missing before live automation:
   planned product in fan-out. The single-product Phase E live-readiness route
   now records reference-bid and last-filled source/timestamp evidence and fails
   closed when either reference is missing, stale, invalid, or future-dated.
-- Run-level and multi-product wallet allocation controls that prevent
-  wallet/balance overcommit during fan-out. The single-product Phase E
-  live-readiness route now fails closed when the latest backend cap/guard proof
-  does not cover the submitted notional or required wallet availability.
+- Multi-product wallet allocation controls that prevent wallet/balance
+  overcommit during fan-out. Phase F run-state now proves no-live run-cap
+  allocation, but it still does not allocate wallet balance. The
+  single-product Phase E live-readiness route fails closed when the latest
+  backend cap/guard proof does not cover the submitted notional or required
+  wallet availability.
 - Durable approval, admission-audit, cap/guard, reconciliation, and enabled
   live-service decisions for every planned order.
 - Runtime fan-out rate-limit handling, retry execution, partial failure,
@@ -412,9 +415,12 @@ backend can record explicit allowlist readiness, per-product failure isolation
 status, run rate-limit budget refs, retry budget status, cancel/recovery refs,
 partial-success status, retryable products, recovery-required products,
 queued/blocked product states, run lock, pause, abort, and a maximum 100 USDC
-fan-out testing cap. This evidence remains `fanout_readiness_status=blocked`,
-`fanout_execution_status=blocked`, `live_coinbase_execution=not_run`, and
-notional `0`; it does not submit Coinbase orders, fan out execution, or run a
+fan-out testing cap. It also records no-live run-cap allocation evidence:
+planned notional, allocated notional, cap remaining, cap overage, and
+per-product allocation status. This evidence remains
+`fanout_readiness_status=blocked`, `fanout_execution_status=blocked`,
+`live_coinbase_execution=not_run`, and notional `0`; it does not submit
+Coinbase orders, fan out execution, allocate wallet balance, or run a
 scheduler.
 
 Deliverables:
