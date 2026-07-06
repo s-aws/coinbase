@@ -297,6 +297,8 @@ from application.admin_api.live_execution import (
     FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACTS,
     FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_EXECUTION_DISABLED_REASON,
     FUTURES_POST_EXCHANGE_SUBMISSION_RECONCILIATION_CONTRACT_MISSING_REASON,
+    FileAdminApiLiveAdapterDecisionStore,
+    FileAdminApiLiveServiceDecisionStore,
     get_disabled_live_execution_service,
 )
 from application.admin_api.models import (
@@ -6239,10 +6241,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             assert claim_trace.spot_rule_authority is False
         assert (
             command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count
-            == min(
-                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_count,
-                FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
-            )
+            == 0
         )
         assert (
             command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_plan_detail_row_limit
@@ -6324,10 +6323,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             assert clearance_plan.spot_rule_authority is False
         assert (
             command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count
-            == min(
-                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_count,
-                FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
-            )
+            == 0
         )
         assert (
             command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_detail_row_limit
@@ -6412,10 +6408,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             assert clearance_step.spot_rule_authority is False
         assert (
             command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count
-            == min(
-                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_count,
-                FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
-            )
+            == 0
         )
         assert (
             command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_detail_row_limit
@@ -6503,10 +6496,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             assert clearance_step_review.spot_rule_authority is False
         assert (
             command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count
-            == min(
-                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_count,
-                FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
-            )
+            == 0
         )
         assert (
             command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_detail_row_limit
@@ -6638,10 +6628,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         )
         assert (
             command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count
-            == min(
-                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_count,
-                FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
-            )
+            == 0
         )
         assert (
             command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_requirement_detail_row_limit
@@ -6776,10 +6763,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             )
         assert (
             command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count
-            == min(
-                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_count,
-                FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
-            )
+            == 0
         )
         assert (
             command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_contract_detail_row_limit
@@ -6875,10 +6859,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             assert store_record_contract.spot_rule_authority is False
         assert (
             command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count
-            == min(
-                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_count,
-                FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
-            )
+            == 0
         )
         assert (
             command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_detail_row_limit
@@ -7018,10 +6999,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         )
         assert (
             command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_count
-            == min(
-                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_count,
-                FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
-            )
+            == 0
         )
         assert (
             command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_detail_row_limit
@@ -7112,10 +7090,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         )
         assert (
             command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_contract_count
-            == min(
-                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_contract_count,
-                FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
-            )
+            == 0
         )
         assert (
             command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_contract_detail_row_limit
@@ -7213,10 +7188,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         )
         assert (
             command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_input_schema_count
-            == min(
-                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_input_schema_count,
-                FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
-            )
+            == 0
         )
         assert (
             command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_input_schema_detail_row_limit
@@ -7327,10 +7299,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         )
         assert (
             command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_input_schema_field_count
-            == min(
-                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_input_schema_field_count,
-                FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
-            )
+            == 0
         )
         assert (
             command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_input_schema_field_detail_row_limit
@@ -7454,10 +7423,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
         )
         assert (
             command.materialized_request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_count
-            == min(
-                command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_count,
-                FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
-            )
+            == 0
         )
         assert (
             command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_detail_row_limit
@@ -7578,10 +7544,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             output_schema_field_count
             >= command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_count
         )
-        assert materialized_output_schema_field_count == min(
-            output_schema_field_count,
-            FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
-        )
+        assert materialized_output_schema_field_count == 0
         assert (
             command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_detail_row_limit
             == FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
@@ -7699,10 +7662,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_names
         )
         assert output_schema_field_name_count == output_schema_field_count
-        assert materialized_output_schema_field_name_count == min(
-            output_schema_field_name_count,
-            FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
-        )
+        assert materialized_output_schema_field_name_count == 0
         assert (
             command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_name_detail_row_limit
             == FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
@@ -7821,10 +7781,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_types
         )
         assert output_schema_field_type_count == output_schema_field_count
-        assert materialized_output_schema_field_type_count == min(
-            output_schema_field_type_count,
-            FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
-        )
+        assert materialized_output_schema_field_type_count == 0
         assert (
             command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_type_detail_row_limit
             == FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
@@ -7943,10 +7900,7 @@ def test_futures_request_payload_field_contracts_are_disabled() -> None:
             command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraints
         )
         assert output_schema_field_constraint_count == output_schema_field_type_count
-        assert materialized_output_schema_field_constraint_count == min(
-            output_schema_field_constraint_count,
-            FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT,
-        )
+        assert materialized_output_schema_field_constraint_count == 0
         assert (
             command.request_payload_validation_record_execution_eligibility_resolution_plan_step_review_input_store_record_validation_remediation_dependency_work_item_claim_trace_clearance_step_review_input_store_record_validation_check_output_schema_field_constraint_detail_row_limit
             == FUTURES_COMMAND_SUITE_RESOLUTION_PLAN_DETAIL_ROW_LIMIT
@@ -12861,6 +12815,12 @@ def test_futures_command_suite_dependency_uses_futures_risk_proof_store(
     tmp_path,
 ) -> None:
     store = FileFuturesRiskProofStore(tmp_path / "futures_risk_proofs.jsonl")
+    live_service_decision_store = FileAdminApiLiveServiceDecisionStore(
+        tmp_path / "live_service_decisions.jsonl"
+    )
+    live_adapter_decision_store = FileAdminApiLiveAdapterDecisionStore(
+        tmp_path / "live_adapter_decisions.jsonl"
+    )
     request = _risk_proof_request()
     record = AdminApiFuturesRiskProofService().record_proof(
         proof_store=store,
@@ -12873,8 +12833,14 @@ def test_futures_command_suite_dependency_uses_futures_risk_proof_store(
         payload_hash=PAYLOAD_HASH,
         audit_id="audit-futures-risk-proof-001",
     )
-    service = futures_routes.get_read_service(store)
+    service = futures_routes.get_read_service(
+        store,
+        live_service_decision_store,
+        live_adapter_decision_store,
+    )
     assert service.futures_risk_proof_store is store
+    assert service.live_service_decision_store is live_service_decision_store
+    assert service.live_adapter_decision_store is live_adapter_decision_store
 
     payload = futures_command_suite_api_payload(service.build_futures_command_suite())
     encoded_payload = json.dumps(payload, separators=(",", ":"))

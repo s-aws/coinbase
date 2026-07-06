@@ -9,6 +9,9 @@ import pytest
 from tools import coinbase_live_credentials as credentials
 
 
+pytestmark = pytest.mark.serial
+
+
 def test_parses_json_and_dotenv_secret_payloads() -> None:
     json_payload = json.dumps(
         {

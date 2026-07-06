@@ -214,8 +214,14 @@ def test_parallel_regression_runner_accepts_per_run_basetemp():
 
     commands = build_commands(args, python="py", run_basetemp=Path("tmp") / "run-1")
 
-    assert commands[0].command[-2:] == ("--basetemp", "tmp\\run-1\\parallel")
-    assert commands[1].command[-2:] == ("--basetemp", "tmp\\run-1\\serial")
+    assert commands[0].command[-2:] == (
+        "--basetemp",
+        str(Path("tmp") / "run-1" / "parallel"),
+    )
+    assert commands[1].command[-2:] == (
+        "--basetemp",
+        str(Path("tmp") / "run-1" / "serial"),
+    )
 
 
 def test_parallel_regression_runner_dry_run_does_not_require_xdist(capsys):

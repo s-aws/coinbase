@@ -4,8 +4,13 @@ import json
 import os
 from types import SimpleNamespace
 
+import pytest
+
 from tools import run_admin_api_account_reality_live_read_smoke as smoke
 from tools.run_admin_api_manual_order_live_submit import STATE_LOG_FILENAMES
+
+
+pytestmark = pytest.mark.serial
 
 
 def result(body: dict, status_code: int = 200) -> SimpleNamespace:

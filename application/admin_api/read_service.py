@@ -7804,6 +7804,7 @@ class AdminApiReadService:
                     "POST /api/v1/spot/campaign/executions",
                     "POST /api/v1/spot/sweep/automation-runs",
                     "POST /api/v1/automation/usdc-pair-snapshot-runs",
+                    "POST /api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans",
                 ],
                 automation_routes=[
                     "tools/run_spot_portfolio_sweep_live.py",
@@ -9669,6 +9670,59 @@ class AdminApiReadService:
                 spot_rule_boundary=(
                     "This snapshot is spot USDC-pair evidence only and must not "
                     "be copied into futures, perpetuals, or non-spot modules."
+                ),
+                live_adapter_required=False,
+            ),
+            mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans"
+                ),
+                mutation_id="spot.usdc_pair_snapshot_order_plan",
+                mutation_family=AdminApiMutationFamilyType.SPOT_SWEEP_AUTOMATION,
+                workflow_id="spot.sweep_automation_and_live_executor",
+                related_workflow_ids=["spot.order_command_drafts"],
+                module="Spot Operations",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "USDC pair snapshot order plans derive backend-owned "
+                    "limit-order plan evidence from durable snapshot rows "
+                    "without wallet allocation or Coinbase submission."
+                ),
+                identity_keys=["run_id", "plan_id", "product_id"],
+                owning_backend_service=(
+                    "application/admin_api/usdc_pair_snapshot_service.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/automation.py::record_usdc_pair_snapshot_order_plan",
+                    "application/admin_api/usdc_pair_snapshot_service.py",
+                    "application/admin_api/usdc_pair_snapshot.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/generated/",
+                ],
+                documentation_refs=[
+                    "docs/plans/USDC_PAIR_SNAPSHOT_LIMIT_AUTOMATION_MVP.md",
+                    "docs/ORIGIN_PROD_FEATURE_MVP_MAP.md",
+                ],
+                required_next_contract=(
+                    "Backend wallet allocation, approval, cap/guard, "
+                    "admission audit, reconciliation, and live adapter evidence "
+                    "must pass before Coinbase submission is allowed."
+                ),
+                blockers=[
+                    "live_execution_not_implemented",
+                    "wallet_allocation_not_implemented",
+                    "coinbase_submission_not_implemented",
+                ],
+                frontend_boundary=(
+                    "Display backend order-plan evidence only; do not allocate "
+                    "wallet funds, derive order payloads, or submit orders from "
+                    "browser code."
+                ),
+                spot_rule_boundary=(
+                    "This order-plan evidence is spot USDC-pair only and must "
+                    "not be copied into futures, perpetuals, or non-spot modules."
                 ),
                 live_adapter_required=False,
             ),
@@ -26378,7 +26432,7 @@ class AdminApiReadService:
             return clearance_preview_count(
                 "clearance_step_review_inputs",
                 command_id,
-                lambda: clearance_step_review_count(command_id) * 2,
+                lambda: clearance_step_review_count(command_id),
             )
 
         def clearance_step_review_input_store_requirement_count(
