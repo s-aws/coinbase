@@ -1081,6 +1081,24 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     AdminApiRouteInventoryItem(
         module_id="automation",
         surface=(
+            "GET /api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="list_usdc_pair_snapshot_order_plan_allowlist_readiness",
+        parity_test=(
+            "M58 read-only allowlist-readiness evidence; no Coinbase order "
+            "submission, no fan-out execution, no scheduler, and no browser "
+            "execution authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="automation",
+        surface=(
             "GET /api/v1/automation/usdc-pair-snapshot-order-plan-live-submissions"
         ),
         action_class=AdminApiActionClass.READ_ONLY,
@@ -1114,6 +1132,36 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
             "M58 backend-owned limit-order plan evidence derived from durable "
             "USDC snapshot rows; no Coinbase order submission, no wallet "
             "allocation, and no browser execution authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="automation",
+        surface=(
+            "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "{plan_id}/allowlist-readiness"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+        idempotency="required",
+        approval=(
+            "records no-live product allowlist readiness from existing "
+            "backend-owned order-plan evidence; does not grant Coinbase "
+            "submission"
+        ),
+        caps=(
+            "summarizes explicit allowlist product count, run cap exhaustion, "
+            "missing order-plan rows, and product evidence blockers; no "
+            "wallet allocation"
+        ),
+        audit="required",
+        shared_method=(
+            "record_usdc_pair_snapshot_order_plan_allowlist_readiness"
+        ),
+        parity_test=(
+            "M58 backend-owned allowlist-readiness persists no-live "
+            "candidate and blocker evidence; no Coinbase order submission, "
+            "no fan-out execution, no scheduler, and no browser execution "
+            "authority"
         ),
     ),
     AdminApiRouteInventoryItem(

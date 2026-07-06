@@ -2868,6 +2868,132 @@ class UsdcPairSnapshotOrderPlanLiveReadinessListResponse(BaseModel):
     )
 
 
+class UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem(BaseModel):
+    """Per-product Phase F allowlist-readiness evidence for an M58 plan."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    product_id: str = Field(min_length=1)
+    client_order_id: str | None = None
+    plan_status: str | None = None
+    proof_chain_status: str | None = None
+    run_cap_status: str | None = None
+    skip_reason: str | None = None
+    planned_notional_usdc: DecimalString = "0"
+    readiness_status: str = Field(min_length=1)
+    retry_status: str = Field(min_length=1)
+    blockers: list[str] = Field(default_factory=list)
+    recovery_state_ref: str | None = None
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+
+
+class UsdcPairSnapshotOrderPlanAllowlistReadinessRequest(BaseModel):
+    """No-live Phase F readiness summary for an explicit M58 product allowlist."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    readiness_id: str | None = Field(default=None, min_length=1)
+    product_ids: list[str] = Field(min_length=1)
+    max_products: int = Field(default=3, ge=1, le=25)
+    operator_notes: str | None = None
+
+
+class UsdcPairSnapshotOrderPlanAllowlistReadinessItem(BaseModel):
+    """Durable no-live Phase F allowlist-readiness summary."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    readiness_id: str = Field(min_length=1)
+    plan_id: str = Field(min_length=1)
+    snapshot_run_id: str = Field(min_length=1)
+    recorded_at: str
+    product_ids: list[str] = Field(default_factory=list)
+    selected_product_count: int = Field(ge=0)
+    max_products: int = Field(ge=1)
+    candidate_product_ids: list[str] = Field(default_factory=list)
+    blocked_product_ids: list[str] = Field(default_factory=list)
+    cap_exhausted_product_ids: list[str] = Field(default_factory=list)
+    missing_product_ids: list[str] = Field(default_factory=list)
+    retryable_product_ids: list[str] = Field(default_factory=list)
+    recovery_required_product_ids: list[str] = Field(default_factory=list)
+    partial_success_status: str = Field(min_length=1)
+    fanout_readiness_status: str = Field(min_length=1)
+    fanout_blockers: list[str] = Field(default_factory=list)
+    product_readiness_rows: list[
+        UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem
+    ] = Field(default_factory=list)
+    actor_id: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(min_length=64, max_length=64)
+    audit_id: str | None = None
+    operator_notes: str | None = None
+    backend_owned: bool = True
+    read_only_after_write: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    detail: str
+
+
+class UsdcPairSnapshotOrderPlanAllowlistReadinessResponse(BaseModel):
+    """Response for no-live M58 Phase F allowlist-readiness evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: AdminApiCommandStatus
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission
+    service_method: str
+    message: str
+    correlation_id: str | None = None
+    idempotency_key: str | None = None
+    audit_id: str | None = None
+    readiness: UsdcPairSnapshotOrderPlanAllowlistReadinessItem | None = None
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    failure_stage: str | None = None
+
+
+class UsdcPairSnapshotOrderPlanAllowlistReadinessListResponse(BaseModel):
+    """Read-only list of no-live M58 Phase F allowlist-readiness evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "usdc_pair_snapshot_order_plan_allowlist_readiness_list"
+    readiness: list[UsdcPairSnapshotOrderPlanAllowlistReadinessItem] = Field(
+        default_factory=list
+    )
+    returned_count: int = Field(ge=0)
+    total_count: int = Field(ge=0)
+    latest_readiness_id: str | None = None
+    blocked_count: int = Field(ge=0)
+    candidate_product_count: int = Field(ge=0)
+    cap_exhausted_product_count: int = Field(ge=0)
+    read_only: bool = True
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    detail: str = (
+        "M58 USDC pair snapshot allowlist-readiness readback exposes "
+        "backend-owned no-live fan-out readiness evidence only; it does not "
+        "submit Coinbase orders, allocate wallet balance, run a scheduler, or "
+        "grant browser execution authority."
+    )
+
+
 class UsdcPairSnapshotOrderPlanLiveSubmitRequest(BaseModel):
     """Controlled-live Phase E submit/cancel request for one M58 row."""
 

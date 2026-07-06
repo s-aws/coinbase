@@ -579,6 +579,7 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     from api.v1.routes import spot as spot_routes
     from api.v1.routes import stealth as stealth_routes
     from application.admin_api.usdc_pair_snapshot import (
+        FileUsdcPairSnapshotOrderPlanAllowlistReadinessStore,
         FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
         FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
         FileUsdcPairSnapshotOrderPlanStore,
@@ -623,6 +624,12 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     usdc_pair_snapshot_order_plan_live_submit_store = (
         FileUsdcPairSnapshotOrderPlanLiveSubmitStore(
             store_dir / "usdc_pair_snapshot_order_plan_live_submit.jsonl"
+        )
+    )
+    usdc_pair_snapshot_order_plan_allowlist_readiness_store = (
+        FileUsdcPairSnapshotOrderPlanAllowlistReadinessStore(
+            store_dir
+            / "usdc_pair_snapshot_order_plan_allowlist_readiness.jsonl"
         )
     )
     usdc_pair_snapshot_live_order_executor = (
@@ -800,6 +807,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
         automation_routes.get_usdc_pair_snapshot_order_plan_live_submit_store
     ] = lambda: usdc_pair_snapshot_order_plan_live_submit_store
     app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_order_plan_allowlist_readiness_store
+    ] = lambda: usdc_pair_snapshot_order_plan_allowlist_readiness_store
+    app.dependency_overrides[
         automation_routes.get_usdc_pair_snapshot_live_order_executor
     ] = lambda: usdc_pair_snapshot_live_order_executor
     app.dependency_overrides[
@@ -942,6 +952,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     )
     client.admin_api_test_usdc_pair_snapshot_order_plan_live_submit_store = (
         usdc_pair_snapshot_order_plan_live_submit_store
+    )
+    client.admin_api_test_usdc_pair_snapshot_order_plan_allowlist_readiness_store = (
+        usdc_pair_snapshot_order_plan_allowlist_readiness_store
     )
     client.admin_api_test_usdc_pair_snapshot_live_order_executor = (
         usdc_pair_snapshot_live_order_executor
@@ -34082,6 +34095,273 @@ def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
             ),
         )
         assert invalid_limit_response.status_code == 422
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_readiness_records_no_live_summary(
+    monkeypatch,
+):
+    from api.v1.routes import automation as automation_routes
+    from application.admin_api.usdc_pair_snapshot_service import (
+        AdminApiUsdcPairSnapshotService,
+    )
+
+    client = _client(monkeypatch)
+    products = [
+        {
+            "product_id": "BTC-USDC",
+            "product_type": ProductType.SPOT.value,
+            "base_currency": "BTC",
+            "quote_currency": "USDC",
+            "status": "online",
+            "base_increment": "0.00000001",
+            "quote_increment": "0.01",
+            "price_increment": "0.01",
+            "base_min_size": "0.00000001",
+            "quote_min_size": "1",
+            "trading_disabled": False,
+        },
+        {
+            "product_id": "ETH-USDC",
+            "product_type": ProductType.SPOT.value,
+            "base_currency": "ETH",
+            "quote_currency": "USDC",
+            "status": "online",
+            "base_increment": "0.00000001",
+            "quote_increment": "0.01",
+            "price_increment": "0.01",
+            "base_min_size": "0.00000001",
+            "quote_min_size": "1",
+            "trading_disabled": False,
+        },
+        {
+            "product_id": "SOL-USDC",
+            "product_type": ProductType.SPOT.value,
+            "base_currency": "SOL",
+            "quote_currency": "USDC",
+            "status": "online",
+            "base_increment": "0.00000001",
+            "quote_increment": "0.01",
+            "price_increment": "0.01",
+            "base_min_size": "0.00000001",
+            "quote_min_size": "1",
+            "trading_disabled": False,
+        },
+    ]
+    fresh_captured_at = datetime.now(timezone.utc).isoformat()
+    prices = {
+        "BTC-USDC": {
+            "price": "100.00",
+            "source": "test_backend_price_feed",
+            "captured_at": fresh_captured_at,
+        },
+        "ETH-USDC": {
+            "price": "2000.00",
+            "source": "test_backend_price_feed",
+            "captured_at": fresh_captured_at,
+        },
+        "SOL-USDC": {
+            "price": "50.00",
+            "source": "test_backend_price_feed",
+            "captured_at": fresh_captured_at,
+        },
+    }
+    client.app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_service
+    ] = lambda: AdminApiUsdcPairSnapshotService(
+        product_provider=lambda: products,
+        price_provider=lambda product: prices.get(product["product_id"]),
+    )
+
+    snapshot_response = client.post(
+        "/api/v1/automation/usdc-pair-snapshot-runs",
+        headers=_headers(
+            idempotency_key="idem-usdc-allowlist-snapshot",
+            operator_intent="m58_usdc_snapshot_allowlist_source",
+        ),
+        json={
+            "run_id": "m58-usdc-allowlist-snapshot-test",
+            "side": "BUY",
+            "max_notional_per_product_usdc": "1.00",
+            "product_ids": ["BTC-USDC", "ETH-USDC", "SOL-USDC"],
+            "account_id": "account-m58-usdc-001",
+            "portfolio_id": "portfolio-m58-usdc-001",
+            "dry_run": True,
+        },
+    )
+    assert snapshot_response.status_code == 200
+
+    plan_response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-runs/"
+            "m58-usdc-allowlist-snapshot-test/order-plans"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-allowlist-order-plan",
+            operator_intent="m58_usdc_snapshot_allowlist_order_plan",
+        ),
+        json={
+            "plan_id": "m58-usdc-allowlist-plan-test",
+            "max_total_notional_usdc": "2.00",
+            "time_in_force": "GOOD_UNTIL_CANCELLED",
+            "dry_run": True,
+        },
+    )
+    assert plan_response.status_code == 200
+    plan = plan_response.json()["plan"]
+    rows_by_product = {
+        row["product_id"]: row for row in plan["order_plan_rows"]
+    }
+    assert rows_by_product["BTC-USDC"]["plan_status"] == "planned"
+    assert rows_by_product["ETH-USDC"]["plan_status"] == "planned"
+    assert rows_by_product["SOL-USDC"]["skip_reason"] == "run_total_cap_exceeded"
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "m58-usdc-allowlist-plan-test/allowlist-readiness"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-allowlist-readiness",
+            operator_intent="m58_usdc_snapshot_allowlist_readiness",
+        ),
+        json={
+            "readiness_id": "m58-usdc-allowlist-readiness-test",
+            "product_ids": ["BTC-USDC", "ETH-USDC", "SOL-USDC", "DOGE-USDC"],
+            "max_products": 3,
+            "operator_notes": "no-live Phase F allowlist-readiness evidence",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["action_class"] == AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    assert payload["required_permission"] == AdminApiPermission.CAMPAIGN_EXECUTE.value
+    assert payload["service_method"] == (
+        "record_usdc_pair_snapshot_order_plan_allowlist_readiness"
+    )
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+
+    readiness = payload["readiness"]
+    assert readiness["readiness_id"] == "m58-usdc-allowlist-readiness-test"
+    assert readiness["plan_id"] == "m58-usdc-allowlist-plan-test"
+    assert readiness["snapshot_run_id"] == "m58-usdc-allowlist-snapshot-test"
+    assert readiness["product_ids"] == [
+        "BTC-USDC",
+        "ETH-USDC",
+        "SOL-USDC",
+        "DOGE-USDC",
+    ]
+    assert readiness["selected_product_count"] == 4
+    assert readiness["max_products"] == 3
+    assert readiness["candidate_product_ids"] == ["BTC-USDC", "ETH-USDC"]
+    assert readiness["blocked_product_ids"] == [
+        "BTC-USDC",
+        "ETH-USDC",
+        "SOL-USDC",
+        "DOGE-USDC",
+    ]
+    assert readiness["cap_exhausted_product_ids"] == ["SOL-USDC"]
+    assert readiness["missing_product_ids"] == ["DOGE-USDC"]
+    assert readiness["retryable_product_ids"] == []
+    assert readiness["recovery_required_product_ids"] == []
+    assert readiness["partial_success_status"] == "blocked"
+    assert readiness["fanout_readiness_status"] == "blocked"
+    assert readiness["fanout_blockers"] == [
+        "allowlist_product_count_exceeds_max",
+        "fanout_execution_not_approved",
+        "scheduler_blocked",
+        "product_evidence_blocked",
+    ]
+    assert readiness["backend_owned"] is True
+    assert readiness["browser_authority"] == "display_only"
+    assert readiness["bff_authority"] == "forward_only_no_execution"
+    assert readiness["live_exchange_submitted"] is False
+    assert readiness["live_coinbase_orders_ran"] is False
+    assert readiness["live_coinbase_execution"] == "not_run"
+    assert readiness["notional_usdc"] == "0"
+    assert readiness["audit_id"] == payload["audit_id"]
+
+    rows = {
+        row["product_id"]: row for row in readiness["product_readiness_rows"]
+    }
+    assert rows["BTC-USDC"]["readiness_status"] == "blocked"
+    assert rows["BTC-USDC"]["client_order_id"] == rows_by_product["BTC-USDC"][
+        "client_order_id"
+    ]
+    assert rows["BTC-USDC"]["blockers"] == ["proof_chain_not_accepted"]
+    assert rows["BTC-USDC"]["recovery_state_ref"] == rows_by_product["BTC-USDC"][
+        "reconciliation_plan_id"
+    ]
+    assert rows["SOL-USDC"]["blockers"] == [
+        "order_plan_row_not_planned",
+        "run_cap_exhausted",
+    ]
+    assert rows["SOL-USDC"]["skip_reason"] == "run_total_cap_exceeded"
+    assert rows["DOGE-USDC"]["blockers"] == ["order_plan_row_missing"]
+    assert rows["DOGE-USDC"]["client_order_id"] is None
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+    replay = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "m58-usdc-allowlist-plan-test/allowlist-readiness"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-allowlist-readiness",
+            operator_intent="m58_usdc_snapshot_allowlist_readiness",
+        ),
+        json={
+            "readiness_id": "m58-usdc-allowlist-readiness-test",
+            "product_ids": ["BTC-USDC", "ETH-USDC", "SOL-USDC", "DOGE-USDC"],
+            "max_products": 3,
+            "operator_notes": "no-live Phase F allowlist-readiness evidence",
+        },
+    )
+    assert replay.status_code == 200
+    assert replay.headers["x-idempotency-replayed"] == "true"
+    assert replay.json() == payload
+    assert (
+        len(
+            client.admin_api_test_usdc_pair_snapshot_order_plan_allowlist_readiness_store.read_recent(
+                limit=10
+            )
+        )
+        == 1
+    )
+
+    readback = client.get(
+        "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness?limit=5",
+        headers=_headers(
+            idempotency_key="idem-usdc-allowlist-readiness-readback",
+            operator_intent="m58_usdc_snapshot_allowlist_readiness_readback",
+            roles=AdminApiRole.AUDITOR.value,
+        ),
+    )
+    assert readback.status_code == 200
+    readback_payload = readback.json()
+    assert readback_payload["type"] == (
+        "usdc_pair_snapshot_order_plan_allowlist_readiness_list"
+    )
+    assert readback_payload["returned_count"] == 1
+    assert readback_payload["total_count"] == 1
+    assert readback_payload["latest_readiness_id"] == readiness["readiness_id"]
+    assert readback_payload["blocked_count"] == 1
+    assert readback_payload["candidate_product_count"] == 2
+    assert readback_payload["cap_exhausted_product_count"] == 1
+    assert readback_payload["read_only"] is True
+    assert readback_payload["backend_owned"] is True
+    assert readback_payload["browser_authority"] == "display_only"
+    assert readback_payload["bff_authority"] == "read_only_forward"
+    assert readback_payload["live_exchange_submitted"] is False
+    assert readback_payload["live_coinbase_orders_ran"] is False
+    assert readback_payload["live_coinbase_execution"] == "not_run"
+    assert readback_payload["notional_usdc"] == "0"
+    assert readback_payload["readiness"][0] == readiness
 
 
 @pytest.mark.regression

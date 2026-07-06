@@ -40,6 +40,11 @@ from application.admin_api.live_execution import (
 from application.admin_api.models import (
     AdminApiActor,
     AdminApiErrorResponse,
+    UsdcPairSnapshotOrderPlanAllowlistReadinessItem,
+    UsdcPairSnapshotOrderPlanAllowlistReadinessListResponse,
+    UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem,
+    UsdcPairSnapshotOrderPlanAllowlistReadinessRequest,
+    UsdcPairSnapshotOrderPlanAllowlistReadinessResponse,
     UsdcPairSnapshotOrderPlanLiveReadinessItem,
     UsdcPairSnapshotOrderPlanLiveReadinessListResponse,
     UsdcPairSnapshotOrderPlanLiveReadinessRequest,
@@ -64,10 +69,12 @@ from application.admin_api.mvp_service import (
     get_admin_mvp_service,
 )
 from application.admin_api.usdc_pair_snapshot import (
+    FileUsdcPairSnapshotOrderPlanAllowlistReadinessStore,
     FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
     FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
     FileUsdcPairSnapshotOrderPlanStore,
     FileUsdcPairSnapshotRunStore,
+    UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
     UsdcPairSnapshotOrderPlanLiveReadinessRecord,
     UsdcPairSnapshotOrderPlanLiveSubmitRecord,
     UsdcPairSnapshotOrderPlanRecord,
@@ -120,6 +127,16 @@ USDC_PAIR_SNAPSHOT_ORDER_PLAN_PROOF_REFRESH_ENDPOINT = (
 )
 USDC_PAIR_SNAPSHOT_ORDER_PLAN_PROOF_REFRESH_SERVICE_METHOD = (
     "refresh_usdc_pair_snapshot_order_plan_proof_chain"
+)
+USDC_PAIR_SNAPSHOT_ORDER_PLAN_ALLOWLIST_READINESS_ROUTE = (
+    "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+    "{plan_id}/allowlist-readiness"
+)
+USDC_PAIR_SNAPSHOT_ORDER_PLAN_ALLOWLIST_READINESS_ENDPOINT = (
+    f"POST {USDC_PAIR_SNAPSHOT_ORDER_PLAN_ALLOWLIST_READINESS_ROUTE}"
+)
+USDC_PAIR_SNAPSHOT_ORDER_PLAN_ALLOWLIST_READINESS_SERVICE_METHOD = (
+    "record_usdc_pair_snapshot_order_plan_allowlist_readiness"
 )
 USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_READINESS_ROUTE = (
     "/api/v1/automation/usdc-pair-snapshot-order-plans/"
@@ -203,6 +220,28 @@ ORDER_PLAN_ROUTE_RESPONSES = {
     },
 }
 
+ALLOWLIST_READINESS_ROUTE_RESPONSES = {
+    200: {
+        "model": UsdcPairSnapshotOrderPlanAllowlistReadinessResponse,
+        "description": (
+            "USDC pair snapshot order-plan allowlist-readiness evidence "
+            "accepted, rejected, or replayed."
+        ),
+    },
+    401: {
+        "model": AdminApiErrorResponse,
+        "description": "Missing or invalid Admin API authentication.",
+    },
+    403: {
+        "model": AdminApiErrorResponse,
+        "description": "Actor lacks the required Admin API permission.",
+    },
+    409: {
+        "model": UsdcPairSnapshotOrderPlanAllowlistReadinessResponse,
+        "description": "Idempotency key conflict.",
+    },
+}
+
 LIVE_READINESS_ROUTE_RESPONSES = {
     200: {
         "model": UsdcPairSnapshotOrderPlanLiveReadinessResponse,
@@ -275,6 +314,14 @@ def get_usdc_pair_snapshot_order_plan_store() -> FileUsdcPairSnapshotOrderPlanSt
     """Return durable M58 snapshot order-plan storage."""
 
     return FileUsdcPairSnapshotOrderPlanStore()
+
+
+def get_usdc_pair_snapshot_order_plan_allowlist_readiness_store() -> (
+    FileUsdcPairSnapshotOrderPlanAllowlistReadinessStore
+):
+    """Return durable M58 allowlist-readiness evidence storage."""
+
+    return FileUsdcPairSnapshotOrderPlanAllowlistReadinessStore()
 
 
 def get_usdc_pair_snapshot_order_plan_live_readiness_store() -> (
@@ -459,6 +506,67 @@ def _order_plan_list_response(
         ),
         returned_proof_chain_not_applicable_count=sum(
             plan.proof_chain_not_applicable_count for plan in plans
+        ),
+    )
+
+
+def _allowlist_readiness_item_from_record(
+    record: UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
+) -> UsdcPairSnapshotOrderPlanAllowlistReadinessItem:
+    return UsdcPairSnapshotOrderPlanAllowlistReadinessItem(
+        readiness_id=record.readiness_id,
+        plan_id=record.plan_id,
+        snapshot_run_id=record.snapshot_run_id,
+        recorded_at=record.recorded_at,
+        product_ids=record.product_ids,
+        selected_product_count=record.selected_product_count,
+        max_products=record.max_products,
+        candidate_product_ids=record.candidate_product_ids,
+        blocked_product_ids=record.blocked_product_ids,
+        cap_exhausted_product_ids=record.cap_exhausted_product_ids,
+        missing_product_ids=record.missing_product_ids,
+        retryable_product_ids=record.retryable_product_ids,
+        recovery_required_product_ids=record.recovery_required_product_ids,
+        partial_success_status=record.partial_success_status,
+        fanout_readiness_status=record.fanout_readiness_status,
+        fanout_blockers=record.fanout_blockers,
+        product_readiness_rows=record.product_readiness_rows,
+        actor_id=record.actor_id,
+        operator_intent=record.operator_intent,
+        idempotency_key=record.idempotency_key,
+        payload_hash=record.payload_hash,
+        audit_id=record.audit_id,
+        operator_notes=record.operator_notes,
+        live_exchange_submitted=record.live_exchange_submitted,
+        live_coinbase_orders_ran=record.live_coinbase_orders_ran,
+        live_coinbase_execution=record.live_coinbase_execution,
+        notional_usdc=record.notional_usdc,
+        detail=record.detail,
+    )
+
+
+def _allowlist_readiness_list_response(
+    *,
+    store: FileUsdcPairSnapshotOrderPlanAllowlistReadinessStore,
+    limit: int,
+) -> UsdcPairSnapshotOrderPlanAllowlistReadinessListResponse:
+    readiness = [
+        _allowlist_readiness_item_from_record(record)
+        for record in store.read_recent(limit=limit)
+    ]
+    return UsdcPairSnapshotOrderPlanAllowlistReadinessListResponse(
+        readiness=readiness,
+        returned_count=len(readiness),
+        total_count=store.count_records(),
+        latest_readiness_id=readiness[0].readiness_id if readiness else None,
+        blocked_count=sum(
+            1 for item in readiness if item.fanout_readiness_status == "blocked"
+        ),
+        candidate_product_count=sum(
+            len(item.candidate_product_ids) for item in readiness
+        ),
+        cap_exhausted_product_count=sum(
+            len(item.cap_exhausted_product_ids) for item in readiness
         ),
     )
 
@@ -683,6 +791,55 @@ def _order_plan_base_response(
     )
 
 
+def _allowlist_readiness_http_status(
+    response: UsdcPairSnapshotOrderPlanAllowlistReadinessResponse,
+) -> int:
+    if response.status == AdminApiCommandStatus.CONFLICT:
+        return status.HTTP_409_CONFLICT
+    return status.HTTP_200_OK
+
+
+def _allowlist_readiness_response(
+    response: UsdcPairSnapshotOrderPlanAllowlistReadinessResponse,
+    *,
+    replayed: bool = False,
+) -> JSONResponse:
+    headers = {"X-Correlation-Id": response.correlation_id or ""}
+    if replayed:
+        headers["X-Idempotency-Replayed"] = "true"
+    return JSONResponse(
+        status_code=_allowlist_readiness_http_status(response),
+        content=response.model_dump(mode="json"),
+        headers=headers,
+    )
+
+
+def _allowlist_readiness_base_response(
+    *,
+    status_value: AdminApiCommandStatus,
+    message: str,
+    correlation_id: str,
+    idempotency_key: str,
+    readiness: UsdcPairSnapshotOrderPlanAllowlistReadinessItem | None = None,
+    audit_id: str | None = None,
+    failure_stage: str | None = None,
+) -> UsdcPairSnapshotOrderPlanAllowlistReadinessResponse:
+    return UsdcPairSnapshotOrderPlanAllowlistReadinessResponse(
+        status=status_value,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+        service_method=(
+            USDC_PAIR_SNAPSHOT_ORDER_PLAN_ALLOWLIST_READINESS_SERVICE_METHOD
+        ),
+        message=message,
+        correlation_id=correlation_id,
+        idempotency_key=idempotency_key,
+        audit_id=audit_id,
+        readiness=readiness,
+        failure_stage=failure_stage,
+    )
+
+
 def _live_readiness_http_status(
     response: UsdcPairSnapshotOrderPlanLiveReadinessResponse,
 ) -> int:
@@ -823,6 +980,35 @@ def _record_order_plan_audit(
     request_id: str,
     operator_intent: str,
     response: UsdcPairSnapshotOrderPlanResponse,
+    audit_id: str | None = None,
+) -> str:
+    event_fields = {
+        "actor_id": actor.actor_id,
+        "action_class": response.action_class,
+        "permission": response.required_permission,
+        "endpoint": endpoint,
+        "request_id": request_id,
+        "operator_intent": operator_intent,
+        "idempotency_key": response.idempotency_key,
+        "status": response.status,
+        "failure_stage": response.failure_stage,
+        "message": response.message,
+        "live_exchange_submitted": False,
+        "live_coinbase_orders_ran": False,
+    }
+    if audit_id is not None:
+        event_fields["audit_id"] = audit_id
+    return audit_store.append(AdminApiAuditEvent(**event_fields))
+
+
+def _record_allowlist_readiness_audit(
+    *,
+    audit_store: FileAdminApiAuditStore,
+    actor: AdminApiActor,
+    endpoint: str,
+    request_id: str,
+    operator_intent: str,
+    response: UsdcPairSnapshotOrderPlanAllowlistReadinessResponse,
     audit_id: str | None = None,
 ) -> str:
     event_fields = {
@@ -1071,6 +1257,92 @@ def _execute_idempotent_order_plan(
     return _order_plan_response(response)
 
 
+def _execute_idempotent_allowlist_readiness(
+    *,
+    idempotency_key: str,
+    payload_hash: str,
+    actor: AdminApiActor,
+    request_id: str,
+    operator_intent: str,
+    idempotency_store: FileIdempotencyStore,
+    audit_store: FileAdminApiAuditStore,
+    operation: Callable[[str], UsdcPairSnapshotOrderPlanAllowlistReadinessItem],
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.CAMPAIGN_EXECUTE)
+    check = idempotency_store.evaluate(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+    )
+    if check.decision == AdminApiIdempotencyDecision.REPLAY and check.record:
+        return _allowlist_readiness_response(
+            UsdcPairSnapshotOrderPlanAllowlistReadinessResponse.model_validate(
+                check.record.response
+            ),
+            replayed=True,
+        )
+    if check.decision == AdminApiIdempotencyDecision.CONFLICT:
+        response = _allowlist_readiness_base_response(
+            status_value=AdminApiCommandStatus.CONFLICT,
+            message="Idempotency-Key was already used with a different payload.",
+            correlation_id=request_id,
+            idempotency_key=idempotency_key,
+            failure_stage="idempotency",
+        )
+        response.audit_id = _record_allowlist_readiness_audit(
+            audit_store=audit_store,
+            actor=actor,
+            endpoint=USDC_PAIR_SNAPSHOT_ORDER_PLAN_ALLOWLIST_READINESS_ENDPOINT,
+            request_id=request_id,
+            operator_intent=operator_intent,
+            response=response,
+        )
+        return _allowlist_readiness_response(response)
+
+    try:
+        audit_id = str(uuid4())
+        readiness = operation(audit_id)
+        response = _allowlist_readiness_base_response(
+            status_value=AdminApiCommandStatus.ACCEPTED,
+            message=(
+                "USDC pair snapshot order-plan allowlist-readiness evidence "
+                "accepted without Coinbase submission."
+            ),
+            correlation_id=request_id,
+            idempotency_key=idempotency_key,
+            audit_id=audit_id,
+            readiness=readiness,
+        )
+    except UsdcPairSnapshotError as exc:
+        response = _allowlist_readiness_base_response(
+            status_value=AdminApiCommandStatus.REJECTED,
+            message=str(exc),
+            correlation_id=request_id,
+            idempotency_key=idempotency_key,
+            failure_stage="usdc_pair_snapshot_order_plan_allowlist_readiness",
+        )
+    response.audit_id = _record_allowlist_readiness_audit(
+        audit_store=audit_store,
+        actor=actor,
+        endpoint=USDC_PAIR_SNAPSHOT_ORDER_PLAN_ALLOWLIST_READINESS_ENDPOINT,
+        request_id=request_id,
+        operator_intent=operator_intent,
+        response=response,
+        audit_id=response.audit_id,
+    )
+    if response.status == AdminApiCommandStatus.ACCEPTED:
+        idempotency_store.put_record(
+            IdempotencyRecord(
+                idempotency_key=idempotency_key,
+                payload_hash=payload_hash,
+                status=response.status,
+                response=response.model_dump(mode="json"),
+                actor_id=actor.actor_id,
+                endpoint=USDC_PAIR_SNAPSHOT_ORDER_PLAN_ALLOWLIST_READINESS_ENDPOINT,
+            )
+        )
+    return _allowlist_readiness_response(response)
+
+
 def _execute_idempotent_live_readiness(
     *,
     idempotency_key: str,
@@ -1282,6 +1554,31 @@ def list_usdc_pair_snapshot_order_plans(
     require_permission(actor, AdminApiPermission.AUDIT_READ)
     return _read_response(
         _order_plan_list_response(store=order_plan_store, limit=limit)
+    )
+
+
+@router.get(
+    "/automation/usdc-pair-snapshot-order-plan-allowlist-readiness",
+    response_model=UsdcPairSnapshotOrderPlanAllowlistReadinessListResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="List backend-owned USDC pair snapshot allowlist-readiness evidence",
+)
+def list_usdc_pair_snapshot_order_plan_allowlist_readiness(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    readiness_store: Annotated[
+        FileUsdcPairSnapshotOrderPlanAllowlistReadinessStore,
+        Depends(get_usdc_pair_snapshot_order_plan_allowlist_readiness_store),
+    ],
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+) -> JSONResponse:
+    """Read durable M58 no-live allowlist-readiness evidence."""
+
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    return _read_response(
+        _allowlist_readiness_list_response(
+            store=readiness_store,
+            limit=limit,
+        )
     )
 
 
@@ -1748,6 +2045,161 @@ def _resolve_usdc_pair_live_submit_record(
         ),
         None,
     )
+
+
+def _normalized_allowlist_product_ids(product_ids: list[str]) -> list[str]:
+    return list(
+        dict.fromkeys(
+            product_id.strip().upper()
+            for product_id in product_ids
+            if product_id.strip()
+        )
+    )
+
+
+def _order_plan_rows_by_product(
+    plan: UsdcPairSnapshotOrderPlanRecord,
+) -> dict[str, Any]:
+    return {
+        str(row.product_id).upper(): row
+        for row in plan.order_plan_rows
+        if str(row.product_id).strip()
+    }
+
+
+def _allowlist_product_readiness_row(
+    *,
+    product_id: str,
+    row: Any | None,
+) -> UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem:
+    if row is None:
+        return UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem(
+            product_id=product_id,
+            readiness_status="blocked",
+            retry_status="blocked",
+            blockers=["order_plan_row_missing"],
+        )
+
+    blockers: list[str] = []
+    plan_status = str(getattr(row, "plan_status", "") or "")
+    proof_chain_status = str(getattr(row, "proof_chain_status", "") or "")
+    run_cap_status = str(getattr(row, "run_cap_status", "") or "")
+    if plan_status != "planned":
+        blockers.append("order_plan_row_not_planned")
+        if run_cap_status == "exceeded":
+            blockers.append("run_cap_exhausted")
+    elif proof_chain_status != "accepted":
+        blockers.append("proof_chain_not_accepted")
+
+    readiness_status = "blocked" if blockers else "candidate"
+    retry_status = "blocked" if blockers else "ready_no_live"
+    return UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem(
+        product_id=product_id,
+        client_order_id=str(getattr(row, "client_order_id", "") or "") or None,
+        plan_status=plan_status or None,
+        proof_chain_status=proof_chain_status or None,
+        run_cap_status=run_cap_status or None,
+        skip_reason=str(getattr(row, "skip_reason", "") or "") or None,
+        planned_notional_usdc=str(
+            getattr(row, "planned_notional_usdc", "") or "0"
+        ),
+        readiness_status=readiness_status,
+        retry_status=retry_status,
+        blockers=blockers,
+        recovery_state_ref=(
+            str(getattr(row, "reconciliation_plan_id", "") or "") or None
+        ),
+    )
+
+
+def _record_usdc_pair_allowlist_readiness(
+    *,
+    plan: UsdcPairSnapshotOrderPlanRecord,
+    body: UsdcPairSnapshotOrderPlanAllowlistReadinessRequest,
+    readiness_store: FileUsdcPairSnapshotOrderPlanAllowlistReadinessStore,
+    actor: AdminApiActor,
+    operator_intent: str,
+    idempotency_key: str,
+    payload_hash: str,
+    audit_id: str,
+) -> UsdcPairSnapshotOrderPlanAllowlistReadinessItem:
+    product_ids = _normalized_allowlist_product_ids(body.product_ids)
+    if not product_ids:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist-readiness requires product_ids."
+        )
+
+    rows_by_product = _order_plan_rows_by_product(plan)
+    product_rows = [
+        _allowlist_product_readiness_row(
+            product_id=product_id,
+            row=rows_by_product.get(product_id),
+        )
+        for product_id in product_ids
+    ]
+    candidate_product_ids = [
+        item.product_id
+        for item in product_rows
+        if item.plan_status == "planned"
+    ]
+    blocked_product_ids = [
+        item.product_id for item in product_rows if item.blockers
+    ]
+    cap_exhausted_product_ids = [
+        item.product_id
+        for item in product_rows
+        if "run_cap_exhausted" in item.blockers
+    ]
+    missing_product_ids = [
+        item.product_id
+        for item in product_rows
+        if "order_plan_row_missing" in item.blockers
+    ]
+
+    fanout_blockers: list[str] = []
+    if len(product_ids) > body.max_products:
+        fanout_blockers.append("allowlist_product_count_exceeds_max")
+    fanout_blockers.extend([
+        "fanout_execution_not_approved",
+        "scheduler_blocked",
+    ])
+    if blocked_product_ids:
+        fanout_blockers.append("product_evidence_blocked")
+
+    record = UsdcPairSnapshotOrderPlanAllowlistReadinessRecord(
+        readiness_id=(
+            body.readiness_id or f"m58-usdc-allowlist-readiness-{uuid4()}"
+        ),
+        plan_id=plan.plan_id,
+        snapshot_run_id=plan.snapshot_run_id,
+        product_ids=product_ids,
+        selected_product_count=len(product_ids),
+        max_products=body.max_products,
+        candidate_product_ids=candidate_product_ids,
+        blocked_product_ids=blocked_product_ids,
+        cap_exhausted_product_ids=cap_exhausted_product_ids,
+        missing_product_ids=missing_product_ids,
+        retryable_product_ids=[],
+        recovery_required_product_ids=[],
+        partial_success_status="blocked",
+        fanout_readiness_status="blocked",
+        fanout_blockers=fanout_blockers,
+        product_readiness_rows=product_rows,
+        actor_id=actor.actor_id,
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        audit_id=audit_id,
+        operator_notes=body.operator_notes,
+        detail=(
+            "M58 Phase F no-live allowlist-readiness evidence summarized "
+            "candidate, blocked, cap-exhausted, and missing products for an "
+            "existing backend-owned USDC spot order plan. Fan-out execution "
+            "and scheduling remain blocked."
+        ),
+    )
+    readiness_store.append(record)
+    return _allowlist_readiness_item_from_record(record)
 
 
 def _record_usdc_pair_live_readiness_preflight(
@@ -2623,6 +3075,71 @@ def refresh_usdc_pair_snapshot_order_plan_proof_chain(
                 live_submit_store=live_submit_store,
             ),
         ),
+    )
+
+
+@router.post(
+    "/automation/usdc-pair-snapshot-order-plans/{plan_id}/allowlist-readiness",
+    response_model=UsdcPairSnapshotOrderPlanAllowlistReadinessResponse,
+    status_code=status.HTTP_200_OK,
+    responses=ALLOWLIST_READINESS_ROUTE_RESPONSES,
+    summary="Record backend-owned USDC pair order-plan allowlist readiness",
+)
+def record_usdc_pair_snapshot_order_plan_allowlist_readiness(
+    request: Request,
+    plan_id: str,
+    body: UsdcPairSnapshotOrderPlanAllowlistReadinessRequest,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    order_plan_store: Annotated[
+        FileUsdcPairSnapshotOrderPlanStore,
+        Depends(get_usdc_pair_snapshot_order_plan_store),
+    ],
+    readiness_store: Annotated[
+        FileUsdcPairSnapshotOrderPlanAllowlistReadinessStore,
+        Depends(get_usdc_pair_snapshot_order_plan_allowlist_readiness_store),
+    ],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+) -> JSONResponse:
+    """Record no-live M58 allowlist readiness without fan-out execution."""
+
+    endpoint = f"{request.method} {request.url.path}"
+    payload_hash = _payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        operator_intent=operator_intent,
+        body=body.model_dump(mode="json"),
+    )
+
+    def operation(audit_id: str) -> UsdcPairSnapshotOrderPlanAllowlistReadinessItem:
+        plan = order_plan_store.find_by_plan_id(plan_id)
+        if plan is None:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot order-plan not found."
+            )
+        return _record_usdc_pair_allowlist_readiness(
+            plan=plan,
+            body=body,
+            readiness_store=readiness_store,
+            actor=actor,
+            operator_intent=operator_intent,
+            idempotency_key=idempotency_key,
+            payload_hash=payload_hash,
+            audit_id=audit_id,
+        )
+
+    return _execute_idempotent_allowlist_readiness(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        request_id=correlation_id,
+        operator_intent=operator_intent,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        operation=operation,
     )
 
 

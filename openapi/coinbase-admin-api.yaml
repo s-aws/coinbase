@@ -1958,6 +1958,78 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness:
+    get:
+      tags:
+      - automation
+      summary: List backend-owned USDC pair snapshot allowlist-readiness evidence
+      description: Read durable M58 no-live allowlist-readiness evidence.
+      operationId: list_usdc_pair_snapshot_order_plan_allowlist_readiness_api_v1_automation_usdc_pair_snapshot_order_plan_allowlist_readiness_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Limit
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanAllowlistReadinessListResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/automation/usdc-pair-snapshot-order-plan-live-readiness:
     get:
       tags:
@@ -2315,6 +2387,109 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/automation/usdc-pair-snapshot-order-plans/{plan_id}/allowlist-readiness:
+    post:
+      tags:
+      - automation
+      summary: Record backend-owned USDC pair order-plan allowlist readiness
+      description: Record no-live M58 allowlist readiness without fan-out execution.
+      operationId: record_usdc_pair_snapshot_order_plan_allowlist_readiness_api_v1_automation_usdc_pair_snapshot_order_plans__plan_id__allowlist_readiness_post
+      parameters:
+      - name: plan_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Plan Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanAllowlistReadinessRequest'
+      responses:
+        '200':
+          description: USDC pair snapshot order-plan allowlist-readiness evidence
+            accepted, rejected, or replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanAllowlistReadinessResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanAllowlistReadinessResponse'
         '422':
           description: Validation Error
           content:
@@ -169389,6 +169564,445 @@ components:
         - FOK (FILL_OR_KILL): Fill entire order immediately or cancel (no partial)
 
         - GTD (GOOD_UNTIL_DATE_TIME): Order expires at specified end_time'
+    UsdcPairSnapshotOrderPlanAllowlistReadinessItem:
+      properties:
+        readiness_id:
+          type: string
+          minLength: 1
+          title: Readiness Id
+        plan_id:
+          type: string
+          minLength: 1
+          title: Plan Id
+        snapshot_run_id:
+          type: string
+          minLength: 1
+          title: Snapshot Run Id
+        recorded_at:
+          type: string
+          title: Recorded At
+        product_ids:
+          items:
+            type: string
+          type: array
+          title: Product Ids
+        selected_product_count:
+          type: integer
+          minimum: 0.0
+          title: Selected Product Count
+        max_products:
+          type: integer
+          minimum: 1.0
+          title: Max Products
+        candidate_product_ids:
+          items:
+            type: string
+          type: array
+          title: Candidate Product Ids
+        blocked_product_ids:
+          items:
+            type: string
+          type: array
+          title: Blocked Product Ids
+        cap_exhausted_product_ids:
+          items:
+            type: string
+          type: array
+          title: Cap Exhausted Product Ids
+        missing_product_ids:
+          items:
+            type: string
+          type: array
+          title: Missing Product Ids
+        retryable_product_ids:
+          items:
+            type: string
+          type: array
+          title: Retryable Product Ids
+        recovery_required_product_ids:
+          items:
+            type: string
+          type: array
+          title: Recovery Required Product Ids
+        partial_success_status:
+          type: string
+          minLength: 1
+          title: Partial Success Status
+        fanout_readiness_status:
+          type: string
+          minLength: 1
+          title: Fanout Readiness Status
+        fanout_blockers:
+          items:
+            type: string
+          type: array
+          title: Fanout Blockers
+        product_readiness_rows:
+          items:
+            $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem'
+          type: array
+          title: Product Readiness Rows
+        actor_id:
+          type: string
+          minLength: 1
+          title: Actor Id
+        operator_intent:
+          type: string
+          minLength: 1
+          title: Operator Intent
+        idempotency_key:
+          type: string
+          minLength: 1
+          title: Idempotency Key
+        payload_hash:
+          type: string
+          maxLength: 64
+          minLength: 64
+          title: Payload Hash
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        operator_notes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Notes
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        read_only_after_write:
+          type: boolean
+          title: Read Only After Write
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - readiness_id
+      - plan_id
+      - snapshot_run_id
+      - recorded_at
+      - selected_product_count
+      - max_products
+      - partial_success_status
+      - fanout_readiness_status
+      - actor_id
+      - operator_intent
+      - idempotency_key
+      - payload_hash
+      - detail
+      title: UsdcPairSnapshotOrderPlanAllowlistReadinessItem
+      description: Durable no-live Phase F allowlist-readiness summary.
+    UsdcPairSnapshotOrderPlanAllowlistReadinessListResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: usdc_pair_snapshot_order_plan_allowlist_readiness_list
+        readiness:
+          items:
+            $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanAllowlistReadinessItem'
+          type: array
+          title: Readiness
+        returned_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Count
+        total_count:
+          type: integer
+          minimum: 0.0
+          title: Total Count
+        latest_readiness_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Latest Readiness Id
+        blocked_count:
+          type: integer
+          minimum: 0.0
+          title: Blocked Count
+        candidate_product_count:
+          type: integer
+          minimum: 0.0
+          title: Candidate Product Count
+        cap_exhausted_product_count:
+          type: integer
+          minimum: 0.0
+          title: Cap Exhausted Product Count
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        backend_owned:
+          type: boolean
+          title: Backend Owned
+          default: true
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: read_only_forward
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        detail:
+          type: string
+          title: Detail
+          default: M58 USDC pair snapshot allowlist-readiness readback exposes backend-owned
+            no-live fan-out readiness evidence only; it does not submit Coinbase orders,
+            allocate wallet balance, run a scheduler, or grant browser execution authority.
+      additionalProperties: false
+      type: object
+      required:
+      - returned_count
+      - total_count
+      - blocked_count
+      - candidate_product_count
+      - cap_exhausted_product_count
+      title: UsdcPairSnapshotOrderPlanAllowlistReadinessListResponse
+      description: Read-only list of no-live M58 Phase F allowlist-readiness evidence.
+    UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem:
+      properties:
+        product_id:
+          type: string
+          minLength: 1
+          title: Product Id
+        client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Client Order Id
+        plan_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Plan Status
+        proof_chain_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Proof Chain Status
+        run_cap_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Run Cap Status
+        skip_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Skip Reason
+        planned_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Planned Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        readiness_status:
+          type: string
+          minLength: 1
+          title: Readiness Status
+        retry_status:
+          type: string
+          minLength: 1
+          title: Retry Status
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        recovery_state_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recovery State Ref
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+      additionalProperties: false
+      type: object
+      required:
+      - product_id
+      - readiness_status
+      - retry_status
+      title: UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem
+      description: Per-product Phase F allowlist-readiness evidence for an M58 plan.
+    UsdcPairSnapshotOrderPlanAllowlistReadinessRequest:
+      properties:
+        readiness_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Readiness Id
+        product_ids:
+          items:
+            type: string
+          type: array
+          minItems: 1
+          title: Product Ids
+        max_products:
+          type: integer
+          maximum: 25.0
+          minimum: 1.0
+          title: Max Products
+          default: 3
+        operator_notes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Notes
+      additionalProperties: false
+      type: object
+      required:
+      - product_ids
+      title: UsdcPairSnapshotOrderPlanAllowlistReadinessRequest
+      description: No-live Phase F readiness summary for an explicit M58 product allowlist.
+    UsdcPairSnapshotOrderPlanAllowlistReadinessResponse:
+      properties:
+        status:
+          $ref: '#/components/schemas/AdminApiCommandStatus'
+        action_class:
+          $ref: '#/components/schemas/AdminApiActionClass'
+        required_permission:
+          $ref: '#/components/schemas/AdminApiPermission'
+        service_method:
+          type: string
+          title: Service Method
+        message:
+          type: string
+          title: Message
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency Key
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        readiness:
+          anyOf:
+          - $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanAllowlistReadinessItem'
+          - type: 'null'
+        live_exchange_submitted:
+          type: boolean
+          title: Live Exchange Submitted
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        failure_stage:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Failure Stage
+      additionalProperties: false
+      type: object
+      required:
+      - status
+      - action_class
+      - required_permission
+      - service_method
+      - message
+      title: UsdcPairSnapshotOrderPlanAllowlistReadinessResponse
+      description: Response for no-live M58 Phase F allowlist-readiness evidence.
     UsdcPairSnapshotOrderPlanItem:
       properties:
         plan_id:
