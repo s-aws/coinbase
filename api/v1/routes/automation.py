@@ -1019,6 +1019,10 @@ def _usdc_pair_order_plan_proof_chain_refresher(
                         approval_snapshot.cap_guard_decision_ref
                     ),
                     admission_audit_id=admission_audit.audit_id,
+                    max_submitted_notional_usdc=str(
+                        getattr(row, "planned_notional_usdc", "") or ""
+                    ),
+                    max_executed_notional_usdc="0",
                 ),
             )
         if cap_guard is not None:
@@ -1052,6 +1056,12 @@ def _usdc_pair_order_plan_proof_chain_refresher(
                     ),
                     admission_audit_id=admission_audit.audit_id,
                     cap_guard_decision_id=cap_guard.decision_id,
+                    exchange_submission_required=False,
+                    post_submit_reconciliation_required=False,
+                    max_submitted_notional_usdc=str(
+                        getattr(row, "planned_notional_usdc", "") or ""
+                    ),
+                    max_executed_notional_usdc="0",
                 ),
             )
         if reconciliation is not None:

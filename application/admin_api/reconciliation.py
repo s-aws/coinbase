@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
 import os
 from pathlib import Path
@@ -34,6 +35,10 @@ class ReconciliationPlanRequest(BaseModel):
     approval_reconciliation_plan_ref: str = Field(min_length=1)
     admission_audit_id: str = Field(min_length=1)
     cap_guard_decision_id: str = Field(min_length=1)
+    exchange_submission_required: bool | None = None
+    post_submit_reconciliation_required: bool | None = None
+    max_submitted_notional_usdc: str | None = None
+    max_executed_notional_usdc: str | None = None
 
 
 class ReconciliationPlanRecord(BaseModel):
@@ -161,6 +166,22 @@ class FileAdminApiReconciliationStore:
                 and record.approval_snapshot_id == request.approval_snapshot_id
                 and record.admission_audit_id == request.admission_audit_id
                 and record.cap_guard_decision_id == request.cap_guard_decision_id
+                and _optional_bool_matches(
+                    record.exchange_submission_required,
+                    request.exchange_submission_required,
+                )
+                and _optional_bool_matches(
+                    record.post_submit_reconciliation_required,
+                    request.post_submit_reconciliation_required,
+                )
+                and _optional_decimal_matches(
+                    record.max_submitted_notional_usdc,
+                    request.max_submitted_notional_usdc,
+                )
+                and _optional_decimal_matches(
+                    record.max_executed_notional_usdc,
+                    request.max_executed_notional_usdc,
+                )
             ):
                 return record
         return None
@@ -195,3 +216,16 @@ def _enum_value(value: AdminApiActionClass | AdminApiPermission | str) -> str:
     if hasattr(value, "value"):
         return str(value.value)
     return value
+
+
+def _optional_bool_matches(record_value: bool, expected_value: bool | None) -> bool:
+    return expected_value is None or record_value is expected_value
+
+
+def _optional_decimal_matches(record_value: str, expected_value: str | None) -> bool:
+    if expected_value is None:
+        return True
+    try:
+        return Decimal(str(record_value)) == Decimal(str(expected_value))
+    except (InvalidOperation, ValueError):
+        return False

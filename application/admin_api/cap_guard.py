@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import Decimal, InvalidOperation
 from datetime import datetime, timezone
 import os
 from pathlib import Path
@@ -33,6 +34,8 @@ class CapGuardDecisionRequest(BaseModel):
     approval_snapshot_id: str = Field(min_length=1)
     approval_cap_guard_decision_ref: str = Field(min_length=1)
     admission_audit_id: str = Field(min_length=1)
+    max_submitted_notional_usdc: str | None = None
+    max_executed_notional_usdc: str | None = None
 
 
 class CapGuardDecisionRecord(BaseModel):
@@ -160,6 +163,14 @@ class FileAdminApiCapGuardStore:
                 and record.payload_hash == request.payload_hash
                 and record.approval_snapshot_id == request.approval_snapshot_id
                 and record.admission_audit_id == request.admission_audit_id
+                and _optional_decimal_matches(
+                    record.max_submitted_notional_usdc,
+                    request.max_submitted_notional_usdc,
+                )
+                and _optional_decimal_matches(
+                    record.max_executed_notional_usdc,
+                    request.max_executed_notional_usdc,
+                )
             ):
                 return record
         return None
@@ -194,3 +205,12 @@ def _enum_value(value: AdminApiActionClass | AdminApiPermission | str) -> str:
     if hasattr(value, "value"):
         return str(value.value)
     return value
+
+
+def _optional_decimal_matches(record_value: str, expected_value: str | None) -> bool:
+    if expected_value is None:
+        return True
+    try:
+        return Decimal(str(record_value)) == Decimal(str(expected_value))
+    except (InvalidOperation, ValueError):
+        return False

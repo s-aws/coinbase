@@ -34380,6 +34380,16 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
             }
         )
     )
+    client.admin_api_test_cap_guard_store.append(
+        invalid_cap_guard.model_copy(
+            update={
+                "admission_audit_id": durable_admission_audit.audit_id,
+                "max_submitted_notional_usdc": "999",
+                "max_executed_notional_usdc": "0.01",
+                "reason": "Out-of-scope M58 cap/guard notional proof.",
+            }
+        )
+    )
 
     refresh_response = client.post(
         (
@@ -34536,6 +34546,18 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
                 "allowed": False,
                 "status": AdminApiGateStatus.BLOCKED,
                 "reason": "Blocked M58 reconciliation proof for refresh.",
+            }
+        )
+    )
+    client.admin_api_test_reconciliation_store.append(
+        invalid_reconciliation.model_copy(
+            update={
+                "cap_guard_decision_id": durable_cap_guard.decision_id,
+                "exchange_submission_required": True,
+                "post_submit_reconciliation_required": True,
+                "max_submitted_notional_usdc": "999",
+                "max_executed_notional_usdc": "0.01",
+                "reason": "Out-of-scope M58 reconciliation notional proof.",
             }
         )
     )
