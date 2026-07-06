@@ -231,23 +231,28 @@ Non-goals:
 
 Attach existing Admin API proof-chain primitives to each planned order.
 
-Status: partially implemented for no-live readiness evidence. Planned order
-rows expose `proof_chain_status=blocked`, a backend approval request id,
-blocked admission audit, blocked cap/guard, blocked reconciliation references,
-and missing live-service/approval-snapshot blockers. A backend proof-refresh
+Status: implemented for no-live readiness evidence, with live execution still
+blocked. Planned order rows expose `proof_chain_status=blocked`, a backend
+approval request id, blocked admission audit, blocked cap/guard, blocked
+reconciliation references, and missing live-service/approval-snapshot blockers.
+A backend proof-refresh
 route can replace `approval_snapshot_missing` with an exact approval snapshot
 from durable approval lifecycle storage and can replace
 `admission_audit_blocked` only when exact backend audit-store evidence exists.
 It can also replace `cap_guard_decision_blocked` only when exact passed backend
-cap/guard-store evidence exists, and `reconciliation_plan_blocked` only when
-exact passed backend reconciliation-store evidence exists. It can link an exact
-disabled backend live-service decision, replacing
+cap/guard-store evidence matches the planned row notional scope, and
+`reconciliation_plan_blocked` only when exact passed backend reconciliation-store
+evidence matches the planned row notional scope and no-live submission posture.
+It can link an exact disabled backend live-service decision, replacing
 `live_service_decision_missing` with `live_service_decision_disabled`, while
 keeping `proof_chain_status=blocked`, `live_coinbase_execution=not_run`, and
 notional `0`. Enabled live-service decisions and live submission remain
 unimplemented for this automation. Backend regression coverage proves that
-multi-row proof refresh links only the product row with exact durable evidence
-and that idempotent replay remains stable even if later evidence is recorded.
+multi-row proof refresh links only the product row with exact durable evidence,
+rejects out-of-scope cap/reconciliation notional evidence, and keeps idempotent
+replay stable even if later evidence is recorded. A blind contextless review
+passed for explicit-operator-approved single-product controlled-live planning
+only; it failed live execution or fan-out.
 
 Deliverables:
 
@@ -452,18 +457,18 @@ Admin API contracts.
 
 ## Next Useful Non-Live Slice
 
-The current Phase D frontend slice now displays the disabled live-service proof
-reference and generated proof-chain decision evidence as read-only backend
-evidence. Default deployment/readiness gates have been rechecked and still
-report `live_coinbase_execution=not_run` and notional `0`.
+The current Phase D slice displays disabled live-service proof references and
+generated proof-chain decision evidence as read-only backend evidence. Backend
+proof refresh now requires exact approval, admission audit, cap/guard,
+reconciliation, disabled live-service, row-scoped notional, and no-live
+submission evidence before clearing any corresponding blocker. Focused EC2
+validation still reports `live_coinbase_execution=not_run` and notional `0`.
 
-The next implementation slice should continue Phase D without live fan-out by
-adding any remaining backend proof-chain validation/readback evidence needed
-before a contextless review and explicit operator approval for a controlled-live
-pilot. A blind contextless review cleared aggregate proof-chain readback counts
-as an M58-domain, read-only slice, but public API field names and formulas must
-be operator-approved before implementation to avoid treating "readiness" as
-execution authority.
+The next non-live decision is operator-scoped: either approve the aggregate
+proof-chain readback field names/formulas below, or approve moving to Phase E
+single-product controlled-live planning. Do not implement live execution,
+fan-out, or scheduler behavior from this plan without explicit operator
+approval for the concrete live scope.
 
 Proposed aggregate count fields, pending operator approval:
 
