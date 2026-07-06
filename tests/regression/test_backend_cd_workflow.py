@@ -33,6 +33,15 @@ def test_backend_continuous_deployment_workflow_exists() -> None:
     assert DEPLOY_WORKFLOW_PATH.exists(), "backend continuous deployment workflow is missing"
 
 
+def test_public_agent_checks_workflow_is_manual_only() -> None:
+    workflow = PUBLIC_CHECKS_WORKFLOW_PATH.read_text(encoding="utf-8")
+    trigger_block = workflow.split("\njobs:", maxsplit=1)[0]
+
+    assert "workflow_dispatch:" in trigger_block
+    assert "pull_request:" not in trigger_block
+    assert "push:" not in trigger_block
+
+
 def test_backend_continuous_deployment_workflow_guards_local_deploy() -> None:
     workflow = DEPLOY_WORKFLOW_PATH.read_text(encoding="utf-8")
     normalized_workflow = workflow.replace(r"\"", '"')

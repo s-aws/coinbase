@@ -51,8 +51,9 @@ python tools/check_ownership.py --owner stealth_lifecycle
 
 Pull requests use `.github/PULL_REQUEST_TEMPLATE.md` to record the primary
 owner, canonical behavior path, focused tests, and public/private boundary
-check. GitHub Actions runs `.github/workflows/public-agent-checks.yml` to make
-sure changed files are covered by `.agents/ownership.yaml`.
+check. The manual-only `.github/workflows/public-agent-checks.yml` workflow can
+be dispatched when its ownership and policy results will be consumed; it does
+not run automatically on push or pull request events.
 
 Use the cleanup classifier before moving or archiving files:
 
