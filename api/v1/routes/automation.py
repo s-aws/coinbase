@@ -44,6 +44,10 @@ from application.admin_api.models import (
     UsdcPairSnapshotOrderPlanLiveReadinessListResponse,
     UsdcPairSnapshotOrderPlanLiveReadinessRequest,
     UsdcPairSnapshotOrderPlanLiveReadinessResponse,
+    UsdcPairSnapshotOrderPlanLiveSubmitItem,
+    UsdcPairSnapshotOrderPlanLiveSubmitListResponse,
+    UsdcPairSnapshotOrderPlanLiveSubmitRequest,
+    UsdcPairSnapshotOrderPlanLiveSubmitResponse,
     UsdcPairSnapshotOrderPlanItem,
     UsdcPairSnapshotOrderPlanListResponse,
     UsdcPairSnapshotOrderPlanProofRefreshRequest,
@@ -61,10 +65,16 @@ from application.admin_api.mvp_service import (
 )
 from application.admin_api.usdc_pair_snapshot import (
     FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
+    FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
     FileUsdcPairSnapshotOrderPlanStore,
     FileUsdcPairSnapshotRunStore,
     UsdcPairSnapshotOrderPlanLiveReadinessRecord,
+    UsdcPairSnapshotOrderPlanLiveSubmitRecord,
     UsdcPairSnapshotOrderPlanRecord,
+)
+from application.admin_api.usdc_pair_snapshot_live_execution import (
+    UsdcPairSnapshotLiveExecutionError,
+    UsdcPairSnapshotLiveOrderExecutor,
 )
 from application.admin_api.reconciliation import (
     FileAdminApiReconciliationStore,
@@ -121,6 +131,16 @@ USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_READINESS_ENDPOINT = (
 USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_READINESS_SERVICE_METHOD = (
     "record_usdc_pair_snapshot_order_plan_live_readiness"
 )
+USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_ROUTE = (
+    "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+    "{plan_id}/live-submit"
+)
+USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_ENDPOINT = (
+    f"POST {USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_ROUTE}"
+)
+USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_SERVICE_METHOD = (
+    "submit_usdc_pair_snapshot_order_plan_live_order"
+)
 USDC_PAIR_SNAPSHOT_MODULE_ID = "automation"
 USDC_PAIR_SNAPSHOT_PROOF_BLOCKERS = [
     "approval_snapshot_missing",
@@ -132,9 +152,7 @@ USDC_PAIR_SNAPSHOT_PROOF_BLOCKERS = [
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_DISABLED_BLOCKER = (
     USDC_PAIR_ORDER_PLAN_LIVE_DISABLED_BLOCKER
 )
-USDC_PAIR_SNAPSHOT_LIVE_SUBMISSION_NOT_IMPLEMENTED_BLOCKER = (
-    "live_submission_not_implemented"
-)
+USDC_PAIR_SNAPSHOT_LIVE_SUBMISSION_MISSING_BLOCKER = "live_submission_missing"
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_ACCOUNT_FAMILY = "coinbase_spot"
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_VENUE_SCOPE = "coinbase_advanced_trade"
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_INTX_APPLICABILITY = "not_applicable"
@@ -207,6 +225,28 @@ LIVE_READINESS_ROUTE_RESPONSES = {
     },
 }
 
+LIVE_SUBMIT_ROUTE_RESPONSES = {
+    200: {
+        "model": UsdcPairSnapshotOrderPlanLiveSubmitResponse,
+        "description": (
+            "USDC pair snapshot order-plan controlled-live submit/cancel "
+            "accepted, rejected, or replayed."
+        ),
+    },
+    401: {
+        "model": AdminApiErrorResponse,
+        "description": "Missing or invalid Admin API authentication.",
+    },
+    403: {
+        "model": AdminApiErrorResponse,
+        "description": "Actor lacks the required Admin API permission.",
+    },
+    409: {
+        "model": UsdcPairSnapshotOrderPlanLiveSubmitResponse,
+        "description": "Idempotency key conflict.",
+    },
+}
+
 READ_ONLY_ROUTE_RESPONSES = {
     401: {
         "model": AdminApiErrorResponse,
@@ -243,6 +283,22 @@ def get_usdc_pair_snapshot_order_plan_live_readiness_store() -> (
     """Return durable M58 live-readiness preflight storage."""
 
     return FileUsdcPairSnapshotOrderPlanLiveReadinessStore()
+
+
+def get_usdc_pair_snapshot_order_plan_live_submit_store() -> (
+    FileUsdcPairSnapshotOrderPlanLiveSubmitStore
+):
+    """Return durable M58 controlled-live submit/cancel storage."""
+
+    return FileUsdcPairSnapshotOrderPlanLiveSubmitStore()
+
+
+def get_usdc_pair_snapshot_live_order_executor() -> (
+    UsdcPairSnapshotLiveOrderExecutor
+):
+    """Return the backend-only M58 controlled-live order executor."""
+
+    return UsdcPairSnapshotLiveOrderExecutor()
 
 
 def get_idempotency_store() -> FileIdempotencyStore:
@@ -477,6 +533,107 @@ def _live_readiness_list_response(
     )
 
 
+def _live_submit_item_from_record(
+    record: UsdcPairSnapshotOrderPlanLiveSubmitRecord,
+) -> UsdcPairSnapshotOrderPlanLiveSubmitItem:
+    return UsdcPairSnapshotOrderPlanLiveSubmitItem(
+        submission_id=record.submission_id,
+        readiness_id=record.readiness_id,
+        plan_id=record.plan_id,
+        snapshot_run_id=record.snapshot_run_id,
+        product_id=record.product_id,
+        client_order_id=record.client_order_id,
+        recorded_at=record.recorded_at,
+        submitted_at=record.submitted_at,
+        cancelled_at=record.cancelled_at,
+        side=OrderSide(record.side),
+        order_count=record.order_count,
+        single_order_only=record.single_order_only,
+        submitted_notional_usdc=record.submitted_notional_usdc,
+        executed_notional_usdc=record.executed_notional_usdc,
+        max_executed_notional_usdc=record.max_executed_notional_usdc,
+        intended_limit_price=record.intended_limit_price,
+        reference_bid_price=record.reference_bid_price,
+        last_filled_price=record.last_filled_price,
+        cancel_before_additional_orders=record.cancel_before_additional_orders,
+        additional_orders_blocked=record.additional_orders_blocked,
+        cancel_submitted=record.cancel_submitted,
+        cancel_rollback_complete=record.cancel_rollback_complete,
+        cancel_rollback_plan_ref=record.cancel_rollback_plan_ref,
+        full_snapshot_fill_test=record.full_snapshot_fill_test,
+        approval_snapshot_id=record.approval_snapshot_id,
+        admission_audit_id=record.admission_audit_id,
+        cap_guard_decision_id=record.cap_guard_decision_id,
+        reconciliation_plan_id=record.reconciliation_plan_id,
+        live_service_decision_id=record.live_service_decision_id,
+        coinbase_order_id=record.coinbase_order_id,
+        coinbase_order_id_evidence_only=record.coinbase_order_id_evidence_only,
+        order_configuration=record.order_configuration,
+        submit_result=record.submit_result,
+        cancel_result=record.cancel_result,
+        operator_stop_conditions=record.operator_stop_conditions,
+        actor_id=record.actor_id,
+        operator_intent=record.operator_intent,
+        idempotency_key=record.idempotency_key,
+        payload_hash=record.payload_hash,
+        audit_id=record.audit_id,
+        operator_notes=record.operator_notes,
+        live_exchange_submitted=record.live_exchange_submitted,
+        live_coinbase_orders_ran=record.live_coinbase_orders_ran,
+        live_coinbase_execution=record.live_coinbase_execution,
+        notional_usdc=record.notional_usdc,
+        detail=record.detail,
+    )
+
+
+def _live_submit_list_response(
+    *,
+    store: FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
+    limit: int,
+) -> UsdcPairSnapshotOrderPlanLiveSubmitListResponse:
+    submissions = [
+        _live_submit_item_from_record(record)
+        for record in store.read_recent(limit=limit)
+    ]
+    submitted_notional = sum(
+        (
+            _decimal_value(item.notional_usdc) or Decimal("0")
+            for item in submissions
+            if item.live_exchange_submitted
+        ),
+        Decimal("0"),
+    )
+    return UsdcPairSnapshotOrderPlanLiveSubmitListResponse(
+        submissions=submissions,
+        returned_count=len(submissions),
+        total_count=store.count_records(),
+        latest_submission_id=(
+            submissions[0].submission_id if submissions else None
+        ),
+        submitted_count=sum(
+            1 for item in submissions if item.live_exchange_submitted
+        ),
+        cancelled_count=sum(
+            1 for item in submissions if item.cancel_rollback_complete
+        ),
+        live_exchange_submitted=any(
+            item.live_exchange_submitted for item in submissions
+        ),
+        live_coinbase_orders_ran=any(
+            item.live_coinbase_orders_ran for item in submissions
+        ),
+        live_coinbase_execution=(
+            "submitted_cancelled"
+            if any(
+                item.live_coinbase_execution == "submitted_cancelled"
+                for item in submissions
+            )
+            else "not_run"
+        ),
+        notional_usdc=str(submitted_notional),
+    )
+
+
 def _base_response(
     *,
     status_value: AdminApiCommandStatus,
@@ -573,6 +730,63 @@ def _live_readiness_base_response(
     )
 
 
+def _live_submit_http_status(
+    response: UsdcPairSnapshotOrderPlanLiveSubmitResponse,
+) -> int:
+    if response.status == AdminApiCommandStatus.CONFLICT:
+        return status.HTTP_409_CONFLICT
+    return status.HTTP_200_OK
+
+
+def _live_submit_response(
+    response: UsdcPairSnapshotOrderPlanLiveSubmitResponse,
+    *,
+    replayed: bool = False,
+) -> JSONResponse:
+    headers = {"X-Correlation-Id": response.correlation_id or ""}
+    if replayed:
+        headers["X-Idempotency-Replayed"] = "true"
+    return JSONResponse(
+        status_code=_live_submit_http_status(response),
+        content=response.model_dump(mode="json"),
+        headers=headers,
+    )
+
+
+def _live_submit_base_response(
+    *,
+    status_value: AdminApiCommandStatus,
+    message: str,
+    correlation_id: str,
+    idempotency_key: str,
+    submission: UsdcPairSnapshotOrderPlanLiveSubmitItem | None = None,
+    audit_id: str | None = None,
+    failure_stage: str | None = None,
+) -> UsdcPairSnapshotOrderPlanLiveSubmitResponse:
+    return UsdcPairSnapshotOrderPlanLiveSubmitResponse(
+        status=status_value,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+        service_method=USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_SERVICE_METHOD,
+        message=message,
+        correlation_id=correlation_id,
+        idempotency_key=idempotency_key,
+        audit_id=audit_id,
+        submission=submission,
+        live_exchange_submitted=(
+            submission.live_exchange_submitted if submission else False
+        ),
+        live_coinbase_orders_ran=(
+            submission.live_coinbase_orders_ran if submission else False
+        ),
+        live_coinbase_execution=(
+            submission.live_coinbase_execution if submission else "not_run"
+        ),
+        notional_usdc=submission.notional_usdc if submission else "0",
+        failure_stage=failure_stage,
+    )
+
+
 def _record_audit(
     *,
     audit_store: FileAdminApiAuditStore,
@@ -653,6 +867,35 @@ def _record_live_readiness_audit(
         "message": response.message,
         "live_exchange_submitted": False,
         "live_coinbase_orders_ran": False,
+    }
+    if audit_id is not None:
+        event_fields["audit_id"] = audit_id
+    return audit_store.append(AdminApiAuditEvent(**event_fields))
+
+
+def _record_live_submit_audit(
+    *,
+    audit_store: FileAdminApiAuditStore,
+    actor: AdminApiActor,
+    endpoint: str,
+    request_id: str,
+    operator_intent: str,
+    response: UsdcPairSnapshotOrderPlanLiveSubmitResponse,
+    audit_id: str | None = None,
+) -> str:
+    event_fields = {
+        "actor_id": actor.actor_id,
+        "action_class": response.action_class,
+        "permission": response.required_permission,
+        "endpoint": endpoint,
+        "request_id": request_id,
+        "operator_intent": operator_intent,
+        "idempotency_key": response.idempotency_key,
+        "status": response.status,
+        "failure_stage": response.failure_stage,
+        "message": response.message,
+        "live_exchange_submitted": response.live_exchange_submitted,
+        "live_coinbase_orders_ran": response.live_coinbase_orders_ran,
     }
     if audit_id is not None:
         event_fields["audit_id"] = audit_id
@@ -914,6 +1157,92 @@ def _execute_idempotent_live_readiness(
     return _live_readiness_response(response)
 
 
+def _execute_idempotent_live_submit(
+    *,
+    idempotency_key: str,
+    payload_hash: str,
+    actor: AdminApiActor,
+    request_id: str,
+    operator_intent: str,
+    idempotency_store: FileIdempotencyStore,
+    audit_store: FileAdminApiAuditStore,
+    operation: Callable[[str], UsdcPairSnapshotOrderPlanLiveSubmitItem],
+) -> JSONResponse:
+    require_permission(actor, AdminApiPermission.CAMPAIGN_EXECUTE)
+    check = idempotency_store.evaluate(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+    )
+    if check.decision == AdminApiIdempotencyDecision.REPLAY and check.record:
+        return _live_submit_response(
+            UsdcPairSnapshotOrderPlanLiveSubmitResponse.model_validate(
+                check.record.response
+            ),
+            replayed=True,
+        )
+    if check.decision == AdminApiIdempotencyDecision.CONFLICT:
+        response = _live_submit_base_response(
+            status_value=AdminApiCommandStatus.CONFLICT,
+            message="Idempotency-Key was already used with a different payload.",
+            correlation_id=request_id,
+            idempotency_key=idempotency_key,
+            failure_stage="idempotency",
+        )
+        response.audit_id = _record_live_submit_audit(
+            audit_store=audit_store,
+            actor=actor,
+            endpoint=USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_ENDPOINT,
+            request_id=request_id,
+            operator_intent=operator_intent,
+            response=response,
+        )
+        return _live_submit_response(response)
+
+    try:
+        audit_id = str(uuid4())
+        submission = operation(audit_id)
+        response = _live_submit_base_response(
+            status_value=AdminApiCommandStatus.ACCEPTED,
+            message=(
+                "USDC pair snapshot order-plan controlled-live submit/cancel "
+                "accepted for one order."
+            ),
+            correlation_id=request_id,
+            idempotency_key=idempotency_key,
+            audit_id=audit_id,
+            submission=submission,
+        )
+    except UsdcPairSnapshotError as exc:
+        response = _live_submit_base_response(
+            status_value=AdminApiCommandStatus.REJECTED,
+            message=str(exc),
+            correlation_id=request_id,
+            idempotency_key=idempotency_key,
+            failure_stage="usdc_pair_snapshot_order_plan_live_submit",
+        )
+    response.audit_id = _record_live_submit_audit(
+        audit_store=audit_store,
+        actor=actor,
+        endpoint=USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_ENDPOINT,
+        request_id=request_id,
+        operator_intent=operator_intent,
+        response=response,
+        audit_id=response.audit_id,
+    )
+    if response.status == AdminApiCommandStatus.ACCEPTED:
+        idempotency_store.put_record(
+            IdempotencyRecord(
+                idempotency_key=idempotency_key,
+                payload_hash=payload_hash,
+                status=response.status,
+                response=response.model_dump(mode="json"),
+                actor_id=actor.actor_id,
+                endpoint=USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_ENDPOINT,
+            )
+        )
+    return _live_submit_response(response)
+
+
 @router.get(
     "/automation/usdc-pair-snapshot-runs",
     response_model=UsdcPairSnapshotRunListResponse,
@@ -975,6 +1304,28 @@ def list_usdc_pair_snapshot_order_plan_live_readiness(
     require_permission(actor, AdminApiPermission.AUDIT_READ)
     return _read_response(
         _live_readiness_list_response(store=readiness_store, limit=limit)
+    )
+
+
+@router.get(
+    "/automation/usdc-pair-snapshot-order-plan-live-submissions",
+    response_model=UsdcPairSnapshotOrderPlanLiveSubmitListResponse,
+    responses=READ_ONLY_ROUTE_RESPONSES,
+    summary="List backend-owned USDC pair snapshot live submit/cancel evidence",
+)
+def list_usdc_pair_snapshot_order_plan_live_submissions(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    submit_store: Annotated[
+        FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
+        Depends(get_usdc_pair_snapshot_order_plan_live_submit_store),
+    ],
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
+) -> JSONResponse:
+    """Read durable M58 controlled-live submit/cancel evidence."""
+
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    return _read_response(
+        _live_submit_list_response(store=submit_store, limit=limit)
     )
 
 
@@ -1364,6 +1715,41 @@ def _resolve_enabled_usdc_pair_live_service_decision(
     )
 
 
+def _resolve_usdc_pair_live_submit_record(
+    *,
+    store: FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
+    row: Any,
+    live_service_decision: LiveServiceDecisionRecord,
+) -> UsdcPairSnapshotOrderPlanLiveSubmitRecord | None:
+    product_id = str(getattr(row, "product_id", "") or "")
+    client_order_id = str(getattr(row, "client_order_id", "") or "")
+    if not product_id or not client_order_id:
+        return None
+    try:
+        records = store.read_recent(limit=500)
+    except OSError:
+        return None
+    return next(
+        (
+            record
+            for record in records
+            if record.product_id.upper() == product_id.upper()
+            and record.client_order_id == client_order_id
+            and record.live_service_decision_id
+            == live_service_decision.decision_id
+            and record.order_count == 1
+            and record.single_order_only
+            and record.additional_orders_blocked
+            and record.cancel_before_additional_orders
+            and record.cancel_rollback_complete
+            and record.live_exchange_submitted
+            and record.live_coinbase_orders_ran
+            and record.live_coinbase_execution == "submitted_cancelled"
+        ),
+        None,
+    )
+
+
 def _record_usdc_pair_live_readiness_preflight(
     *,
     plan: UsdcPairSnapshotOrderPlanRecord,
@@ -1514,8 +1900,8 @@ def _record_usdc_pair_live_readiness_preflight(
         min_quote_size=row.min_quote_size,
         preflight_passed=True,
         preflight_blockers=[],
-        submit_route_ready=False,
-        submit_blockers=["live_submission_route_not_implemented"],
+        submit_route_ready=True,
+        submit_blockers=[],
         cancel_before_additional_orders=body.cancel_before_additional_orders,
         cancel_rollback_plan_ref=body.cancel_rollback_plan_ref,
         full_snapshot_fill_test=body.full_snapshot_fill_test,
@@ -1532,12 +1918,233 @@ def _record_usdc_pair_live_readiness_preflight(
         operator_notes=body.operator_notes,
         detail=(
             "M58 Phase E readiness preflight accepted for one backend-owned "
-            "USDC spot order-plan row. Coinbase submission remains disabled "
-            "until a separate backend submit route is implemented."
+            "USDC spot order-plan row. Coinbase submission is available only "
+            "through the separate backend controlled-live submit/cancel route."
         ),
     )
     readiness_store.append(record)
     return _live_readiness_item_from_record(record)
+
+
+def _find_usdc_pair_live_readiness_record(
+    *,
+    store: FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
+    readiness_id: str,
+    product_id: str,
+    client_order_id: str,
+) -> UsdcPairSnapshotOrderPlanLiveReadinessRecord | None:
+    normalized_product_id = product_id.upper()
+    return next(
+        (
+            record
+            for record in store.read_recent(limit=500)
+            if record.readiness_id == readiness_id
+            and record.product_id.upper() == normalized_product_id
+            and record.client_order_id == client_order_id
+        ),
+        None,
+    )
+
+
+def _usdc_pair_live_order_configuration(
+    readiness: UsdcPairSnapshotOrderPlanLiveReadinessRecord,
+) -> dict[str, Any]:
+    side = OrderSide(readiness.side)
+    limit_order: dict[str, Any] = {}
+    if side == OrderSide.BUY:
+        limit_order["quote_size"] = readiness.submitted_notional_usdc
+    else:
+        if not readiness.base_size:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot live submit blocked: sell base_size missing."
+            )
+        limit_order["base_size"] = readiness.base_size
+    limit_order["limit_price"] = readiness.intended_limit_price
+    limit_order["post_only"] = False
+    return {"limit_limit_gtc": limit_order}
+
+
+def _mapping_value(value: Any) -> dict[str, Any]:
+    return dict(value) if isinstance(value, Mapping) else {}
+
+
+def _result_success(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, Mapping):
+        success = value.get("success")
+        if isinstance(success, bool):
+            return success
+    return bool(value)
+
+
+def _record_usdc_pair_live_submission(
+    *,
+    plan: UsdcPairSnapshotOrderPlanRecord,
+    row: Any,
+    readiness: UsdcPairSnapshotOrderPlanLiveReadinessRecord,
+    body: UsdcPairSnapshotOrderPlanLiveSubmitRequest,
+    submit_store: FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
+    executor: UsdcPairSnapshotLiveOrderExecutor,
+    actor: AdminApiActor,
+    operator_intent: str,
+    idempotency_key: str,
+    payload_hash: str,
+    audit_id: str,
+) -> UsdcPairSnapshotOrderPlanLiveSubmitItem:
+    blockers: list[str] = []
+    if body.product_id.upper() != readiness.product_id.upper():
+        blockers.append("readiness_product_mismatch")
+    if body.client_order_id != readiness.client_order_id:
+        blockers.append("readiness_client_order_id_mismatch")
+    if plan.plan_id != readiness.plan_id:
+        blockers.append("readiness_plan_mismatch")
+    if row.client_order_id != readiness.client_order_id:
+        blockers.append("order_plan_row_mismatch")
+    if not body.confirm_live_submit:
+        blockers.append("confirm_live_submit_required")
+    if not body.confirm_single_order_only:
+        blockers.append("confirm_single_order_only_required")
+    if not body.confirm_cancel_before_additional_orders:
+        blockers.append("confirm_cancel_before_additional_orders_required")
+    if not body.confirm_no_additional_orders:
+        blockers.append("confirm_no_additional_orders_required")
+    if not body.operator_stop_conditions:
+        blockers.append("operator_stop_conditions_required")
+    if not readiness.preflight_passed:
+        blockers.append("readiness_preflight_not_passed")
+    if readiness.preflight_blockers:
+        blockers.append("readiness_preflight_blockers_present")
+    if not readiness.submit_route_ready:
+        blockers.append("readiness_submit_route_not_ready")
+    if readiness.submit_blockers:
+        blockers.append("readiness_submit_blockers_present")
+    if not readiness.single_order_only or readiness.order_count != 1:
+        blockers.append("single_order_only_required")
+    if readiness.full_snapshot_fill_test:
+        blockers.append("manual_review_required_for_full_snapshot_fill_test")
+    if not readiness.cancel_before_additional_orders:
+        blockers.append("cancel_before_additional_orders_required")
+    submitted_notional = _decimal_value(readiness.submitted_notional_usdc)
+    max_executed_notional = _decimal_value(readiness.max_executed_notional_usdc)
+    if submitted_notional is None:
+        blockers.append("submitted_notional_invalid")
+    elif submitted_notional > Decimal("10"):
+        blockers.append("spot_live_test_notional_exceeds_preferred_cap")
+    if max_executed_notional is None:
+        blockers.append("max_executed_notional_invalid")
+    elif submitted_notional is not None and max_executed_notional > submitted_notional:
+        blockers.append("max_executed_notional_exceeds_submitted")
+    if submit_store.find_latest_for_readiness(
+        readiness_id=readiness.readiness_id,
+        product_id=readiness.product_id,
+        client_order_id=readiness.client_order_id,
+    ):
+        blockers.append("live_submission_already_recorded")
+
+    if blockers:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot live submit blocked: "
+            + ",".join(dict.fromkeys(blockers))
+        )
+
+    order_configuration = _usdc_pair_live_order_configuration(readiness)
+    try:
+        execution = executor.submit_and_cancel(
+            client_order_id=readiness.client_order_id,
+            product_id=readiness.product_id,
+            side=readiness.side,
+            order_configuration=order_configuration,
+            submitted_notional_usdc=readiness.submitted_notional_usdc,
+            max_executed_notional_usdc=readiness.max_executed_notional_usdc,
+            cancel_client_order_id=readiness.client_order_id,
+        )
+    except UsdcPairSnapshotLiveExecutionError as exc:
+        raise UsdcPairSnapshotError(
+            f"USDC pair snapshot live submit blocked: {exc}"
+        ) from exc
+
+    submit_result = _mapping_value(execution.get("submit_result"))
+    cancel_result = _mapping_value(execution.get("cancel_result"))
+    cancel_submitted = bool(
+        execution.get("cancel_submitted", _result_success(cancel_result))
+    )
+    cancel_complete = bool(
+        execution.get("cancel_rollback_complete", cancel_submitted)
+    )
+    live_exchange_submitted = bool(execution.get("live_exchange_submitted"))
+    live_coinbase_orders_ran = bool(execution.get("live_coinbase_orders_ran"))
+    live_execution = str(
+        execution.get("live_coinbase_execution")
+        or (
+            "submitted_cancelled"
+            if cancel_complete and live_exchange_submitted
+            else "submitted_cancel_failed"
+        )
+    )
+
+    record = UsdcPairSnapshotOrderPlanLiveSubmitRecord(
+        submission_id=(
+            body.submission_id or f"m58-usdc-live-submit-{uuid4()}"
+        ),
+        readiness_id=readiness.readiness_id,
+        plan_id=plan.plan_id,
+        snapshot_run_id=plan.snapshot_run_id,
+        product_id=readiness.product_id,
+        client_order_id=readiness.client_order_id,
+        submitted_at=execution.get("submitted_at"),
+        cancelled_at=execution.get("cancelled_at"),
+        side=readiness.side,
+        order_count=1,
+        single_order_only=True,
+        submitted_notional_usdc=readiness.submitted_notional_usdc,
+        executed_notional_usdc=str(execution.get("executed_notional_usdc") or "0"),
+        max_executed_notional_usdc=readiness.max_executed_notional_usdc,
+        intended_limit_price=readiness.intended_limit_price,
+        reference_bid_price=readiness.reference_bid_price,
+        last_filled_price=readiness.last_filled_price,
+        cancel_before_additional_orders=True,
+        additional_orders_blocked=True,
+        cancel_submitted=cancel_submitted,
+        cancel_rollback_complete=cancel_complete,
+        cancel_rollback_plan_ref=readiness.cancel_rollback_plan_ref,
+        full_snapshot_fill_test=readiness.full_snapshot_fill_test,
+        approval_snapshot_id=readiness.approval_snapshot_id,
+        admission_audit_id=readiness.admission_audit_id,
+        cap_guard_decision_id=readiness.cap_guard_decision_id,
+        reconciliation_plan_id=readiness.reconciliation_plan_id,
+        live_service_decision_id=readiness.live_service_decision_id,
+        coinbase_order_id=(
+            str(execution["coinbase_order_id"])
+            if execution.get("coinbase_order_id")
+            else None
+        ),
+        coinbase_order_id_evidence_only=True,
+        order_configuration=dict(execution.get("order_configuration") or order_configuration),
+        submit_result=submit_result,
+        cancel_result=cancel_result,
+        operator_stop_conditions=body.operator_stop_conditions,
+        actor_id=actor.actor_id,
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        audit_id=audit_id,
+        operator_notes=body.operator_notes,
+        live_exchange_submitted=live_exchange_submitted,
+        live_coinbase_orders_ran=live_coinbase_orders_ran,
+        live_coinbase_execution=live_execution,
+        notional_usdc=(
+            readiness.submitted_notional_usdc if live_exchange_submitted else "0"
+        ),
+        detail=(
+            "M58 Phase E controlled-live evidence for one backend-owned USDC "
+            "spot order-plan row. The backend submitted one Coinbase limit "
+            "order by client_order_id and attempted immediate cancellation "
+            "before any additional order."
+        ),
+    )
+    submit_store.append(record)
+    return _live_submit_item_from_record(record)
 
 
 def _usdc_pair_order_plan_proof_chain_refresher(
@@ -1547,6 +2154,7 @@ def _usdc_pair_order_plan_proof_chain_refresher(
     cap_guard_store: FileAdminApiCapGuardStore,
     reconciliation_store: FileAdminApiReconciliationStore,
     live_service_decision_store: FileAdminApiLiveServiceDecisionStore,
+    live_submit_store: FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
 ) -> Callable[[Any, Any], dict[str, Any]]:
     def refresh(plan: Any, row: Any) -> dict[str, Any]:
         client_order_id = str(getattr(row, "client_order_id", "") or "")
@@ -1678,7 +2286,9 @@ def _usdc_pair_order_plan_proof_chain_refresher(
                 if blocker != "reconciliation_plan_blocked"
             ]
         live_service_decision = None
-        live_submission_not_implemented = False
+        live_submission_record = None
+        live_submission_missing = False
+        live_service_disabled = False
         if reconciliation is not None:
             live_service_decision = (
                 _resolve_disabled_usdc_pair_live_service_decision(
@@ -1686,6 +2296,7 @@ def _usdc_pair_order_plan_proof_chain_refresher(
                     row=row,
                 )
             )
+            live_service_disabled = live_service_decision is not None
             if live_service_decision is None:
                 live_service_decision = (
                     _resolve_enabled_usdc_pair_live_service_decision(
@@ -1693,16 +2304,32 @@ def _usdc_pair_order_plan_proof_chain_refresher(
                         row=row,
                     )
                 )
-                live_submission_not_implemented = (
-                    live_service_decision is not None
-                )
+                if live_service_decision is not None:
+                    live_submission_record = (
+                        _resolve_usdc_pair_live_submit_record(
+                            store=live_submit_store,
+                            row=row,
+                            live_service_decision=live_service_decision,
+                        )
+                    )
+                    live_submission_missing = live_submission_record is None
         if live_service_decision is not None:
             blockers = [
                 blocker
                 for blocker in blockers
                 if blocker != "live_service_decision_missing"
             ]
-            if live_submission_not_implemented:
+            if live_submission_record is not None:
+                blockers = [
+                    blocker
+                    for blocker in blockers
+                    if blocker
+                    not in {
+                        USDC_PAIR_SNAPSHOT_LIVE_SERVICE_DISABLED_BLOCKER,
+                        USDC_PAIR_SNAPSHOT_LIVE_SUBMISSION_MISSING_BLOCKER,
+                    }
+                ]
+            elif live_submission_missing:
                 blockers = [
                     blocker
                     for blocker in blockers
@@ -1710,20 +2337,20 @@ def _usdc_pair_order_plan_proof_chain_refresher(
                     != USDC_PAIR_SNAPSHOT_LIVE_SERVICE_DISABLED_BLOCKER
                 ]
                 if (
-                    USDC_PAIR_SNAPSHOT_LIVE_SUBMISSION_NOT_IMPLEMENTED_BLOCKER
+                    USDC_PAIR_SNAPSHOT_LIVE_SUBMISSION_MISSING_BLOCKER
                     not in blockers
                 ):
                     blockers.append(
-                        USDC_PAIR_SNAPSHOT_LIVE_SUBMISSION_NOT_IMPLEMENTED_BLOCKER
+                        USDC_PAIR_SNAPSHOT_LIVE_SUBMISSION_MISSING_BLOCKER
                     )
-            elif (
+            elif live_service_disabled and (
                 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_DISABLED_BLOCKER not in blockers
             ):
                 blockers = [
                     blocker
                     for blocker in blockers
                     if blocker
-                    != USDC_PAIR_SNAPSHOT_LIVE_SUBMISSION_NOT_IMPLEMENTED_BLOCKER
+                    != USDC_PAIR_SNAPSHOT_LIVE_SUBMISSION_MISSING_BLOCKER
                 ]
                 blockers.append(
                     USDC_PAIR_SNAPSHOT_LIVE_SERVICE_DISABLED_BLOCKER
@@ -1733,8 +2360,8 @@ def _usdc_pair_order_plan_proof_chain_refresher(
             approval_id=approval_snapshot.approval_id,
         )
         return {
-            "proof_chain_status": "blocked",
-            "proof_chain_blockers": blockers,
+            "proof_chain_status": "blocked" if blockers else "accepted",
+            "proof_chain_blockers": list(dict.fromkeys(blockers)),
             "approval_request_required": True,
             "approval_request_id": approval_request_id
             or getattr(row, "approval_request_id", None),
@@ -1760,10 +2387,26 @@ def _usdc_pair_order_plan_proof_chain_refresher(
                 if live_service_decision is not None
                 else getattr(row, "live_service_decision_id", None)
             ),
-            "live_exchange_submitted": False,
-            "live_coinbase_orders_ran": False,
-            "live_coinbase_execution": "not_run",
-            "notional_usdc": "0",
+            "live_exchange_submitted": (
+                live_submission_record.live_exchange_submitted
+                if live_submission_record is not None
+                else False
+            ),
+            "live_coinbase_orders_ran": (
+                live_submission_record.live_coinbase_orders_ran
+                if live_submission_record is not None
+                else False
+            ),
+            "live_coinbase_execution": (
+                live_submission_record.live_coinbase_execution
+                if live_submission_record is not None
+                else "not_run"
+            ),
+            "notional_usdc": (
+                live_submission_record.notional_usdc
+                if live_submission_record is not None
+                else "0"
+            ),
         }
 
     return refresh
@@ -1934,6 +2577,10 @@ def refresh_usdc_pair_snapshot_order_plan_proof_chain(
         FileAdminApiLiveServiceDecisionStore,
         Depends(get_usdc_pair_snapshot_live_service_decision_store),
     ],
+    live_submit_store: Annotated[
+        FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
+        Depends(get_usdc_pair_snapshot_order_plan_live_submit_store),
+    ],
     idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
     audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
 ) -> JSONResponse:
@@ -1973,6 +2620,7 @@ def refresh_usdc_pair_snapshot_order_plan_proof_chain(
                 cap_guard_store=cap_guard_store,
                 reconciliation_store=reconciliation_store,
                 live_service_decision_store=live_service_decision_store,
+                live_submit_store=live_submit_store,
             ),
         ),
     )
@@ -2047,6 +2695,101 @@ def record_usdc_pair_snapshot_order_plan_live_readiness(
         )
 
     return _execute_idempotent_live_readiness(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        request_id=correlation_id,
+        operator_intent=operator_intent,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        operation=operation,
+    )
+
+
+@router.post(
+    "/automation/usdc-pair-snapshot-order-plans/{plan_id}/live-submit",
+    response_model=UsdcPairSnapshotOrderPlanLiveSubmitResponse,
+    status_code=status.HTTP_200_OK,
+    responses=LIVE_SUBMIT_ROUTE_RESPONSES,
+    summary="Submit and cancel one backend-owned USDC pair snapshot order",
+)
+def submit_usdc_pair_snapshot_order_plan_live_order(
+    request: Request,
+    plan_id: str,
+    body: UsdcPairSnapshotOrderPlanLiveSubmitRequest,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    order_plan_store: Annotated[
+        FileUsdcPairSnapshotOrderPlanStore,
+        Depends(get_usdc_pair_snapshot_order_plan_store),
+    ],
+    readiness_store: Annotated[
+        FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
+        Depends(get_usdc_pair_snapshot_order_plan_live_readiness_store),
+    ],
+    submit_store: Annotated[
+        FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
+        Depends(get_usdc_pair_snapshot_order_plan_live_submit_store),
+    ],
+    executor: Annotated[
+        UsdcPairSnapshotLiveOrderExecutor,
+        Depends(get_usdc_pair_snapshot_live_order_executor),
+    ],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+) -> JSONResponse:
+    """Submit one preflighted M58 order and cancel before any additional order."""
+
+    endpoint = f"{request.method} {request.url.path}"
+    payload_hash = _payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        operator_intent=operator_intent,
+        body=body.model_dump(mode="json"),
+    )
+
+    def operation(audit_id: str) -> UsdcPairSnapshotOrderPlanLiveSubmitItem:
+        plan = order_plan_store.find_by_plan_id(plan_id)
+        if plan is None:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot order-plan not found."
+            )
+        row = _find_usdc_pair_order_plan_row(
+            plan,
+            product_id=body.product_id,
+            client_order_id=body.client_order_id,
+        )
+        if row is None:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot order-plan row not found."
+            )
+        readiness = _find_usdc_pair_live_readiness_record(
+            store=readiness_store,
+            readiness_id=body.readiness_id,
+            product_id=body.product_id,
+            client_order_id=body.client_order_id,
+        )
+        if readiness is None:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot live-readiness record not found."
+            )
+        return _record_usdc_pair_live_submission(
+            plan=plan,
+            row=row,
+            readiness=readiness,
+            body=body,
+            submit_store=submit_store,
+            executor=executor,
+            actor=actor,
+            operator_intent=operator_intent,
+            idempotency_key=idempotency_key,
+            payload_hash=payload_hash,
+            audit_id=audit_id,
+        )
+
+    return _execute_idempotent_live_submit(
         idempotency_key=idempotency_key,
         payload_hash=payload_hash,
         actor=actor,

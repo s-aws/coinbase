@@ -1081,6 +1081,23 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     AdminApiRouteInventoryItem(
         module_id="automation",
         surface=(
+            "GET /api/v1/automation/usdc-pair-snapshot-order-plan-live-submissions"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="list_usdc_pair_snapshot_order_plan_live_submissions",
+        parity_test=(
+            "M58 read-only controlled-live submit/cancel evidence; no "
+            "browser execution authority, no fan-out, and no scheduler"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="automation",
+        surface=(
             "POST /api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans"
         ),
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
@@ -1121,9 +1138,36 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         shared_method="record_usdc_pair_snapshot_order_plan_live_readiness",
         parity_test=(
             "M58 backend-owned live-readiness preflight persists one-row "
-            "submit-readiness evidence while submit_route_ready remains false; "
+            "submit-readiness evidence while submit_route_ready is true; "
             "no Coinbase order submission, no wallet allocation, and no "
             "browser execution authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="automation",
+        surface=(
+            "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "{plan_id}/live-submit"
+        ),
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+        idempotency="required",
+        approval=(
+            "required exact existing live-readiness evidence, proof-chain "
+            "approval evidence, and enabled live-service decision"
+        ),
+        caps=(
+            "required one selected spot order only, preferred live-test "
+            "notional cap, far-from-bid/non-fill price distance, immediate "
+            "cancel by client_order_id, and no additional orders"
+        ),
+        audit="required",
+        shared_method="submit_usdc_pair_snapshot_order_plan_live_order",
+        parity_test=(
+            "M58 backend-owned controlled-live one-order submit/cancel uses "
+            "client_order_id for operator tracking and cancellation; Coinbase "
+            "order_id is exchange evidence only; no fan-out, no scheduler, "
+            "and no browser execution authority"
         ),
     ),
     AdminApiRouteInventoryItem(

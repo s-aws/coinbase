@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import os
 from pathlib import Path
 from threading import RLock
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -130,6 +131,62 @@ class UsdcPairSnapshotOrderPlanLiveReadinessRecord(BaseModel):
     notional_usdc: str = "0"
     detail: str = Field(min_length=1)
     source: str = "admin_api_usdc_pair_snapshot_order_plan_live_readiness_log"
+
+
+class UsdcPairSnapshotOrderPlanLiveSubmitRecord(BaseModel):
+    """Append-only backend controlled-live submit/cancel evidence record."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    submission_id: str = Field(min_length=1)
+    readiness_id: str = Field(min_length=1)
+    plan_id: str = Field(min_length=1)
+    snapshot_run_id: str = Field(min_length=1)
+    product_id: str = Field(min_length=1)
+    client_order_id: str = Field(min_length=1)
+    recorded_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+    submitted_at: str | None = None
+    cancelled_at: str | None = None
+    side: str = Field(min_length=1)
+    order_count: int = 1
+    single_order_only: bool = True
+    submitted_notional_usdc: str = Field(min_length=1)
+    executed_notional_usdc: str = "0"
+    max_executed_notional_usdc: str = Field(min_length=1)
+    intended_limit_price: str = Field(min_length=1)
+    reference_bid_price: str = Field(min_length=1)
+    last_filled_price: str = Field(min_length=1)
+    cancel_before_additional_orders: bool = True
+    additional_orders_blocked: bool = True
+    cancel_submitted: bool = False
+    cancel_rollback_complete: bool = False
+    cancel_rollback_plan_ref: str = Field(min_length=1)
+    full_snapshot_fill_test: bool = False
+    approval_snapshot_id: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    cap_guard_decision_id: str = Field(min_length=1)
+    reconciliation_plan_id: str = Field(min_length=1)
+    live_service_decision_id: str = Field(min_length=1)
+    coinbase_order_id: str | None = None
+    coinbase_order_id_evidence_only: bool = True
+    order_configuration: dict[str, Any] = Field(default_factory=dict)
+    submit_result: dict[str, Any] = Field(default_factory=dict)
+    cancel_result: dict[str, Any] = Field(default_factory=dict)
+    operator_stop_conditions: list[str] = Field(default_factory=list)
+    actor_id: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(min_length=64, max_length=64)
+    audit_id: str | None = None
+    operator_notes: str | None = None
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: str = "0"
+    detail: str = Field(min_length=1)
+    source: str = "admin_api_usdc_pair_snapshot_order_plan_live_submit_log"
 
 
 class FileUsdcPairSnapshotRunStore:
@@ -359,3 +416,106 @@ class FileUsdcPairSnapshotOrderPlanLiveReadinessStore:
                 continue
             count += 1
         return count
+
+
+class FileUsdcPairSnapshotOrderPlanLiveSubmitStore:
+    """Append-only JSONL store for M58 controlled-live submit evidence."""
+
+    def __init__(self, path: Path | str | None = None) -> None:
+        configured_path = (
+            path
+            or os.environ.get(
+                "COINBASE_ADMIN_API_USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_LOG_PATH"
+            )
+            or Path("runtime_state")
+            / "admin_api_usdc_pair_snapshot_order_plan_live_submit.jsonl"
+        )
+        self.path = Path(configured_path)
+        self._lock = RLock()
+
+    def append(self, record: UsdcPairSnapshotOrderPlanLiveSubmitRecord) -> str:
+        with self._lock:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as handle:
+                handle.write(record.model_dump_json() + "\n")
+            return record.submission_id
+
+    def read_recent(
+        self,
+        *,
+        limit: int = 100,
+    ) -> list[UsdcPairSnapshotOrderPlanLiveSubmitRecord]:
+        normalized_limit = max(1, min(limit, 500))
+        with self._lock:
+            if not self.path.exists():
+                return []
+            lines = self.path.read_text(encoding="utf-8").splitlines()
+        records: list[UsdcPairSnapshotOrderPlanLiveSubmitRecord] = []
+        for line in reversed(lines):
+            if not line.strip():
+                continue
+            try:
+                records.append(
+                    UsdcPairSnapshotOrderPlanLiveSubmitRecord.model_validate_json(
+                        line
+                    )
+                )
+            except ValueError:
+                continue
+            if len(records) >= normalized_limit:
+                break
+        return records
+
+    def count_records(self) -> int:
+        """Return the number of readable live-submission records."""
+
+        with self._lock:
+            if not self.path.exists():
+                return 0
+            lines = self.path.read_text(encoding="utf-8").splitlines()
+        count = 0
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                UsdcPairSnapshotOrderPlanLiveSubmitRecord.model_validate_json(line)
+            except ValueError:
+                continue
+            count += 1
+        return count
+
+    def find_by_submission_id(
+        self,
+        submission_id: str,
+    ) -> UsdcPairSnapshotOrderPlanLiveSubmitRecord | None:
+        """Return the latest readable record for a submission id."""
+
+        return next(
+            (
+                record
+                for record in self.read_recent(limit=500)
+                if record.submission_id == submission_id
+            ),
+            None,
+        )
+
+    def find_latest_for_readiness(
+        self,
+        *,
+        readiness_id: str,
+        product_id: str,
+        client_order_id: str,
+    ) -> UsdcPairSnapshotOrderPlanLiveSubmitRecord | None:
+        """Return the latest submission evidence for a readiness row."""
+
+        normalized_product_id = product_id.upper()
+        return next(
+            (
+                record
+                for record in self.read_recent(limit=500)
+                if record.readiness_id == readiness_id
+                and record.product_id.upper() == normalized_product_id
+                and record.client_order_id == client_order_id
+            ),
+            None,
+        )

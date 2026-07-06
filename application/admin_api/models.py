@@ -2868,6 +2868,130 @@ class UsdcPairSnapshotOrderPlanLiveReadinessListResponse(BaseModel):
     )
 
 
+class UsdcPairSnapshotOrderPlanLiveSubmitRequest(BaseModel):
+    """Controlled-live Phase E submit/cancel request for one M58 row."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    submission_id: str | None = Field(default=None, min_length=1)
+    readiness_id: str = Field(min_length=1)
+    product_id: str = Field(min_length=1)
+    client_order_id: str = Field(min_length=1)
+    confirm_live_submit: bool = False
+    confirm_single_order_only: bool = False
+    confirm_cancel_before_additional_orders: bool = False
+    confirm_no_additional_orders: bool = False
+    operator_stop_conditions: list[str] = Field(default_factory=list)
+    operator_notes: str | None = None
+
+
+class UsdcPairSnapshotOrderPlanLiveSubmitItem(BaseModel):
+    """Durable controlled-live submit/cancel evidence for one M58 row."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    submission_id: str = Field(min_length=1)
+    readiness_id: str = Field(min_length=1)
+    plan_id: str = Field(min_length=1)
+    snapshot_run_id: str = Field(min_length=1)
+    product_id: str = Field(min_length=1)
+    client_order_id: str = Field(min_length=1)
+    recorded_at: str
+    submitted_at: str | None = None
+    cancelled_at: str | None = None
+    side: OrderSide
+    order_count: int = Field(ge=0)
+    single_order_only: bool = True
+    submitted_notional_usdc: DecimalString
+    executed_notional_usdc: DecimalString = "0"
+    max_executed_notional_usdc: DecimalString
+    intended_limit_price: DecimalString
+    reference_bid_price: DecimalString
+    last_filled_price: DecimalString
+    cancel_before_additional_orders: bool = True
+    additional_orders_blocked: bool = True
+    cancel_submitted: bool = False
+    cancel_rollback_complete: bool = False
+    cancel_rollback_plan_ref: str = Field(min_length=1)
+    full_snapshot_fill_test: bool = False
+    approval_snapshot_id: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    cap_guard_decision_id: str = Field(min_length=1)
+    reconciliation_plan_id: str = Field(min_length=1)
+    live_service_decision_id: str = Field(min_length=1)
+    coinbase_order_id: str | None = None
+    coinbase_order_id_evidence_only: bool = True
+    order_configuration: dict[str, Any] = Field(default_factory=dict)
+    submit_result: dict[str, Any] = Field(default_factory=dict)
+    cancel_result: dict[str, Any] = Field(default_factory=dict)
+    operator_stop_conditions: list[str] = Field(default_factory=list)
+    actor_id: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(min_length=64, max_length=64)
+    audit_id: str | None = None
+    operator_notes: str | None = None
+    backend_owned: bool = True
+    read_only_after_write: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    detail: str
+
+
+class UsdcPairSnapshotOrderPlanLiveSubmitResponse(BaseModel):
+    """Response for controlled-live M58 Phase E submit/cancel evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: AdminApiCommandStatus
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission
+    service_method: str
+    message: str
+    correlation_id: str | None = None
+    idempotency_key: str | None = None
+    audit_id: str | None = None
+    submission: UsdcPairSnapshotOrderPlanLiveSubmitItem | None = None
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    failure_stage: str | None = None
+
+
+class UsdcPairSnapshotOrderPlanLiveSubmitListResponse(BaseModel):
+    """Read-only list of controlled-live M58 submit/cancel evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "usdc_pair_snapshot_order_plan_live_submission_list"
+    submissions: list[UsdcPairSnapshotOrderPlanLiveSubmitItem] = Field(
+        default_factory=list
+    )
+    returned_count: int = Field(ge=0)
+    total_count: int = Field(ge=0)
+    latest_submission_id: str | None = None
+    submitted_count: int = Field(ge=0)
+    cancelled_count: int = Field(ge=0)
+    read_only: bool = True
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    detail: str = (
+        "M58 USDC pair snapshot live-submission readback exposes backend-owned "
+        "single-row submit/cancel evidence only; it does not grant browser "
+        "execution authority, fan out orders, or run a scheduler."
+    )
+
+
 class AdminApiErrorResponse(BaseModel):
     """Structured error body shared by Admin API routes."""
 
