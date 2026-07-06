@@ -159,7 +159,13 @@ def test_backend_deploy_payload_contains_admin_runtime_contract_files() -> None:
         "tools/apply_admin_api_local_deployment.py",
         "tools/export_admin_api_route_inventory.py",
         "tools/run_admin_api_controlled_live_mvp_smoke.py",
+        "tools/run_admin_api_futures_live_fill_readback.py",
+        "tools/run_admin_api_manual_order_live_submit.py",
+        "tools/coinbase_live_credentials.py",
+        "tools/run_spot_fill_backfill_recovery.py",
+        "tools/run_spot_sweep_recovery_gate.py",
         CONTROLLED_LIVE_SMOKE_TIMING_PATH,
+        "logging_service.py",
     ]:
         assert expected_path in payload_block
 

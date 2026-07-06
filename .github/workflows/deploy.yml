@@ -120,8 +120,14 @@ jobs:
             tools/run_admin_api.py \
             tools/generate_admin_api_openapi.py \
             tools/export_admin_api_route_inventory.py \
+            tools/run_admin_api_futures_live_fill_readback.py \
+            tools/run_admin_api_manual_order_live_submit.py \
+            tools/coinbase_live_credentials.py \
+            tools/run_spot_fill_backfill_recovery.py \
+            tools/run_spot_sweep_recovery_gate.py \
             configuration.py \
             dashboard_server.py \
+            logging_service.py \
             main.py \
             pyproject.toml \
             products.json \
