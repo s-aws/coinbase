@@ -759,6 +759,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[
         automation_routes.get_usdc_pair_snapshot_reconciliation_store
     ] = lambda: reconciliation_store
+    app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_live_service_decision_store
+    ] = lambda: live_service_decision_store
     app.dependency_overrides[approval_routes.get_idempotency_store] = (
         lambda: idempotency_store
     )
@@ -34431,11 +34434,166 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert recon_refreshed_row["live_coinbase_execution"] == "not_run"
     assert recon_refreshed_row["notional_usdc"] == "0"
 
+    expected_live_service_decision_id = (
+        f"m58-usdc-live-service-{planned_row['client_order_id']}"
+    )
+    invalid_live_service = LiveServiceDecisionRecord(
+        decision_id=expected_live_service_decision_id,
+        recorded_at="2026-07-06T14:10:00+00:00",
+        status=AdminApiGateStatus.PASSED,
+        requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+        service_enabled=True,
+        target_module_id="automation",
+        account_family="coinbase_spot",
+        venue_scope="coinbase_advanced_trade",
+        intx_applicability="not_applicable",
+        product_scope=[planned_row["product_id"]],
+        deployment_ref="m58-usdc-live-service-disabled-deployment",
+        runtime_configuration_ref="m58-usdc-live-service-disabled-runtime",
+        decision_reason=(
+            "Invalid enabled M58 live-service evidence must not clear the "
+            "disabled proof-chain blocker."
+        ),
+        live_coinbase_execution_approved=True,
+        max_submitted_notional_usdc=planned_row["planned_notional_usdc"],
+        max_executed_notional_usdc="0.01",
+    )
+    client.admin_api_test_live_service_decision_store.append(invalid_live_service)
+    client.admin_api_test_live_service_decision_store.append(
+        invalid_live_service.model_copy(
+            update={
+                "decision_id": "m58-usdc-live-service-wrong-product",
+                "status": AdminApiGateStatus.BLOCKED,
+                "requested_service_status": (
+                    AdminApiLiveExecutionStatus.LIVE_DISABLED
+                ),
+                "service_enabled": False,
+                "product_scope": ["ETH-USDC"],
+                "live_coinbase_execution_approved": False,
+                "max_submitted_notional_usdc": "0",
+                "max_executed_notional_usdc": "0",
+                "decision_reason": (
+                    "Mismatched M58 live-service product scope must not "
+                    "clear the proof-chain blocker."
+                ),
+            }
+        )
+    )
+    client.admin_api_test_live_service_decision_store.append(
+        invalid_live_service.model_copy(
+            update={
+                "decision_id": "m58-usdc-live-service-wrong-module",
+                "status": AdminApiGateStatus.BLOCKED,
+                "requested_service_status": (
+                    AdminApiLiveExecutionStatus.LIVE_DISABLED
+                ),
+                "service_enabled": False,
+                "target_module_id": "spot_operations",
+                "live_coinbase_execution_approved": False,
+                "max_submitted_notional_usdc": "0",
+                "max_executed_notional_usdc": "0",
+                "decision_reason": (
+                    "Mismatched M58 live-service module scope must not "
+                    "clear the proof-chain blocker."
+                ),
+            }
+        )
+    )
+
+    invalid_live_refresh_response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "m58-usdc-order-plan-refresh-test/proof-chain-refresh"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-refresh-proof-live-invalid",
+            operator_intent="m58_usdc_snapshot_refresh_proof_live_invalid",
+        ),
+        json={
+            "dry_run": True,
+            "operator_notes": "reject invalid live-service evidence",
+        },
+    )
+    assert invalid_live_refresh_response.status_code == 200
+    invalid_live_row = invalid_live_refresh_response.json()["plan"][
+        "order_plan_rows"
+    ][0]
+    assert invalid_live_row["reconciliation_plan_id"] == (
+        durable_reconciliation.plan_id
+    )
+    assert invalid_live_row["live_service_decision_id"] is None
+    assert invalid_live_row["proof_chain_blockers"] == [
+        "live_service_decision_missing",
+    ]
+    assert invalid_live_row["proof_chain_status"] == "blocked"
+    assert invalid_live_row["live_exchange_submitted"] is False
+    assert invalid_live_row["live_coinbase_orders_ran"] is False
+    assert invalid_live_row["live_coinbase_execution"] == "not_run"
+    assert invalid_live_row["notional_usdc"] == "0"
+
+    durable_live_service = invalid_live_service.model_copy(
+        update={
+            "recorded_at": "2026-07-06T14:15:00+00:00",
+            "status": AdminApiGateStatus.BLOCKED,
+            "requested_service_status": AdminApiLiveExecutionStatus.LIVE_DISABLED,
+            "service_enabled": False,
+            "live_coinbase_execution_approved": False,
+            "max_submitted_notional_usdc": "0",
+            "max_executed_notional_usdc": "0",
+            "decision_reason": (
+                "Durable backend-owned M58 disabled live-service evidence. "
+                "Live execution remains unavailable."
+            ),
+        }
+    )
+    client.admin_api_test_live_service_decision_store.append(durable_live_service)
+
+    live_refresh_response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "m58-usdc-order-plan-refresh-test/proof-chain-refresh"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-refresh-proof-live",
+            operator_intent="m58_usdc_snapshot_refresh_proof_live",
+        ),
+        json={
+            "dry_run": True,
+            "operator_notes": "refresh disabled live-service evidence",
+        },
+    )
+    assert live_refresh_response.status_code == 200
+    live_refresh_payload = live_refresh_response.json()
+    live_refreshed_row = live_refresh_payload["plan"]["order_plan_rows"][0]
+    assert live_refreshed_row["approval_snapshot_id"] == approval_id
+    assert live_refreshed_row["admission_audit_id"] == (
+        durable_admission_audit.audit_id
+    )
+    assert live_refreshed_row["cap_guard_decision_id"] == (
+        durable_cap_guard.decision_id
+    )
+    assert live_refreshed_row["reconciliation_plan_id"] == (
+        durable_reconciliation.plan_id
+    )
+    assert (
+        live_refreshed_row["live_service_decision_id"]
+        == durable_live_service.decision_id
+    )
+    assert live_refreshed_row["proof_chain_blockers"] == [
+        "live_service_decision_disabled",
+    ]
+    assert live_refreshed_row["proof_chain_status"] == "blocked"
+    assert live_refreshed_row["live_exchange_submitted"] is False
+    assert live_refreshed_row["live_coinbase_orders_ran"] is False
+    assert live_refreshed_row["live_coinbase_execution"] == "not_run"
+    assert live_refreshed_row["notional_usdc"] == "0"
+    assert client.admin_api_test_mvp_service.store.service_decisions == {}
+
     persisted = order_plan_store.find_by_plan_id(
         "m58-usdc-order-plan-refresh-test"
     )
     assert persisted is not None
-    assert persisted.audit_id == recon_refresh_payload["audit_id"]
+    assert persisted.audit_id == live_refresh_payload["audit_id"]
     assert persisted.order_plan_rows[0].approval_snapshot_id == approval_id
     assert persisted.order_plan_rows[0].cap_guard_decision_id == (
         durable_cap_guard.decision_id
@@ -34443,7 +34601,13 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert persisted.order_plan_rows[0].reconciliation_plan_id == (
         durable_reconciliation.plan_id
     )
-    assert len(order_plan_store.read_recent(limit=10)) == 6
+    assert persisted.order_plan_rows[0].live_service_decision_id == (
+        durable_live_service.decision_id
+    )
+    assert persisted.order_plan_rows[0].proof_chain_blockers == [
+        "live_service_decision_disabled",
+    ]
+    assert len(order_plan_store.read_recent(limit=10)) == 8
 
     replay = client.post(
         (
@@ -34462,7 +34626,7 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert replay.status_code == 200
     assert replay.headers["x-idempotency-replayed"] == "true"
     assert replay.json() == refresh_payload
-    assert len(order_plan_store.read_recent(limit=10)) == 6
+    assert len(order_plan_store.read_recent(limit=10)) == 8
 
     readback = client.get(
         "/api/v1/automation/usdc-pair-snapshot-order-plans?limit=5",
@@ -34478,6 +34642,9 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert readback_payload["plans"][0]["order_plan_rows"][0][
         "approval_snapshot_id"
     ] == approval_id
+    assert readback_payload["plans"][0]["order_plan_rows"][0][
+        "live_service_decision_id"
+    ] == durable_live_service.decision_id
     assert readback_payload["live_exchange_submitted"] is False
     assert readback_payload["live_coinbase_orders_ran"] is False
     assert readback_payload["live_coinbase_execution"] == "not_run"

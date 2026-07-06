@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import Decimal, InvalidOperation
 from typing import Annotated, Any, Callable
 from uuid import uuid4
 
@@ -30,6 +31,11 @@ from application.admin_api.idempotency import (
     FileIdempotencyStore,
     IdempotencyRecord,
     make_payload_hash,
+)
+from application.admin_api.live_execution import (
+    FileAdminApiLiveServiceDecisionStore,
+    LIVE_SERVICE_DECISION_SOURCE,
+    LiveServiceDecisionRecord,
 )
 from application.admin_api.models import (
     AdminApiActor,
@@ -68,7 +74,9 @@ from core.enums import (
     AdminApiActionClass,
     AdminApiApprovalLifecycleEventType,
     AdminApiCommandStatus,
+    AdminApiGateStatus,
     AdminApiIdempotencyDecision,
+    AdminApiLiveExecutionStatus,
     AdminApiPermission,
 )
 
@@ -102,6 +110,12 @@ USDC_PAIR_SNAPSHOT_PROOF_BLOCKERS = [
     "reconciliation_plan_blocked",
     "live_service_decision_missing",
 ]
+USDC_PAIR_SNAPSHOT_LIVE_SERVICE_DISABLED_BLOCKER = (
+    "live_service_decision_disabled"
+)
+USDC_PAIR_SNAPSHOT_LIVE_SERVICE_ACCOUNT_FAMILY = "coinbase_spot"
+USDC_PAIR_SNAPSHOT_LIVE_SERVICE_VENUE_SCOPE = "coinbase_advanced_trade"
+USDC_PAIR_SNAPSHOT_LIVE_SERVICE_INTX_APPLICABILITY = "not_applicable"
 
 AUTOMATION_ROUTE_RESPONSES = {
     200: {
@@ -215,6 +229,14 @@ def get_usdc_pair_snapshot_reconciliation_store() -> (
     """Return reconciliation storage used to resolve M58 proof plans."""
 
     return FileAdminApiReconciliationStore()
+
+
+def get_usdc_pair_snapshot_live_service_decision_store() -> (
+    FileAdminApiLiveServiceDecisionStore
+):
+    """Return live-service decision storage used to resolve M58 proof plans."""
+
+    return FileAdminApiLiveServiceDecisionStore()
 
 
 def _payload_hash(
@@ -800,12 +822,96 @@ def _approval_request_id_for_snapshot(
     return None
 
 
+def _expected_usdc_pair_live_service_decision_id(row: Any) -> str | None:
+    client_order_id = str(getattr(row, "client_order_id", "") or "")
+    if not client_order_id:
+        return None
+    return f"m58-usdc-live-service-{client_order_id}"
+
+
+def _decimal_zero(value: str) -> bool:
+    try:
+        return Decimal(str(value)) == Decimal("0")
+    except (InvalidOperation, ValueError):
+        return False
+
+
+def _usdc_pair_live_service_product_scope_matches(
+    record: LiveServiceDecisionRecord,
+    *,
+    product_id: str,
+) -> bool:
+    product_scope = {str(item) for item in record.product_scope if str(item)}
+    return product_id in product_scope
+
+
+def _disabled_usdc_pair_live_service_decision_matches(
+    record: LiveServiceDecisionRecord,
+    *,
+    row: Any,
+) -> bool:
+    expected_decision_id = _expected_usdc_pair_live_service_decision_id(row)
+    product_id = str(getattr(row, "product_id", "") or "")
+    return (
+        expected_decision_id is not None
+        and product_id
+        and record.decision_id == expected_decision_id
+        and record.source == LIVE_SERVICE_DECISION_SOURCE
+        and record.target_module_id == USDC_PAIR_SNAPSHOT_MODULE_ID
+        and (
+            record.account_family
+            == USDC_PAIR_SNAPSHOT_LIVE_SERVICE_ACCOUNT_FAMILY
+        )
+        and record.venue_scope == USDC_PAIR_SNAPSHOT_LIVE_SERVICE_VENUE_SCOPE
+        and (
+            record.intx_applicability
+            == USDC_PAIR_SNAPSHOT_LIVE_SERVICE_INTX_APPLICABILITY
+        )
+        and _usdc_pair_live_service_product_scope_matches(
+            record,
+            product_id=product_id,
+        )
+        and record.status == AdminApiGateStatus.BLOCKED
+        and (
+            record.requested_service_status
+            == AdminApiLiveExecutionStatus.LIVE_DISABLED
+        )
+        and not record.service_enabled
+        and not record.live_coinbase_execution_approved
+        and _decimal_zero(record.max_submitted_notional_usdc)
+        and _decimal_zero(record.max_executed_notional_usdc)
+    )
+
+
+def _resolve_disabled_usdc_pair_live_service_decision(
+    *,
+    store: FileAdminApiLiveServiceDecisionStore,
+    row: Any,
+) -> LiveServiceDecisionRecord | None:
+    try:
+        records = store.read_recent(limit=500)
+    except OSError:
+        return None
+    return next(
+        (
+            record
+            for record in records
+            if _disabled_usdc_pair_live_service_decision_matches(
+                record,
+                row=row,
+            )
+        ),
+        None,
+    )
+
+
 def _usdc_pair_order_plan_proof_chain_refresher(
     *,
     approval_store: FileAdminApiApprovalStore,
     admission_audit_store: FileAdminApiAuditStore,
     cap_guard_store: FileAdminApiCapGuardStore,
     reconciliation_store: FileAdminApiReconciliationStore,
+    live_service_decision_store: FileAdminApiLiveServiceDecisionStore,
 ) -> Callable[[Any, Any], dict[str, Any]]:
     def refresh(plan: Any, row: Any) -> dict[str, Any]:
         client_order_id = str(getattr(row, "client_order_id", "") or "")
@@ -926,6 +1032,27 @@ def _usdc_pair_order_plan_proof_chain_refresher(
                 for blocker in blockers
                 if blocker != "reconciliation_plan_blocked"
             ]
+        live_service_decision = None
+        if reconciliation is not None:
+            live_service_decision = (
+                _resolve_disabled_usdc_pair_live_service_decision(
+                    store=live_service_decision_store,
+                    row=row,
+                )
+            )
+        if live_service_decision is not None:
+            blockers = [
+                blocker
+                for blocker in blockers
+                if blocker != "live_service_decision_missing"
+            ]
+            if (
+                USDC_PAIR_SNAPSHOT_LIVE_SERVICE_DISABLED_BLOCKER
+                not in blockers
+            ):
+                blockers.append(
+                    USDC_PAIR_SNAPSHOT_LIVE_SERVICE_DISABLED_BLOCKER
+                )
         approval_request_id = _approval_request_id_for_snapshot(
             approval_store=approval_store,
             approval_id=approval_snapshot.approval_id,
@@ -952,6 +1079,11 @@ def _usdc_pair_order_plan_proof_chain_refresher(
                 reconciliation.plan_id
                 if reconciliation is not None
                 else getattr(row, "reconciliation_plan_id", None)
+            ),
+            "live_service_decision_id": (
+                live_service_decision.decision_id
+                if live_service_decision is not None
+                else getattr(row, "live_service_decision_id", None)
             ),
             "live_exchange_submitted": False,
             "live_coinbase_orders_ran": False,
@@ -1123,6 +1255,10 @@ def refresh_usdc_pair_snapshot_order_plan_proof_chain(
         FileAdminApiReconciliationStore,
         Depends(get_usdc_pair_snapshot_reconciliation_store),
     ],
+    live_service_decision_store: Annotated[
+        FileAdminApiLiveServiceDecisionStore,
+        Depends(get_usdc_pair_snapshot_live_service_decision_store),
+    ],
     idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
     audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
 ) -> JSONResponse:
@@ -1161,6 +1297,7 @@ def refresh_usdc_pair_snapshot_order_plan_proof_chain(
                 admission_audit_store=audit_store,
                 cap_guard_store=cap_guard_store,
                 reconciliation_store=reconciliation_store,
+                live_service_decision_store=live_service_decision_store,
             ),
         ),
     )
