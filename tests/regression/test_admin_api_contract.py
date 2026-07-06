@@ -34517,6 +34517,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_readiness_records_retry_recovery
     assert rows["BTC-USDC"]["retry_budget_status"] == "ready_no_live"
     assert rows["BTC-USDC"]["retry_attempts_available"] == 2
     assert rows["BTC-USDC"]["cancel_recovery_status"] == "ready_no_live"
+    assert rows["BTC-USDC"]["cap_guard_decision_id"] == (
+        "cap-m58-allowlist-ready-btc"
+    )
     assert rows["BTC-USDC"]["recovery_state_ref"] == (
         "m58-cancel-recovery-plan-contract-test:BTC-USDC"
     )
@@ -34587,6 +34590,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
                     plan_status="planned",
                     proof_chain_status="accepted",
                     run_cap_status="passed",
+                    cap_guard_decision_id="cap-m58-run-state-btc",
                     planned_notional_usdc="1.00",
                     readiness_status="candidate",
                     retry_status="ready_no_live",
@@ -34709,6 +34713,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
         item["product_id"]: item for item in run_state["product_states"]
     }
     assert product_states["BTC-USDC"]["execution_state"] == "queued_no_live"
+    assert product_states["BTC-USDC"]["cap_guard_decision_id"] == (
+        "cap-m58-run-state-btc"
+    )
     assert product_states["BTC-USDC"]["fanout_cap_allocation_status"] == (
         "allocated_no_live"
     )

@@ -170117,6 +170117,11 @@ components:
           - type: string
           - type: 'null'
           title: Client Order Id
+        cap_guard_decision_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Decision Id
         readiness_status:
           type: string
           minLength: 1
@@ -170659,6 +170664,11 @@ components:
           - type: string
           - type: 'null'
           title: Run Cap Status
+        cap_guard_decision_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Decision Id
         skip_reason:
           anyOf:
           - type: string

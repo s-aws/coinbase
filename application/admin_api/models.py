@@ -2892,6 +2892,7 @@ class UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem(BaseModel):
     plan_status: str | None = None
     proof_chain_status: str | None = None
     run_cap_status: str | None = None
+    cap_guard_decision_id: str | None = None
     skip_reason: str | None = None
     planned_notional_usdc: DecimalString = "0"
     readiness_status: str = Field(min_length=1)
@@ -3032,6 +3033,7 @@ class UsdcPairSnapshotAllowlistRunStateProductItem(BaseModel):
 
     product_id: str = Field(min_length=1)
     client_order_id: str | None = None
+    cap_guard_decision_id: str | None = None
     readiness_status: str = Field(min_length=1)
     execution_state: str = Field(min_length=1)
     retry_state: str = Field(min_length=1)

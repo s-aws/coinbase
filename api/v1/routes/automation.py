@@ -2574,6 +2574,9 @@ def _allowlist_product_readiness_row(
         plan_status=plan_status or None,
         proof_chain_status=proof_chain_status or None,
         run_cap_status=run_cap_status or None,
+        cap_guard_decision_id=(
+            str(getattr(row, "cap_guard_decision_id", "") or "") or None
+        ),
         skip_reason=str(getattr(row, "skip_reason", "") or "") or None,
         planned_notional_usdc=str(
             getattr(row, "planned_notional_usdc", "") or "0"
@@ -2736,6 +2739,7 @@ def _allowlist_run_state_product_item(
     return UsdcPairSnapshotAllowlistRunStateProductItem(
         product_id=row.product_id,
         client_order_id=row.client_order_id,
+        cap_guard_decision_id=row.cap_guard_decision_id,
         readiness_status=row.readiness_status,
         execution_state=execution_state,
         retry_state=row.retry_status,
