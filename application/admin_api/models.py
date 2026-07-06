@@ -2809,6 +2809,10 @@ class UsdcPairSnapshotOrderPlanLiveReadinessItem(BaseModel):
     approval_snapshot_id: str = Field(min_length=1)
     admission_audit_id: str = Field(min_length=1)
     cap_guard_decision_id: str = Field(min_length=1)
+    cap_guard_max_submitted_notional_usdc: DecimalString
+    cap_guard_wallet_check_status: str = Field(min_length=1)
+    cap_guard_wallet_available_notional_usdc: DecimalString
+    cap_guard_wallet_check_source: str = Field(min_length=1)
     reconciliation_plan_id: str = Field(min_length=1)
     live_service_decision_id: str = Field(min_length=1)
     actor_id: str = Field(min_length=1)

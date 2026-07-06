@@ -36,7 +36,9 @@ Available building blocks:
   `usdc-pair-snapshot-runs`.
 - M58 single-product controlled-live submit/cancel tooling and read-only
   exchange readback/recovery evidence for one prior live submission. This is
-  backend-only and does not authorize fan-out or scheduling.
+  backend-only and does not authorize fan-out or scheduling. Phase E
+  live-readiness now rechecks latest cap/guard submitted-notional and wallet
+  availability evidence before marking the one-row submit route ready.
 - M58 Phase F no-live allowlist-readiness and run-state evidence for explicit
   product sets. It records product-level failure isolation status, run
   rate-limit budget refs, retry budget status, cancel/recovery refs,
@@ -70,8 +72,10 @@ Missing before live automation:
   planned product in fan-out. The single-product Phase E live-readiness route
   now records reference-bid and last-filled source/timestamp evidence and fails
   closed when either reference is missing, stale, invalid, or future-dated.
-- Per-product and run-level notional caps that prevent wallet/balance
-  overcommit.
+- Run-level and multi-product wallet allocation controls that prevent
+  wallet/balance overcommit during fan-out. The single-product Phase E
+  live-readiness route now fails closed when the latest backend cap/guard proof
+  does not cover the submitted notional or required wallet availability.
 - Durable approval, admission-audit, cap/guard, reconciliation, and enabled
   live-service decisions for every planned order.
 - Runtime fan-out rate-limit handling, retry execution, partial failure,
@@ -308,7 +312,10 @@ requires far-from-market pricing, records a live-output artifact, and fails
 closed unless `COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED=true` is already set
 for the process. Phase E live-readiness records reference-bid and last-filled
 source/timestamp/freshness evidence and rejects stale, invalid, future-dated,
-or missing market references before submit/cancel can run. The read-only recovery runner
+or missing market references before submit/cancel can run. It also re-reads
+the latest cap/guard proof by decision id and rejects readiness when the
+submitted notional exceeds the approved cap or required wallet availability.
+The read-only recovery runner
 `tools/run_admin_api_usdc_pair_snapshot_live_readback.py` reads the prior
 Coinbase order by exchange order id, verifies cancelled/non-filled/no open
 order evidence, and can append local recovery evidence without submitting or

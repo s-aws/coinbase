@@ -171326,6 +171326,30 @@ components:
           type: string
           minLength: 1
           title: Cap Guard Decision Id
+        cap_guard_max_submitted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Cap Guard Max Submitted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        cap_guard_wallet_check_status:
+          type: string
+          minLength: 1
+          title: Cap Guard Wallet Check Status
+        cap_guard_wallet_available_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Cap Guard Wallet Available Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          examples:
+          - '1.00'
+        cap_guard_wallet_check_source:
+          type: string
+          minLength: 1
+          title: Cap Guard Wallet Check Source
         reconciliation_plan_id:
           type: string
           minLength: 1
@@ -171432,6 +171456,10 @@ components:
       - approval_snapshot_id
       - admission_audit_id
       - cap_guard_decision_id
+      - cap_guard_max_submitted_notional_usdc
+      - cap_guard_wallet_check_status
+      - cap_guard_wallet_available_notional_usdc
+      - cap_guard_wallet_check_source
       - reconciliation_plan_id
       - live_service_decision_id
       - actor_id

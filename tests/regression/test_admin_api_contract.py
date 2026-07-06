@@ -35121,6 +35121,65 @@ def test_admin_api_usdc_pair_snapshot_order_plan_skips_stale_price_evidence(
 
 
 @pytest.mark.regression
+def test_usdc_pair_live_readiness_store_backfills_legacy_cap_guard_evidence():
+    from application.admin_api.usdc_pair_snapshot import (
+        FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
+    )
+
+    store = FileUsdcPairSnapshotOrderPlanLiveReadinessStore(
+        _store_dir() / "legacy_usdc_pair_live_readiness.jsonl"
+    )
+    legacy_payload = {
+        "readiness_id": "legacy-readiness-1",
+        "plan_id": "legacy-plan-1",
+        "snapshot_run_id": "legacy-snapshot-1",
+        "product_id": "BTC-USDC",
+        "client_order_id": "legacy-plan-1-BTC-USDC",
+        "side": "BUY",
+        "reference_bid_price": "100.00",
+        "reference_bid_price_source": "coinbase_advanced_trade.best_bid",
+        "reference_bid_price_captured_at": "2026-07-06T22:23:49Z",
+        "reference_bid_price_freshness_status": "fresh",
+        "last_filled_price": "100.00",
+        "last_filled_price_source": "coinbase_advanced_trade.last_trade",
+        "last_filled_price_captured_at": "2026-07-06T22:23:49Z",
+        "last_filled_price_freshness_status": "fresh",
+        "intended_limit_price": "50.00",
+        "far_from_bid_status": "passed",
+        "snapshot_non_fill_status": "passed",
+        "submitted_notional_usdc": "1.00",
+        "max_submitted_notional_usdc": "1.00",
+        "max_executed_notional_usdc": "0.01",
+        "planned_notional_usdc": "1.00",
+        "cancel_rollback_plan_ref": "m58-cancel-before-additional-orders",
+        "approval_snapshot_id": "approval-1",
+        "admission_audit_id": "admission-1",
+        "cap_guard_decision_id": "cap-guard-1",
+        "reconciliation_plan_id": "reconciliation-1",
+        "live_service_decision_id": "live-service-1",
+        "actor_id": "operator-001",
+        "operator_intent": "legacy_m58_readiness_readback",
+        "idempotency_key": "legacy-readiness-idem",
+        "payload_hash": "a" * 64,
+        "detail": "Legacy M58 readiness evidence before cap/wallet fields.",
+    }
+    store.path.parent.mkdir(parents=True, exist_ok=True)
+    store.path.write_text(json.dumps(legacy_payload) + "\n", encoding="utf-8")
+
+    rows = store.read_recent(limit=10)
+
+    assert len(rows) == 1
+    assert rows[0].readiness_id == "legacy-readiness-1"
+    assert rows[0].cap_guard_max_submitted_notional_usdc == "0"
+    assert rows[0].cap_guard_wallet_check_status == "legacy_unverified"
+    assert rows[0].cap_guard_wallet_available_notional_usdc == "0"
+    assert rows[0].cap_guard_wallet_check_source == (
+        "legacy_record_missing_cap_guard_evidence"
+    )
+    assert store.count_records() == 1
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_snapshot(
     monkeypatch,
 ):
@@ -35762,6 +35821,52 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
         "full_snapshot_fill_test": False,
         "operator_notes": "single minimum-size far-from-market readiness only",
     }
+    client.admin_api_test_cap_guard_store.append(
+        durable_cap_guard.model_copy(
+            update={
+                "wallet_available_notional_usdc": "0.50",
+                "wallet_check_source": "m58_usdc_pair_order_plan_low_wallet_fixture",
+                "reason": "Latest M58 cap/guard proof has insufficient wallet.",
+            }
+        )
+    )
+    insufficient_wallet_response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "m58-usdc-order-plan-refresh-test/live-readiness"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-live-readiness-low-wallet",
+            operator_intent="m58_usdc_snapshot_live_readiness_low_wallet",
+        ),
+        json={
+            **readiness_body,
+            "readiness_id": "m58-usdc-live-readiness-low-wallet-test",
+        },
+    )
+    assert insufficient_wallet_response.status_code == 200
+    insufficient_wallet_payload = insufficient_wallet_response.json()
+    assert insufficient_wallet_payload["status"] == (
+        AdminApiCommandStatus.REJECTED.value
+    )
+    assert insufficient_wallet_payload["failure_stage"] == (
+        "usdc_pair_snapshot_order_plan_live_readiness"
+    )
+    assert insufficient_wallet_payload["readiness"] is None
+    assert insufficient_wallet_payload["live_exchange_submitted"] is False
+    assert insufficient_wallet_payload["live_coinbase_orders_ran"] is False
+    assert insufficient_wallet_payload["live_coinbase_execution"] == "not_run"
+
+    client.admin_api_test_cap_guard_store.append(
+        durable_cap_guard.model_copy(
+            update={
+                "reason": (
+                    "Latest M58 cap/guard proof restores sufficient live "
+                    "readiness wallet evidence."
+                ),
+            }
+        )
+    )
     readiness_response = client.post(
         (
             "/api/v1/automation/usdc-pair-snapshot-order-plans/"
@@ -35821,6 +35926,14 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert readiness["approval_snapshot_id"] == approval_id
     assert readiness["admission_audit_id"] == durable_admission_audit.audit_id
     assert readiness["cap_guard_decision_id"] == durable_cap_guard.decision_id
+    assert readiness["cap_guard_max_submitted_notional_usdc"] == "1.00"
+    assert readiness["cap_guard_wallet_check_status"] == (
+        AdminApiGateStatus.PASSED.value
+    )
+    assert readiness["cap_guard_wallet_available_notional_usdc"] == "1.00"
+    assert readiness["cap_guard_wallet_check_source"] == (
+        "m58_usdc_pair_order_plan_no_live_fixture"
+    )
     assert readiness["reconciliation_plan_id"] == durable_reconciliation.plan_id
     assert readiness["live_service_decision_id"] == enabled_live_service.decision_id
     assert readiness["live_exchange_submitted"] is False

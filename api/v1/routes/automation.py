@@ -761,6 +761,14 @@ def _live_readiness_item_from_record(
         approval_snapshot_id=record.approval_snapshot_id,
         admission_audit_id=record.admission_audit_id,
         cap_guard_decision_id=record.cap_guard_decision_id,
+        cap_guard_max_submitted_notional_usdc=(
+            record.cap_guard_max_submitted_notional_usdc
+        ),
+        cap_guard_wallet_check_status=record.cap_guard_wallet_check_status,
+        cap_guard_wallet_available_notional_usdc=(
+            record.cap_guard_wallet_available_notional_usdc
+        ),
+        cap_guard_wallet_check_source=record.cap_guard_wallet_check_source,
         reconciliation_plan_id=record.reconciliation_plan_id,
         live_service_decision_id=record.live_service_decision_id,
         actor_id=record.actor_id,
@@ -2199,6 +2207,16 @@ def _decimal_value(value: str | None) -> Decimal | None:
     return decimal_value
 
 
+def _non_negative_decimal_value(value: str | None) -> Decimal | None:
+    try:
+        decimal_value = Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return None
+    if decimal_value < Decimal("0"):
+        return None
+    return decimal_value
+
+
 def _decimal_string(value: Decimal) -> str:
     return format(value.quantize(Decimal("0.01")), "f")
 
@@ -2234,6 +2252,11 @@ def _live_reference_freshness_status(value: str | None) -> str:
     if age_seconds > USDC_PAIR_LIVE_REFERENCE_MAX_AGE_SECONDS:
         return "stale"
     return "fresh"
+
+
+def _enum_text(value: Any) -> str:
+    enum_value = getattr(value, "value", value)
+    return str(enum_value)
 
 
 def _find_usdc_pair_order_plan_row(
@@ -2387,6 +2410,55 @@ def _resolve_enabled_usdc_pair_live_service_decision(
         ),
         None,
     )
+
+
+def _usdc_pair_live_readiness_cap_guard_evidence(
+    *,
+    store: FileAdminApiCapGuardStore,
+    row: Any,
+    submitted_notional: Decimal | None,
+) -> tuple[dict[str, str], list[str]]:
+    decision_id = str(getattr(row, "cap_guard_decision_id", "") or "")
+    evidence = {
+        "cap_guard_max_submitted_notional_usdc": "0",
+        "cap_guard_wallet_check_status": "missing",
+        "cap_guard_wallet_available_notional_usdc": "0",
+        "cap_guard_wallet_check_source": "missing",
+    }
+    if not decision_id:
+        return evidence, ["cap_guard_decision_missing"]
+    record = store.find_by_decision_id(decision_id)
+    if record is None:
+        return evidence, ["cap_guard_decision_missing"]
+
+    evidence = {
+        "cap_guard_max_submitted_notional_usdc": record.max_submitted_notional_usdc,
+        "cap_guard_wallet_check_status": _enum_text(record.wallet_check_status),
+        "cap_guard_wallet_available_notional_usdc": (
+            record.wallet_available_notional_usdc
+        ),
+        "cap_guard_wallet_check_source": record.wallet_check_source,
+    }
+    blockers: list[str] = []
+    if not record.allowed or record.status != AdminApiGateStatus.PASSED:
+        blockers.append("cap_guard_decision_not_passed")
+    cap_notional = _non_negative_decimal_value(record.max_submitted_notional_usdc)
+    wallet_available = _non_negative_decimal_value(
+        record.wallet_available_notional_usdc
+    )
+    if submitted_notional is not None:
+        if cap_notional is None or cap_notional < submitted_notional:
+            blockers.append("cap_guard_submitted_notional_exceeded")
+        if (
+            record.wallet_check_required
+            and record.wallet_check_status != AdminApiGateStatus.PASSED
+        ):
+            blockers.append("cap_guard_wallet_check_not_passed")
+        if record.wallet_check_required and (
+            wallet_available is None or wallet_available < submitted_notional
+        ):
+            blockers.append("cap_guard_wallet_available_notional_exceeded")
+    return evidence, blockers
 
 
 def _resolve_usdc_pair_live_submit_record(
@@ -2830,6 +2902,7 @@ def _record_usdc_pair_live_readiness_preflight(
     row: Any,
     body: UsdcPairSnapshotOrderPlanLiveReadinessRequest,
     readiness_store: FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
+    cap_guard_store: FileAdminApiCapGuardStore,
     live_service_decision_store: FileAdminApiLiveServiceDecisionStore,
     actor: AdminApiActor,
     operator_intent: str,
@@ -2872,6 +2945,14 @@ def _record_usdc_pair_live_readiness_preflight(
         body.last_filled_price_captured_at
     )
     submitted_notional = _decimal_value(body.submitted_notional_usdc)
+    cap_guard_evidence, cap_guard_blockers = (
+        _usdc_pair_live_readiness_cap_guard_evidence(
+            store=cap_guard_store,
+            row=row,
+            submitted_notional=submitted_notional,
+        )
+    )
+    blockers.extend(cap_guard_blockers)
     max_executed_notional = _decimal_value(body.max_executed_notional_usdc)
     planned_notional = _decimal_value(row.planned_notional_usdc)
     min_quote_size = _decimal_value(row.min_quote_size)
@@ -3002,6 +3083,7 @@ def _record_usdc_pair_live_readiness_preflight(
         approval_snapshot_id=row.approval_snapshot_id,
         admission_audit_id=row.admission_audit_id,
         cap_guard_decision_id=row.cap_guard_decision_id,
+        **cap_guard_evidence,
         reconciliation_plan_id=row.reconciliation_plan_id,
         live_service_decision_id=live_service_decision.decision_id,
         actor_id=actor.actor_id,
@@ -3876,6 +3958,10 @@ def record_usdc_pair_snapshot_order_plan_live_readiness(
         FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
         Depends(get_usdc_pair_snapshot_order_plan_live_readiness_store),
     ],
+    cap_guard_store: Annotated[
+        FileAdminApiCapGuardStore,
+        Depends(get_usdc_pair_snapshot_cap_guard_store),
+    ],
     live_service_decision_store: Annotated[
         FileAdminApiLiveServiceDecisionStore,
         Depends(get_usdc_pair_snapshot_live_service_decision_store),
@@ -3913,6 +3999,7 @@ def record_usdc_pair_snapshot_order_plan_live_readiness(
             row=row,
             body=body,
             readiness_store=readiness_store,
+            cap_guard_store=cap_guard_store,
             live_service_decision_store=live_service_decision_store,
             actor=actor,
             operator_intent=operator_intent,
