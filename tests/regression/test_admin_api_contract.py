@@ -34184,6 +34184,185 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_rejects_invalid_snapshots(
+    monkeypatch,
+):
+    from api.v1.routes import automation as automation_routes
+    from application.admin_api.usdc_pair_snapshot import (
+        FileUsdcPairSnapshotOrderPlanStore,
+        FileUsdcPairSnapshotRunStore,
+    )
+    from application.admin_api.usdc_pair_snapshot_service import (
+        AdminApiUsdcPairSnapshotService,
+    )
+
+    client = _client(monkeypatch)
+    snapshot_store = FileUsdcPairSnapshotRunStore(
+        _store_dir() / "usdc_pair_snapshot_invalid_refresh_runs.jsonl"
+    )
+    order_plan_store = FileUsdcPairSnapshotOrderPlanStore(
+        _store_dir() / "usdc_pair_snapshot_invalid_refresh_order_plans.jsonl"
+    )
+    products = [
+        {
+            "product_id": "BTC-USDC",
+            "product_type": "SPOT",
+            "status": "online",
+            "base_currency_id": "BTC",
+            "quote_currency_id": "USDC",
+            "price_increment": "0.01",
+            "base_increment": "0.00000001",
+            "quote_increment": "0.01",
+            "base_min_size": "0.00000001",
+            "quote_min_size": "0.01",
+        },
+    ]
+    service = AdminApiUsdcPairSnapshotService(
+        product_provider=lambda: products,
+        price_provider=lambda product: {
+            "price": "100.00",
+            "source": "test_backend_price_feed",
+            "captured_at": "2026-07-05T21:00:00+00:00",
+        },
+    )
+    client.app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_store
+    ] = lambda: snapshot_store
+    client.app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_order_plan_store
+    ] = lambda: order_plan_store
+    client.app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_service
+    ] = lambda: service
+
+    snapshot_response = client.post(
+        "/api/v1/automation/usdc-pair-snapshot-runs",
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-invalid-refresh-source",
+            operator_intent="m58_usdc_snapshot_invalid_refresh_source",
+        ),
+        json={
+            "run_id": "m58-usdc-snapshot-invalid-refresh-test",
+            "side": "BUY",
+            "max_notional_per_product_usdc": "1.00",
+            "product_ids": ["BTC-USDC"],
+            "dry_run": True,
+        },
+    )
+    assert snapshot_response.status_code == 200
+
+    plan_response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-runs/"
+            "m58-usdc-snapshot-invalid-refresh-test/order-plans"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-invalid-refresh-plan",
+            operator_intent="m58_usdc_snapshot_invalid_refresh_plan",
+        ),
+        json={
+            "plan_id": "m58-usdc-order-plan-invalid-refresh-test",
+            "max_total_notional_usdc": "1.00",
+            "time_in_force": "GOOD_UNTIL_CANCELLED",
+            "dry_run": True,
+        },
+    )
+    assert plan_response.status_code == 200
+    plan = plan_response.json()["plan"]
+    row = plan["order_plan_rows"][0]
+    route = "/api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans"
+    now = datetime.now(timezone.utc)
+
+    def append_snapshot(
+        *,
+        approval_id: str,
+        expires_at: datetime,
+        payload_hash: str | None = None,
+    ) -> AdminApiApprovalRecord:
+        record = AdminApiApprovalRecord(
+            approval_id=approval_id,
+            expires_at=expires_at,
+            approved_by_actor_id="approver-001",
+            requested_by_actor_id=plan["actor_id"],
+            route=route,
+            method="POST",
+            module_id="automation",
+            identity_key="client_order_id",
+            identity_value=row["client_order_id"],
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            operator_intent=plan["operator_intent"],
+            idempotency_key=row["idempotency_key"],
+            payload_hash=payload_hash or plan["payload_hash"],
+            cap_guard_decision_ref=f"{approval_id}-cap",
+            reconciliation_plan_ref=f"{approval_id}-reconciliation",
+        )
+        client.admin_api_test_approval_store.append(record)
+        return record
+
+    append_snapshot(
+        approval_id="m58-invalid-expired-approval",
+        expires_at=now - timedelta(minutes=1),
+    )
+    revoked = append_snapshot(
+        approval_id="m58-invalid-revoked-approval",
+        expires_at=now + timedelta(minutes=5),
+    )
+    client.admin_api_test_approval_store.append_lifecycle_event(
+        AdminApiApprovalLifecycleEvent(
+            event_type=AdminApiApprovalLifecycleEventType.APPROVAL_REVOKED,
+            approval_request_id="m58-invalid-revoked-request",
+            approval_id=revoked.approval_id,
+            status=AdminApiApprovalLifecycleStatus.REVOKED,
+            actor_id="operator-001",
+            route=revoked.route,
+            method=revoked.method,
+            module_id=revoked.module_id,
+            identity_key=revoked.identity_key,
+            identity_value=revoked.identity_value,
+            action_class=revoked.action_class,
+            required_permission=revoked.required_permission,
+            requested_by_actor_id=revoked.requested_by_actor_id,
+            operator_intent=revoked.operator_intent,
+            idempotency_key=revoked.idempotency_key,
+            payload_hash=revoked.payload_hash,
+            expires_at=revoked.expires_at,
+            cap_guard_decision_ref=revoked.cap_guard_decision_ref,
+            reconciliation_plan_ref=revoked.reconciliation_plan_ref,
+            revoke_reason="contract test revoked approval",
+        )
+    )
+    append_snapshot(
+        approval_id="m58-invalid-mismatched-approval",
+        expires_at=now + timedelta(minutes=5),
+        payload_hash="f" * 64,
+    )
+
+    refresh_response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "m58-usdc-order-plan-invalid-refresh-test/proof-chain-refresh"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-invalid-refresh-proof",
+            operator_intent="m58_usdc_snapshot_invalid_refresh_proof",
+        ),
+        json={"dry_run": True},
+    )
+
+    assert refresh_response.status_code == 200
+    refreshed_row = refresh_response.json()["plan"]["order_plan_rows"][0]
+    assert refreshed_row["approval_snapshot_id"] is None
+    assert refreshed_row["approval_request_id"] == row["approval_request_id"]
+    assert "approval_snapshot_missing" in refreshed_row["proof_chain_blockers"]
+    assert refreshed_row["proof_chain_status"] == "blocked"
+    assert refreshed_row["live_exchange_submitted"] is False
+    assert refreshed_row["live_coinbase_orders_ran"] is False
+    assert refreshed_row["live_coinbase_execution"] == "not_run"
+    assert refreshed_row["notional_usdc"] == "0"
+
+
+@pytest.mark.regression
 def test_admin_api_idempotency_replays_same_response(monkeypatch):
     client = _client(monkeypatch)
     headers = _headers(idempotency_key="idem-replay")
