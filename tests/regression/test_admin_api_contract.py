@@ -33693,12 +33693,34 @@ def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
     assert btc_row["live_coinbase_orders_ran"] is False
     assert btc_row["live_coinbase_execution"] == "not_run"
     assert btc_row["notional_usdc"] == "0"
+    assert btc_row["proof_chain_status"] == "blocked"
+    assert btc_row["proof_chain_blockers"] == [
+        "approval_snapshot_missing",
+        "admission_audit_missing",
+        "cap_guard_decision_missing",
+        "reconciliation_plan_missing",
+        "live_service_decision_missing",
+    ]
+    assert btc_row["approval_snapshot_required"] is True
+    assert btc_row["approval_snapshot_id"] is None
+    assert btc_row["admission_audit_required"] is True
+    assert btc_row["admission_audit_id"] is None
+    assert btc_row["cap_guard_decision_required"] is True
+    assert btc_row["cap_guard_decision_id"] is None
+    assert btc_row["reconciliation_plan_required"] is True
+    assert btc_row["reconciliation_plan_id"] is None
+    assert btc_row["live_service_decision_required"] is True
+    assert btc_row["live_service_decision_id"] is None
     assert rows_by_product["ETH-USDC"]["plan_status"] == "skipped"
     assert rows_by_product["ETH-USDC"]["skip_reason"] == "run_total_cap_exceeded"
+    assert rows_by_product["ETH-USDC"]["proof_chain_status"] == "not_applicable"
+    assert rows_by_product["ETH-USDC"]["proof_chain_blockers"] == []
     assert rows_by_product["DOGE-USDC"]["plan_status"] == "skipped"
     assert rows_by_product["DOGE-USDC"]["skip_reason"] == (
         "snapshot_not_eligible:trading_disabled"
     )
+    assert rows_by_product["DOGE-USDC"]["proof_chain_status"] == "not_applicable"
+    assert rows_by_product["DOGE-USDC"]["proof_chain_blockers"] == []
 
     persisted = order_plan_store.find_by_plan_id("m58-usdc-order-plan-test")
     assert persisted is not None

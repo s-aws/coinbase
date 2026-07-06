@@ -2603,6 +2603,18 @@ class UsdcPairSnapshotOrderPlanRowItem(BaseModel):
     snapshot_captured_at: str | None = None
     skip_reason: str | None = None
     reject_reason: str | None = None
+    proof_chain_status: str = "not_applicable"
+    proof_chain_blockers: list[str] = Field(default_factory=list)
+    approval_snapshot_required: bool = False
+    approval_snapshot_id: str | None = None
+    admission_audit_required: bool = False
+    admission_audit_id: str | None = None
+    cap_guard_decision_required: bool = False
+    cap_guard_decision_id: str | None = None
+    reconciliation_plan_required: bool = False
+    reconciliation_plan_id: str | None = None
+    live_service_decision_required: bool = False
+    live_service_decision_id: str | None = None
     live_exchange_submitted: bool = False
     live_coinbase_orders_ran: bool = False
     live_coinbase_execution: str = "not_run"

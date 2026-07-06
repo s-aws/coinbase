@@ -36,6 +36,13 @@ DISQUALIFYING_PRODUCT_FLAGS = (
     "view_only",
     "auction_mode",
 )
+USDC_PAIR_ORDER_PLAN_PROOF_CHAIN_BLOCKERS = (
+    "approval_snapshot_missing",
+    "admission_audit_missing",
+    "cap_guard_decision_missing",
+    "reconciliation_plan_missing",
+    "live_service_decision_missing",
+)
 
 
 class UsdcPairSnapshotError(ValueError):
@@ -375,6 +382,7 @@ def _order_plan_row(
         "min_base_size": snapshot_row.min_base_size,
         "min_quote_size": snapshot_row.min_quote_size,
         "snapshot_captured_at": snapshot_row.snapshot_captured_at,
+        **_proof_chain_not_applicable_fields(),
     }
     if snapshot_row.eligibility_status != "eligible":
         reason = snapshot_row.skip_reason or snapshot_row.eligibility_status
@@ -466,7 +474,10 @@ def _order_plan_row(
 
     return (
         UsdcPairSnapshotOrderPlanRowItem(
-            **base_fields,
+            **{
+                **base_fields,
+                **_proof_chain_blocked_fields(),
+            },
             plan_status="planned",
             client_order_id=f"{plan_id}-{snapshot_row.product_id}",
             idempotency_key=f"{idempotency_key}:{snapshot_row.product_id}",
@@ -477,6 +488,40 @@ def _order_plan_row(
         ),
         planned_notional,
     )
+
+
+def _proof_chain_not_applicable_fields() -> dict[str, Any]:
+    return {
+        "proof_chain_status": "not_applicable",
+        "proof_chain_blockers": [],
+        "approval_snapshot_required": False,
+        "approval_snapshot_id": None,
+        "admission_audit_required": False,
+        "admission_audit_id": None,
+        "cap_guard_decision_required": False,
+        "cap_guard_decision_id": None,
+        "reconciliation_plan_required": False,
+        "reconciliation_plan_id": None,
+        "live_service_decision_required": False,
+        "live_service_decision_id": None,
+    }
+
+
+def _proof_chain_blocked_fields() -> dict[str, Any]:
+    return {
+        "proof_chain_status": "blocked",
+        "proof_chain_blockers": list(USDC_PAIR_ORDER_PLAN_PROOF_CHAIN_BLOCKERS),
+        "approval_snapshot_required": True,
+        "approval_snapshot_id": None,
+        "admission_audit_required": True,
+        "admission_audit_id": None,
+        "cap_guard_decision_required": True,
+        "cap_guard_decision_id": None,
+        "reconciliation_plan_required": True,
+        "reconciliation_plan_id": None,
+        "live_service_decision_required": True,
+        "live_service_decision_id": None,
+    }
 
 
 def _default_product_provider() -> Iterable[Mapping[str, Any]]:

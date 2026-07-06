@@ -169448,6 +169448,60 @@ components:
           - type: string
           - type: 'null'
           title: Reject Reason
+        proof_chain_status:
+          type: string
+          title: Proof Chain Status
+          default: not_applicable
+        proof_chain_blockers:
+          items:
+            type: string
+          type: array
+          title: Proof Chain Blockers
+        approval_snapshot_required:
+          type: boolean
+          title: Approval Snapshot Required
+          default: false
+        approval_snapshot_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Snapshot Id
+        admission_audit_required:
+          type: boolean
+          title: Admission Audit Required
+          default: false
+        admission_audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Admission Audit Id
+        cap_guard_decision_required:
+          type: boolean
+          title: Cap Guard Decision Required
+          default: false
+        cap_guard_decision_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Decision Id
+        reconciliation_plan_required:
+          type: boolean
+          title: Reconciliation Plan Required
+          default: false
+        reconciliation_plan_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Plan Id
+        live_service_decision_required:
+          type: boolean
+          title: Live Service Decision Required
+          default: false
+        live_service_decision_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Service Decision Id
         live_exchange_submitted:
           type: boolean
           title: Live Exchange Submitted
