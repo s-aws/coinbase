@@ -33633,6 +33633,8 @@ def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
         "side": "BUY",
         "max_notional_per_product_usdc": "1.00",
         "product_ids": ["BTC-USDC", "ETH-USDC", "DOGE-USDC"],
+        "account_id": "account-m58-usdc-001",
+        "portfolio_id": "portfolio-m58-usdc-001",
         "dry_run": True,
         "operator_notes": "contract test order-plan source",
     }
@@ -33687,6 +33689,8 @@ def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
     assert plan["bff_authority"] == "forward_only_no_execution"
     assert plan["max_notional_per_product_usdc"] == "1.00"
     assert plan["max_total_notional_usdc"] == "1.50"
+    assert plan["account_id"] == "account-m58-usdc-001"
+    assert plan["portfolio_id"] == "portfolio-m58-usdc-001"
     assert plan["time_in_force"] == "GOOD_UNTIL_CANCELLED"
     assert plan["plan_row_count"] == 3
     assert plan["planned_count"] == 1
@@ -33780,6 +33784,31 @@ def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
     assert mvp_service.store.reconciliation_plans[
         btc_row["reconciliation_plan_id"]
     ]["status"] == "blocked"
+    expected_scope = {
+        "automation_run_id": "m58-usdc-snapshot-plan-test",
+        "order_plan_id": "m58-usdc-order-plan-test",
+        "product_id": "BTC-USDC",
+        "account_id": "account-m58-usdc-001",
+        "portfolio_id": "portfolio-m58-usdc-001",
+        "requested_notional_usdc": "1.00",
+        "planned_notional_usdc": "1.00",
+        "max_notional_per_product_usdc": "1.00",
+        "max_total_notional_usdc": "1.50",
+        "snapshot_price": "100.00",
+        "limit_price": "100.00",
+        "price_source": "test_backend_price_feed",
+        "snapshot_captured_at": "2026-07-05T21:00:00+00:00",
+    }
+    for proof_record in (
+        approval_record,
+        mvp_service.store.admission_audits[btc_row["admission_audit_id"]],
+        mvp_service.store.cap_guard_decisions[btc_row["cap_guard_decision_id"]],
+        mvp_service.store.reconciliation_plans[btc_row["reconciliation_plan_id"]],
+    ):
+        assert {
+            key: proof_record.get(key)
+            for key in expected_scope
+        } == expected_scope
     assert mvp_service.store.service_decisions == {}
     proof_record_counts = {
         "approval_requests": len(mvp_service.store.approval_requests),

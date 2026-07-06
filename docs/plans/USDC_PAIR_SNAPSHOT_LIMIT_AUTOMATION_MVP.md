@@ -42,7 +42,9 @@ Available building blocks:
   decision evidence from the backend live-service decision store. The refreshed
   row remains blocked with `live_service_decision_disabled` and no Coinbase
   execution. Backend regression coverage now proves row-scoped refresh and
-  idempotent replay across multi-product plans.
+  idempotent replay across multi-product plans. Backend M58 proof records now
+  persist run id, order-plan id, product id, account/portfolio scope, notional
+  scope, and snapshot/limit price evidence for each planned row.
 - Frontend generated-contract consumption and read-only display of M58
   snapshot/order-plan evidence, including proof-chain readiness blockers,
   backend proof-record references, and generated proof-decision states
@@ -452,8 +454,9 @@ evidence. Default deployment/readiness gates have been rechecked and still
 report `live_coinbase_execution=not_run` and notional `0`.
 
 The next implementation slice should continue Phase D without live fan-out by
-adding any remaining backend proof-chain recording evidence needed before a
-contextless review and explicit operator approval for a controlled-live pilot.
+adding any remaining backend proof-chain validation/readback evidence needed
+before a contextless review and explicit operator approval for a controlled-live
+pilot.
 
 Do not start live order fan-out until Phase D proof-chain evidence, contextless
 review, and explicit operator approval for a controlled-live pilot all pass.

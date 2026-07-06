@@ -53,7 +53,7 @@ class UsdcPairSnapshotError(ValueError):
 ProductProvider = Callable[[], Iterable[Mapping[str, Any]]]
 PriceProvider = Callable[[Mapping[str, Any]], Mapping[str, Any] | None]
 OrderPlanProofChainRecorder = Callable[
-    [UsdcPairSnapshotOrderPlanRowItem],
+    [UsdcPairSnapshotOrderPlanRowItem, Mapping[str, Any]],
     Mapping[str, Any] | None,
 ]
 OrderPlanProofChainRefresher = Callable[
@@ -545,7 +545,26 @@ def _order_plan_row(
         planned_notional_usdc=_format_decimal(planned_notional) or "0",
     )
     if proof_chain_recorder is not None:
-        proof_chain_fields = proof_chain_recorder(planned_row)
+        proof_chain_fields = proof_chain_recorder(
+            planned_row,
+            {
+                "automation_run_id": snapshot_record.run_id,
+                "order_plan_id": plan_id,
+                "product_id": snapshot_row.product_id,
+                "account_id": snapshot_record.account_id,
+                "portfolio_id": snapshot_record.portfolio_id,
+                "requested_notional_usdc": snapshot_row.requested_notional_usdc,
+                "planned_notional_usdc": _format_decimal(planned_notional) or "0",
+                "max_notional_per_product_usdc": (
+                    snapshot_record.max_notional_per_product_usdc
+                ),
+                "max_total_notional_usdc": _format_decimal(max_total_notional) or "0",
+                "snapshot_price": snapshot_row.observed_price,
+                "limit_price": _format_decimal(limit_price),
+                "price_source": snapshot_row.price_source,
+                "snapshot_captured_at": snapshot_row.snapshot_captured_at,
+            },
+        )
         if proof_chain_fields:
             planned_row = planned_row.model_copy(update=dict(proof_chain_fields))
     return planned_row, planned_notional

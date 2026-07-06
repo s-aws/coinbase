@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
-from typing import Annotated, Any, Callable
+from typing import Annotated, Any, Callable, Mapping
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, Query, Request, status
@@ -681,8 +681,8 @@ def _usdc_pair_order_plan_proof_chain_recorder(
     operator_intent: str,
     actor: AdminApiActor,
     payload_hash: str,
-) -> Callable[[Any], dict[str, Any]]:
-    def record(row: Any) -> dict[str, Any]:
+) -> Callable[[Any, Mapping[str, Any]], dict[str, Any]]:
+    def record(row: Any, proof_scope: Mapping[str, Any]) -> dict[str, Any]:
         client_order_id = str(getattr(row, "client_order_id", "") or "")
         row_idempotency_key = str(getattr(row, "idempotency_key", "") or "")
         if not client_order_id or not row_idempotency_key:
@@ -704,6 +704,7 @@ def _usdc_pair_order_plan_proof_chain_recorder(
             "operator_intent": operator_intent,
             "command_idempotency_key": row_idempotency_key,
             "payload_hash": payload_hash,
+            **_usdc_pair_order_plan_scope_evidence(proof_scope),
         }
         planned_notional = str(getattr(row, "planned_notional_usdc", "") or "0")
 
@@ -805,6 +806,29 @@ def _usdc_pair_order_plan_proof_chain_recorder(
         }
 
     return record
+
+
+def _usdc_pair_order_plan_scope_evidence(
+    proof_scope: Mapping[str, Any],
+) -> dict[str, Any]:
+    return {
+        key: proof_scope.get(key)
+        for key in (
+            "automation_run_id",
+            "order_plan_id",
+            "product_id",
+            "account_id",
+            "portfolio_id",
+            "requested_notional_usdc",
+            "planned_notional_usdc",
+            "max_notional_per_product_usdc",
+            "max_total_notional_usdc",
+            "snapshot_price",
+            "limit_price",
+            "price_source",
+            "snapshot_captured_at",
+        )
+    }
 
 
 def _approval_request_id_for_snapshot(

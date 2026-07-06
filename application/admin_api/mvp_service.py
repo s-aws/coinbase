@@ -11192,7 +11192,7 @@ def _find_matching_record(
 
 
 def _command_evidence_from_body(body: Mapping[str, Any]) -> dict[str, Any]:
-    return {
+    evidence = {
         "route": str(body.get("route") or ""),
         "method": str(body.get("method") or ""),
         "module_id": str(body.get("module_id") or ""),
@@ -11205,6 +11205,24 @@ def _command_evidence_from_body(body: Mapping[str, Any]) -> dict[str, Any]:
         "command_idempotency_key": str(body.get("command_idempotency_key") or ""),
         "payload_hash": str(body.get("payload_hash") or ""),
     }
+    for optional_field in (
+        "automation_run_id",
+        "order_plan_id",
+        "product_id",
+        "account_id",
+        "portfolio_id",
+        "requested_notional_usdc",
+        "planned_notional_usdc",
+        "max_notional_per_product_usdc",
+        "max_total_notional_usdc",
+        "snapshot_price",
+        "limit_price",
+        "price_source",
+        "snapshot_captured_at",
+    ):
+        if optional_field in body:
+            evidence[optional_field] = body.get(optional_field)
+    return evidence
 
 
 def _spot_manual_order_context_from_body(
