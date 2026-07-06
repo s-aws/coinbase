@@ -353,6 +353,19 @@ local evidence artifacts:
 `artifacts/coinbase-backend-m58-usdc-live-submit-20260706-2210.json` and
 `artifacts/coinbase-backend-m58-usdc-live-readback-20260706-2210.json`.
 
+Latest live freshness evidence: on 2026-07-06T22:23Z, the backend submitted
+one BTC-USDC BUY order at `32125.89` against Coinbase best bid `64251.78`
+captured at `2026-07-06T22:23:49.220801Z` and latest trade `64251.78`
+captured at `2026-07-06T22:23:49.596245Z`. Live-readiness persisted
+`reference_bid_price_source=coinbase_advanced_trade.best_bid`,
+`last_filled_price_source=coinbase_advanced_trade.last_trade`, and fresh
+status for both references before submit/cancel ran. The route submitted
+`1.00` USDC, executed `0`, cancelled the same `client_order_id`, and exchange
+readback verified `CANCELLED`, executed notional `0`, and `0` open BTC-USDC
+orders. Durable local evidence artifacts:
+`artifacts/coinbase-backend-m58-usdc-live-submit-20260706-2223.json` and
+`artifacts/coinbase-backend-m58-usdc-live-readback-20260706-2223.json`.
+
 Entry requirements:
 
 - Phases A-D complete and passing.
