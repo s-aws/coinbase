@@ -435,6 +435,7 @@ def _order_plan_row(
             snapshot_record.max_notional_per_product_usdc
         ),
         "snapshot_price": snapshot_row.observed_price,
+        "price_source": snapshot_row.price_source,
         "price_increment": snapshot_row.price_increment,
         "base_increment": snapshot_row.base_increment,
         "quote_increment": snapshot_row.quote_increment,

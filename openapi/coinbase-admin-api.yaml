@@ -169472,6 +169472,11 @@ components:
             - '1.00'
           - type: 'null'
           title: Snapshot Price
+        price_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Price Source
         limit_price:
           anyOf:
           - type: string

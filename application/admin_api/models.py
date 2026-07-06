@@ -2601,6 +2601,7 @@ class UsdcPairSnapshotOrderPlanRowItem(BaseModel):
     requested_notional_usdc: DecimalString
     max_notional_per_product_usdc: DecimalString
     snapshot_price: DecimalString | None = None
+    price_source: str | None = None
     limit_price: DecimalString | None = None
     base_size: DecimalString | None = None
     quote_size: DecimalString | None = None

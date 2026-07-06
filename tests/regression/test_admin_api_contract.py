@@ -33714,6 +33714,7 @@ def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
     assert btc_row["time_in_force"] == "GOOD_UNTIL_CANCELLED"
     assert btc_row["requested_notional_usdc"] == "1.00"
     assert btc_row["snapshot_price"] == "100.00"
+    assert btc_row["price_source"] == "test_backend_price_feed"
     assert btc_row["limit_price"] == "100.00"
     assert btc_row["base_size"] == "0.01"
     assert btc_row["quote_size"] == "1.00"
