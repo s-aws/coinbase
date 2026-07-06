@@ -1082,6 +1082,32 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         ),
     ),
     AdminApiRouteInventoryItem(
+        module_id="automation",
+        surface=(
+            "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "{plan_id}/proof-chain-refresh"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+        idempotency="required",
+        approval=(
+            "resolves exact approval snapshot evidence from backend lifecycle "
+            "storage; does not grant live execution"
+        ),
+        caps=(
+            "does not alter order sizing or allocate wallet balance; preserves "
+            "blocked cap/admission/reconciliation proof state"
+        ),
+        audit="required",
+        shared_method="refresh_usdc_pair_snapshot_order_plan_proof_chain",
+        parity_test=(
+            "M58 backend-owned proof refresh links approval snapshot refs to "
+            "durable no-live order-plan evidence; no Coinbase order "
+            "submission, no wallet allocation, and no browser execution "
+            "authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
         module_id="spot_operations",
         surface="POST /api/v1/spot/recovery/apply-executions",
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,

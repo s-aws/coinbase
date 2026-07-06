@@ -14,6 +14,7 @@ from core.enums import OrderSide, OrderType, ProductType, TimeInForce
 
 from .models import (
     UsdcPairSnapshotOrderPlanItem,
+    UsdcPairSnapshotOrderPlanProofRefreshRequest,
     UsdcPairSnapshotOrderPlanRequest,
     UsdcPairSnapshotOrderPlanRowItem,
     UsdcPairSnapshotRunItem,
@@ -53,6 +54,10 @@ ProductProvider = Callable[[], Iterable[Mapping[str, Any]]]
 PriceProvider = Callable[[Mapping[str, Any]], Mapping[str, Any] | None]
 OrderPlanProofChainRecorder = Callable[
     [UsdcPairSnapshotOrderPlanRowItem],
+    Mapping[str, Any] | None,
+]
+OrderPlanProofChainRefresher = Callable[
+    [UsdcPairSnapshotOrderPlanRecord, UsdcPairSnapshotOrderPlanRowItem],
     Mapping[str, Any] | None,
 ]
 
@@ -210,6 +215,53 @@ class AdminApiUsdcPairSnapshotService:
         )
         order_plan_store.append(record)
         return order_plan_item_from_record(record)
+
+    def refresh_order_plan_proof_chain(
+        self,
+        *,
+        order_plan_store: FileUsdcPairSnapshotOrderPlanStore,
+        plan_id: str,
+        body: UsdcPairSnapshotOrderPlanProofRefreshRequest,
+        audit_id: str,
+        proof_chain_refresher: OrderPlanProofChainRefresher | None = None,
+    ) -> UsdcPairSnapshotOrderPlanItem:
+        if not body.dry_run:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot proof refresh currently accepts "
+                "dry_run=true only."
+            )
+        if body.manual_live_acknowledgement:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot proof refresh cannot acknowledge live "
+                "execution."
+            )
+
+        record = order_plan_store.find_by_plan_id(plan_id)
+        if record is None:
+            raise UsdcPairSnapshotError("USDC pair snapshot order plan was not found.")
+
+        refreshed_rows: list[UsdcPairSnapshotOrderPlanRowItem] = []
+        for row in record.order_plan_rows:
+            if row.plan_status != "planned" or proof_chain_refresher is None:
+                refreshed_rows.append(row)
+                continue
+            proof_chain_fields = proof_chain_refresher(record, row)
+            if proof_chain_fields:
+                refreshed_rows.append(
+                    row.model_copy(update=dict(proof_chain_fields))
+                )
+            else:
+                refreshed_rows.append(row)
+
+        refreshed_record = record.model_copy(
+            update={
+                "order_plan_rows": refreshed_rows,
+                "audit_id": audit_id,
+                "operator_notes": body.operator_notes or record.operator_notes,
+            }
+        )
+        order_plan_store.append(refreshed_record)
+        return order_plan_item_from_record(refreshed_record)
 
     def _snapshot_row(
         self,

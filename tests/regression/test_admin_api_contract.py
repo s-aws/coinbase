@@ -750,6 +750,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[
         automation_routes.get_usdc_pair_snapshot_proof_chain_service
     ] = lambda: admin_mvp_service
+    app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_approval_store
+    ] = lambda: approval_store
     app.dependency_overrides[approval_routes.get_idempotency_store] = (
         lambda: idempotency_store
     )
@@ -33930,6 +33933,257 @@ def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_snapshot(
+    monkeypatch,
+):
+    from api.v1.routes import automation as automation_routes
+    from application.admin_api.usdc_pair_snapshot import (
+        FileUsdcPairSnapshotOrderPlanStore,
+        FileUsdcPairSnapshotRunStore,
+    )
+    from application.admin_api.usdc_pair_snapshot_service import (
+        AdminApiUsdcPairSnapshotService,
+    )
+
+    client = _client(monkeypatch)
+    snapshot_store = FileUsdcPairSnapshotRunStore(
+        _store_dir() / "usdc_pair_snapshot_refresh_runs.jsonl"
+    )
+    order_plan_store = FileUsdcPairSnapshotOrderPlanStore(
+        _store_dir() / "usdc_pair_snapshot_refresh_order_plans.jsonl"
+    )
+    products = [
+        {
+            "product_id": "BTC-USDC",
+            "product_type": "SPOT",
+            "status": "online",
+            "base_currency_id": "BTC",
+            "quote_currency_id": "USDC",
+            "price_increment": "0.01",
+            "base_increment": "0.00000001",
+            "quote_increment": "0.01",
+            "base_min_size": "0.00000001",
+            "quote_min_size": "0.01",
+        },
+    ]
+    service = AdminApiUsdcPairSnapshotService(
+        product_provider=lambda: products,
+        price_provider=lambda product: {
+            "price": "100.00",
+            "source": "test_backend_price_feed",
+            "captured_at": "2026-07-05T21:00:00+00:00",
+        },
+    )
+    client.app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_store
+    ] = lambda: snapshot_store
+    client.app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_order_plan_store
+    ] = lambda: order_plan_store
+    client.app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_service
+    ] = lambda: service
+
+    snapshot_response = client.post(
+        "/api/v1/automation/usdc-pair-snapshot-runs",
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-refresh-source",
+            operator_intent="m58_usdc_snapshot_refresh_source",
+        ),
+        json={
+            "run_id": "m58-usdc-snapshot-refresh-test",
+            "side": "BUY",
+            "max_notional_per_product_usdc": "1.00",
+            "product_ids": ["BTC-USDC"],
+            "dry_run": True,
+        },
+    )
+    assert snapshot_response.status_code == 200
+
+    plan_response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-runs/"
+            "m58-usdc-snapshot-refresh-test/order-plans"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-refresh-plan",
+            operator_intent="m58_usdc_snapshot_refresh_plan",
+        ),
+        json={
+            "plan_id": "m58-usdc-order-plan-refresh-test",
+            "max_total_notional_usdc": "1.00",
+            "time_in_force": "GOOD_UNTIL_CANCELLED",
+            "dry_run": True,
+        },
+    )
+    assert plan_response.status_code == 200
+    plan = plan_response.json()["plan"]
+    planned_row = plan["order_plan_rows"][0]
+    assert planned_row["proof_chain_status"] == "blocked"
+    assert "approval_snapshot_missing" in planned_row["proof_chain_blockers"]
+    assert planned_row["approval_snapshot_id"] is None
+
+    approval_request = client.post(
+        "/api/v1/admin/approvals/requests",
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-refresh-approval-request",
+            operator_intent="m58_usdc_snapshot_refresh_approval_request",
+            roles=AdminApiRole.TRADER.value,
+        ),
+        json={
+            "route": (
+                "/api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans"
+            ),
+            "method": "POST",
+            "module_id": "automation",
+            "identity_key": "client_order_id",
+            "identity_value": planned_row["client_order_id"],
+            "action_class": AdminApiActionClass.LOCAL_STATE_MUTATION.value,
+            "required_permission": AdminApiPermission.CAMPAIGN_EXECUTE.value,
+            "operator_intent": plan["operator_intent"],
+            "command_idempotency_key": planned_row["idempotency_key"],
+            "payload_hash": plan["payload_hash"],
+            "request_reason": "M58 proof refresh contract test.",
+        },
+    )
+    assert approval_request.status_code == 200
+    approval_request_id = approval_request.json()["approval"]["approval_request_id"]
+
+    approval_decision = client.post(
+        f"/api/v1/admin/approvals/requests/{approval_request_id}/decisions",
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-refresh-approval-decision",
+            operator_intent="m58_usdc_snapshot_refresh_approval_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json={
+            "decision": AdminApiApprovalLifecycleStatus.APPROVED.value,
+            "decision_reason": "M58 no-live proof refresh approval.",
+            "expires_at": (
+                datetime.now(timezone.utc) + timedelta(minutes=5)
+            ).isoformat(),
+            "cap_guard_decision_ref": "m58-usdc-refresh-cap-guard-approval",
+            "reconciliation_plan_ref": "m58-usdc-refresh-reconciliation-approval",
+        },
+    )
+    assert approval_decision.status_code == 200
+    approval_id = approval_decision.json()["approval"]["approval_id"]
+
+    refresh_response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "m58-usdc-order-plan-refresh-test/proof-chain-refresh"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-refresh-proof",
+            operator_intent="m58_usdc_snapshot_refresh_proof",
+        ),
+        json={
+            "dry_run": True,
+            "operator_notes": "refresh approval snapshot evidence only",
+        },
+    )
+
+    assert refresh_response.status_code == 200
+    refresh_payload = refresh_response.json()
+    assert refresh_payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert (
+        refresh_payload["service_method"]
+        == "refresh_usdc_pair_snapshot_order_plan_proof_chain"
+    )
+    assert refresh_payload["live_exchange_submitted"] is False
+    assert refresh_payload["live_coinbase_orders_ran"] is False
+    assert refresh_payload["live_coinbase_execution"] == "not_run"
+    assert refresh_payload["notional_usdc"] == "0"
+    refreshed_plan = refresh_payload["plan"]
+    refreshed_row = refreshed_plan["order_plan_rows"][0]
+    assert refreshed_row["approval_request_id"] == approval_request_id
+    assert refreshed_row["approval_snapshot_id"] == approval_id
+    assert "approval_snapshot_missing" not in refreshed_row["proof_chain_blockers"]
+    assert refreshed_row["proof_chain_blockers"] == [
+        "admission_audit_blocked",
+        "cap_guard_decision_blocked",
+        "reconciliation_plan_blocked",
+        "live_service_decision_missing",
+    ]
+    assert refreshed_row["proof_chain_status"] == "blocked"
+    assert refreshed_row["admission_audit_id"] == planned_row["admission_audit_id"]
+    assert (
+        refreshed_row["cap_guard_decision_id"]
+        == planned_row["cap_guard_decision_id"]
+    )
+    assert (
+        refreshed_row["reconciliation_plan_id"]
+        == planned_row["reconciliation_plan_id"]
+    )
+    assert refreshed_row["live_service_decision_id"] is None
+    assert refreshed_row["live_exchange_submitted"] is False
+    assert refreshed_row["live_coinbase_orders_ran"] is False
+    assert refreshed_row["live_coinbase_execution"] == "not_run"
+    assert refreshed_row["notional_usdc"] == "0"
+
+    persisted = order_plan_store.find_by_plan_id(
+        "m58-usdc-order-plan-refresh-test"
+    )
+    assert persisted is not None
+    assert persisted.audit_id == refresh_payload["audit_id"]
+    assert persisted.order_plan_rows[0].approval_snapshot_id == approval_id
+    assert len(order_plan_store.read_recent(limit=10)) == 2
+
+    replay = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "m58-usdc-order-plan-refresh-test/proof-chain-refresh"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-refresh-proof",
+            operator_intent="m58_usdc_snapshot_refresh_proof",
+        ),
+        json={
+            "dry_run": True,
+            "operator_notes": "refresh approval snapshot evidence only",
+        },
+    )
+    assert replay.status_code == 200
+    assert replay.headers["x-idempotency-replayed"] == "true"
+    assert replay.json() == refresh_payload
+    assert len(order_plan_store.read_recent(limit=10)) == 2
+
+    readback = client.get(
+        "/api/v1/automation/usdc-pair-snapshot-order-plans?limit=5",
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-refresh-readback",
+            operator_intent="m58_usdc_snapshot_refresh_readback",
+            roles=AdminApiRole.AUDITOR.value,
+        ),
+    )
+    assert readback.status_code == 200
+    readback_payload = readback.json()
+    assert readback_payload["plans"][0]["plan_id"] == refreshed_plan["plan_id"]
+    assert readback_payload["plans"][0]["order_plan_rows"][0][
+        "approval_snapshot_id"
+    ] == approval_id
+    assert readback_payload["live_exchange_submitted"] is False
+    assert readback_payload["live_coinbase_orders_ran"] is False
+    assert readback_payload["live_coinbase_execution"] == "not_run"
+    assert readback_payload["notional_usdc"] == "0"
+
+    missing_role = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "m58-usdc-order-plan-refresh-test/proof-chain-refresh"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-refresh-missing-role",
+            operator_intent="m58_usdc_snapshot_refresh_missing_role",
+            roles="",
+        ),
+        json={"dry_run": True},
+    )
+    assert missing_role.status_code == 403
+
+
+@pytest.mark.regression
 def test_admin_api_idempotency_replays_same_response(monkeypatch):
     client = _client(monkeypatch)
     headers = _headers(idempotency_key="idem-replay")
@@ -60018,6 +60272,22 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "read-only durable order-plan evidence" in (
         order_plan_read_route.parity_test
     )
+    order_plan_refresh_route = rows[
+        "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
+        "{plan_id}/proof-chain-refresh"
+    ]
+    assert order_plan_refresh_route.module_id == "automation"
+    assert order_plan_refresh_route.shared_method == (
+        "refresh_usdc_pair_snapshot_order_plan_proof_chain"
+    )
+    assert order_plan_refresh_route.action_class == (
+        AdminApiActionClass.LOCAL_STATE_MUTATION
+    )
+    assert order_plan_refresh_route.permission == (
+        AdminApiPermission.CAMPAIGN_EXECUTE
+    )
+    assert "approval snapshot refs" in order_plan_refresh_route.parity_test
+    assert "no Coinbase order submission" in order_plan_refresh_route.parity_test
     stealth_recovery_route = rows[
         "POST /api/v1/stealth/orders/{stealth_order_id}/recovery"
     ]

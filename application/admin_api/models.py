@@ -989,6 +989,16 @@ class UsdcPairSnapshotOrderPlanRequest(BaseModel):
     operator_notes: str | None = None
 
 
+class UsdcPairSnapshotOrderPlanProofRefreshRequest(BaseModel):
+    """No-live refresh request for M58 order-plan proof-chain evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    dry_run: bool = True
+    operator_notes: str | None = None
+    manual_live_acknowledgement: bool = False
+
+
 class SpotRecoveryApplyExecutionRequest(BaseModel):
     """Spot recovery apply request keyed by ``client_order_id``."""
 

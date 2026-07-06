@@ -17,6 +17,8 @@ The current Admin MVP has backend-owned no-live discovery, snapshot readback,
 dry-run order-plan evidence, generated frontend contract consumption, and
 read-only order-plan display for a non-live planning slice. Planned rows now
 surface backend proof-chain readiness records and missing prerequisite blockers,
+and a backend proof-refresh route can link exact durable approval lifecycle
+snapshots back onto existing order-plan rows,
 but the system still does not have enough contract evidence for live every-pair
 automation.
 
@@ -31,6 +33,9 @@ Available building blocks:
 - M58 no-live Admin API route inventory, OpenAPI, append-only stores, audit,
   idempotency, snapshot readback, and dry-run order-plan readback for
   `usdc-pair-snapshot-runs`.
+- Backend proof-refresh mutation for existing order plans that resolves exact,
+  unexpired, non-revoked approval lifecycle snapshots without browser
+  authority or live execution.
 - Frontend generated-contract consumption and read-only display of M58
   snapshot/order-plan evidence, including proof-chain readiness blockers and
   backend proof-record references.
@@ -42,8 +47,8 @@ Missing before live automation:
 - A backend-owned price-source contract for every captured snapshot.
 - Per-product and run-level notional caps that prevent wallet/balance
   overcommit.
-- Approval decision, proof-chain replay, and live-service integration for every
-  planned order.
+- Durable approval decisions for every planned order, plus admission audit,
+  cap/guard, reconciliation proof refresh, and live-service integration.
 - Rate-limit, retry, partial failure, pause/resume, abort, and recovery
   semantics.
 - Release-gate evidence and contextless review for any live pilot.
@@ -214,8 +219,10 @@ Attach existing Admin API proof-chain primitives to each planned order.
 Status: partially implemented for no-live readiness evidence. Planned order
 rows expose `proof_chain_status=blocked`, a backend approval request id,
 blocked admission audit, blocked cap/guard, blocked reconciliation references,
-and missing live-service/approval-snapshot blockers. Approval decisions,
-proof-chain replay, live-service decisions, and live submission remain
+and missing live-service/approval-snapshot blockers. A backend proof-refresh
+route can replace `approval_snapshot_missing` with an exact approval snapshot
+from durable approval lifecycle storage. Admission audit, cap/guard,
+reconciliation refresh, live-service decisions, and live submission remain
 unimplemented.
 
 Deliverables:
@@ -424,8 +431,8 @@ Admin API contracts.
 The next implementation slice should continue Phase D without live fan-out:
 
 - deterministic replay of proof-chain evidence per product and run;
-- approval-decision handling that can replace `approval_snapshot_missing`
-  without browser authority;
+- admission audit, cap/guard, and reconciliation proof refresh that can remove
+  their blockers only after durable backend evidence exists;
 - live-service decision references that remain disabled unless explicitly
   approved;
 - read-only frontend display of generated proof-chain decision evidence;

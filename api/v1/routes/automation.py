@@ -9,6 +9,11 @@ from fastapi import APIRouter, Depends, Header, Query, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
+from application.admin_api.approval import (
+    ApprovalSnapshotRequest,
+    FileAdminApiApprovalStore,
+    resolve_approval_snapshot,
+)
 from application.admin_api.audit import AdminApiAuditEvent, FileAdminApiAuditStore
 from application.admin_api.auth import get_authenticated_actor, require_permission
 from application.admin_api.idempotency import (
@@ -21,6 +26,7 @@ from application.admin_api.models import (
     AdminApiErrorResponse,
     UsdcPairSnapshotOrderPlanItem,
     UsdcPairSnapshotOrderPlanListResponse,
+    UsdcPairSnapshotOrderPlanProofRefreshRequest,
     UsdcPairSnapshotOrderPlanRequest,
     UsdcPairSnapshotOrderPlanResponse,
     UsdcPairSnapshotRunItem,
@@ -45,6 +51,7 @@ from application.admin_api.usdc_pair_snapshot_service import (
 )
 from core.enums import (
     AdminApiActionClass,
+    AdminApiApprovalLifecycleEventType,
     AdminApiCommandStatus,
     AdminApiIdempotencyDecision,
     AdminApiPermission,
@@ -55,11 +62,22 @@ router = APIRouter()
 
 USDC_PAIR_SNAPSHOT_ENDPOINT = "POST /api/v1/automation/usdc-pair-snapshot-runs"
 USDC_PAIR_SNAPSHOT_SERVICE_METHOD = "record_usdc_pair_snapshot_dry_run"
-USDC_PAIR_SNAPSHOT_ORDER_PLAN_ENDPOINT = (
-    "POST /api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans"
+USDC_PAIR_SNAPSHOT_ORDER_PLAN_ROUTE = (
+    "/api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans"
 )
+USDC_PAIR_SNAPSHOT_ORDER_PLAN_ENDPOINT = f"POST {USDC_PAIR_SNAPSHOT_ORDER_PLAN_ROUTE}"
 USDC_PAIR_SNAPSHOT_ORDER_PLAN_SERVICE_METHOD = (
     "record_usdc_pair_snapshot_order_plan"
+)
+USDC_PAIR_SNAPSHOT_ORDER_PLAN_PROOF_REFRESH_ROUTE = (
+    "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+    "{plan_id}/proof-chain-refresh"
+)
+USDC_PAIR_SNAPSHOT_ORDER_PLAN_PROOF_REFRESH_ENDPOINT = (
+    f"POST {USDC_PAIR_SNAPSHOT_ORDER_PLAN_PROOF_REFRESH_ROUTE}"
+)
+USDC_PAIR_SNAPSHOT_ORDER_PLAN_PROOF_REFRESH_SERVICE_METHOD = (
+    "refresh_usdc_pair_snapshot_order_plan_proof_chain"
 )
 USDC_PAIR_SNAPSHOT_MODULE_ID = "automation"
 USDC_PAIR_SNAPSHOT_PROOF_BLOCKERS = [
@@ -162,6 +180,12 @@ def get_usdc_pair_snapshot_proof_chain_service() -> AdminMvpService:
     """Return the backend Admin proof-chain service used for M58 evidence."""
 
     return get_admin_mvp_service()
+
+
+def get_usdc_pair_snapshot_approval_store() -> FileAdminApiApprovalStore:
+    """Return approval lifecycle storage used to resolve M58 proof snapshots."""
+
+    return FileAdminApiApprovalStore()
 
 
 def _payload_hash(
@@ -295,6 +319,7 @@ def _order_plan_base_response(
     message: str,
     correlation_id: str,
     idempotency_key: str,
+    service_method: str = USDC_PAIR_SNAPSHOT_ORDER_PLAN_SERVICE_METHOD,
     plan: UsdcPairSnapshotOrderPlanItem | None = None,
     audit_id: str | None = None,
     failure_stage: str | None = None,
@@ -303,7 +328,7 @@ def _order_plan_base_response(
         status=status_value,
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
         required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
-        service_method=USDC_PAIR_SNAPSHOT_ORDER_PLAN_SERVICE_METHOD,
+        service_method=service_method,
         message=message,
         correlation_id=correlation_id,
         idempotency_key=idempotency_key,
@@ -345,6 +370,7 @@ def _record_order_plan_audit(
     *,
     audit_store: FileAdminApiAuditStore,
     actor: AdminApiActor,
+    endpoint: str,
     request_id: str,
     operator_intent: str,
     response: UsdcPairSnapshotOrderPlanResponse,
@@ -354,7 +380,7 @@ def _record_order_plan_audit(
         "actor_id": actor.actor_id,
         "action_class": response.action_class,
         "permission": response.required_permission,
-        "endpoint": USDC_PAIR_SNAPSHOT_ORDER_PLAN_ENDPOINT,
+        "endpoint": endpoint,
         "request_id": request_id,
         "operator_intent": operator_intent,
         "idempotency_key": response.idempotency_key,
@@ -450,6 +476,10 @@ def _execute_idempotent_snapshot(
 
 def _execute_idempotent_order_plan(
     *,
+    endpoint: str = USDC_PAIR_SNAPSHOT_ORDER_PLAN_ENDPOINT,
+    service_method: str = USDC_PAIR_SNAPSHOT_ORDER_PLAN_SERVICE_METHOD,
+    accepted_message: str = "USDC pair snapshot order-plan evidence accepted.",
+    failure_stage: str = "usdc_pair_snapshot_order_plan",
     idempotency_key: str,
     payload_hash: str,
     actor: AdminApiActor,
@@ -477,11 +507,13 @@ def _execute_idempotent_order_plan(
             message="Idempotency-Key was already used with a different payload.",
             correlation_id=request_id,
             idempotency_key=idempotency_key,
+            service_method=service_method,
             failure_stage="idempotency",
         )
         response.audit_id = _record_order_plan_audit(
             audit_store=audit_store,
             actor=actor,
+            endpoint=endpoint,
             request_id=request_id,
             operator_intent=operator_intent,
             response=response,
@@ -493,9 +525,10 @@ def _execute_idempotent_order_plan(
         plan = operation(audit_id)
         response = _order_plan_base_response(
             status_value=AdminApiCommandStatus.ACCEPTED,
-            message="USDC pair snapshot order-plan evidence accepted.",
+            message=accepted_message,
             correlation_id=request_id,
             idempotency_key=idempotency_key,
+            service_method=service_method,
             audit_id=audit_id,
             plan=plan,
         )
@@ -505,11 +538,13 @@ def _execute_idempotent_order_plan(
             message=str(exc),
             correlation_id=request_id,
             idempotency_key=idempotency_key,
-            failure_stage="usdc_pair_snapshot_order_plan",
+            service_method=service_method,
+            failure_stage=failure_stage,
         )
     response.audit_id = _record_order_plan_audit(
         audit_store=audit_store,
         actor=actor,
+        endpoint=endpoint,
         request_id=request_id,
         operator_intent=operator_intent,
         response=response,
@@ -523,7 +558,7 @@ def _execute_idempotent_order_plan(
                 status=response.status,
                 response=response.model_dump(mode="json"),
                 actor_id=actor.actor_id,
-                endpoint=USDC_PAIR_SNAPSHOT_ORDER_PLAN_ENDPOINT,
+                endpoint=endpoint,
             )
         )
     return _order_plan_response(response)
@@ -721,6 +756,76 @@ def _usdc_pair_order_plan_proof_chain_recorder(
     return record
 
 
+def _approval_request_id_for_snapshot(
+    *,
+    approval_store: FileAdminApiApprovalStore,
+    approval_id: str,
+) -> str | None:
+    for event in approval_store.read_lifecycle_events(limit=1000):
+        if (
+            event.approval_id == approval_id
+            and event.event_type
+            == AdminApiApprovalLifecycleEventType.DECISION_RECORDED
+        ):
+            return event.approval_request_id
+    return None
+
+
+def _usdc_pair_order_plan_proof_chain_refresher(
+    *,
+    approval_store: FileAdminApiApprovalStore,
+) -> Callable[[Any, Any], dict[str, Any]]:
+    def refresh(plan: Any, row: Any) -> dict[str, Any]:
+        client_order_id = str(getattr(row, "client_order_id", "") or "")
+        row_idempotency_key = str(getattr(row, "idempotency_key", "") or "")
+        if not client_order_id or not row_idempotency_key:
+            return {}
+
+        approval_snapshot = resolve_approval_snapshot(
+            store=approval_store,
+            request=ApprovalSnapshotRequest(
+                route=USDC_PAIR_SNAPSHOT_ORDER_PLAN_ROUTE,
+                method="POST",
+                module_id=USDC_PAIR_SNAPSHOT_MODULE_ID,
+                identity_key="client_order_id",
+                identity_value=client_order_id,
+                action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+                required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+                requested_by_actor_id=str(getattr(plan, "actor_id", "") or ""),
+                operator_intent=str(getattr(plan, "operator_intent", "") or ""),
+                idempotency_key=row_idempotency_key,
+                payload_hash=str(getattr(plan, "payload_hash", "") or ""),
+            ),
+        )
+        if approval_snapshot is None:
+            return {}
+
+        blockers = [
+            blocker
+            for blocker in getattr(row, "proof_chain_blockers", [])
+            if blocker != "approval_snapshot_missing"
+        ]
+        approval_request_id = _approval_request_id_for_snapshot(
+            approval_store=approval_store,
+            approval_id=approval_snapshot.approval_id,
+        )
+        return {
+            "proof_chain_status": "blocked",
+            "proof_chain_blockers": blockers,
+            "approval_request_required": True,
+            "approval_request_id": approval_request_id
+            or getattr(row, "approval_request_id", None),
+            "approval_snapshot_required": True,
+            "approval_snapshot_id": approval_snapshot.approval_id,
+            "live_exchange_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "live_coinbase_execution": "not_run",
+            "notional_usdc": "0",
+        }
+
+    return refresh
+
+
 @router.post(
     "/automation/usdc-pair-snapshot-runs",
     response_model=UsdcPairSnapshotRunResponse,
@@ -842,6 +947,73 @@ def record_usdc_pair_snapshot_order_plan(
                 operator_intent=operator_intent,
                 actor=actor,
                 payload_hash=payload_hash,
+            ),
+        ),
+    )
+
+
+@router.post(
+    "/automation/usdc-pair-snapshot-order-plans/{plan_id}/proof-chain-refresh",
+    response_model=UsdcPairSnapshotOrderPlanResponse,
+    status_code=status.HTTP_200_OK,
+    responses=ORDER_PLAN_ROUTE_RESPONSES,
+    summary="Refresh backend-owned USDC pair order-plan proof-chain evidence",
+)
+def refresh_usdc_pair_snapshot_order_plan_proof_chain(
+    request: Request,
+    plan_id: str,
+    body: UsdcPairSnapshotOrderPlanProofRefreshRequest,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[
+        AdminApiUsdcPairSnapshotService,
+        Depends(get_usdc_pair_snapshot_service),
+    ],
+    order_plan_store: Annotated[
+        FileUsdcPairSnapshotOrderPlanStore,
+        Depends(get_usdc_pair_snapshot_order_plan_store),
+    ],
+    approval_store: Annotated[
+        FileAdminApiApprovalStore,
+        Depends(get_usdc_pair_snapshot_approval_store),
+    ],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+) -> JSONResponse:
+    """Refresh M58 order-plan proof refs from backend approval lifecycle state."""
+
+    endpoint = f"{request.method} {request.url.path}"
+    payload_hash = _payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        operator_intent=operator_intent,
+        body=body.model_dump(mode="json"),
+    )
+    return _execute_idempotent_order_plan(
+        endpoint=USDC_PAIR_SNAPSHOT_ORDER_PLAN_PROOF_REFRESH_ENDPOINT,
+        service_method=(
+            USDC_PAIR_SNAPSHOT_ORDER_PLAN_PROOF_REFRESH_SERVICE_METHOD
+        ),
+        accepted_message=(
+            "USDC pair snapshot order-plan proof-chain refresh accepted."
+        ),
+        failure_stage="usdc_pair_snapshot_order_plan_proof_refresh",
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        request_id=correlation_id,
+        operator_intent=operator_intent,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        operation=lambda audit_id: service.refresh_order_plan_proof_chain(
+            order_plan_store=order_plan_store,
+            plan_id=plan_id,
+            body=body,
+            audit_id=audit_id,
+            proof_chain_refresher=_usdc_pair_order_plan_proof_chain_refresher(
+                approval_store=approval_store,
             ),
         ),
     )

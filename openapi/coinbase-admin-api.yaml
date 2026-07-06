@@ -2067,6 +2067,115 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/automation/usdc-pair-snapshot-order-plans/{plan_id}/proof-chain-refresh:
+    post:
+      tags:
+      - automation
+      summary: Refresh backend-owned USDC pair order-plan proof-chain evidence
+      description: Refresh M58 order-plan proof refs from backend approval lifecycle
+        state.
+      operationId: refresh_usdc_pair_snapshot_order_plan_proof_chain_api_v1_automation_usdc_pair_snapshot_order_plans__plan_id__proof_chain_refresh_post
+      parameters:
+      - name: plan_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Plan Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanProofRefreshRequest'
+      responses:
+        '200':
+          description: USDC pair snapshot order-plan evidence accepted or replayed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanResponse'
+        '400':
+          description: USDC pair snapshot order-plan evidence rejected.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/admin/admission-audits:
     get:
       tags:
@@ -169188,6 +169297,25 @@ components:
       - returned_rejected_count
       title: UsdcPairSnapshotOrderPlanListResponse
       description: Read-only list of backend-owned M58 dry-run order-plan evidence.
+    UsdcPairSnapshotOrderPlanProofRefreshRequest:
+      properties:
+        dry_run:
+          type: boolean
+          title: Dry Run
+          default: true
+        operator_notes:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Notes
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+      additionalProperties: false
+      type: object
+      title: UsdcPairSnapshotOrderPlanProofRefreshRequest
+      description: No-live refresh request for M58 order-plan proof-chain evidence.
     UsdcPairSnapshotOrderPlanRequest:
       properties:
         plan_id:
