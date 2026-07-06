@@ -338,6 +338,17 @@ evidence artifacts:
 `artifacts/coinbase-backend-m58-usdc-live-submit-20260706-2200.json` and
 `artifacts/coinbase-backend-m58-usdc-live-readback-20260706-2200.json`.
 
+Latest minimum-size live evidence: on 2026-07-06T22:10Z, the backend submitted
+one BTC-USDC BUY order at `32144.31` against best bid/last-filled
+`64288.63`. The operator requested `1.00` USDC, the runner raised only the
+dry-run planning cap to `1.01` so Coinbase minimum-size rounding produced a
+valid order-plan row, the live route submitted `1.00` USDC, executed `0`, and
+cancelled the same `client_order_id`. Exchange readback verified status
+`CANCELLED`, executed notional `0`, and `0` open BTC-USDC orders. Durable
+local evidence artifacts:
+`artifacts/coinbase-backend-m58-usdc-live-submit-20260706-2210.json` and
+`artifacts/coinbase-backend-m58-usdc-live-readback-20260706-2210.json`.
+
 Entry requirements:
 
 - Phases A-D complete and passing.
