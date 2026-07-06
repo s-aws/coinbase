@@ -547,7 +547,10 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     from api.v1.routes import reconciliation as reconciliation_routes
     from api.v1.routes import spot as spot_routes
     from api.v1.routes import stealth as stealth_routes
-    from application.admin_api.usdc_pair_snapshot import FileUsdcPairSnapshotRunStore
+    from application.admin_api.usdc_pair_snapshot import (
+        FileUsdcPairSnapshotOrderPlanStore,
+        FileUsdcPairSnapshotRunStore,
+    )
 
     monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-admin-token")
     app = create_app()
@@ -570,6 +573,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     )
     usdc_pair_snapshot_store = FileUsdcPairSnapshotRunStore(
         store_dir / "usdc_pair_snapshot_runs.jsonl"
+    )
+    usdc_pair_snapshot_order_plan_store = FileUsdcPairSnapshotOrderPlanStore(
+        store_dir / "usdc_pair_snapshot_order_plans.jsonl"
     )
     spot_recovery_proof_store = FileSpotRecoveryProofStore(
         store_dir / "spot_recovery_proofs.jsonl"
@@ -729,6 +735,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[automation_routes.get_usdc_pair_snapshot_store] = (
         lambda: usdc_pair_snapshot_store
     )
+    app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_order_plan_store
+    ] = lambda: usdc_pair_snapshot_order_plan_store
     app.dependency_overrides[approval_routes.get_idempotency_store] = (
         lambda: idempotency_store
     )
@@ -846,6 +855,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     client.admin_api_test_reconciliation_store = reconciliation_store
     client.admin_api_test_pnl_checkpoint_store = pnl_checkpoint_store
     client.admin_api_test_usdc_pair_snapshot_store = usdc_pair_snapshot_store
+    client.admin_api_test_usdc_pair_snapshot_order_plan_store = (
+        usdc_pair_snapshot_order_plan_store
+    )
     client.admin_api_test_spot_recovery_proof_store = spot_recovery_proof_store
     client.admin_api_test_spot_recovery_snapshot_store = (
         spot_recovery_snapshot_store
@@ -33498,6 +33510,342 @@ def test_admin_api_usdc_pair_snapshot_dry_run_records_backend_snapshot_evidence(
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
+    monkeypatch,
+):
+    from api.v1.routes import automation as automation_routes
+    from application.admin_api.usdc_pair_snapshot import (
+        FileUsdcPairSnapshotOrderPlanStore,
+        FileUsdcPairSnapshotRunStore,
+    )
+    from application.admin_api.usdc_pair_snapshot_service import (
+        AdminApiUsdcPairSnapshotService,
+    )
+
+    client = _client(monkeypatch)
+    snapshot_store = FileUsdcPairSnapshotRunStore(
+        client.admin_api_test_store_dir / "usdc_pair_snapshot_runs.jsonl"
+    )
+    order_plan_store = FileUsdcPairSnapshotOrderPlanStore(
+        client.admin_api_test_store_dir / "usdc_pair_snapshot_order_plans.jsonl"
+    )
+
+    products = [
+        {
+            "product_id": "BTC-USDC",
+            "product_type": ProductType.SPOT.value,
+            "base_currency": "BTC",
+            "quote_currency": "USDC",
+            "status": "online",
+            "base_increment": "0.00000001",
+            "quote_increment": "0.01",
+            "price_increment": "0.01",
+            "base_min_size": "0.00000001",
+            "quote_min_size": "1",
+            "trading_disabled": False,
+        },
+        {
+            "product_id": "ETH-USDC",
+            "product_type": ProductType.SPOT.value,
+            "base_currency": "ETH",
+            "quote_currency": "USDC",
+            "status": "online",
+            "base_increment": "0.00000001",
+            "quote_increment": "0.01",
+            "price_increment": "0.01",
+            "base_min_size": "0.00000001",
+            "quote_min_size": "1",
+            "trading_disabled": False,
+        },
+        {
+            "product_id": "DOGE-USDC",
+            "product_type": ProductType.SPOT.value,
+            "base_currency": "DOGE",
+            "quote_currency": "USDC",
+            "status": "online",
+            "base_increment": "0.1",
+            "quote_increment": "0.01",
+            "price_increment": "0.0001",
+            "base_min_size": "1",
+            "quote_min_size": "1",
+            "trading_disabled": True,
+        },
+    ]
+    prices = {
+        "BTC-USDC": {
+            "price": "100.00",
+            "source": "test_backend_price_feed",
+            "captured_at": "2026-07-05T21:00:00+00:00",
+        },
+        "ETH-USDC": {
+            "price": "2000.00",
+            "source": "test_backend_price_feed",
+            "captured_at": "2026-07-05T21:00:00+00:00",
+        },
+        "DOGE-USDC": {
+            "price": "0.2000",
+            "source": "test_backend_price_feed",
+            "captured_at": "2026-07-05T21:00:00+00:00",
+        },
+    }
+
+    service = AdminApiUsdcPairSnapshotService(
+        product_provider=lambda: products,
+        price_provider=lambda product: prices.get(product["product_id"]),
+    )
+    client.app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_store
+    ] = lambda: snapshot_store
+    client.app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_order_plan_store
+    ] = lambda: order_plan_store
+    client.app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_service
+    ] = lambda: service
+
+    snapshot_body = {
+        "run_id": "m58-usdc-snapshot-plan-test",
+        "side": "BUY",
+        "max_notional_per_product_usdc": "1.00",
+        "product_ids": ["BTC-USDC", "ETH-USDC", "DOGE-USDC"],
+        "dry_run": True,
+        "operator_notes": "contract test order-plan source",
+    }
+    snapshot_response = client.post(
+        "/api/v1/automation/usdc-pair-snapshot-runs",
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-snapshot-source",
+            operator_intent="m58_usdc_snapshot_order_plan_source",
+        ),
+        json=snapshot_body,
+    )
+    assert snapshot_response.status_code == 200
+    assert snapshot_response.json()["run"]["eligible_count"] == 2
+
+    order_plan_body = {
+        "plan_id": "m58-usdc-order-plan-test",
+        "max_total_notional_usdc": "1.50",
+        "time_in_force": "GOOD_UNTIL_CANCELLED",
+        "dry_run": True,
+        "operator_notes": "contract test order plan",
+    }
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-runs/"
+            "m58-usdc-snapshot-plan-test/order-plans"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-order-plan",
+            operator_intent="m58_usdc_snapshot_order_plan",
+        ),
+        json=order_plan_body,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["action_class"] == AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    assert payload["required_permission"] == AdminApiPermission.CAMPAIGN_EXECUTE.value
+    assert payload["service_method"] == "record_usdc_pair_snapshot_order_plan"
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert payload["audit_id"]
+
+    plan = payload["plan"]
+    assert plan["plan_id"] == "m58-usdc-order-plan-test"
+    assert plan["snapshot_run_id"] == "m58-usdc-snapshot-plan-test"
+    assert plan["dry_run"] is True
+    assert plan["backend_owned"] is True
+    assert plan["browser_authority"] == "display_only"
+    assert plan["bff_authority"] == "forward_only_no_execution"
+    assert plan["max_notional_per_product_usdc"] == "1.00"
+    assert plan["max_total_notional_usdc"] == "1.50"
+    assert plan["time_in_force"] == "GOOD_UNTIL_CANCELLED"
+    assert plan["plan_row_count"] == 3
+    assert plan["planned_count"] == 1
+    assert plan["skipped_count"] == 2
+    assert plan["rejected_count"] == 0
+    assert plan["planned_total_notional_usdc"] == "1.00"
+    assert plan["live_exchange_submitted"] is False
+    assert plan["live_coinbase_orders_ran"] is False
+    assert plan["live_coinbase_execution"] == "not_run"
+    assert plan["notional_usdc"] == "0"
+
+    rows_by_product = {
+        row["product_id"]: row for row in plan["order_plan_rows"]
+    }
+    btc_row = rows_by_product["BTC-USDC"]
+    assert btc_row["plan_status"] == "planned"
+    assert btc_row["client_order_id"] == "m58-usdc-order-plan-test-BTC-USDC"
+    assert btc_row["idempotency_key"] == "idem-usdc-pair-order-plan:BTC-USDC"
+    assert btc_row["side"] == "BUY"
+    assert btc_row["order_type"] == "LIMIT"
+    assert btc_row["time_in_force"] == "GOOD_UNTIL_CANCELLED"
+    assert btc_row["requested_notional_usdc"] == "1.00"
+    assert btc_row["snapshot_price"] == "100.00"
+    assert btc_row["limit_price"] == "100.00"
+    assert btc_row["base_size"] == "0.01"
+    assert btc_row["quote_size"] == "1.00"
+    assert btc_row["planned_notional_usdc"] == "1.00"
+    assert btc_row["live_exchange_submitted"] is False
+    assert btc_row["live_coinbase_orders_ran"] is False
+    assert btc_row["live_coinbase_execution"] == "not_run"
+    assert btc_row["notional_usdc"] == "0"
+    assert rows_by_product["ETH-USDC"]["plan_status"] == "skipped"
+    assert rows_by_product["ETH-USDC"]["skip_reason"] == "run_total_cap_exceeded"
+    assert rows_by_product["DOGE-USDC"]["plan_status"] == "skipped"
+    assert rows_by_product["DOGE-USDC"]["skip_reason"] == (
+        "snapshot_not_eligible:trading_disabled"
+    )
+
+    persisted = order_plan_store.find_by_plan_id("m58-usdc-order-plan-test")
+    assert persisted is not None
+    assert persisted.audit_id == payload["audit_id"]
+    assert persisted.live_coinbase_execution == "not_run"
+    assert persisted.notional_usdc == "0"
+
+    replay = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-runs/"
+            "m58-usdc-snapshot-plan-test/order-plans"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-order-plan",
+            operator_intent="m58_usdc_snapshot_order_plan",
+        ),
+        json=order_plan_body,
+    )
+
+    assert replay.status_code == 200
+    assert replay.headers["x-idempotency-replayed"] == "true"
+    assert replay.json() == payload
+    assert len(order_plan_store.read_recent(limit=10)) == 1
+
+    conflict = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-runs/"
+            "m58-usdc-snapshot-plan-test/order-plans"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-order-plan",
+            operator_intent="m58_usdc_snapshot_order_plan",
+        ),
+        json={**order_plan_body, "max_total_notional_usdc": "1.49"},
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["status"] == AdminApiCommandStatus.CONFLICT.value
+
+    manual_live_acknowledgement = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-runs/"
+            "m58-usdc-snapshot-plan-test/order-plans"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-order-plan-manual-ack",
+            operator_intent="m58_usdc_snapshot_order_plan_manual_ack",
+        ),
+        json={
+            **order_plan_body,
+            "plan_id": "m58-usdc-order-plan-manual-ack",
+            "manual_live_acknowledgement": True,
+        },
+    )
+    assert manual_live_acknowledgement.status_code == 422
+
+    missing_auth_headers = _headers(
+        idempotency_key="idem-usdc-pair-order-plan-missing-auth",
+        operator_intent="m58_usdc_snapshot_order_plan_missing_auth",
+    )
+    missing_auth_headers.pop("Authorization")
+    missing_auth_post = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-runs/"
+            "m58-usdc-snapshot-plan-test/order-plans"
+        ),
+        headers=missing_auth_headers,
+        json={**order_plan_body, "plan_id": "m58-usdc-order-plan-missing-auth"},
+    )
+    assert missing_auth_post.status_code == 401
+
+    missing_role_post = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-runs/"
+            "m58-usdc-snapshot-plan-test/order-plans"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-order-plan-missing-role",
+            operator_intent="m58_usdc_snapshot_order_plan_missing_role",
+            roles="",
+        ),
+        json={**order_plan_body, "plan_id": "m58-usdc-order-plan-missing-role"},
+    )
+    assert missing_role_post.status_code == 403
+
+    readback = client.get(
+        "/api/v1/automation/usdc-pair-snapshot-order-plans?limit=5",
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-order-plan-read",
+            operator_intent="m58_usdc_snapshot_order_plan_readback",
+            roles=AdminApiRole.AUDITOR.value,
+        ),
+    )
+
+    assert readback.status_code == 200
+    readback_payload = readback.json()
+    assert readback_payload["type"] == "usdc_pair_snapshot_order_plan_list"
+    assert readback_payload["read_only"] is True
+    assert readback_payload["backend_owned"] is True
+    assert readback_payload["browser_authority"] == "display_only"
+    assert readback_payload["bff_authority"] == "read_only_forward"
+    assert readback_payload["live_exchange_submitted"] is False
+    assert readback_payload["live_coinbase_orders_ran"] is False
+    assert readback_payload["live_coinbase_execution"] == "not_run"
+    assert readback_payload["notional_usdc"] == "0"
+    assert readback_payload["returned_count"] == 1
+    assert readback_payload["total_count"] == 1
+    assert readback_payload["latest_plan_id"] == "m58-usdc-order-plan-test"
+    assert readback_payload["returned_planned_count"] == 1
+    assert readback_payload["returned_skipped_count"] == 2
+    assert readback_payload["returned_rejected_count"] == 0
+    assert readback_payload["plans"][0]["plan_id"] == plan["plan_id"]
+    assert readback_payload["plans"][0]["order_plan_rows"] == plan["order_plan_rows"]
+
+    missing_auth_headers = _headers(
+        idempotency_key="idem-usdc-pair-order-plan-read-missing-auth",
+        operator_intent="m58_usdc_snapshot_order_plan_readback_missing_auth",
+    )
+    missing_auth_headers.pop("Authorization")
+    missing_auth = client.get(
+        "/api/v1/automation/usdc-pair-snapshot-order-plans",
+        headers=missing_auth_headers,
+    )
+    assert missing_auth.status_code == 401
+
+    missing_role = client.get(
+        "/api/v1/automation/usdc-pair-snapshot-order-plans",
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-order-plan-read-missing-role",
+            operator_intent="m58_usdc_snapshot_order_plan_readback_missing_role",
+            roles="",
+        ),
+    )
+    assert missing_role.status_code == 403
+
+    for invalid_limit in ("0", "501"):
+        invalid_limit_response = client.get(
+            f"/api/v1/automation/usdc-pair-snapshot-order-plans?limit={invalid_limit}",
+            headers=_headers(
+                idempotency_key=f"idem-usdc-pair-order-plan-read-limit-{invalid_limit}",
+                operator_intent="m58_usdc_snapshot_order_plan_readback_invalid_limit",
+                roles=AdminApiRole.AUDITOR.value,
+            ),
+        )
+        assert invalid_limit_response.status_code == 422
+
+
+@pytest.mark.regression
 def test_admin_api_idempotency_replays_same_response(monkeypatch):
     client = _client(monkeypatch)
     headers = _headers(idempotency_key="idem-replay")
@@ -59565,6 +59913,27 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "read-only durable dry-run snapshot evidence" in (
         snapshot_read_route.parity_test
     )
+    order_plan_route = rows[
+        "POST /api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans"
+    ]
+    assert order_plan_route.module_id == "automation"
+    assert order_plan_route.shared_method == "record_usdc_pair_snapshot_order_plan"
+    assert order_plan_route.action_class == AdminApiActionClass.LOCAL_STATE_MUTATION
+    assert order_plan_route.permission == AdminApiPermission.CAMPAIGN_EXECUTE
+    assert "no Coinbase order submission" in order_plan_route.parity_test
+    assert "backend-owned limit-order plan evidence" in order_plan_route.parity_test
+    order_plan_read_route = rows[
+        "GET /api/v1/automation/usdc-pair-snapshot-order-plans"
+    ]
+    assert order_plan_read_route.module_id == "automation"
+    assert order_plan_read_route.shared_method == (
+        "list_usdc_pair_snapshot_order_plans"
+    )
+    assert order_plan_read_route.action_class == AdminApiActionClass.READ_ONLY
+    assert order_plan_read_route.permission == AdminApiPermission.AUDIT_READ
+    assert "read-only durable order-plan evidence" in (
+        order_plan_read_route.parity_test
+    )
     stealth_recovery_route = rows[
         "POST /api/v1/stealth/orders/{stealth_order_id}/recovery"
     ]
@@ -59866,6 +60235,8 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "place_hotpoint_test_order" in doc
     assert "execute_spot_campaign" in doc
     assert "run_spot_sweep_automation" in doc
+    assert "record_usdc_pair_snapshot_order_plan" in doc
+    assert "list_usdc_pair_snapshot_order_plans" in doc
     assert "build_admin_bootstrap" in doc
     assert "build_oidc_jwt_readiness" in doc
     assert "build_csrf_contract" in doc
@@ -60007,6 +60378,22 @@ def test_admin_api_route_inventory_and_openapi_paths_stay_in_sync():
     )
     assert (
         "GET /api/v1/automation/usdc-pair-snapshot-runs"
+        in schema_http_surfaces
+    )
+    assert (
+        "POST /api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans"
+        in inventory_http_surfaces
+    )
+    assert (
+        "POST /api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans"
+        in schema_http_surfaces
+    )
+    assert (
+        "GET /api/v1/automation/usdc-pair-snapshot-order-plans"
+        in inventory_http_surfaces
+    )
+    assert (
+        "GET /api/v1/automation/usdc-pair-snapshot-order-plans"
         in schema_http_surfaces
     )
     assert schema_http_surfaces == inventory_http_surfaces

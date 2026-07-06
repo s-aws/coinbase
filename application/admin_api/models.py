@@ -977,6 +977,18 @@ class UsdcPairSnapshotRunRequest(BaseModel):
     manual_live_acknowledgement: bool = False
 
 
+class UsdcPairSnapshotOrderPlanRequest(BaseModel):
+    """Backend-owned M58 dry-run order-plan request for a snapshot run."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    plan_id: str | None = Field(default=None, min_length=1)
+    max_total_notional_usdc: DecimalString
+    time_in_force: TimeInForce = TimeInForce.GOOD_UNTIL_CANCELLED
+    dry_run: bool = True
+    operator_notes: str | None = None
+
+
 class SpotRecoveryApplyExecutionRequest(BaseModel):
     """Spot recovery apply request keyed by ``client_order_id``."""
 
@@ -2561,6 +2573,129 @@ class UsdcPairSnapshotRunListResponse(BaseModel):
         "evidence only; it does not derive order payloads, allocate wallet "
         "balance, call Coinbase order endpoints, or grant browser execution "
         "authority."
+    )
+
+
+class UsdcPairSnapshotOrderPlanRowItem(BaseModel):
+    """One backend-derived no-live limit-order plan row for M58."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    product_id: str = Field(min_length=1)
+    plan_status: str = Field(min_length=1)
+    side: OrderSide
+    order_type: OrderType = OrderType.LIMIT
+    time_in_force: TimeInForce
+    client_order_id: str | None = None
+    idempotency_key: str | None = None
+    requested_notional_usdc: DecimalString
+    max_notional_per_product_usdc: DecimalString
+    snapshot_price: DecimalString | None = None
+    limit_price: DecimalString | None = None
+    base_size: DecimalString | None = None
+    quote_size: DecimalString | None = None
+    planned_notional_usdc: DecimalString = "0"
+    price_increment: DecimalString | None = None
+    base_increment: DecimalString | None = None
+    quote_increment: DecimalString | None = None
+    min_base_size: DecimalString | None = None
+    min_quote_size: DecimalString | None = None
+    snapshot_captured_at: str | None = None
+    skip_reason: str | None = None
+    reject_reason: str | None = None
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+
+
+class UsdcPairSnapshotOrderPlanItem(BaseModel):
+    """Durable M58 no-live order-plan evidence derived from a snapshot run."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    plan_id: str = Field(min_length=1)
+    snapshot_run_id: str = Field(min_length=1)
+    planned_at: str
+    side: OrderSide
+    max_notional_per_product_usdc: DecimalString
+    max_total_notional_usdc: DecimalString
+    planned_total_notional_usdc: DecimalString
+    product_ids: list[str] = Field(default_factory=list)
+    account_id: str | None = None
+    portfolio_id: str | None = None
+    time_in_force: TimeInForce
+    dry_run: bool = True
+    backend_owned: bool = True
+    read_only_after_write: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    plan_row_count: int = Field(ge=0)
+    planned_count: int = Field(ge=0)
+    skipped_count: int = Field(ge=0)
+    rejected_count: int = Field(ge=0)
+    order_plan_rows: list[UsdcPairSnapshotOrderPlanRowItem] = Field(
+        default_factory=list
+    )
+    actor_id: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(min_length=64, max_length=64)
+    audit_id: str | None = None
+    operator_notes: str | None = None
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    detail: str
+
+
+class UsdcPairSnapshotOrderPlanResponse(BaseModel):
+    """Response for backend-owned M58 dry-run order-plan evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: AdminApiCommandStatus
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission
+    service_method: str
+    message: str
+    correlation_id: str | None = None
+    idempotency_key: str | None = None
+    audit_id: str | None = None
+    plan: UsdcPairSnapshotOrderPlanItem | None = None
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    failure_stage: str | None = None
+
+
+class UsdcPairSnapshotOrderPlanListResponse(BaseModel):
+    """Read-only list of backend-owned M58 dry-run order-plan evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "usdc_pair_snapshot_order_plan_list"
+    plans: list[UsdcPairSnapshotOrderPlanItem] = Field(default_factory=list)
+    returned_count: int = Field(ge=0)
+    total_count: int = Field(ge=0)
+    latest_plan_id: str | None = None
+    returned_planned_count: int = Field(ge=0)
+    returned_skipped_count: int = Field(ge=0)
+    returned_rejected_count: int = Field(ge=0)
+    read_only: bool = True
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    detail: str = (
+        "M58 USDC pair snapshot order-plan readback exposes durable backend "
+        "dry-run evidence only; it does not submit Coinbase orders, allocate "
+        "wallet balance, or grant browser execution authority."
     )
 
 

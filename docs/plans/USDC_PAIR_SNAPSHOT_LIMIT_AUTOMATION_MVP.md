@@ -13,9 +13,9 @@ cap/guard, audit, live-service, and reconciliation chain.
 
 ## Current Status
 
-The current Admin MVP has enough foundation for a non-live discovery and
-planning slice, but not enough contract evidence for live every-pair
-automation.
+The current Admin MVP has backend-owned no-live discovery, snapshot readback,
+and dry-run order-plan evidence for a non-live planning slice, but not enough
+contract evidence for live every-pair automation.
 
 Available building blocks:
 
@@ -25,14 +25,16 @@ Available building blocks:
 - Existing spot campaign and portfolio-sweep source material.
 - Backend manual spot limit-order payload and capped live-submit proof-chain
   patterns.
+- M58 no-live Admin API route inventory, OpenAPI, append-only stores, audit,
+  idempotency, snapshot readback, and dry-run order-plan readback for
+  `usdc-pair-snapshot-runs`.
 - Approval, admission audit, cap/guard, reconciliation-plan, live-service,
   idempotency, local deployment, and artifact evidence patterns.
 
 Missing before live automation:
 
-- Route inventory and OpenAPI contracts for snapshot automation runs.
-- Durable run, snapshot, and order-plan records with product-level skip
-  reasons.
+- Frontend generated-contract consumption and read-only order-plan display.
+- Proof-chain integration for each planned order.
 - A backend-owned price-source contract for every captured snapshot.
 - Per-product and run-level notional caps that prevent wallet/balance
   overcommit.
@@ -171,6 +173,13 @@ Non-goals:
 ### Phase C - Dry-Run Order Plan
 
 Derive backend-owned limit-order plans from the durable snapshot.
+
+Backend status: implemented for no-live Admin API evidence. The backend now
+records dry-run order-plan rows through
+`POST /api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans` and
+reads durable plans through
+`GET /api/v1/automation/usdc-pair-snapshot-order-plans`. Frontend generated
+contract consumption and read-only display remain pending.
 
 Deliverables:
 

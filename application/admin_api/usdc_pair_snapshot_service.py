@@ -4,21 +4,26 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterable, Mapping
 from datetime import datetime, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_FLOOR
 from enum import Enum
 from typing import Any
 from uuid import uuid4
 
 from configuration import local_products_from_metadata
-from core.enums import OrderSide, ProductType
+from core.enums import OrderSide, OrderType, ProductType, TimeInForce
 
 from .models import (
+    UsdcPairSnapshotOrderPlanItem,
+    UsdcPairSnapshotOrderPlanRequest,
+    UsdcPairSnapshotOrderPlanRowItem,
     UsdcPairSnapshotRunItem,
     UsdcPairSnapshotRunRequest,
     UsdcPairSnapshotRowItem,
 )
 from .usdc_pair_snapshot import (
+    FileUsdcPairSnapshotOrderPlanStore,
     FileUsdcPairSnapshotRunStore,
+    UsdcPairSnapshotOrderPlanRecord,
     UsdcPairSnapshotRunRecord,
 )
 
@@ -108,6 +113,90 @@ class AdminApiUsdcPairSnapshotService:
         )
         store.append(record)
         return item_from_record(record)
+
+    def record_order_plan(
+        self,
+        *,
+        snapshot_store: FileUsdcPairSnapshotRunStore,
+        order_plan_store: FileUsdcPairSnapshotOrderPlanStore,
+        run_id: str,
+        body: UsdcPairSnapshotOrderPlanRequest,
+        actor_id: str,
+        operator_intent: str,
+        idempotency_key: str,
+        payload_hash: str,
+        audit_id: str,
+        now: datetime | None = None,
+    ) -> UsdcPairSnapshotOrderPlanItem:
+        planned_at = _normalize_now(now).isoformat()
+        if not body.dry_run:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot order planning currently accepts "
+                "dry_run=true only."
+            )
+        max_total_notional = _decimal(body.max_total_notional_usdc)
+        if max_total_notional <= 0:
+            raise UsdcPairSnapshotError(
+                "max_total_notional_usdc must be greater than zero."
+            )
+
+        snapshot_record = snapshot_store.find_by_run_id(run_id)
+        if snapshot_record is None:
+            raise UsdcPairSnapshotError("USDC pair snapshot run was not found.")
+        if not snapshot_record.dry_run:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot order planning requires a dry-run snapshot."
+            )
+
+        plan_id = body.plan_id or f"m58-usdc-order-plan-{uuid4()}"
+        if order_plan_store.find_by_plan_id(plan_id) is not None:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot order plan already exists."
+            )
+
+        time_in_force = TimeInForce(body.time_in_force)
+        planned_total = Decimal("0")
+        order_plan_rows: list[UsdcPairSnapshotOrderPlanRowItem] = []
+        for snapshot_row in snapshot_record.snapshot_rows:
+            order_plan_row, row_notional = _order_plan_row(
+                snapshot_row=snapshot_row,
+                snapshot_record=snapshot_record,
+                plan_id=plan_id,
+                idempotency_key=idempotency_key,
+                time_in_force=time_in_force,
+                max_total_notional=max_total_notional,
+                planned_total=planned_total,
+            )
+            order_plan_rows.append(order_plan_row)
+            planned_total += row_notional
+
+        record = UsdcPairSnapshotOrderPlanRecord(
+            plan_id=plan_id,
+            snapshot_run_id=snapshot_record.run_id,
+            planned_at=planned_at,
+            side=snapshot_record.side,
+            max_notional_per_product_usdc=(
+                snapshot_record.max_notional_per_product_usdc
+            ),
+            max_total_notional_usdc=(
+                _format_decimal(max_total_notional) or "0"
+            ),
+            planned_total_notional_usdc=_format_decimal(planned_total) or "0",
+            product_ids=snapshot_record.product_ids,
+            account_id=snapshot_record.account_id,
+            portfolio_id=snapshot_record.portfolio_id,
+            time_in_force=time_in_force.value,
+            dry_run=body.dry_run,
+            order_plan_rows=order_plan_rows,
+            actor_id=actor_id,
+            operator_intent=operator_intent,
+            idempotency_key=idempotency_key,
+            payload_hash=payload_hash,
+            audit_id=audit_id,
+            operator_notes=body.operator_notes,
+        )
+        order_plan_store.append(record)
+        return order_plan_item_from_record(record)
 
     def _snapshot_row(
         self,
@@ -211,6 +300,182 @@ def item_from_record(record: UsdcPairSnapshotRunRecord) -> UsdcPairSnapshotRunIt
             "does not derive order payloads, allocate wallet balance, call "
             "Coinbase order endpoints, or grant browser execution authority."
         ),
+    )
+
+
+def order_plan_item_from_record(
+    record: UsdcPairSnapshotOrderPlanRecord,
+) -> UsdcPairSnapshotOrderPlanItem:
+    """Return the API read model for a stored order-plan record."""
+
+    planned_count = sum(
+        1 for row in record.order_plan_rows if row.plan_status == "planned"
+    )
+    skipped_count = sum(
+        1 for row in record.order_plan_rows if row.plan_status == "skipped"
+    )
+    rejected_count = sum(
+        1 for row in record.order_plan_rows if row.plan_status == "rejected"
+    )
+    return UsdcPairSnapshotOrderPlanItem(
+        plan_id=record.plan_id,
+        snapshot_run_id=record.snapshot_run_id,
+        planned_at=record.planned_at,
+        side=OrderSide(record.side),
+        max_notional_per_product_usdc=record.max_notional_per_product_usdc,
+        max_total_notional_usdc=record.max_total_notional_usdc,
+        planned_total_notional_usdc=record.planned_total_notional_usdc,
+        product_ids=record.product_ids,
+        account_id=record.account_id,
+        portfolio_id=record.portfolio_id,
+        time_in_force=TimeInForce(record.time_in_force),
+        dry_run=record.dry_run,
+        plan_row_count=len(record.order_plan_rows),
+        planned_count=planned_count,
+        skipped_count=skipped_count,
+        rejected_count=rejected_count,
+        order_plan_rows=record.order_plan_rows,
+        actor_id=record.actor_id,
+        operator_intent=record.operator_intent,
+        idempotency_key=record.idempotency_key,
+        payload_hash=record.payload_hash,
+        audit_id=record.audit_id,
+        operator_notes=record.operator_notes,
+        detail=(
+            "M58 USDC pair snapshot order-plan evidence is backend-owned and "
+            "does not allocate wallet balance, call Coinbase order endpoints, "
+            "or grant browser execution authority."
+        ),
+    )
+
+
+def _order_plan_row(
+    *,
+    snapshot_row: UsdcPairSnapshotRowItem,
+    snapshot_record: UsdcPairSnapshotRunRecord,
+    plan_id: str,
+    idempotency_key: str,
+    time_in_force: TimeInForce,
+    max_total_notional: Decimal,
+    planned_total: Decimal,
+) -> tuple[UsdcPairSnapshotOrderPlanRowItem, Decimal]:
+    base_fields = {
+        "product_id": snapshot_row.product_id,
+        "side": OrderSide(snapshot_record.side),
+        "order_type": OrderType.LIMIT,
+        "time_in_force": time_in_force,
+        "requested_notional_usdc": snapshot_row.requested_notional_usdc,
+        "max_notional_per_product_usdc": (
+            snapshot_record.max_notional_per_product_usdc
+        ),
+        "snapshot_price": snapshot_row.observed_price,
+        "price_increment": snapshot_row.price_increment,
+        "base_increment": snapshot_row.base_increment,
+        "quote_increment": snapshot_row.quote_increment,
+        "min_base_size": snapshot_row.min_base_size,
+        "min_quote_size": snapshot_row.min_quote_size,
+        "snapshot_captured_at": snapshot_row.snapshot_captured_at,
+    }
+    if snapshot_row.eligibility_status != "eligible":
+        reason = snapshot_row.skip_reason or snapshot_row.eligibility_status
+        return (
+            UsdcPairSnapshotOrderPlanRowItem(
+                **base_fields,
+                plan_status="skipped",
+                skip_reason=f"snapshot_not_eligible:{reason}",
+            ),
+            Decimal("0"),
+        )
+
+    requested_notional = _decimal(snapshot_row.requested_notional_usdc)
+    observed_price = _positive_decimal_or_none(snapshot_row.observed_price)
+    price_increment = _positive_decimal_or_none(snapshot_row.price_increment)
+    base_increment = _positive_decimal_or_none(snapshot_row.base_increment)
+    quote_increment = _positive_decimal_or_none(snapshot_row.quote_increment)
+    min_base_size = _positive_decimal_or_none(snapshot_row.min_base_size)
+    min_quote_size = _positive_decimal_or_none(snapshot_row.min_quote_size)
+    if not all(
+        (
+            observed_price,
+            price_increment,
+            base_increment,
+            quote_increment,
+            min_base_size,
+            min_quote_size,
+        )
+    ):
+        return (
+            UsdcPairSnapshotOrderPlanRowItem(
+                **base_fields,
+                plan_status="rejected",
+                reject_reason="missing_order_plan_inputs",
+            ),
+            Decimal("0"),
+        )
+
+    limit_price = _floor_to_increment(observed_price, price_increment)
+    if limit_price is None or limit_price <= 0:
+        return (
+            UsdcPairSnapshotOrderPlanRowItem(
+                **base_fields,
+                plan_status="rejected",
+                reject_reason="invalid_limit_price",
+            ),
+            Decimal("0"),
+        )
+
+    base_size = _floor_to_increment(requested_notional / limit_price, base_increment)
+    if base_size is None or base_size <= 0 or base_size < min_base_size:
+        return (
+            UsdcPairSnapshotOrderPlanRowItem(
+                **base_fields,
+                plan_status="rejected",
+                limit_price=_format_decimal(limit_price),
+                reject_reason="below_min_base_size",
+            ),
+            Decimal("0"),
+        )
+
+    planned_notional = _floor_to_increment(base_size * limit_price, quote_increment)
+    if (
+        planned_notional is None
+        or planned_notional <= 0
+        or planned_notional < min_quote_size
+        or planned_notional > requested_notional
+    ):
+        return (
+            UsdcPairSnapshotOrderPlanRowItem(
+                **base_fields,
+                plan_status="rejected",
+                limit_price=_format_decimal(limit_price),
+                base_size=_format_decimal(base_size),
+                reject_reason="below_min_quote_size",
+            ),
+            Decimal("0"),
+        )
+
+    if planned_total + planned_notional > max_total_notional:
+        return (
+            UsdcPairSnapshotOrderPlanRowItem(
+                **base_fields,
+                plan_status="skipped",
+                skip_reason="run_total_cap_exceeded",
+            ),
+            Decimal("0"),
+        )
+
+    return (
+        UsdcPairSnapshotOrderPlanRowItem(
+            **base_fields,
+            plan_status="planned",
+            client_order_id=f"{plan_id}-{snapshot_row.product_id}",
+            idempotency_key=f"{idempotency_key}:{snapshot_row.product_id}",
+            limit_price=_format_decimal(limit_price),
+            base_size=_format_decimal(base_size),
+            quote_size=_format_decimal(planned_notional),
+            planned_notional_usdc=_format_decimal(planned_notional) or "0",
+        ),
+        planned_notional,
     )
 
 
@@ -361,6 +626,13 @@ def _positive_decimal_or_none(value: Any) -> Decimal | None:
     except UsdcPairSnapshotError:
         return None
     return parsed if parsed > 0 else None
+
+
+def _floor_to_increment(value: Decimal, increment: Decimal) -> Decimal | None:
+    if increment <= 0:
+        return None
+    units = (value / increment).to_integral_value(rounding=ROUND_FLOOR)
+    return units * increment
 
 
 def _format_decimal(value: Decimal | None) -> str | None:

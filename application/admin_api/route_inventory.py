@@ -1045,6 +1045,43 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         ),
     ),
     AdminApiRouteInventoryItem(
+        module_id="automation",
+        surface="GET /api/v1/automation/usdc-pair-snapshot-order-plans",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="list_usdc_pair_snapshot_order_plans",
+        parity_test=(
+            "M58 read-only durable order-plan evidence; no Coinbase order "
+            "submission, no wallet allocation, and no browser execution "
+            "authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="automation",
+        surface=(
+            "POST /api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+        idempotency="required",
+        approval="not applicable for no-live dry-run evidence",
+        caps=(
+            "derives backend-owned limit-order plan evidence with per-product "
+            "and run-level notional caps; no wallet allocation"
+        ),
+        audit="required",
+        shared_method="record_usdc_pair_snapshot_order_plan",
+        parity_test=(
+            "M58 backend-owned limit-order plan evidence derived from durable "
+            "USDC snapshot rows; no Coinbase order submission, no wallet "
+            "allocation, and no browser execution authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
         module_id="spot_operations",
         surface="POST /api/v1/spot/recovery/apply-executions",
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
