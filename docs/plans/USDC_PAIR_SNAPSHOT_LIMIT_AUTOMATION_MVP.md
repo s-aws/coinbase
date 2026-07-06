@@ -34,6 +34,9 @@ Available building blocks:
 - M58 no-live Admin API route inventory, OpenAPI, append-only stores, audit,
   idempotency, snapshot readback, and dry-run order-plan readback for
   `usdc-pair-snapshot-runs`.
+- M58 single-product controlled-live submit/cancel tooling and read-only
+  exchange readback/recovery evidence for one prior live submission. This is
+  backend-only and does not authorize fan-out or scheduling.
 - Backend proof-refresh mutation for existing order plans that resolves exact,
   unexpired, non-revoked approval lifecycle snapshots without browser
   authority or live execution, and can link exact durable admission-audit
@@ -293,7 +296,11 @@ snapshot/order-plan/proof/readiness sequence, requires
 `--confirm-live-submit`, enforces a submitted-notional cap of `<= 10` USDC,
 requires far-from-market pricing, records a live-output artifact, and fails
 closed unless `COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED=true` is already set
-for the process.
+for the process. The read-only recovery runner
+`tools/run_admin_api_usdc_pair_snapshot_live_readback.py` reads the prior
+Coinbase order by exchange order id, verifies cancelled/non-filled/no open
+order evidence, and can append local recovery evidence without submitting or
+cancelling any order.
 
 Latest live evidence: on 2026-07-06, the backend submitted one BTC-USDC BUY
 order for `1.09` USDC planned notional at `31800.00`, received Coinbase order
@@ -306,7 +313,11 @@ verified exchange readback as `CANCELLED` with `0` filled value, `0` fees, and
 `artifacts/coinbase-backend-m58-usdc-live-submit-20260706-2001-proof-refresh.json`,
 and
 `artifacts/coinbase-backend-m58-usdc-live-submit-20260706-2001-exchange-readback.json`.
-The backend proof row is accepted with `live_coinbase_execution=submitted_cancelled`.
+On 2026-07-06, durable read-only recovery tooling also emitted
+`artifacts/coinbase-backend-m58-usdc-live-readback-20260706-2001.json` and
+appended
+`m58-live-btc-usdc-20260706-2001-submission-readback-recovery`. The backend
+proof row is accepted with `live_coinbase_execution=submitted_cancelled`.
 
 Entry requirements:
 
@@ -319,6 +330,8 @@ Entry requirements:
 Deliverables:
 
 - Backend tool or Admin API route that submits one product only.
+- Backend read-only tool that can verify exchange cancellation/non-fill state
+  for the prior one-product live submission and append local recovery evidence.
 - Live-output artifact with product id, `client_order_id`, submitted
   notional, executed notional, Coinbase result evidence, and proof-chain refs.
 - Fail-closed behavior when any prerequisite is absent.
