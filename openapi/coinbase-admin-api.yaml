@@ -171165,6 +171165,18 @@ components:
             the API contract.
           examples:
           - '1.00'
+        reference_bid_price_source:
+          type: string
+          minLength: 1
+          title: Reference Bid Price Source
+        reference_bid_price_captured_at:
+          type: string
+          minLength: 1
+          title: Reference Bid Price Captured At
+        reference_bid_price_freshness_status:
+          type: string
+          minLength: 1
+          title: Reference Bid Price Freshness Status
         last_filled_price:
           type: string
           pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
@@ -171173,6 +171185,18 @@ components:
             the API contract.
           examples:
           - '1.00'
+        last_filled_price_source:
+          type: string
+          minLength: 1
+          title: Last Filled Price Source
+        last_filled_price_captured_at:
+          type: string
+          minLength: 1
+          title: Last Filled Price Captured At
+        last_filled_price_freshness_status:
+          type: string
+          minLength: 1
+          title: Last Filled Price Freshness Status
         intended_limit_price:
           type: string
           pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
@@ -171389,7 +171413,13 @@ components:
       - side
       - order_count
       - reference_bid_price
+      - reference_bid_price_source
+      - reference_bid_price_captured_at
+      - reference_bid_price_freshness_status
       - last_filled_price
+      - last_filled_price_source
+      - last_filled_price_captured_at
+      - last_filled_price_freshness_status
       - intended_limit_price
       - far_from_bid_status
       - snapshot_non_fill_status
@@ -171520,6 +171550,14 @@ components:
             the API contract.
           examples:
           - '1.00'
+        reference_bid_price_source:
+          type: string
+          minLength: 1
+          title: Reference Bid Price Source
+        reference_bid_price_captured_at:
+          type: string
+          minLength: 1
+          title: Reference Bid Price Captured At
         last_filled_price:
           type: string
           pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
@@ -171528,6 +171566,14 @@ components:
             the API contract.
           examples:
           - '1.00'
+        last_filled_price_source:
+          type: string
+          minLength: 1
+          title: Last Filled Price Source
+        last_filled_price_captured_at:
+          type: string
+          minLength: 1
+          title: Last Filled Price Captured At
         intended_limit_price:
           type: string
           pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
@@ -171583,7 +171629,11 @@ components:
       - product_id
       - client_order_id
       - reference_bid_price
+      - reference_bid_price_source
+      - reference_bid_price_captured_at
       - last_filled_price
+      - last_filled_price_source
+      - last_filled_price_captured_at
       - intended_limit_price
       - submitted_notional_usdc
       - max_executed_notional_usdc

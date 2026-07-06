@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 from contextlib import nullcontext
+from datetime import datetime, timezone
 import json
 
 import pytest
@@ -45,7 +46,13 @@ def _config(tmp_path: Path, **overrides) -> runner.UsdcPairSnapshotLiveSubmitCon
         "submitted_notional_usdc": "1.00",
         "max_executed_notional_usdc": "0.01",
         "reference_bid_price": "100.00",
+        "reference_bid_price_source": "coinbase_advanced_trade.best_bid",
+        "reference_bid_price_captured_at": (
+            datetime.now(timezone.utc).isoformat()
+        ),
         "last_filled_price": "100.00",
+        "last_filled_price_source": "coinbase_advanced_trade.last_trade",
+        "last_filled_price_captured_at": datetime.now(timezone.utc).isoformat(),
         "intended_limit_price": "50.00",
         "state_dir": str(tmp_path / "state"),
         "summary_output": str(tmp_path / "summary.json"),
@@ -105,6 +112,14 @@ def test_usdc_pair_snapshot_live_runner_records_submit_cancel_sequence(
     assert summary["live_coinbase_orders_ran"] is True
     assert summary["operator_requested_notional_usdc"] == "1.00"
     assert summary["requested_notional_usdc"] == "1.00"
+    assert summary["reference_bid_price_source"] == (
+        "coinbase_advanced_trade.best_bid"
+    )
+    assert summary["reference_bid_price_freshness_status"] == "fresh"
+    assert summary["last_filled_price_source"] == (
+        "coinbase_advanced_trade.last_trade"
+    )
+    assert summary["last_filled_price_freshness_status"] == "fresh"
     assert summary["submitted_notional_usdc"] == "1.00"
     assert summary["executed_notional_usdc"] == "0"
     assert summary["proof_chain_status_after_submission"] == "accepted"
@@ -187,6 +202,24 @@ def test_usdc_pair_snapshot_live_runner_bumps_minimum_request_for_high_price(
     assert planned_row["requested_notional_usdc"] == "1.01"
     assert planned_row["quote_size"] == "1.00"
     assert planned_row["planned_notional_usdc"] == "1.00"
+
+    readiness_rows = [
+        json.loads(line)
+        for line in (
+            tmp_path
+            / "state"
+            / "admin_api_usdc_pair_snapshot_order_plan_live_readiness.jsonl"
+        ).read_text(encoding="utf-8").splitlines()
+    ]
+    readiness = readiness_rows[-1]
+    assert readiness["reference_bid_price_source"] == (
+        "coinbase_advanced_trade.best_bid"
+    )
+    assert readiness["reference_bid_price_freshness_status"] == "fresh"
+    assert readiness["last_filled_price_source"] == (
+        "coinbase_advanced_trade.last_trade"
+    )
+    assert readiness["last_filled_price_freshness_status"] == "fresh"
 
 
 def test_usdc_pair_snapshot_live_executor_falls_back_to_exchange_order_id(

@@ -128,7 +128,11 @@ class UsdcPairSnapshotLiveSubmitConfig:
     submitted_notional_usdc: str = DEFAULT_SUBMITTED_NOTIONAL_USDC
     max_executed_notional_usdc: str = DEFAULT_MAX_EXECUTED_NOTIONAL_USDC
     reference_bid_price: str = "0"
+    reference_bid_price_source: str = "operator_reference_bid_price"
+    reference_bid_price_captured_at: str | None = None
     last_filled_price: str = "0"
+    last_filled_price_source: str = "operator_last_filled_price"
+    last_filled_price_captured_at: str | None = None
     intended_limit_price: str = "0"
     state_dir: str | None = None
     summary_output: str = str(DEFAULT_SUMMARY_OUTPUT)
@@ -171,7 +175,17 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_MAX_EXECUTED_NOTIONAL_USDC,
     )
     parser.add_argument("--reference-bid-price", required=True)
+    parser.add_argument(
+        "--reference-bid-price-source",
+        default="operator_reference_bid_price",
+    )
+    parser.add_argument("--reference-bid-price-captured-at", default=None)
     parser.add_argument("--last-filled-price", required=True)
+    parser.add_argument(
+        "--last-filled-price-source",
+        default="operator_last_filled_price",
+    )
+    parser.add_argument("--last-filled-price-captured-at", default=None)
     parser.add_argument("--intended-limit-price", required=True)
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--plan-id", default=None)
@@ -205,7 +219,19 @@ def config_from_args(args: argparse.Namespace) -> UsdcPairSnapshotLiveSubmitConf
         submitted_notional_usdc=str(args.submitted_notional_usdc),
         max_executed_notional_usdc=str(args.max_executed_notional_usdc),
         reference_bid_price=str(args.reference_bid_price),
+        reference_bid_price_source=str(args.reference_bid_price_source),
+        reference_bid_price_captured_at=(
+            str(args.reference_bid_price_captured_at)
+            if args.reference_bid_price_captured_at
+            else current_utc_timestamp()
+        ),
         last_filled_price=str(args.last_filled_price),
+        last_filled_price_source=str(args.last_filled_price_source),
+        last_filled_price_captured_at=(
+            str(args.last_filled_price_captured_at)
+            if args.last_filled_price_captured_at
+            else current_utc_timestamp()
+        ),
         intended_limit_price=str(args.intended_limit_price),
         state_dir=str(args.state_dir) if args.state_dir else None,
         summary_output=str(args.summary_output),
@@ -314,6 +340,22 @@ def run_usdc_pair_snapshot_live_submit(
     apply_runner_environment()
     operator_requested_notional = decimal_text(config.submitted_notional_usdc)
     requested_notional = decimal_text(planning_request_notional_usdc(config))
+    reference_bid_price_source = (
+        config.reference_bid_price_source.strip()
+        if config.reference_bid_price_source
+        else "operator_reference_bid_price"
+    )
+    reference_bid_price_captured_at = (
+        config.reference_bid_price_captured_at or started_at
+    )
+    last_filled_price_source = (
+        config.last_filled_price_source.strip()
+        if config.last_filled_price_source
+        else "operator_last_filled_price"
+    )
+    last_filled_price_captured_at = (
+        config.last_filled_price_captured_at or started_at
+    )
     runtime_readiness = None
     if require_credentials:
         ensure_live_coinbase_credentials(os.environ)
@@ -397,7 +439,13 @@ def run_usdc_pair_snapshot_live_submit(
                     "product_id": config.product_id,
                     "client_order_id": refreshed_row["client_order_id"],
                     "reference_bid_price": decimal_text(config.reference_bid_price),
+                    "reference_bid_price_source": reference_bid_price_source,
+                    "reference_bid_price_captured_at": (
+                        reference_bid_price_captured_at
+                    ),
                     "last_filled_price": decimal_text(config.last_filled_price),
+                    "last_filled_price_source": last_filled_price_source,
+                    "last_filled_price_captured_at": last_filled_price_captured_at,
                     "intended_limit_price": decimal_text(config.intended_limit_price),
                     "submitted_notional_usdc": planned_notional,
                     "max_executed_notional_usdc": (
@@ -490,7 +538,21 @@ def run_usdc_pair_snapshot_live_submit(
         "executed_notional_usdc": submission.get("executed_notional_usdc"),
         "max_executed_notional_usdc": submission.get("max_executed_notional_usdc"),
         "reference_bid_price": config.reference_bid_price,
+        "reference_bid_price_source": readiness.get("reference_bid_price_source"),
+        "reference_bid_price_captured_at": readiness.get(
+            "reference_bid_price_captured_at"
+        ),
+        "reference_bid_price_freshness_status": readiness.get(
+            "reference_bid_price_freshness_status"
+        ),
         "last_filled_price": config.last_filled_price,
+        "last_filled_price_source": readiness.get("last_filled_price_source"),
+        "last_filled_price_captured_at": readiness.get(
+            "last_filled_price_captured_at"
+        ),
+        "last_filled_price_freshness_status": readiness.get(
+            "last_filled_price_freshness_status"
+        ),
         "intended_limit_price": config.intended_limit_price,
         "run_id": config.run_id,
         "plan_id": config.plan_id,

@@ -35741,12 +35741,17 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert enabled_live_row["live_coinbase_execution"] == "not_run"
     assert enabled_live_row["notional_usdc"] == "0"
 
+    fresh_market_reference_at = datetime.now(timezone.utc).isoformat()
     readiness_body = {
         "readiness_id": "m58-usdc-live-readiness-test",
         "product_id": enabled_live_row["product_id"],
         "client_order_id": enabled_live_row["client_order_id"],
         "reference_bid_price": "100.00",
+        "reference_bid_price_source": "coinbase_advanced_trade.best_bid",
+        "reference_bid_price_captured_at": fresh_market_reference_at,
         "last_filled_price": "100.00",
+        "last_filled_price_source": "coinbase_advanced_trade.last_trade",
+        "last_filled_price_captured_at": fresh_market_reference_at,
         "intended_limit_price": "50.00",
         "submitted_notional_usdc": enabled_live_row["planned_notional_usdc"],
         "max_executed_notional_usdc": "0.01",
@@ -35797,7 +35802,17 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert readiness["max_executed_notional_usdc"] == "0.01"
     assert readiness["intended_limit_price"] == "50.00"
     assert readiness["reference_bid_price"] == "100.00"
+    assert readiness["reference_bid_price_source"] == (
+        "coinbase_advanced_trade.best_bid"
+    )
+    assert readiness["reference_bid_price_captured_at"] == fresh_market_reference_at
+    assert readiness["reference_bid_price_freshness_status"] == "fresh"
     assert readiness["last_filled_price"] == "100.00"
+    assert readiness["last_filled_price_source"] == (
+        "coinbase_advanced_trade.last_trade"
+    )
+    assert readiness["last_filled_price_captured_at"] == fresh_market_reference_at
+    assert readiness["last_filled_price_freshness_status"] == "fresh"
     assert readiness["far_from_bid_status"] == "passed"
     assert readiness["snapshot_non_fill_status"] == "passed"
     assert readiness["cancel_before_additional_orders"] is True
@@ -35858,6 +35873,36 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert readiness_readback_payload["live_coinbase_execution"] == "not_run"
     assert readiness_readback_payload["notional_usdc"] == "0"
     assert readiness_readback_payload["readiness"][0] == readiness
+
+    stale_market_reference_at = (
+        datetime.now(timezone.utc) - timedelta(minutes=10)
+    ).isoformat()
+    stale_reference_response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "m58-usdc-order-plan-refresh-test/live-readiness"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-live-readiness-stale-reference",
+            operator_intent="m58_usdc_snapshot_live_readiness_stale_reference",
+        ),
+        json={
+            **readiness_body,
+            "readiness_id": "m58-usdc-live-readiness-stale-reference-test",
+            "reference_bid_price_captured_at": stale_market_reference_at,
+            "last_filled_price_captured_at": stale_market_reference_at,
+        },
+    )
+    assert stale_reference_response.status_code == 200
+    stale_reference_payload = stale_reference_response.json()
+    assert stale_reference_payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert stale_reference_payload["failure_stage"] == (
+        "usdc_pair_snapshot_order_plan_live_readiness"
+    )
+    assert stale_reference_payload["readiness"] is None
+    assert stale_reference_payload["live_exchange_submitted"] is False
+    assert stale_reference_payload["live_coinbase_orders_ran"] is False
+    assert stale_reference_payload["live_coinbase_execution"] == "not_run"
 
     live_submit_body = {
         "submission_id": "m58-usdc-live-submit-test",

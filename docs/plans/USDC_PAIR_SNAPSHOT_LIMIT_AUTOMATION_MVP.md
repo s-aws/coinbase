@@ -66,8 +66,10 @@ Available building blocks:
 
 Missing before live automation:
 
-- Live-grade price-source freshness, acceptance, and staleness gates for each
-  planned product.
+- Live-grade price-source freshness, acceptance, and staleness gates for every
+  planned product in fan-out. The single-product Phase E live-readiness route
+  now records reference-bid and last-filled source/timestamp evidence and fails
+  closed when either reference is missing, stale, invalid, or future-dated.
 - Per-product and run-level notional caps that prevent wallet/balance
   overcommit.
 - Durable approval, admission-audit, cap/guard, reconciliation, and enabled
@@ -304,7 +306,9 @@ snapshot/order-plan/proof/readiness sequence, requires
 `--confirm-live-submit`, enforces a submitted-notional cap of `<= 10` USDC,
 requires far-from-market pricing, records a live-output artifact, and fails
 closed unless `COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED=true` is already set
-for the process. The read-only recovery runner
+for the process. Phase E live-readiness records reference-bid and last-filled
+source/timestamp/freshness evidence and rejects stale, invalid, future-dated,
+or missing market references before submit/cancel can run. The read-only recovery runner
 `tools/run_admin_api_usdc_pair_snapshot_live_readback.py` reads the prior
 Coinbase order by exchange order id, verifies cancelled/non-filled/no open
 order evidence, and can append local recovery evidence without submitting or

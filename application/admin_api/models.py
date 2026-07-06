@@ -2749,7 +2749,11 @@ class UsdcPairSnapshotOrderPlanLiveReadinessRequest(BaseModel):
     product_id: str = Field(min_length=1)
     client_order_id: str = Field(min_length=1)
     reference_bid_price: DecimalString
+    reference_bid_price_source: str = Field(min_length=1)
+    reference_bid_price_captured_at: str = Field(min_length=1)
     last_filled_price: DecimalString
+    last_filled_price_source: str = Field(min_length=1)
+    last_filled_price_captured_at: str = Field(min_length=1)
     intended_limit_price: DecimalString
     submitted_notional_usdc: DecimalString
     max_executed_notional_usdc: DecimalString
@@ -2777,7 +2781,13 @@ class UsdcPairSnapshotOrderPlanLiveReadinessItem(BaseModel):
     single_order_only: bool = True
     minimum_order_size_preferred: bool = True
     reference_bid_price: DecimalString
+    reference_bid_price_source: str = Field(min_length=1)
+    reference_bid_price_captured_at: str = Field(min_length=1)
+    reference_bid_price_freshness_status: str = Field(min_length=1)
     last_filled_price: DecimalString
+    last_filled_price_source: str = Field(min_length=1)
+    last_filled_price_captured_at: str = Field(min_length=1)
+    last_filled_price_freshness_status: str = Field(min_length=1)
     intended_limit_price: DecimalString
     far_from_bid_status: str = Field(min_length=1)
     snapshot_non_fill_status: str = Field(min_length=1)

@@ -100,7 +100,13 @@ class UsdcPairSnapshotOrderPlanLiveReadinessRecord(BaseModel):
     single_order_only: bool = True
     minimum_order_size_preferred: bool = True
     reference_bid_price: str = Field(min_length=1)
+    reference_bid_price_source: str = Field(min_length=1)
+    reference_bid_price_captured_at: str = Field(min_length=1)
+    reference_bid_price_freshness_status: str = Field(min_length=1)
     last_filled_price: str = Field(min_length=1)
+    last_filled_price_source: str = Field(min_length=1)
+    last_filled_price_captured_at: str = Field(min_length=1)
+    last_filled_price_freshness_status: str = Field(min_length=1)
     intended_limit_price: str = Field(min_length=1)
     far_from_bid_status: str = Field(min_length=1)
     snapshot_non_fill_status: str = Field(min_length=1)

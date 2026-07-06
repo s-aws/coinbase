@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Annotated, Any, Callable, Mapping
 from uuid import uuid4
@@ -115,6 +116,8 @@ from core.enums import (
 
 
 router = APIRouter()
+USDC_PAIR_LIVE_REFERENCE_MAX_AGE_SECONDS = 300
+USDC_PAIR_LIVE_REFERENCE_FUTURE_TOLERANCE_SECONDS = 5
 
 USDC_PAIR_SNAPSHOT_ENDPOINT = "POST /api/v1/automation/usdc-pair-snapshot-runs"
 USDC_PAIR_SNAPSHOT_SERVICE_METHOD = "record_usdc_pair_snapshot_dry_run"
@@ -726,7 +729,17 @@ def _live_readiness_item_from_record(
         single_order_only=record.single_order_only,
         minimum_order_size_preferred=record.minimum_order_size_preferred,
         reference_bid_price=record.reference_bid_price,
+        reference_bid_price_source=record.reference_bid_price_source,
+        reference_bid_price_captured_at=record.reference_bid_price_captured_at,
+        reference_bid_price_freshness_status=(
+            record.reference_bid_price_freshness_status
+        ),
         last_filled_price=record.last_filled_price,
+        last_filled_price_source=record.last_filled_price_source,
+        last_filled_price_captured_at=record.last_filled_price_captured_at,
+        last_filled_price_freshness_status=(
+            record.last_filled_price_freshness_status
+        ),
         intended_limit_price=record.intended_limit_price,
         far_from_bid_status=record.far_from_bid_status,
         snapshot_non_fill_status=record.snapshot_non_fill_status,
@@ -2190,6 +2203,39 @@ def _decimal_string(value: Decimal) -> str:
     return format(value.quantize(Decimal("0.01")), "f")
 
 
+def _non_empty_text(value: str | None) -> str:
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
+def _parse_reference_timestamp(value: str | None) -> datetime | None:
+    text = _non_empty_text(value)
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _live_reference_freshness_status(value: str | None) -> str:
+    captured_at = _parse_reference_timestamp(value)
+    if captured_at is None:
+        return "missing_timestamp" if not _non_empty_text(value) else "invalid_timestamp"
+    age_seconds = (datetime.now(timezone.utc) - captured_at).total_seconds()
+    if age_seconds < -USDC_PAIR_LIVE_REFERENCE_FUTURE_TOLERANCE_SECONDS:
+        return "future_timestamp"
+    if age_seconds > USDC_PAIR_LIVE_REFERENCE_MAX_AGE_SECONDS:
+        return "stale"
+    return "fresh"
+
+
 def _find_usdc_pair_order_plan_row(
     plan: UsdcPairSnapshotOrderPlanRecord,
     *,
@@ -2819,6 +2865,12 @@ def _record_usdc_pair_live_readiness_preflight(
     intended_price = _decimal_value(body.intended_limit_price)
     reference_bid = _decimal_value(body.reference_bid_price)
     last_filled_price = _decimal_value(body.last_filled_price)
+    reference_bid_freshness_status = _live_reference_freshness_status(
+        body.reference_bid_price_captured_at
+    )
+    last_filled_freshness_status = _live_reference_freshness_status(
+        body.last_filled_price_captured_at
+    )
     submitted_notional = _decimal_value(body.submitted_notional_usdc)
     max_executed_notional = _decimal_value(body.max_executed_notional_usdc)
     planned_notional = _decimal_value(row.planned_notional_usdc)
@@ -2831,8 +2883,16 @@ def _record_usdc_pair_live_readiness_preflight(
         blockers.append("intended_limit_price_invalid")
     if reference_bid is None:
         blockers.append("reference_bid_price_invalid")
+    if not _non_empty_text(body.reference_bid_price_source):
+        blockers.append("reference_bid_price_source_missing")
+    if reference_bid_freshness_status != "fresh":
+        blockers.append(f"reference_bid_price_{reference_bid_freshness_status}")
     if last_filled_price is None:
         blockers.append("last_filled_price_invalid")
+    if not _non_empty_text(body.last_filled_price_source):
+        blockers.append("last_filled_price_source_missing")
+    if last_filled_freshness_status != "fresh":
+        blockers.append(f"last_filled_price_{last_filled_freshness_status}")
     if submitted_notional is None:
         blockers.append("submitted_notional_invalid")
     if max_executed_notional is None:
@@ -2914,7 +2974,13 @@ def _record_usdc_pair_live_readiness_preflight(
         single_order_only=body.single_order_only,
         minimum_order_size_preferred=body.minimum_order_size_preferred,
         reference_bid_price=body.reference_bid_price,
+        reference_bid_price_source=body.reference_bid_price_source,
+        reference_bid_price_captured_at=body.reference_bid_price_captured_at,
+        reference_bid_price_freshness_status=reference_bid_freshness_status,
         last_filled_price=body.last_filled_price,
+        last_filled_price_source=body.last_filled_price_source,
+        last_filled_price_captured_at=body.last_filled_price_captured_at,
+        last_filled_price_freshness_status=last_filled_freshness_status,
         intended_limit_price=body.intended_limit_price,
         far_from_bid_status=far_from_bid_status,
         snapshot_non_fill_status=snapshot_non_fill_status,
