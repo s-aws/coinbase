@@ -2633,6 +2633,7 @@ def _dedupe(values: list[str]) -> list[str]:
 def _allowlist_run_state_status(
     *,
     blocked_product_ids: list[str],
+    fanout_notional_status: str,
     pause_requested: bool,
     abort_requested: bool,
 ) -> str:
@@ -2640,6 +2641,8 @@ def _allowlist_run_state_status(
         return "aborted_no_live"
     if pause_requested:
         return "paused_no_live"
+    if fanout_notional_status == "exceeded":
+        return "blocked"
     if blocked_product_ids:
         return "blocked"
     return "ready_no_live"
@@ -2718,6 +2721,7 @@ def _record_usdc_pair_allowlist_run_state(
     )
     run_state_status = _allowlist_run_state_status(
         blocked_product_ids=blocked_product_ids,
+        fanout_notional_status=fanout_notional_status,
         pause_requested=body.pause_requested,
         abort_requested=body.abort_requested,
     )

@@ -34786,6 +34786,7 @@ def _append_usdc_pair_snapshot_allowlist_run_state_readiness(
     readiness_id: str,
     plan_id: str = "m58-usdc-allowlist-run-state-negative-plan",
     snapshot_run_id: str = "m58-usdc-allowlist-run-state-negative-snapshot",
+    planned_notional_usdc: str = "1.00",
 ) -> None:
     from application.admin_api.models import (
         UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem,
@@ -34825,7 +34826,7 @@ def _append_usdc_pair_snapshot_allowlist_run_state_readiness(
                     plan_status="planned",
                     proof_chain_status="accepted",
                     run_cap_status="passed",
-                    planned_notional_usdc="1.00",
+                    planned_notional_usdc=planned_notional_usdc,
                     readiness_status="candidate",
                     retry_status="ready_no_live",
                     failure_isolation_status="ready_no_live",
@@ -34954,6 +34955,65 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_rejects_cap_overflow(
         )
         == []
     )
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_cap_exceeded(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    readiness_id = "m58-usdc-allowlist-run-state-planned-cap-exceeded"
+    _append_usdc_pair_snapshot_allowlist_run_state_readiness(
+        client,
+        readiness_id=readiness_id,
+        planned_notional_usdc="1.00",
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+            f"{readiness_id}/run-state"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-allowlist-run-state-planned-cap-exceeded",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_cap_exceeded",
+        ),
+        json={
+            "run_state_id": "m58-usdc-allowlist-run-state-planned-cap-exceeded",
+            "execution_mode": "no_live_rehearsal",
+            "max_fanout_notional_usdc": "0.50",
+            "run_lock_ref": "m58-run-lock-cap-exceeded",
+            "rate_limit_window_ref": "m58-rate-limit-window-cap-exceeded",
+            "pause_requested": False,
+            "abort_requested": False,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+
+    run_state = payload["run_state"]
+    assert run_state["max_fanout_notional_usdc"] == "0.50"
+    assert run_state["planned_fanout_notional_usdc"] == "1.00"
+    assert run_state["fanout_notional_status"] == "exceeded"
+    assert run_state["fanout_execution_status"] == "blocked"
+    assert run_state["run_state_status"] == "blocked"
+    assert run_state["fanout_blockers"] == [
+        "fanout_execution_not_approved",
+        "fanout_notional_cap_exceeded",
+    ]
+    assert run_state["queued_product_ids"] == ["BTC-USDC"]
+    assert run_state["blocked_product_ids"] == []
+    assert run_state["live_exchange_submitted"] is False
+    assert run_state["live_coinbase_orders_ran"] is False
+    assert run_state["live_coinbase_execution"] == "not_run"
+    assert run_state["notional_usdc"] == "0"
     assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
 
 
