@@ -34644,7 +34644,7 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     expected_live_service_decision_id = (
         f"m58-usdc-live-service-{planned_row['client_order_id']}"
     )
-    invalid_live_service = LiveServiceDecisionRecord(
+    enabled_live_service = LiveServiceDecisionRecord(
         decision_id=expected_live_service_decision_id,
         recorded_at="2026-07-06T14:10:00+00:00",
         status=AdminApiGateStatus.PASSED,
@@ -34665,9 +34665,9 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
         max_submitted_notional_usdc=planned_row["planned_notional_usdc"],
         max_executed_notional_usdc="0.01",
     )
-    client.admin_api_test_live_service_decision_store.append(invalid_live_service)
+    client.admin_api_test_live_service_decision_store.append(enabled_live_service)
     client.admin_api_test_live_service_decision_store.append(
-        invalid_live_service.model_copy(
+        enabled_live_service.model_copy(
             update={
                 "decision_id": "m58-usdc-live-service-wrong-product",
                 "status": AdminApiGateStatus.BLOCKED,
@@ -34687,7 +34687,7 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
         )
     )
     client.admin_api_test_live_service_decision_store.append(
-        invalid_live_service.model_copy(
+        enabled_live_service.model_copy(
             update={
                 "decision_id": "m58-usdc-live-service-wrong-module",
                 "status": AdminApiGateStatus.BLOCKED,
@@ -34707,7 +34707,7 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
         )
     )
 
-    invalid_live_refresh_response = client.post(
+    enabled_live_refresh_response = client.post(
         (
             "/api/v1/automation/usdc-pair-snapshot-order-plans/"
             "m58-usdc-order-plan-refresh-test/proof-chain-refresh"
@@ -34718,27 +34718,35 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
         ),
         json={
             "dry_run": True,
-            "operator_notes": "reject invalid live-service evidence",
+            "operator_notes": "link enabled live-service evidence without submit",
         },
     )
-    assert invalid_live_refresh_response.status_code == 200
-    invalid_live_row = invalid_live_refresh_response.json()["plan"][
+    assert enabled_live_refresh_response.status_code == 200
+    enabled_live_payload = enabled_live_refresh_response.json()
+    enabled_live_row = enabled_live_payload["plan"][
         "order_plan_rows"
     ][0]
-    assert invalid_live_row["reconciliation_plan_id"] == (
+    assert enabled_live_payload["plan"]["proof_chain_planned_count"] == 1
+    assert enabled_live_payload["plan"]["proof_chain_blocked_count"] == 1
+    assert enabled_live_payload["plan"]["proof_chain_live_disabled_count"] == 0
+    assert enabled_live_payload["plan"]["proof_chain_missing_evidence_count"] == 1
+    assert enabled_live_payload["plan"]["proof_chain_not_applicable_count"] == 0
+    assert enabled_live_row["reconciliation_plan_id"] == (
         durable_reconciliation.plan_id
     )
-    assert invalid_live_row["live_service_decision_id"] is None
-    assert invalid_live_row["proof_chain_blockers"] == [
-        "live_service_decision_missing",
+    assert enabled_live_row["live_service_decision_id"] == (
+        enabled_live_service.decision_id
+    )
+    assert enabled_live_row["proof_chain_blockers"] == [
+        "live_submission_not_implemented",
     ]
-    assert invalid_live_row["proof_chain_status"] == "blocked"
-    assert invalid_live_row["live_exchange_submitted"] is False
-    assert invalid_live_row["live_coinbase_orders_ran"] is False
-    assert invalid_live_row["live_coinbase_execution"] == "not_run"
-    assert invalid_live_row["notional_usdc"] == "0"
+    assert enabled_live_row["proof_chain_status"] == "blocked"
+    assert enabled_live_row["live_exchange_submitted"] is False
+    assert enabled_live_row["live_coinbase_orders_ran"] is False
+    assert enabled_live_row["live_coinbase_execution"] == "not_run"
+    assert enabled_live_row["notional_usdc"] == "0"
 
-    durable_live_service = invalid_live_service.model_copy(
+    durable_live_service = enabled_live_service.model_copy(
         update={
             "recorded_at": "2026-07-06T14:15:00+00:00",
             "status": AdminApiGateStatus.BLOCKED,

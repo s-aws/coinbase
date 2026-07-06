@@ -114,6 +114,9 @@ USDC_PAIR_SNAPSHOT_PROOF_BLOCKERS = [
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_DISABLED_BLOCKER = (
     USDC_PAIR_ORDER_PLAN_LIVE_DISABLED_BLOCKER
 )
+USDC_PAIR_SNAPSHOT_LIVE_SUBMISSION_NOT_IMPLEMENTED_BLOCKER = (
+    "live_submission_not_implemented"
+)
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_ACCOUNT_FAMILY = "coinbase_spot"
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_VENUE_SCOPE = "coinbase_advanced_trade"
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_INTX_APPLICABILITY = "not_applicable"
@@ -880,6 +883,22 @@ def _decimal_zero(value: str) -> bool:
         return False
 
 
+def _decimal_equal(value: str, expected: str) -> bool:
+    try:
+        return Decimal(str(value)) == Decimal(str(expected))
+    except (InvalidOperation, ValueError):
+        return False
+
+
+def _positive_decimal_at_most(value: str, limit: str) -> bool:
+    try:
+        decimal_value = Decimal(str(value))
+        decimal_limit = Decimal(str(limit))
+    except (InvalidOperation, ValueError):
+        return False
+    return Decimal("0") < decimal_value <= decimal_limit
+
+
 def _usdc_pair_live_service_product_scope_matches(
     record: LiveServiceDecisionRecord,
     *,
@@ -927,6 +946,52 @@ def _disabled_usdc_pair_live_service_decision_matches(
     )
 
 
+def _enabled_usdc_pair_live_service_decision_matches(
+    record: LiveServiceDecisionRecord,
+    *,
+    row: Any,
+) -> bool:
+    expected_decision_id = _expected_usdc_pair_live_service_decision_id(row)
+    product_id = str(getattr(row, "product_id", "") or "")
+    planned_notional = str(getattr(row, "planned_notional_usdc", "") or "")
+    return (
+        expected_decision_id is not None
+        and product_id
+        and planned_notional
+        and record.decision_id == expected_decision_id
+        and record.source == LIVE_SERVICE_DECISION_SOURCE
+        and record.target_module_id == USDC_PAIR_SNAPSHOT_MODULE_ID
+        and (
+            record.account_family
+            == USDC_PAIR_SNAPSHOT_LIVE_SERVICE_ACCOUNT_FAMILY
+        )
+        and record.venue_scope == USDC_PAIR_SNAPSHOT_LIVE_SERVICE_VENUE_SCOPE
+        and (
+            record.intx_applicability
+            == USDC_PAIR_SNAPSHOT_LIVE_SERVICE_INTX_APPLICABILITY
+        )
+        and _usdc_pair_live_service_product_scope_matches(
+            record,
+            product_id=product_id,
+        )
+        and record.status == AdminApiGateStatus.PASSED
+        and (
+            record.requested_service_status
+            == AdminApiLiveExecutionStatus.APPROVAL_REQUIRED
+        )
+        and record.service_enabled
+        and record.live_coinbase_execution_approved
+        and _decimal_equal(
+            record.max_submitted_notional_usdc,
+            planned_notional,
+        )
+        and _positive_decimal_at_most(
+            record.max_executed_notional_usdc,
+            record.max_submitted_notional_usdc,
+        )
+    )
+
+
 def _resolve_disabled_usdc_pair_live_service_decision(
     *,
     store: FileAdminApiLiveServiceDecisionStore,
@@ -941,6 +1006,28 @@ def _resolve_disabled_usdc_pair_live_service_decision(
             record
             for record in records
             if _disabled_usdc_pair_live_service_decision_matches(
+                record,
+                row=row,
+            )
+        ),
+        None,
+    )
+
+
+def _resolve_enabled_usdc_pair_live_service_decision(
+    *,
+    store: FileAdminApiLiveServiceDecisionStore,
+    row: Any,
+) -> LiveServiceDecisionRecord | None:
+    try:
+        records = store.read_recent(limit=500)
+    except OSError:
+        return None
+    return next(
+        (
+            record
+            for record in records
+            if _enabled_usdc_pair_live_service_decision_matches(
                 record,
                 row=row,
             )
@@ -1087,6 +1174,7 @@ def _usdc_pair_order_plan_proof_chain_refresher(
                 if blocker != "reconciliation_plan_blocked"
             ]
         live_service_decision = None
+        live_submission_not_implemented = False
         if reconciliation is not None:
             live_service_decision = (
                 _resolve_disabled_usdc_pair_live_service_decision(
@@ -1094,16 +1182,45 @@ def _usdc_pair_order_plan_proof_chain_refresher(
                     row=row,
                 )
             )
+            if live_service_decision is None:
+                live_service_decision = (
+                    _resolve_enabled_usdc_pair_live_service_decision(
+                        store=live_service_decision_store,
+                        row=row,
+                    )
+                )
+                live_submission_not_implemented = (
+                    live_service_decision is not None
+                )
         if live_service_decision is not None:
             blockers = [
                 blocker
                 for blocker in blockers
                 if blocker != "live_service_decision_missing"
             ]
-            if (
-                USDC_PAIR_SNAPSHOT_LIVE_SERVICE_DISABLED_BLOCKER
-                not in blockers
+            if live_submission_not_implemented:
+                blockers = [
+                    blocker
+                    for blocker in blockers
+                    if blocker
+                    != USDC_PAIR_SNAPSHOT_LIVE_SERVICE_DISABLED_BLOCKER
+                ]
+                if (
+                    USDC_PAIR_SNAPSHOT_LIVE_SUBMISSION_NOT_IMPLEMENTED_BLOCKER
+                    not in blockers
+                ):
+                    blockers.append(
+                        USDC_PAIR_SNAPSHOT_LIVE_SUBMISSION_NOT_IMPLEMENTED_BLOCKER
+                    )
+            elif (
+                USDC_PAIR_SNAPSHOT_LIVE_SERVICE_DISABLED_BLOCKER not in blockers
             ):
+                blockers = [
+                    blocker
+                    for blocker in blockers
+                    if blocker
+                    != USDC_PAIR_SNAPSHOT_LIVE_SUBMISSION_NOT_IMPLEMENTED_BLOCKER
+                ]
                 blockers.append(
                     USDC_PAIR_SNAPSHOT_LIVE_SERVICE_DISABLED_BLOCKER
                 )
