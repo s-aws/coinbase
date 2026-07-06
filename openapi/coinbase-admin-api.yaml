@@ -169628,6 +169628,41 @@ components:
           type: string
           minLength: 1
           title: Partial Success Status
+        failure_isolation_status:
+          type: string
+          minLength: 1
+          title: Failure Isolation Status
+          default: blocked
+        run_rate_limit_status:
+          type: string
+          minLength: 1
+          title: Run Rate Limit Status
+          default: blocked
+        retry_budget_status:
+          type: string
+          minLength: 1
+          title: Retry Budget Status
+          default: blocked
+        recovery_readiness_status:
+          type: string
+          minLength: 1
+          title: Recovery Readiness Status
+          default: blocked
+        retry_budget_per_product:
+          type: integer
+          minimum: 0.0
+          title: Retry Budget Per Product
+          default: 0
+        run_rate_limit_budget_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Run Rate Limit Budget Ref
+        cancel_recovery_plan_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cancel Recovery Plan Ref
         fanout_readiness_status:
           type: string
           minLength: 1
@@ -169763,6 +169798,16 @@ components:
           type: integer
           minimum: 0.0
           title: Cap Exhausted Product Count
+        retryable_product_count:
+          type: integer
+          minimum: 0.0
+          title: Retryable Product Count
+          default: 0
+        recovery_required_product_count:
+          type: integer
+          minimum: 0.0
+          title: Recovery Required Product Count
+          default: 0
         read_only:
           type: boolean
           title: Read Only
@@ -169864,6 +169909,31 @@ components:
           type: string
           minLength: 1
           title: Retry Status
+        failure_isolation_status:
+          type: string
+          minLength: 1
+          title: Failure Isolation Status
+          default: blocked
+        rate_limit_status:
+          type: string
+          minLength: 1
+          title: Rate Limit Status
+          default: blocked
+        retry_budget_status:
+          type: string
+          minLength: 1
+          title: Retry Budget Status
+          default: blocked
+        retry_attempts_available:
+          type: integer
+          minimum: 0.0
+          title: Retry Attempts Available
+          default: 0
+        cancel_recovery_status:
+          type: string
+          minLength: 1
+          title: Cancel Recovery Status
+          default: not_required
         blockers:
           items:
             type: string
@@ -169923,6 +169993,24 @@ components:
           minimum: 1.0
           title: Max Products
           default: 3
+        retry_budget_per_product:
+          type: integer
+          maximum: 10.0
+          minimum: 0.0
+          title: Retry Budget Per Product
+          default: 0
+        run_rate_limit_budget_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Run Rate Limit Budget Ref
+        cancel_recovery_plan_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Cancel Recovery Plan Ref
         operator_notes:
           anyOf:
           - type: string

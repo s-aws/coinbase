@@ -528,6 +528,13 @@ def _allowlist_readiness_item_from_record(
         retryable_product_ids=record.retryable_product_ids,
         recovery_required_product_ids=record.recovery_required_product_ids,
         partial_success_status=record.partial_success_status,
+        failure_isolation_status=record.failure_isolation_status,
+        run_rate_limit_status=record.run_rate_limit_status,
+        retry_budget_status=record.retry_budget_status,
+        recovery_readiness_status=record.recovery_readiness_status,
+        retry_budget_per_product=record.retry_budget_per_product,
+        run_rate_limit_budget_ref=record.run_rate_limit_budget_ref,
+        cancel_recovery_plan_ref=record.cancel_recovery_plan_ref,
         fanout_readiness_status=record.fanout_readiness_status,
         fanout_blockers=record.fanout_blockers,
         product_readiness_rows=record.product_readiness_rows,
@@ -567,6 +574,12 @@ def _allowlist_readiness_list_response(
         ),
         cap_exhausted_product_count=sum(
             len(item.cap_exhausted_product_ids) for item in readiness
+        ),
+        retryable_product_count=sum(
+            len(item.retryable_product_ids) for item in readiness
+        ),
+        recovery_required_product_count=sum(
+            len(item.recovery_required_product_ids) for item in readiness
         ),
     )
 
@@ -2071,12 +2084,20 @@ def _allowlist_product_readiness_row(
     *,
     product_id: str,
     row: Any | None,
+    retry_budget_per_product: int,
+    run_rate_limit_budget_ref: str | None,
+    cancel_recovery_plan_ref: str | None,
 ) -> UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem:
     if row is None:
         return UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem(
             product_id=product_id,
             readiness_status="blocked",
             retry_status="blocked",
+            failure_isolation_status="blocked",
+            rate_limit_status="not_applicable",
+            retry_budget_status="blocked",
+            retry_attempts_available=0,
+            cancel_recovery_status="not_required",
             blockers=["order_plan_row_missing"],
         )
 
@@ -2091,8 +2112,22 @@ def _allowlist_product_readiness_row(
     elif proof_chain_status != "accepted":
         blockers.append("proof_chain_not_accepted")
 
+    if not blockers:
+        if not run_rate_limit_budget_ref:
+            blockers.append("run_rate_limit_budget_missing")
+        if retry_budget_per_product < 1:
+            blockers.append("retry_budget_missing")
+        if not cancel_recovery_plan_ref:
+            blockers.append("cancel_recovery_plan_missing")
+
     readiness_status = "blocked" if blockers else "candidate"
     retry_status = "blocked" if blockers else "ready_no_live"
+    ready = not blockers
+    recovery_state_ref = (
+        f"{cancel_recovery_plan_ref}:{product_id}"
+        if ready and cancel_recovery_plan_ref
+        else str(getattr(row, "reconciliation_plan_id", "") or "") or None
+    )
     return UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem(
         product_id=product_id,
         client_order_id=str(getattr(row, "client_order_id", "") or "") or None,
@@ -2105,10 +2140,13 @@ def _allowlist_product_readiness_row(
         ),
         readiness_status=readiness_status,
         retry_status=retry_status,
+        failure_isolation_status="ready_no_live" if ready else "blocked",
+        rate_limit_status="ready_no_live" if ready else "blocked",
+        retry_budget_status="ready_no_live" if ready else "blocked",
+        retry_attempts_available=retry_budget_per_product if ready else 0,
+        cancel_recovery_status="ready_no_live" if ready else "not_required",
         blockers=blockers,
-        recovery_state_ref=(
-            str(getattr(row, "reconciliation_plan_id", "") or "") or None
-        ),
+        recovery_state_ref=recovery_state_ref,
     )
 
 
@@ -2134,6 +2172,9 @@ def _record_usdc_pair_allowlist_readiness(
         _allowlist_product_readiness_row(
             product_id=product_id,
             row=rows_by_product.get(product_id),
+            retry_budget_per_product=body.retry_budget_per_product,
+            run_rate_limit_budget_ref=body.run_rate_limit_budget_ref,
+            cancel_recovery_plan_ref=body.cancel_recovery_plan_ref,
         )
         for product_id in product_ids
     ]
@@ -2155,6 +2196,16 @@ def _record_usdc_pair_allowlist_readiness(
         for item in product_rows
         if "order_plan_row_missing" in item.blockers
     ]
+    retryable_product_ids = [
+        item.product_id
+        for item in product_rows
+        if item.retry_status == "ready_no_live"
+    ]
+    recovery_required_product_ids = [
+        item.product_id
+        for item in product_rows
+        if item.cancel_recovery_status == "ready_no_live"
+    ]
 
     fanout_blockers: list[str] = []
     if len(product_ids) > body.max_products:
@@ -2165,6 +2216,33 @@ def _record_usdc_pair_allowlist_readiness(
     ])
     if blocked_product_ids:
         fanout_blockers.append("product_evidence_blocked")
+    failure_isolation_status = (
+        "ready_no_live"
+        if product_ids and not missing_product_ids and len(product_ids) <= body.max_products
+        else "blocked"
+    )
+    run_rate_limit_status = (
+        "ready_no_live"
+        if body.run_rate_limit_budget_ref
+        and len(product_ids) <= body.max_products
+        and not blocked_product_ids
+        else "blocked"
+    )
+    retry_budget_status = (
+        "ready_no_live"
+        if body.retry_budget_per_product > 0 and not blocked_product_ids
+        else "blocked"
+    )
+    recovery_readiness_status = (
+        "ready_no_live"
+        if body.cancel_recovery_plan_ref and not blocked_product_ids
+        else "blocked"
+    )
+    partial_success_status = (
+        "ready_no_live"
+        if candidate_product_ids and not blocked_product_ids
+        else "blocked"
+    )
 
     record = UsdcPairSnapshotOrderPlanAllowlistReadinessRecord(
         readiness_id=(
@@ -2179,9 +2257,16 @@ def _record_usdc_pair_allowlist_readiness(
         blocked_product_ids=blocked_product_ids,
         cap_exhausted_product_ids=cap_exhausted_product_ids,
         missing_product_ids=missing_product_ids,
-        retryable_product_ids=[],
-        recovery_required_product_ids=[],
-        partial_success_status="blocked",
+        retryable_product_ids=retryable_product_ids,
+        recovery_required_product_ids=recovery_required_product_ids,
+        partial_success_status=partial_success_status,
+        failure_isolation_status=failure_isolation_status,
+        run_rate_limit_status=run_rate_limit_status,
+        retry_budget_status=retry_budget_status,
+        recovery_readiness_status=recovery_readiness_status,
+        retry_budget_per_product=body.retry_budget_per_product,
+        run_rate_limit_budget_ref=body.run_rate_limit_budget_ref,
+        cancel_recovery_plan_ref=body.cancel_recovery_plan_ref,
         fanout_readiness_status="blocked",
         fanout_blockers=fanout_blockers,
         product_readiness_rows=product_rows,

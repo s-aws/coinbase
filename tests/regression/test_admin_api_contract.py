@@ -34365,6 +34365,174 @@ def test_admin_api_usdc_pair_snapshot_allowlist_readiness_records_no_live_summar
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_readiness_records_retry_recovery_contract(
+    monkeypatch,
+):
+    from application.admin_api.models import UsdcPairSnapshotOrderPlanRowItem
+    from application.admin_api.usdc_pair_snapshot import (
+        UsdcPairSnapshotOrderPlanRecord,
+    )
+
+    client = _client(monkeypatch)
+    btc_row = UsdcPairSnapshotOrderPlanRowItem(
+        product_id="BTC-USDC",
+        plan_status="planned",
+        side=OrderSide.BUY,
+        time_in_force=TimeInForce.GOOD_UNTIL_CANCELLED,
+        client_order_id="m58-allowlist-ready-BTC-USDC",
+        idempotency_key="idem-m58-allowlist-ready:BTC-USDC",
+        requested_notional_usdc="1.00",
+        max_notional_per_product_usdc="1.00",
+        snapshot_price="100.00",
+        price_source="test_backend_price_feed",
+        price_freshness_status="fresh",
+        price_acceptance_status="accepted",
+        limit_price="50.00",
+        base_size="0.02000000",
+        quote_size="1.00",
+        planned_notional_usdc="1.00",
+        run_cap_status="passed",
+        run_cap_remaining_usdc="2.00",
+        proof_chain_status="accepted",
+        proof_chain_blockers=[],
+        approval_snapshot_required=True,
+        approval_snapshot_id="approval-m58-allowlist-ready-btc",
+        admission_audit_required=True,
+        admission_audit_id="audit-m58-allowlist-ready-btc",
+        cap_guard_decision_required=True,
+        cap_guard_decision_id="cap-m58-allowlist-ready-btc",
+        reconciliation_plan_required=True,
+        reconciliation_plan_id="recon-m58-allowlist-ready-btc",
+        live_service_decision_required=True,
+        live_service_decision_id="live-service-m58-allowlist-ready-btc",
+    )
+    eth_row = btc_row.model_copy(
+        update={
+            "product_id": "ETH-USDC",
+            "client_order_id": "m58-allowlist-ready-ETH-USDC",
+            "idempotency_key": "idem-m58-allowlist-ready:ETH-USDC",
+            "snapshot_price": "2000.00",
+            "limit_price": "1000.00",
+            "base_size": "0.00100000",
+            "approval_snapshot_id": "approval-m58-allowlist-ready-eth",
+            "admission_audit_id": "audit-m58-allowlist-ready-eth",
+            "cap_guard_decision_id": "cap-m58-allowlist-ready-eth",
+            "reconciliation_plan_id": "recon-m58-allowlist-ready-eth",
+            "live_service_decision_id": "live-service-m58-allowlist-ready-eth",
+        }
+    )
+    client.admin_api_test_usdc_pair_snapshot_order_plan_store.append(
+        UsdcPairSnapshotOrderPlanRecord(
+            plan_id="m58-usdc-allowlist-ready-plan-test",
+            snapshot_run_id="m58-usdc-allowlist-ready-snapshot-test",
+            side=OrderSide.BUY.value,
+            max_notional_per_product_usdc="1.00",
+            max_total_notional_usdc="3.00",
+            planned_total_notional_usdc="2.00",
+            product_ids=["BTC-USDC", "ETH-USDC"],
+            time_in_force=TimeInForce.GOOD_UNTIL_CANCELLED.value,
+            order_plan_rows=[btc_row, eth_row],
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_allowlist_ready_source",
+            idempotency_key="idem-m58-usdc-allowlist-ready-plan",
+            payload_hash="7" * 64,
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "m58-usdc-allowlist-ready-plan-test/allowlist-readiness"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-allowlist-ready-contract",
+            operator_intent="m58_usdc_snapshot_allowlist_ready_contract",
+        ),
+        json={
+            "readiness_id": "m58-usdc-allowlist-ready-contract-test",
+            "product_ids": ["BTC-USDC", "ETH-USDC"],
+            "max_products": 3,
+            "retry_budget_per_product": 2,
+            "run_rate_limit_budget_ref": "m58-rate-limit-budget-contract-test",
+            "cancel_recovery_plan_ref": "m58-cancel-recovery-plan-contract-test",
+            "operator_notes": "no-live Phase F retry/recovery contract evidence",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    readiness = payload["readiness"]
+    assert readiness["candidate_product_ids"] == ["BTC-USDC", "ETH-USDC"]
+    assert readiness["blocked_product_ids"] == []
+    assert readiness["retryable_product_ids"] == ["BTC-USDC", "ETH-USDC"]
+    assert readiness["recovery_required_product_ids"] == [
+        "BTC-USDC",
+        "ETH-USDC",
+    ]
+    assert readiness["partial_success_status"] == "ready_no_live"
+    assert readiness["fanout_readiness_status"] == "blocked"
+    assert readiness["fanout_blockers"] == [
+        "fanout_execution_not_approved",
+        "scheduler_blocked",
+    ]
+    assert readiness["failure_isolation_status"] == "ready_no_live"
+    assert readiness["run_rate_limit_status"] == "ready_no_live"
+    assert readiness["retry_budget_status"] == "ready_no_live"
+    assert readiness["recovery_readiness_status"] == "ready_no_live"
+    assert readiness["retry_budget_per_product"] == 2
+    assert readiness["run_rate_limit_budget_ref"] == (
+        "m58-rate-limit-budget-contract-test"
+    )
+    assert readiness["cancel_recovery_plan_ref"] == (
+        "m58-cancel-recovery-plan-contract-test"
+    )
+    assert readiness["live_exchange_submitted"] is False
+    assert readiness["live_coinbase_orders_ran"] is False
+    assert readiness["live_coinbase_execution"] == "not_run"
+    assert readiness["notional_usdc"] == "0"
+
+    rows = {
+        row["product_id"]: row for row in readiness["product_readiness_rows"]
+    }
+    assert rows["BTC-USDC"]["readiness_status"] == "candidate"
+    assert rows["BTC-USDC"]["retry_status"] == "ready_no_live"
+    assert rows["BTC-USDC"]["failure_isolation_status"] == "ready_no_live"
+    assert rows["BTC-USDC"]["rate_limit_status"] == "ready_no_live"
+    assert rows["BTC-USDC"]["retry_budget_status"] == "ready_no_live"
+    assert rows["BTC-USDC"]["retry_attempts_available"] == 2
+    assert rows["BTC-USDC"]["cancel_recovery_status"] == "ready_no_live"
+    assert rows["BTC-USDC"]["recovery_state_ref"] == (
+        "m58-cancel-recovery-plan-contract-test:BTC-USDC"
+    )
+    assert rows["BTC-USDC"]["blockers"] == []
+    assert rows["BTC-USDC"]["live_exchange_submitted"] is False
+    assert rows["BTC-USDC"]["live_coinbase_orders_ran"] is False
+    assert rows["BTC-USDC"]["live_coinbase_execution"] == "not_run"
+    assert rows["BTC-USDC"]["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+    readback = client.get(
+        "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness?limit=5",
+        headers=_headers(
+            idempotency_key="idem-usdc-allowlist-ready-contract-readback",
+            operator_intent="m58_usdc_snapshot_allowlist_ready_contract_readback",
+            roles=AdminApiRole.AUDITOR.value,
+        ),
+    )
+    assert readback.status_code == 200
+    readback_payload = readback.json()
+    assert readback_payload["candidate_product_count"] == 2
+    assert readback_payload["blocked_count"] == 1
+    assert readback_payload["retryable_product_count"] == 2
+    assert readback_payload["recovery_required_product_count"] == 2
+    assert readback_payload["readiness"][0] == readiness
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_order_plan_skips_stale_price_evidence(
     tmp_path,
 ):

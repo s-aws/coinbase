@@ -158,6 +158,13 @@ class UsdcPairSnapshotOrderPlanAllowlistReadinessRecord(BaseModel):
     retryable_product_ids: list[str] = Field(default_factory=list)
     recovery_required_product_ids: list[str] = Field(default_factory=list)
     partial_success_status: str = "blocked"
+    failure_isolation_status: str = "blocked"
+    run_rate_limit_status: str = "blocked"
+    retry_budget_status: str = "blocked"
+    recovery_readiness_status: str = "blocked"
+    retry_budget_per_product: int = 0
+    run_rate_limit_budget_ref: str | None = None
+    cancel_recovery_plan_ref: str | None = None
     fanout_readiness_status: str = "blocked"
     fanout_blockers: list[str] = Field(default_factory=list)
     product_readiness_rows: list[

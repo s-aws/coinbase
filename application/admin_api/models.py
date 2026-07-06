@@ -2882,6 +2882,11 @@ class UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem(BaseModel):
     planned_notional_usdc: DecimalString = "0"
     readiness_status: str = Field(min_length=1)
     retry_status: str = Field(min_length=1)
+    failure_isolation_status: str = Field(default="blocked", min_length=1)
+    rate_limit_status: str = Field(default="blocked", min_length=1)
+    retry_budget_status: str = Field(default="blocked", min_length=1)
+    retry_attempts_available: int = Field(default=0, ge=0)
+    cancel_recovery_status: str = Field(default="not_required", min_length=1)
     blockers: list[str] = Field(default_factory=list)
     recovery_state_ref: str | None = None
     live_exchange_submitted: bool = False
@@ -2898,6 +2903,9 @@ class UsdcPairSnapshotOrderPlanAllowlistReadinessRequest(BaseModel):
     readiness_id: str | None = Field(default=None, min_length=1)
     product_ids: list[str] = Field(min_length=1)
     max_products: int = Field(default=3, ge=1, le=25)
+    retry_budget_per_product: int = Field(default=0, ge=0, le=10)
+    run_rate_limit_budget_ref: str | None = Field(default=None, min_length=1)
+    cancel_recovery_plan_ref: str | None = Field(default=None, min_length=1)
     operator_notes: str | None = None
 
 
@@ -2920,6 +2928,13 @@ class UsdcPairSnapshotOrderPlanAllowlistReadinessItem(BaseModel):
     retryable_product_ids: list[str] = Field(default_factory=list)
     recovery_required_product_ids: list[str] = Field(default_factory=list)
     partial_success_status: str = Field(min_length=1)
+    failure_isolation_status: str = Field(default="blocked", min_length=1)
+    run_rate_limit_status: str = Field(default="blocked", min_length=1)
+    retry_budget_status: str = Field(default="blocked", min_length=1)
+    recovery_readiness_status: str = Field(default="blocked", min_length=1)
+    retry_budget_per_product: int = Field(default=0, ge=0)
+    run_rate_limit_budget_ref: str | None = None
+    cancel_recovery_plan_ref: str | None = None
     fanout_readiness_status: str = Field(min_length=1)
     fanout_blockers: list[str] = Field(default_factory=list)
     product_readiness_rows: list[
@@ -2978,6 +2993,8 @@ class UsdcPairSnapshotOrderPlanAllowlistReadinessListResponse(BaseModel):
     blocked_count: int = Field(ge=0)
     candidate_product_count: int = Field(ge=0)
     cap_exhausted_product_count: int = Field(ge=0)
+    retryable_product_count: int = Field(default=0, ge=0)
+    recovery_required_product_count: int = Field(default=0, ge=0)
     read_only: bool = True
     backend_owned: bool = True
     browser_authority: str = "display_only"
