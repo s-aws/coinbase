@@ -2838,6 +2838,40 @@ def _dedupe(values: list[str]) -> list[str]:
     return list(dict.fromkeys(value for value in values if value))
 
 
+def _allowlist_run_state_cap_guard_record_blockers(
+    *,
+    record: Any,
+    item: UsdcPairSnapshotAllowlistRunStateProductItem,
+) -> list[str]:
+    blockers: list[str] = []
+    if record.route != USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_ROUTE:
+        blockers.append("cap_guard_route_mismatch")
+    if record.method != "POST":
+        blockers.append("cap_guard_method_mismatch")
+    if record.module_id != USDC_PAIR_SNAPSHOT_MODULE_ID:
+        blockers.append("cap_guard_module_mismatch")
+    if (
+        record.identity_key != "client_order_id"
+        or record.identity_value != (item.client_order_id or "")
+    ):
+        blockers.append("cap_guard_identity_mismatch")
+    if (
+        _enum_text(record.action_class)
+        != AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    ):
+        blockers.append("cap_guard_action_class_mismatch")
+    if (
+        _enum_text(record.required_permission)
+        != AdminApiPermission.CAMPAIGN_EXECUTE.value
+    ):
+        blockers.append("cap_guard_permission_mismatch")
+    if record.service_method != USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_SERVICE_METHOD:
+        blockers.append("cap_guard_service_method_mismatch")
+    if str(record.product_scope).upper() != item.product_id.upper():
+        blockers.append("cap_guard_product_scope_mismatch")
+    return blockers
+
+
 def _apply_allowlist_run_state_wallet_allocation(
     *,
     product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
@@ -2864,7 +2898,10 @@ def _apply_allowlist_run_state_wallet_allocation(
         wallet_available = _non_negative_decimal_value(
             record.wallet_available_notional_usdc
         )
-        record_blockers: list[str] = []
+        record_blockers = _allowlist_run_state_cap_guard_record_blockers(
+            record=record,
+            item=item,
+        )
         if not record.allowed or record.status != AdminApiGateStatus.PASSED:
             record_blockers.append("cap_guard_decision_not_passed")
         if (

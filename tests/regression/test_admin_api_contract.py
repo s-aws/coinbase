@@ -35292,6 +35292,94 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_wallet_exceeded
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_mismatched_cap_guard(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    readiness_id = "m58-usdc-allowlist-run-state-cap-guard-mismatch"
+    cap_guard_decision_id = "cap-m58-run-state-cap-guard-mismatch"
+    client.admin_api_test_cap_guard_store.append(
+        CapGuardDecisionRecord(
+            decision_id=cap_guard_decision_id,
+            route=(
+                "/api/v1/automation/usdc-pair-snapshot-order-plan-"
+                "allowlist-readiness/{readiness_id}/run-state"
+            ),
+            method="POST",
+            module_id="automation",
+            identity_key="client_order_id",
+            identity_value="m58-usdc-run-state-negative-BTC-USDC",
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method="record_usdc_pair_snapshot_allowlist_run_state",
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+            idempotency_key="idem-usdc-allowlist-run-state-cap-guard-mismatch",
+            payload_hash="9" * 64,
+            approval_snapshot_id="approval-m58-cap-guard-mismatch",
+            admission_audit_id="admission-m58-cap-guard-mismatch",
+            allowed=True,
+            status=AdminApiGateStatus.PASSED,
+            cap_policy_ref="m58_phase_f_submitted_notional_cap",
+            guard_policy_ref="m58_phase_f_wallet_allocation_guard",
+            product_scope="ETH-USDC",
+            max_submitted_notional_usdc="1.00",
+            max_executed_notional_usdc="0",
+            wallet_check_required=True,
+            wallet_check_status=AdminApiGateStatus.PASSED,
+            wallet_available_notional_usdc="1.00",
+            wallet_check_source="m58_usdc_pair_mismatched_wallet_fixture",
+            reason="Mismatched product scope must not allocate wallet proof.",
+        )
+    )
+    _append_usdc_pair_snapshot_allowlist_run_state_readiness(
+        client,
+        readiness_id=readiness_id,
+        planned_notional_usdc="1.00",
+        cap_guard_decision_id=cap_guard_decision_id,
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+            f"{readiness_id}/run-state"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-allowlist-run-state-cap-guard-mismatch",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_cap_guard_mismatch",
+        ),
+        json={
+            "run_state_id": "m58-usdc-allowlist-run-state-cap-guard-mismatch",
+            "execution_mode": "no_live_rehearsal",
+            "max_fanout_notional_usdc": "100",
+            "run_lock_ref": "m58-run-lock-cap-guard-mismatch",
+            "rate_limit_window_ref": "m58-rate-limit-window-cap-guard-mismatch",
+            "pause_requested": False,
+            "abort_requested": False,
+        },
+    )
+
+    assert response.status_code == 200
+    run_state = response.json()["run_state"]
+    assert run_state["wallet_allocation_status"] == "blocked"
+    assert run_state["wallet_available_notional_usdc"] == "0.00"
+    assert run_state["wallet_allocated_notional_usdc"] == "0.00"
+    assert run_state["wallet_allocation_blockers"] == [
+        "cap_guard_product_scope_mismatch"
+    ]
+    assert run_state["queued_product_ids"] == []
+    assert run_state["blocked_product_ids"] == ["BTC-USDC"]
+
+    product_row = run_state["product_states"][0]
+    assert product_row["execution_state"] == "blocked"
+    assert product_row["wallet_allocation_status"] == "cap_guard_wallet_proof_blocked"
+    assert product_row["wallet_allocated_notional_usdc"] == "0.00"
+    assert product_row["blockers"] == ["cap_guard_product_scope_mismatch"]
+    assert product_row["live_coinbase_execution"] == "not_run"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_order_plan_skips_stale_price_evidence(
     tmp_path,
 ):
