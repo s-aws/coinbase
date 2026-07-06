@@ -327,6 +327,17 @@ appended
 `m58-live-btc-usdc-20260706-2001-submission-readback-recovery`. The backend
 proof row is accepted with `live_coinbase_execution=submitted_cancelled`.
 
+Latest repeated live evidence: on 2026-07-06T22:00Z, the backend submitted one
+BTC-USDC BUY order for `1.09` USDC planned notional at `32224.00`, with
+reference bid and last-filled price `64449.36`, received Coinbase order id
+`8720bff2-687f-43d3-bd30-fe9ef0a8939b`, cancelled the same
+`client_order_id`, and recorded `proof_chain_status_after_submission=accepted`
+with no proof-chain blockers. Readback immediately verified exchange status
+`CANCELLED`, executed notional `0`, and `0` open BTC-USDC orders. Durable local
+evidence artifacts:
+`artifacts/coinbase-backend-m58-usdc-live-submit-20260706-2200.json` and
+`artifacts/coinbase-backend-m58-usdc-live-readback-20260706-2200.json`.
+
 Entry requirements:
 
 - Phases A-D complete and passing.
