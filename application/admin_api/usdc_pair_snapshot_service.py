@@ -440,6 +440,7 @@ def _order_plan_row(
     planned_total: Decimal,
     proof_chain_recorder: OrderPlanProofChainRecorder | None = None,
 ) -> tuple[UsdcPairSnapshotOrderPlanRowItem, Decimal]:
+    run_cap_remaining = max(max_total_notional - planned_total, Decimal("0"))
     base_fields = {
         "product_id": snapshot_row.product_id,
         "side": OrderSide(snapshot_record.side),
@@ -459,6 +460,7 @@ def _order_plan_row(
         "min_base_size": snapshot_row.min_base_size,
         "min_quote_size": snapshot_row.min_quote_size,
         "snapshot_captured_at": snapshot_row.snapshot_captured_at,
+        "run_cap_remaining_usdc": _format_decimal(run_cap_remaining),
         **_proof_chain_not_applicable_fields(),
     }
     if snapshot_row.eligibility_status != "eligible":
@@ -467,6 +469,7 @@ def _order_plan_row(
             UsdcPairSnapshotOrderPlanRowItem(
                 **base_fields,
                 plan_status="skipped",
+                run_cap_status="not_applicable",
                 skip_reason=f"snapshot_not_eligible:{reason}",
             ),
             Decimal("0"),
@@ -493,6 +496,7 @@ def _order_plan_row(
             UsdcPairSnapshotOrderPlanRowItem(
                 **base_fields,
                 plan_status="rejected",
+                run_cap_status="not_applicable",
                 reject_reason="missing_order_plan_inputs",
             ),
             Decimal("0"),
@@ -504,6 +508,7 @@ def _order_plan_row(
             UsdcPairSnapshotOrderPlanRowItem(
                 **base_fields,
                 plan_status="rejected",
+                run_cap_status="not_applicable",
                 reject_reason="invalid_limit_price",
             ),
             Decimal("0"),
@@ -515,6 +520,7 @@ def _order_plan_row(
             UsdcPairSnapshotOrderPlanRowItem(
                 **base_fields,
                 plan_status="rejected",
+                run_cap_status="not_applicable",
                 limit_price=_format_decimal(limit_price),
                 reject_reason="below_min_base_size",
             ),
@@ -532,6 +538,7 @@ def _order_plan_row(
             UsdcPairSnapshotOrderPlanRowItem(
                 **base_fields,
                 plan_status="rejected",
+                run_cap_status="not_applicable",
                 limit_price=_format_decimal(limit_price),
                 base_size=_format_decimal(base_size),
                 reject_reason="below_min_quote_size",
@@ -544,6 +551,7 @@ def _order_plan_row(
             UsdcPairSnapshotOrderPlanRowItem(
                 **base_fields,
                 plan_status="skipped",
+                run_cap_status="exceeded",
                 skip_reason="run_total_cap_exceeded",
             ),
             Decimal("0"),
@@ -551,10 +559,16 @@ def _order_plan_row(
 
     planned_row = UsdcPairSnapshotOrderPlanRowItem(
         **{
-            **base_fields,
+            **{
+                key: value
+                for key, value in base_fields.items()
+                if key != "run_cap_remaining_usdc"
+            },
             **_proof_chain_blocked_fields(),
         },
         plan_status="planned",
+        run_cap_status="passed",
+        run_cap_remaining_usdc=_format_decimal(run_cap_remaining - planned_notional),
         client_order_id=f"{plan_id}-{snapshot_row.product_id}",
         idempotency_key=f"{idempotency_key}:{snapshot_row.product_id}",
         limit_price=_format_decimal(limit_price),
@@ -582,6 +596,8 @@ def _order_plan_row(
                 "price_source": snapshot_row.price_source,
                 "price_freshness_status": snapshot_row.price_freshness_status,
                 "price_acceptance_status": snapshot_row.price_acceptance_status,
+                "run_cap_status": planned_row.run_cap_status,
+                "run_cap_remaining_usdc": planned_row.run_cap_remaining_usdc,
                 "snapshot_captured_at": snapshot_row.snapshot_captured_at,
             },
         )

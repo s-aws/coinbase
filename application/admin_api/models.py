@@ -2610,6 +2610,8 @@ class UsdcPairSnapshotOrderPlanRowItem(BaseModel):
     base_size: DecimalString | None = None
     quote_size: DecimalString | None = None
     planned_notional_usdc: DecimalString = "0"
+    run_cap_status: str = "not_evaluated"
+    run_cap_remaining_usdc: DecimalString | None = None
     price_increment: DecimalString | None = None
     base_increment: DecimalString | None = None
     quote_increment: DecimalString | None = None

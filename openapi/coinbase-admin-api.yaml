@@ -169524,6 +169524,20 @@ components:
           default: '0'
           examples:
           - '1.00'
+        run_cap_status:
+          type: string
+          title: Run Cap Status
+          default: not_evaluated
+        run_cap_remaining_usdc:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Run Cap Remaining Usdc
         price_increment:
           anyOf:
           - type: string

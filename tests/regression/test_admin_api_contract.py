@@ -33723,6 +33723,8 @@ def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
     assert btc_row["price_source"] == "test_backend_price_feed"
     assert btc_row["price_freshness_status"] == "fresh"
     assert btc_row["price_acceptance_status"] == "accepted"
+    assert btc_row["run_cap_status"] == "passed"
+    assert btc_row["run_cap_remaining_usdc"] == "0.50"
     assert btc_row["limit_price"] == "100.00"
     assert btc_row["base_size"] == "0.01"
     assert btc_row["quote_size"] == "1.00"
@@ -33761,6 +33763,8 @@ def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
     assert btc_row["live_service_decision_id"] is None
     assert rows_by_product["ETH-USDC"]["plan_status"] == "skipped"
     assert rows_by_product["ETH-USDC"]["skip_reason"] == "run_total_cap_exceeded"
+    assert rows_by_product["ETH-USDC"]["run_cap_status"] == "exceeded"
+    assert rows_by_product["ETH-USDC"]["run_cap_remaining_usdc"] == "0.50"
     assert rows_by_product["ETH-USDC"]["proof_chain_status"] == "not_applicable"
     assert rows_by_product["ETH-USDC"]["proof_chain_blockers"] == []
     assert rows_by_product["ETH-USDC"]["approval_request_required"] is False
@@ -33769,6 +33773,8 @@ def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
     assert rows_by_product["DOGE-USDC"]["skip_reason"] == (
         "snapshot_not_eligible:trading_disabled"
     )
+    assert rows_by_product["DOGE-USDC"]["run_cap_status"] == "not_applicable"
+    assert rows_by_product["DOGE-USDC"]["run_cap_remaining_usdc"] == "0.50"
     assert rows_by_product["DOGE-USDC"]["proof_chain_status"] == "not_applicable"
     assert rows_by_product["DOGE-USDC"]["proof_chain_blockers"] == []
     assert rows_by_product["DOGE-USDC"]["approval_request_required"] is False
@@ -33808,6 +33814,8 @@ def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
         "price_source": "test_backend_price_feed",
         "price_freshness_status": "fresh",
         "price_acceptance_status": "accepted",
+        "run_cap_status": "passed",
+        "run_cap_remaining_usdc": "0.50",
         "snapshot_captured_at": fresh_captured_at,
     }
     for proof_record in (
