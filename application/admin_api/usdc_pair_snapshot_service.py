@@ -94,6 +94,10 @@ class AdminApiUsdcPairSnapshotService:
             raise UsdcPairSnapshotError(
                 "USDC pair snapshot automation currently accepts dry_run=true only."
             )
+        if body.manual_live_acknowledgement:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot automation cannot acknowledge live execution."
+            )
         if requested_notional <= 0:
             raise UsdcPairSnapshotError(
                 "max_notional_per_product_usdc must be greater than zero."

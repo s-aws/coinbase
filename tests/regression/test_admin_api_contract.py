@@ -33476,6 +33476,29 @@ def test_admin_api_usdc_pair_snapshot_dry_run_records_backend_snapshot_evidence(
     assert replay.json() == payload
     assert len(store.read_recent(limit=10)) == 1
 
+    manual_live_acknowledgement = client.post(
+        "/api/v1/automation/usdc-pair-snapshot-runs",
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-snapshot-manual-ack",
+            operator_intent="m58_usdc_snapshot_manual_ack_rejected",
+        ),
+        json={
+            **request_body,
+            "run_id": "m58-usdc-snapshot-manual-ack",
+            "manual_live_acknowledgement": True,
+        },
+    )
+    assert manual_live_acknowledgement.status_code == 400
+    manual_live_payload = manual_live_acknowledgement.json()
+    assert manual_live_payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert manual_live_payload["failure_stage"] == "usdc_pair_snapshot"
+    assert "cannot acknowledge live execution" in manual_live_payload["message"]
+    assert manual_live_payload["live_exchange_submitted"] is False
+    assert manual_live_payload["live_coinbase_orders_ran"] is False
+    assert manual_live_payload["live_coinbase_execution"] == "not_run"
+    assert manual_live_payload["notional_usdc"] == "0"
+    assert store.find_by_run_id("m58-usdc-snapshot-manual-ack") is None
+
     readback = client.get(
         "/api/v1/automation/usdc-pair-snapshot-runs?limit=5",
         headers=_headers(
