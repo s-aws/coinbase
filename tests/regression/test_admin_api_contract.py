@@ -550,6 +550,7 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     from api.v1.routes import spot as spot_routes
     from api.v1.routes import stealth as stealth_routes
     from application.admin_api.usdc_pair_snapshot import (
+        FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
         FileUsdcPairSnapshotOrderPlanStore,
         FileUsdcPairSnapshotRunStore,
     )
@@ -583,6 +584,11 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     )
     usdc_pair_snapshot_order_plan_store = FileUsdcPairSnapshotOrderPlanStore(
         store_dir / "usdc_pair_snapshot_order_plans.jsonl"
+    )
+    usdc_pair_snapshot_order_plan_live_readiness_store = (
+        FileUsdcPairSnapshotOrderPlanLiveReadinessStore(
+            store_dir / "usdc_pair_snapshot_order_plan_live_readiness.jsonl"
+        )
     )
     admin_mvp_service = AdminMvpService(
         AdminMvpDependencies(live_coinbase_execution_enabled=False),
@@ -750,6 +756,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
         automation_routes.get_usdc_pair_snapshot_order_plan_store
     ] = lambda: usdc_pair_snapshot_order_plan_store
     app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_order_plan_live_readiness_store
+    ] = lambda: usdc_pair_snapshot_order_plan_live_readiness_store
+    app.dependency_overrides[
         automation_routes.get_usdc_pair_snapshot_proof_chain_service
     ] = lambda: admin_mvp_service
     app.dependency_overrides[
@@ -883,6 +892,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     client.admin_api_test_usdc_pair_snapshot_store = usdc_pair_snapshot_store
     client.admin_api_test_usdc_pair_snapshot_order_plan_store = (
         usdc_pair_snapshot_order_plan_store
+    )
+    client.admin_api_test_usdc_pair_snapshot_order_plan_live_readiness_store = (
+        usdc_pair_snapshot_order_plan_live_readiness_store
     )
     client.admin_api_test_mvp_service = admin_mvp_service
     client.admin_api_test_spot_recovery_proof_store = spot_recovery_proof_store
@@ -34746,6 +34758,150 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert enabled_live_row["live_coinbase_execution"] == "not_run"
     assert enabled_live_row["notional_usdc"] == "0"
 
+    readiness_body = {
+        "readiness_id": "m58-usdc-live-readiness-test",
+        "product_id": enabled_live_row["product_id"],
+        "client_order_id": enabled_live_row["client_order_id"],
+        "reference_bid_price": "100.00",
+        "last_filled_price": "100.00",
+        "intended_limit_price": "50.00",
+        "submitted_notional_usdc": enabled_live_row["planned_notional_usdc"],
+        "max_executed_notional_usdc": "0.01",
+        "minimum_order_size_preferred": True,
+        "single_order_only": True,
+        "cancel_before_additional_orders": True,
+        "cancel_rollback_plan_ref": "cancel-before-next-m58-order",
+        "full_snapshot_fill_test": False,
+        "operator_notes": "single minimum-size far-from-market readiness only",
+    }
+    readiness_response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "m58-usdc-order-plan-refresh-test/live-readiness"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-live-readiness",
+            operator_intent="m58_usdc_snapshot_live_readiness",
+        ),
+        json=readiness_body,
+    )
+    assert readiness_response.status_code == 200
+    readiness_payload = readiness_response.json()
+    assert readiness_payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert (
+        readiness_payload["service_method"]
+        == "record_usdc_pair_snapshot_order_plan_live_readiness"
+    )
+    assert readiness_payload["live_exchange_submitted"] is False
+    assert readiness_payload["live_coinbase_orders_ran"] is False
+    assert readiness_payload["live_coinbase_execution"] == "not_run"
+    assert readiness_payload["notional_usdc"] == "0"
+    readiness = readiness_payload["readiness"]
+    assert readiness["readiness_id"] == "m58-usdc-live-readiness-test"
+    assert readiness["plan_id"] == "m58-usdc-order-plan-refresh-test"
+    assert readiness["product_id"] == "BTC-USDC"
+    assert readiness["client_order_id"] == enabled_live_row["client_order_id"]
+    assert readiness["side"] == "BUY"
+    assert readiness["preflight_passed"] is True
+    assert readiness["preflight_blockers"] == []
+    assert readiness["submit_route_ready"] is False
+    assert readiness["submit_blockers"] == ["live_submission_route_not_implemented"]
+    assert readiness["single_order_only"] is True
+    assert readiness["order_count"] == 1
+    assert readiness["minimum_order_size_preferred"] is True
+    assert readiness["submitted_notional_usdc"] == "1.00"
+    assert readiness["max_submitted_notional_usdc"] == "1.00"
+    assert readiness["max_executed_notional_usdc"] == "0.01"
+    assert readiness["intended_limit_price"] == "50.00"
+    assert readiness["reference_bid_price"] == "100.00"
+    assert readiness["last_filled_price"] == "100.00"
+    assert readiness["far_from_bid_status"] == "passed"
+    assert readiness["snapshot_non_fill_status"] == "passed"
+    assert readiness["cancel_before_additional_orders"] is True
+    assert readiness["cancel_rollback_plan_ref"] == "cancel-before-next-m58-order"
+    assert readiness["full_snapshot_fill_test"] is False
+    assert readiness["approval_snapshot_id"] == approval_id
+    assert readiness["admission_audit_id"] == durable_admission_audit.audit_id
+    assert readiness["cap_guard_decision_id"] == durable_cap_guard.decision_id
+    assert readiness["reconciliation_plan_id"] == durable_reconciliation.plan_id
+    assert readiness["live_service_decision_id"] == enabled_live_service.decision_id
+    assert readiness["live_exchange_submitted"] is False
+    assert readiness["live_coinbase_orders_ran"] is False
+    assert readiness["live_coinbase_execution"] == "not_run"
+    assert readiness["notional_usdc"] == "0"
+
+    readiness_replay = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "m58-usdc-order-plan-refresh-test/live-readiness"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-live-readiness",
+            operator_intent="m58_usdc_snapshot_live_readiness",
+        ),
+        json=readiness_body,
+    )
+    assert readiness_replay.status_code == 200
+    assert readiness_replay.headers["x-idempotency-replayed"] == "true"
+    assert readiness_replay.json() == readiness_payload
+    assert (
+        len(
+            client.admin_api_test_usdc_pair_snapshot_order_plan_live_readiness_store.read_recent(
+                limit=10
+            )
+        )
+        == 1
+    )
+
+    readiness_readback = client.get(
+        "/api/v1/automation/usdc-pair-snapshot-order-plan-live-readiness?limit=5",
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-live-readiness-readback",
+            operator_intent="m58_usdc_snapshot_live_readiness_readback",
+            roles=AdminApiRole.AUDITOR.value,
+        ),
+    )
+    assert readiness_readback.status_code == 200
+    readiness_readback_payload = readiness_readback.json()
+    assert readiness_readback_payload["type"] == (
+        "usdc_pair_snapshot_order_plan_live_readiness_list"
+    )
+    assert readiness_readback_payload["returned_count"] == 1
+    assert readiness_readback_payload["total_count"] == 1
+    assert readiness_readback_payload["ready_count"] == 1
+    assert readiness_readback_payload["submit_route_ready_count"] == 0
+    assert readiness_readback_payload["live_exchange_submitted"] is False
+    assert readiness_readback_payload["live_coinbase_orders_ran"] is False
+    assert readiness_readback_payload["live_coinbase_execution"] == "not_run"
+    assert readiness_readback_payload["notional_usdc"] == "0"
+    assert readiness_readback_payload["readiness"][0] == readiness
+
+    full_fill_response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "m58-usdc-order-plan-refresh-test/live-readiness"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-live-readiness-full-fill",
+            operator_intent="m58_usdc_snapshot_live_readiness_full_fill",
+        ),
+        json={
+            **readiness_body,
+            "readiness_id": "m58-usdc-live-readiness-full-fill-test",
+            "full_snapshot_fill_test": True,
+        },
+    )
+    assert full_fill_response.status_code == 200
+    full_fill_payload = full_fill_response.json()
+    assert full_fill_payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert full_fill_payload["failure_stage"] == (
+        "usdc_pair_snapshot_order_plan_live_readiness"
+    )
+    assert full_fill_payload["readiness"] is None
+    assert full_fill_payload["live_exchange_submitted"] is False
+    assert full_fill_payload["live_coinbase_orders_ran"] is False
+    assert full_fill_payload["live_coinbase_execution"] == "not_run"
+
     durable_live_service = enabled_live_service.model_copy(
         update={
             "recorded_at": "2026-07-06T14:15:00+00:00",
@@ -61548,6 +61704,43 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "read-only durable order-plan evidence" in (
         order_plan_read_route.parity_test
     )
+    live_readiness_read_route = rows[
+        "GET /api/v1/automation/usdc-pair-snapshot-order-plan-live-readiness"
+    ]
+    assert live_readiness_read_route.module_id == "automation"
+    assert live_readiness_read_route.shared_method == (
+        "list_usdc_pair_snapshot_order_plan_live_readiness"
+    )
+    assert live_readiness_read_route.action_class == AdminApiActionClass.READ_ONLY
+    assert live_readiness_read_route.permission == AdminApiPermission.AUDIT_READ
+    assert "live-readiness preflight evidence" in (
+        live_readiness_read_route.parity_test
+    )
+    live_readiness_route = rows[
+        "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
+        "{plan_id}/live-readiness"
+    ]
+    assert live_readiness_route.module_id == "automation"
+    assert live_readiness_route.shared_method == (
+        "record_usdc_pair_snapshot_order_plan_live_readiness"
+    )
+    assert live_readiness_route.action_class == (
+        AdminApiActionClass.LOCAL_STATE_MUTATION
+    )
+    assert live_readiness_route.permission == AdminApiPermission.CAMPAIGN_EXECUTE
+    live_readiness_evidence = " ".join(
+        (
+            live_readiness_route.approval,
+            live_readiness_route.caps,
+            live_readiness_route.parity_test,
+        )
+    )
+    assert "exact enabled live-service decision" in live_readiness_evidence
+    assert "preferred spot live-test notional cap" in live_readiness_evidence
+    assert "far-from-bid" in live_readiness_evidence
+    assert "cancel-before-additional-orders" in live_readiness_evidence
+    assert "submit_route_ready remains false" in live_readiness_evidence
+    assert "no Coinbase order submission" in live_readiness_route.parity_test
     order_plan_refresh_route = rows[
         "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
         "{plan_id}/proof-chain-refresh"
@@ -61783,6 +61976,13 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert snapshot_read_doc_row[5] == snapshot_read_route.caps
     assert snapshot_read_doc_row[7].strip("`") == snapshot_read_route.shared_method
     assert snapshot_read_doc_row[8] == snapshot_read_route.parity_test
+    for route in (live_readiness_read_route, live_readiness_route):
+        doc_row = markdown_inventory_rows[route.surface]
+        assert doc_row[1].strip("`") == route.action_class.value
+        assert doc_row[2].strip("`") == route.permission.value
+        assert doc_row[5] == route.caps
+        assert doc_row[7].strip("`") == route.shared_method
+        assert doc_row[8] == route.parity_test
     for route in (stealth_recovery_route, stealth_reconciliation_route):
         doc_row = markdown_inventory_rows[route.surface]
         assert doc_row[1].strip("`") == route.action_class.value
@@ -61883,6 +62083,8 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "run_spot_sweep_automation" in doc
     assert "record_usdc_pair_snapshot_order_plan" in doc
     assert "list_usdc_pair_snapshot_order_plans" in doc
+    assert "record_usdc_pair_snapshot_order_plan_live_readiness" in doc
+    assert "list_usdc_pair_snapshot_order_plan_live_readiness" in doc
     assert "build_admin_bootstrap" in doc
     assert "build_oidc_jwt_readiness" in doc
     assert "build_csrf_contract" in doc
@@ -61948,6 +62150,24 @@ def test_admin_api_route_inventory_and_openapi_paths_stay_in_sync():
     assert "GET /api/v1/futures/positions" in schema_http_surfaces
     assert "GET /api/v1/futures/positions/{position_key}" in inventory_http_surfaces
     assert "GET /api/v1/futures/positions/{position_key}" in schema_http_surfaces
+    assert (
+        "GET /api/v1/automation/usdc-pair-snapshot-order-plan-live-readiness"
+        in inventory_http_surfaces
+    )
+    assert (
+        "GET /api/v1/automation/usdc-pair-snapshot-order-plan-live-readiness"
+        in schema_http_surfaces
+    )
+    assert (
+        "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
+        "{plan_id}/live-readiness"
+        in inventory_http_surfaces
+    )
+    assert (
+        "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
+        "{plan_id}/live-readiness"
+        in schema_http_surfaces
+    )
     assert (
         "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
         "{plan_id}/proof-chain-refresh"

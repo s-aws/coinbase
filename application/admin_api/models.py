@@ -2740,6 +2740,134 @@ class UsdcPairSnapshotOrderPlanListResponse(BaseModel):
     )
 
 
+class UsdcPairSnapshotOrderPlanLiveReadinessRequest(BaseModel):
+    """No-live Phase E readiness preflight for one M58 order-plan row."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    readiness_id: str | None = Field(default=None, min_length=1)
+    product_id: str = Field(min_length=1)
+    client_order_id: str = Field(min_length=1)
+    reference_bid_price: DecimalString
+    last_filled_price: DecimalString
+    intended_limit_price: DecimalString
+    submitted_notional_usdc: DecimalString
+    max_executed_notional_usdc: DecimalString
+    minimum_order_size_preferred: bool = True
+    single_order_only: bool = True
+    cancel_before_additional_orders: bool = True
+    cancel_rollback_plan_ref: str = Field(min_length=1)
+    full_snapshot_fill_test: bool = False
+    operator_notes: str | None = None
+
+
+class UsdcPairSnapshotOrderPlanLiveReadinessItem(BaseModel):
+    """Durable no-live Phase E readiness evidence for one M58 order-plan row."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    readiness_id: str = Field(min_length=1)
+    plan_id: str = Field(min_length=1)
+    snapshot_run_id: str = Field(min_length=1)
+    product_id: str = Field(min_length=1)
+    client_order_id: str = Field(min_length=1)
+    recorded_at: str
+    side: OrderSide
+    order_count: int = Field(ge=0)
+    single_order_only: bool = True
+    minimum_order_size_preferred: bool = True
+    reference_bid_price: DecimalString
+    last_filled_price: DecimalString
+    intended_limit_price: DecimalString
+    far_from_bid_status: str = Field(min_length=1)
+    snapshot_non_fill_status: str = Field(min_length=1)
+    submitted_notional_usdc: DecimalString
+    max_submitted_notional_usdc: DecimalString
+    max_executed_notional_usdc: DecimalString
+    planned_notional_usdc: DecimalString
+    base_size: DecimalString | None = None
+    quote_size: DecimalString | None = None
+    min_base_size: DecimalString | None = None
+    min_quote_size: DecimalString | None = None
+    preflight_passed: bool
+    preflight_blockers: list[str] = Field(default_factory=list)
+    submit_route_ready: bool = False
+    submit_blockers: list[str] = Field(default_factory=list)
+    cancel_before_additional_orders: bool = True
+    cancel_rollback_plan_ref: str = Field(min_length=1)
+    full_snapshot_fill_test: bool = False
+    approval_snapshot_id: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    cap_guard_decision_id: str = Field(min_length=1)
+    reconciliation_plan_id: str = Field(min_length=1)
+    live_service_decision_id: str = Field(min_length=1)
+    actor_id: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(min_length=64, max_length=64)
+    audit_id: str | None = None
+    operator_notes: str | None = None
+    backend_owned: bool = True
+    read_only_after_write: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    detail: str
+
+
+class UsdcPairSnapshotOrderPlanLiveReadinessResponse(BaseModel):
+    """Response for no-live M58 Phase E readiness preflight evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: AdminApiCommandStatus
+    action_class: AdminApiActionClass
+    required_permission: AdminApiPermission
+    service_method: str
+    message: str
+    correlation_id: str | None = None
+    idempotency_key: str | None = None
+    audit_id: str | None = None
+    readiness: UsdcPairSnapshotOrderPlanLiveReadinessItem | None = None
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    failure_stage: str | None = None
+
+
+class UsdcPairSnapshotOrderPlanLiveReadinessListResponse(BaseModel):
+    """Read-only list of no-live M58 Phase E readiness preflight evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "usdc_pair_snapshot_order_plan_live_readiness_list"
+    readiness: list[UsdcPairSnapshotOrderPlanLiveReadinessItem] = Field(
+        default_factory=list
+    )
+    returned_count: int = Field(ge=0)
+    total_count: int = Field(ge=0)
+    latest_readiness_id: str | None = None
+    ready_count: int = Field(ge=0)
+    submit_route_ready_count: int = Field(ge=0)
+    read_only: bool = True
+    backend_owned: bool = True
+    browser_authority: str = "display_only"
+    bff_authority: str = "read_only_forward"
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: DecimalString = "0"
+    detail: str = (
+        "M58 USDC pair snapshot live-readiness readback exposes backend-owned "
+        "single-row preflight evidence only; it does not submit Coinbase "
+        "orders, allocate wallet balance, or grant browser execution authority."
+    )
+
+
 class AdminApiErrorResponse(BaseModel):
     """Structured error body shared by Admin API routes."""
 

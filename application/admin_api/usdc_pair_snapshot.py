@@ -76,6 +76,62 @@ class UsdcPairSnapshotOrderPlanRecord(BaseModel):
     source: str = "admin_api_usdc_pair_snapshot_order_plan_log"
 
 
+class UsdcPairSnapshotOrderPlanLiveReadinessRecord(BaseModel):
+    """Append-only backend no-live Phase E readiness evidence record."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    readiness_id: str = Field(min_length=1)
+    plan_id: str = Field(min_length=1)
+    snapshot_run_id: str = Field(min_length=1)
+    product_id: str = Field(min_length=1)
+    client_order_id: str = Field(min_length=1)
+    recorded_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+    side: str = Field(min_length=1)
+    order_count: int = 1
+    single_order_only: bool = True
+    minimum_order_size_preferred: bool = True
+    reference_bid_price: str = Field(min_length=1)
+    last_filled_price: str = Field(min_length=1)
+    intended_limit_price: str = Field(min_length=1)
+    far_from_bid_status: str = Field(min_length=1)
+    snapshot_non_fill_status: str = Field(min_length=1)
+    submitted_notional_usdc: str = Field(min_length=1)
+    max_submitted_notional_usdc: str = Field(min_length=1)
+    max_executed_notional_usdc: str = Field(min_length=1)
+    planned_notional_usdc: str = Field(min_length=1)
+    base_size: str | None = None
+    quote_size: str | None = None
+    min_base_size: str | None = None
+    min_quote_size: str | None = None
+    preflight_passed: bool = False
+    preflight_blockers: list[str] = Field(default_factory=list)
+    submit_route_ready: bool = False
+    submit_blockers: list[str] = Field(default_factory=list)
+    cancel_before_additional_orders: bool = True
+    cancel_rollback_plan_ref: str = Field(min_length=1)
+    full_snapshot_fill_test: bool = False
+    approval_snapshot_id: str = Field(min_length=1)
+    admission_audit_id: str = Field(min_length=1)
+    cap_guard_decision_id: str = Field(min_length=1)
+    reconciliation_plan_id: str = Field(min_length=1)
+    live_service_decision_id: str = Field(min_length=1)
+    actor_id: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(min_length=64, max_length=64)
+    audit_id: str | None = None
+    operator_notes: str | None = None
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: str = "0"
+    detail: str = Field(min_length=1)
+    source: str = "admin_api_usdc_pair_snapshot_order_plan_live_readiness_log"
+
+
 class FileUsdcPairSnapshotRunStore:
     """Append-only JSONL store for M58 dry-run snapshot records."""
 
@@ -230,6 +286,75 @@ class FileUsdcPairSnapshotOrderPlanStore:
                 continue
             try:
                 UsdcPairSnapshotOrderPlanRecord.model_validate_json(line)
+            except ValueError:
+                continue
+            count += 1
+        return count
+
+
+class FileUsdcPairSnapshotOrderPlanLiveReadinessStore:
+    """Append-only JSONL store for M58 no-live Phase E readiness evidence."""
+
+    def __init__(self, path: Path | str | None = None) -> None:
+        configured_path = (
+            path
+            or os.environ.get(
+                "COINBASE_ADMIN_API_USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_READINESS_LOG_PATH"
+            )
+            or Path("runtime_state")
+            / "admin_api_usdc_pair_snapshot_order_plan_live_readiness.jsonl"
+        )
+        self.path = Path(configured_path)
+        self._lock = RLock()
+
+    def append(self, record: UsdcPairSnapshotOrderPlanLiveReadinessRecord) -> str:
+        with self._lock:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as handle:
+                handle.write(record.model_dump_json() + "\n")
+            return record.readiness_id
+
+    def read_recent(
+        self,
+        *,
+        limit: int = 100,
+    ) -> list[UsdcPairSnapshotOrderPlanLiveReadinessRecord]:
+        normalized_limit = max(1, min(limit, 500))
+        with self._lock:
+            if not self.path.exists():
+                return []
+            lines = self.path.read_text(encoding="utf-8").splitlines()
+        records: list[UsdcPairSnapshotOrderPlanLiveReadinessRecord] = []
+        for line in reversed(lines):
+            if not line.strip():
+                continue
+            try:
+                records.append(
+                    UsdcPairSnapshotOrderPlanLiveReadinessRecord.model_validate_json(
+                        line
+                    )
+                )
+            except ValueError:
+                continue
+            if len(records) >= normalized_limit:
+                break
+        return records
+
+    def count_records(self) -> int:
+        """Return the number of readable live-readiness records."""
+
+        with self._lock:
+            if not self.path.exists():
+                return 0
+            lines = self.path.read_text(encoding="utf-8").splitlines()
+        count = 0
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                UsdcPairSnapshotOrderPlanLiveReadinessRecord.model_validate_json(
+                    line
+                )
             except ValueError:
                 continue
             count += 1

@@ -1063,6 +1063,24 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     AdminApiRouteInventoryItem(
         module_id="automation",
         surface=(
+            "GET /api/v1/automation/usdc-pair-snapshot-order-plan-live-readiness"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="list_usdc_pair_snapshot_order_plan_live_readiness",
+        parity_test=(
+            "M58 read-only live-readiness preflight evidence; no Coinbase "
+            "order submission, no wallet allocation, and no browser execution "
+            "authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="automation",
+        surface=(
             "POST /api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans"
         ),
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
@@ -1079,6 +1097,33 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
             "M58 backend-owned limit-order plan evidence derived from durable "
             "USDC snapshot rows; no Coinbase order submission, no wallet "
             "allocation, and no browser execution authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="automation",
+        surface=(
+            "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "{plan_id}/live-readiness"
+        ),
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+        idempotency="required",
+        approval=(
+            "required existing proof-chain approval evidence and exact enabled "
+            "live-service decision; does not grant Coinbase submission"
+        ),
+        caps=(
+            "required validation for one selected order-plan row, preferred spot live-test "
+            "notional cap, exchange minimum size, far-from-bid/non-fill price "
+            "distance, and cancel-before-additional-orders plan"
+        ),
+        audit="required",
+        shared_method="record_usdc_pair_snapshot_order_plan_live_readiness",
+        parity_test=(
+            "M58 backend-owned live-readiness preflight persists one-row "
+            "submit-readiness evidence while submit_route_ready remains false; "
+            "no Coinbase order submission, no wallet allocation, and no "
+            "browser execution authority"
         ),
     ),
     AdminApiRouteInventoryItem(
