@@ -3047,6 +3047,14 @@ class UsdcPairSnapshotAllowlistRunStateProductItem(BaseModel):
         min_length=1,
     )
     fanout_cap_remaining_after_usdc: DecimalString = "0"
+    wallet_allocation_status: str = Field(
+        default="not_evaluated",
+        min_length=1,
+    )
+    wallet_available_notional_usdc: DecimalString = "0"
+    wallet_allocated_notional_usdc: DecimalString = "0"
+    wallet_remaining_after_usdc: DecimalString = "0"
+    wallet_check_source: str | None = None
     recovery_state_ref: str | None = None
     blockers: list[str] = Field(default_factory=list)
     live_exchange_submitted: bool = False
@@ -3087,6 +3095,11 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
     fanout_cap_remaining_usdc: DecimalString = "0"
     fanout_cap_overage_usdc: DecimalString = "0"
     fanout_cap_allocation_status: str = Field(min_length=1)
+    wallet_allocation_status: str = Field(min_length=1)
+    wallet_available_notional_usdc: DecimalString = "0"
+    wallet_allocated_notional_usdc: DecimalString = "0"
+    wallet_remaining_usdc: DecimalString = "0"
+    wallet_allocation_blockers: list[str] = Field(default_factory=list)
     fanout_notional_status: str = Field(min_length=1)
     product_ids: list[str] = Field(default_factory=list)
     queued_product_ids: list[str] = Field(default_factory=list)

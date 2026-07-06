@@ -223,6 +223,14 @@ class UsdcPairSnapshotAllowlistRunStateRecord(BaseModel):
         default="legacy_unverified",
         min_length=1,
     )
+    wallet_allocation_status: str = Field(
+        default="legacy_unverified",
+        min_length=1,
+    )
+    wallet_available_notional_usdc: str = "0"
+    wallet_allocated_notional_usdc: str = "0"
+    wallet_remaining_usdc: str = "0"
+    wallet_allocation_blockers: list[str] = Field(default_factory=list)
     fanout_notional_status: str = Field(min_length=1)
     product_ids: list[str] = Field(default_factory=list)
     queued_product_ids: list[str] = Field(default_factory=list)

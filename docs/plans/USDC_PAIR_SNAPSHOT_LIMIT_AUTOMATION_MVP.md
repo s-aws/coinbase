@@ -47,7 +47,8 @@ Available building blocks:
   USDC fan-out testing cap without submitting Coinbase orders or running a
   scheduler. Run-state evidence now records no-live run-cap allocation,
   allocated notional, cap remaining, cap overage, and cap-guard decision refs
-  per product.
+  per product, plus no-live wallet allocation evidence derived from existing
+  backend cap-guard wallet proofs.
 - Backend proof-refresh mutation for existing order plans that resolves exact,
   unexpired, non-revoked approval lifecycle snapshots without browser
   authority or live execution, and can link exact durable admission-audit
@@ -76,10 +77,11 @@ Missing before live automation:
   closed when either reference is missing, stale, invalid, or future-dated.
 - Multi-product wallet allocation controls that prevent wallet/balance
   overcommit during fan-out. Phase F run-state now proves no-live run-cap
-  allocation, but it still does not allocate wallet balance. The
-  single-product Phase E live-readiness route fails closed when the latest
-  backend cap/guard proof does not cover the submitted notional or required
-  wallet availability.
+  allocation and no-live wallet allocation from existing cap-guard wallet
+  proofs, but it still does not fetch live wallet balance, reserve/debit
+  funds, or authorize multi-product live fan-out. The single-product Phase E
+  live-readiness route fails closed when the latest backend cap/guard proof
+  does not cover the submitted notional or required wallet availability.
 - Durable approval, admission-audit, cap/guard, reconciliation, and enabled
   live-service decisions for every planned order.
 - Runtime fan-out rate-limit handling, retry execution, partial failure,
@@ -418,12 +420,14 @@ partial-success status, retryable products, recovery-required products,
 queued/blocked product states, run lock, pause, abort, and a maximum 100 USDC
 fan-out testing cap. It also records no-live run-cap allocation evidence:
 planned notional, allocated notional, cap remaining, cap overage, and
-per-product allocation status, plus cap-guard decision refs needed for later
-backend wallet-allocation work. This evidence remains
+per-product allocation status, plus cap-guard decision refs. It also records
+no-live wallet allocation status, available wallet proof, allocated wallet
+notional, remaining wallet capacity, blockers, and wallet-check source derived
+from existing backend cap-guard records. This evidence remains
 `fanout_readiness_status=blocked`, `fanout_execution_status=blocked`,
 `live_coinbase_execution=not_run`, and notional `0`; it does not submit
-Coinbase orders, fan out execution, allocate wallet balance, or run a
-scheduler.
+Coinbase orders, fan out execution, fetch/reserve/debit live wallet balance,
+or run a scheduler.
 
 Deliverables:
 

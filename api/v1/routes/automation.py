@@ -650,6 +650,11 @@ def _allowlist_run_state_item_from_record(
         fanout_cap_remaining_usdc=record.fanout_cap_remaining_usdc,
         fanout_cap_overage_usdc=record.fanout_cap_overage_usdc,
         fanout_cap_allocation_status=record.fanout_cap_allocation_status,
+        wallet_allocation_status=record.wallet_allocation_status,
+        wallet_available_notional_usdc=record.wallet_available_notional_usdc,
+        wallet_allocated_notional_usdc=record.wallet_allocated_notional_usdc,
+        wallet_remaining_usdc=record.wallet_remaining_usdc,
+        wallet_allocation_blockers=record.wallet_allocation_blockers,
         fanout_notional_status=record.fanout_notional_status,
         product_ids=record.product_ids,
         queued_product_ids=record.queued_product_ids,
@@ -2833,6 +2838,168 @@ def _dedupe(values: list[str]) -> list[str]:
     return list(dict.fromkeys(value for value in values if value))
 
 
+def _apply_allowlist_run_state_wallet_allocation(
+    *,
+    product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
+    cap_guard_store: FileAdminApiCapGuardStore,
+) -> tuple[list[UsdcPairSnapshotAllowlistRunStateProductItem], dict[str, Any]]:
+    wallet_proofs: dict[str, Any] = {}
+    wallet_proof_records: dict[str, Any] = {}
+    wallet_proof_blockers: dict[str, list[str]] = {}
+    wallet_available_values: list[Decimal] = []
+    blockers: list[str] = []
+
+    for item in product_states:
+        if item.execution_state != "queued_no_live":
+            continue
+        decision_id = item.cap_guard_decision_id
+        if not decision_id:
+            blockers.append("cap_guard_decision_missing")
+            continue
+        record = cap_guard_store.find_by_decision_id(decision_id)
+        if record is None:
+            blockers.append("cap_guard_decision_missing")
+            continue
+        wallet_proof_records[item.product_id] = record
+        wallet_available = _non_negative_decimal_value(
+            record.wallet_available_notional_usdc
+        )
+        record_blockers: list[str] = []
+        if not record.allowed or record.status != AdminApiGateStatus.PASSED:
+            record_blockers.append("cap_guard_decision_not_passed")
+        if (
+            record.wallet_check_required
+            and record.wallet_check_status != AdminApiGateStatus.PASSED
+        ):
+            record_blockers.append("cap_guard_wallet_check_not_passed")
+        if wallet_available is None:
+            record_blockers.append("cap_guard_wallet_available_notional_invalid")
+        if record_blockers:
+            wallet_proof_blockers[item.product_id] = record_blockers
+            blockers.extend(record_blockers)
+            continue
+        wallet_proofs[item.product_id] = record
+        wallet_available_values.append(wallet_available)
+
+    wallet_available = (
+        min(wallet_available_values)
+        if wallet_available_values
+        else Decimal("0")
+    )
+    allocated_total = Decimal("0")
+    updated: list[UsdcPairSnapshotAllowlistRunStateProductItem] = []
+
+    for item in product_states:
+        remaining = wallet_available - allocated_total
+        if item.execution_state != "queued_no_live":
+            updated.append(
+                item.model_copy(
+                    update={
+                        "wallet_allocation_status": "not_queued",
+                        "wallet_available_notional_usdc": _decimal_string(
+                            Decimal("0")
+                        ),
+                        "wallet_allocated_notional_usdc": _decimal_string(
+                            Decimal("0")
+                        ),
+                        "wallet_remaining_after_usdc": _decimal_string(remaining),
+                    }
+                )
+            )
+            continue
+
+        record = wallet_proofs.get(item.product_id)
+        proof_blockers = wallet_proof_blockers.get(item.product_id, [])
+        if proof_blockers:
+            blocked_record = wallet_proof_records.get(item.product_id)
+            updated.append(
+                item.model_copy(
+                    update={
+                        "wallet_allocation_status": "cap_guard_wallet_proof_blocked",
+                        "wallet_available_notional_usdc": _decimal_string(
+                            wallet_available
+                        ),
+                        "wallet_allocated_notional_usdc": _decimal_string(
+                            Decimal("0")
+                        ),
+                        "wallet_remaining_after_usdc": _decimal_string(remaining),
+                        "wallet_check_source": (
+                            blocked_record.wallet_check_source
+                            if blocked_record is not None
+                            else None
+                        ),
+                    }
+                )
+            )
+            continue
+
+        if record is None:
+            updated.append(
+                item.model_copy(
+                    update={
+                        "wallet_allocation_status": "missing_cap_guard_proof",
+                        "wallet_available_notional_usdc": _decimal_string(
+                            wallet_available
+                        ),
+                        "wallet_allocated_notional_usdc": _decimal_string(
+                            Decimal("0")
+                        ),
+                        "wallet_remaining_after_usdc": _decimal_string(remaining),
+                    }
+                )
+            )
+            continue
+
+        planned_notional = _decimal_value(item.planned_notional_usdc) or Decimal("0")
+        projected_total = allocated_total + planned_notional
+        if projected_total <= wallet_available:
+            allocated_total = projected_total
+            updated.append(
+                item.model_copy(
+                    update={
+                        "wallet_allocation_status": "allocated_no_live",
+                        "wallet_available_notional_usdc": _decimal_string(
+                            wallet_available
+                        ),
+                        "wallet_allocated_notional_usdc": _decimal_string(
+                            planned_notional
+                        ),
+                        "wallet_remaining_after_usdc": _decimal_string(
+                            wallet_available - allocated_total
+                        ),
+                        "wallet_check_source": record.wallet_check_source,
+                    }
+                )
+            )
+            continue
+
+        blockers.append("wallet_available_notional_exceeded")
+        updated.append(
+            item.model_copy(
+                update={
+                    "wallet_allocation_status": "wallet_exceeded_no_live",
+                    "wallet_available_notional_usdc": _decimal_string(
+                        wallet_available
+                    ),
+                    "wallet_allocated_notional_usdc": _decimal_string(Decimal("0")),
+                    "wallet_remaining_after_usdc": _decimal_string(remaining),
+                    "wallet_check_source": record.wallet_check_source,
+                }
+            )
+        )
+
+    wallet_blockers = _dedupe(blockers)
+    return updated, {
+        "wallet_allocation_status": (
+            "passed" if not wallet_blockers else "blocked"
+        ),
+        "wallet_available_notional_usdc": _decimal_string(wallet_available),
+        "wallet_allocated_notional_usdc": _decimal_string(allocated_total),
+        "wallet_remaining_usdc": _decimal_string(wallet_available - allocated_total),
+        "wallet_allocation_blockers": wallet_blockers,
+    }
+
+
 def _allowlist_run_state_status(
     *,
     blocked_product_ids: list[str],
@@ -2856,6 +3023,7 @@ def _record_usdc_pair_allowlist_run_state(
     readiness: UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
     body: UsdcPairSnapshotAllowlistRunStateRequest,
     run_state_store: FileUsdcPairSnapshotAllowlistRunStateStore,
+    cap_guard_store: FileAdminApiCapGuardStore,
     actor: AdminApiActor,
     operator_intent: str,
     idempotency_key: str,
@@ -2884,6 +3052,12 @@ def _record_usdc_pair_allowlist_run_state(
         _apply_allowlist_run_state_cap_allocation(
             product_states=product_states,
             max_fanout_notional=max_fanout_notional,
+        )
+    )
+    product_states, wallet_allocation = (
+        _apply_allowlist_run_state_wallet_allocation(
+            product_states=product_states,
+            cap_guard_store=cap_guard_store,
         )
     )
     queued_product_ids = [
@@ -2952,6 +3126,15 @@ def _record_usdc_pair_allowlist_run_state(
         fanout_cap_allocation_status=(
             cap_allocation["fanout_cap_allocation_status"]
         ),
+        wallet_allocation_status=wallet_allocation["wallet_allocation_status"],
+        wallet_available_notional_usdc=(
+            wallet_allocation["wallet_available_notional_usdc"]
+        ),
+        wallet_allocated_notional_usdc=(
+            wallet_allocation["wallet_allocated_notional_usdc"]
+        ),
+        wallet_remaining_usdc=wallet_allocation["wallet_remaining_usdc"],
+        wallet_allocation_blockers=wallet_allocation["wallet_allocation_blockers"],
         fanout_notional_status=fanout_notional_status,
         product_ids=readiness.product_ids,
         queued_product_ids=queued_product_ids,
@@ -3993,6 +4176,10 @@ def record_usdc_pair_snapshot_allowlist_run_state(
         FileUsdcPairSnapshotAllowlistRunStateStore,
         Depends(get_usdc_pair_snapshot_allowlist_run_state_store),
     ],
+    cap_guard_store: Annotated[
+        FileAdminApiCapGuardStore,
+        Depends(get_usdc_pair_snapshot_cap_guard_store),
+    ],
     idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
     audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
 ) -> JSONResponse:
@@ -4016,6 +4203,7 @@ def record_usdc_pair_snapshot_allowlist_run_state(
             readiness=readiness,
             body=body,
             run_state_store=run_state_store,
+            cap_guard_store=cap_guard_store,
             actor=actor,
             operator_intent=operator_intent,
             idempotency_key=idempotency_key,

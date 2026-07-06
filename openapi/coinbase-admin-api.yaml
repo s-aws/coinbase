@@ -169812,6 +169812,42 @@ components:
           type: string
           minLength: 1
           title: Fanout Cap Allocation Status
+        wallet_allocation_status:
+          type: string
+          minLength: 1
+          title: Wallet Allocation Status
+        wallet_available_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Wallet Available Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        wallet_allocated_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Wallet Allocated Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        wallet_remaining_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Wallet Remaining Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        wallet_allocation_blockers:
+          items:
+            type: string
+          type: array
+          title: Wallet Allocation Blockers
         fanout_notional_status:
           type: string
           minLength: 1
@@ -169991,6 +170027,7 @@ components:
       - execution_mode
       - max_fanout_notional_usdc
       - fanout_cap_allocation_status
+      - wallet_allocation_status
       - fanout_notional_status
       - queued_product_count
       - blocked_product_count
@@ -170179,6 +170216,43 @@ components:
           default: '0'
           examples:
           - '1.00'
+        wallet_allocation_status:
+          type: string
+          minLength: 1
+          title: Wallet Allocation Status
+          default: not_evaluated
+        wallet_available_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Wallet Available Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        wallet_allocated_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Wallet Allocated Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        wallet_remaining_after_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Wallet Remaining After Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        wallet_check_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Wallet Check Source
         recovery_state_ref:
           anyOf:
           - type: string
