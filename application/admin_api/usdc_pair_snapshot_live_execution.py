@@ -83,6 +83,28 @@ class UsdcPairSnapshotLiveOrderExecutor:
                 client_order_id=client_order_id,
             )
             cancel_submitted = _cancel_result_success(cancel_result)
+            if not cancel_submitted and coinbase_order_id:
+                fallback_cancel = getattr(
+                    binding.client,
+                    "cancel_order_by_exchange_order_id",
+                    None,
+                )
+                if callable(fallback_cancel):
+                    with controller.track_inflight(INFLIGHT_REST_CANCEL):
+                        fallback_result = fallback_cancel(coinbase_order_id)
+                    fallback_result_data = _cancel_result_to_dict(
+                        fallback_result,
+                        client_order_id=client_order_id,
+                    )
+                    fallback_submitted = _cancel_result_success(fallback_result)
+                    cancel_result_data = {
+                        "success": fallback_submitted,
+                        "client_order_id": client_order_id,
+                        "fallback_order_id": coinbase_order_id,
+                        "initial_cancel_result": cancel_result_data,
+                        "fallback_cancel_result": fallback_result_data,
+                    }
+                    cancel_submitted = fallback_submitted
             cancel_error = None
         except Exception as exc:
             cancel_result_data = {

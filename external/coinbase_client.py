@@ -345,6 +345,12 @@ class CoinbaseRestClient:
         """
         result = self._client.cancel_orders([client_order_id])
         return coinbase_cancel_response_succeeded(result)
+
+    def cancel_order_by_exchange_order_id(self, order_id: str) -> bool:
+        """Cancel a single order by Coinbase exchange-assigned order ID."""
+
+        result = self._client.cancel_orders([order_id])
+        return coinbase_cancel_response_succeeded(result)
     
     # ========================================================================
     # Futures Methods

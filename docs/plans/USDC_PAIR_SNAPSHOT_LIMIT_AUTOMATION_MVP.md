@@ -231,28 +231,30 @@ Non-goals:
 
 Attach existing Admin API proof-chain primitives to each planned order.
 
-Status: implemented for no-live readiness evidence, with live execution still
-blocked. Planned order rows expose `proof_chain_status=blocked`, a backend
-approval request id, blocked admission audit, blocked cap/guard, blocked
-reconciliation references, and missing live-service/approval-snapshot blockers.
-A backend proof-refresh
-route can replace `approval_snapshot_missing` with an exact approval snapshot
-from durable approval lifecycle storage and can replace
+Status: implemented through exact proof refresh and controlled-live
+submit/cancel contracts. Planned order rows expose
+`proof_chain_status=blocked`, a backend approval request id, admission audit,
+cap/guard, reconciliation, and live-service proof refs. A backend
+proof-refresh route can replace `approval_snapshot_missing` with an exact
+approval snapshot from durable approval lifecycle storage and can replace
 `admission_audit_blocked` only when exact backend audit-store evidence exists.
 It can also replace `cap_guard_decision_blocked` only when exact passed backend
 cap/guard-store evidence matches the planned row notional scope, and
-`reconciliation_plan_blocked` only when exact passed backend reconciliation-store
-evidence matches the planned row notional scope and no-live submission posture.
-It can link an exact disabled backend live-service decision, replacing
-`live_service_decision_missing` with `live_service_decision_disabled`, while
-keeping `proof_chain_status=blocked`, `live_coinbase_execution=not_run`, and
-notional `0`. Enabled live-service decisions and live submission remain
-unimplemented for this automation. Backend regression coverage proves that
+`reconciliation_plan_blocked` only when exact passed backend
+reconciliation-store evidence matches the planned row notional scope. It can
+link exact disabled live-service evidence as `live_service_decision_disabled`
+or exact enabled live-service evidence as `live_submission_missing` until a
+matching controlled-live submit/cancel artifact exists. Once a one-row live
+submit/cancel artifact matches the enabled live-service decision, proof refresh
+can set that row to `proof_chain_status=accepted` with live Coinbase
+submission and cancel evidence. Backend regression coverage proves that
 multi-row proof refresh links only the product row with exact durable evidence,
-rejects out-of-scope cap/reconciliation notional evidence, and keeps idempotent
-replay stable even if later evidence is recorded. A blind contextless review
-passed for explicit-operator-approved single-product controlled-live planning
-only; it failed live execution or fan-out.
+rejects out-of-scope cap/reconciliation notional evidence, keeps idempotent
+replay stable even if later evidence is recorded, blocks full snapshot fill
+tests pending manual review, and accepts only one controlled-live submission
+per readiness record. A blind contextless review passed for
+explicit-operator-approved single-product controlled-live planning only; fan-out
+and scheduler behavior remain blocked.
 
 Deliverables:
 
@@ -281,6 +283,30 @@ Non-goals:
 ### Phase E - Single-Product Controlled-Live Pilot
 
 Submit at most one explicitly selected product through the backend proof chain.
+
+Backend status: route and durable runner implemented. The route
+`POST /api/v1/automation/usdc-pair-snapshot-order-plans/{plan_id}/live-submit`
+submits one backend-owned order-plan row and immediately cancels by the same
+`client_order_id`. The operator runner
+`tools/run_admin_api_usdc_pair_snapshot_live_submit.py` builds the one-row
+snapshot/order-plan/proof/readiness sequence, requires
+`--confirm-live-submit`, enforces a submitted-notional cap of `<= 10` USDC,
+requires far-from-market pricing, records a live-output artifact, and fails
+closed unless `COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED=true` is already set
+for the process.
+
+Latest live evidence: on 2026-07-06, the backend submitted one BTC-USDC BUY
+order for `1.09` USDC planned notional at `31800.00`, received Coinbase order
+id `d7ef7a10-d170-4155-b713-d3ea9396dcf5`, recovered cancellation by exchange
+order id after client-id cancellation returned `UNKNOWN_CANCEL_ORDER`, and
+verified exchange readback as `CANCELLED` with `0` filled value, `0` fees, and
+`0` open BTC-USDC orders. Durable evidence artifacts:
+`artifacts/coinbase-backend-m58-usdc-live-submit-20260706-2001.json`,
+`artifacts/coinbase-backend-m58-usdc-live-submit-20260706-2001-recovery.json`,
+`artifacts/coinbase-backend-m58-usdc-live-submit-20260706-2001-proof-refresh.json`,
+and
+`artifacts/coinbase-backend-m58-usdc-live-submit-20260706-2001-exchange-readback.json`.
+The backend proof row is accepted with `live_coinbase_execution=submitted_cancelled`.
 
 Entry requirements:
 
