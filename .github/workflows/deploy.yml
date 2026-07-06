@@ -122,6 +122,7 @@ jobs:
             tools/export_admin_api_route_inventory.py \
             tools/run_admin_api_futures_live_fill_readback.py \
             tools/run_admin_api_manual_order_live_submit.py \
+            tools/run_admin_api_usdc_pair_snapshot_live_submit.py \
             tools/run_admin_api_usdc_pair_snapshot_live_readback.py \
             tools/coinbase_live_credentials.py \
             tools/run_spot_fill_backfill_recovery.py \
