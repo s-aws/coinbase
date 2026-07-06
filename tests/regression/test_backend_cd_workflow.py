@@ -161,6 +161,7 @@ def test_backend_deploy_payload_contains_admin_runtime_contract_files() -> None:
         "tools/run_admin_api_controlled_live_mvp_smoke.py",
         "tools/run_admin_api_futures_live_fill_readback.py",
         "tools/run_admin_api_manual_order_live_submit.py",
+        "tools/run_admin_api_usdc_pair_snapshot_live_readback.py",
         "tools/coinbase_live_credentials.py",
         "tools/run_spot_fill_backfill_recovery.py",
         "tools/run_spot_sweep_recovery_gate.py",
