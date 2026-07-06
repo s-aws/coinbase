@@ -11218,6 +11218,8 @@ def _command_evidence_from_body(body: Mapping[str, Any]) -> dict[str, Any]:
         "snapshot_price",
         "limit_price",
         "price_source",
+        "price_freshness_status",
+        "price_acceptance_status",
         "snapshot_captured_at",
     ):
         if optional_field in body:

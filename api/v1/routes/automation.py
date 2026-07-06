@@ -826,6 +826,8 @@ def _usdc_pair_order_plan_scope_evidence(
             "snapshot_price",
             "limit_price",
             "price_source",
+            "price_freshness_status",
+            "price_acceptance_status",
             "snapshot_captured_at",
         )
     }

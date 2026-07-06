@@ -169477,6 +169477,14 @@ components:
           - type: string
           - type: 'null'
           title: Price Source
+        price_freshness_status:
+          type: string
+          title: Price Freshness Status
+          default: not_evaluated
+        price_acceptance_status:
+          type: string
+          title: Price Acceptance Status
+          default: not_evaluated
         limit_price:
           anyOf:
           - type: string
@@ -169775,6 +169783,14 @@ components:
           - type: string
           - type: 'null'
           title: Price Source
+        price_freshness_status:
+          type: string
+          title: Price Freshness Status
+          default: not_evaluated
+        price_acceptance_status:
+          type: string
+          title: Price Acceptance Status
+          default: not_evaluated
         snapshot_captured_at:
           type: string
           title: Snapshot Captured At

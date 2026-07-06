@@ -435,6 +435,7 @@ from core.enums import (
     AdminApiStealthDecisionResolutionEvidenceType,
     AdminApiStealthLiveReadinessDecision,
     AdminApiVerifierReadinessStatus,
+    OrderSide,
     ProductType,
     StealthMutationKind,
     StealthCommandExecutionBlocker,
@@ -456,6 +457,7 @@ from core.enums import (
     StealthCreatePreExecutionContractSection,
     StealthCreateLifecycleExecutionPrerequisite,
     StealthCreateLifecycleExecutionPrerequisiteLookupStatus,
+    TimeInForce,
     SpotRecoveryExchangeStateSnapshotSource,
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
@@ -33362,21 +33364,22 @@ def test_admin_api_usdc_pair_snapshot_dry_run_records_backend_snapshot_evidence(
         },
     ]
 
+    fresh_captured_at = datetime.now(timezone.utc).isoformat()
     prices = {
         "BTC-USDC": {
             "price": "100.00",
             "source": "test_backend_price_feed",
-            "captured_at": "2026-07-05T21:00:00+00:00",
+            "captured_at": fresh_captured_at,
         },
         "DOGE-USDC": {
             "price": "0.2000",
             "source": "test_backend_price_feed",
-            "captured_at": "2026-07-05T21:00:00+00:00",
+            "captured_at": fresh_captured_at,
         },
         "POWR-USDC": {
             "price": "0.5000",
             "source": "test_backend_price_feed",
-            "captured_at": "2026-07-05T21:00:00+00:00",
+            "captured_at": fresh_captured_at,
         },
     }
 
@@ -33446,6 +33449,8 @@ def test_admin_api_usdc_pair_snapshot_dry_run_records_backend_snapshot_evidence(
     assert rows_by_product["BTC-USDC"]["skip_reason"] is None
     assert rows_by_product["BTC-USDC"]["observed_price"] == "100.00"
     assert rows_by_product["BTC-USDC"]["price_source"] == "test_backend_price_feed"
+    assert rows_by_product["BTC-USDC"]["price_freshness_status"] == "fresh"
+    assert rows_by_product["BTC-USDC"]["price_acceptance_status"] == "accepted"
     assert rows_by_product["DOGE-USDC"]["skip_reason"] == "trading_disabled"
     assert rows_by_product["ETH-USD"]["skip_reason"] == "non_usdc_quote"
     assert rows_by_product["POWR-USDC"]["skip_reason"] == "below_min_quote_size"
@@ -33596,21 +33601,22 @@ def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
             "trading_disabled": True,
         },
     ]
+    fresh_captured_at = datetime.now(timezone.utc).isoformat()
     prices = {
         "BTC-USDC": {
             "price": "100.00",
             "source": "test_backend_price_feed",
-            "captured_at": "2026-07-05T21:00:00+00:00",
+            "captured_at": fresh_captured_at,
         },
         "ETH-USDC": {
             "price": "2000.00",
             "source": "test_backend_price_feed",
-            "captured_at": "2026-07-05T21:00:00+00:00",
+            "captured_at": fresh_captured_at,
         },
         "DOGE-USDC": {
             "price": "0.2000",
             "source": "test_backend_price_feed",
-            "captured_at": "2026-07-05T21:00:00+00:00",
+            "captured_at": fresh_captured_at,
         },
     }
 
@@ -33715,6 +33721,8 @@ def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
     assert btc_row["requested_notional_usdc"] == "1.00"
     assert btc_row["snapshot_price"] == "100.00"
     assert btc_row["price_source"] == "test_backend_price_feed"
+    assert btc_row["price_freshness_status"] == "fresh"
+    assert btc_row["price_acceptance_status"] == "accepted"
     assert btc_row["limit_price"] == "100.00"
     assert btc_row["base_size"] == "0.01"
     assert btc_row["quote_size"] == "1.00"
@@ -33798,7 +33806,9 @@ def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
         "snapshot_price": "100.00",
         "limit_price": "100.00",
         "price_source": "test_backend_price_feed",
-        "snapshot_captured_at": "2026-07-05T21:00:00+00:00",
+        "price_freshness_status": "fresh",
+        "price_acceptance_status": "accepted",
+        "snapshot_captured_at": fresh_captured_at,
     }
     for proof_record in (
         approval_record,
@@ -33972,6 +33982,109 @@ def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_order_plan_skips_stale_price_evidence(
+    tmp_path,
+):
+    from application.admin_api.models import (
+        UsdcPairSnapshotOrderPlanRequest,
+        UsdcPairSnapshotRunRequest,
+    )
+    from application.admin_api.usdc_pair_snapshot import (
+        FileUsdcPairSnapshotOrderPlanStore,
+        FileUsdcPairSnapshotRunStore,
+    )
+    from application.admin_api.usdc_pair_snapshot_service import (
+        AdminApiUsdcPairSnapshotService,
+    )
+
+    now = datetime(2026, 7, 6, 15, 0, tzinfo=timezone.utc)
+    products = [
+        {
+            "product_id": "BTC-USDC",
+            "product_type": ProductType.SPOT.value,
+            "base_currency": "BTC",
+            "quote_currency": "USDC",
+            "status": "online",
+            "base_increment": "0.00000001",
+            "quote_increment": "0.01",
+            "price_increment": "0.01",
+            "base_min_size": "0.00000001",
+            "quote_min_size": "1",
+            "trading_disabled": False,
+        },
+    ]
+    service = AdminApiUsdcPairSnapshotService(
+        product_provider=lambda: products,
+        price_provider=lambda product: {
+            "price": "100.00",
+            "source": "test_backend_price_feed",
+            "captured_at": (now - timedelta(minutes=10)).isoformat(),
+        },
+    )
+    snapshot_store = FileUsdcPairSnapshotRunStore(
+        tmp_path / "usdc_pair_snapshot_stale_runs.jsonl"
+    )
+    order_plan_store = FileUsdcPairSnapshotOrderPlanStore(
+        tmp_path / "usdc_pair_snapshot_stale_order_plans.jsonl"
+    )
+
+    snapshot = service.record_snapshot_run(
+        store=snapshot_store,
+        body=UsdcPairSnapshotRunRequest(
+            run_id="m58-usdc-snapshot-stale-price-test",
+            side=OrderSide.BUY,
+            max_notional_per_product_usdc="1.00",
+            product_ids=["BTC-USDC"],
+            dry_run=True,
+        ),
+        actor_id="contract-test",
+        operator_intent="m58_usdc_snapshot_stale_price",
+        idempotency_key="idem-usdc-pair-snapshot-stale-price",
+        payload_hash="e" * 64,
+        audit_id="audit-usdc-pair-snapshot-stale-price",
+        now=now,
+    )
+
+    snapshot_row = snapshot.snapshot_rows[0]
+    assert snapshot_row.price_freshness_status == "stale"
+    assert snapshot_row.price_acceptance_status == "stale_price"
+    assert snapshot_row.eligibility_status == "skipped"
+    assert snapshot_row.skip_reason == "stale_price"
+    assert snapshot_row.live_coinbase_execution == "not_run"
+    assert snapshot_row.notional_usdc == "0"
+
+    order_plan = service.record_order_plan(
+        snapshot_store=snapshot_store,
+        order_plan_store=order_plan_store,
+        run_id="m58-usdc-snapshot-stale-price-test",
+        body=UsdcPairSnapshotOrderPlanRequest(
+            plan_id="m58-usdc-order-plan-stale-price-test",
+            max_total_notional_usdc="1.00",
+            time_in_force=TimeInForce.GOOD_UNTIL_CANCELLED,
+            dry_run=True,
+        ),
+        actor_id="contract-test",
+        operator_intent="m58_usdc_order_plan_stale_price",
+        idempotency_key="idem-usdc-pair-order-plan-stale-price",
+        payload_hash="f" * 64,
+        audit_id="audit-usdc-pair-order-plan-stale-price",
+        now=now + timedelta(seconds=1),
+    )
+
+    plan_row = order_plan.order_plan_rows[0]
+    assert order_plan.planned_count == 0
+    assert order_plan.skipped_count == 1
+    assert order_plan.live_coinbase_execution == "not_run"
+    assert order_plan.notional_usdc == "0"
+    assert plan_row.plan_status == "skipped"
+    assert plan_row.skip_reason == "snapshot_not_eligible:stale_price"
+    assert plan_row.price_freshness_status == "stale"
+    assert plan_row.price_acceptance_status == "stale_price"
+    assert plan_row.live_coinbase_execution == "not_run"
+    assert plan_row.notional_usdc == "0"
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_snapshot(
     monkeypatch,
 ):
@@ -34005,12 +34118,13 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
             "quote_min_size": "0.01",
         },
     ]
+    fresh_captured_at = datetime.now(timezone.utc).isoformat()
     service = AdminApiUsdcPairSnapshotService(
         product_provider=lambda: products,
         price_provider=lambda product: {
             "price": "100.00",
             "source": "test_backend_price_feed",
-            "captured_at": "2026-07-05T21:00:00+00:00",
+            "captured_at": fresh_captured_at,
         },
     )
     client.app.dependency_overrides[
@@ -35123,12 +35237,13 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_rejects_invalid_s
             "quote_min_size": "0.01",
         },
     ]
+    fresh_captured_at = datetime.now(timezone.utc).isoformat()
     service = AdminApiUsdcPairSnapshotService(
         product_provider=lambda: products,
         price_provider=lambda product: {
             "price": "100.00",
             "source": "test_backend_price_feed",
-            "captured_at": "2026-07-05T21:00:00+00:00",
+            "captured_at": fresh_captured_at,
         },
     )
     client.app.dependency_overrides[

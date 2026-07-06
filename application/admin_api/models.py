@@ -2494,6 +2494,8 @@ class UsdcPairSnapshotRowItem(BaseModel):
     requested_notional_usdc: DecimalString
     observed_price: DecimalString | None = None
     price_source: str | None = None
+    price_freshness_status: str = "not_evaluated"
+    price_acceptance_status: str = "not_evaluated"
     snapshot_captured_at: str
     eligibility_status: str
     skip_reason: str | None = None
@@ -2602,6 +2604,8 @@ class UsdcPairSnapshotOrderPlanRowItem(BaseModel):
     max_notional_per_product_usdc: DecimalString
     snapshot_price: DecimalString | None = None
     price_source: str | None = None
+    price_freshness_status: str = "not_evaluated"
+    price_acceptance_status: str = "not_evaluated"
     limit_price: DecimalString | None = None
     base_size: DecimalString | None = None
     quote_size: DecimalString | None = None

@@ -37,6 +37,8 @@ DISQUALIFYING_PRODUCT_FLAGS = (
     "view_only",
     "auction_mode",
 )
+PRICE_SNAPSHOT_MAX_AGE_SECONDS = 300
+PRICE_SNAPSHOT_FUTURE_TOLERANCE_SECONDS = 5
 USDC_PAIR_ORDER_PLAN_PROOF_CHAIN_BLOCKERS = (
     "approval_snapshot_missing",
     "admission_audit_missing",
@@ -298,6 +300,16 @@ class AdminApiUsdcPairSnapshotService:
         price_captured_at = _text(
             _get_value(price_snapshot or {}, "captured_at", "snapshot_captured_at")
         ) or captured_at
+        price_freshness_status = _price_freshness_status(
+            observed_price=observed_price,
+            price_captured_at=price_captured_at,
+            reference_time=captured_at,
+        )
+        price_acceptance_status = _price_acceptance_status(
+            observed_price=observed_price,
+            price_source=price_source,
+            price_freshness_status=price_freshness_status,
+        )
 
         skip_reason = _skip_reason(
             product_id=product_id,
@@ -313,6 +325,7 @@ class AdminApiUsdcPairSnapshotService:
             min_base_size=min_base_size,
             min_quote_size=min_quote_size,
             observed_price=observed_price,
+            price_acceptance_status=price_acceptance_status,
         )
         return UsdcPairSnapshotRowItem(
             product_id=product_id or "unknown",
@@ -328,6 +341,8 @@ class AdminApiUsdcPairSnapshotService:
             requested_notional_usdc=_format_decimal(requested_notional) or "0",
             observed_price=_format_decimal(observed_price),
             price_source=price_source or None,
+            price_freshness_status=price_freshness_status,
+            price_acceptance_status=price_acceptance_status,
             snapshot_captured_at=price_captured_at,
             eligibility_status="skipped" if skip_reason else "eligible",
             skip_reason=skip_reason,
@@ -436,6 +451,8 @@ def _order_plan_row(
         ),
         "snapshot_price": snapshot_row.observed_price,
         "price_source": snapshot_row.price_source,
+        "price_freshness_status": snapshot_row.price_freshness_status,
+        "price_acceptance_status": snapshot_row.price_acceptance_status,
         "price_increment": snapshot_row.price_increment,
         "base_increment": snapshot_row.base_increment,
         "quote_increment": snapshot_row.quote_increment,
@@ -563,6 +580,8 @@ def _order_plan_row(
                 "snapshot_price": snapshot_row.observed_price,
                 "limit_price": _format_decimal(limit_price),
                 "price_source": snapshot_row.price_source,
+                "price_freshness_status": snapshot_row.price_freshness_status,
+                "price_acceptance_status": snapshot_row.price_acceptance_status,
                 "snapshot_captured_at": snapshot_row.snapshot_captured_at,
             },
         )
@@ -669,6 +688,7 @@ def _skip_reason(
     min_base_size: Decimal | None,
     min_quote_size: Decimal | None,
     observed_price: Decimal | None,
+    price_acceptance_status: str,
 ) -> str | None:
     if not product_id or _truthy(_get_value(product, "missing_product_metadata")):
         return "missing_product_metadata"
@@ -691,6 +711,8 @@ def _skip_reason(
         return "below_min_quote_size"
     if observed_price is None:
         return "missing_price"
+    if price_acceptance_status != "accepted":
+        return price_acceptance_status
     return None
 
 
@@ -769,6 +791,60 @@ def _format_decimal(value: Decimal | None) -> str | None:
     if value is None:
         return None
     return format(value, "f")
+
+
+def _price_freshness_status(
+    *,
+    observed_price: Decimal | None,
+    price_captured_at: str,
+    reference_time: str,
+) -> str:
+    if observed_price is None:
+        return "not_applicable"
+    captured_at = _parse_datetime(price_captured_at)
+    if captured_at is None:
+        return "invalid_timestamp" if _text(price_captured_at) else "missing_timestamp"
+    reference = _parse_datetime(reference_time)
+    if reference is None:
+        reference = datetime.now(timezone.utc)
+    age_seconds = (reference - captured_at).total_seconds()
+    if age_seconds < -PRICE_SNAPSHOT_FUTURE_TOLERANCE_SECONDS:
+        return "future_timestamp"
+    if age_seconds > PRICE_SNAPSHOT_MAX_AGE_SECONDS:
+        return "stale"
+    return "fresh"
+
+
+def _price_acceptance_status(
+    *,
+    observed_price: Decimal | None,
+    price_source: str,
+    price_freshness_status: str,
+) -> str:
+    if observed_price is None:
+        return "missing_price"
+    if not price_source:
+        return "missing_price_source"
+    if price_freshness_status == "fresh":
+        return "accepted"
+    if price_freshness_status == "stale":
+        return "stale_price"
+    return f"{price_freshness_status}_price"
+
+
+def _parse_datetime(value: str) -> datetime | None:
+    text = _text(value)
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def _truthy(value: Any) -> bool:

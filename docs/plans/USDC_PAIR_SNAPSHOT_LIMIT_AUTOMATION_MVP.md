@@ -16,9 +16,10 @@ cap/guard, audit, live-service, and reconciliation chain.
 The current Admin MVP has backend-owned no-live discovery, snapshot readback,
 dry-run order-plan evidence, generated frontend contract consumption, and
 read-only order-plan display for a non-live planning slice. Planned rows now
-surface backend price-source readback, proof-chain readiness records, and
-missing prerequisite blockers, and a backend proof-refresh route can link exact
-durable approval lifecycle snapshots back onto existing order-plan rows,
+surface backend price-source/freshness readback, proof-chain readiness
+records, and missing prerequisite blockers, and a backend proof-refresh route
+can link exact durable approval lifecycle snapshots back onto existing
+order-plan rows,
 but the system still does not have enough contract evidence for live every-pair
 automation.
 
@@ -47,8 +48,8 @@ Available building blocks:
   scope, and snapshot/limit price evidence for each planned row.
 - Frontend generated-contract consumption and read-only display of M58
   snapshot/order-plan evidence, including proof-chain readiness blockers,
-  backend proof-record references, backend price-source readback, and
-  generated proof-decision states (`present`, `missing`, `disabled`, or
+  backend proof-record references, backend price-source/freshness readback,
+  and generated proof-decision states (`present`, `missing`, `disabled`, or
   `not_required`) without browser admission logic.
 - Approval, admission audit, cap/guard, reconciliation-plan, live-service,
   idempotency, local deployment, and artifact evidence patterns.
@@ -201,7 +202,8 @@ records dry-run order-plan rows through
 reads durable plans through
 `GET /api/v1/automation/usdc-pair-snapshot-order-plans`. Frontend generated
 contract consumption and read-only display are implemented. Order-plan rows
-carry the backend snapshot price source as readback evidence.
+carry the backend snapshot price source and freshness/acceptance statuses as
+readback evidence.
 
 Deliverables:
 
