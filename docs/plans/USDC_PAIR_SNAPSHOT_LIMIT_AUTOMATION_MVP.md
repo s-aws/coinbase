@@ -379,6 +379,19 @@ orders. Durable local evidence artifacts:
 `artifacts/coinbase-backend-m58-usdc-live-submit-20260706-2223.json` and
 `artifacts/coinbase-backend-m58-usdc-live-readback-20260706-2223.json`.
 
+Latest expanded-scope live evidence: on 2026-07-06T23:25Z, after the active
+goal was expanded to include bounded live execution, the backend submitted one
+BTC-USDC BUY order for `1.00` USDC submitted notional at `32028.95` against
+Coinbase best bid and latest trade `64057.9`. Coinbase returned order id
+`029cac7e-f2c8-4c5d-98b3-1905be4650df`; the backend cancelled the same
+`client_order_id`, recorded `live_coinbase_execution=submitted_cancelled`,
+`executed_notional_usdc=0`, `cancel_rollback_complete=true`, and
+`proof_chain_status_after_submission=accepted` with no proof-chain blockers.
+Readback verified exchange status `CANCELLED`, executed notional `0`, and `0`
+open BTC-USDC orders. Durable local evidence artifacts:
+`artifacts/coinbase-backend-m58-usdc-live-submit-20260706-232520.json` and
+`artifacts/coinbase-backend-m58-usdc-live-readback-20260706-232520.json`.
+
 Entry requirements:
 
 - Phases A-D complete and passing.
