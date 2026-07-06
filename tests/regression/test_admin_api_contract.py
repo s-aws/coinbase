@@ -34069,6 +34069,94 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert approval_decision.status_code == 200
     approval_id = approval_decision.json()["approval"]["approval_id"]
 
+    approval_only_refresh = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "m58-usdc-order-plan-refresh-test/proof-chain-refresh"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-refresh-proof-approval-only",
+            operator_intent="m58_usdc_snapshot_refresh_proof_approval_only",
+        ),
+        json={
+            "dry_run": True,
+            "operator_notes": "refresh approval snapshot evidence only",
+        },
+    )
+    assert approval_only_refresh.status_code == 200
+    approval_only_row = approval_only_refresh.json()["plan"]["order_plan_rows"][0]
+    assert approval_only_row["approval_snapshot_id"] == approval_id
+    assert approval_only_row["admission_audit_id"] == planned_row["admission_audit_id"]
+    assert "admission_audit_blocked" in approval_only_row["proof_chain_blockers"]
+
+    durable_admission_audit = AdminApiAuditEvent(
+        audit_id="m58-usdc-durable-admission-audit-refresh-test",
+        actor_id=plan["actor_id"],
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+        endpoint=(
+            "POST /api/v1/automation/usdc-pair-snapshot-runs/"
+            "{run_id}/order-plans"
+        ),
+        request_id="corr-m58-usdc-admission-audit",
+        operator_intent=plan["operator_intent"],
+        idempotency_key=planned_row["idempotency_key"],
+        approval_id=approval_id,
+        client_order_id=planned_row["client_order_id"],
+        status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+        failure_stage="admission_audit",
+        message="Durable M58 admission audit proof for refresh.",
+        admission_decision=AdminLiveAdmissionDecisionEvidence(
+            status=AdminApiGateStatus.BLOCKED,
+            allowed=False,
+            route=(
+                "/api/v1/automation/usdc-pair-snapshot-runs/"
+                "{run_id}/order-plans"
+            ),
+            method="POST",
+            module_id="automation",
+            identity_key="client_order_id",
+            identity_value=planned_row["client_order_id"],
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method="record_usdc_pair_snapshot_order_plan",
+            actor_id=plan["actor_id"],
+            idempotency_key=planned_row["idempotency_key"],
+            operator_intent=plan["operator_intent"],
+            payload_hash=plan["payload_hash"],
+            approval_snapshot_present=True,
+            approval_snapshot_id=approval_id,
+            approval_snapshot_source="approval_store",
+            admission_audit_present=True,
+            admission_audit_id="m58-usdc-durable-admission-audit-refresh-test",
+            admission_audit_source="admin_api_audit_log",
+            admission_audit_recorded_at="2026-07-06T14:00:00+00:00",
+            cap_guard_missing_reason="admission_audit_missing",
+            reconciliation_plan_missing_reason="admission_audit_missing",
+            browser_authority="rejected",
+            live_exchange_submitted=False,
+            blockers=[
+                AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED,
+                AdminApiLiveAdmissionBlocker.CAP_GUARD_MISSING,
+                AdminApiLiveAdmissionBlocker.RECONCILIATION_PLAN_MISSING,
+                AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED,
+            ],
+            evidence=["durable m58 admission audit proof"],
+            detail=(
+                "Durable backend-owned M58 admission audit proof. Live "
+                "execution remains disabled."
+            ),
+        ),
+        approval_cap_guard_decision_ref="m58-usdc-refresh-cap-guard-approval",
+        approval_reconciliation_plan_ref=(
+            "m58-usdc-refresh-reconciliation-approval"
+        ),
+        live_execution_intent_ref=(
+            "AdminApiCommandService.record_usdc_pair_snapshot_order_plan"
+        ),
+    )
+    client.admin_api_test_audit_store.append(durable_admission_audit)
+
     refresh_response = client.post(
         (
             "/api/v1/automation/usdc-pair-snapshot-order-plans/"
@@ -34101,13 +34189,13 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert refreshed_row["approval_snapshot_id"] == approval_id
     assert "approval_snapshot_missing" not in refreshed_row["proof_chain_blockers"]
     assert refreshed_row["proof_chain_blockers"] == [
-        "admission_audit_blocked",
         "cap_guard_decision_blocked",
         "reconciliation_plan_blocked",
         "live_service_decision_missing",
     ]
     assert refreshed_row["proof_chain_status"] == "blocked"
-    assert refreshed_row["admission_audit_id"] == planned_row["admission_audit_id"]
+    assert refreshed_row["admission_audit_id"] == durable_admission_audit.audit_id
+    assert refreshed_row["admission_audit_id"] != planned_row["admission_audit_id"]
     assert (
         refreshed_row["cap_guard_decision_id"]
         == planned_row["cap_guard_decision_id"]
@@ -34128,7 +34216,7 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert persisted is not None
     assert persisted.audit_id == refresh_payload["audit_id"]
     assert persisted.order_plan_rows[0].approval_snapshot_id == approval_id
-    assert len(order_plan_store.read_recent(limit=10)) == 2
+    assert len(order_plan_store.read_recent(limit=10)) == 3
 
     replay = client.post(
         (
@@ -34147,7 +34235,7 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert replay.status_code == 200
     assert replay.headers["x-idempotency-replayed"] == "true"
     assert replay.json() == refresh_payload
-    assert len(order_plan_store.read_recent(limit=10)) == 2
+    assert len(order_plan_store.read_recent(limit=10)) == 3
 
     readback = client.get(
         "/api/v1/automation/usdc-pair-snapshot-order-plans?limit=5",

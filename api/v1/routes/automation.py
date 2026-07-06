@@ -14,7 +14,12 @@ from application.admin_api.approval import (
     FileAdminApiApprovalStore,
     resolve_approval_snapshot,
 )
-from application.admin_api.audit import AdminApiAuditEvent, FileAdminApiAuditStore
+from application.admin_api.audit import (
+    AdmissionAuditTrailRequest,
+    AdminApiAuditEvent,
+    FileAdminApiAuditStore,
+    resolve_admission_audit_trail,
+)
 from application.admin_api.auth import get_authenticated_actor, require_permission
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
@@ -774,6 +779,7 @@ def _approval_request_id_for_snapshot(
 def _usdc_pair_order_plan_proof_chain_refresher(
     *,
     approval_store: FileAdminApiApprovalStore,
+    admission_audit_store: FileAdminApiAuditStore,
 ) -> Callable[[Any, Any], dict[str, Any]]:
     def refresh(plan: Any, row: Any) -> dict[str, Any]:
         client_order_id = str(getattr(row, "client_order_id", "") or "")
@@ -805,6 +811,30 @@ def _usdc_pair_order_plan_proof_chain_refresher(
             for blocker in getattr(row, "proof_chain_blockers", [])
             if blocker != "approval_snapshot_missing"
         ]
+        admission_audit = resolve_admission_audit_trail(
+            store=admission_audit_store,
+            request=AdmissionAuditTrailRequest(
+                route=USDC_PAIR_SNAPSHOT_ORDER_PLAN_ROUTE,
+                method="POST",
+                module_id=USDC_PAIR_SNAPSHOT_MODULE_ID,
+                identity_key="client_order_id",
+                identity_value=client_order_id,
+                action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+                required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+                service_method=USDC_PAIR_SNAPSHOT_ORDER_PLAN_SERVICE_METHOD,
+                actor_id=str(getattr(plan, "actor_id", "") or ""),
+                operator_intent=str(getattr(plan, "operator_intent", "") or ""),
+                idempotency_key=row_idempotency_key,
+                payload_hash=str(getattr(plan, "payload_hash", "") or ""),
+                approval_snapshot_id=approval_snapshot.approval_id,
+            ),
+        )
+        if admission_audit is not None:
+            blockers = [
+                blocker
+                for blocker in blockers
+                if blocker != "admission_audit_blocked"
+            ]
         approval_request_id = _approval_request_id_for_snapshot(
             approval_store=approval_store,
             approval_id=approval_snapshot.approval_id,
@@ -817,6 +847,11 @@ def _usdc_pair_order_plan_proof_chain_refresher(
             or getattr(row, "approval_request_id", None),
             "approval_snapshot_required": True,
             "approval_snapshot_id": approval_snapshot.approval_id,
+            "admission_audit_id": (
+                admission_audit.audit_id
+                if admission_audit is not None
+                else getattr(row, "admission_audit_id", None)
+            ),
             "live_exchange_submitted": False,
             "live_coinbase_orders_ran": False,
             "live_coinbase_execution": "not_run",
@@ -1014,6 +1049,7 @@ def refresh_usdc_pair_snapshot_order_plan_proof_chain(
             audit_id=audit_id,
             proof_chain_refresher=_usdc_pair_order_plan_proof_chain_refresher(
                 approval_store=approval_store,
+                admission_audit_store=audit_store,
             ),
         ),
     )

@@ -35,7 +35,8 @@ Available building blocks:
   `usdc-pair-snapshot-runs`.
 - Backend proof-refresh mutation for existing order plans that resolves exact,
   unexpired, non-revoked approval lifecycle snapshots without browser
-  authority or live execution.
+  authority or live execution, and can link exact durable admission-audit
+  evidence from the backend audit store.
 - Frontend generated-contract consumption and read-only display of M58
   snapshot/order-plan evidence, including proof-chain readiness blockers and
   backend proof-record references.
@@ -47,7 +48,7 @@ Missing before live automation:
 - A backend-owned price-source contract for every captured snapshot.
 - Per-product and run-level notional caps that prevent wallet/balance
   overcommit.
-- Durable approval decisions for every planned order, plus admission audit,
+- Durable approval and admission-audit decisions for every planned order, plus
   cap/guard, reconciliation proof refresh, and live-service integration.
 - Rate-limit, retry, partial failure, pause/resume, abort, and recovery
   semantics.
@@ -221,9 +222,10 @@ rows expose `proof_chain_status=blocked`, a backend approval request id,
 blocked admission audit, blocked cap/guard, blocked reconciliation references,
 and missing live-service/approval-snapshot blockers. A backend proof-refresh
 route can replace `approval_snapshot_missing` with an exact approval snapshot
-from durable approval lifecycle storage. Admission audit, cap/guard,
-reconciliation refresh, live-service decisions, and live submission remain
-unimplemented.
+from durable approval lifecycle storage and can replace
+`admission_audit_blocked` only when exact backend audit-store evidence exists.
+Cap/guard, reconciliation refresh, live-service decisions, and live submission
+remain unimplemented.
 
 Deliverables:
 
@@ -431,8 +433,8 @@ Admin API contracts.
 The next implementation slice should continue Phase D without live fan-out:
 
 - deterministic replay of proof-chain evidence per product and run;
-- admission audit, cap/guard, and reconciliation proof refresh that can remove
-  their blockers only after durable backend evidence exists;
+- cap/guard and reconciliation proof refresh that can remove their blockers only
+  after durable backend evidence exists;
 - live-service decision references that remain disabled unless explicitly
   approved;
 - read-only frontend display of generated proof-chain decision evidence;
