@@ -37,7 +37,8 @@ Available building blocks:
   unexpired, non-revoked approval lifecycle snapshots without browser
   authority or live execution, and can link exact durable admission-audit
   evidence from the backend audit store plus exact passed cap/guard evidence
-  from the backend cap guard store.
+  from the backend cap guard store and exact passed reconciliation-plan
+  evidence from the backend reconciliation store.
 - Frontend generated-contract consumption and read-only display of M58
   snapshot/order-plan evidence, including proof-chain readiness blockers and
   backend proof-record references.
@@ -49,8 +50,8 @@ Missing before live automation:
 - A backend-owned price-source contract for every captured snapshot.
 - Per-product and run-level notional caps that prevent wallet/balance
   overcommit.
-- Durable approval, admission-audit, and cap/guard decisions for every planned
-  order, plus reconciliation proof refresh and live-service integration.
+- Durable approval, admission-audit, cap/guard, and reconciliation decisions for
+  every planned order, plus live-service integration.
 - Rate-limit, retry, partial failure, pause/resume, abort, and recovery
   semantics.
 - Release-gate evidence and contextless review for any live pilot.
@@ -226,8 +227,9 @@ route can replace `approval_snapshot_missing` with an exact approval snapshot
 from durable approval lifecycle storage and can replace
 `admission_audit_blocked` only when exact backend audit-store evidence exists.
 It can also replace `cap_guard_decision_blocked` only when exact passed backend
-cap/guard-store evidence exists. Reconciliation refresh, live-service decisions,
-and live submission remain unimplemented.
+cap/guard-store evidence exists, and `reconciliation_plan_blocked` only when
+exact passed backend reconciliation-store evidence exists. Live-service
+decisions and live submission remain unimplemented.
 
 Deliverables:
 
@@ -435,8 +437,6 @@ Admin API contracts.
 The next implementation slice should continue Phase D without live fan-out:
 
 - deterministic replay of proof-chain evidence per product and run;
-- reconciliation proof refresh that can remove its blocker only after durable
-  backend evidence exists;
 - live-service decision references that remain disabled unless explicitly
   approved;
 - read-only frontend display of generated proof-chain decision evidence;

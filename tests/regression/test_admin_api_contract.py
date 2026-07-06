@@ -756,6 +756,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[
         automation_routes.get_usdc_pair_snapshot_cap_guard_store
     ] = lambda: cap_guard_store
+    app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_reconciliation_store
+    ] = lambda: reconciliation_store
     app.dependency_overrides[approval_routes.get_idempotency_store] = (
         lambda: idempotency_store
     )
@@ -34319,16 +34322,128 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert cap_refreshed_row["live_coinbase_execution"] == "not_run"
     assert cap_refreshed_row["notional_usdc"] == "0"
 
+    invalid_reconciliation = ReconciliationPlanRecord(
+        plan_id="m58-usdc-refresh-reconciliation-approval",
+        route="/api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans",
+        method="POST",
+        module_id="automation",
+        identity_key="client_order_id",
+        identity_value=planned_row["client_order_id"],
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+        service_method="record_usdc_pair_snapshot_order_plan",
+        actor_id=plan["actor_id"],
+        operator_intent=plan["operator_intent"],
+        idempotency_key=planned_row["idempotency_key"],
+        payload_hash=plan["payload_hash"],
+        approval_snapshot_id=approval_id,
+        admission_audit_id=durable_admission_audit.audit_id,
+        cap_guard_decision_id="m58-usdc-mismatched-cap-guard",
+        allowed=True,
+        status=AdminApiGateStatus.PASSED,
+        reconciliation_policy_ref="m58_usdc_no_live_reconciliation_policy",
+        product_scope="M58 USDC spot order-plan row",
+        exchange_submission_required=False,
+        post_submit_reconciliation_required=False,
+        retained_inventory_required=True,
+        max_submitted_notional_usdc=planned_row["planned_notional_usdc"],
+        max_executed_notional_usdc="0",
+        reason="Mismatched M58 reconciliation proof for refresh.",
+    )
+    client.admin_api_test_reconciliation_store.append(invalid_reconciliation)
+    client.admin_api_test_reconciliation_store.append(
+        invalid_reconciliation.model_copy(
+            update={
+                "cap_guard_decision_id": durable_cap_guard.decision_id,
+                "allowed": False,
+                "status": AdminApiGateStatus.BLOCKED,
+                "reason": "Blocked M58 reconciliation proof for refresh.",
+            }
+        )
+    )
+
+    recon_blocked_response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "m58-usdc-order-plan-refresh-test/proof-chain-refresh"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-refresh-proof-recon-blocked",
+            operator_intent="m58_usdc_snapshot_refresh_proof_recon_blocked",
+        ),
+        json={
+            "dry_run": True,
+            "operator_notes": "refresh blocked reconciliation evidence",
+        },
+    )
+    assert recon_blocked_response.status_code == 200
+    recon_blocked_row = recon_blocked_response.json()["plan"]["order_plan_rows"][0]
+    assert recon_blocked_row["cap_guard_decision_id"] == durable_cap_guard.decision_id
+    assert recon_blocked_row["reconciliation_plan_id"] == (
+        planned_row["reconciliation_plan_id"]
+    )
+    assert "reconciliation_plan_blocked" in (
+        recon_blocked_row["proof_chain_blockers"]
+    )
+
+    durable_reconciliation = invalid_reconciliation.model_copy(
+        update={
+            "cap_guard_decision_id": durable_cap_guard.decision_id,
+            "allowed": True,
+            "status": AdminApiGateStatus.PASSED,
+            "reason": "Durable M58 reconciliation proof for refresh.",
+        }
+    )
+    client.admin_api_test_reconciliation_store.append(durable_reconciliation)
+
+    recon_refresh_response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "m58-usdc-order-plan-refresh-test/proof-chain-refresh"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-refresh-proof-recon",
+            operator_intent="m58_usdc_snapshot_refresh_proof_recon",
+        ),
+        json={
+            "dry_run": True,
+            "operator_notes": "refresh reconciliation evidence only",
+        },
+    )
+    assert recon_refresh_response.status_code == 200
+    recon_refresh_payload = recon_refresh_response.json()
+    recon_refreshed_row = recon_refresh_payload["plan"]["order_plan_rows"][0]
+    assert recon_refreshed_row["approval_snapshot_id"] == approval_id
+    assert recon_refreshed_row["admission_audit_id"] == (
+        durable_admission_audit.audit_id
+    )
+    assert recon_refreshed_row["cap_guard_decision_id"] == durable_cap_guard.decision_id
+    assert recon_refreshed_row["reconciliation_plan_id"] == (
+        durable_reconciliation.plan_id
+    )
+    assert recon_refreshed_row["proof_chain_blockers"] == [
+        "live_service_decision_missing",
+    ]
+    assert recon_refreshed_row["proof_chain_status"] == "blocked"
+    assert recon_refreshed_row["live_service_decision_id"] is None
+    assert recon_refreshed_row["live_exchange_submitted"] is False
+    assert recon_refreshed_row["live_coinbase_orders_ran"] is False
+    assert recon_refreshed_row["live_coinbase_execution"] == "not_run"
+    assert recon_refreshed_row["notional_usdc"] == "0"
+
     persisted = order_plan_store.find_by_plan_id(
         "m58-usdc-order-plan-refresh-test"
     )
     assert persisted is not None
-    assert persisted.audit_id == cap_refresh_payload["audit_id"]
+    assert persisted.audit_id == recon_refresh_payload["audit_id"]
     assert persisted.order_plan_rows[0].approval_snapshot_id == approval_id
     assert persisted.order_plan_rows[0].cap_guard_decision_id == (
         durable_cap_guard.decision_id
     )
-    assert len(order_plan_store.read_recent(limit=10)) == 4
+    assert persisted.order_plan_rows[0].reconciliation_plan_id == (
+        durable_reconciliation.plan_id
+    )
+    assert len(order_plan_store.read_recent(limit=10)) == 6
 
     replay = client.post(
         (
@@ -34347,7 +34462,7 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert replay.status_code == 200
     assert replay.headers["x-idempotency-replayed"] == "true"
     assert replay.json() == refresh_payload
-    assert len(order_plan_store.read_recent(limit=10)) == 4
+    assert len(order_plan_store.read_recent(limit=10)) == 6
 
     readback = client.get(
         "/api/v1/automation/usdc-pair-snapshot-order-plans?limit=5",

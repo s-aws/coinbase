@@ -53,6 +53,11 @@ from application.admin_api.usdc_pair_snapshot import (
     FileUsdcPairSnapshotOrderPlanStore,
     FileUsdcPairSnapshotRunStore,
 )
+from application.admin_api.reconciliation import (
+    FileAdminApiReconciliationStore,
+    ReconciliationPlanRequest,
+    resolve_reconciliation_plan,
+)
 from application.admin_api.usdc_pair_snapshot_service import (
     AdminApiUsdcPairSnapshotService,
     UsdcPairSnapshotError,
@@ -202,6 +207,14 @@ def get_usdc_pair_snapshot_cap_guard_store() -> FileAdminApiCapGuardStore:
     """Return cap/guard storage used to resolve M58 proof decisions."""
 
     return FileAdminApiCapGuardStore()
+
+
+def get_usdc_pair_snapshot_reconciliation_store() -> (
+    FileAdminApiReconciliationStore
+):
+    """Return reconciliation storage used to resolve M58 proof plans."""
+
+    return FileAdminApiReconciliationStore()
 
 
 def _payload_hash(
@@ -792,6 +805,7 @@ def _usdc_pair_order_plan_proof_chain_refresher(
     approval_store: FileAdminApiApprovalStore,
     admission_audit_store: FileAdminApiAuditStore,
     cap_guard_store: FileAdminApiCapGuardStore,
+    reconciliation_store: FileAdminApiReconciliationStore,
 ) -> Callable[[Any, Any], dict[str, Any]]:
     def refresh(plan: Any, row: Any) -> dict[str, Any]:
         client_order_id = str(getattr(row, "client_order_id", "") or "")
@@ -879,6 +893,39 @@ def _usdc_pair_order_plan_proof_chain_refresher(
                 for blocker in blockers
                 if blocker != "cap_guard_decision_blocked"
             ]
+        reconciliation = None
+        if admission_audit is not None and cap_guard is not None:
+            reconciliation = resolve_reconciliation_plan(
+                store=reconciliation_store,
+                request=ReconciliationPlanRequest(
+                    route=USDC_PAIR_SNAPSHOT_ORDER_PLAN_ROUTE,
+                    method="POST",
+                    module_id=USDC_PAIR_SNAPSHOT_MODULE_ID,
+                    identity_key="client_order_id",
+                    identity_value=client_order_id,
+                    action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+                    required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+                    service_method=USDC_PAIR_SNAPSHOT_ORDER_PLAN_SERVICE_METHOD,
+                    actor_id=str(getattr(plan, "actor_id", "") or ""),
+                    operator_intent=str(
+                        getattr(plan, "operator_intent", "") or ""
+                    ),
+                    idempotency_key=row_idempotency_key,
+                    payload_hash=str(getattr(plan, "payload_hash", "") or ""),
+                    approval_snapshot_id=approval_snapshot.approval_id,
+                    approval_reconciliation_plan_ref=(
+                        approval_snapshot.reconciliation_plan_ref
+                    ),
+                    admission_audit_id=admission_audit.audit_id,
+                    cap_guard_decision_id=cap_guard.decision_id,
+                ),
+            )
+        if reconciliation is not None:
+            blockers = [
+                blocker
+                for blocker in blockers
+                if blocker != "reconciliation_plan_blocked"
+            ]
         approval_request_id = _approval_request_id_for_snapshot(
             approval_store=approval_store,
             approval_id=approval_snapshot.approval_id,
@@ -900,6 +947,11 @@ def _usdc_pair_order_plan_proof_chain_refresher(
                 cap_guard.decision_id
                 if cap_guard is not None
                 else getattr(row, "cap_guard_decision_id", None)
+            ),
+            "reconciliation_plan_id": (
+                reconciliation.plan_id
+                if reconciliation is not None
+                else getattr(row, "reconciliation_plan_id", None)
             ),
             "live_exchange_submitted": False,
             "live_coinbase_orders_ran": False,
@@ -1067,6 +1119,10 @@ def refresh_usdc_pair_snapshot_order_plan_proof_chain(
         FileAdminApiCapGuardStore,
         Depends(get_usdc_pair_snapshot_cap_guard_store),
     ],
+    reconciliation_store: Annotated[
+        FileAdminApiReconciliationStore,
+        Depends(get_usdc_pair_snapshot_reconciliation_store),
+    ],
     idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
     audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
 ) -> JSONResponse:
@@ -1104,6 +1160,7 @@ def refresh_usdc_pair_snapshot_order_plan_proof_chain(
                 approval_store=approval_store,
                 admission_audit_store=audit_store,
                 cap_guard_store=cap_guard_store,
+                reconciliation_store=reconciliation_store,
             ),
         ),
     )
