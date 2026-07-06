@@ -33769,6 +33769,13 @@ def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
         btc_row["reconciliation_plan_id"]
     ]["status"] == "blocked"
     assert mvp_service.store.service_decisions == {}
+    proof_record_counts = {
+        "approval_requests": len(mvp_service.store.approval_requests),
+        "admission_audits": len(mvp_service.store.admission_audits),
+        "cap_guard_decisions": len(mvp_service.store.cap_guard_decisions),
+        "reconciliation_plans": len(mvp_service.store.reconciliation_plans),
+        "service_decisions": len(mvp_service.store.service_decisions),
+    }
 
     persisted = order_plan_store.find_by_plan_id("m58-usdc-order-plan-test")
     assert persisted is not None
@@ -33792,6 +33799,13 @@ def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
     assert replay.headers["x-idempotency-replayed"] == "true"
     assert replay.json() == payload
     assert len(order_plan_store.read_recent(limit=10)) == 1
+    assert {
+        "approval_requests": len(mvp_service.store.approval_requests),
+        "admission_audits": len(mvp_service.store.admission_audits),
+        "cap_guard_decisions": len(mvp_service.store.cap_guard_decisions),
+        "reconciliation_plans": len(mvp_service.store.reconciliation_plans),
+        "service_decisions": len(mvp_service.store.service_decisions),
+    } == proof_record_counts
 
     conflict = client.post(
         (
