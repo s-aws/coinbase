@@ -33725,6 +33725,11 @@ def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
     assert plan["planned_count"] == 1
     assert plan["skipped_count"] == 2
     assert plan["rejected_count"] == 0
+    assert plan["proof_chain_planned_count"] == 1
+    assert plan["proof_chain_blocked_count"] == 1
+    assert plan["proof_chain_live_disabled_count"] == 0
+    assert plan["proof_chain_missing_evidence_count"] == 1
+    assert plan["proof_chain_not_applicable_count"] == 2
     assert plan["planned_total_notional_usdc"] == "1.00"
     assert plan["live_exchange_submitted"] is False
     assert plan["live_coinbase_orders_ran"] is False
@@ -33976,6 +33981,11 @@ def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
     assert readback_payload["returned_planned_count"] == 1
     assert readback_payload["returned_skipped_count"] == 2
     assert readback_payload["returned_rejected_count"] == 0
+    assert readback_payload["returned_proof_chain_planned_count"] == 1
+    assert readback_payload["returned_proof_chain_blocked_count"] == 1
+    assert readback_payload["returned_proof_chain_live_disabled_count"] == 0
+    assert readback_payload["returned_proof_chain_missing_evidence_count"] == 1
+    assert readback_payload["returned_proof_chain_not_applicable_count"] == 2
     assert readback_payload["plans"][0]["plan_id"] == plan["plan_id"]
     assert readback_payload["plans"][0]["order_plan_rows"] == plan["order_plan_rows"]
 
@@ -34762,6 +34772,11 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert live_refresh_response.status_code == 200
     live_refresh_payload = live_refresh_response.json()
     live_refreshed_row = live_refresh_payload["plan"]["order_plan_rows"][0]
+    assert live_refresh_payload["plan"]["proof_chain_planned_count"] == 1
+    assert live_refresh_payload["plan"]["proof_chain_blocked_count"] == 1
+    assert live_refresh_payload["plan"]["proof_chain_live_disabled_count"] == 1
+    assert live_refresh_payload["plan"]["proof_chain_missing_evidence_count"] == 0
+    assert live_refresh_payload["plan"]["proof_chain_not_applicable_count"] == 0
     assert live_refreshed_row["approval_snapshot_id"] == approval_id
     assert live_refreshed_row["admission_audit_id"] == (
         durable_admission_audit.audit_id

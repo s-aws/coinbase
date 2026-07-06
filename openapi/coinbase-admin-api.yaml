@@ -169129,6 +169129,26 @@ components:
           type: integer
           minimum: 0.0
           title: Rejected Count
+        proof_chain_planned_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Chain Planned Count
+        proof_chain_blocked_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Chain Blocked Count
+        proof_chain_live_disabled_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Chain Live Disabled Count
+        proof_chain_missing_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Chain Missing Evidence Count
+        proof_chain_not_applicable_count:
+          type: integer
+          minimum: 0.0
+          title: Proof Chain Not Applicable Count
         order_plan_rows:
           items:
             $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanRowItem'
@@ -169200,6 +169220,11 @@ components:
       - planned_count
       - skipped_count
       - rejected_count
+      - proof_chain_planned_count
+      - proof_chain_blocked_count
+      - proof_chain_live_disabled_count
+      - proof_chain_missing_evidence_count
+      - proof_chain_not_applicable_count
       - actor_id
       - operator_intent
       - idempotency_key
@@ -169244,6 +169269,26 @@ components:
           type: integer
           minimum: 0.0
           title: Returned Rejected Count
+        returned_proof_chain_planned_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Proof Chain Planned Count
+        returned_proof_chain_blocked_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Proof Chain Blocked Count
+        returned_proof_chain_live_disabled_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Proof Chain Live Disabled Count
+        returned_proof_chain_missing_evidence_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Proof Chain Missing Evidence Count
+        returned_proof_chain_not_applicable_count:
+          type: integer
+          minimum: 0.0
+          title: Returned Proof Chain Not Applicable Count
         read_only:
           type: boolean
           title: Read Only
@@ -169295,6 +169340,11 @@ components:
       - returned_planned_count
       - returned_skipped_count
       - returned_rejected_count
+      - returned_proof_chain_planned_count
+      - returned_proof_chain_blocked_count
+      - returned_proof_chain_live_disabled_count
+      - returned_proof_chain_missing_evidence_count
+      - returned_proof_chain_not_applicable_count
       title: UsdcPairSnapshotOrderPlanListResponse
       description: Read-only list of backend-owned M58 dry-run order-plan evidence.
     UsdcPairSnapshotOrderPlanProofRefreshRequest:

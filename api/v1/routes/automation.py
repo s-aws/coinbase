@@ -66,6 +66,7 @@ from application.admin_api.reconciliation import (
 )
 from application.admin_api.usdc_pair_snapshot_service import (
     AdminApiUsdcPairSnapshotService,
+    USDC_PAIR_ORDER_PLAN_LIVE_DISABLED_BLOCKER,
     UsdcPairSnapshotError,
     item_from_record,
     order_plan_item_from_record,
@@ -111,7 +112,7 @@ USDC_PAIR_SNAPSHOT_PROOF_BLOCKERS = [
     "live_service_decision_missing",
 ]
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_DISABLED_BLOCKER = (
-    "live_service_decision_disabled"
+    USDC_PAIR_ORDER_PLAN_LIVE_DISABLED_BLOCKER
 )
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_ACCOUNT_FAMILY = "coinbase_spot"
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_VENUE_SCOPE = "coinbase_advanced_trade"
@@ -337,6 +338,21 @@ def _order_plan_list_response(
         returned_planned_count=sum(plan.planned_count for plan in plans),
         returned_skipped_count=sum(plan.skipped_count for plan in plans),
         returned_rejected_count=sum(plan.rejected_count for plan in plans),
+        returned_proof_chain_planned_count=sum(
+            plan.proof_chain_planned_count for plan in plans
+        ),
+        returned_proof_chain_blocked_count=sum(
+            plan.proof_chain_blocked_count for plan in plans
+        ),
+        returned_proof_chain_live_disabled_count=sum(
+            plan.proof_chain_live_disabled_count for plan in plans
+        ),
+        returned_proof_chain_missing_evidence_count=sum(
+            plan.proof_chain_missing_evidence_count for plan in plans
+        ),
+        returned_proof_chain_not_applicable_count=sum(
+            plan.proof_chain_not_applicable_count for plan in plans
+        ),
     )
 
 

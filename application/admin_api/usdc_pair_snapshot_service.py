@@ -46,6 +46,7 @@ USDC_PAIR_ORDER_PLAN_PROOF_CHAIN_BLOCKERS = (
     "reconciliation_plan_missing",
     "live_service_decision_missing",
 )
+USDC_PAIR_ORDER_PLAN_LIVE_DISABLED_BLOCKER = "live_service_decision_disabled"
 
 
 class UsdcPairSnapshotError(ValueError):
@@ -401,6 +402,7 @@ def order_plan_item_from_record(
     rejected_count = sum(
         1 for row in record.order_plan_rows if row.plan_status == "rejected"
     )
+    proof_chain_counts = _order_plan_proof_chain_counts(record.order_plan_rows)
     return UsdcPairSnapshotOrderPlanItem(
         plan_id=record.plan_id,
         snapshot_run_id=record.snapshot_run_id,
@@ -418,6 +420,11 @@ def order_plan_item_from_record(
         planned_count=planned_count,
         skipped_count=skipped_count,
         rejected_count=rejected_count,
+        proof_chain_planned_count=proof_chain_counts["planned"],
+        proof_chain_blocked_count=proof_chain_counts["blocked"],
+        proof_chain_live_disabled_count=proof_chain_counts["live_disabled"],
+        proof_chain_missing_evidence_count=proof_chain_counts["missing_evidence"],
+        proof_chain_not_applicable_count=proof_chain_counts["not_applicable"],
         order_plan_rows=record.order_plan_rows,
         actor_id=record.actor_id,
         operator_intent=record.operator_intent,
@@ -431,6 +438,34 @@ def order_plan_item_from_record(
             "or grant browser execution authority."
         ),
     )
+
+
+def _order_plan_proof_chain_counts(
+    rows: Iterable[UsdcPairSnapshotOrderPlanRowItem],
+) -> dict[str, int]:
+    counts = {
+        "planned": 0,
+        "blocked": 0,
+        "live_disabled": 0,
+        "missing_evidence": 0,
+        "not_applicable": 0,
+    }
+    for row in rows:
+        blockers = row.proof_chain_blockers
+        if row.plan_status == "planned":
+            counts["planned"] += 1
+        if row.proof_chain_status == "blocked":
+            counts["blocked"] += 1
+        if USDC_PAIR_ORDER_PLAN_LIVE_DISABLED_BLOCKER in blockers:
+            counts["live_disabled"] += 1
+        if any(
+            blocker != USDC_PAIR_ORDER_PLAN_LIVE_DISABLED_BLOCKER
+            for blocker in blockers
+        ):
+            counts["missing_evidence"] += 1
+        if row.proof_chain_status == "not_applicable":
+            counts["not_applicable"] += 1
+    return counts
 
 
 def _order_plan_row(

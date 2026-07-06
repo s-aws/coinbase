@@ -2665,6 +2665,11 @@ class UsdcPairSnapshotOrderPlanItem(BaseModel):
     planned_count: int = Field(ge=0)
     skipped_count: int = Field(ge=0)
     rejected_count: int = Field(ge=0)
+    proof_chain_planned_count: int = Field(ge=0)
+    proof_chain_blocked_count: int = Field(ge=0)
+    proof_chain_live_disabled_count: int = Field(ge=0)
+    proof_chain_missing_evidence_count: int = Field(ge=0)
+    proof_chain_not_applicable_count: int = Field(ge=0)
     order_plan_rows: list[UsdcPairSnapshotOrderPlanRowItem] = Field(
         default_factory=list
     )
@@ -2715,6 +2720,11 @@ class UsdcPairSnapshotOrderPlanListResponse(BaseModel):
     returned_planned_count: int = Field(ge=0)
     returned_skipped_count: int = Field(ge=0)
     returned_rejected_count: int = Field(ge=0)
+    returned_proof_chain_planned_count: int = Field(ge=0)
+    returned_proof_chain_blocked_count: int = Field(ge=0)
+    returned_proof_chain_live_disabled_count: int = Field(ge=0)
+    returned_proof_chain_missing_evidence_count: int = Field(ge=0)
+    returned_proof_chain_not_applicable_count: int = Field(ge=0)
     read_only: bool = True
     backend_owned: bool = True
     browser_authority: str = "display_only"
