@@ -61517,8 +61517,24 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert order_plan_refresh_route.permission == (
         AdminApiPermission.CAMPAIGN_EXECUTE
     )
-    assert "approval snapshot refs" in order_plan_refresh_route.parity_test
+    proof_refresh_evidence = " ".join(
+        (
+            order_plan_refresh_route.approval,
+            order_plan_refresh_route.caps,
+            order_plan_refresh_route.parity_test,
+        )
+    )
+    assert "exact approval snapshot" in proof_refresh_evidence
+    assert "admission audit" in proof_refresh_evidence
+    assert "cap/guard" in proof_refresh_evidence
+    assert "reconciliation plan" in proof_refresh_evidence
+    assert "disabled live-service decision" in proof_refresh_evidence
     assert "no Coinbase order submission" in order_plan_refresh_route.parity_test
+    assert (
+        "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
+        "{plan_id}/proof-chain-refresh"
+    ) in doc
+    assert "refresh_usdc_pair_snapshot_order_plan_proof_chain" in doc
     stealth_recovery_route = rows[
         "POST /api/v1/stealth/orders/{stealth_order_id}/recovery"
     ]
@@ -61887,6 +61903,16 @@ def test_admin_api_route_inventory_and_openapi_paths_stay_in_sync():
     assert "GET /api/v1/futures/positions" in schema_http_surfaces
     assert "GET /api/v1/futures/positions/{position_key}" in inventory_http_surfaces
     assert "GET /api/v1/futures/positions/{position_key}" in schema_http_surfaces
+    assert (
+        "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
+        "{plan_id}/proof-chain-refresh"
+        in inventory_http_surfaces
+    )
+    assert (
+        "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
+        "{plan_id}/proof-chain-refresh"
+        in schema_http_surfaces
+    )
     assert "GET /api/v1/admin/guard-risk-policy" in inventory_http_surfaces
     assert "GET /api/v1/admin/guard-risk-policy" in schema_http_surfaces
     assert "GET /api/v1/admin/audit-workbench" in inventory_http_surfaces

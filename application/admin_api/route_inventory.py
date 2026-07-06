@@ -1095,16 +1095,18 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
             "storage; does not grant live execution"
         ),
         caps=(
-            "does not alter order sizing or allocate wallet balance; preserves "
-            "blocked cap/admission/reconciliation proof state"
+            "does not alter order sizing or allocate wallet balance; reads "
+            "admission audit, cap/guard, reconciliation plan, and disabled "
+            "live-service decision evidence"
         ),
         audit="required",
         shared_method="refresh_usdc_pair_snapshot_order_plan_proof_chain",
         parity_test=(
-            "M58 backend-owned proof refresh links approval snapshot refs to "
-            "durable no-live order-plan evidence; no Coinbase order "
-            "submission, no wallet allocation, and no browser execution "
-            "authority"
+            "M58 backend-owned proof refresh links exact approval snapshot, "
+            "admission audit, passed cap/guard, passed reconciliation plan, "
+            "and disabled live-service decision evidence to durable no-live "
+            "order-plan rows; no Coinbase order submission, no wallet "
+            "allocation, and no browser execution authority"
         ),
     ),
     AdminApiRouteInventoryItem(
