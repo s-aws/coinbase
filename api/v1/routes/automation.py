@@ -2915,6 +2915,7 @@ def _apply_allowlist_run_state_wallet_allocation(
             updated.append(
                 item.model_copy(
                     update={
+                        "execution_state": "blocked",
                         "wallet_allocation_status": "cap_guard_wallet_proof_blocked",
                         "wallet_available_notional_usdc": _decimal_string(
                             wallet_available
@@ -2928,6 +2929,7 @@ def _apply_allowlist_run_state_wallet_allocation(
                             if blocked_record is not None
                             else None
                         ),
+                        "blockers": _dedupe(list(item.blockers) + proof_blockers),
                     }
                 )
             )
@@ -2937,6 +2939,7 @@ def _apply_allowlist_run_state_wallet_allocation(
             updated.append(
                 item.model_copy(
                     update={
+                        "execution_state": "blocked",
                         "wallet_allocation_status": "missing_cap_guard_proof",
                         "wallet_available_notional_usdc": _decimal_string(
                             wallet_available
@@ -2945,6 +2948,9 @@ def _apply_allowlist_run_state_wallet_allocation(
                             Decimal("0")
                         ),
                         "wallet_remaining_after_usdc": _decimal_string(remaining),
+                        "blockers": _dedupe(
+                            list(item.blockers) + ["cap_guard_decision_missing"]
+                        ),
                     }
                 )
             )
@@ -2977,6 +2983,7 @@ def _apply_allowlist_run_state_wallet_allocation(
         updated.append(
             item.model_copy(
                 update={
+                    "execution_state": "blocked",
                     "wallet_allocation_status": "wallet_exceeded_no_live",
                     "wallet_available_notional_usdc": _decimal_string(
                         wallet_available
@@ -2984,6 +2991,9 @@ def _apply_allowlist_run_state_wallet_allocation(
                     "wallet_allocated_notional_usdc": _decimal_string(Decimal("0")),
                     "wallet_remaining_after_usdc": _decimal_string(remaining),
                     "wallet_check_source": record.wallet_check_source,
+                    "blockers": _dedupe(
+                        list(item.blockers) + ["wallet_available_notional_exceeded"]
+                    ),
                 }
             )
         )

@@ -436,7 +436,10 @@ planned notional, allocated notional, cap remaining, cap overage, and
 per-product allocation status, plus cap-guard decision refs. It also records
 no-live wallet allocation status, available wallet proof, allocated wallet
 notional, remaining wallet capacity, blockers, and wallet-check source derived
-from existing backend cap-guard records. This evidence remains
+from existing backend cap-guard records. Rows with missing, blocked, invalid,
+or insufficient wallet proof are blocked in no-live run-state evidence and are
+removed from queued product ids before any future fan-out decision. This
+evidence remains
 `fanout_readiness_status=blocked`, `fanout_execution_status=blocked`,
 `live_coinbase_execution=not_run`, and notional `0`; it does not submit
 Coinbase orders, fan out execution, fetch/reserve/debit live wallet balance,
