@@ -206,6 +206,7 @@ USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_BLOCKERS = [
     "live_wallet_release_missing",
 ]
 USDC_PAIR_SNAPSHOT_RUN_LOCK_MISSING_BLOCKER = "run_lock_ref_missing"
+USDC_PAIR_SNAPSHOT_RUN_LOCK_CONFLICT_BLOCKER = "run_lock_ref_conflict"
 USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_MISSING_BLOCKER = (
     "rate_limit_window_ref_missing"
 )
@@ -2889,10 +2890,31 @@ def _allowlist_run_state_product_item(
     )
 
 
+def _allowlist_run_state_run_lock_conflict_blocker(
+    *,
+    run_state_store: FileUsdcPairSnapshotAllowlistRunStateStore,
+    run_lock_ref: str | None,
+    run_state_id: str | None,
+) -> str | None:
+    if not run_lock_ref:
+        return None
+    requested_run_state_id = str(run_state_id or "")
+    return next(
+        (
+            USDC_PAIR_SNAPSHOT_RUN_LOCK_CONFLICT_BLOCKER
+            for record in run_state_store.read_recent(limit=500)
+            if record.run_lock_ref == run_lock_ref
+            and record.run_state_id != requested_run_state_id
+        ),
+        None,
+    )
+
+
 def _apply_allowlist_run_state_runtime_controls(
     *,
     product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
     run_lock_ref: str | None,
+    run_lock_conflict_blocker: str | None,
     rate_limit_window_ref: str | None,
     pause_requested: bool,
     abort_requested: bool,
@@ -2904,6 +2926,8 @@ def _apply_allowlist_run_state_runtime_controls(
         runtime_blocker = USDC_PAIR_SNAPSHOT_RUN_PAUSED_BLOCKER
     elif not run_lock_ref:
         runtime_blocker = USDC_PAIR_SNAPSHOT_RUN_LOCK_MISSING_BLOCKER
+    elif run_lock_conflict_blocker:
+        runtime_blocker = run_lock_conflict_blocker
     elif not rate_limit_window_ref:
         runtime_blocker = USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_MISSING_BLOCKER
     if runtime_blocker is None:
@@ -3366,10 +3390,16 @@ def _record_usdc_pair_allowlist_run_state(
         )
         for row in readiness.product_readiness_rows
     ]
+    run_lock_conflict_blocker = _allowlist_run_state_run_lock_conflict_blocker(
+        run_state_store=run_state_store,
+        run_lock_ref=body.run_lock_ref,
+        run_state_id=body.run_state_id,
+    )
     product_states, runtime_control_blockers = (
         _apply_allowlist_run_state_runtime_controls(
             product_states=product_states,
             run_lock_ref=body.run_lock_ref,
+            run_lock_conflict_blocker=run_lock_conflict_blocker,
             rate_limit_window_ref=body.rate_limit_window_ref,
             pause_requested=body.pause_requested,
             abort_requested=body.abort_requested,
@@ -3524,7 +3554,11 @@ def _record_usdc_pair_allowlist_run_state(
         retryable_product_count=len(retryable_product_ids),
         recovery_required_product_count=len(recovery_required_product_ids),
         run_lock_status=(
-            "recorded_no_live" if body.run_lock_ref else "missing_run_lock_ref"
+            "missing_run_lock_ref"
+            if not body.run_lock_ref
+            else "conflict_no_live"
+            if run_lock_conflict_blocker
+            else "recorded_no_live"
         ),
         run_lock_ref=body.run_lock_ref,
         pause_resume_status=(
