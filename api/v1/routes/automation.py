@@ -6572,6 +6572,20 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_queued_order_plan(
             continue
         if len(matching_rows) > 1:
             blockers.append("run_state_product_order_plan_row_ambiguous")
+            continue
+        row = matching_rows[0]
+        row_planned_notional = _decimal_value(row.planned_notional_usdc)
+        item_planned_notional = _decimal_value(item.planned_notional_usdc)
+        if (
+            row_planned_notional is None
+            or item_planned_notional is None
+            or row_planned_notional != item_planned_notional
+        ):
+            blockers.append("run_state_product_order_plan_notional_mismatch")
+        if str(row.cap_guard_decision_id or "").strip() != str(
+            item.cap_guard_decision_id or ""
+        ).strip():
+            blockers.append("run_state_product_order_plan_cap_guard_ref_mismatch")
 
     if blockers:
         raise UsdcPairSnapshotError(

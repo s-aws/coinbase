@@ -44114,6 +44114,10 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
     [
         ("missing", "run_state_product_order_plan_row_missing"),
         ("ambiguous", "run_state_product_order_plan_row_ambiguous"),
+        (
+            "cap_guard_ref_mismatch",
+            "run_state_product_order_plan_cap_guard_ref_mismatch",
+        ),
     ],
 )
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hidden_queued_order_plan_row_gaps(
@@ -44318,11 +44322,16 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
             }
         )
     )
-    if hidden_order_plan_shape == "ambiguous":
+    if hidden_order_plan_shape in {"ambiguous", "cap_guard_ref_mismatch"}:
         order_plan_store = client.admin_api_test_usdc_pair_snapshot_order_plan_store
         source_plan = order_plan_store.find_by_plan_id(ready["plan_id"])
         assert source_plan is not None
         source_order_plan_row = source_plan.order_plan_rows[0]
+        hidden_order_plan_cap_guard_decision_id = (
+            "cap-stale-m58-usdc-allowlist-live-submit-hidden-order-plan-eth"
+            if hidden_order_plan_shape == "cap_guard_ref_mismatch"
+            else extra_cap_guard_decision_id
+        )
         hidden_order_plan_row = source_order_plan_row.model_copy(
             update={
                 "product_id": "ETH-USDC",
@@ -44330,7 +44339,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
                 "idempotency_key": (
                     "idem-m58-usdc-allowlist-live-submit-hidden-order-plan-eth"
                 ),
-                "cap_guard_decision_id": extra_cap_guard_decision_id,
+                "cap_guard_decision_id": hidden_order_plan_cap_guard_decision_id,
                 "approval_request_id": (
                     "approval-request-"
                     "m58-usdc-allowlist-live-submit-hidden-order-plan-eth"
@@ -44347,26 +44356,27 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
                 "live_service_decision_id": extra_live_service_decision_id,
             }
         )
+        hidden_order_plan_rows = [source_order_plan_row, hidden_order_plan_row]
+        if hidden_order_plan_shape == "ambiguous":
+            hidden_order_plan_rows.append(
+                hidden_order_plan_row.model_copy(
+                    update={
+                        "idempotency_key": (
+                            "idem-m58-usdc-allowlist-live-submit-"
+                            "hidden-order-plan-eth-duplicate"
+                        ),
+                        "snapshot_price": "101.00",
+                        "limit_price": "50.50",
+                    }
+                )
+            )
         order_plan_store.append(
             source_plan.model_copy(
                 update={
                     "product_ids": [ready["product_id"], "ETH-USDC"],
                     "max_total_notional_usdc": "2.00",
                     "planned_total_notional_usdc": "2.00",
-                    "order_plan_rows": [
-                        source_order_plan_row,
-                        hidden_order_plan_row,
-                        hidden_order_plan_row.model_copy(
-                            update={
-                                "idempotency_key": (
-                                    "idem-m58-usdc-allowlist-live-submit-"
-                                    "hidden-order-plan-eth-duplicate"
-                                ),
-                                "snapshot_price": "101.00",
-                                "limit_price": "50.50",
-                            }
-                        ),
-                    ],
+                    "order_plan_rows": hidden_order_plan_rows,
                 }
             )
         )
