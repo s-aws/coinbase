@@ -6343,6 +6343,20 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_ledger(
         ):
             blockers.append("run_state_live_wallet_ledger_wallet_available_mismatch")
         if (
+            record.planned_fanout_notional_usdc
+            != run_state.planned_fanout_notional_usdc
+        ):
+            blockers.append(
+                "run_state_live_wallet_ledger_planned_fanout_notional_mismatch"
+            )
+        if (
+            record.allocated_fanout_notional_usdc
+            != run_state.allocated_fanout_notional_usdc
+        ):
+            blockers.append(
+                "run_state_live_wallet_ledger_allocated_fanout_notional_mismatch"
+            )
+        if (
             record.reserved_notional_usdc
             != run_state.live_wallet_ledger_reserved_notional_usdc
         ):
@@ -6357,6 +6371,20 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_ledger(
             != run_state.live_wallet_ledger_released_notional_usdc
         ):
             blockers.append("run_state_live_wallet_ledger_released_notional_mismatch")
+        if (
+            record.active_reserved_notional_usdc
+            != run_state.live_wallet_active_reserved_notional_usdc
+        ):
+            blockers.append(
+                "run_state_live_wallet_ledger_active_reserved_notional_mismatch"
+            )
+        if (
+            record.overcommit_attempted_notional_usdc
+            != run_state.live_wallet_overcommit_attempted_notional_usdc
+        ):
+            blockers.append(
+                "run_state_live_wallet_ledger_overcommit_attempted_notional_mismatch"
+            )
         if (
             record.live_exchange_submitted
             or record.live_coinbase_orders_ran

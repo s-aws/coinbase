@@ -214,7 +214,8 @@ Missing before live automation:
   `live_wallet_ledger_blockers` as explicit no-live evidence that live wallet
   ledger balance, overcommit-prevention, and debit/release semantics are still
   not proven. Live-submit rejects missing, stale, or contradictory wallet-ledger
-  record readback before executor invocation. Phase F run-state now requires
+  record readback, including planned/allocated/active-reserved/overcommit
+  notional drift, before executor invocation. Phase F run-state now requires
   matching Phase E live-readiness evidence before a product can be queued in
   no-live rehearsal, and the
   single-product Phase E live-readiness route fails closed when the latest
