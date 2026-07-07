@@ -2873,7 +2873,11 @@ def _allowlist_run_state_product_item(
         recovery_state=row.cancel_recovery_status if queued else "not_required",
         retry_attempts_available=row.retry_attempts_available if queued else 0,
         planned_notional_usdc=row.planned_notional_usdc,
-        recovery_state_ref=row.recovery_state_ref,
+        recovery_state_ref=(
+            row.recovery_state_ref
+            if queued or row.readiness_status != "candidate"
+            else None
+        ),
         live_readiness_status=live_readiness_status,
         live_readiness_id=live_readiness_id,
         live_readiness_source=live_readiness_source,
@@ -2907,6 +2911,7 @@ def _apply_allowlist_run_state_runtime_controls(
                     "retry_state": "blocked",
                     "rate_limit_state": "blocked",
                     "recovery_state": "not_required",
+                    "recovery_state_ref": None,
                     "retry_attempts_available": 0,
                     "blockers": _dedupe(list(item.blockers) + [runtime_blocker]),
                 }
@@ -2971,6 +2976,7 @@ def _apply_allowlist_run_state_cap_allocation(
                     "retry_state": "blocked",
                     "rate_limit_state": "blocked",
                     "recovery_state": "not_required",
+                    "recovery_state_ref": None,
                     "retry_attempts_available": 0,
                     "allocated_notional_usdc": _decimal_string(Decimal("0")),
                     "fanout_cap_allocation_status": "cap_exceeded_no_live",
@@ -3138,6 +3144,7 @@ def _apply_allowlist_run_state_wallet_allocation(
                         "retry_state": "blocked",
                         "rate_limit_state": "blocked",
                         "recovery_state": "not_required",
+                        "recovery_state_ref": None,
                         "retry_attempts_available": 0,
                         "wallet_allocation_status": "cap_guard_wallet_proof_blocked",
                         "wallet_available_notional_usdc": _decimal_string(
@@ -3169,6 +3176,7 @@ def _apply_allowlist_run_state_wallet_allocation(
                         "retry_state": "blocked",
                         "rate_limit_state": "blocked",
                         "recovery_state": "not_required",
+                        "recovery_state_ref": None,
                         "retry_attempts_available": 0,
                         "wallet_allocation_status": "missing_cap_guard_proof",
                         "wallet_available_notional_usdc": _decimal_string(
@@ -3223,6 +3231,7 @@ def _apply_allowlist_run_state_wallet_allocation(
                     "retry_state": "blocked",
                     "rate_limit_state": "blocked",
                     "recovery_state": "not_required",
+                    "recovery_state_ref": None,
                     "retry_attempts_available": 0,
                     "wallet_allocation_status": "wallet_exceeded_no_live",
                     "wallet_available_notional_usdc": _decimal_string(

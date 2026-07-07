@@ -35512,6 +35512,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_cap_exceeded(
     assert product_state["retry_state"] == "blocked"
     assert product_state["rate_limit_state"] == "blocked"
     assert product_state["recovery_state"] == "not_required"
+    assert product_state["recovery_state_ref"] is None
     assert product_state["retry_attempts_available"] == 0
     assert product_state["fanout_cap_allocation_status"] == "cap_exceeded_no_live"
     assert product_state["allocated_notional_usdc"] == "0.00"
@@ -35629,6 +35630,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_wallet_exceeded
     assert product_row["retry_state"] == "blocked"
     assert product_row["rate_limit_state"] == "blocked"
     assert product_row["recovery_state"] == "not_required"
+    assert product_row["recovery_state_ref"] is None
     assert product_row["retry_attempts_available"] == 0
     assert product_row["wallet_allocation_status"] == "wallet_exceeded_no_live"
     assert product_row["wallet_available_notional_usdc"] == "0.50"
@@ -35836,6 +35838,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_missing_live_re
     assert product_row["retry_state"] == "blocked"
     assert product_row["rate_limit_state"] == "blocked"
     assert product_row["recovery_state"] == "not_required"
+    assert product_row["recovery_state_ref"] is None
     assert product_row["retry_attempts_available"] == 0
     assert product_row["fanout_cap_allocation_status"] == "not_queued"
     assert product_row["wallet_allocation_status"] == "not_queued"
@@ -35975,6 +35978,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_pause_abort_fail_close
     assert product_row["retry_state"] == "blocked"
     assert product_row["rate_limit_state"] == "blocked"
     assert product_row["recovery_state"] == "not_required"
+    assert product_row["recovery_state_ref"] is None
     assert product_row["retry_attempts_available"] == 0
     assert product_row["fanout_cap_allocation_status"] == "not_queued"
     assert product_row["wallet_allocation_status"] == "not_queued"
