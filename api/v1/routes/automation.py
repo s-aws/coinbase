@@ -215,6 +215,10 @@ USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_MISSING_BLOCKER = (
 USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_CONFLICT_BLOCKER = (
     "rate_limit_window_ref_conflict"
 )
+USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_CAPACITY_BLOCKER = (
+    "rate_limit_window_capacity_exceeded"
+)
+USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_ORDER_CAP = 5
 USDC_PAIR_SNAPSHOT_RUN_PAUSED_BLOCKER = "run_paused_no_live"
 USDC_PAIR_SNAPSHOT_RUN_ABORTED_BLOCKER = "run_aborted_no_live"
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_ACCOUNT_FAMILY = "coinbase_spot"
@@ -3037,6 +3041,15 @@ def _apply_allowlist_run_state_runtime_controls(
         runtime_blocker = USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_MISSING_BLOCKER
     elif rate_limit_window_conflict_blocker:
         runtime_blocker = rate_limit_window_conflict_blocker
+    elif (
+        sum(
+            1
+            for item in product_states
+            if item.execution_state == "queued_no_live"
+        )
+        > USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_ORDER_CAP
+    ):
+        runtime_blocker = USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_CAPACITY_BLOCKER
     if runtime_blocker is None:
         return product_states, []
 
