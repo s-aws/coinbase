@@ -207,6 +207,9 @@ USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_BLOCKERS = [
     "live_wallet_debit_missing",
     "live_wallet_release_missing",
 ]
+USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_REF_CONFLICT_BLOCKER = (
+    "live_wallet_reservation_ref_conflict"
+)
 USDC_PAIR_SNAPSHOT_LIVE_WALLET_DEBIT_REF_CONFLICT_BLOCKER = (
     "live_wallet_debit_ref_conflict"
 )
@@ -3411,10 +3414,16 @@ def _live_wallet_reservation_evidence(
             reservation_store=reservation_store,
         )
         blockers = debit_blockers + release_blockers + reference_conflict_blockers
+        reservation_status = (
+            "ready_no_live"
+            if not blockers
+            else "missing_no_live"
+            if USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_REF_CONFLICT_BLOCKER
+            in blockers
+            else "reserved_no_live"
+        )
         return {
-            "live_wallet_reservation_status": (
-                "reserved_no_live" if blockers else "ready_no_live"
-            ),
+            "live_wallet_reservation_status": reservation_status,
             "live_wallet_reservation_id": record.reservation_id,
             "live_wallet_reserved_notional_usdc": _decimal_string(
                 planned_notional or Decimal("0")
@@ -3527,6 +3536,25 @@ def _live_wallet_release_evidence_blockers(
     return []
 
 
+def _live_wallet_reservation_ref_conflicts(
+    *,
+    record: UsdcPairSnapshotLiveWalletReservationRecord,
+    existing: UsdcPairSnapshotLiveWalletReservationRecord,
+) -> bool:
+    record_notional = _non_negative_decimal_value(record.reserved_notional_usdc)
+    existing_notional = _non_negative_decimal_value(existing.reserved_notional_usdc)
+    return (
+        existing.run_state_id != record.run_state_id
+        or existing.readiness_id != record.readiness_id
+        or existing.plan_id != record.plan_id
+        or existing.snapshot_run_id != record.snapshot_run_id
+        or existing.product_id.strip().upper()
+        != record.product_id.strip().upper()
+        or existing.client_order_id.strip() != record.client_order_id.strip()
+        or existing_notional != record_notional
+    )
+
+
 def _live_wallet_historical_reference_blockers(
     *,
     record: UsdcPairSnapshotLiveWalletReservationRecord,
@@ -3535,6 +3563,13 @@ def _live_wallet_historical_reference_blockers(
     blockers: list[str] = []
     for existing in reservation_store.read_recent(limit=500):
         if existing.reservation_id == record.reservation_id:
+            if _live_wallet_reservation_ref_conflicts(
+                record=record,
+                existing=existing,
+            ):
+                blockers.append(
+                    USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_REF_CONFLICT_BLOCKER
+                )
             continue
         if record.debit_id and existing.debit_id == record.debit_id:
             blockers.append(
@@ -3569,6 +3604,7 @@ def _live_wallet_reference_conflict_blockers_by_product(
 
     blockers_by_product: dict[str, list[str]] = {}
     conflict_blocker_values = {
+        USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_REF_CONFLICT_BLOCKER,
         USDC_PAIR_SNAPSHOT_LIVE_WALLET_DEBIT_REF_CONFLICT_BLOCKER,
         USDC_PAIR_SNAPSHOT_LIVE_WALLET_RELEASE_REF_CONFLICT_BLOCKER,
     }
@@ -3625,6 +3661,12 @@ def _apply_live_wallet_reference_conflict_blockers(
         conflict_blockers = blockers_by_product.get(item.product_id, [])
         remaining = wallet_available - allocated_total
         if conflict_blockers:
+            reservation_status = (
+                "missing_no_live"
+                if USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_REF_CONFLICT_BLOCKER
+                in conflict_blockers
+                else "reserved_no_live"
+            )
             updated.append(
                 item.model_copy(
                     update={
@@ -3641,7 +3683,7 @@ def _apply_live_wallet_reference_conflict_blockers(
                             Decimal("0")
                         ),
                         "wallet_remaining_after_usdc": _decimal_string(remaining),
-                        "live_wallet_reservation_status": "reserved_no_live",
+                        "live_wallet_reservation_status": reservation_status,
                         "live_wallet_reservation_blockers": _dedupe(
                             list(item.live_wallet_reservation_blockers)
                             + conflict_blockers
