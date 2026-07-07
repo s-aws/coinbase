@@ -1267,6 +1267,34 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     AdminApiRouteInventoryItem(
         module_id="automation",
         surface=(
+            "POST /api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            "{run_state_id}/live-submit"
+        ),
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+        idempotency="required",
+        approval=(
+            "required exact allowlist run-state evidence, live-readiness "
+            "evidence, proof-chain approval evidence, and enabled "
+            "live-service decision"
+        ),
+        caps=(
+            "required one selected queued spot order only, preferred live-test "
+            "notional cap, far-from-bid/non-fill price distance, immediate "
+            "cancel by client_order_id, and no additional orders"
+        ),
+        audit="required",
+        shared_method="submit_usdc_pair_snapshot_allowlist_run_state_live_order",
+        parity_test=(
+            "M58 backend-owned allowlist run-state controlled-live handoff "
+            "submits and cancels one selected queued product by client_order_id; "
+            "Coinbase order_id is exchange evidence only; no fan-out, no "
+            "scheduler, and no browser execution authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="automation",
+        surface=(
             "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
             "{plan_id}/proof-chain-refresh"
         ),

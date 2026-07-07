@@ -52,6 +52,10 @@ Available building blocks:
   Phase E live-readiness association for each queued product by `plan_id`,
   `product_id`, and `client_order_id`; missing or blocked live-readiness
   removes the product from the queued set before any future fan-out decision.
+  A backend-owned run-state-to-live-submit handoff route now requires one
+  explicitly selected queued product with matching `ready_no_live` Phase E
+  live-readiness before it can reuse the existing single-order submit/cancel
+  path; this does not authorize live fan-out or scheduler behavior.
 - Backend proof-refresh mutation for existing order plans that resolves exact,
   unexpired, non-revoked approval lifecycle snapshots without browser
   authority or live execution, and can link exact durable admission-audit
@@ -86,7 +90,9 @@ Missing before live automation:
   requires matching Phase E live-readiness evidence before a product can be
   queued in no-live rehearsal, and the single-product Phase E live-readiness
   route fails closed when the latest backend cap/guard proof does not cover the
-  submitted notional or required wallet availability.
+  submitted notional or required wallet availability. The one-selected-product
+  run-state handoff can reuse that submit/cancel proof chain, but it still does
+  not reserve/debit wallet balance or authorize multi-product live fan-out.
 - Durable approval, admission-audit, cap/guard, reconciliation, and enabled
   live-service decisions for every planned order.
 - Runtime fan-out rate-limit handling, retry execution, partial failure,
@@ -456,6 +462,10 @@ ids before any future fan-out decision. This evidence remains
 `live_coinbase_execution=not_run`, and notional `0`; it does not submit
 Coinbase orders, fan out execution, fetch/reserve/debit live wallet balance,
 or run a scheduler.
+The backend can also hand off one explicitly selected queued product from a
+run-state to the existing Phase E submit/cancel route only when the product row
+has matching `ready_no_live` live-readiness evidence by `client_order_id`;
+this remains a single-order controlled-live path, not fan-out automation.
 
 Deliverables:
 

@@ -35113,6 +35113,208 @@ def _append_usdc_pair_snapshot_run_state_live_readiness(
     )
 
 
+def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+    client,
+    *,
+    run_state_id: str,
+    allowlist_readiness_id: str,
+    plan_id: str = "m58-usdc-allowlist-live-submit-plan",
+    snapshot_run_id: str = "m58-usdc-allowlist-live-submit-snapshot",
+    product_id: str = "BTC-USDC",
+    client_order_id: str = "m58-usdc-allowlist-live-submit-BTC-USDC",
+    queued: bool = True,
+    live_ready: bool = True,
+    append_live_readiness: bool = True,
+) -> dict[str, str]:
+    from application.admin_api.models import (
+        UsdcPairSnapshotAllowlistRunStateProductItem,
+        UsdcPairSnapshotOrderPlanRowItem,
+    )
+    from application.admin_api.usdc_pair_snapshot import (
+        UsdcPairSnapshotAllowlistRunStateRecord,
+        UsdcPairSnapshotOrderPlanRecord,
+    )
+
+    normalized_product_id = product_id.replace("-", "_").lower()
+    live_readiness_id = (
+        f"{allowlist_readiness_id}-live-readiness-{normalized_product_id}"
+    )
+    cap_guard_decision_id = f"cap-{allowlist_readiness_id}-{normalized_product_id}"
+    client.admin_api_test_usdc_pair_snapshot_order_plan_store.append(
+        UsdcPairSnapshotOrderPlanRecord(
+            plan_id=plan_id,
+            snapshot_run_id=snapshot_run_id,
+            side=OrderSide.BUY.value,
+            max_notional_per_product_usdc="1.00",
+            max_total_notional_usdc="1.00",
+            planned_total_notional_usdc="1.00",
+            product_ids=[product_id],
+            time_in_force=TimeInForce.GOOD_UNTIL_CANCELLED.value,
+            order_plan_rows=[
+                UsdcPairSnapshotOrderPlanRowItem(
+                    product_id=product_id,
+                    plan_status="planned",
+                    side=OrderSide.BUY,
+                    time_in_force=TimeInForce.GOOD_UNTIL_CANCELLED,
+                    client_order_id=client_order_id,
+                    idempotency_key=(
+                        f"idem-{allowlist_readiness_id}-{normalized_product_id}"
+                    ),
+                    requested_notional_usdc="1.00",
+                    max_notional_per_product_usdc="1.00",
+                    snapshot_price="100.00",
+                    price_source="coinbase_advanced_trade.best_bid",
+                    price_freshness_status="fresh",
+                    price_acceptance_status="accepted",
+                    limit_price="50.00",
+                    quote_size="1.00",
+                    planned_notional_usdc="1.00",
+                    run_cap_status="passed",
+                    run_cap_remaining_usdc="0.00",
+                    min_quote_size="1",
+                    snapshot_captured_at=datetime.now(timezone.utc).isoformat(),
+                    proof_chain_status="accepted",
+                    proof_chain_blockers=[],
+                    approval_request_required=True,
+                    approval_request_id=(
+                        f"approval-request-{allowlist_readiness_id}"
+                    ),
+                    approval_snapshot_required=True,
+                    approval_snapshot_id=f"approval-{allowlist_readiness_id}",
+                    admission_audit_required=True,
+                    admission_audit_id=f"admission-{allowlist_readiness_id}",
+                    cap_guard_decision_required=True,
+                    cap_guard_decision_id=cap_guard_decision_id,
+                    reconciliation_plan_required=True,
+                    reconciliation_plan_id=f"recon-{allowlist_readiness_id}",
+                    live_service_decision_required=True,
+                    live_service_decision_id=(
+                        f"live-service-{allowlist_readiness_id}"
+                    ),
+                ),
+            ],
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_order_plan",
+            idempotency_key=f"idem-{allowlist_readiness_id}-plan",
+            payload_hash="6" * 64,
+            audit_id=f"audit-{allowlist_readiness_id}-plan",
+            operator_notes="source order plan for run-state live-submit tests",
+        )
+    )
+    if append_live_readiness:
+        _append_usdc_pair_snapshot_run_state_live_readiness(
+            client,
+            readiness_id=allowlist_readiness_id,
+            plan_id=plan_id,
+            snapshot_run_id=snapshot_run_id,
+            product_id=product_id,
+            client_order_id=client_order_id,
+            planned_notional_usdc="1.00",
+            cap_guard_decision_id=cap_guard_decision_id,
+        )
+
+    blockers = [] if queued and live_ready else ["live_readiness_missing"]
+    product_row = UsdcPairSnapshotAllowlistRunStateProductItem(
+        product_id=product_id,
+        client_order_id=client_order_id,
+        cap_guard_decision_id=cap_guard_decision_id,
+        readiness_status="candidate",
+        execution_state="queued_no_live" if queued else "blocked",
+        retry_state="ready_no_live" if queued else "blocked",
+        rate_limit_state="ready_no_live" if queued else "blocked",
+        recovery_state="ready_no_live" if queued else "not_required",
+        retry_attempts_available=1 if queued else 0,
+        planned_notional_usdc="1.00",
+        allocated_notional_usdc="1.00" if queued else "0.00",
+        fanout_cap_allocation_status=(
+            "allocated_no_live" if queued else "not_queued"
+        ),
+        fanout_cap_remaining_after_usdc="99.00",
+        wallet_allocation_status="allocated_no_live" if queued else "not_queued",
+        wallet_available_notional_usdc="1.00" if queued else "0.00",
+        wallet_allocated_notional_usdc="1.00" if queued else "0.00",
+        wallet_remaining_after_usdc="0.00",
+        wallet_check_source=(
+            "m58_usdc_pair_allowlist_live_submit_fixture" if queued else None
+        ),
+        live_readiness_status="ready_no_live" if live_ready else "missing",
+        live_readiness_id=live_readiness_id if live_ready else None,
+        live_readiness_source=(
+            "admin_api_usdc_pair_snapshot_order_plan_live_readiness_log"
+            if live_ready
+            else None
+        ),
+        recovery_state_ref=f"m58-cancel-recovery:{product_id}",
+        blockers=blockers,
+    )
+    client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store.append(
+        UsdcPairSnapshotAllowlistRunStateRecord(
+            run_state_id=run_state_id,
+            readiness_id=allowlist_readiness_id,
+            plan_id=plan_id,
+            snapshot_run_id=snapshot_run_id,
+            execution_mode="no_live_rehearsal",
+            max_fanout_notional_usdc="100",
+            planned_fanout_notional_usdc="1.00",
+            allocated_fanout_notional_usdc="1.00" if queued else "0.00",
+            fanout_cap_remaining_usdc="99.00",
+            fanout_cap_overage_usdc="0.00",
+            fanout_cap_allocation_status="passed",
+            wallet_allocation_status="passed" if queued else "not_queued",
+            wallet_available_notional_usdc="1.00" if queued else "0.00",
+            wallet_allocated_notional_usdc="1.00" if queued else "0.00",
+            wallet_remaining_usdc="0.00",
+            live_readiness_status="ready_no_live" if live_ready else "blocked",
+            live_ready_product_ids=[product_id] if live_ready else [],
+            live_readiness_missing_product_ids=[] if live_ready else [product_id],
+            live_readiness_blocked_product_ids=[] if live_ready else [product_id],
+            live_readiness_blockers=[] if live_ready else ["live_readiness_missing"],
+            fanout_notional_status="passed",
+            product_ids=[product_id],
+            queued_product_ids=[product_id] if queued else [],
+            blocked_product_ids=[] if queued else [product_id],
+            retryable_product_ids=[product_id] if queued else [],
+            recovery_required_product_ids=[product_id] if queued else [],
+            queued_product_count=1 if queued else 0,
+            blocked_product_count=0 if queued else 1,
+            retryable_product_count=1 if queued else 0,
+            recovery_required_product_count=1 if queued else 0,
+            run_lock_status="recorded_no_live",
+            run_lock_ref=f"run-lock-{run_state_id}",
+            pause_resume_status="running_no_live",
+            abort_status="not_requested",
+            rate_limit_status="ready_no_live" if queued else "blocked",
+            rate_limit_window_ref=f"rate-limit-{run_state_id}",
+            retry_budget_status="ready_no_live" if queued else "blocked",
+            recovery_status="ready_no_live" if queued else "not_required",
+            partial_success_status="ready_no_live" if queued else "blocked",
+            fanout_execution_status="blocked",
+            run_state_status="ready_no_live" if queued and live_ready else "blocked",
+            fanout_blockers=["fanout_execution_not_approved", "scheduler_blocked"],
+            product_states=[product_row],
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+            idempotency_key=f"idem-{run_state_id}",
+            payload_hash="8" * 64,
+            audit_id=f"audit-{run_state_id}",
+            operator_notes="run-state source for live-submit handoff tests",
+            detail=(
+                "No-live allowlist run-state source for one-product "
+                "live-submit handoff tests."
+            ),
+        )
+    )
+    return {
+        "run_state_id": run_state_id,
+        "allowlist_readiness_id": allowlist_readiness_id,
+        "plan_id": plan_id,
+        "snapshot_run_id": snapshot_run_id,
+        "product_id": product_id,
+        "client_order_id": client_order_id,
+        "live_readiness_id": live_readiness_id,
+    }
+
+
 @pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_rejects_live_mode(
     monkeypatch,
@@ -35587,6 +35789,133 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_missing_live_re
     assert product_row["blockers"] == ["live_readiness_missing"]
     assert product_row["live_coinbase_execution"] == "not_run"
     assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_queued_live_readiness(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    blocked = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-blocked",
+        allowlist_readiness_id="m58-usdc-allowlist-live-submit-blocked-readiness",
+        queued=False,
+        live_ready=False,
+        append_live_readiness=False,
+    )
+    live_submit_body = {
+        "submission_id": "m58-usdc-allowlist-live-submit-blocked-submission",
+        "readiness_id": blocked["live_readiness_id"],
+        "product_id": blocked["product_id"],
+        "client_order_id": blocked["client_order_id"],
+        "confirm_live_submit": True,
+        "confirm_single_order_only": True,
+        "confirm_cancel_before_additional_orders": True,
+        "confirm_no_additional_orders": True,
+        "operator_stop_conditions": [
+            "submit one run-state selected order only",
+            "cancel that client_order_id before any additional order",
+        ],
+        "operator_notes": "blocked run-state live-submit handoff",
+    }
+    blocked_response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{blocked['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-allowlist-live-submit-blocked",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json=live_submit_body,
+    )
+
+    assert blocked_response.status_code == 200
+    blocked_payload = blocked_response.json()
+    assert blocked_payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert blocked_payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert "run_state_product_not_queued" in blocked_payload["message"]
+    assert "run_state_live_readiness_not_ready" in blocked_payload["message"]
+    assert blocked_payload["live_exchange_submitted"] is False
+    assert blocked_payload["live_coinbase_orders_ran"] is False
+    assert blocked_payload["live_coinbase_execution"] == "not_run"
+    assert blocked_payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-ready",
+        allowlist_readiness_id="m58-usdc-allowlist-live-submit-ready-readiness",
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    ready_body = {
+        **live_submit_body,
+        "submission_id": "m58-usdc-allowlist-live-submit-ready-submission",
+        "readiness_id": ready["live_readiness_id"],
+        "product_id": ready["product_id"],
+        "client_order_id": ready["client_order_id"],
+        "operator_notes": "ready run-state live-submit handoff",
+    }
+    ready_response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-allowlist-live-submit-ready",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json=ready_body,
+    )
+
+    assert ready_response.status_code == 200
+    ready_payload = ready_response.json()
+    assert ready_payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert ready_payload["service_method"] == (
+        "submit_usdc_pair_snapshot_allowlist_run_state_live_order"
+    )
+    assert ready_payload["live_exchange_submitted"] is True
+    assert ready_payload["live_coinbase_orders_ran"] is True
+    assert ready_payload["live_coinbase_execution"] == "submitted_cancelled"
+    assert ready_payload["notional_usdc"] == "1.00"
+    submission = ready_payload["submission"]
+    assert submission["submission_id"] == ready_body["submission_id"]
+    assert submission["readiness_id"] == ready["live_readiness_id"]
+    assert submission["plan_id"] == ready["plan_id"]
+    assert submission["product_id"] == ready["product_id"]
+    assert submission["client_order_id"] == ready["client_order_id"]
+    assert submission["submitted_notional_usdc"] == "1.00"
+    assert submission["executed_notional_usdc"] == "0"
+    assert submission["coinbase_order_id_evidence_only"] is True
+    assert submission["backend_owned"] is True
+    assert submission["browser_authority"] == "display_only"
+    assert submission["bff_authority"] == "forward_only_no_execution"
+    assert len(client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls) == 1
+    live_call = client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls[0]
+    assert live_call["client_order_id"] == ready["client_order_id"]
+    assert live_call["cancel_client_order_id"] == ready["client_order_id"]
+    assert live_call["product_id"] == ready["product_id"]
+
+    replay = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-allowlist-live-submit-ready",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json=ready_body,
+    )
+    assert replay.status_code == 200
+    assert replay.headers["x-idempotency-replayed"] == "true"
+    assert replay.json() == ready_payload
+    assert len(client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls) == 1
 
 
 @pytest.mark.regression
@@ -63651,6 +63980,37 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "Coinbase order_id is exchange evidence only" in live_submit_evidence
     assert "no fan-out" in live_submit_evidence
     assert "no scheduler" in live_submit_evidence
+    run_state_live_submit_route = rows[
+        "POST /api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+        "{run_state_id}/live-submit"
+    ]
+    assert run_state_live_submit_route.module_id == "automation"
+    assert run_state_live_submit_route.shared_method == (
+        "submit_usdc_pair_snapshot_allowlist_run_state_live_order"
+    )
+    assert run_state_live_submit_route.action_class == (
+        AdminApiActionClass.LIVE_EXCHANGE_PLACE
+    )
+    assert run_state_live_submit_route.permission == (
+        AdminApiPermission.CAMPAIGN_EXECUTE
+    )
+    run_state_live_submit_evidence = " ".join(
+        (
+            run_state_live_submit_route.approval,
+            run_state_live_submit_route.caps,
+            run_state_live_submit_route.parity_test,
+        )
+    )
+    assert "exact allowlist run-state evidence" in run_state_live_submit_evidence
+    assert "one selected queued spot order only" in (
+        run_state_live_submit_evidence
+    )
+    assert "client_order_id" in run_state_live_submit_evidence
+    assert "Coinbase order_id is exchange evidence only" in (
+        run_state_live_submit_evidence
+    )
+    assert "no fan-out" in run_state_live_submit_evidence
+    assert "no scheduler" in run_state_live_submit_evidence
     order_plan_refresh_route = rows[
         "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
         "{plan_id}/proof-chain-refresh"

@@ -178,6 +178,16 @@ USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_ENDPOINT = (
 USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_SERVICE_METHOD = (
     "submit_usdc_pair_snapshot_order_plan_live_order"
 )
+USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_SUBMIT_ROUTE = (
+    "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+    "{run_state_id}/live-submit"
+)
+USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_SUBMIT_ENDPOINT = (
+    f"POST {USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_SUBMIT_ROUTE}"
+)
+USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_SUBMIT_SERVICE_METHOD = (
+    "submit_usdc_pair_snapshot_allowlist_run_state_live_order"
+)
 USDC_PAIR_SNAPSHOT_MODULE_ID = "automation"
 USDC_PAIR_SNAPSHOT_PROOF_BLOCKERS = [
     "approval_snapshot_missing",
@@ -1145,12 +1155,13 @@ def _live_submit_base_response(
     submission: UsdcPairSnapshotOrderPlanLiveSubmitItem | None = None,
     audit_id: str | None = None,
     failure_stage: str | None = None,
+    service_method: str = USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_SERVICE_METHOD,
 ) -> UsdcPairSnapshotOrderPlanLiveSubmitResponse:
     return UsdcPairSnapshotOrderPlanLiveSubmitResponse(
         status=status_value,
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
         required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
-        service_method=USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_SERVICE_METHOD,
+        service_method=service_method,
         message=message,
         correlation_id=correlation_id,
         idempotency_key=idempotency_key,
@@ -1780,6 +1791,13 @@ def _execute_idempotent_live_submit(
     idempotency_store: FileIdempotencyStore,
     audit_store: FileAdminApiAuditStore,
     operation: Callable[[str], UsdcPairSnapshotOrderPlanLiveSubmitItem],
+    endpoint: str = USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_ENDPOINT,
+    service_method: str = USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_SERVICE_METHOD,
+    failure_stage: str = "usdc_pair_snapshot_order_plan_live_submit",
+    accepted_message: str = (
+        "USDC pair snapshot order-plan controlled-live submit/cancel "
+        "accepted for one order."
+    ),
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.CAMPAIGN_EXECUTE)
     check = idempotency_store.evaluate(
@@ -1800,11 +1818,12 @@ def _execute_idempotent_live_submit(
             correlation_id=request_id,
             idempotency_key=idempotency_key,
             failure_stage="idempotency",
+            service_method=service_method,
         )
         response.audit_id = _record_live_submit_audit(
             audit_store=audit_store,
             actor=actor,
-            endpoint=USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_ENDPOINT,
+            endpoint=endpoint,
             request_id=request_id,
             operator_intent=operator_intent,
             response=response,
@@ -1816,14 +1835,12 @@ def _execute_idempotent_live_submit(
         submission = operation(audit_id)
         response = _live_submit_base_response(
             status_value=AdminApiCommandStatus.ACCEPTED,
-            message=(
-                "USDC pair snapshot order-plan controlled-live submit/cancel "
-                "accepted for one order."
-            ),
+            message=accepted_message,
             correlation_id=request_id,
             idempotency_key=idempotency_key,
             audit_id=audit_id,
             submission=submission,
+            service_method=service_method,
         )
     except UsdcPairSnapshotError as exc:
         response = _live_submit_base_response(
@@ -1831,12 +1848,13 @@ def _execute_idempotent_live_submit(
             message=str(exc),
             correlation_id=request_id,
             idempotency_key=idempotency_key,
-            failure_stage="usdc_pair_snapshot_order_plan_live_submit",
+            failure_stage=failure_stage,
+            service_method=service_method,
         )
     response.audit_id = _record_live_submit_audit(
         audit_store=audit_store,
         actor=actor,
-        endpoint=USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_ENDPOINT,
+        endpoint=endpoint,
         request_id=request_id,
         operator_intent=operator_intent,
         response=response,
@@ -1850,7 +1868,7 @@ def _execute_idempotent_live_submit(
                 status=response.status,
                 response=response.model_dump(mode="json"),
                 actor_id=actor.actor_id,
-                endpoint=USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_ENDPOINT,
+                endpoint=endpoint,
             )
         )
     return _live_submit_response(response)
@@ -3581,6 +3599,78 @@ def _find_usdc_pair_live_readiness_record(
     )
 
 
+def _find_usdc_pair_allowlist_run_state_product(
+    run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    *,
+    product_id: str,
+    client_order_id: str,
+) -> UsdcPairSnapshotAllowlistRunStateProductItem | None:
+    normalized_product_id = product_id.strip().upper()
+    normalized_client_order_id = client_order_id.strip()
+    return next(
+        (
+            row
+            for row in run_state.product_states
+            if row.product_id.strip().upper() == normalized_product_id
+            and str(row.client_order_id or "").strip() == normalized_client_order_id
+        ),
+        None,
+    )
+
+
+def _validate_usdc_pair_allowlist_run_state_live_submit(
+    *,
+    run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    body: UsdcPairSnapshotOrderPlanLiveSubmitRequest,
+) -> UsdcPairSnapshotAllowlistRunStateProductItem:
+    blockers: list[str] = []
+    product_row = _find_usdc_pair_allowlist_run_state_product(
+        run_state,
+        product_id=body.product_id,
+        client_order_id=body.client_order_id,
+    )
+    if product_row is None:
+        blockers.append("run_state_product_not_found")
+    else:
+        queued_product_ids = {
+            product_id.strip().upper()
+            for product_id in run_state.queued_product_ids
+        }
+        if (
+            product_row.execution_state != "queued_no_live"
+            or body.product_id.strip().upper() not in queued_product_ids
+        ):
+            blockers.append("run_state_product_not_queued")
+        if product_row.live_readiness_status != "ready_no_live":
+            blockers.append("run_state_live_readiness_not_ready")
+        if product_row.live_readiness_id != body.readiness_id:
+            blockers.append("run_state_live_readiness_id_mismatch")
+        if str(product_row.client_order_id or "").strip() != body.client_order_id:
+            blockers.append("run_state_client_order_id_mismatch")
+        if product_row.live_coinbase_execution != "not_run":
+            blockers.append("run_state_product_not_no_live")
+        if product_row.notional_usdc != "0":
+            blockers.append("run_state_product_notional_not_zero")
+    if run_state.live_coinbase_execution != "not_run":
+        blockers.append("run_state_not_no_live")
+    if run_state.live_exchange_submitted or run_state.live_coinbase_orders_ran:
+        blockers.append("run_state_live_exchange_already_submitted")
+    if run_state.notional_usdc != "0":
+        blockers.append("run_state_notional_not_zero")
+
+    if blockers:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live submit blocked: "
+            + ",".join(_dedupe(blockers))
+        )
+    if product_row is None:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live submit blocked: "
+            "run_state_product_not_found"
+        )
+    return product_row
+
+
 def _usdc_pair_live_order_configuration(
     readiness: UsdcPairSnapshotOrderPlanLiveReadinessRecord,
 ) -> dict[str, Any]:
@@ -4581,4 +4671,121 @@ def submit_usdc_pair_snapshot_order_plan_live_order(
         idempotency_store=idempotency_store,
         audit_store=audit_store,
         operation=operation,
+    )
+
+
+@router.post(
+    "/automation/usdc-pair-snapshot-allowlist-run-states/{run_state_id}/live-submit",
+    response_model=UsdcPairSnapshotOrderPlanLiveSubmitResponse,
+    status_code=status.HTTP_200_OK,
+    responses=LIVE_SUBMIT_ROUTE_RESPONSES,
+    summary="Submit and cancel one USDC pair snapshot order from run-state evidence",
+)
+def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
+    request: Request,
+    run_state_id: str,
+    body: UsdcPairSnapshotOrderPlanLiveSubmitRequest,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    run_state_store: Annotated[
+        FileUsdcPairSnapshotAllowlistRunStateStore,
+        Depends(get_usdc_pair_snapshot_allowlist_run_state_store),
+    ],
+    order_plan_store: Annotated[
+        FileUsdcPairSnapshotOrderPlanStore,
+        Depends(get_usdc_pair_snapshot_order_plan_store),
+    ],
+    readiness_store: Annotated[
+        FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
+        Depends(get_usdc_pair_snapshot_order_plan_live_readiness_store),
+    ],
+    submit_store: Annotated[
+        FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
+        Depends(get_usdc_pair_snapshot_order_plan_live_submit_store),
+    ],
+    executor: Annotated[
+        UsdcPairSnapshotLiveOrderExecutor,
+        Depends(get_usdc_pair_snapshot_live_order_executor),
+    ],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+) -> JSONResponse:
+    """Submit one run-state-selected M58 order and cancel before any additional order."""
+
+    endpoint = f"{request.method} {request.url.path}"
+    payload_hash = _payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        operator_intent=operator_intent,
+        body=body.model_dump(mode="json"),
+    )
+
+    def operation(audit_id: str) -> UsdcPairSnapshotOrderPlanLiveSubmitItem:
+        run_state = run_state_store.find_by_run_state_id(run_state_id)
+        if run_state is None:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot allowlist run-state was not found."
+            )
+        _validate_usdc_pair_allowlist_run_state_live_submit(
+            run_state=run_state,
+            body=body,
+        )
+        plan = order_plan_store.find_by_plan_id(run_state.plan_id)
+        if plan is None:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot order-plan not found."
+            )
+        row = _find_usdc_pair_order_plan_row(
+            plan,
+            product_id=body.product_id,
+            client_order_id=body.client_order_id,
+        )
+        if row is None:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot order-plan row not found."
+            )
+        readiness = _find_usdc_pair_live_readiness_record(
+            store=readiness_store,
+            readiness_id=body.readiness_id,
+            product_id=body.product_id,
+            client_order_id=body.client_order_id,
+        )
+        if readiness is None:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot live-readiness record not found."
+            )
+        return _record_usdc_pair_live_submission(
+            plan=plan,
+            row=row,
+            readiness=readiness,
+            body=body,
+            submit_store=submit_store,
+            executor=executor,
+            actor=actor,
+            operator_intent=operator_intent,
+            idempotency_key=idempotency_key,
+            payload_hash=payload_hash,
+            audit_id=audit_id,
+        )
+
+    return _execute_idempotent_live_submit(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        request_id=correlation_id,
+        operator_intent=operator_intent,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        operation=operation,
+        endpoint=USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_SUBMIT_ENDPOINT,
+        service_method=(
+            USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_SUBMIT_SERVICE_METHOD
+        ),
+        failure_stage="usdc_pair_snapshot_allowlist_run_state_live_submit",
+        accepted_message=(
+            "USDC pair snapshot allowlist run-state controlled-live "
+            "submit/cancel accepted for one selected order."
+        ),
     )
