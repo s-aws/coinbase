@@ -5351,6 +5351,8 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_fanout_notional_not_passed")
     if run_state.partial_success_status != "ready_no_live":
         blockers.append("run_state_partial_success_not_ready")
+    if run_state.fanout_execution_status != "blocked":
+        blockers.append("run_state_fanout_execution_not_blocked")
     unexpected_fanout_blockers = [
         blocker
         for blocker in run_state.fanout_blockers

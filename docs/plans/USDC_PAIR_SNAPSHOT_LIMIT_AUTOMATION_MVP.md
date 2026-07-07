@@ -124,7 +124,8 @@ Available building blocks:
   store record, latest live-readiness price-freshness timestamps/statuses and
   recomputed price-distance evidence still passed, latest cap-guard submitted
   notional and wallet evidence still passed, ready aggregate parent
-  run-state/cap/wallet/live-readiness/notional/partial-success statuses,
+  run-state/cap/wallet/live-readiness/notional/partial-success statuses
+  with fan-out execution still blocked,
   selected-product rate/cap/wallet
   allocation readiness, no selected-product blockers, plus recorded parent
   run-lock, runtime rate-limit, retry-budget/backoff, recovery evidence, and
@@ -135,7 +136,8 @@ Available building blocks:
   `ready_no_live`. Only
   `fanout_execution_not_approved` and
   `scheduler_blocked` may remain as parent fanout blockers for this handoff;
-  any other parent fanout blocker rejects the handoff. Live-submit also
+  any other parent fanout blocker rejects the handoff, and the parent
+  fan-out execution status must still be blocked. Live-submit also
   recomputes parent product-scope, live-readiness, queued, blocked, retryable,
   and recovery-required product sets and counts from product-row state, plus
   aggregate fan-out, wallet-available/allocation, wallet blocker, live-wallet
@@ -934,7 +936,8 @@ or product-mismatched selected-product recovery refs, rejects reused
 selected-product recovery refs, rejects duplicated selected-product wallet
 reservation/debit/release refs in stored run-state product rows, rejects non-empty selected-product
 blockers, rejects unexpected parent fanout blockers other than
-`fanout_execution_not_approved` and `scheduler_blocked`, rejects stale
+`fanout_execution_not_approved` and `scheduler_blocked`, rejects parent fanout
+execution status that is no longer blocked, rejects stale
 selected-product candidate/cap-guard refs, rejects stale run-state/order-plan/
 live-readiness `plan_id` or `snapshot_run_id` association, and rejects stale
 parent retryable/recovery-required product sets that omit the selected product.
