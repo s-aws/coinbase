@@ -2820,6 +2820,23 @@ def _allowlist_live_readiness_evidence(
         return "missing", None, None, ["live_readiness_missing"]
 
     blockers: list[str] = []
+    freshness_checks = (
+        (
+            "reference_bid_price",
+            record.reference_bid_price_freshness_status,
+            _live_reference_freshness_status(record.reference_bid_price_captured_at),
+        ),
+        (
+            "last_filled_price",
+            record.last_filled_price_freshness_status,
+            _live_reference_freshness_status(record.last_filled_price_captured_at),
+        ),
+    )
+    for field_name, recorded_status, current_status in freshness_checks:
+        if recorded_status != "fresh":
+            blockers.append(f"live_readiness_{field_name}_{recorded_status}")
+        if current_status != "fresh":
+            blockers.append(f"live_readiness_{field_name}_{current_status}")
     if not record.preflight_passed:
         blockers.extend(record.preflight_blockers or [])
         if not record.preflight_blockers:
