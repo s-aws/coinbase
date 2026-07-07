@@ -3166,6 +3166,11 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
     live_readiness_blocked_product_ids: list[str] = Field(default_factory=list)
     live_readiness_blockers: list[str] = Field(default_factory=list)
     fanout_notional_status: str = Field(min_length=1)
+    fanout_execution_scope_status: str = Field(
+        default="standing_cap_authorized",
+        min_length=1,
+    )
+    fanout_execution_scope_blockers: list[str] = Field(default_factory=list)
     product_ids: list[str] = Field(default_factory=list)
     queued_product_ids: list[str] = Field(default_factory=list)
     blocked_product_ids: list[str] = Field(default_factory=list)

@@ -252,6 +252,7 @@ USDC_PAIR_SNAPSHOT_FANOUT_EXECUTION_LEGACY_APPROVAL_BLOCKER = (
 USDC_PAIR_SNAPSHOT_FANOUT_EXECUTION_TECHNICAL_BLOCKER = (
     "fanout_execution_technically_blocked"
 )
+USDC_PAIR_SNAPSHOT_FANOUT_SCOPE_AUTHORIZED_STATUS = "standing_cap_authorized"
 USDC_PAIR_SNAPSHOT_SCHEDULER_BLOCKED_BLOCKER = "scheduler_blocked"
 USDC_PAIR_SNAPSHOT_SCHEDULER_EXECUTION_BLOCKED_STATUS = "blocked_no_live"
 USDC_PAIR_SNAPSHOT_SCHEDULER_UNATTENDED_NOT_RUN = "not_run"
@@ -770,6 +771,8 @@ def _allowlist_run_state_item_from_record(
         ),
         live_readiness_blockers=record.live_readiness_blockers,
         fanout_notional_status=record.fanout_notional_status,
+        fanout_execution_scope_status=record.fanout_execution_scope_status,
+        fanout_execution_scope_blockers=record.fanout_execution_scope_blockers,
         product_ids=record.product_ids,
         queued_product_ids=record.queued_product_ids,
         blocked_product_ids=record.blocked_product_ids,
@@ -4956,6 +4959,10 @@ def _record_usdc_pair_allowlist_run_state(
         live_readiness_blocked_product_ids=live_readiness_blocked_product_ids,
         live_readiness_blockers=live_readiness_blockers,
         fanout_notional_status=fanout_notional_status,
+        fanout_execution_scope_status=(
+            USDC_PAIR_SNAPSHOT_FANOUT_SCOPE_AUTHORIZED_STATUS
+        ),
+        fanout_execution_scope_blockers=[],
         product_ids=readiness.product_ids,
         queued_product_ids=queued_product_ids,
         blocked_product_ids=blocked_product_ids,
@@ -5504,6 +5511,13 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_parent_live_readiness_not_ready")
     if run_state.fanout_notional_status != "passed":
         blockers.append("run_state_fanout_notional_not_passed")
+    if (
+        run_state.fanout_execution_scope_status
+        != USDC_PAIR_SNAPSHOT_FANOUT_SCOPE_AUTHORIZED_STATUS
+    ):
+        blockers.append("run_state_fanout_execution_scope_not_authorized")
+    if run_state.fanout_execution_scope_blockers:
+        blockers.append("run_state_fanout_execution_scope_blockers_present")
     if run_state.partial_success_status != "ready_no_live":
         blockers.append("run_state_partial_success_not_ready")
     if run_state.fanout_execution_status != "blocked":

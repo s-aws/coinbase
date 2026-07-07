@@ -170066,6 +170066,16 @@ components:
           type: string
           minLength: 1
           title: Fanout Notional Status
+        fanout_execution_scope_status:
+          type: string
+          minLength: 1
+          title: Fanout Execution Scope Status
+          default: standing_cap_authorized
+        fanout_execution_scope_blockers:
+          items:
+            type: string
+          type: array
+          title: Fanout Execution Scope Blockers
         product_ids:
           items:
             type: string

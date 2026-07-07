@@ -595,6 +595,9 @@ queued/blocked product states, run lock, pause, abort, and a maximum 100 USDC
 fan-out testing cap. It also records no-live run-cap allocation evidence:
 planned notional, allocated notional, cap remaining, cap overage, and
 per-product allocation status, plus cap-guard decision refs. It also records
+`fanout_execution_scope_status` and `fanout_execution_scope_blockers` to
+distinguish standing-cap authorization from technically blocked execution. It
+also records
 no-live wallet allocation status, available wallet proof, allocated wallet
 notional, remaining wallet capacity, blockers, and wallet-check source derived
 from existing backend cap-guard records, plus explicit live wallet reservation
@@ -966,7 +969,8 @@ or product-mismatched selected-product recovery refs, rejects reused
 selected-product recovery refs, rejects duplicated selected-product wallet
 reservation/debit/release refs in stored run-state product rows, rejects non-empty selected-product
 blockers, rejects unexpected parent fanout blockers other than
-`fanout_execution_technically_blocked` and `scheduler_blocked`, rejects parent fanout
+`fanout_execution_technically_blocked` and `scheduler_blocked`, rejects stale or
+blocked parent fanout execution scope readback, rejects parent fanout
 execution status that is no longer blocked, rejects stale
 selected-product candidate/cap-guard refs, rejects current retry-budget drift
 from newer queued run-state attempts, rejects current retry-backoff ref reuse
