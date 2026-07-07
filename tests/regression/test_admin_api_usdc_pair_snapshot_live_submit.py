@@ -173,7 +173,7 @@ def test_usdc_pair_snapshot_live_runner_can_submit_from_run_state_handoff(
     assert summary["live_submit_source"] == "allowlist_run_state"
     assert summary["allowlist_readiness_id"] == "m58-runner-allowlist-readiness"
     assert summary["run_state_id"] == "m58-runner-run-state"
-    assert summary["run_state_status"] == "ready_no_live"
+    assert summary["run_state_status"] == "blocked"
     assert summary["run_state_queued_product_ids"] == ["BTC-USDC"]
     assert summary["run_state_live_readiness_id"] == "m58-runner-readiness"
     assert summary["run_state_live_wallet_reservation_status"] == (

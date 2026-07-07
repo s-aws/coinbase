@@ -66,8 +66,11 @@ Available building blocks:
   evidence; their retry state is blocked, recovery is not required, and retry
   attempts are zero. Aggregate rate-limit, retry-budget, recovery, and
   partial-success status now derive from final product state instead of stale
-  pre-allocation readiness. Final-blocked products also clear stale
-  cancel-recovery refs when recovery is not required.
+  pre-allocation readiness. Missing live wallet reservation/debit/release
+  evidence blocks aggregate run-state fan-out readiness while preserving the
+  queued product row for the one-selected-product handoff proof path.
+  Final-blocked products also clear stale cancel-recovery refs when recovery is
+  not required.
   A backend-owned run-state-to-live-submit handoff route now requires one
   explicitly selected queued product with matching `ready_no_live` Phase E
   live-readiness plus recorded parent run-lock and runtime rate-limit evidence
@@ -514,7 +517,9 @@ Products blocked by cap allocation, wallet allocation, missing live-readiness,
 pause, or abort are not counted as retryable or recovery-required, and
 aggregate readiness statuses fail closed when no product remains queued.
 Final-blocked products clear stale cancel-recovery refs when recovery is not
-required. This evidence remains
+required. Missing live wallet reservation/debit/release evidence also keeps the
+aggregate run-state blocked for fan-out while preserving queued product rows for
+the one-selected-product handoff proof path. This evidence remains
 `fanout_readiness_status=blocked`, `fanout_execution_status=blocked`,
 `live_coinbase_execution=not_run`, and notional `0`; it does not submit
 Coinbase orders, fan out execution, fetch/reserve/debit live wallet balance,
@@ -718,6 +723,9 @@ as missing no-live evidence. Pause/abort no-live runtime-control evidence now
 fails closed by clearing queued products and recording explicit blockers.
 Missing or reused run-lock refs and missing runtime rate-limit window refs also
 fail closed before cap/wallet allocation.
+Missing live wallet reservation/debit/release evidence now blocks aggregate
+run-state fan-out readiness while preserving queued product rows for the
+one-selected-product handoff proof path.
 The run-state live-submit handoff also rejects blocked parent run-lock,
 pause/abort, or rate-limit evidence before any executor call.
 Blocked product rows are no longer reported as retryable or recovery-required.

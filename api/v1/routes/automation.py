@@ -3309,6 +3309,7 @@ def _allowlist_run_state_status(
     *,
     blocked_product_ids: list[str],
     fanout_notional_status: str,
+    live_wallet_reservation_status: str,
     pause_requested: bool,
     abort_requested: bool,
 ) -> str:
@@ -3319,6 +3320,8 @@ def _allowlist_run_state_status(
     if fanout_notional_status == "exceeded":
         return "blocked"
     if blocked_product_ids:
+        return "blocked"
+    if live_wallet_reservation_status == "missing_no_live":
         return "blocked"
     return "ready_no_live"
 
@@ -3499,6 +3502,9 @@ def _record_usdc_pair_allowlist_run_state(
     run_state_status = _allowlist_run_state_status(
         blocked_product_ids=blocked_product_ids,
         fanout_notional_status=fanout_notional_status,
+        live_wallet_reservation_status=wallet_allocation[
+            "live_wallet_reservation_status"
+        ],
         pause_requested=body.pause_requested,
         abort_requested=body.abort_requested,
     )

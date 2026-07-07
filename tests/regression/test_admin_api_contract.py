@@ -35132,6 +35132,122 @@ def _append_usdc_pair_snapshot_run_state_live_readiness(
     )
 
 
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_missing_live_wallet_reservation(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    readiness_id = "m58-usdc-allowlist-run-state-missing-live-wallet"
+    cap_guard_decision_id = "cap-m58-run-state-missing-live-wallet"
+    client.admin_api_test_cap_guard_store.append(
+        CapGuardDecisionRecord(
+            decision_id=cap_guard_decision_id,
+            route=(
+                "/api/v1/automation/usdc-pair-snapshot-order-plan-"
+                "allowlist-readiness/{readiness_id}/run-state"
+            ),
+            method="POST",
+            module_id="automation",
+            identity_key="client_order_id",
+            identity_value="m58-usdc-run-state-negative-BTC-USDC",
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method="record_usdc_pair_snapshot_allowlist_run_state",
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+            idempotency_key="idem-usdc-allowlist-run-state-missing-live-wallet",
+            payload_hash="9" * 64,
+            approval_snapshot_id="approval-m58-missing-live-wallet",
+            admission_audit_id="admission-m58-missing-live-wallet",
+            allowed=True,
+            status=AdminApiGateStatus.PASSED,
+            cap_policy_ref="m58_phase_f_submitted_notional_cap",
+            guard_policy_ref="m58_phase_f_wallet_allocation_guard",
+            product_scope="BTC-USDC",
+            max_submitted_notional_usdc="1.00",
+            max_executed_notional_usdc="0",
+            wallet_check_required=True,
+            wallet_check_status=AdminApiGateStatus.PASSED,
+            wallet_available_notional_usdc="1.00",
+            wallet_check_source="m58_usdc_pair_live_wallet_missing_fixture",
+            reason=(
+                "No-live Phase F wallet allocation passes, but live wallet "
+                "reservation/debit/release evidence is intentionally missing."
+            ),
+        )
+    )
+    _append_usdc_pair_snapshot_allowlist_run_state_readiness(
+        client,
+        readiness_id=readiness_id,
+        planned_notional_usdc="1.00",
+        cap_guard_decision_id=cap_guard_decision_id,
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+            f"{readiness_id}/run-state"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-allowlist-run-state-missing-live-wallet",
+            operator_intent=(
+                "m58_usdc_snapshot_allowlist_run_state_missing_live_wallet"
+            ),
+        ),
+        json={
+            "run_state_id": "m58-usdc-allowlist-run-state-missing-live-wallet",
+            "execution_mode": "no_live_rehearsal",
+            "max_fanout_notional_usdc": "100",
+            "run_lock_ref": "m58-run-lock-missing-live-wallet",
+            "rate_limit_window_ref": "m58-rate-limit-window-missing-live-wallet",
+            "pause_requested": False,
+            "abort_requested": False,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+
+    run_state = payload["run_state"]
+    assert run_state["run_state_status"] == "blocked"
+    assert run_state["live_wallet_reservation_status"] == "missing_no_live"
+    assert run_state["live_wallet_reservation_blockers"] == [
+        "live_wallet_reservation_missing",
+        "live_wallet_debit_missing",
+        "live_wallet_release_missing",
+    ]
+    assert run_state["queued_product_ids"] == ["BTC-USDC"]
+    assert run_state["blocked_product_ids"] == []
+    assert run_state["retryable_product_ids"] == ["BTC-USDC"]
+    assert run_state["recovery_required_product_ids"] == ["BTC-USDC"]
+    assert run_state["rate_limit_status"] == "ready_no_live"
+    assert run_state["retry_budget_status"] == "ready_no_live"
+    assert run_state["recovery_status"] == "ready_no_live"
+    assert run_state["partial_success_status"] == "ready_no_live"
+    assert run_state["fanout_execution_status"] == "blocked"
+    assert "live_wallet_reservation_missing" in run_state["fanout_blockers"]
+    assert "product_evidence_blocked" not in run_state["fanout_blockers"]
+
+    product_row = run_state["product_states"][0]
+    assert product_row["product_id"] == "BTC-USDC"
+    assert product_row["execution_state"] == "queued_no_live"
+    assert product_row["wallet_allocation_status"] == "allocated_no_live"
+    assert product_row["live_wallet_reservation_status"] == "missing_no_live"
+    assert product_row["live_wallet_reservation_blockers"] == [
+        "live_wallet_reservation_missing",
+        "live_wallet_debit_missing",
+        "live_wallet_release_missing",
+    ]
+    assert product_row["blockers"] == []
+    assert product_row["live_coinbase_execution"] == "not_run"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
 def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
     client,
     *,
