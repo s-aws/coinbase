@@ -2958,6 +2958,12 @@ def _allowlist_run_state_product_item(
     live_readiness_store: FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
 ) -> UsdcPairSnapshotAllowlistRunStateProductItem:
     blockers = list(row.blockers or [])
+    if (
+        row.readiness_status == "candidate"
+        and row.cancel_recovery_status == "ready_no_live"
+        and not row.recovery_state_ref
+    ):
+        blockers.append("cancel_recovery_ref_missing")
     live_readiness_status = "not_queued"
     live_readiness_id = None
     live_readiness_source = None
@@ -4326,6 +4332,14 @@ def _record_usdc_pair_allowlist_run_state(
             if blocker.startswith("live_readiness_")
         ]
     )
+    recovery_ref_blockers = _dedupe(
+        [
+            blocker
+            for item in product_states
+            for blocker in item.blockers
+            if blocker == "cancel_recovery_ref_missing"
+        ]
+    )
     if live_readiness_blocked_product_ids:
         live_readiness_status = "blocked"
     elif live_ready_product_ids:
@@ -4337,6 +4351,7 @@ def _record_usdc_pair_allowlist_run_state(
         + runtime_control_blockers
         + retry_budget_blockers
         + retry_backoff_blockers
+        + recovery_ref_blockers
         + wallet_allocation["live_wallet_reservation_blockers"]
         + (
             ["product_evidence_blocked"]
@@ -4764,6 +4779,11 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
             blockers.append("run_state_product_retry_backoff_not_ready")
         if product_row.recovery_state != "ready_no_live":
             blockers.append("run_state_product_recovery_not_ready")
+        if (
+            product_row.recovery_state == "ready_no_live"
+            and not product_row.recovery_state_ref
+        ):
+            blockers.append("run_state_product_recovery_ref_missing")
         if product_row.retry_attempts_available < 1:
             blockers.append("run_state_product_retry_attempts_missing")
         if product_row.fanout_cap_allocation_status != "allocated_no_live":

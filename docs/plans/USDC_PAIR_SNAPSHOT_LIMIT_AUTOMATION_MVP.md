@@ -67,6 +67,8 @@ Available building blocks:
   `rate_limit_window_ref_conflict`, `rate_limit_window_capacity_exceeded`,
   `retry_budget_exhausted`, `retry_backoff_ref_missing`, or
   `retry_backoff_ref_conflict`.
+  Candidate products with recovery status marked ready but no recovery ref fail
+  closed with `cancel_recovery_ref_missing` before cap/wallet allocation.
   Pause or abort requests now fail closed by removing queued products before
   cap/wallet allocation and recording `run_paused_no_live` or
   `run_aborted_no_live` blockers.
@@ -101,7 +103,9 @@ Available building blocks:
   run-lock, runtime rate-limit, retry-budget/backoff, recovery evidence, and
   selected-product candidate readiness, cap-guard ref, and membership in the
   parent retryable/recovery-required sets before it can reuse the existing
-  single-order submit/cancel path. Only `fanout_execution_not_approved` and
+  single-order submit/cancel path. The selected product must also carry a
+  non-empty recovery ref when recovery is `ready_no_live`. Only
+  `fanout_execution_not_approved` and
   `scheduler_blocked` may remain as parent fanout blockers for this handoff;
   any other parent fanout blocker rejects the handoff. This does not authorize
   live fan-out or scheduler behavior.
@@ -549,6 +553,8 @@ record `run_lock_ref_missing`, `run_lock_ref_conflict`,
 `rate_limit_window_ref_missing`, `rate_limit_window_ref_conflict`,
 `rate_limit_window_capacity_exceeded`, `retry_budget_exhausted`,
 `retry_backoff_ref_missing`, or `retry_backoff_ref_conflict`.
+Candidate products with ready recovery status but missing recovery refs are
+removed from queued product ids and record `cancel_recovery_ref_missing`.
 Pause or abort requests also remove queued products before cap/wallet
 allocation and record `run_paused_no_live` or `run_aborted_no_live` blockers.
 Products blocked by cap allocation, wallet allocation, missing live-readiness,
@@ -583,7 +589,8 @@ still cover the selected notional, and the parent run-state has ready aggregate
 status, recorded run-lock evidence, is not paused/aborted, and has ready runtime rate-limit,
 retry-budget/backoff, recovery evidence, selected-product rate/cap/wallet
 allocation readiness, and no selected-product blockers, plus selected-product
-candidate readiness, cap-guard ref, and membership in the parent
+candidate readiness, cap-guard ref, a non-empty selected-product recovery ref,
+and membership in the parent
 retryable/recovery-required sets;
 this remains a single-order controlled-live path, not fan-out automation.
 The backend live-submit runner can exercise this same handoff with
@@ -800,8 +807,8 @@ before any executor call, rejects blocked aggregate parent run-state/cap/wallet/
 live-readiness/notional/partial-success statuses, rejects stale selected-product
 price-freshness timestamp/status or recomputed price-distance evidence, rejects
 stale selected-product cap-guard submitted-notional or wallet evidence, rejects
-stale selected-product rate/cap/wallet allocation evidence, rejects non-empty
-selected-product
+stale selected-product rate/cap/wallet allocation evidence, rejects missing
+selected-product recovery refs, rejects non-empty selected-product
 blockers, rejects unexpected parent fanout blockers other than
 `fanout_execution_not_approved` and `scheduler_blocked`, rejects stale
 selected-product candidate/cap-guard refs, rejects stale run-state/order-plan/
