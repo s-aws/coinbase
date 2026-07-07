@@ -3041,6 +3041,8 @@ class UsdcPairSnapshotAllowlistRunStateProductItem(BaseModel):
     retry_backoff_status: str = Field(default="not_required", min_length=1)
     retry_backoff_ref: str | None = None
     recovery_state: str = Field(min_length=1)
+    retry_budget_per_product: int = Field(default=0, ge=0)
+    retry_prior_attempt_count: int = Field(default=0, ge=0)
     retry_attempts_available: int = Field(default=0, ge=0)
     planned_notional_usdc: DecimalString = "0"
     allocated_notional_usdc: DecimalString = "0"

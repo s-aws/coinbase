@@ -3070,6 +3070,7 @@ def _allowlist_run_state_product_item(
         rate_limit_state=row.rate_limit_status if queued else "blocked",
         retry_backoff_status="not_required",
         recovery_state=row.cancel_recovery_status if queued else "not_required",
+        retry_budget_per_product=row.retry_attempts_available if queued else 0,
         retry_attempts_available=row.retry_attempts_available if queued else 0,
         planned_notional_usdc=row.planned_notional_usdc,
         recovery_state_ref=(
@@ -3241,7 +3242,10 @@ def _apply_allowlist_run_state_retry_budget(
         if prior_attempts < item.retry_attempts_available:
             updated.append(
                 item.model_copy(
-                    update={"retry_attempts_available": remaining_attempts}
+                    update={
+                        "retry_prior_attempt_count": prior_attempts,
+                        "retry_attempts_available": remaining_attempts,
+                    }
                 )
             )
             continue
@@ -3255,6 +3259,7 @@ def _apply_allowlist_run_state_retry_budget(
                     "rate_limit_state": "blocked",
                     "recovery_state": "not_required",
                     "recovery_state_ref": None,
+                    "retry_prior_attempt_count": prior_attempts,
                     "retry_attempts_available": 0,
                     "blockers": _dedupe(
                         list(item.blockers)

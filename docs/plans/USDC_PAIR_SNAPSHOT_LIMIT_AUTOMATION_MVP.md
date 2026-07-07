@@ -69,7 +69,10 @@ Available building blocks:
   `retry_backoff_ref_conflict`. Run-state evidence now records the configured
   `rate_limit_max_orders_per_window`, the
   `rate_limit_attempted_order_count` before runtime blocking, and
-  `rate_limit_window_within_cap` as capacity proof.
+  `rate_limit_window_within_cap` as capacity proof. Product run-state rows now
+  also record `retry_budget_per_product` and `retry_prior_attempt_count` so
+  retry-budget exhaustion is auditable without inferring from remaining
+  attempts alone.
   Candidate products with recovery status marked ready but no recovery ref, or
   a recovery ref bound to a different product, fail closed with
   `cancel_recovery_ref_missing` or `cancel_recovery_ref_product_mismatch`
@@ -565,6 +568,9 @@ record `run_lock_ref_missing`, `run_lock_ref_conflict`,
 run-state also exposes `rate_limit_max_orders_per_window`,
 `rate_limit_attempted_order_count`, and `rate_limit_window_within_cap` before
 any future scheduler or fan-out path can rely on the rate-limit window.
+Product run-state rows also expose `retry_budget_per_product` and
+`retry_prior_attempt_count` before retry budget/backoff blockers clear
+remaining attempts.
 Candidate products with ready recovery status but reused recovery plan refs,
 missing refs, product-mismatched refs, or reused product refs are removed from
 queued product ids and record `cancel_recovery_plan_ref_conflict`,
@@ -826,6 +832,8 @@ refs, runtime windows with more than five queued products, retry-budget
 exhaustion, and missing or reused retry-backoff refs also fail closed before
 cap/wallet allocation. Run-state records preserve the configured rate-limit
 window cap, attempted order count, and within-cap result as durable evidence.
+Product rows preserve configured retry budget and prior-attempt count as
+durable retry/backoff evidence.
 Missing live wallet reservation/debit/release evidence now blocks aggregate
 run-state fan-out readiness while preserving queued product rows for the
 one-selected-product handoff proof path. Reused no-live reservation refs with a

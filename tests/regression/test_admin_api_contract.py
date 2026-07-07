@@ -38510,9 +38510,10 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_retry_budget_re
     assert source_payload["status"] == AdminApiCommandStatus.ACCEPTED.value
     assert source_payload["run_state"]["queued_product_ids"] == ["BTC-USDC"]
     assert source_payload["run_state"]["retryable_product_ids"] == ["BTC-USDC"]
-    assert source_payload["run_state"]["product_states"][0][
-        "retry_attempts_available"
-    ] == 1
+    source_product_row = source_payload["run_state"]["product_states"][0]
+    assert source_product_row["retry_budget_per_product"] == 1
+    assert source_product_row["retry_prior_attempt_count"] == 0
+    assert source_product_row["retry_attempts_available"] == 1
     assert source_payload["live_coinbase_execution"] == "not_run"
 
     retry_response = client.post(
@@ -38571,6 +38572,8 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_retry_budget_re
     assert product_row["rate_limit_state"] == "blocked"
     assert product_row["recovery_state"] == "not_required"
     assert product_row["recovery_state_ref"] is None
+    assert product_row["retry_budget_per_product"] == 1
+    assert product_row["retry_prior_attempt_count"] == 1
     assert product_row["retry_attempts_available"] == 0
     assert product_row["fanout_cap_allocation_status"] == "not_queued"
     assert product_row["wallet_allocation_status"] == "not_queued"
@@ -38661,9 +38664,10 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_requires_retry_backoff
     assert source_payload["run_state"]["queued_product_ids"] == ["BTC-USDC"]
     assert source_payload["run_state"]["retry_budget_status"] == "ready_no_live"
     assert source_payload["run_state"]["retry_backoff_status"] == "not_required"
-    assert source_payload["run_state"]["product_states"][0][
-        "retry_attempts_available"
-    ] == 2
+    source_product_row = source_payload["run_state"]["product_states"][0]
+    assert source_product_row["retry_budget_per_product"] == 2
+    assert source_product_row["retry_prior_attempt_count"] == 0
+    assert source_product_row["retry_attempts_available"] == 2
     assert source_payload["live_coinbase_execution"] == "not_run"
 
     retry_response = client.post(
@@ -38725,6 +38729,8 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_requires_retry_backoff
     assert product_row["retry_backoff_ref"] is None
     assert product_row["recovery_state"] == "not_required"
     assert product_row["recovery_state_ref"] is None
+    assert product_row["retry_budget_per_product"] == 2
+    assert product_row["retry_prior_attempt_count"] == 1
     assert product_row["retry_attempts_available"] == 0
     assert product_row["fanout_cap_allocation_status"] == "not_queued"
     assert product_row["wallet_allocation_status"] == "not_queued"

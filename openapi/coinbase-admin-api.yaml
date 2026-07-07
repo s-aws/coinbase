@@ -170394,6 +170394,16 @@ components:
           type: string
           minLength: 1
           title: Recovery State
+        retry_budget_per_product:
+          type: integer
+          minimum: 0.0
+          title: Retry Budget Per Product
+          default: 0
+        retry_prior_attempt_count:
+          type: integer
+          minimum: 0.0
+          title: Retry Prior Attempt Count
+          default: 0
         retry_attempts_available:
           type: integer
           minimum: 0.0
