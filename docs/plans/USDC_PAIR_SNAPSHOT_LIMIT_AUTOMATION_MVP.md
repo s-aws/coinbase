@@ -844,13 +844,12 @@ reconciliation, disabled live-service, row-scoped notional, and no-live
 submission evidence before clearing any corresponding blocker. Focused EC2
 validation still reports `live_coinbase_execution=not_run` and notional `0`.
 
-The next non-live decision is operator-scoped: either approve the aggregate
-proof-chain readback field names/formulas below, or approve moving to Phase E
-single-product controlled-live planning. Do not implement live execution,
-fan-out, or scheduler behavior from this plan without explicit operator
-approval for the concrete live scope.
+The aggregate proof-chain readback fields below are implemented as no-live
+readback evidence and covered by backend and frontend contract tests. Do not
+implement live fan-out or scheduler behavior from this plan without explicit
+operator approval for that concrete live scope.
 
-Proposed aggregate count fields, pending operator approval:
+Implemented aggregate count fields:
 
 - Plan item: `proof_chain_planned_count`,
   `proof_chain_blocked_count`, `proof_chain_live_disabled_count`,
