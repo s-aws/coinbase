@@ -4830,6 +4830,29 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
     return product_row
 
 
+def _validate_usdc_pair_allowlist_run_state_live_submit_association(
+    *,
+    run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    plan: UsdcPairSnapshotOrderPlanRecord,
+    readiness: UsdcPairSnapshotOrderPlanLiveReadinessRecord,
+) -> None:
+    blockers: list[str] = []
+    if run_state.plan_id != plan.plan_id:
+        blockers.append("run_state_plan_id_mismatch")
+    if run_state.snapshot_run_id != plan.snapshot_run_id:
+        blockers.append("run_state_plan_snapshot_mismatch")
+    if run_state.plan_id != readiness.plan_id:
+        blockers.append("run_state_readiness_plan_mismatch")
+    if run_state.snapshot_run_id != readiness.snapshot_run_id:
+        blockers.append("run_state_readiness_snapshot_mismatch")
+
+    if blockers:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live submit blocked: "
+            + ",".join(_dedupe(blockers))
+        )
+
+
 def _usdc_pair_live_order_configuration(
     readiness: UsdcPairSnapshotOrderPlanLiveReadinessRecord,
 ) -> dict[str, Any]:
@@ -5920,6 +5943,11 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
             raise UsdcPairSnapshotError(
                 "USDC pair snapshot live-readiness record not found."
             )
+        _validate_usdc_pair_allowlist_run_state_live_submit_association(
+            run_state=run_state,
+            plan=plan,
+            readiness=readiness,
+        )
         return _record_usdc_pair_live_submission(
             plan=plan,
             row=row,

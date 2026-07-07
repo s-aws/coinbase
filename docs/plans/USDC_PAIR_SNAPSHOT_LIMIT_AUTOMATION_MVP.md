@@ -89,9 +89,11 @@ Available building blocks:
   not required.
   A backend-owned run-state-to-live-submit handoff route now requires one
   explicitly selected queued product with matching `ready_no_live` Phase E
-  live-readiness, ready parent and product live-wallet reservation/debit/release
-  evidence, ready aggregate parent run-state/cap/wallet/live-readiness/
-  notional/partial-success statuses, selected-product rate/cap/wallet
+  live-readiness, matching run-state/order-plan/live-readiness `plan_id` and
+  `snapshot_run_id` association, ready parent and product live-wallet
+  reservation/debit/release evidence, ready aggregate parent
+  run-state/cap/wallet/live-readiness/notional/partial-success statuses,
+  selected-product rate/cap/wallet
   allocation readiness, no selected-product blockers, plus recorded parent
   run-lock, runtime rate-limit, retry-budget/backoff, recovery evidence, and
   selected-product candidate readiness, cap-guard ref, and membership in the
@@ -563,12 +565,14 @@ Coinbase orders, fan out execution, fetch/reserve/debit live wallet balance,
 or run a scheduler.
 The backend can also hand off one explicitly selected queued product from a
 run-state to the existing Phase E submit/cancel route only when the product row
-has matching `ready_no_live` live-readiness evidence by `client_order_id` and
-the parent run-state has ready aggregate status, recorded run-lock evidence, is
-not paused/aborted, and has ready runtime rate-limit, retry-budget/backoff,
-recovery evidence, selected-product rate/cap/wallet allocation readiness, and
-no selected-product blockers, plus selected-product candidate readiness,
-cap-guard ref, and membership in the parent retryable/recovery-required sets;
+has matching `ready_no_live` live-readiness evidence by `client_order_id`, the
+run-state/order-plan/live-readiness `plan_id` and `snapshot_run_id` association
+is current, and the parent run-state has ready aggregate status, recorded
+run-lock evidence, is not paused/aborted, and has ready runtime rate-limit,
+retry-budget/backoff, recovery evidence, selected-product rate/cap/wallet
+allocation readiness, and no selected-product blockers, plus selected-product
+candidate readiness, cap-guard ref, and membership in the parent
+retryable/recovery-required sets;
 this remains a single-order controlled-live path, not fan-out automation.
 The backend live-submit runner can exercise this same handoff with
 `--submit-from-run-state`, recording the selected product's run-state id and
@@ -782,8 +786,9 @@ live-readiness/notional/partial-success statuses, rejects stale selected-product
 rate/cap/wallet allocation evidence, rejects non-empty selected-product
 blockers, rejects unexpected parent fanout blockers other than
 `fanout_execution_not_approved` and `scheduler_blocked`, rejects stale
-selected-product candidate/cap-guard refs, and rejects stale parent
-retryable/recovery-required product sets that omit the selected product.
+selected-product candidate/cap-guard refs, rejects stale run-state/order-plan/
+live-readiness `plan_id` or `snapshot_run_id` association, and rejects stale
+parent retryable/recovery-required product sets that omit the selected product.
 Blocked product rows are no longer reported as retryable or recovery-required.
 Aggregate run-state status fields now fail closed when final product state has
 no queued products.
