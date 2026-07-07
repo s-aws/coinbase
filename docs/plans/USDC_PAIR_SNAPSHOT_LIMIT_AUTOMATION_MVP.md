@@ -603,7 +603,8 @@ not duplicate the selected product's wallet reservation/debit/release refs, the
 order plan contains exactly one matching selected row,
 latest live-readiness freshness
 timestamps/statuses, far-from-bid evidence, and snapshot non-fill evidence still
-pass after recomputation, latest cap-guard submitted-notional and wallet checks
+pass after recomputation, readiness planned/submitted notional still matches the
+selected order-plan row, latest cap-guard submitted-notional and wallet checks
 still cover the selected notional, and the parent run-state has ready aggregate
 status, recorded run-lock evidence, is not paused/aborted, and has ready runtime rate-limit,
 retry-budget/backoff, recovery evidence, selected-product rate/cap/wallet
@@ -827,6 +828,7 @@ before any executor call, rejects blocked aggregate parent run-state/cap/wallet/
 live-readiness/notional/partial-success statuses, rejects stale selected-product
 price-freshness timestamp/status or recomputed price-distance evidence, rejects
 stale selected-product order-plan/live-readiness snapshot association, rejects
+stale selected-product planned/submitted notional evidence, rejects
 stale selected-product cap-guard submitted-notional or wallet evidence, rejects
 ambiguous selected-product run-state rows, rejects stale selected-product
 rate/cap/wallet allocation evidence, rejects ambiguous selected-product

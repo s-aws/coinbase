@@ -5300,6 +5300,21 @@ def _record_usdc_pair_live_submission(
         blockers.append("readiness_snapshot_mismatch")
     if row.client_order_id != readiness.client_order_id:
         blockers.append("order_plan_row_mismatch")
+    row_planned_notional = _decimal_value(row.planned_notional_usdc)
+    readiness_planned_notional = _decimal_value(readiness.planned_notional_usdc)
+    submitted_notional = _decimal_value(readiness.submitted_notional_usdc)
+    if (
+        row_planned_notional is None
+        or readiness_planned_notional is None
+        or row_planned_notional != readiness_planned_notional
+    ):
+        blockers.append("readiness_planned_notional_mismatch")
+    if (
+        row_planned_notional is None
+        or submitted_notional is None
+        or row_planned_notional != submitted_notional
+    ):
+        blockers.append("readiness_submitted_notional_mismatch")
     if not body.confirm_live_submit:
         blockers.append("confirm_live_submit_required")
     if not body.confirm_single_order_only:
@@ -5350,7 +5365,6 @@ def _record_usdc_pair_live_submission(
         blockers.append("manual_review_required_for_full_snapshot_fill_test")
     if not readiness.cancel_before_additional_orders:
         blockers.append("cancel_before_additional_orders_required")
-    submitted_notional = _decimal_value(readiness.submitted_notional_usdc)
     max_executed_notional = _decimal_value(readiness.max_executed_notional_usdc)
     _, cap_guard_blockers = _usdc_pair_live_readiness_cap_guard_evidence(
         store=cap_guard_store,
