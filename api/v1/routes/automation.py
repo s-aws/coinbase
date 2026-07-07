@@ -5657,6 +5657,11 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_retry_budget_not_ready")
     if run_state.retry_backoff_status not in {"not_required", "ready_no_live"}:
         blockers.append("run_state_retry_backoff_not_ready")
+    if (
+        run_state.retry_backoff_status == "ready_no_live"
+        and not run_state.retry_backoff_ref
+    ):
+        blockers.append("run_state_retry_backoff_ref_missing")
     if run_state.retry_backoff_conflict_run_state_id:
         blockers.append("run_state_retry_backoff_ref_conflict")
     if run_state.recovery_status != "ready_no_live":
