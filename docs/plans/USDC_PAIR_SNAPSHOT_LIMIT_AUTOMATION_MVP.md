@@ -895,9 +895,10 @@ fail closed with `live_wallet_active_reservation_overcommit`, record
 run-state readback and blocked product rows, remove the affected row from queued
 product ids, and zero wallet allocation.
 The run-state live-submit handoff also rejects missing, blocked, or stale latest
-parent/product live-wallet reservation/debit/release evidence, blocked parent
-run-lock, pause/abort, rate-limit, retry-budget/backoff, or recovery evidence
-before any executor call, rejects blocked aggregate parent run-state/cap/wallet/
+parent/product live-wallet reservation/debit/release evidence, non-empty
+parent or selected-product active-overcommit readback, blocked parent run-lock,
+pause/abort, rate-limit, retry-budget/backoff, or recovery evidence before any
+executor call, rejects blocked aggregate parent run-state/cap/wallet/
 live-readiness/notional/partial-success statuses, rejects stale selected-product
 price-freshness timestamp/status or recomputed price-distance evidence, rejects
 stale selected-product order-plan/live-readiness snapshot association, rejects

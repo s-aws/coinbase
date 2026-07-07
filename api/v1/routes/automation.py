@@ -3889,6 +3889,18 @@ def _live_wallet_historical_reference_evidence(
     )
 
 
+def _live_wallet_historical_reference_blockers(
+    *,
+    record: UsdcPairSnapshotLiveWalletReservationRecord,
+    reservation_store: FileUsdcPairSnapshotLiveWalletReservationStore,
+) -> list[str]:
+    blockers, *_ = _live_wallet_historical_reference_evidence(
+        record=record,
+        reservation_store=reservation_store,
+    )
+    return blockers
+
+
 def _live_wallet_reference_conflict_blockers_by_product(
     *,
     product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
@@ -5215,6 +5227,18 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
             blockers.append("run_state_product_live_wallet_release_id_missing")
         if product_row.live_wallet_reservation_blockers:
             blockers.append("run_state_product_live_wallet_blockers_present")
+        if (
+            product_row.live_wallet_active_reservation_overcommit_run_state_ids
+            or _decimal_value(
+                product_row.live_wallet_active_reserved_notional_usdc
+            )
+            or _decimal_value(
+                product_row.live_wallet_overcommit_attempted_notional_usdc
+            )
+        ):
+            blockers.append(
+                "run_state_product_live_wallet_active_reservation_overcommit_present"
+            )
         wallet_ref_blockers_by_product = (
             _live_wallet_reference_conflict_blockers_by_product(
                 product_states=run_state.product_states,
@@ -5286,6 +5310,14 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_live_wallet_release_ids_missing")
     if run_state.live_wallet_reservation_blockers:
         blockers.append("run_state_live_wallet_blockers_present")
+    if (
+        run_state.live_wallet_active_reservation_overcommit_run_state_ids
+        or _decimal_value(run_state.live_wallet_active_reserved_notional_usdc)
+        or _decimal_value(run_state.live_wallet_overcommit_attempted_notional_usdc)
+    ):
+        blockers.append(
+            "run_state_live_wallet_active_reservation_overcommit_present"
+        )
 
     if blockers:
         raise UsdcPairSnapshotError(
