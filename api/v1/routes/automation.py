@@ -4736,6 +4736,8 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
             != product_row.planned_notional_usdc
         ):
             blockers.append("run_state_product_wallet_notional_mismatch")
+        if product_row.blockers:
+            blockers.append("run_state_product_blockers_present")
         if product_row.live_wallet_reservation_status != "ready_no_live":
             blockers.append("run_state_product_live_wallet_reservation_not_ready")
         if not product_row.live_wallet_reservation_id:
