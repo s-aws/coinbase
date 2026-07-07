@@ -4689,15 +4689,28 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
     if product_row is None:
         blockers.append("run_state_product_not_found")
     else:
+        normalized_body_product_id = body.product_id.strip().upper()
         queued_product_ids = {
             product_id.strip().upper()
             for product_id in run_state.queued_product_ids
         }
+        retryable_product_ids = {
+            product_id.strip().upper()
+            for product_id in run_state.retryable_product_ids
+        }
+        recovery_required_product_ids = {
+            product_id.strip().upper()
+            for product_id in run_state.recovery_required_product_ids
+        }
         if (
             product_row.execution_state != "queued_no_live"
-            or body.product_id.strip().upper() not in queued_product_ids
+            or normalized_body_product_id not in queued_product_ids
         ):
             blockers.append("run_state_product_not_queued")
+        if normalized_body_product_id not in retryable_product_ids:
+            blockers.append("run_state_product_not_retryable")
+        if normalized_body_product_id not in recovery_required_product_ids:
+            blockers.append("run_state_product_recovery_not_required")
         if product_row.live_readiness_status != "ready_no_live":
             blockers.append("run_state_live_readiness_not_ready")
         if product_row.live_readiness_id != body.readiness_id:
