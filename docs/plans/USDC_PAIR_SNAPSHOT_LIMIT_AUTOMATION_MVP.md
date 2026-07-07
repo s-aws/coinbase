@@ -188,10 +188,14 @@ Missing before live automation:
 - Multi-product wallet allocation controls that prevent wallet/balance
   overcommit during fan-out. Phase F run-state now proves no-live run-cap
   allocation and no-live wallet allocation from existing cap-guard wallet
-  proofs, but it still does not fetch live wallet balance, reserve/debit
-  funds, release reservations, or authorize multi-product live fan-out. The
-  run-state contract now records `live_wallet_reservation_status` and
-  `live_wallet_reservation_blockers` so this missing live-wallet layer is
+  proofs. It also proves two queued products can consume unique no-live
+  reservation/debit/release refs, aggregate wallet lifecycle readback to
+  `ready_no_live`, stay within the default 5-per-second rate window, and leave
+  live Coinbase execution not run. It still does not fetch live wallet balance,
+  reserve/debit funds, release reservations, or authorize multi-product live
+  fan-out. The run-state contract now records
+  `live_wallet_reservation_status` and `live_wallet_reservation_blockers` so
+  this missing live-wallet layer is
   durable evidence, not a chat-only caveat. Phase F run-state now blocks rows
   with `live_wallet_active_reservation_overcommit` and records
   `live_wallet_active_reservation_overcommit_run_state_ids` when unreleased
@@ -965,9 +969,10 @@ no queued products.
 Final-blocked product rows also clear stale cancel-recovery refs when recovery
 is not required.
 Subagent phase sweep on 2026-07-07 was closed after findings were consumed.
-Remaining live fan-out/scheduler blockers are now broader multi-product live
-wallet, runtime fan-out, release-gate, and contextless-review evidence rather
-than one-selected-product submit-time freshness checks.
+Remaining live fan-out/scheduler blockers are now broader live wallet ledger,
+runtime fan-out, release-gate, and contextless-review evidence rather than
+one-selected-product submit-time freshness checks or missing no-live
+multi-product wallet lifecycle readback.
 The backend release gate now records `m58_usdc_pair_live_fanout_gate` and
 `m58_usdc_pair_scheduler_gate` as warnings, plus
 `m58_usdc_pair_contextless_review_gate` as passed for the current

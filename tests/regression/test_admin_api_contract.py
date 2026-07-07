@@ -36052,6 +36052,263 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_accepts_debit_release_
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_accepts_multi_product_debit_release_refs(
+    monkeypatch,
+):
+    from application.admin_api.models import (
+        UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem,
+    )
+    from application.admin_api.usdc_pair_snapshot import (
+        UsdcPairSnapshotLiveWalletReservationRecord,
+        UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
+    )
+
+    client = _client(monkeypatch)
+    readiness_id = "m58-usdc-run-state-wallet-multi-debit-release"
+    run_state_id = "m58-usdc-run-state-wallet-multi-debit-release"
+    plan_id = "m58-usdc-run-state-wallet-multi-plan"
+    snapshot_run_id = "m58-usdc-run-state-wallet-multi-snapshot"
+    products = ["BTC-USDC", "ETH-USDC"]
+    product_rows = []
+    reservation_ids = []
+    debit_ids = []
+    release_ids = []
+
+    for product_id in products:
+        normalized = product_id.replace("-", "_").lower()
+        client_order_id = f"m58-wallet-multi-{normalized}"
+        cap_guard_decision_id = f"cap-m58-wallet-multi-{normalized}"
+        reservation_id = f"wallet-reservation-m58-multi-{normalized}"
+        debit_id = f"wallet-debit-m58-multi-{normalized}"
+        release_id = f"wallet-release-m58-multi-{normalized}"
+        reservation_ids.append(reservation_id)
+        debit_ids.append(debit_id)
+        release_ids.append(release_id)
+        client.admin_api_test_cap_guard_store.append(
+            CapGuardDecisionRecord(
+                decision_id=cap_guard_decision_id,
+                route=(
+                    "/api/v1/automation/usdc-pair-snapshot-order-plan-"
+                    "allowlist-readiness/{readiness_id}/run-state"
+                ),
+                method="POST",
+                module_id="automation",
+                identity_key="client_order_id",
+                identity_value=client_order_id,
+                action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+                required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+                service_method="record_usdc_pair_snapshot_allowlist_run_state",
+                actor_id="contract-test",
+                operator_intent="m58_usdc_snapshot_allowlist_run_state",
+                idempotency_key=f"idem-{cap_guard_decision_id}",
+                payload_hash="9" * 64,
+                approval_snapshot_id=f"approval-{cap_guard_decision_id}",
+                admission_audit_id=f"admission-{cap_guard_decision_id}",
+                allowed=True,
+                status=AdminApiGateStatus.PASSED,
+                cap_policy_ref="m58_phase_f_submitted_notional_cap",
+                guard_policy_ref="m58_phase_f_wallet_allocation_guard",
+                product_scope=product_id,
+                max_submitted_notional_usdc="1.00",
+                max_executed_notional_usdc="0",
+                wallet_check_required=True,
+                wallet_check_status=AdminApiGateStatus.PASSED,
+                wallet_available_notional_usdc="10.00",
+                wallet_check_source="m58_usdc_pair_wallet_multi_fixture",
+                reason="No-live Phase F wallet allocation source evidence.",
+            )
+        )
+        product_rows.append(
+            UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem(
+                product_id=product_id,
+                client_order_id=client_order_id,
+                plan_status="planned",
+                proof_chain_status="accepted",
+                run_cap_status="passed",
+                cap_guard_decision_id=cap_guard_decision_id,
+                planned_notional_usdc="1.00",
+                readiness_status="candidate",
+                retry_status="ready_no_live",
+                failure_isolation_status="ready_no_live",
+                rate_limit_status="ready_no_live",
+                retry_budget_status="ready_no_live",
+                retry_attempts_available=1,
+                cancel_recovery_status="ready_no_live",
+                blockers=[],
+                recovery_state_ref=f"m58-cancel-recovery-multi:{product_id}",
+            )
+        )
+        _append_usdc_pair_snapshot_run_state_live_readiness(
+            client,
+            readiness_id=readiness_id,
+            plan_id=plan_id,
+            snapshot_run_id=snapshot_run_id,
+            product_id=product_id,
+            client_order_id=client_order_id,
+            planned_notional_usdc="1.00",
+            cap_guard_decision_id=cap_guard_decision_id,
+        )
+        client.admin_api_test_usdc_pair_snapshot_live_wallet_reservation_store.append(
+            UsdcPairSnapshotLiveWalletReservationRecord(
+                reservation_id=reservation_id,
+                run_state_id=run_state_id,
+                readiness_id=readiness_id,
+                plan_id=plan_id,
+                snapshot_run_id=snapshot_run_id,
+                product_id=product_id,
+                client_order_id=client_order_id,
+                reserved_notional_usdc="1.00",
+                wallet_available_notional_usdc="10.00",
+                reservation_status="reserved_no_live",
+                debit_status="debited_no_live",
+                debit_id=debit_id,
+                debited_notional_usdc="1.00",
+                release_status="released_no_live",
+                release_id=release_id,
+                released_notional_usdc="1.00",
+                release_reason="no_live_run_state_rehearsal",
+                actor_id="contract-test",
+                operator_intent="m58_usdc_snapshot_live_wallet_reservation",
+                idempotency_key=f"idem-{reservation_id}",
+                payload_hash="5" * 64,
+                audit_id=f"audit-{reservation_id}",
+                operator_notes="reservation source for wallet multi-product test",
+                detail="No-live M58 live-wallet reservation evidence exists.",
+            )
+        )
+
+    client.admin_api_test_usdc_pair_snapshot_order_plan_allowlist_readiness_store.append(
+        UsdcPairSnapshotOrderPlanAllowlistReadinessRecord(
+            readiness_id=readiness_id,
+            plan_id=plan_id,
+            snapshot_run_id=snapshot_run_id,
+            product_ids=products,
+            selected_product_count=len(products),
+            max_products=len(products),
+            candidate_product_ids=products,
+            blocked_product_ids=[],
+            cap_exhausted_product_ids=[],
+            missing_product_ids=[],
+            retryable_product_ids=products,
+            recovery_required_product_ids=products,
+            partial_success_status="ready_no_live",
+            failure_isolation_status="ready_no_live",
+            run_rate_limit_status="ready_no_live",
+            retry_budget_status="ready_no_live",
+            recovery_readiness_status="ready_no_live",
+            retry_budget_per_product=1,
+            run_rate_limit_budget_ref="m58-rate-limit-budget-multi",
+            cancel_recovery_plan_ref="m58-cancel-recovery-multi",
+            fanout_readiness_status="blocked",
+            fanout_blockers=[
+                "fanout_execution_not_approved",
+                "scheduler_blocked",
+            ],
+            product_readiness_rows=product_rows,
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_allowlist_readiness",
+            idempotency_key=f"idem-{readiness_id}",
+            payload_hash="9" * 64,
+            audit_id=f"audit-{readiness_id}",
+            operator_notes="source readiness for wallet multi-product evidence",
+            detail="No-live allowlist readiness source for wallet multi-product.",
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+            f"{readiness_id}/run-state"
+        ),
+        headers=_headers(
+            idempotency_key=f"idem-{run_state_id}",
+            operator_intent=(
+                "m58_usdc_snapshot_allowlist_run_state_wallet_multi"
+            ),
+        ),
+        json={
+            "run_state_id": run_state_id,
+            "execution_mode": "no_live_rehearsal",
+            "max_fanout_notional_usdc": "100",
+            "run_lock_ref": "m58-run-lock-wallet-multi",
+            "rate_limit_window_ref": "m58-rate-limit-window-wallet-multi",
+            "pause_requested": False,
+            "abort_requested": False,
+            "live_wallet_reservation_ids": reservation_ids,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+
+    run_state = payload["run_state"]
+    assert run_state["run_state_status"] == "ready_no_live"
+    assert run_state["fanout_execution_status"] == "blocked"
+    assert run_state["fanout_blockers"] == [
+        "fanout_execution_not_approved",
+        "scheduler_blocked",
+    ]
+    assert run_state["queued_product_ids"] == products
+    assert run_state["blocked_product_ids"] == []
+    assert run_state["retryable_product_ids"] == products
+    assert run_state["recovery_required_product_ids"] == products
+    assert run_state["queued_product_count"] == 2
+    assert run_state["blocked_product_count"] == 0
+    assert run_state["rate_limit_attempted_order_count"] == 2
+    assert run_state["rate_limit_window_remaining_order_count"] == 3
+    assert run_state["rate_limit_window_overage_order_count"] == 0
+    assert run_state["rate_limit_window_within_cap"] is True
+    assert run_state["wallet_allocation_status"] == "passed"
+    assert run_state["wallet_available_notional_usdc"] == "10.00"
+    assert run_state["wallet_allocated_notional_usdc"] == "2.00"
+    assert run_state["wallet_remaining_usdc"] == "8.00"
+    assert run_state["live_wallet_reservation_status"] == "ready_no_live"
+    assert run_state["live_wallet_reservation_ids"] == reservation_ids
+    assert run_state["live_wallet_reserved_notional_usdc"] == "2.00"
+    assert run_state["live_wallet_debit_ids"] == debit_ids
+    assert run_state["live_wallet_debited_notional_usdc"] == "2.00"
+    assert run_state["live_wallet_release_ids"] == release_ids
+    assert run_state["live_wallet_released_notional_usdc"] == "2.00"
+    assert run_state["live_wallet_reservation_blockers"] == []
+    assert run_state["live_exchange_submitted"] is False
+    assert run_state["live_coinbase_orders_ran"] is False
+    assert run_state["live_coinbase_execution"] == "not_run"
+    assert run_state["notional_usdc"] == "0"
+
+    product_states = {
+        item["product_id"]: item for item in run_state["product_states"]
+    }
+    for product_id, reservation_id, debit_id, release_id in zip(
+        products,
+        reservation_ids,
+        debit_ids,
+        release_ids,
+        strict=True,
+    ):
+        product_row = product_states[product_id]
+        assert product_row["execution_state"] == "queued_no_live"
+        assert product_row["wallet_allocation_status"] == "allocated_no_live"
+        assert product_row["wallet_available_notional_usdc"] == "10.00"
+        assert product_row["wallet_allocated_notional_usdc"] == "1.00"
+        assert product_row["live_wallet_reservation_status"] == "ready_no_live"
+        assert product_row["live_wallet_reservation_id"] == reservation_id
+        assert product_row["live_wallet_reserved_notional_usdc"] == "1.00"
+        assert product_row["live_wallet_debit_id"] == debit_id
+        assert product_row["live_wallet_debited_notional_usdc"] == "1.00"
+        assert product_row["live_wallet_release_id"] == release_id
+        assert product_row["live_wallet_released_notional_usdc"] == "1.00"
+        assert product_row["live_wallet_reservation_blockers"] == []
+        assert product_row["blockers"] == []
+        assert product_row["live_coinbase_execution"] == "not_run"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_missing_recovery_ref(
     monkeypatch,
 ):
