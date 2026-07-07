@@ -994,8 +994,10 @@ multi-product wallet lifecycle readback.
 The backend release gate now records `m58_usdc_pair_live_fanout_gate` and
 `m58_usdc_pair_scheduler_gate` as warnings, plus
 `m58_usdc_pair_contextless_review_gate` as passed for the current
-one-selected-product boundary. These checks are release-readiness evidence only;
-they do not authorize live fan-out, scheduling, or browser trading authority.
+one-selected-product boundary. The fan-out warning now names the durable
+no-live wallet-ledger record readback as still insufficient for live fan-out.
+These checks are release-readiness evidence only; they do not authorize live
+fan-out, scheduling, or browser trading authority.
 A blind contextless review on 2026-07-06 passed the M58 no-live Phase F
 authority-boundary questions and confirmed the change set is a domain module
 under Automation / Campaign / Scheduler, not a reusable admin platform

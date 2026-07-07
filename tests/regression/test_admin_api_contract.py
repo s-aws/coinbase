@@ -60977,6 +60977,9 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "explicit no-live wallet-ledger boundary readback" in release_checks[
         "m58_usdc_pair_live_fanout_gate"
     ]["detail"]
+    assert "durable no-live wallet-ledger record readback" in release_checks[
+        "m58_usdc_pair_live_fanout_gate"
+    ]["detail"]
     assert "standing-cap scope readback" in release_checks[
         "m58_usdc_pair_live_fanout_gate"
     ]["detail"]
