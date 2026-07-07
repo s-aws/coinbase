@@ -90,9 +90,10 @@ Available building blocks:
   A backend-owned run-state-to-live-submit handoff route now requires one
   explicitly selected queued product with matching `ready_no_live` Phase E
   live-readiness, ready parent and product live-wallet reservation/debit/release
-  evidence, plus recorded parent run-lock and runtime rate-limit evidence before
-  it can reuse the existing single-order submit/cancel path; this does not
-  authorize live fan-out or scheduler behavior.
+  evidence, plus recorded parent run-lock, runtime rate-limit,
+  retry-budget/backoff, and recovery evidence before it can reuse the existing
+  single-order submit/cancel path; this does not authorize live fan-out or
+  scheduler behavior.
 - `tools/run_admin_api_usdc_pair_snapshot_live_submit.py` can use
   `--submit-from-run-state` to record the one-product allowlist-readiness and
   run-state evidence, then call the backend run-state handoff route. It remains
@@ -558,8 +559,8 @@ The backend can also hand off one explicitly selected queued product from a
 run-state to the existing Phase E submit/cancel route only when the product row
 has matching `ready_no_live` live-readiness evidence by `client_order_id` and
 the parent run-state has recorded run-lock evidence, is not paused/aborted, and
-has ready runtime rate-limit evidence; this remains a single-order
-controlled-live path, not fan-out automation.
+has ready runtime rate-limit, retry-budget/backoff, and recovery evidence;
+this remains a single-order controlled-live path, not fan-out automation.
 The backend live-submit runner can exercise this same handoff with
 `--submit-from-run-state`, recording the selected product's run-state id and
 queued live-readiness association in the local artifact before stopping after
@@ -766,7 +767,8 @@ queued products or prior reservation records fail closed with explicit wallet
 reference conflict blockers and zero affected wallet allocation.
 The run-state live-submit handoff also rejects missing or blocked parent/product
 live-wallet reservation/debit/release evidence, blocked parent run-lock,
-pause/abort, or rate-limit evidence before any executor call.
+pause/abort, rate-limit, retry-budget/backoff, or recovery evidence before any
+executor call.
 Blocked product rows are no longer reported as retryable or recovery-required.
 Aggregate run-state status fields now fail closed when final product state has
 no queued products.

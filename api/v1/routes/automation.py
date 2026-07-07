@@ -4702,6 +4702,14 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
             blockers.append("run_state_live_readiness_not_ready")
         if product_row.live_readiness_id != body.readiness_id:
             blockers.append("run_state_live_readiness_id_mismatch")
+        if product_row.retry_state != "ready_no_live":
+            blockers.append("run_state_product_retry_not_ready")
+        if product_row.retry_backoff_status not in {"not_required", "ready_no_live"}:
+            blockers.append("run_state_product_retry_backoff_not_ready")
+        if product_row.recovery_state != "ready_no_live":
+            blockers.append("run_state_product_recovery_not_ready")
+        if product_row.retry_attempts_available < 1:
+            blockers.append("run_state_product_retry_attempts_missing")
         if product_row.live_wallet_reservation_status != "ready_no_live":
             blockers.append("run_state_product_live_wallet_reservation_not_ready")
         if not product_row.live_wallet_reservation_id:
@@ -4736,6 +4744,12 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_rate_limit_not_ready")
     if not run_state.rate_limit_window_ref:
         blockers.append("run_state_rate_limit_window_ref_missing")
+    if run_state.retry_budget_status != "ready_no_live":
+        blockers.append("run_state_retry_budget_not_ready")
+    if run_state.retry_backoff_status not in {"not_required", "ready_no_live"}:
+        blockers.append("run_state_retry_backoff_not_ready")
+    if run_state.recovery_status != "ready_no_live":
+        blockers.append("run_state_recovery_not_ready")
     if run_state.live_wallet_reservation_status != "ready_no_live":
         blockers.append("run_state_live_wallet_reservation_not_ready")
     if not run_state.live_wallet_reservation_ids:
