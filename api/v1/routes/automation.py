@@ -219,6 +219,7 @@ USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_CAPACITY_BLOCKER = (
     "rate_limit_window_capacity_exceeded"
 )
 USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_ORDER_CAP = 5
+USDC_PAIR_SNAPSHOT_RETRY_BUDGET_EXHAUSTED_BLOCKER = "retry_budget_exhausted"
 USDC_PAIR_SNAPSHOT_RUN_PAUSED_BLOCKER = "run_paused_no_live"
 USDC_PAIR_SNAPSHOT_RUN_ABORTED_BLOCKER = "run_aborted_no_live"
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_ACCOUNT_FAMILY = "coinbase_spot"
@@ -3074,6 +3075,78 @@ def _apply_allowlist_run_state_runtime_controls(
     return updated, [runtime_blocker]
 
 
+def _allowlist_run_state_prior_retry_attempt_count(
+    *,
+    run_state_store: FileUsdcPairSnapshotAllowlistRunStateStore,
+    readiness_id: str,
+    run_state_id: str | None,
+    item: UsdcPairSnapshotAllowlistRunStateProductItem,
+) -> int:
+    requested_run_state_id = str(run_state_id or "")
+    product_id = item.product_id.strip().upper()
+    client_order_id = str(item.client_order_id or "").strip()
+    return sum(
+        1
+        for record in run_state_store.read_recent(limit=500)
+        if record.readiness_id == readiness_id
+        and record.run_state_id != requested_run_state_id
+        and any(
+            product_state.product_id.strip().upper() == product_id
+            and str(product_state.client_order_id or "").strip() == client_order_id
+            and product_state.execution_state == "queued_no_live"
+            for product_state in record.product_states
+        )
+    )
+
+
+def _apply_allowlist_run_state_retry_budget(
+    *,
+    product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
+    run_state_store: FileUsdcPairSnapshotAllowlistRunStateStore,
+    readiness_id: str,
+    run_state_id: str | None,
+) -> tuple[list[UsdcPairSnapshotAllowlistRunStateProductItem], list[str]]:
+    updated: list[UsdcPairSnapshotAllowlistRunStateProductItem] = []
+    blockers: list[str] = []
+    for item in product_states:
+        if item.execution_state != "queued_no_live":
+            updated.append(item)
+            continue
+        prior_attempts = _allowlist_run_state_prior_retry_attempt_count(
+            run_state_store=run_state_store,
+            readiness_id=readiness_id,
+            run_state_id=run_state_id,
+            item=item,
+        )
+        remaining_attempts = max(item.retry_attempts_available - prior_attempts, 0)
+        if prior_attempts < item.retry_attempts_available:
+            updated.append(
+                item.model_copy(
+                    update={"retry_attempts_available": remaining_attempts}
+                )
+            )
+            continue
+
+        blockers.append(USDC_PAIR_SNAPSHOT_RETRY_BUDGET_EXHAUSTED_BLOCKER)
+        updated.append(
+            item.model_copy(
+                update={
+                    "execution_state": "blocked",
+                    "retry_state": "blocked",
+                    "rate_limit_state": "blocked",
+                    "recovery_state": "not_required",
+                    "recovery_state_ref": None,
+                    "retry_attempts_available": 0,
+                    "blockers": _dedupe(
+                        list(item.blockers)
+                        + [USDC_PAIR_SNAPSHOT_RETRY_BUDGET_EXHAUSTED_BLOCKER]
+                    ),
+                }
+            )
+        )
+    return updated, _dedupe(blockers)
+
+
 def _apply_allowlist_run_state_cap_allocation(
     *,
     product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
@@ -3792,6 +3865,12 @@ def _record_usdc_pair_allowlist_run_state(
             abort_requested=body.abort_requested,
         )
     )
+    product_states, retry_budget_blockers = _apply_allowlist_run_state_retry_budget(
+        product_states=product_states,
+        run_state_store=run_state_store,
+        readiness_id=readiness.readiness_id,
+        run_state_id=body.run_state_id,
+    )
     product_states, cap_allocation = (
         _apply_allowlist_run_state_cap_allocation(
             product_states=product_states,
@@ -3866,6 +3945,7 @@ def _record_usdc_pair_allowlist_run_state(
     fanout_blockers = _dedupe(
         list(readiness.fanout_blockers)
         + runtime_control_blockers
+        + retry_budget_blockers
         + wallet_allocation["live_wallet_reservation_blockers"]
         + (
             ["product_evidence_blocked"]
