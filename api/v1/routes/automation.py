@@ -5768,6 +5768,31 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
             if blocker
         ]
     )
+    queued_product_readiness_not_candidate = any(
+        item.execution_state == "queued_no_live"
+        and item.readiness_status != "candidate"
+        for item in run_state.product_states
+    )
+    queued_product_cap_guard_ref_missing = any(
+        item.execution_state == "queued_no_live"
+        and not item.cap_guard_decision_id
+        for item in run_state.product_states
+    )
+    queued_product_live_readiness_not_ready = any(
+        item.execution_state == "queued_no_live"
+        and item.live_readiness_status != "ready_no_live"
+        for item in run_state.product_states
+    )
+    queued_product_live_readiness_id_missing = any(
+        item.execution_state == "queued_no_live"
+        and not item.live_readiness_id
+        for item in run_state.product_states
+    )
+    queued_product_live_readiness_source_missing = any(
+        item.execution_state == "queued_no_live"
+        and not str(item.live_readiness_source or "").strip()
+        for item in run_state.product_states
+    )
     queued_product_retry_blocked = any(
         item.execution_state == "queued_no_live"
         and item.retry_state != "ready_no_live"
@@ -5849,6 +5874,17 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_product_recovery_ref_conflict")
     if queued_product_row_blockers:
         blockers.append("run_state_product_blockers_present")
+    if queued_product_readiness_not_candidate:
+        blockers.append("run_state_product_readiness_not_candidate")
+    if queued_product_cap_guard_ref_missing:
+        blockers.append("run_state_product_cap_guard_ref_missing")
+    if queued_product_live_readiness_not_ready:
+        blockers.append("run_state_product_live_readiness_not_ready")
+    if queued_product_live_readiness_id_missing:
+        blockers.append("run_state_product_live_readiness_id_missing")
+    if queued_product_live_readiness_source_missing:
+        blockers.append("run_state_product_live_readiness_source_missing")
+        blockers.append("run_state_live_readiness_source_missing")
     if queued_product_retry_blocked:
         blockers.append("run_state_product_retry_not_ready")
     if queued_product_rate_limit_blocked:

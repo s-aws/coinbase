@@ -140,7 +140,8 @@ Available building blocks:
   allocation readiness, ready queued product-row runtime/allocation/wallet
   reservation states, no queued product-row blockers, plus recorded parent
   run-lock, runtime rate-limit, retry-budget/backoff, recovery evidence, and
-  selected-product candidate readiness, cap-guard ref, and membership in the
+  queued product-row candidate readiness, cap-guard refs, live-readiness refs,
+  and selected-product membership in the
   parent retryable/recovery-required sets before it can reuse the existing
   single-order submit/cancel path. The selected product must also carry a
   non-empty recovery ref bound to that product when recovery is
@@ -715,8 +716,8 @@ run-state has ready aggregate
 status, recorded run-lock evidence, is not paused/aborted, and has ready runtime rate-limit,
 retry-budget/backoff, recovery evidence, selected-product rate/cap/wallet
 allocation readiness, ready queued product-row runtime/allocation/wallet
-reservation states, and no queued product-row blockers, plus selected-product
-candidate readiness, cap-guard ref, a non-empty selected-product recovery ref
+reservation states, queued product-row candidate/cap-guard/live-readiness
+refs, and no queued product-row blockers, plus a non-empty selected-product recovery ref
 bound to that product and not reused by another queued run-state, and
 membership in the parent
 retryable/recovery-required sets;
