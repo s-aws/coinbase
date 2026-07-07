@@ -408,6 +408,25 @@ open BTC-USDC orders. Durable local evidence artifacts:
 `artifacts/coinbase-backend-m58-usdc-live-submit-20260706-232520.json` and
 `artifacts/coinbase-backend-m58-usdc-live-readback-20260706-232520.json`.
 
+Latest run-state handoff live evidence: on 2026-07-07T01:11Z, the backend
+runner used `--submit-from-run-state` and run-state id
+`m58-usdc-run-state-live-BTC-USDC-20260707-011114-run-state` to hand off one
+queued BTC-USDC product with matching `ready_no_live` Phase E readiness. The
+backend submitted one BTC-USDC BUY order for `1.00` USDC submitted notional at
+`32004.51` against Coinbase best bid and latest trade `64009.02`. Coinbase
+returned order id `8d0ceffa-dc64-4b24-b808-a3f9082f758c`; the backend
+cancelled the same `client_order_id`, recorded
+`live_coinbase_execution=submitted_cancelled`, `executed_notional_usdc=0`,
+`cancel_rollback_complete=true`, and
+`proof_chain_status_after_submission=accepted` with no proof-chain blockers.
+Run-state fan-out execution remained blocked with
+`fanout_execution_not_approved` and `scheduler_blocked`. Readback verified
+exchange status `CANCELLED`, executed notional `0`, and `0` open BTC-USDC
+orders. Durable local evidence artifacts:
+`artifacts/coinbase-backend-m58-usdc-live-submit-20260707-011114-run-state.json`
+and
+`artifacts/coinbase-backend-m58-usdc-live-readback-20260707-011114-run-state.json`.
+
 Entry requirements:
 
 - Phases A-D complete and passing.
@@ -654,11 +673,12 @@ Do not start multiple live orders or live fan-out until Phase D proof-chain
 evidence, contextless review, and explicit operator approval for that concrete
 controlled-live scope all pass.
 
-As of 2026-07-06, Phase E single-product controlled-live submit/cancel evidence
-exists and Phase F no-live allowlist-readiness/run-state evidence includes
-backend run-cap allocation, exact cap-guard association, exact per-product
-live-readiness association, and fail-closed wallet allocation. A blind
-contextless review on 2026-07-06 passed the M58
+As of 2026-07-07, Phase E single-product controlled-live submit/cancel evidence
+exists, a Phase F one-selected-product run-state handoff live submit/cancel has
+passed with exchange readback, and Phase F no-live allowlist-readiness/run-state
+evidence includes backend run-cap allocation, exact cap-guard association,
+exact per-product live-readiness association, and fail-closed wallet
+allocation. A blind contextless review on 2026-07-06 passed the M58
 no-live Phase F authority-boundary questions and confirmed the change set is a
 domain module under Automation / Campaign / Scheduler, not a reusable admin
 platform primitive. The review also confirmed future live fan-out remains
