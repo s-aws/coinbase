@@ -41432,6 +41432,98 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidate
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_cap_guard_scope_mismatch(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-cap-scope-mismatch",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-submit-cap-scope-mismatch-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    normalized_product_id = ready["product_id"].replace("-", "_").lower()
+    client.admin_api_test_cap_guard_store.append(
+        CapGuardDecisionRecord(
+            decision_id=f"cap-{ready['allowlist_readiness_id']}-{normalized_product_id}",
+            route="/api/v1/orders",
+            method="POST",
+            module_id="automation",
+            identity_key="client_order_id",
+            identity_value=ready["client_order_id"],
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method="place_manual_order",
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_order_plan_live_readiness",
+            idempotency_key="idem-m58-usdc-live-submit-cap-scope-mismatch",
+            payload_hash="b" * 64,
+            approval_snapshot_id=f"approval-{ready['allowlist_readiness_id']}",
+            admission_audit_id=f"admission-{ready['allowlist_readiness_id']}",
+            allowed=True,
+            status=AdminApiGateStatus.PASSED,
+            cap_policy_ref="wrong_route_cap_policy",
+            guard_policy_ref="wrong_route_wallet_guard",
+            product_scope="ETH-USDC",
+            max_submitted_notional_usdc="1.00",
+            max_executed_notional_usdc="0",
+            wallet_check_required=True,
+            wallet_check_status=AdminApiGateStatus.PASSED,
+            wallet_available_notional_usdc="1.00",
+            wallet_check_source="m58_usdc_pair_live_submit_wrong_scope",
+            reason="Same decision id with wrong route and product scope.",
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-cap-scope-mismatch"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json={
+            "submission_id": "m58-usdc-allowlist-live-submit-cap-scope-mismatch",
+            "readiness_id": ready["live_readiness_id"],
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one run-state selected order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "wrong-scope latest cap-guard evidence",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert "readiness_cap_guard_route_mismatch" in payload["message"]
+    assert "readiness_cap_guard_service_method_mismatch" in payload["message"]
+    assert "readiness_cap_guard_product_scope_mismatch" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_runtime_evidence(
     monkeypatch,
 ):

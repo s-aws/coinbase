@@ -37,8 +37,9 @@ Available building blocks:
 - M58 single-product controlled-live submit/cancel tooling and read-only
   exchange readback/recovery evidence for one prior live submission. This is
   backend-only and does not authorize fan-out or scheduling. Phase E
-  live-readiness now rechecks latest cap/guard submitted-notional and wallet
-  availability evidence before marking the one-row submit route ready.
+  live-readiness now rechecks latest cap/guard route, identity, product-scope,
+  approval/admission binding, submitted-notional, and wallet availability
+  evidence before marking the one-row submit route ready.
 - M58 Phase F no-live allowlist-readiness and run-state evidence for explicit
   product sets. It records product-level failure isolation status, run
   rate-limit budget refs, retry budget status, cancel/recovery refs,
@@ -444,8 +445,9 @@ closed unless `COINBASE_ADMIN_API_LIVE_EXECUTION_ENABLED=true` is already set
 for the process. Phase E live-readiness records reference-bid and last-filled
 source/timestamp/freshness evidence and rejects stale, invalid, future-dated,
 or missing market references before submit/cancel can run. It also re-reads
-the latest cap/guard proof by decision id and rejects readiness when the
-submitted notional exceeds the approved cap or required wallet availability.
+the latest cap/guard proof by decision id and rejects readiness when route,
+identity, product-scope, approval/admission binding, submitted notional, or
+required wallet availability no longer matches the selected row.
 The read-only recovery runner
 `tools/run_admin_api_usdc_pair_snapshot_live_readback.py` reads the prior
 Coinbase order by exchange order id, verifies cancelled/non-filled/no open
@@ -680,8 +682,8 @@ row limit price still matches the accepted live-readiness intended limit price,
 selected order-plan row quote size still matches the accepted live-readiness
 quote size, selected order-plan row proof-chain status is still accepted with
 no row proof-chain blockers, readiness proof refs still match the selected
-order-plan row, latest cap-guard submitted-notional and wallet checks still
-cover the selected notional, readiness still asserts minimum order size is
+order-plan row, latest cap-guard route/scope/notional/wallet checks still
+cover the selected row and notional, readiness still asserts minimum order size is
 preferred, readiness still has a cancel rollback plan ref, and the parent
 run-state has ready aggregate
 status, recorded run-lock evidence, is not paused/aborted, and has ready runtime rate-limit,
@@ -935,7 +937,7 @@ rejects missing selected-product cancel rollback refs,
 rejects blocked selected-product row proof-chain status or row proof-chain
 blockers other than the sole pre-submit `live_submission_missing` blocker, rejects
 stale selected-product proof refs, rejects
-stale selected-product cap-guard submitted-notional or wallet evidence, rejects
+stale selected-product cap-guard route/scope/notional or wallet evidence, rejects
 ambiguous selected-product run-state rows, rejects stale selected-product
 rate/cap/wallet allocation evidence, rejects ambiguous selected-product
 order-plan rows, rejects missing
@@ -956,8 +958,8 @@ is not required.
 Subagent phase sweep on 2026-07-07 was closed after findings were consumed.
 Remaining live fan-out/scheduler blockers include submit-time revalidation for
 expired rate-limit windows, current run-lock/rate-window conflicts, current
-retry budget/backoff drift, current enabled live-service decision evidence, and
-full cap-guard command/scope binding before executor invocation.
+retry budget/backoff drift, and current enabled live-service decision evidence
+before executor invocation.
 A blind contextless review on 2026-07-06 passed the M58 no-live Phase F
 authority-boundary questions and confirmed the change set is a domain module
 under Automation / Campaign / Scheduler, not a reusable admin platform

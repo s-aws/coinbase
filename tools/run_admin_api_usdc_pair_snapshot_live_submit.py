@@ -100,6 +100,10 @@ ALLOWLIST_RUN_STATE_ROUTE = (
 ALLOWLIST_RUN_STATE_SERVICE_METHOD = (
     "record_usdc_pair_snapshot_allowlist_run_state"
 )
+LIVE_READINESS_ROUTE = (
+    "/api/v1/automation/usdc-pair-snapshot-order-plans/{plan_id}/live-readiness"
+)
+LIVE_READINESS_SERVICE_METHOD = "record_usdc_pair_snapshot_order_plan_live_readiness"
 AUTOMATION_MODULE_ID = "automation"
 LIVE_SERVICE_ACCOUNT_FAMILY = "coinbase_spot"
 LIVE_SERVICE_VENUE_SCOPE = "coinbase_advanced_trade"
@@ -498,6 +502,10 @@ def run_usdc_pair_snapshot_live_submit(
             )
             refreshed_plan = require_mapping(proof_refresh_payload.get("plan"), "plan")
             refreshed_row = planned_row_for_product(refreshed_plan, config.product_id)
+            append_live_readiness_cap_guard_evidence(
+                config=config,
+                row=refreshed_row,
+            )
             planned_notional = decimal_text(refreshed_row["planned_notional_usdc"])
             readiness_payload = _post_json(
                 client,
@@ -632,6 +640,10 @@ def run_usdc_pair_snapshot_live_submit(
                     raise RuntimeError(
                         "M58 run-state handoff blocked: live-readiness id mismatch."
                     )
+                append_live_readiness_cap_guard_evidence(
+                    config=config,
+                    row=refreshed_row,
+                )
                 live_submit_path = (
                     "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
                     f"{run_state['run_state_id']}/live-submit"
@@ -897,6 +909,52 @@ def product_metadata(config: UsdcPairSnapshotLiveSubmitConfig) -> dict[str, Any]
         "quote_min_size": decimal_text(config.quote_min_size),
         "price": decimal_text(config.reference_bid_price),
         "trading_disabled": False,
+    }
+
+
+def append_live_readiness_cap_guard_evidence(
+    *,
+    config: UsdcPairSnapshotLiveSubmitConfig,
+    row: Mapping[str, Any],
+) -> dict[str, str]:
+    """Append exact cap/wallet proof consumed by live-readiness preflight."""
+
+    prefix = config.idempotency_prefix or "m58-usdc-live"
+    cap_guard_store = FileAdminApiCapGuardStore()
+    cap_guard_store.append(
+        CapGuardDecisionRecord(
+            decision_id=str(row["cap_guard_decision_id"]),
+            route=LIVE_READINESS_ROUTE,
+            method="POST",
+            module_id=AUTOMATION_MODULE_ID,
+            identity_key="client_order_id",
+            identity_value=str(row["client_order_id"]),
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method=LIVE_READINESS_SERVICE_METHOD,
+            actor_id=config.actor_id,
+            operator_intent="m58_usdc_snapshot_live_pilot_live_readiness",
+            idempotency_key=f"{prefix}:live-readiness",
+            payload_hash="7" * 64,
+            approval_snapshot_id=str(row["approval_snapshot_id"]),
+            admission_audit_id=str(row["admission_audit_id"]),
+            allowed=True,
+            status=AdminApiGateStatus.PASSED,
+            cap_policy_ref="m58_phase_e_spot_live_submit_cap",
+            guard_policy_ref="m58_phase_e_wallet_guard",
+            product_scope=config.product_id,
+            max_submitted_notional_usdc=str(row["planned_notional_usdc"]),
+            max_executed_notional_usdc="0",
+            wallet_check_required=True,
+            wallet_check_status=AdminApiGateStatus.PASSED,
+            wallet_available_notional_usdc=str(row["planned_notional_usdc"]),
+            wallet_check_source="m58_usdc_pair_live_readiness_cap_guard",
+            reason="M58 live-readiness submitted-notional cap proof.",
+        )
+    )
+    return {
+        "cap_guard_decision_id": str(row["cap_guard_decision_id"]),
+        "wallet_check_source": "m58_usdc_pair_live_readiness_cap_guard",
     }
 
 

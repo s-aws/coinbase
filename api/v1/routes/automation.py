@@ -2594,8 +2594,46 @@ def _usdc_pair_live_readiness_cap_guard_evidence(
         "cap_guard_wallet_check_source": record.wallet_check_source,
     }
     blockers: list[str] = []
+    product_id = str(getattr(row, "product_id", "") or "")
+    client_order_id = str(getattr(row, "client_order_id", "") or "")
     if not record.allowed or record.status != AdminApiGateStatus.PASSED:
         blockers.append("cap_guard_decision_not_passed")
+    if record.route != USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_READINESS_ROUTE:
+        blockers.append("cap_guard_route_mismatch")
+    if record.method != "POST":
+        blockers.append("cap_guard_method_mismatch")
+    if record.module_id != USDC_PAIR_SNAPSHOT_MODULE_ID:
+        blockers.append("cap_guard_module_mismatch")
+    if (
+        record.identity_key != "client_order_id"
+        or record.identity_value != client_order_id
+    ):
+        blockers.append("cap_guard_identity_mismatch")
+    if (
+        _enum_text(record.action_class)
+        != AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    ):
+        blockers.append("cap_guard_action_class_mismatch")
+    if (
+        _enum_text(record.required_permission)
+        != AdminApiPermission.CAMPAIGN_EXECUTE.value
+    ):
+        blockers.append("cap_guard_permission_mismatch")
+    if (
+        record.service_method
+        != USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_READINESS_SERVICE_METHOD
+    ):
+        blockers.append("cap_guard_service_method_mismatch")
+    if str(record.product_scope).upper() != product_id.upper():
+        blockers.append("cap_guard_product_scope_mismatch")
+    if str(record.approval_snapshot_id or "").strip() != str(
+        getattr(row, "approval_snapshot_id", "") or ""
+    ).strip():
+        blockers.append("cap_guard_approval_snapshot_mismatch")
+    if str(record.admission_audit_id or "").strip() != str(
+        getattr(row, "admission_audit_id", "") or ""
+    ).strip():
+        blockers.append("cap_guard_admission_audit_mismatch")
     cap_notional = _non_negative_decimal_value(record.max_submitted_notional_usdc)
     wallet_available = _non_negative_decimal_value(
         record.wallet_available_notional_usdc
