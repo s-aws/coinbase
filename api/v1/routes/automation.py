@@ -6297,6 +6297,47 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_association(
         )
 
 
+def _validate_usdc_pair_allowlist_run_state_live_submit_queued_live_readiness(
+    *,
+    run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    readiness_store: FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
+) -> None:
+    blockers: list[str] = []
+    for item in run_state.product_states:
+        if item.execution_state != "queued_no_live":
+            continue
+        readiness_id = str(item.live_readiness_id or "").strip()
+        if not readiness_id:
+            continue
+        readiness = _find_usdc_pair_live_readiness_record(
+            store=readiness_store,
+            readiness_id=readiness_id,
+            product_id=item.product_id,
+            client_order_id=str(item.client_order_id or "").strip(),
+        )
+        if readiness is None:
+            blockers.append("run_state_product_live_readiness_record_missing")
+            continue
+        if readiness.plan_id != run_state.plan_id:
+            blockers.append("run_state_product_live_readiness_plan_mismatch")
+        if readiness.snapshot_run_id != run_state.snapshot_run_id:
+            blockers.append("run_state_product_live_readiness_snapshot_mismatch")
+        readiness_source = str(readiness.source or "").strip()
+        product_source = str(item.live_readiness_source or "").strip()
+        if not readiness_source:
+            blockers.append("run_state_live_readiness_source_missing")
+        if not product_source:
+            blockers.append("run_state_product_live_readiness_source_missing")
+        elif readiness_source and product_source != readiness_source:
+            blockers.append("run_state_product_live_readiness_source_mismatch")
+
+    if blockers:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live submit blocked: "
+            + ",".join(_dedupe(blockers))
+        )
+
+
 def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_evidence(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
@@ -7876,6 +7917,10 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
             product_row=product_row,
             plan=plan,
             readiness=readiness,
+        )
+        _validate_usdc_pair_allowlist_run_state_live_submit_queued_live_readiness(
+            run_state=run_state,
+            readiness_store=readiness_store,
         )
         _validate_usdc_pair_allowlist_run_state_live_submit_wallet_evidence(
             run_state=run_state,
