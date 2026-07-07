@@ -39739,6 +39739,98 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_ac
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidates_active_wallet_overcommit(
+    monkeypatch,
+):
+    from application.admin_api.usdc_pair_snapshot import (
+        UsdcPairSnapshotLiveWalletReservationRecord,
+    )
+
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-wallet-overcommit-latest",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-submit-wallet-overcommit-latest-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    active_source_run_state_id = (
+        "m58-usdc-allowlist-live-submit-wallet-overcommit-latest-source"
+    )
+    client.admin_api_test_usdc_pair_snapshot_live_wallet_reservation_store.append(
+        UsdcPairSnapshotLiveWalletReservationRecord(
+            reservation_id="wallet-reservation-m58-live-submit-overcommit-source",
+            run_state_id=active_source_run_state_id,
+            readiness_id="m58-usdc-live-submit-overcommit-source-readiness",
+            plan_id=ready["plan_id"],
+            snapshot_run_id=ready["snapshot_run_id"],
+            product_id="ETH-USDC",
+            client_order_id="m58-usdc-live-submit-overcommit-source-ETH-USDC",
+            reserved_notional_usdc="0.75",
+            wallet_available_notional_usdc="1.00",
+            reservation_status="reserved_no_live",
+            debit_status="not_debited",
+            release_status="not_released",
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_live_wallet_reservation",
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-wallet-overcommit-source"
+            ),
+            payload_hash="a" * 64,
+            audit_id="audit-m58-usdc-allowlist-live-submit-wallet-overcommit-source",
+            operator_notes="active unreleased source reservation for overcommit",
+            detail="Active no-live wallet reservation source for overcommit.",
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-wallet-overcommit-latest"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json={
+            "submission_id": "m58-usdc-allowlist-live-submit-wallet-overcommit-latest",
+            "readiness_id": ready["live_readiness_id"],
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one run-state selected order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "latest wallet store active overcommit evidence",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert "run_state_live_wallet_active_reservation_overcommit" in payload[
+        "message"
+    ]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_ambiguous_product_rows(
     monkeypatch,
 ):
