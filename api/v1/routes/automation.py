@@ -6300,12 +6300,21 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_association(
 def _validate_usdc_pair_allowlist_run_state_live_submit_queued_live_readiness(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    selected_product_row: UsdcPairSnapshotAllowlistRunStateProductItem,
     readiness_store: FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
 ) -> None:
     blockers: list[str] = []
+    selected_product_id = selected_product_row.product_id.strip().upper()
+    selected_client_order_id = str(
+        selected_product_row.client_order_id or ""
+    ).strip()
     for item in run_state.product_states:
         if item.execution_state != "queued_no_live":
             continue
+        is_selected_product = (
+            item.product_id.strip().upper() == selected_product_id
+            and str(item.client_order_id or "").strip() == selected_client_order_id
+        )
         readiness_id = str(item.live_readiness_id or "").strip()
         if not readiness_id:
             continue
@@ -6330,6 +6339,97 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_queued_live_readiness(
             blockers.append("run_state_product_live_readiness_source_missing")
         elif readiness_source and product_source != readiness_source:
             blockers.append("run_state_product_live_readiness_source_mismatch")
+        if is_selected_product:
+            continue
+        if not readiness.preflight_passed:
+            blockers.append("run_state_product_live_readiness_preflight_not_passed")
+        if readiness.preflight_blockers:
+            blockers.append(
+                "run_state_product_live_readiness_preflight_blockers_present"
+            )
+        if not readiness.submit_route_ready:
+            blockers.append("run_state_product_live_readiness_submit_route_not_ready")
+        if readiness.submit_blockers:
+            blockers.append(
+                "run_state_product_live_readiness_submit_blockers_present"
+            )
+        if readiness.reference_bid_price_freshness_status != "fresh":
+            blockers.append(
+                "run_state_product_live_readiness_reference_bid_price_not_fresh"
+            )
+        if readiness.last_filled_price_freshness_status != "fresh":
+            blockers.append(
+                "run_state_product_live_readiness_last_filled_price_not_fresh"
+            )
+        reference_bid_current_freshness = _live_reference_freshness_status(
+            readiness.reference_bid_price_captured_at
+        )
+        if reference_bid_current_freshness != "fresh":
+            blockers.append(
+                "run_state_product_live_readiness_reference_bid_price_"
+                f"{reference_bid_current_freshness}"
+            )
+        last_filled_current_freshness = _live_reference_freshness_status(
+            readiness.last_filled_price_captured_at
+        )
+        if last_filled_current_freshness != "fresh":
+            blockers.append(
+                "run_state_product_live_readiness_last_filled_price_"
+                f"{last_filled_current_freshness}"
+            )
+        if readiness.far_from_bid_status != "passed":
+            blockers.append(
+                "run_state_product_live_readiness_far_from_bid_status_not_passed"
+            )
+        if readiness.snapshot_non_fill_status != "passed":
+            blockers.append(
+                "run_state_product_live_readiness_snapshot_non_fill_status_not_passed"
+            )
+        blockers.extend(
+            f"run_state_product_{blocker}"
+            for blocker in _allowlist_live_readiness_non_fill_blockers(readiness)
+        )
+        if not readiness.single_order_only or readiness.order_count != 1:
+            blockers.append(
+                "run_state_product_live_readiness_single_order_only_required"
+            )
+        if not readiness.minimum_order_size_preferred:
+            blockers.append(
+                "run_state_product_live_readiness_minimum_order_size_preferred_required"
+            )
+        if readiness.full_snapshot_fill_test:
+            blockers.append(
+                "run_state_product_live_readiness_manual_review_required_for_full_snapshot_fill_test"
+            )
+        if not readiness.cancel_before_additional_orders:
+            blockers.append(
+                "run_state_product_live_readiness_cancel_before_additional_orders_required"
+            )
+        if not str(readiness.cancel_rollback_plan_ref or "").strip():
+            blockers.append(
+                "run_state_product_live_readiness_cancel_rollback_plan_ref_required"
+            )
+        submitted_notional = _decimal_value(readiness.submitted_notional_usdc)
+        max_executed_notional = _decimal_value(readiness.max_executed_notional_usdc)
+        if submitted_notional is None:
+            blockers.append(
+                "run_state_product_live_readiness_submitted_notional_invalid"
+            )
+        elif submitted_notional > Decimal("10"):
+            blockers.append(
+                "run_state_product_live_readiness_spot_live_test_notional_exceeds_preferred_cap"
+            )
+        if max_executed_notional is None:
+            blockers.append(
+                "run_state_product_live_readiness_max_executed_notional_invalid"
+            )
+        elif (
+            submitted_notional is not None
+            and max_executed_notional > submitted_notional
+        ):
+            blockers.append(
+                "run_state_product_live_readiness_max_executed_notional_exceeds_submitted"
+            )
 
     if blockers:
         raise UsdcPairSnapshotError(
@@ -7976,6 +8076,7 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
         )
         _validate_usdc_pair_allowlist_run_state_live_submit_queued_live_readiness(
             run_state=run_state,
+            selected_product_row=product_row,
             readiness_store=readiness_store,
         )
         _validate_usdc_pair_allowlist_run_state_live_submit_queued_cap_guard(
