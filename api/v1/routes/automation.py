@@ -3140,6 +3140,8 @@ def _apply_allowlist_run_state_wallet_allocation(
         )
         if not record.allowed or record.status != AdminApiGateStatus.PASSED:
             record_blockers.append("cap_guard_decision_not_passed")
+        if not record.wallet_check_required:
+            record_blockers.append("cap_guard_wallet_check_not_required")
         if (
             record.wallet_check_required
             and record.wallet_check_status != AdminApiGateStatus.PASSED
