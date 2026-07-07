@@ -44126,6 +44126,13 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
             "proof_chain_blocked",
             "run_state_product_order_plan_proof_chain_not_accepted",
         ),
+        (
+            "readiness_cap_guard_ref_mismatch",
+            (
+                "run_state_product_order_plan_readiness_"
+                "cap_guard_decision_mismatch"
+            ),
+        ),
     ],
 )
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hidden_queued_order_plan_row_gaps(
@@ -44335,6 +44342,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
         "cap_guard_ref_mismatch",
         "live_service_ref_mismatch",
         "proof_chain_blocked",
+        "readiness_cap_guard_ref_mismatch",
     }:
         order_plan_store = client.admin_api_test_usdc_pair_snapshot_order_plan_store
         source_plan = order_plan_store.find_by_plan_id(ready["plan_id"])

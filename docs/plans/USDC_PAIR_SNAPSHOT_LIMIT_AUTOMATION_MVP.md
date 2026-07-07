@@ -720,7 +720,8 @@ reservation states, queued product-row wallet lifecycle refs, queued
 product-row candidate/cap-guard record refs/live-readiness record, source,
 content/notional/live-service refs, matching queued order-plan rows with
 matching planned notional, cap-guard/live-service refs, and accepted or
-pending-submit proof-chain status, and no
+pending-submit proof-chain status, with proof refs matching queued
+live-readiness records, and no
 queued product-row blockers, plus a non-empty selected-product recovery ref
 bound to that product and not reused by another queued run-state, and
 membership in the parent
@@ -978,7 +979,8 @@ lifecycle refs, rejects stale queued product-row live-readiness record/source
 associations, readiness content/freshness/notional evidence, or
 missing/disabled queued live-service decision evidence, rejects stale queued
 product-row cap-guard record evidence or missing/ambiguous/stale queued
-order-plan rows or blocked queued order-plan proof-chain evidence,
+order-plan rows, blocked queued order-plan proof-chain evidence, or stale
+queued order-plan/live-readiness proof refs,
 rejects ambiguous selected-product
 order-plan rows, rejects missing
 or product-mismatched selected-product recovery refs, rejects reused

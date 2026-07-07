@@ -6548,6 +6548,7 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_queued_order_plan(
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
     selected_product_row: UsdcPairSnapshotAllowlistRunStateProductItem,
     plan: UsdcPairSnapshotOrderPlanRecord,
+    readiness_store: FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
 ) -> None:
     blockers: list[str] = []
     selected_product_id = selected_product_row.product_id.strip().upper()
@@ -6608,6 +6609,49 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_queued_order_plan(
             blockers.append("run_state_product_order_plan_proof_chain_not_accepted")
         if row_proof_chain_blockers and not pending_single_live_submission:
             blockers.append("run_state_product_order_plan_proof_chain_blockers_present")
+        readiness_id = str(item.live_readiness_id or "").strip()
+        readiness = (
+            _find_usdc_pair_live_readiness_record(
+                store=readiness_store,
+                readiness_id=readiness_id,
+                product_id=item.product_id,
+                client_order_id=str(item.client_order_id or "").strip(),
+            )
+            if readiness_id
+            else None
+        )
+        if readiness is None:
+            blockers.append(
+                "run_state_product_order_plan_live_readiness_record_missing"
+            )
+            continue
+        proof_ref_checks = {
+            "run_state_product_order_plan_readiness_approval_snapshot_mismatch": (
+                row.approval_snapshot_id,
+                readiness.approval_snapshot_id,
+            ),
+            "run_state_product_order_plan_readiness_admission_audit_mismatch": (
+                row.admission_audit_id,
+                readiness.admission_audit_id,
+            ),
+            "run_state_product_order_plan_readiness_cap_guard_decision_mismatch": (
+                row.cap_guard_decision_id,
+                readiness.cap_guard_decision_id,
+            ),
+            "run_state_product_order_plan_readiness_reconciliation_plan_mismatch": (
+                row.reconciliation_plan_id,
+                readiness.reconciliation_plan_id,
+            ),
+            "run_state_product_order_plan_readiness_live_service_decision_mismatch": (
+                row.live_service_decision_id,
+                readiness.live_service_decision_id,
+            ),
+        }
+        blockers.extend(
+            blocker
+            for blocker, (row_ref, readiness_ref) in proof_ref_checks.items()
+            if str(row_ref or "").strip() != str(readiness_ref or "").strip()
+        )
 
     if blockers:
         raise UsdcPairSnapshotError(
@@ -8211,6 +8255,7 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
             run_state=run_state,
             selected_product_row=product_row,
             plan=plan,
+            readiness_store=readiness_store,
         )
         _validate_usdc_pair_allowlist_run_state_live_submit_wallet_evidence(
             run_state=run_state,
