@@ -35454,6 +35454,32 @@ def _append_usdc_pair_snapshot_run_state_live_readiness(
 
     captured_at = datetime.now(timezone.utc).isoformat()
     normalized_product_id = product_id.replace("-", "_").lower()
+    live_service_decision_id = f"m58-usdc-live-service-{client_order_id}"
+    client.admin_api_test_live_service_decision_store.append(
+        LiveServiceDecisionRecord(
+            decision_id=live_service_decision_id,
+            recorded_at=captured_at,
+            status=AdminApiGateStatus.PASSED,
+            requested_service_status=AdminApiLiveExecutionStatus.APPROVAL_REQUIRED,
+            service_enabled=True,
+            target_module_id="automation",
+            account_family="coinbase_spot",
+            venue_scope="coinbase_advanced_trade",
+            intx_applicability="not_applicable",
+            product_scope=[product_id],
+            deployment_ref=f"m58-usdc-live-service-deployment-{normalized_product_id}",
+            runtime_configuration_ref=(
+                f"m58-usdc-live-service-runtime-{normalized_product_id}"
+            ),
+            decision_reason=(
+                "Enabled backend-owned M58 live-service evidence for "
+                "submit-path fixtures."
+            ),
+            live_coinbase_execution_approved=True,
+            max_submitted_notional_usdc=planned_notional_usdc,
+            max_executed_notional_usdc="0.01",
+        )
+    )
     client.admin_api_test_usdc_pair_snapshot_order_plan_live_readiness_store.append(
         UsdcPairSnapshotOrderPlanLiveReadinessRecord(
             readiness_id=f"{readiness_id}-live-readiness-{normalized_product_id}",
@@ -35496,7 +35522,7 @@ def _append_usdc_pair_snapshot_run_state_live_readiness(
                 cap_guard_decision_id or f"cap-{readiness_id}-{normalized_product_id}"
             ),
             reconciliation_plan_id=f"recon-{readiness_id}",
-            live_service_decision_id=f"live-service-{readiness_id}",
+            live_service_decision_id=live_service_decision_id,
             actor_id="contract-test",
             operator_intent="m58_usdc_snapshot_live_readiness",
             idempotency_key=f"idem-{readiness_id}-live-readiness-{normalized_product_id}",
@@ -36788,7 +36814,7 @@ def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
                     reconciliation_plan_id=f"recon-{allowlist_readiness_id}",
                     live_service_decision_required=True,
                     live_service_decision_id=(
-                        f"live-service-{allowlist_readiness_id}"
+                        f"m58-usdc-live-service-{client_order_id}"
                     ),
                 ),
             ],
@@ -43029,6 +43055,92 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidate
         "usdc_pair_snapshot_allowlist_run_state_live_submit"
     )
     assert "run_state_retry_backoff_ref_conflict" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidates_live_service_decision(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-current-live-service",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-submit-current-live-service-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    live_service_decision_id = (
+        f"m58-usdc-live-service-{ready['client_order_id']}"
+    )
+    current_live_service_decision = (
+        client.admin_api_test_live_service_decision_store.find_by_decision_id(
+            live_service_decision_id
+        )
+    )
+    assert current_live_service_decision is not None
+    client.admin_api_test_live_service_decision_store.append(
+        current_live_service_decision.model_copy(
+            update={
+                "recorded_at": datetime.now(timezone.utc).isoformat(),
+                "status": AdminApiGateStatus.BLOCKED,
+                "requested_service_status": (
+                    AdminApiLiveExecutionStatus.LIVE_DISABLED
+                ),
+                "service_enabled": False,
+                "live_coinbase_execution_approved": False,
+                "max_submitted_notional_usdc": "0",
+                "max_executed_notional_usdc": "0",
+                "decision_reason": (
+                    "Latest M58 live-service decision disables execution "
+                    "before submit."
+                ),
+            }
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-current-live-service"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json={
+            "submission_id": "m58-usdc-allowlist-live-submit-current-live-service",
+            "readiness_id": ready["live_readiness_id"],
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one run-state selected order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "current live-service decision disabled",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert "readiness_live_service_decision_not_enabled" in payload["message"]
     assert payload["live_exchange_submitted"] is False
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_execution"] == "not_run"
