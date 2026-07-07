@@ -3553,6 +3553,7 @@ def _live_wallet_reservation_evidence(
             "live_wallet_release_id": None,
             "live_wallet_released_notional_usdc": "0.00",
             "live_wallet_reservation_blockers": [],
+            "live_wallet_reservation_ref_conflict_run_state_id": None,
         }
     normalized_reservation_ids = [
         reservation_id.strip()
@@ -3577,6 +3578,7 @@ def _live_wallet_reservation_evidence(
             "live_wallet_reservation_blockers": list(
                 USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_BLOCKERS
             ),
+            "live_wallet_reservation_ref_conflict_run_state_id": None,
         }
 
     planned_notional = _decimal_value(item.planned_notional_usdc)
@@ -3606,7 +3608,10 @@ def _live_wallet_reservation_evidence(
             record=record,
             planned_notional=planned_notional,
         )
-        reference_conflict_blockers = _live_wallet_historical_reference_blockers(
+        (
+            reference_conflict_blockers,
+            reservation_ref_conflict_run_state_id,
+        ) = _live_wallet_historical_reference_evidence(
             record=record,
             reservation_store=reservation_store,
         )
@@ -3636,6 +3641,9 @@ def _live_wallet_reservation_evidence(
                 or Decimal("0")
             ),
             "live_wallet_reservation_blockers": blockers,
+            "live_wallet_reservation_ref_conflict_run_state_id": (
+                reservation_ref_conflict_run_state_id
+            ),
         }
 
     return {
@@ -3650,6 +3658,7 @@ def _live_wallet_reservation_evidence(
             mismatch_blockers
             or list(USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_BLOCKERS)
         ),
+        "live_wallet_reservation_ref_conflict_run_state_id": None,
     }
 
 
@@ -3752,12 +3761,13 @@ def _live_wallet_reservation_ref_conflicts(
     )
 
 
-def _live_wallet_historical_reference_blockers(
+def _live_wallet_historical_reference_evidence(
     *,
     record: UsdcPairSnapshotLiveWalletReservationRecord,
     reservation_store: FileUsdcPairSnapshotLiveWalletReservationStore,
-) -> list[str]:
+) -> tuple[list[str], str | None]:
     blockers: list[str] = []
+    reservation_ref_conflict_run_state_id: str | None = None
     wallet_available = _non_negative_decimal_value(
         record.wallet_available_notional_usdc
     )
@@ -3772,6 +3782,8 @@ def _live_wallet_historical_reference_blockers(
                 blockers.append(
                     USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_REF_CONFLICT_BLOCKER
                 )
+                if reservation_ref_conflict_run_state_id is None:
+                    reservation_ref_conflict_run_state_id = existing.run_state_id
             continue
         if record.debit_id and existing.debit_id == record.debit_id:
             blockers.append(
@@ -3801,7 +3813,7 @@ def _live_wallet_historical_reference_blockers(
         blockers.append(
             USDC_PAIR_SNAPSHOT_LIVE_WALLET_ACTIVE_RESERVATION_OVERCOMMIT_BLOCKER
         )
-    return _dedupe(blockers)
+    return _dedupe(blockers), reservation_ref_conflict_run_state_id
 
 
 def _live_wallet_reference_conflict_blockers_by_product(

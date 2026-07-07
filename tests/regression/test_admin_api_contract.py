@@ -36636,6 +36636,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_historical_rese
     assert product_row["live_wallet_reservation_blockers"] == [
         "live_wallet_reservation_ref_conflict"
     ]
+    assert product_row["live_wallet_reservation_ref_conflict_run_state_id"] == (
+        "m58-usdc-run-state-reservation-ref-source"
+    )
     assert product_row["blockers"] == ["live_wallet_reservation_ref_conflict"]
     assert payload["live_coinbase_execution"] == "not_run"
     assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []

@@ -170550,6 +170550,11 @@ components:
             type: string
           type: array
           title: Live Wallet Reservation Blockers
+        live_wallet_reservation_ref_conflict_run_state_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Wallet Reservation Ref Conflict Run State Id
         live_readiness_status:
           type: string
           minLength: 1

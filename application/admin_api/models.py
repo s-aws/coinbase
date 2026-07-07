@@ -3071,6 +3071,7 @@ class UsdcPairSnapshotAllowlistRunStateProductItem(BaseModel):
     live_wallet_release_id: str | None = None
     live_wallet_released_notional_usdc: DecimalString = "0"
     live_wallet_reservation_blockers: list[str] = Field(default_factory=list)
+    live_wallet_reservation_ref_conflict_run_state_id: str | None = None
     live_readiness_status: str = Field(
         default="not_evaluated",
         min_length=1,

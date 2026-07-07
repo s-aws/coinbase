@@ -103,7 +103,9 @@ Available building blocks:
   evidence blocks aggregate run-state fan-out readiness while preserving the
   queued product row for the one-selected-product handoff proof path. Reused
   no-live reservation refs with a different run/readiness binding fail closed
-  with `live_wallet_reservation_ref_conflict`; reused debit or release refs
+  with `live_wallet_reservation_ref_conflict` and record
+  `live_wallet_reservation_ref_conflict_run_state_id`; reused debit or release
+  refs
   across queued products or prior reservation records fail closed with
   `live_wallet_debit_ref_conflict` or `live_wallet_release_ref_conflict`.
   These reference conflicts remove affected rows from the queued set and zero
@@ -608,7 +610,9 @@ required. Missing live wallet reservation/debit/release evidence also keeps the
 aggregate run-state blocked for fan-out while preserving queued product rows for
 the one-selected-product handoff proof path. Reused no-live reservation refs
 with a different run/readiness binding fail closed with
-`live_wallet_reservation_ref_conflict`; reused debit or release refs across
+`live_wallet_reservation_ref_conflict` and record
+`live_wallet_reservation_ref_conflict_run_state_id`; reused debit or release
+refs across
 queued products or prior reservation records fail closed with
 `live_wallet_debit_ref_conflict` or `live_wallet_release_ref_conflict`.
 Run-state live-submit revalidates these wallet lifecycle refs against the
@@ -860,7 +864,9 @@ Missing live wallet reservation/debit/release evidence now blocks aggregate
 run-state fan-out readiness while preserving queued product rows for the
 one-selected-product handoff proof path. Reused no-live reservation refs with a
 different run/readiness binding now fail closed with
-`live_wallet_reservation_ref_conflict`; reused debit or release refs across
+`live_wallet_reservation_ref_conflict` and record
+`live_wallet_reservation_ref_conflict_run_state_id`; reused debit or release
+refs across
 queued products or prior reservation records fail closed with explicit wallet
 reference conflict blockers and zero affected wallet allocation. Unreleased
 active no-live reservations that would overcommit the wallet proof fail closed
