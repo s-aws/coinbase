@@ -5666,6 +5666,11 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_retry_backoff_ref_conflict")
     if run_state.recovery_status != "ready_no_live":
         blockers.append("run_state_recovery_not_ready")
+    if (
+        run_state.recovery_status == "ready_no_live"
+        and not run_state.cancel_recovery_plan_ref
+    ):
+        blockers.append("run_state_cancel_recovery_plan_ref_missing")
     if run_state.recovery_ref_conflict_run_state_id:
         blockers.append("run_state_recovery_ref_conflict")
     if run_state.live_wallet_reservation_status != "ready_no_live":
