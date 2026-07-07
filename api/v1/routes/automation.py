@@ -5165,6 +5165,14 @@ def _matching_usdc_pair_allowlist_run_state_products(
     ]
 
 
+def _normalized_usdc_pair_product_id_multiset(product_ids: list[str]) -> list[str]:
+    return sorted(
+        str(product_id).strip().upper()
+        for product_id in product_ids
+        if str(product_id).strip()
+    )
+
+
 def _validate_usdc_pair_allowlist_run_state_live_submit(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
@@ -5347,13 +5355,59 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_rate_limit_window_ref_missing")
     if run_state.rate_limit_window_conflict_run_state_id:
         blockers.append("run_state_rate_limit_window_ref_conflict")
-    queued_product_state_count = sum(
-        1
+    queued_product_state_ids = [
+        item.product_id
         for item in run_state.product_states
         if item.execution_state == "queued_no_live"
-    )
+    ]
+    blocked_product_state_ids = [
+        item.product_id
+        for item in run_state.product_states
+        if item.execution_state == "blocked"
+    ]
+    retryable_product_state_ids = [
+        item.product_id
+        for item in run_state.product_states
+        if item.retry_state == "ready_no_live"
+    ]
+    recovery_required_product_state_ids = [
+        item.product_id
+        for item in run_state.product_states
+        if item.recovery_state == "ready_no_live"
+    ]
+    if _normalized_usdc_pair_product_id_multiset(run_state.queued_product_ids) != (
+        _normalized_usdc_pair_product_id_multiset(queued_product_state_ids)
+    ):
+        blockers.append("run_state_queued_product_ids_mismatch")
+    if _normalized_usdc_pair_product_id_multiset(run_state.blocked_product_ids) != (
+        _normalized_usdc_pair_product_id_multiset(blocked_product_state_ids)
+    ):
+        blockers.append("run_state_blocked_product_ids_mismatch")
+    if _normalized_usdc_pair_product_id_multiset(run_state.retryable_product_ids) != (
+        _normalized_usdc_pair_product_id_multiset(retryable_product_state_ids)
+    ):
+        blockers.append("run_state_retryable_product_ids_mismatch")
+    if _normalized_usdc_pair_product_id_multiset(
+        run_state.recovery_required_product_ids
+    ) != _normalized_usdc_pair_product_id_multiset(
+        recovery_required_product_state_ids
+    ):
+        blockers.append("run_state_recovery_required_product_ids_mismatch")
+    queued_product_state_count = len(queued_product_state_ids)
+    blocked_product_state_count = len(blocked_product_state_ids)
+    retryable_product_state_count = len(retryable_product_state_ids)
+    recovery_required_product_state_count = len(recovery_required_product_state_ids)
     if run_state.queued_product_count != queued_product_state_count:
         blockers.append("run_state_queued_product_count_mismatch")
+    if run_state.blocked_product_count != blocked_product_state_count:
+        blockers.append("run_state_blocked_product_count_mismatch")
+    if run_state.retryable_product_count != retryable_product_state_count:
+        blockers.append("run_state_retryable_product_count_mismatch")
+    if (
+        run_state.recovery_required_product_count
+        != recovery_required_product_state_count
+    ):
+        blockers.append("run_state_recovery_required_product_count_mismatch")
     if run_state.rate_limit_attempted_order_count != queued_product_state_count:
         blockers.append("run_state_rate_limit_attempted_order_count_mismatch")
     if (
