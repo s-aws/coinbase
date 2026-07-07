@@ -4871,17 +4871,32 @@ def _find_usdc_pair_allowlist_run_state_product(
     product_id: str,
     client_order_id: str,
 ) -> UsdcPairSnapshotAllowlistRunStateProductItem | None:
-    normalized_product_id = product_id.strip().upper()
-    normalized_client_order_id = client_order_id.strip()
     return next(
-        (
-            row
-            for row in run_state.product_states
-            if row.product_id.strip().upper() == normalized_product_id
-            and str(row.client_order_id or "").strip() == normalized_client_order_id
+        iter(
+            _matching_usdc_pair_allowlist_run_state_products(
+                run_state,
+                product_id=product_id,
+                client_order_id=client_order_id,
+            )
         ),
         None,
     )
+
+
+def _matching_usdc_pair_allowlist_run_state_products(
+    run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    *,
+    product_id: str,
+    client_order_id: str,
+) -> list[UsdcPairSnapshotAllowlistRunStateProductItem]:
+    normalized_product_id = product_id.strip().upper()
+    normalized_client_order_id = client_order_id.strip()
+    return [
+        row
+        for row in run_state.product_states
+        if row.product_id.strip().upper() == normalized_product_id
+        and str(row.client_order_id or "").strip() == normalized_client_order_id
+    ]
 
 
 def _validate_usdc_pair_allowlist_run_state_live_submit(
@@ -4891,13 +4906,16 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
     body: UsdcPairSnapshotOrderPlanLiveSubmitRequest,
 ) -> UsdcPairSnapshotAllowlistRunStateProductItem:
     blockers: list[str] = []
-    product_row = _find_usdc_pair_allowlist_run_state_product(
+    product_rows = _matching_usdc_pair_allowlist_run_state_products(
         run_state,
         product_id=body.product_id,
         client_order_id=body.client_order_id,
     )
+    product_row = product_rows[0] if product_rows else None
     if product_row is None:
         blockers.append("run_state_product_not_found")
+    elif len(product_rows) > 1:
+        blockers.append("run_state_product_selection_ambiguous")
     else:
         normalized_body_product_id = body.product_id.strip().upper()
         queued_product_ids = {

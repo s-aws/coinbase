@@ -595,7 +595,8 @@ has matching `ready_no_live` live-readiness evidence by `client_order_id`, the
 run-state/order-plan/live-readiness `plan_id` and `snapshot_run_id` association
 is current, the latest wallet reservation/debit/release record still matches
 the selected run-state/product/notional tuple, the stored run-state product rows
-do not duplicate the selected product's wallet reservation/debit/release refs,
+contain exactly one row for the selected `product_id`/`client_order_id` and do
+not duplicate the selected product's wallet reservation/debit/release refs,
 latest live-readiness freshness
 timestamps/statuses, far-from-bid evidence, and snapshot non-fill evidence still
 pass after recomputation, latest cap-guard submitted-notional and wallet checks
@@ -822,7 +823,8 @@ before any executor call, rejects blocked aggregate parent run-state/cap/wallet/
 live-readiness/notional/partial-success statuses, rejects stale selected-product
 price-freshness timestamp/status or recomputed price-distance evidence, rejects
 stale selected-product cap-guard submitted-notional or wallet evidence, rejects
-stale selected-product rate/cap/wallet allocation evidence, rejects missing
+ambiguous selected-product run-state rows, rejects stale selected-product
+rate/cap/wallet allocation evidence, rejects missing
 or product-mismatched selected-product recovery refs, rejects reused
 selected-product recovery refs, rejects duplicated selected-product wallet
 reservation/debit/release refs in stored run-state product rows, rejects non-empty selected-product
