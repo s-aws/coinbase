@@ -6593,6 +6593,21 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_queued_order_plan(
             expected_live_service_decision_id or ""
         ).strip():
             blockers.append("run_state_product_order_plan_live_service_ref_mismatch")
+        row_proof_chain_status = str(
+            getattr(row, "proof_chain_status", "") or ""
+        ).strip()
+        row_proof_chain_blockers = list(
+            getattr(row, "proof_chain_blockers", []) or []
+        )
+        pending_single_live_submission = (
+            row_proof_chain_status == "blocked"
+            and row_proof_chain_blockers
+            == [USDC_PAIR_SNAPSHOT_LIVE_SUBMISSION_MISSING_BLOCKER]
+        )
+        if row_proof_chain_status != "accepted" and not pending_single_live_submission:
+            blockers.append("run_state_product_order_plan_proof_chain_not_accepted")
+        if row_proof_chain_blockers and not pending_single_live_submission:
+            blockers.append("run_state_product_order_plan_proof_chain_blockers_present")
 
     if blockers:
         raise UsdcPairSnapshotError(

@@ -44122,6 +44122,10 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
             "live_service_ref_mismatch",
             "run_state_product_order_plan_live_service_ref_mismatch",
         ),
+        (
+            "proof_chain_blocked",
+            "run_state_product_order_plan_proof_chain_not_accepted",
+        ),
     ],
 )
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hidden_queued_order_plan_row_gaps(
@@ -44330,6 +44334,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
         "ambiguous",
         "cap_guard_ref_mismatch",
         "live_service_ref_mismatch",
+        "proof_chain_blocked",
     }:
         order_plan_store = client.admin_api_test_usdc_pair_snapshot_order_plan_store
         source_plan = order_plan_store.find_by_plan_id(ready["plan_id"])
@@ -44344,6 +44349,16 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
             "m58-usdc-live-service-stale-hidden-order-plan-eth"
             if hidden_order_plan_shape == "live_service_ref_mismatch"
             else extra_live_service_decision_id
+        )
+        hidden_order_plan_proof_chain_status = (
+            "blocked"
+            if hidden_order_plan_shape == "proof_chain_blocked"
+            else "accepted"
+        )
+        hidden_order_plan_proof_chain_blockers = (
+            ["approval_snapshot_missing"]
+            if hidden_order_plan_shape == "proof_chain_blocked"
+            else []
         )
         hidden_order_plan_row = source_order_plan_row.model_copy(
             update={
@@ -44367,6 +44382,8 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
                     "recon-m58-usdc-allowlist-live-submit-hidden-order-plan-eth"
                 ),
                 "live_service_decision_id": hidden_order_plan_live_service_decision_id,
+                "proof_chain_status": hidden_order_plan_proof_chain_status,
+                "proof_chain_blockers": hidden_order_plan_proof_chain_blockers,
             }
         )
         hidden_order_plan_rows = [source_order_plan_row, hidden_order_plan_row]
