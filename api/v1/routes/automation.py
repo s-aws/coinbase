@@ -207,6 +207,12 @@ USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_BLOCKERS = [
     "live_wallet_debit_missing",
     "live_wallet_release_missing",
 ]
+USDC_PAIR_SNAPSHOT_LIVE_WALLET_DEBIT_REF_CONFLICT_BLOCKER = (
+    "live_wallet_debit_ref_conflict"
+)
+USDC_PAIR_SNAPSHOT_LIVE_WALLET_RELEASE_REF_CONFLICT_BLOCKER = (
+    "live_wallet_release_ref_conflict"
+)
 USDC_PAIR_SNAPSHOT_RUN_LOCK_MISSING_BLOCKER = "run_lock_ref_missing"
 USDC_PAIR_SNAPSHOT_RUN_LOCK_CONFLICT_BLOCKER = "run_lock_ref_conflict"
 USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_MISSING_BLOCKER = (
@@ -3517,6 +3523,127 @@ def _live_wallet_release_evidence_blockers(
     return []
 
 
+def _live_wallet_reference_conflict_blockers_by_product(
+    *,
+    product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
+) -> dict[str, list[str]]:
+    debit_counts: dict[str, int] = {}
+    release_counts: dict[str, int] = {}
+    for item in product_states:
+        if item.execution_state != "queued_no_live":
+            continue
+        if item.live_wallet_debit_id:
+            debit_counts[item.live_wallet_debit_id] = (
+                debit_counts.get(item.live_wallet_debit_id, 0) + 1
+            )
+        if item.live_wallet_release_id:
+            release_counts[item.live_wallet_release_id] = (
+                release_counts.get(item.live_wallet_release_id, 0) + 1
+            )
+
+    blockers_by_product: dict[str, list[str]] = {}
+    for item in product_states:
+        if item.execution_state != "queued_no_live":
+            continue
+        blockers: list[str] = []
+        if (
+            item.live_wallet_debit_id
+            and debit_counts.get(item.live_wallet_debit_id, 0) > 1
+        ):
+            blockers.append(
+                USDC_PAIR_SNAPSHOT_LIVE_WALLET_DEBIT_REF_CONFLICT_BLOCKER
+            )
+        if (
+            item.live_wallet_release_id
+            and release_counts.get(item.live_wallet_release_id, 0) > 1
+        ):
+            blockers.append(
+                USDC_PAIR_SNAPSHOT_LIVE_WALLET_RELEASE_REF_CONFLICT_BLOCKER
+            )
+        if blockers:
+            blockers_by_product[item.product_id] = blockers
+    return blockers_by_product
+
+
+def _apply_live_wallet_reference_conflict_blockers(
+    *,
+    product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
+    wallet_available: Decimal,
+) -> tuple[list[UsdcPairSnapshotAllowlistRunStateProductItem], list[str], Decimal]:
+    blockers_by_product = _live_wallet_reference_conflict_blockers_by_product(
+        product_states=product_states
+    )
+    if not blockers_by_product:
+        allocated_total = sum(
+            (
+                _decimal_value(item.wallet_allocated_notional_usdc)
+                or Decimal("0")
+                for item in product_states
+                if item.execution_state == "queued_no_live"
+            ),
+            Decimal("0"),
+        )
+        return product_states, [], allocated_total
+
+    updated: list[UsdcPairSnapshotAllowlistRunStateProductItem] = []
+    allocated_total = Decimal("0")
+    for item in product_states:
+        conflict_blockers = blockers_by_product.get(item.product_id, [])
+        remaining = wallet_available - allocated_total
+        if conflict_blockers:
+            updated.append(
+                item.model_copy(
+                    update={
+                        "execution_state": "blocked",
+                        "retry_state": "blocked",
+                        "rate_limit_state": "blocked",
+                        "recovery_state": "not_required",
+                        "recovery_state_ref": None,
+                        "retry_attempts_available": 0,
+                        "wallet_allocation_status": (
+                            "live_wallet_reference_conflict"
+                        ),
+                        "wallet_allocated_notional_usdc": _decimal_string(
+                            Decimal("0")
+                        ),
+                        "wallet_remaining_after_usdc": _decimal_string(remaining),
+                        "live_wallet_reservation_status": "reserved_no_live",
+                        "live_wallet_reservation_blockers": _dedupe(
+                            list(item.live_wallet_reservation_blockers)
+                            + conflict_blockers
+                        ),
+                        "blockers": _dedupe(
+                            list(item.blockers) + conflict_blockers
+                        ),
+                    }
+                )
+            )
+            continue
+
+        if item.execution_state == "queued_no_live":
+            allocated_total += (
+                _decimal_value(item.wallet_allocated_notional_usdc)
+                or Decimal("0")
+            )
+        updated.append(
+            item.model_copy(
+                update={
+                    "wallet_remaining_after_usdc": _decimal_string(
+                        wallet_available - allocated_total
+                    )
+                }
+            )
+        )
+
+    return updated, _dedupe(
+        [
+            blocker
+            for blockers in blockers_by_product.values()
+            for blocker in blockers
+        ]
+    ), allocated_total
+
+
 def _live_wallet_reservation_aggregate_status(
     *,
     blockers: list[str],
@@ -3774,6 +3901,13 @@ def _apply_allowlist_run_state_wallet_allocation(
             )
         )
 
+    updated, live_wallet_reference_blockers, allocated_total = (
+        _apply_live_wallet_reference_conflict_blockers(
+            product_states=updated,
+            wallet_available=wallet_available,
+        )
+    )
+    blockers.extend(live_wallet_reference_blockers)
     wallet_blockers = _dedupe(blockers)
     live_wallet_reservation_blockers = _dedupe(
         [
