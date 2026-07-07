@@ -5044,6 +5044,20 @@ def _record_usdc_pair_live_submission(
         blockers.append("readiness_reference_bid_price_not_fresh")
     if readiness.last_filled_price_freshness_status != "fresh":
         blockers.append("readiness_last_filled_price_not_fresh")
+    reference_bid_current_freshness = _live_reference_freshness_status(
+        readiness.reference_bid_price_captured_at
+    )
+    if reference_bid_current_freshness != "fresh":
+        blockers.append(
+            f"readiness_reference_bid_price_{reference_bid_current_freshness}"
+        )
+    last_filled_current_freshness = _live_reference_freshness_status(
+        readiness.last_filled_price_captured_at
+    )
+    if last_filled_current_freshness != "fresh":
+        blockers.append(
+            f"readiness_last_filled_price_{last_filled_current_freshness}"
+        )
     if readiness.far_from_bid_status != "passed":
         blockers.append("readiness_far_from_bid_status_not_passed")
     if readiness.snapshot_non_fill_status != "passed":

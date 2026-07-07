@@ -35277,6 +35277,8 @@ def _append_usdc_pair_snapshot_run_state_live_readiness(
     intended_limit_price: str = "50.00",
     far_from_bid_status: str = "passed",
     snapshot_non_fill_status: str = "passed",
+    reference_bid_price_captured_at: str | None = None,
+    last_filled_price_captured_at: str | None = None,
 ) -> None:
     from application.admin_api.usdc_pair_snapshot import (
         UsdcPairSnapshotOrderPlanLiveReadinessRecord,
@@ -35294,11 +35296,15 @@ def _append_usdc_pair_snapshot_run_state_live_readiness(
             side="BUY",
             reference_bid_price="100.00",
             reference_bid_price_source="coinbase_advanced_trade.best_bid",
-            reference_bid_price_captured_at=captured_at,
+            reference_bid_price_captured_at=(
+                reference_bid_price_captured_at or captured_at
+            ),
             reference_bid_price_freshness_status=reference_bid_price_freshness_status,
             last_filled_price="100.00",
             last_filled_price_source="coinbase_advanced_trade.last_trade",
-            last_filled_price_captured_at=captured_at,
+            last_filled_price_captured_at=(
+                last_filled_price_captured_at or captured_at
+            ),
             last_filled_price_freshness_status=last_filled_price_freshness_status,
             intended_limit_price=intended_limit_price,
             far_from_bid_status=far_from_bid_status,
@@ -39053,6 +39059,77 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidate
     )
     assert "readiness_reference_bid_price_not_fresh" in payload["message"]
     assert "readiness_last_filled_price_not_fresh" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidates_price_freshness_timestamps(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-price-future",
+        allowlist_readiness_id="m58-usdc-allowlist-live-submit-price-future-readiness",
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    future_timestamp = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
+    _append_usdc_pair_snapshot_run_state_live_readiness(
+        client,
+        readiness_id=ready["allowlist_readiness_id"],
+        plan_id=ready["plan_id"],
+        snapshot_run_id=ready["snapshot_run_id"],
+        product_id=ready["product_id"],
+        client_order_id=ready["client_order_id"],
+        planned_notional_usdc="1.00",
+        cap_guard_decision_id=(
+            f"cap-{ready['allowlist_readiness_id']}-"
+            f"{ready['product_id'].replace('-', '_').lower()}"
+        ),
+        reference_bid_price_captured_at=future_timestamp,
+        last_filled_price_captured_at=future_timestamp,
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-allowlist-live-submit-price-future",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json={
+            "submission_id": "m58-usdc-allowlist-live-submit-price-future",
+            "readiness_id": ready["live_readiness_id"],
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one run-state selected order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "future-dated latest price freshness timestamp",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert "readiness_reference_bid_price_future_timestamp" in payload["message"]
+    assert "readiness_last_filled_price_future_timestamp" in payload["message"]
     assert payload["live_exchange_submitted"] is False
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_execution"] == "not_run"
