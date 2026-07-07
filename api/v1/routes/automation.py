@@ -5005,6 +5005,7 @@ def _record_usdc_pair_live_submission(
     row: Any,
     readiness: UsdcPairSnapshotOrderPlanLiveReadinessRecord,
     body: UsdcPairSnapshotOrderPlanLiveSubmitRequest,
+    cap_guard_store: FileAdminApiCapGuardStore,
     submit_store: FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
     executor: UsdcPairSnapshotLiveOrderExecutor,
     actor: AdminApiActor,
@@ -5074,6 +5075,12 @@ def _record_usdc_pair_live_submission(
         blockers.append("cancel_before_additional_orders_required")
     submitted_notional = _decimal_value(readiness.submitted_notional_usdc)
     max_executed_notional = _decimal_value(readiness.max_executed_notional_usdc)
+    _, cap_guard_blockers = _usdc_pair_live_readiness_cap_guard_evidence(
+        store=cap_guard_store,
+        row=row,
+        submitted_notional=submitted_notional,
+    )
+    blockers.extend(f"readiness_{blocker}" for blocker in cap_guard_blockers)
     if submitted_notional is None:
         blockers.append("submitted_notional_invalid")
     elif submitted_notional > Decimal("10"):
@@ -5929,6 +5936,10 @@ def submit_usdc_pair_snapshot_order_plan_live_order(
         FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
         Depends(get_usdc_pair_snapshot_order_plan_live_readiness_store),
     ],
+    cap_guard_store: Annotated[
+        FileAdminApiCapGuardStore,
+        Depends(get_usdc_pair_snapshot_cap_guard_store),
+    ],
     submit_store: Annotated[
         FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
         Depends(get_usdc_pair_snapshot_order_plan_live_submit_store),
@@ -5980,6 +5991,7 @@ def submit_usdc_pair_snapshot_order_plan_live_order(
             row=row,
             readiness=readiness,
             body=body,
+            cap_guard_store=cap_guard_store,
             submit_store=submit_store,
             executor=executor,
             actor=actor,
@@ -6027,6 +6039,10 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
     readiness_store: Annotated[
         FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
         Depends(get_usdc_pair_snapshot_order_plan_live_readiness_store),
+    ],
+    cap_guard_store: Annotated[
+        FileAdminApiCapGuardStore,
+        Depends(get_usdc_pair_snapshot_cap_guard_store),
     ],
     live_wallet_reservation_store: Annotated[
         FileUsdcPairSnapshotLiveWalletReservationStore,
@@ -6102,6 +6118,7 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
             row=row,
             readiness=readiness,
             body=body,
+            cap_guard_store=cap_guard_store,
             submit_store=submit_store,
             executor=executor,
             actor=actor,

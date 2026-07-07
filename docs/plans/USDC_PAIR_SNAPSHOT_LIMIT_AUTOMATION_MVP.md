@@ -93,7 +93,8 @@ Available building blocks:
   `snapshot_run_id` association, ready parent and product live-wallet
   reservation/debit/release evidence revalidated against the latest reservation
   store record, latest live-readiness price-freshness timestamps/statuses and
-  recomputed price-distance evidence still passed, ready aggregate parent
+  recomputed price-distance evidence still passed, latest cap-guard submitted
+  notional and wallet evidence still passed, ready aggregate parent
   run-state/cap/wallet/live-readiness/notional/partial-success statuses,
   selected-product rate/cap/wallet
   allocation readiness, no selected-product blockers, plus recorded parent
@@ -572,8 +573,9 @@ run-state/order-plan/live-readiness `plan_id` and `snapshot_run_id` association
 is current, the latest wallet reservation/debit/release record still matches
 the selected run-state/product/notional tuple, latest live-readiness freshness
 timestamps/statuses, far-from-bid evidence, and snapshot non-fill evidence still
-pass after recomputation, and the parent run-state has ready aggregate status,
-recorded run-lock evidence, is not paused/aborted, and has ready runtime rate-limit,
+pass after recomputation, latest cap-guard submitted-notional and wallet checks
+still cover the selected notional, and the parent run-state has ready aggregate
+status, recorded run-lock evidence, is not paused/aborted, and has ready runtime rate-limit,
 retry-budget/backoff, recovery evidence, selected-product rate/cap/wallet
 allocation readiness, and no selected-product blockers, plus selected-product
 candidate readiness, cap-guard ref, and membership in the parent
@@ -789,6 +791,7 @@ run-lock, pause/abort, rate-limit, retry-budget/backoff, or recovery evidence
 before any executor call, rejects blocked aggregate parent run-state/cap/wallet/
 live-readiness/notional/partial-success statuses, rejects stale selected-product
 price-freshness timestamp/status or recomputed price-distance evidence, rejects
+stale selected-product cap-guard submitted-notional or wallet evidence, rejects
 stale selected-product rate/cap/wallet allocation evidence, rejects non-empty
 selected-product
 blockers, rejects unexpected parent fanout blockers other than

@@ -36286,6 +36286,40 @@ def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
         f"{allowlist_readiness_id}-live-readiness-{normalized_product_id}"
     )
     cap_guard_decision_id = f"cap-{allowlist_readiness_id}-{normalized_product_id}"
+    client.admin_api_test_cap_guard_store.append(
+        CapGuardDecisionRecord(
+            decision_id=cap_guard_decision_id,
+            route=(
+                "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+                "{plan_id}/live-readiness"
+            ),
+            method="POST",
+            module_id="automation",
+            identity_key="client_order_id",
+            identity_value=client_order_id,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method="record_usdc_pair_snapshot_order_plan_live_readiness",
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_order_plan_live_readiness",
+            idempotency_key=f"idem-{cap_guard_decision_id}",
+            payload_hash="9" * 64,
+            approval_snapshot_id=f"approval-{allowlist_readiness_id}",
+            admission_audit_id=f"admission-{allowlist_readiness_id}",
+            allowed=True,
+            status=AdminApiGateStatus.PASSED,
+            cap_policy_ref="m58_phase_e_spot_live_submit_cap",
+            guard_policy_ref="m58_phase_e_wallet_guard",
+            product_scope=product_id,
+            max_submitted_notional_usdc="1.00",
+            max_executed_notional_usdc="0",
+            wallet_check_required=True,
+            wallet_check_status=AdminApiGateStatus.PASSED,
+            wallet_available_notional_usdc="1.00",
+            wallet_check_source="m58_usdc_pair_allowlist_live_submit_fixture",
+            reason="M58 live-submit fixture cap guard passes.",
+        )
+    )
     client.admin_api_test_usdc_pair_snapshot_order_plan_store.append(
         UsdcPairSnapshotOrderPlanRecord(
             plan_id=plan_id,
@@ -39201,6 +39235,101 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_recomputes
     )
     assert "readiness_far_from_bid_price_required" in payload["message"]
     assert "readiness_snapshot_non_fill_price_distance_required" in payload[
+        "message"
+    ]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidates_cap_guard(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-cap-guard-stale",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-submit-cap-guard-stale-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    normalized_product_id = ready["product_id"].replace("-", "_").lower()
+    client.admin_api_test_cap_guard_store.append(
+        CapGuardDecisionRecord(
+            decision_id=f"cap-{ready['allowlist_readiness_id']}-{normalized_product_id}",
+            route=(
+                "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+                "{plan_id}/live-readiness"
+            ),
+            method="POST",
+            module_id="automation",
+            identity_key="client_order_id",
+            identity_value=ready["client_order_id"],
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method="record_usdc_pair_snapshot_order_plan_live_readiness",
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_order_plan_live_readiness",
+            idempotency_key="idem-m58-usdc-live-submit-cap-guard-stale",
+            payload_hash="b" * 64,
+            approval_snapshot_id=f"approval-{ready['allowlist_readiness_id']}",
+            admission_audit_id=f"admission-{ready['allowlist_readiness_id']}",
+            allowed=False,
+            status=AdminApiGateStatus.BLOCKED,
+            cap_policy_ref="m58_phase_e_spot_live_submit_cap",
+            guard_policy_ref="m58_phase_e_wallet_guard",
+            product_scope=ready["product_id"],
+            max_submitted_notional_usdc="0.50",
+            max_executed_notional_usdc="0",
+            wallet_check_required=True,
+            wallet_check_status=AdminApiGateStatus.BLOCKED,
+            wallet_available_notional_usdc="0.50",
+            wallet_check_source="m58_usdc_pair_live_submit_cap_guard_stale",
+            reason="Latest cap guard no longer covers live-submit notional.",
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-allowlist-live-submit-cap-guard-stale",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json={
+            "submission_id": "m58-usdc-allowlist-live-submit-cap-guard-stale",
+            "readiness_id": ready["live_readiness_id"],
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one run-state selected order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "stale latest cap-guard evidence",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert "readiness_cap_guard_decision_not_passed" in payload["message"]
+    assert "readiness_cap_guard_submitted_notional_exceeded" in payload["message"]
+    assert "readiness_cap_guard_wallet_available_notional_exceeded" in payload[
         "message"
     ]
     assert payload["live_exchange_submitted"] is False
