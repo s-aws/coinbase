@@ -781,6 +781,12 @@ def _allowlist_run_state_item_from_record(
         rate_limit_attempted_order_count=(
             record.rate_limit_attempted_order_count
         ),
+        rate_limit_window_remaining_order_count=(
+            record.rate_limit_window_remaining_order_count
+        ),
+        rate_limit_window_overage_order_count=(
+            record.rate_limit_window_overage_order_count
+        ),
         rate_limit_window_within_cap=record.rate_limit_window_within_cap,
         retry_budget_status=record.retry_budget_status,
         retry_backoff_status=record.retry_backoff_status,
@@ -4620,6 +4626,14 @@ def _record_usdc_pair_allowlist_run_state(
     rate_limit_window_within_cap = (
         rate_limit_attempted_order_count <= rate_limit_max_orders_per_window
     )
+    rate_limit_window_remaining_order_count = max(
+        rate_limit_max_orders_per_window - rate_limit_attempted_order_count,
+        0,
+    )
+    rate_limit_window_overage_order_count = max(
+        rate_limit_attempted_order_count - rate_limit_max_orders_per_window,
+        0,
+    )
     run_lock_conflict_run_state_id = (
         _allowlist_run_state_run_lock_conflict_run_state_id(
             run_state_store=run_state_store,
@@ -4913,6 +4927,12 @@ def _record_usdc_pair_allowlist_run_state(
         rate_limit_window_started_at=rate_limit_window_started_at.isoformat(),
         rate_limit_window_expires_at=rate_limit_window_expires_at.isoformat(),
         rate_limit_attempted_order_count=rate_limit_attempted_order_count,
+        rate_limit_window_remaining_order_count=(
+            rate_limit_window_remaining_order_count
+        ),
+        rate_limit_window_overage_order_count=(
+            rate_limit_window_overage_order_count
+        ),
         rate_limit_window_within_cap=rate_limit_window_within_cap,
         retry_budget_status=runtime_statuses["retry_budget_status"],
         retry_backoff_status=runtime_statuses["retry_backoff_status"],
@@ -5592,6 +5612,28 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_recovery_required_product_count_mismatch")
     if run_state.rate_limit_attempted_order_count != queued_product_state_count:
         blockers.append("run_state_rate_limit_attempted_order_count_mismatch")
+    expected_rate_limit_window_remaining_order_count = max(
+        run_state.rate_limit_max_orders_per_window
+        - run_state.rate_limit_attempted_order_count,
+        0,
+    )
+    expected_rate_limit_window_overage_order_count = max(
+        run_state.rate_limit_attempted_order_count
+        - run_state.rate_limit_max_orders_per_window,
+        0,
+    )
+    if (
+        run_state.rate_limit_window_remaining_order_count
+        != expected_rate_limit_window_remaining_order_count
+    ):
+        blockers.append(
+            "run_state_rate_limit_window_remaining_order_count_mismatch"
+        )
+    if (
+        run_state.rate_limit_window_overage_order_count
+        != expected_rate_limit_window_overage_order_count
+    ):
+        blockers.append("run_state_rate_limit_window_overage_order_count_mismatch")
     planned_fanout_notional = _sum_usdc_pair_decimal_values(
         [
             item.planned_notional_usdc
@@ -5722,6 +5764,7 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         not run_state.rate_limit_window_within_cap
         or run_state.rate_limit_attempted_order_count
         > run_state.rate_limit_max_orders_per_window
+        or run_state.rate_limit_window_overage_order_count > 0
     ):
         blockers.append("run_state_rate_limit_window_capacity_exceeded")
     if rate_limit_window_started_at and rate_limit_window_expires_at:

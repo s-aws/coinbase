@@ -76,7 +76,9 @@ Available building blocks:
   `rate_limit_max_orders_per_window`, `rate_limit_window_seconds`,
   `rate_limit_window_started_at`, `rate_limit_window_expires_at`, the
   `rate_limit_attempted_order_count` before runtime blocking, and
-  `rate_limit_window_within_cap` as 5-per-1-second window capacity proof. Product run-state rows now
+  `rate_limit_window_remaining_order_count`,
+  `rate_limit_window_overage_order_count`, and `rate_limit_window_within_cap`
+  as 5-per-1-second window capacity proof. Product run-state rows now
   also record `retry_budget_per_product` and `retry_prior_attempt_count` so
   retry-budget exhaustion is auditable without inferring from remaining
   attempts alone. Aggregate run-state evidence records the consumed
@@ -610,8 +612,9 @@ run-state also exposes `run_lock_recorded_at`, `run_lock_conflict_run_state_id`,
 `recovery_ref_conflict_run_state_id`,
 `rate_limit_max_orders_per_window`, `rate_limit_window_seconds`,
 `rate_limit_window_started_at`, `rate_limit_window_expires_at`,
-`rate_limit_attempted_order_count`, and `rate_limit_window_within_cap` before
-any future scheduler or fan-out path can rely on the rate-limit window.
+`rate_limit_attempted_order_count`, `rate_limit_window_remaining_order_count`,
+`rate_limit_window_overage_order_count`, and `rate_limit_window_within_cap`
+before any future scheduler or fan-out path can rely on the rate-limit window.
 Product run-state rows also expose `retry_budget_per_product` and
 `retry_prior_attempt_count` before retry budget/backoff blockers clear
 remaining attempts. Aggregate run-state evidence also exposes the

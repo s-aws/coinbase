@@ -34922,6 +34922,8 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
         timedelta(seconds=1)
     )
     assert run_state["rate_limit_attempted_order_count"] == 1
+    assert run_state["rate_limit_window_remaining_order_count"] == 4
+    assert run_state["rate_limit_window_overage_order_count"] == 0
     assert run_state["rate_limit_window_within_cap"] is True
     assert run_state["retry_budget_status"] == "ready_no_live"
     assert run_state["recovery_status"] == "ready_no_live"
@@ -37035,6 +37037,8 @@ def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
             rate_limit_window_started_at=runtime_recorded_at.isoformat(),
             rate_limit_window_expires_at=rate_limit_window_expires_at.isoformat(),
             rate_limit_attempted_order_count=1 if queued else 0,
+            rate_limit_window_remaining_order_count=4 if queued else 5,
+            rate_limit_window_overage_order_count=0,
             rate_limit_window_within_cap=True,
             retry_budget_status="ready_no_live" if queued else "blocked",
             cancel_recovery_plan_ref="m58-cancel-recovery",
@@ -38514,6 +38518,8 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_rate_limit_wind
         timedelta(seconds=1)
     )
     assert run_state["rate_limit_attempted_order_count"] == len(products)
+    assert run_state["rate_limit_window_remaining_order_count"] == 0
+    assert run_state["rate_limit_window_overage_order_count"] == 1
     assert run_state["rate_limit_window_within_cap"] is False
     assert run_state["run_state_status"] == "blocked"
     assert run_state["queued_product_ids"] == []
@@ -41676,6 +41682,8 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_mi
                 "rate_limit_window_started_at": None,
                 "rate_limit_window_expires_at": None,
                 "rate_limit_attempted_order_count": 6,
+                "rate_limit_window_remaining_order_count": 0,
+                "rate_limit_window_overage_order_count": 1,
                 "rate_limit_window_within_cap": False,
             }
         )
@@ -41759,6 +41767,8 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_re
                     rate_limit_window_started_at + timedelta(seconds=2)
                 ).isoformat(),
                 "rate_limit_attempted_order_count": 1,
+                "rate_limit_window_remaining_order_count": 5,
+                "rate_limit_window_overage_order_count": 0,
                 "rate_limit_window_within_cap": True,
             }
         )
@@ -41915,6 +41925,8 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_ra
         source_run_state.model_copy(
             update={
                 "rate_limit_attempted_order_count": 0,
+                "rate_limit_window_remaining_order_count": 5,
+                "rate_limit_window_overage_order_count": 0,
                 "rate_limit_window_within_cap": True,
             }
         )
@@ -41957,6 +41969,87 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_ra
     assert "run_state_rate_limit_attempted_order_count_mismatch" in payload[
         "message"
     ]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_rate_limit_capacity_readback_mismatch(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-rate-readback-mismatch",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-submit-rate-readback-mismatch-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(ready["run_state_id"])
+    assert source_run_state is not None
+    run_state_store.append(
+        source_run_state.model_copy(
+            update={
+                "rate_limit_window_remaining_order_count": 5,
+                "rate_limit_window_overage_order_count": 1,
+            }
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-rate-readback-mismatch"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json={
+            "submission_id": (
+                "m58-usdc-allowlist-live-submit-rate-readback-mismatch"
+            ),
+            "readiness_id": ready["live_readiness_id"],
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one run-state selected order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "rate-limit capacity readback drift",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert (
+        "run_state_rate_limit_window_remaining_order_count_mismatch"
+        in payload["message"]
+    )
+    assert (
+        "run_state_rate_limit_window_overage_order_count_mismatch"
+        in payload["message"]
+    )
+    assert "run_state_rate_limit_window_capacity_exceeded" in payload["message"]
     assert payload["live_exchange_submitted"] is False
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_execution"] == "not_run"

@@ -170163,6 +170163,16 @@ components:
           minimum: 0.0
           title: Rate Limit Attempted Order Count
           default: 0
+        rate_limit_window_remaining_order_count:
+          type: integer
+          minimum: 0.0
+          title: Rate Limit Window Remaining Order Count
+          default: 5
+        rate_limit_window_overage_order_count:
+          type: integer
+          minimum: 0.0
+          title: Rate Limit Window Overage Order Count
+          default: 0
         rate_limit_window_within_cap:
           type: boolean
           title: Rate Limit Window Within Cap
