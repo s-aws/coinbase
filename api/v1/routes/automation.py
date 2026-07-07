@@ -5305,6 +5305,8 @@ def _record_usdc_pair_live_submission(
     submitted_notional = _decimal_value(readiness.submitted_notional_usdc)
     row_limit_price = _decimal_value(row.limit_price)
     readiness_limit_price = _decimal_value(readiness.intended_limit_price)
+    row_quote_size = _decimal_value(row.quote_size)
+    readiness_quote_size = _decimal_value(readiness.quote_size)
     plan_side = _enum_text(plan.side).strip().upper()
     row_side = _enum_text(row.side).strip().upper()
     readiness_side = _enum_text(readiness.side).strip().upper()
@@ -5330,6 +5332,8 @@ def _record_usdc_pair_live_submission(
         or row_limit_price != readiness_limit_price
     ):
         blockers.append("readiness_limit_price_mismatch")
+    if row_quote_size != readiness_quote_size:
+        blockers.append("readiness_quote_size_mismatch")
     row_proof_chain_status = str(
         getattr(row, "proof_chain_status", "") or ""
     ).strip()

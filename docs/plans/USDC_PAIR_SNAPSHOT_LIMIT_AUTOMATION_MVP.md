@@ -606,10 +606,11 @@ timestamps/statuses, far-from-bid evidence, and snapshot non-fill evidence still
 pass after recomputation, readiness planned/submitted notional still matches the
 selected order-plan row, plan/row/readiness side still matches, selected
 order-plan row limit price still matches the accepted live-readiness intended
-limit price, selected order-plan row proof-chain status is still accepted with
-no row proof-chain blockers, readiness proof refs still match the selected
-order-plan row, latest cap-guard submitted-notional and wallet checks still
-cover the selected notional, and the parent run-state has ready aggregate
+limit price, selected order-plan row quote size still matches the accepted
+live-readiness quote size, selected order-plan row proof-chain status is still
+accepted with no row proof-chain blockers, readiness proof refs still match the
+selected order-plan row, latest cap-guard submitted-notional and wallet checks
+still cover the selected notional, and the parent run-state has ready aggregate
 status, recorded run-lock evidence, is not paused/aborted, and has ready runtime rate-limit,
 retry-budget/backoff, recovery evidence, selected-product rate/cap/wallet
 allocation readiness, and no selected-product blockers, plus selected-product
@@ -832,7 +833,8 @@ before any executor call, rejects blocked aggregate parent run-state/cap/wallet/
 live-readiness/notional/partial-success statuses, rejects stale selected-product
 price-freshness timestamp/status or recomputed price-distance evidence, rejects
 stale selected-product order-plan/live-readiness snapshot association, rejects
-stale selected-product side, planned/submitted notional, or limit-price evidence,
+stale selected-product side, planned/submitted notional, limit-price, or
+quote-size evidence,
 rejects blocked selected-product row proof-chain status or row proof-chain
 blockers, rejects
 stale selected-product proof refs, rejects
