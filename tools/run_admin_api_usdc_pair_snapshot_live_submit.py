@@ -52,6 +52,11 @@ from application.admin_api.reconciliation import (  # noqa: E402
 from application.admin_api.usdc_pair_snapshot_service import (  # noqa: E402
     AdminApiUsdcPairSnapshotService,
 )
+from application.admin_api.usdc_pair_snapshot import (  # noqa: E402
+    FileUsdcPairSnapshotOrderPlanStore,
+    FileUsdcPairSnapshotLiveWalletReservationStore,
+    UsdcPairSnapshotLiveWalletReservationRecord,
+)
 from core.enums import (  # noqa: E402
     AdminApiActionClass,
     AdminApiCommandStatus,
@@ -121,6 +126,9 @@ STATE_LOG_FILENAMES = {
     ),
     "COINBASE_ADMIN_API_USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LOG_PATH": (
         "admin_api_usdc_pair_snapshot_allowlist_run_states.jsonl"
+    ),
+    "COINBASE_ADMIN_API_USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_LOG_PATH": (
+        "admin_api_usdc_pair_snapshot_live_wallet_reservations.jsonl"
     ),
     "COINBASE_ADMIN_API_USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_READINESS_LOG_PATH": (
         "admin_api_usdc_pair_snapshot_order_plan_live_readiness.jsonl"
@@ -468,6 +476,11 @@ def run_usdc_pair_snapshot_live_submit(
             )
             plan = require_mapping(order_plan_payload.get("plan"), "plan")
             row = planned_row_for_product(plan, config.product_id)
+            plan, row = append_controlled_live_order_plan_row(
+                config=config,
+                plan=plan,
+                row=row,
+            )
             append_proof_chain_evidence(config=config, plan=plan, row=row)
             proof_refresh_payload = _post_json(
                 client,
@@ -535,7 +548,7 @@ def run_usdc_pair_snapshot_live_submit(
             run_state_product: dict[str, Any] = {}
             if config.submit_from_run_state:
                 runner_prefix = config.idempotency_prefix or "m58-usdc-live"
-                append_run_state_handoff_evidence(
+                run_state_evidence = append_run_state_handoff_evidence(
                     config=config,
                     row=refreshed_row,
                 )
@@ -588,6 +601,9 @@ def run_usdc_pair_snapshot_live_submit(
                             config.rate_limit_window_ref
                             or f"{runner_prefix}-rate-limit-window"
                         ),
+                        "live_wallet_reservation_ids": [
+                            run_state_evidence["live_wallet_reservation_id"]
+                        ],
                         "pause_requested": False,
                         "abort_requested": False,
                         "operator_notes": (
@@ -884,6 +900,87 @@ def product_metadata(config: UsdcPairSnapshotLiveSubmitConfig) -> dict[str, Any]
     }
 
 
+def append_controlled_live_order_plan_row(
+    *,
+    config: UsdcPairSnapshotLiveSubmitConfig,
+    plan: Mapping[str, Any],
+    row: Mapping[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Persist the selected row with the operator-confirmed live limit price."""
+
+    order_plan_store = FileUsdcPairSnapshotOrderPlanStore()
+    record = order_plan_store.find_by_plan_id(str(plan["plan_id"]))
+    if record is None:
+        raise RuntimeError("M58 order-plan record was not persisted.")
+
+    intended_limit_price = floor_to_increment(
+        decimal_value(config.intended_limit_price),
+        require_positive_decimal(config.price_increment, "price_increment"),
+    )
+    base_increment = require_positive_decimal(config.base_increment, "base_increment")
+    quote_increment = require_positive_decimal(
+        config.quote_increment,
+        "quote_increment",
+    )
+    base_size, planned_notional = planning_size_for_requested_notional(
+        requested=decimal_value(row["requested_notional_usdc"]),
+        limit_price=intended_limit_price,
+        base_increment=base_increment,
+        quote_increment=quote_increment,
+    )
+    min_quote_size = require_positive_decimal(
+        config.quote_min_size,
+        "quote_min_size",
+    )
+    if planned_notional < min_quote_size:
+        raise RuntimeError(
+            "M58 intended limit price cannot satisfy quote minimum from the "
+            "selected planning row."
+        )
+
+    normalized_product_id = config.product_id.upper()
+    row_client_order_id = str(row["client_order_id"])
+    updated_rows = []
+    for order_plan_row in record.order_plan_rows:
+        if (
+            order_plan_row.product_id.upper() == normalized_product_id
+            and order_plan_row.client_order_id == row_client_order_id
+        ):
+            updated_rows.append(
+                order_plan_row.model_copy(
+                    update={
+                        "limit_price": decimal_text(intended_limit_price),
+                        "base_size": decimal_text(base_size),
+                        "quote_size": decimal_text(planned_notional),
+                        "planned_notional_usdc": decimal_text(planned_notional),
+                    }
+                )
+            )
+        else:
+            updated_rows.append(order_plan_row)
+
+    planned_total = sum(
+        (
+            decimal_value(order_plan_row.planned_notional_usdc)
+            for order_plan_row in updated_rows
+            if order_plan_row.plan_status == "planned"
+        ),
+        Decimal("0"),
+    )
+    updated_record = record.model_copy(
+        update={
+            "planned_total_notional_usdc": decimal_text(planned_total),
+            "order_plan_rows": updated_rows,
+            "operator_notes": (
+                "M58 controlled-live selected row aligned to intended limit price."
+            ),
+        }
+    )
+    order_plan_store.append(updated_record)
+    updated_plan = updated_record.model_dump(mode="json")
+    return updated_plan, planned_row_for_product(updated_plan, config.product_id)
+
+
 def append_proof_chain_evidence(
     *,
     config: UsdcPairSnapshotLiveSubmitConfig,
@@ -1072,7 +1169,14 @@ def append_run_state_handoff_evidence(
     """Append run-state route-bound wallet proof for one selected product."""
 
     cap_guard_store = FileAdminApiCapGuardStore()
+    live_wallet_store = FileUsdcPairSnapshotLiveWalletReservationStore()
     prefix = config.idempotency_prefix or "m58-usdc-live"
+    normalized_product_id = config.product_id.upper().replace("/", "-")
+    product_token = normalized_product_id.replace("-", "_").lower()
+    planned_notional = decimal_text(row["planned_notional_usdc"])
+    reservation_id = f"{prefix}-wallet-reservation-{product_token}"
+    debit_id = f"{prefix}-wallet-debit-{product_token}"
+    release_id = f"{prefix}-wallet-release-{product_token}"
     cap_guard_store.append(
         CapGuardDecisionRecord(
             decision_id=str(row["cap_guard_decision_id"]),
@@ -1106,9 +1210,46 @@ def append_run_state_handoff_evidence(
             ),
         )
     )
+    live_wallet_store.append(
+        UsdcPairSnapshotLiveWalletReservationRecord(
+            reservation_id=reservation_id,
+            run_state_id=str(config.run_state_id),
+            readiness_id=str(config.allowlist_readiness_id),
+            plan_id=str(config.plan_id),
+            snapshot_run_id=str(config.run_id),
+            product_id=config.product_id,
+            client_order_id=str(row["client_order_id"]),
+            reserved_notional_usdc=planned_notional,
+            wallet_available_notional_usdc=planned_notional,
+            reservation_status="reserved_no_live",
+            debit_status="debited_no_live",
+            debit_id=debit_id,
+            debited_notional_usdc=planned_notional,
+            release_status="released_no_live",
+            release_id=release_id,
+            released_notional_usdc=planned_notional,
+            release_reason="no_live_run_state_rehearsal",
+            actor_id=config.actor_id,
+            operator_intent="m58_usdc_snapshot_live_wallet_reservation",
+            idempotency_key=f"{prefix}:live-wallet-reservation",
+            payload_hash="8" * 64,
+            audit_id=f"audit-{prefix}-live-wallet-reservation",
+            operator_notes=(
+                "No-live wallet reservation/debit/release evidence for "
+                "M58 one-product run-state handoff."
+            ),
+            detail=(
+                "No-live wallet lifecycle evidence consumed by the M58 "
+                "run-state live-submit handoff."
+            ),
+        )
+    )
     return {
         "cap_guard_decision_id": str(row["cap_guard_decision_id"]),
         "wallet_check_source": "m58_usdc_pair_run_state_live_submit_runner",
+        "live_wallet_reservation_id": reservation_id,
+        "live_wallet_debit_id": debit_id,
+        "live_wallet_release_id": release_id,
     }
 
 

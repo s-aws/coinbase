@@ -173,48 +173,51 @@ def test_usdc_pair_snapshot_live_runner_can_submit_from_run_state_handoff(
     assert summary["live_submit_source"] == "allowlist_run_state"
     assert summary["allowlist_readiness_id"] == "m58-runner-allowlist-readiness"
     assert summary["run_state_id"] == "m58-runner-run-state"
-    assert summary["run_state_status"] == "blocked"
+    assert summary["run_state_status"] == "ready_no_live"
     assert summary["run_state_queued_product_ids"] == ["BTC-USDC"]
     assert summary["run_state_live_readiness_id"] == "m58-runner-readiness"
     assert summary["run_state_live_wallet_reservation_status"] == (
-        "missing_no_live"
+        "ready_no_live"
     )
-    assert summary["run_state_live_wallet_reservation_ids"] == []
-    assert summary["run_state_live_wallet_reserved_notional_usdc"] == "0.00"
-    assert summary["run_state_live_wallet_debit_ids"] == []
-    assert summary["run_state_live_wallet_debited_notional_usdc"] == "0.00"
-    assert summary["run_state_live_wallet_release_ids"] == []
-    assert summary["run_state_live_wallet_released_notional_usdc"] == "0.00"
-    assert summary["run_state_live_wallet_reservation_blockers"] == [
-        "live_wallet_reservation_missing",
-        "live_wallet_debit_missing",
-        "live_wallet_release_missing",
+    assert summary["run_state_live_wallet_reservation_ids"] == [
+        "idem-m58-runner-wallet-reservation-btc_usdc"
     ]
+    assert summary["run_state_live_wallet_reserved_notional_usdc"] == "1.00"
+    assert summary["run_state_live_wallet_debit_ids"] == [
+        "idem-m58-runner-wallet-debit-btc_usdc"
+    ]
+    assert summary["run_state_live_wallet_debited_notional_usdc"] == "1.00"
+    assert summary["run_state_live_wallet_release_ids"] == [
+        "idem-m58-runner-wallet-release-btc_usdc"
+    ]
+    assert summary["run_state_live_wallet_released_notional_usdc"] == "1.00"
+    assert summary["run_state_live_wallet_reservation_blockers"] == []
     assert summary["run_state_product_live_wallet_reservation_status"] == (
-        "missing_no_live"
+        "ready_no_live"
     )
-    assert summary["run_state_product_live_wallet_reservation_id"] is None
-    assert summary["run_state_product_live_wallet_reserved_notional_usdc"] == "0.00"
-    assert summary["run_state_product_live_wallet_debit_id"] is None
-    assert summary["run_state_product_live_wallet_debited_notional_usdc"] == "0.00"
-    assert summary["run_state_product_live_wallet_release_id"] is None
-    assert summary["run_state_product_live_wallet_released_notional_usdc"] == "0.00"
-    assert summary["run_state_product_live_wallet_reservation_blockers"] == [
-        "live_wallet_reservation_missing",
-        "live_wallet_debit_missing",
-        "live_wallet_release_missing",
-    ]
+    assert summary["run_state_product_live_wallet_reservation_id"] == (
+        "idem-m58-runner-wallet-reservation-btc_usdc"
+    )
+    assert summary["run_state_product_live_wallet_reserved_notional_usdc"] == "1.00"
+    assert summary["run_state_product_live_wallet_debit_id"] == (
+        "idem-m58-runner-wallet-debit-btc_usdc"
+    )
+    assert summary["run_state_product_live_wallet_debited_notional_usdc"] == "1.00"
+    assert summary["run_state_product_live_wallet_release_id"] == (
+        "idem-m58-runner-wallet-release-btc_usdc"
+    )
+    assert summary["run_state_product_live_wallet_released_notional_usdc"] == "1.00"
+    assert summary["run_state_product_live_wallet_reservation_blockers"] == []
     assert summary["fanout_execution_status"] == "blocked"
     assert summary["fanout_blockers"] == [
         "fanout_execution_not_approved",
         "scheduler_blocked",
-        "live_wallet_reservation_missing",
-        "live_wallet_debit_missing",
-        "live_wallet_release_missing",
     ]
     assert summary["live_coinbase_execution"] == "submitted_cancelled"
     assert summary["submitted_notional_usdc"] == "1.00"
     assert summary["executed_notional_usdc"] == "0"
+    assert summary["proof_chain_status_after_submission"] == "accepted"
+    assert summary["proof_chain_blockers_after_submission"] == []
 
     assert len(fake_executor.calls) == 1
     assert fake_executor.calls[0]["client_order_id"] == "m58-runner-plan-BTC-USDC"
@@ -228,6 +231,11 @@ def test_usdc_pair_snapshot_live_runner_can_submit_from_run_state_handoff(
         tmp_path
         / "state"
         / "admin_api_usdc_pair_snapshot_allowlist_run_states.jsonl"
+    ).exists()
+    assert (
+        tmp_path
+        / "state"
+        / "admin_api_usdc_pair_snapshot_live_wallet_reservations.jsonl"
     ).exists()
 
 

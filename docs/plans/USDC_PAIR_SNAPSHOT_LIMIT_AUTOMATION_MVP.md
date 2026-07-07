@@ -155,7 +155,7 @@ Available building blocks:
   run-state evidence, then call the backend run-state handoff route. It remains
   one invocation, one selected product, one order, immediate submit/cancel, and
   no scheduler. Its local summary records the run-state live wallet reservation
-  blockers as no-live evidence.
+  id/debit/release ids, status, and notionals as no-live lifecycle evidence.
 - Backend proof-refresh mutation for existing order plans that resolves exact,
   unexpired, non-revoked approval lifecycle snapshots without browser
   authority or live execution, and can link exact durable admission-audit
@@ -392,7 +392,10 @@ or exact enabled live-service evidence as `live_submission_missing` until a
 matching controlled-live submit/cancel artifact exists. Once a one-row live
 submit/cancel artifact matches the enabled live-service decision, proof refresh
 can set that row to `proof_chain_status=accepted` with live Coinbase
-submission and cancel evidence. Backend regression coverage proves that
+submission and cancel evidence. The controlled-live submit route allows exactly
+that single pre-submit `live_submission_missing` proof-chain blocker and still
+rejects any other row proof-chain blocker before executor invocation. Backend
+regression coverage proves that
 multi-row proof refresh links only the product row with exact durable evidence,
 rejects out-of-scope cap/reconciliation notional evidence, keeps idempotent
 replay stable even if later evidence is recorded, blocks full snapshot fill
@@ -691,7 +694,8 @@ retryable/recovery-required sets;
 this remains a single-order controlled-live path, not fan-out automation.
 The backend live-submit runner can exercise this same handoff with
 `--submit-from-run-state`, recording the selected product's run-state id and
-queued live-readiness association in the local artifact before stopping after
+queued live-readiness association plus exact no-live wallet reservation,
+debit, and release ids in the local artifact before stopping after
 submit/cancel evidence.
 
 Deliverables:
@@ -929,7 +933,7 @@ stale selected-product side, planned/submitted/max-submitted notional,
 limit-price, quote-size, or minimum-order-size-preference evidence,
 rejects missing selected-product cancel rollback refs,
 rejects blocked selected-product row proof-chain status or row proof-chain
-blockers, rejects
+blockers other than the sole pre-submit `live_submission_missing` blocker, rejects
 stale selected-product proof refs, rejects
 stale selected-product cap-guard submitted-notional or wallet evidence, rejects
 ambiguous selected-product run-state rows, rejects stale selected-product
@@ -949,6 +953,11 @@ Aggregate run-state status fields now fail closed when final product state has
 no queued products.
 Final-blocked product rows also clear stale cancel-recovery refs when recovery
 is not required.
+Subagent phase sweep on 2026-07-07 was closed after findings were consumed.
+Remaining live fan-out/scheduler blockers include submit-time revalidation for
+expired rate-limit windows, current run-lock/rate-window conflicts, current
+retry budget/backoff drift, current enabled live-service decision evidence, and
+full cap-guard command/scope binding before executor invocation.
 A blind contextless review on 2026-07-06 passed the M58 no-live Phase F
 authority-boundary questions and confirmed the change set is a domain module
 under Automation / Campaign / Scheduler, not a reusable admin platform
