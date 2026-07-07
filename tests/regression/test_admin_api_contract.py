@@ -43416,6 +43416,224 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hidden_queued_cap_guard_scope_drift(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-hidden-cap-guard",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-submit-hidden-cap-guard-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    readiness_store = (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_live_readiness_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(ready["run_state_id"])
+    assert source_run_state is not None
+    source_readiness = next(
+        (
+            record
+            for record in readiness_store.read_recent(limit=500)
+            if record.readiness_id == ready["live_readiness_id"]
+            and record.product_id == ready["product_id"]
+            and record.client_order_id == ready["client_order_id"]
+        ),
+        None,
+    )
+    assert source_readiness is not None
+    source_product_row = source_run_state.product_states[0]
+    selected_product_row = source_product_row.model_copy(
+        update={
+            "wallet_available_notional_usdc": "2.00",
+            "wallet_remaining_after_usdc": "1.00",
+        }
+    )
+    extra_readiness_id = (
+        "m58-usdc-allowlist-live-submit-hidden-cap-guard-eth-live-readiness"
+    )
+    extra_client_order_id = (
+        "m58-usdc-allowlist-live-submit-hidden-cap-guard-eth"
+    )
+    extra_cap_guard_decision_id = (
+        "cap-m58-usdc-allowlist-live-submit-hidden-cap-guard-eth"
+    )
+    extra_product_row = source_product_row.model_copy(
+        update={
+            "product_id": "ETH-USDC",
+            "client_order_id": extra_client_order_id,
+            "cap_guard_decision_id": extra_cap_guard_decision_id,
+            "wallet_available_notional_usdc": "2.00",
+            "wallet_remaining_after_usdc": "0.00",
+            "live_wallet_reservation_id": (
+                "wallet-reservation-hidden-cap-guard-eth"
+            ),
+            "live_wallet_debit_id": "wallet-debit-hidden-cap-guard-eth",
+            "live_wallet_release_id": "wallet-release-hidden-cap-guard-eth",
+            "live_readiness_id": extra_readiness_id,
+            "live_readiness_source": source_readiness.source,
+            "recovery_state_ref": "m58-cancel-recovery:ETH-USDC",
+        }
+    )
+    readiness_store.append(
+        source_readiness.model_copy(
+            update={
+                "readiness_id": extra_readiness_id,
+                "product_id": "ETH-USDC",
+                "client_order_id": extra_client_order_id,
+            }
+        )
+    )
+    client.admin_api_test_cap_guard_store.append(
+        CapGuardDecisionRecord(
+            decision_id=extra_cap_guard_decision_id,
+            route=(
+                "/api/v1/automation/usdc-pair-snapshot-order-plan-"
+                "allowlist-readiness/{readiness_id}/run-state"
+            ),
+            method="POST",
+            module_id="automation",
+            identity_key="client_order_id",
+            identity_value=extra_client_order_id,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method="record_usdc_pair_snapshot_allowlist_run_state",
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-hidden-cap-guard-eth"
+            ),
+            payload_hash="c" * 64,
+            approval_snapshot_id=f"approval-{ready['allowlist_readiness_id']}",
+            admission_audit_id=f"admission-{ready['allowlist_readiness_id']}",
+            allowed=True,
+            status=AdminApiGateStatus.PASSED,
+            cap_policy_ref="m58_phase_f_allowlist_run_state_cap",
+            guard_policy_ref="m58_phase_f_allowlist_run_state_wallet_guard",
+            product_scope="BTC-USDC",
+            max_submitted_notional_usdc="1.00",
+            max_executed_notional_usdc="0",
+            wallet_check_required=True,
+            wallet_check_status=AdminApiGateStatus.PASSED,
+            wallet_available_notional_usdc="2.00",
+            wallet_check_source="m58_usdc_pair_hidden_cap_guard_scope_drift",
+            reason="Latest hidden queued cap guard no longer matches product.",
+        )
+    )
+
+    ledger_store = client.admin_api_test_usdc_pair_snapshot_live_wallet_ledger_store
+    source_ledger = ledger_store.find_by_ledger_id(
+        source_run_state.live_wallet_ledger_id or ""
+    )
+    assert source_ledger is not None
+    ledger_store.append(
+        source_ledger.model_copy(
+            update={
+                "wallet_available_notional_usdc": "2.00",
+                "planned_fanout_notional_usdc": "2.00",
+                "allocated_fanout_notional_usdc": "2.00",
+                "reserved_notional_usdc": "2.00",
+                "debited_notional_usdc": "2.00",
+                "released_notional_usdc": "2.00",
+            }
+        )
+    )
+    run_state_store.append(
+        source_run_state.model_copy(
+            update={
+                "product_ids": [ready["product_id"], "ETH-USDC"],
+                "queued_product_ids": [ready["product_id"], "ETH-USDC"],
+                "retryable_product_ids": [ready["product_id"], "ETH-USDC"],
+                "recovery_required_product_ids": [ready["product_id"], "ETH-USDC"],
+                "live_ready_product_ids": [ready["product_id"], "ETH-USDC"],
+                "queued_product_count": 2,
+                "retryable_product_count": 2,
+                "recovery_required_product_count": 2,
+                "planned_fanout_notional_usdc": "2.00",
+                "allocated_fanout_notional_usdc": "2.00",
+                "fanout_cap_remaining_usdc": "98.00",
+                "wallet_available_notional_usdc": "2.00",
+                "wallet_allocated_notional_usdc": "2.00",
+                "wallet_remaining_usdc": "0.00",
+                "live_wallet_reservation_ids": [
+                    source_product_row.live_wallet_reservation_id,
+                    extra_product_row.live_wallet_reservation_id,
+                ],
+                "live_wallet_reserved_notional_usdc": "2.00",
+                "live_wallet_debit_ids": [
+                    source_product_row.live_wallet_debit_id,
+                    extra_product_row.live_wallet_debit_id,
+                ],
+                "live_wallet_debited_notional_usdc": "2.00",
+                "live_wallet_release_ids": [
+                    source_product_row.live_wallet_release_id,
+                    extra_product_row.live_wallet_release_id,
+                ],
+                "live_wallet_released_notional_usdc": "2.00",
+                "live_wallet_ledger_wallet_available_notional_usdc": "2.00",
+                "live_wallet_ledger_reserved_notional_usdc": "2.00",
+                "live_wallet_ledger_debited_notional_usdc": "2.00",
+                "live_wallet_ledger_released_notional_usdc": "2.00",
+                "rate_limit_attempted_order_count": 2,
+                "rate_limit_window_remaining_order_count": 3,
+                "product_states": [selected_product_row, extra_product_row],
+            }
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-hidden-cap-guard"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json={
+            "submission_id": "m58-usdc-allowlist-live-submit-hidden-cap-guard",
+            "readiness_id": ready["live_readiness_id"],
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one run-state selected order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "hidden non-selected queued cap-guard drift",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert "run_state_product_cap_guard_product_scope_mismatch" in payload[
+        "message"
+    ]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hidden_queued_wallet_ref_gaps(
     monkeypatch,
 ):

@@ -6338,6 +6338,62 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_queued_live_readiness(
         )
 
 
+def _validate_usdc_pair_allowlist_run_state_live_submit_queued_cap_guard(
+    *,
+    run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    selected_product_row: UsdcPairSnapshotAllowlistRunStateProductItem,
+    cap_guard_store: FileAdminApiCapGuardStore,
+) -> None:
+    blockers: list[str] = []
+    selected_product_id = selected_product_row.product_id.strip().upper()
+    selected_client_order_id = str(
+        selected_product_row.client_order_id or ""
+    ).strip()
+    for item in run_state.product_states:
+        if item.execution_state != "queued_no_live":
+            continue
+        if (
+            item.product_id.strip().upper() == selected_product_id
+            and str(item.client_order_id or "").strip() == selected_client_order_id
+        ):
+            continue
+        decision_id = str(item.cap_guard_decision_id or "").strip()
+        if not decision_id:
+            continue
+        record = cap_guard_store.find_by_decision_id(decision_id)
+        if record is None:
+            blockers.append("run_state_product_cap_guard_record_missing")
+            continue
+        record_blockers = _allowlist_run_state_cap_guard_record_blockers(
+            record=record,
+            item=item,
+        )
+        if not record.allowed or record.status != AdminApiGateStatus.PASSED:
+            record_blockers.append("cap_guard_decision_not_passed")
+        if not record.wallet_check_required:
+            record_blockers.append("cap_guard_wallet_check_not_required")
+        if (
+            record.wallet_check_required
+            and record.wallet_check_status != AdminApiGateStatus.PASSED
+        ):
+            record_blockers.append("cap_guard_wallet_check_not_passed")
+        if (
+            _non_negative_decimal_value(record.wallet_available_notional_usdc)
+            is None
+        ):
+            record_blockers.append("cap_guard_wallet_available_notional_invalid")
+        blockers.extend(
+            f"run_state_product_{blocker}"
+            for blocker in record_blockers
+        )
+
+    if blockers:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live submit blocked: "
+            + ",".join(_dedupe(blockers))
+        )
+
+
 def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_evidence(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
@@ -7921,6 +7977,11 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
         _validate_usdc_pair_allowlist_run_state_live_submit_queued_live_readiness(
             run_state=run_state,
             readiness_store=readiness_store,
+        )
+        _validate_usdc_pair_allowlist_run_state_live_submit_queued_cap_guard(
+            run_state=run_state,
+            selected_product_row=product_row,
+            cap_guard_store=cap_guard_store,
         )
         _validate_usdc_pair_allowlist_run_state_live_submit_wallet_evidence(
             run_state=run_state,
