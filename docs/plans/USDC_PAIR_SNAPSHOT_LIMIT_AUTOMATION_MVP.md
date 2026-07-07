@@ -942,14 +942,14 @@ product ids, and zero wallet allocation.
 The run-state live-submit handoff also rejects missing, blocked, or stale latest
 parent/product live-wallet reservation/debit/release evidence, stale
 selected-product wallet reserved/debited/released notional readback, non-empty
-product wallet reservation/debit/release conflict source ids, non-empty
-parent or any product-row active-overcommit readback, blocked parent run-lock,
+product wallet reservation/debit/release or recovery conflict source ids,
+non-empty parent or any product-row active-overcommit readback, blocked parent run-lock,
 pause/abort, rate-limit, retry-budget/backoff, or recovery evidence, missing or
 invalid run-lock timestamp evidence, missing, invalid, or expired rate-window
 start/end evidence, non-default rate-window cap/seconds policy, mismatched rate-window
 duration, run-lock timestamps outside the rate window, or over-cap rate-window
 readback, attempted-order counts that do not match queued rows, or non-empty
-run-lock/rate-window/retry-backoff/recovery conflict source ids before executor
+parent run-lock/rate-window/retry-backoff conflict source ids before executor
 invocation, rejects blocked aggregate parent
 run-state/cap/wallet/
 live-readiness/notional/partial-success statuses, rejects aggregate

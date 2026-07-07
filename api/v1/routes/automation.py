@@ -5742,6 +5742,23 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         for item in run_state.product_states
         if item.live_wallet_release_id
     ]
+    all_wallet_ref_blockers_by_product = (
+        _live_wallet_reference_conflict_blockers_by_product(
+            product_states=run_state.product_states,
+        )
+    )
+    all_wallet_ref_blockers = _dedupe(
+        [
+            blocker
+            for product_blockers in all_wallet_ref_blockers_by_product.values()
+            for blocker in product_blockers
+        ]
+    )
+    product_recovery_ref_conflict_run_state_ids = [
+        str(item.recovery_ref_conflict_run_state_id or "").strip()
+        for item in run_state.product_states
+        if str(item.recovery_ref_conflict_run_state_id or "").strip()
+    ]
     live_readiness_blockers = _dedupe(
         [
             blocker
@@ -5782,6 +5799,10 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         run_state.live_wallet_release_ids
     ) != _normalized_usdc_pair_string_multiset(live_wallet_release_state_ids):
         blockers.append("run_state_live_wallet_release_ids_mismatch")
+    if all_wallet_ref_blockers:
+        blockers.extend(f"run_state_{blocker}" for blocker in all_wallet_ref_blockers)
+    if product_recovery_ref_conflict_run_state_ids:
+        blockers.append("run_state_product_recovery_ref_conflict")
     if run_state.live_readiness_blockers != live_readiness_blockers:
         blockers.append("run_state_live_readiness_blockers_mismatch")
     if run_state.live_readiness_blockers:
