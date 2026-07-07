@@ -5304,6 +5304,10 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_run_lock_not_recorded")
     if not run_state.run_lock_ref:
         blockers.append("run_state_run_lock_ref_missing")
+    if not run_state.run_lock_recorded_at:
+        blockers.append("run_state_run_lock_recorded_at_missing")
+    elif _parse_reference_timestamp(run_state.run_lock_recorded_at) is None:
+        blockers.append("run_state_run_lock_recorded_at_invalid")
     if run_state.pause_resume_status != "running_no_live":
         blockers.append("run_state_not_running")
     if run_state.abort_status != "not_requested":
@@ -5312,6 +5316,37 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_rate_limit_not_ready")
     if not run_state.rate_limit_window_ref:
         blockers.append("run_state_rate_limit_window_ref_missing")
+    rate_limit_window_started_at = _parse_reference_timestamp(
+        run_state.rate_limit_window_started_at
+    )
+    rate_limit_window_expires_at = _parse_reference_timestamp(
+        run_state.rate_limit_window_expires_at
+    )
+    if not run_state.rate_limit_window_started_at:
+        blockers.append("run_state_rate_limit_window_started_at_missing")
+    elif rate_limit_window_started_at is None:
+        blockers.append("run_state_rate_limit_window_started_at_invalid")
+    if not run_state.rate_limit_window_expires_at:
+        blockers.append("run_state_rate_limit_window_expires_at_missing")
+    elif rate_limit_window_expires_at is None:
+        blockers.append("run_state_rate_limit_window_expires_at_invalid")
+    if (
+        not run_state.rate_limit_window_within_cap
+        or run_state.rate_limit_attempted_order_count
+        > run_state.rate_limit_max_orders_per_window
+    ):
+        blockers.append("run_state_rate_limit_window_capacity_exceeded")
+    if rate_limit_window_started_at and rate_limit_window_expires_at:
+        rate_limit_window_duration_seconds = (
+            rate_limit_window_expires_at - rate_limit_window_started_at
+        ).total_seconds()
+        if rate_limit_window_duration_seconds <= 0:
+            blockers.append("run_state_rate_limit_window_bounds_invalid")
+        elif (
+            rate_limit_window_duration_seconds
+            != run_state.rate_limit_window_seconds
+        ):
+            blockers.append("run_state_rate_limit_window_seconds_mismatch")
     if run_state.retry_budget_status != "ready_no_live":
         blockers.append("run_state_retry_budget_not_ready")
     if run_state.retry_backoff_status not in {"not_required", "ready_no_live"}:

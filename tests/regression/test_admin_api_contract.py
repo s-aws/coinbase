@@ -36814,6 +36814,8 @@ def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
 
     blockers = [] if queued and live_ready else ["live_readiness_missing"]
     wallet_ready_for_submit = queued and wallet_ready
+    runtime_recorded_at = datetime.now(timezone.utc).replace(microsecond=0)
+    rate_limit_window_expires_at = runtime_recorded_at + timedelta(seconds=1)
     product_row = UsdcPairSnapshotAllowlistRunStateProductItem(
         product_id=product_id,
         client_order_id=client_order_id,
@@ -36995,10 +36997,16 @@ def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
             recovery_required_product_count=1 if queued else 0,
             run_lock_status="recorded_no_live",
             run_lock_ref=f"run-lock-{run_state_id}",
+            run_lock_recorded_at=runtime_recorded_at.isoformat(),
             pause_resume_status="running_no_live",
             abort_status="not_requested",
             rate_limit_status="ready_no_live" if queued else "blocked",
             rate_limit_window_ref=f"rate-limit-{run_state_id}",
+            rate_limit_window_seconds=1,
+            rate_limit_window_started_at=runtime_recorded_at.isoformat(),
+            rate_limit_window_expires_at=rate_limit_window_expires_at.isoformat(),
+            rate_limit_attempted_order_count=1 if queued else 0,
+            rate_limit_window_within_cap=True,
             retry_budget_status="ready_no_live" if queued else "blocked",
             recovery_status="ready_no_live" if queued else "not_required",
             partial_success_status="ready_no_live" if queued else "blocked",
@@ -41309,6 +41317,83 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_r
     assert "run_state_run_lock_not_recorded" in payload["message"]
     assert "run_state_rate_limit_not_ready" in payload["message"]
     assert "run_state_rate_limit_window_ref_missing" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_missing_runtime_timestamps(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-runtime-timestamps",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-submit-runtime-timestamps-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(ready["run_state_id"])
+    assert source_run_state is not None
+    run_state_store.append(
+        source_run_state.model_copy(
+            update={
+                "run_lock_recorded_at": None,
+                "rate_limit_window_started_at": None,
+                "rate_limit_window_expires_at": None,
+                "rate_limit_attempted_order_count": 6,
+                "rate_limit_window_within_cap": False,
+            }
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-runtime-timestamps"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json={
+            "submission_id": "m58-usdc-allowlist-live-submit-runtime-timestamps",
+            "readiness_id": ready["live_readiness_id"],
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one run-state selected order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "status-ready runtime evidence missing timestamps",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert "run_state_run_lock_recorded_at_missing" in payload["message"]
+    assert "run_state_rate_limit_window_started_at_missing" in payload["message"]
+    assert "run_state_rate_limit_window_expires_at_missing" in payload["message"]
+    assert "run_state_rate_limit_window_capacity_exceeded" in payload["message"]
     assert payload["live_exchange_submitted"] is False
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_execution"] == "not_run"
