@@ -5390,6 +5390,54 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         for item in run_state.product_states
         if item.recovery_state == "ready_no_live"
     ]
+    product_state_ids = [item.product_id for item in run_state.product_states]
+    live_ready_product_state_ids = [
+        item.product_id
+        for item in run_state.product_states
+        if item.live_readiness_status == "ready_no_live"
+    ]
+    live_readiness_missing_product_state_ids = [
+        item.product_id
+        for item in run_state.product_states
+        if item.live_readiness_status == "missing"
+    ]
+    live_readiness_blocked_product_state_ids = [
+        item.product_id
+        for item in run_state.product_states
+        if item.live_readiness_status in {"missing", "blocked"}
+    ]
+    live_readiness_blockers = _dedupe(
+        [
+            blocker
+            for item in run_state.product_states
+            for blocker in item.blockers
+            if blocker.startswith("live_readiness_")
+        ]
+    )
+    if _normalized_usdc_pair_product_id_multiset(run_state.product_ids) != (
+        _normalized_usdc_pair_product_id_multiset(product_state_ids)
+    ):
+        blockers.append("run_state_product_ids_mismatch")
+    if _normalized_usdc_pair_product_id_multiset(run_state.live_ready_product_ids) != (
+        _normalized_usdc_pair_product_id_multiset(live_ready_product_state_ids)
+    ):
+        blockers.append("run_state_live_ready_product_ids_mismatch")
+    if _normalized_usdc_pair_product_id_multiset(
+        run_state.live_readiness_missing_product_ids
+    ) != _normalized_usdc_pair_product_id_multiset(
+        live_readiness_missing_product_state_ids
+    ):
+        blockers.append("run_state_live_readiness_missing_product_ids_mismatch")
+    if _normalized_usdc_pair_product_id_multiset(
+        run_state.live_readiness_blocked_product_ids
+    ) != _normalized_usdc_pair_product_id_multiset(
+        live_readiness_blocked_product_state_ids
+    ):
+        blockers.append("run_state_live_readiness_blocked_product_ids_mismatch")
+    if run_state.live_readiness_blockers != live_readiness_blockers:
+        blockers.append("run_state_live_readiness_blockers_mismatch")
+    if run_state.live_readiness_blockers:
+        blockers.append("run_state_live_readiness_blockers_present")
     if _normalized_usdc_pair_product_id_multiset(run_state.queued_product_ids) != (
         _normalized_usdc_pair_product_id_multiset(queued_product_state_ids)
     ):
