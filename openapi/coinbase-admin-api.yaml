@@ -170143,6 +170143,16 @@ components:
           minimum: 1.0
           title: Rate Limit Window Seconds
           default: 1
+        rate_limit_window_started_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rate Limit Window Started At
+        rate_limit_window_expires_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rate Limit Window Expires At
         rate_limit_attempted_order_count:
           type: integer
           minimum: 0.0

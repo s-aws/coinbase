@@ -34906,6 +34906,17 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
     assert run_state["rate_limit_status"] == "ready_no_live"
     assert run_state["rate_limit_max_orders_per_window"] == 5
     assert run_state["rate_limit_window_seconds"] == 1
+    rate_limit_window_started_at = datetime.fromisoformat(
+        run_state["rate_limit_window_started_at"]
+    )
+    rate_limit_window_expires_at = datetime.fromisoformat(
+        run_state["rate_limit_window_expires_at"]
+    )
+    assert rate_limit_window_started_at.tzinfo is not None
+    assert rate_limit_window_expires_at.tzinfo is not None
+    assert rate_limit_window_expires_at - rate_limit_window_started_at == (
+        timedelta(seconds=1)
+    )
     assert run_state["rate_limit_attempted_order_count"] == 1
     assert run_state["rate_limit_window_within_cap"] is True
     assert run_state["retry_budget_status"] == "ready_no_live"
@@ -38445,6 +38456,17 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_rate_limit_wind
     assert run_state["rate_limit_status"] == "blocked"
     assert run_state["rate_limit_max_orders_per_window"] == 5
     assert run_state["rate_limit_window_seconds"] == 1
+    rate_limit_window_started_at = datetime.fromisoformat(
+        run_state["rate_limit_window_started_at"]
+    )
+    rate_limit_window_expires_at = datetime.fromisoformat(
+        run_state["rate_limit_window_expires_at"]
+    )
+    assert rate_limit_window_started_at.tzinfo is not None
+    assert rate_limit_window_expires_at.tzinfo is not None
+    assert rate_limit_window_expires_at - rate_limit_window_started_at == (
+        timedelta(seconds=1)
+    )
     assert run_state["rate_limit_attempted_order_count"] == len(products)
     assert run_state["rate_limit_window_within_cap"] is False
     assert run_state["run_state_status"] == "blocked"
