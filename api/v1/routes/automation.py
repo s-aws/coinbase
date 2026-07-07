@@ -771,6 +771,9 @@ def _allowlist_run_state_item_from_record(
         retry_budget_status=record.retry_budget_status,
         retry_backoff_status=record.retry_backoff_status,
         retry_backoff_ref=record.retry_backoff_ref,
+        retry_backoff_conflict_run_state_id=(
+            record.retry_backoff_conflict_run_state_id
+        ),
         cancel_recovery_plan_ref=record.cancel_recovery_plan_ref,
         recovery_status=record.recovery_status,
         partial_success_status=record.partial_success_status,
@@ -3276,7 +3279,7 @@ def _apply_allowlist_run_state_retry_budget(
     return updated, _dedupe(blockers)
 
 
-def _allowlist_run_state_retry_backoff_conflict_blocker(
+def _allowlist_run_state_retry_backoff_conflict_run_state_id(
     *,
     run_state_store: FileUsdcPairSnapshotAllowlistRunStateStore,
     retry_backoff_ref: str | None,
@@ -3287,7 +3290,7 @@ def _allowlist_run_state_retry_backoff_conflict_blocker(
     requested_run_state_id = str(run_state_id or "")
     return next(
         (
-            USDC_PAIR_SNAPSHOT_RETRY_BACKOFF_CONFLICT_BLOCKER
+            record.run_state_id
             for record in run_state_store.read_recent(limit=500)
             if record.retry_backoff_ref == retry_backoff_ref
             and record.run_state_id != requested_run_state_id
@@ -4433,12 +4436,17 @@ def _record_usdc_pair_allowlist_run_state(
         if rate_limit_window_conflict_run_state_id
         else None
     )
-    retry_backoff_conflict_blocker = (
-        _allowlist_run_state_retry_backoff_conflict_blocker(
+    retry_backoff_conflict_run_state_id = (
+        _allowlist_run_state_retry_backoff_conflict_run_state_id(
             run_state_store=run_state_store,
             retry_backoff_ref=body.retry_backoff_ref,
             run_state_id=body.run_state_id,
         )
+    )
+    retry_backoff_conflict_blocker = (
+        USDC_PAIR_SNAPSHOT_RETRY_BACKOFF_CONFLICT_BLOCKER
+        if retry_backoff_conflict_run_state_id
+        else None
     )
     product_states, runtime_control_blockers = (
         _apply_allowlist_run_state_runtime_controls(
@@ -4678,6 +4686,7 @@ def _record_usdc_pair_allowlist_run_state(
         retry_budget_status=runtime_statuses["retry_budget_status"],
         retry_backoff_status=runtime_statuses["retry_backoff_status"],
         retry_backoff_ref=body.retry_backoff_ref,
+        retry_backoff_conflict_run_state_id=retry_backoff_conflict_run_state_id,
         cancel_recovery_plan_ref=readiness.cancel_recovery_plan_ref,
         recovery_status=runtime_statuses["recovery_status"],
         partial_success_status=runtime_statuses["partial_success_status"],

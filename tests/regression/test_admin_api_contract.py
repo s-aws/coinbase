@@ -38886,6 +38886,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_retry_backoff_r
     assert ready_run_state["queued_product_ids"] == ["BTC-USDC"]
     assert ready_run_state["retry_backoff_status"] == "ready_no_live"
     assert ready_run_state["retry_backoff_ref"] == shared_retry_backoff_ref
+    assert ready_run_state["retry_backoff_conflict_run_state_id"] is None
     assert ready_run_state["product_states"][0]["retry_backoff_status"] == (
         "ready_no_live"
     )
@@ -38929,6 +38930,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_retry_backoff_r
     assert run_state["retry_budget_status"] == "blocked"
     assert run_state["retry_backoff_status"] == "blocked"
     assert run_state["retry_backoff_ref"] == shared_retry_backoff_ref
+    assert run_state["retry_backoff_conflict_run_state_id"] == (
+        "m58-usdc-allowlist-run-state-retry-backoff-ready"
+    )
     assert run_state["queued_product_ids"] == []
     assert run_state["blocked_product_ids"] == ["BTC-USDC"]
     assert run_state["wallet_allocated_notional_usdc"] == "0.00"

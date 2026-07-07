@@ -170138,6 +170138,11 @@ components:
           - type: string
           - type: 'null'
           title: Retry Backoff Ref
+        retry_backoff_conflict_run_state_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Retry Backoff Conflict Run State Id
         cancel_recovery_plan_ref:
           anyOf:
           - type: string

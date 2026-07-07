@@ -68,8 +68,9 @@ Available building blocks:
   `retry_budget_exhausted`, `retry_backoff_ref_missing`, or
   `retry_backoff_ref_conflict`. Run-state evidence now records
   `run_lock_conflict_run_state_id` and
-  `rate_limit_window_conflict_run_state_id` when runtime refs conflict, the
-  configured `rate_limit_max_orders_per_window`, the
+  `rate_limit_window_conflict_run_state_id` when runtime refs conflict,
+  `retry_backoff_conflict_run_state_id` when retry-backoff evidence conflicts,
+  the configured `rate_limit_max_orders_per_window`, the
   `rate_limit_attempted_order_count` before runtime blocking, and
   `rate_limit_window_within_cap` as capacity proof. Product run-state rows now
   also record `retry_budget_per_product` and `retry_prior_attempt_count` so
@@ -570,6 +571,7 @@ record `run_lock_ref_missing`, `run_lock_ref_conflict`,
 `retry_backoff_ref_missing`, or `retry_backoff_ref_conflict`. The stored
 run-state also exposes `run_lock_conflict_run_state_id`,
 `rate_limit_window_conflict_run_state_id`,
+`retry_backoff_conflict_run_state_id`,
 `rate_limit_max_orders_per_window`,
 `rate_limit_attempted_order_count`, and `rate_limit_window_within_cap` before
 any future scheduler or fan-out path can rely on the rate-limit window.
