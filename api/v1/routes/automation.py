@@ -6586,6 +6586,13 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_queued_order_plan(
             item.cap_guard_decision_id or ""
         ).strip():
             blockers.append("run_state_product_order_plan_cap_guard_ref_mismatch")
+        expected_live_service_decision_id = (
+            _expected_usdc_pair_live_service_decision_id(row)
+        )
+        if str(row.live_service_decision_id or "").strip() != str(
+            expected_live_service_decision_id or ""
+        ).strip():
+            blockers.append("run_state_product_order_plan_live_service_ref_mismatch")
 
     if blockers:
         raise UsdcPairSnapshotError(

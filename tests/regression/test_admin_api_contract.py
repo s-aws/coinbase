@@ -44118,6 +44118,10 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
             "cap_guard_ref_mismatch",
             "run_state_product_order_plan_cap_guard_ref_mismatch",
         ),
+        (
+            "live_service_ref_mismatch",
+            "run_state_product_order_plan_live_service_ref_mismatch",
+        ),
     ],
 )
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hidden_queued_order_plan_row_gaps(
@@ -44322,7 +44326,11 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
             }
         )
     )
-    if hidden_order_plan_shape in {"ambiguous", "cap_guard_ref_mismatch"}:
+    if hidden_order_plan_shape in {
+        "ambiguous",
+        "cap_guard_ref_mismatch",
+        "live_service_ref_mismatch",
+    }:
         order_plan_store = client.admin_api_test_usdc_pair_snapshot_order_plan_store
         source_plan = order_plan_store.find_by_plan_id(ready["plan_id"])
         assert source_plan is not None
@@ -44331,6 +44339,11 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
             "cap-stale-m58-usdc-allowlist-live-submit-hidden-order-plan-eth"
             if hidden_order_plan_shape == "cap_guard_ref_mismatch"
             else extra_cap_guard_decision_id
+        )
+        hidden_order_plan_live_service_decision_id = (
+            "m58-usdc-live-service-stale-hidden-order-plan-eth"
+            if hidden_order_plan_shape == "live_service_ref_mismatch"
+            else extra_live_service_decision_id
         )
         hidden_order_plan_row = source_order_plan_row.model_copy(
             update={
@@ -44353,7 +44366,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
                 "reconciliation_plan_id": (
                     "recon-m58-usdc-allowlist-live-submit-hidden-order-plan-eth"
                 ),
-                "live_service_decision_id": extra_live_service_decision_id,
+                "live_service_decision_id": hidden_order_plan_live_service_decision_id,
             }
         )
         hidden_order_plan_rows = [source_order_plan_row, hidden_order_plan_row]

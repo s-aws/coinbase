@@ -719,7 +719,7 @@ allocation readiness, ready queued product-row runtime/allocation/wallet
 reservation states, queued product-row wallet lifecycle refs, queued
 product-row candidate/cap-guard record refs/live-readiness record, source,
 content/notional/live-service refs, matching queued order-plan rows with
-matching planned notional and cap-guard refs, and no
+matching planned notional plus cap-guard and live-service refs, and no
 queued product-row blockers, plus a non-empty selected-product recovery ref
 bound to that product and not reused by another queued run-state, and
 membership in the parent
