@@ -5273,6 +5273,14 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
             blockers.append("run_state_product_recovery_ref_conflict")
         if product_row.retry_attempts_available < 1:
             blockers.append("run_state_product_retry_attempts_missing")
+        if product_row.retry_budget_per_product < 1:
+            blockers.append("run_state_product_retry_budget_missing")
+        if (
+            product_row.retry_prior_attempt_count
+            + product_row.retry_attempts_available
+            > product_row.retry_budget_per_product
+        ):
+            blockers.append("run_state_product_retry_budget_count_mismatch")
         if product_row.fanout_cap_allocation_status != "allocated_no_live":
             blockers.append("run_state_product_fanout_cap_not_allocated")
         if product_row.wallet_allocation_status != "allocated_no_live":

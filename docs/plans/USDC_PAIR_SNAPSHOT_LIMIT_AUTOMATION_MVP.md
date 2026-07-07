@@ -143,7 +143,8 @@ Available building blocks:
   re-enforces the standing 100 USDC fan-out cap and overage readback, and
   rejects retry-backoff status marked ready without a durable retry-backoff ref
   or recovery status marked ready without the parent cancel/recovery plan ref
-  before invoking the executor. This does not authorize live fan-out or
+  before invoking the executor. Product retry attempts must also fit within the
+  recorded per-product retry budget. This does not authorize live fan-out or
   scheduler behavior.
 - `tools/run_admin_api_usdc_pair_snapshot_live_submit.py` can use
   `--submit-from-run-state` to record the one-product allowlist-readiness and
