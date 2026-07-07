@@ -5173,6 +5173,10 @@ def _normalized_usdc_pair_product_id_multiset(product_ids: list[str]) -> list[st
     )
 
 
+def _normalized_usdc_pair_string_multiset(values: list[str]) -> list[str]:
+    return sorted(str(value).strip() for value in values if str(value).strip())
+
+
 def _sum_usdc_pair_decimal_values(values: list[str]) -> Decimal | None:
     total = Decimal("0")
     for value in values:
@@ -5406,6 +5410,21 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         for item in run_state.product_states
         if item.live_readiness_status in {"missing", "blocked"}
     ]
+    live_wallet_reservation_state_ids = [
+        str(item.live_wallet_reservation_id or "")
+        for item in run_state.product_states
+        if item.live_wallet_reservation_id
+    ]
+    live_wallet_debit_state_ids = [
+        str(item.live_wallet_debit_id or "")
+        for item in run_state.product_states
+        if item.live_wallet_debit_id
+    ]
+    live_wallet_release_state_ids = [
+        str(item.live_wallet_release_id or "")
+        for item in run_state.product_states
+        if item.live_wallet_release_id
+    ]
     live_readiness_blockers = _dedupe(
         [
             blocker
@@ -5434,6 +5453,18 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         live_readiness_blocked_product_state_ids
     ):
         blockers.append("run_state_live_readiness_blocked_product_ids_mismatch")
+    if _normalized_usdc_pair_string_multiset(
+        run_state.live_wallet_reservation_ids
+    ) != _normalized_usdc_pair_string_multiset(live_wallet_reservation_state_ids):
+        blockers.append("run_state_live_wallet_reservation_ids_mismatch")
+    if _normalized_usdc_pair_string_multiset(
+        run_state.live_wallet_debit_ids
+    ) != _normalized_usdc_pair_string_multiset(live_wallet_debit_state_ids):
+        blockers.append("run_state_live_wallet_debit_ids_mismatch")
+    if _normalized_usdc_pair_string_multiset(
+        run_state.live_wallet_release_ids
+    ) != _normalized_usdc_pair_string_multiset(live_wallet_release_state_ids):
+        blockers.append("run_state_live_wallet_release_ids_mismatch")
     if run_state.live_readiness_blockers != live_readiness_blockers:
         blockers.append("run_state_live_readiness_blockers_mismatch")
     if run_state.live_readiness_blockers:
