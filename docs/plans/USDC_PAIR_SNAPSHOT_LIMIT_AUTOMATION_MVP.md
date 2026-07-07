@@ -78,8 +78,13 @@ Available building blocks:
   `rate_limit_attempted_order_count` before runtime blocking, and
   `rate_limit_window_remaining_order_count`,
   `rate_limit_window_overage_order_count`, and `rate_limit_window_within_cap`
-  as 5-per-1-second window capacity proof. Product run-state rows now
-  also record `retry_budget_per_product` and `retry_prior_attempt_count` so
+  as 5-per-1-second window capacity proof. Run-state evidence now also records
+  `scheduler_execution_status`, `scheduler_execution_blockers`, and
+  `scheduler_unattended_execution` as explicit backend
+  no-scheduler/no-unattended-execution readback, and live-submit rejects stale
+  or contradictory scheduler readback before executor invocation. Product
+  run-state rows now also record `retry_budget_per_product` and
+  `retry_prior_attempt_count` so
   retry-budget exhaustion is auditable without inferring from remaining
   attempts alone. Aggregate run-state evidence records the consumed
   `cancel_recovery_plan_ref` from allowlist-readiness. Allowlist-readiness
@@ -619,6 +624,9 @@ run-state also exposes `run_lock_recorded_at`, `run_lock_conflict_run_state_id`,
 `rate_limit_attempted_order_count`, `rate_limit_window_remaining_order_count`,
 `rate_limit_window_overage_order_count`, and `rate_limit_window_within_cap`
 before any future scheduler or fan-out path can rely on the rate-limit window.
+It also exposes `scheduler_execution_status`, `scheduler_execution_blockers`,
+and `scheduler_unattended_execution` before any future scheduler or fan-out path
+can rely on no-scheduler/no-unattended-execution evidence.
 Product run-state rows also expose `retry_budget_per_product` and
 `retry_prior_attempt_count` before retry budget/backoff blockers clear
 remaining attempts. Aggregate run-state evidence also exposes the

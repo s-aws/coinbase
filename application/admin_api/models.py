@@ -3192,6 +3192,11 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
     recovery_ref_conflict_run_state_id: str | None = None
     recovery_status: str = Field(min_length=1)
     partial_success_status: str = Field(min_length=1)
+    scheduler_execution_status: str = Field(default="blocked_no_live", min_length=1)
+    scheduler_execution_blockers: list[str] = Field(
+        default_factory=lambda: ["scheduler_blocked"]
+    )
+    scheduler_unattended_execution: str = Field(default="not_run", min_length=1)
     fanout_execution_status: str = Field(min_length=1)
     run_state_status: str = Field(min_length=1)
     fanout_blockers: list[str] = Field(default_factory=list)

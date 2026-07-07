@@ -240,9 +240,12 @@ USDC_PAIR_SNAPSHOT_CANCEL_RECOVERY_REF_CONFLICT_BLOCKER = (
 )
 USDC_PAIR_SNAPSHOT_RUN_PAUSED_BLOCKER = "run_paused_no_live"
 USDC_PAIR_SNAPSHOT_RUN_ABORTED_BLOCKER = "run_aborted_no_live"
+USDC_PAIR_SNAPSHOT_SCHEDULER_BLOCKED_BLOCKER = "scheduler_blocked"
+USDC_PAIR_SNAPSHOT_SCHEDULER_EXECUTION_BLOCKED_STATUS = "blocked_no_live"
+USDC_PAIR_SNAPSHOT_SCHEDULER_UNATTENDED_NOT_RUN = "not_run"
 USDC_PAIR_SNAPSHOT_RUN_STATE_LIVE_SUBMIT_ALLOWED_FANOUT_BLOCKERS = {
     "fanout_execution_not_approved",
-    "scheduler_blocked",
+    USDC_PAIR_SNAPSHOT_SCHEDULER_BLOCKED_BLOCKER,
 }
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_ACCOUNT_FAMILY = "coinbase_spot"
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_VENUE_SCOPE = "coinbase_advanced_trade"
@@ -800,6 +803,9 @@ def _allowlist_run_state_item_from_record(
         ),
         recovery_status=record.recovery_status,
         partial_success_status=record.partial_success_status,
+        scheduler_execution_status=record.scheduler_execution_status,
+        scheduler_execution_blockers=record.scheduler_execution_blockers,
+        scheduler_unattended_execution=record.scheduler_unattended_execution,
         fanout_execution_status=record.fanout_execution_status,
         run_state_status=record.run_state_status,
         fanout_blockers=record.fanout_blockers,
@@ -2899,7 +2905,7 @@ def _record_usdc_pair_allowlist_readiness(
         fanout_blockers.append("allowlist_product_count_exceeds_max")
     fanout_blockers.extend([
         "fanout_execution_not_approved",
-        "scheduler_blocked",
+        USDC_PAIR_SNAPSHOT_SCHEDULER_BLOCKED_BLOCKER,
     ])
     if cancel_recovery_ref_conflict_readiness_ids:
         fanout_blockers.append("cancel_recovery_plan_ref_conflict")
@@ -3593,6 +3599,19 @@ def _apply_allowlist_run_state_cap_allocation(
 
 def _dedupe(values: list[str]) -> list[str]:
     return list(dict.fromkeys(value for value in values if value))
+
+
+def _allowlist_run_state_scheduler_execution_blockers(
+    fanout_blockers: list[str],
+) -> list[str]:
+    return _dedupe(
+        [
+            blocker
+            for blocker in fanout_blockers
+            if blocker == USDC_PAIR_SNAPSHOT_SCHEDULER_BLOCKED_BLOCKER
+            or blocker.startswith("scheduler_")
+        ]
+    )
 
 
 def _live_wallet_reservation_evidence(
@@ -4837,6 +4856,9 @@ def _record_usdc_pair_allowlist_run_state(
             else []
         )
     )
+    scheduler_execution_blockers = _allowlist_run_state_scheduler_execution_blockers(
+        fanout_blockers
+    )
     run_state_status = _allowlist_run_state_status(
         blocked_product_ids=blocked_product_ids,
         fanout_notional_status=fanout_notional_status,
@@ -4961,6 +4983,13 @@ def _record_usdc_pair_allowlist_run_state(
         recovery_ref_conflict_run_state_id=recovery_ref_conflict_run_state_id,
         recovery_status=runtime_statuses["recovery_status"],
         partial_success_status=runtime_statuses["partial_success_status"],
+        scheduler_execution_status=(
+            USDC_PAIR_SNAPSHOT_SCHEDULER_EXECUTION_BLOCKED_STATUS
+        ),
+        scheduler_execution_blockers=scheduler_execution_blockers,
+        scheduler_unattended_execution=(
+            USDC_PAIR_SNAPSHOT_SCHEDULER_UNATTENDED_NOT_RUN
+        ),
         fanout_execution_status="blocked",
         run_state_status=run_state_status,
         fanout_blockers=fanout_blockers,
@@ -5466,6 +5495,26 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
     ]
     if unexpected_fanout_blockers:
         blockers.append("run_state_parent_fanout_blockers_present")
+    expected_scheduler_execution_blockers = (
+        _allowlist_run_state_scheduler_execution_blockers(run_state.fanout_blockers)
+    )
+    if (
+        run_state.scheduler_execution_status
+        != USDC_PAIR_SNAPSHOT_SCHEDULER_EXECUTION_BLOCKED_STATUS
+    ):
+        blockers.append("run_state_scheduler_execution_not_blocked")
+    if run_state.scheduler_execution_blockers != expected_scheduler_execution_blockers:
+        blockers.append("run_state_scheduler_execution_blockers_mismatch")
+    if (
+        USDC_PAIR_SNAPSHOT_SCHEDULER_BLOCKED_BLOCKER
+        not in run_state.scheduler_execution_blockers
+    ):
+        blockers.append("run_state_scheduler_blocker_missing")
+    if (
+        run_state.scheduler_unattended_execution
+        != USDC_PAIR_SNAPSHOT_SCHEDULER_UNATTENDED_NOT_RUN
+    ):
+        blockers.append("run_state_scheduler_unattended_execution_ran")
     if run_state.run_lock_status != "recorded_no_live":
         blockers.append("run_state_run_lock_not_recorded")
     if not run_state.run_lock_ref:
