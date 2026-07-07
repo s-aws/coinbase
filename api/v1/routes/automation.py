@@ -4711,6 +4711,10 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
             or normalized_body_product_id not in queued_product_ids
         ):
             blockers.append("run_state_product_not_queued")
+        if product_row.readiness_status != "candidate":
+            blockers.append("run_state_product_readiness_not_candidate")
+        if not product_row.cap_guard_decision_id:
+            blockers.append("run_state_product_cap_guard_ref_missing")
         if normalized_body_product_id not in retryable_product_ids:
             blockers.append("run_state_product_not_retryable")
         if normalized_body_product_id not in recovery_required_product_ids:

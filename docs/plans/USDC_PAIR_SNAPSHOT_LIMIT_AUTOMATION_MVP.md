@@ -94,11 +94,12 @@ Available building blocks:
   notional/partial-success statuses, selected-product rate/cap/wallet
   allocation readiness, no selected-product blockers, plus recorded parent
   run-lock, runtime rate-limit, retry-budget/backoff, recovery evidence, and
-  selected-product membership in the parent retryable/recovery-required sets
-  before it can reuse the existing single-order submit/cancel path. Only
-  `fanout_execution_not_approved` and `scheduler_blocked` may remain as parent
-  fanout blockers for this handoff; any other parent fanout blocker rejects the
-  handoff. This does not authorize live fan-out or scheduler behavior.
+  selected-product candidate readiness, cap-guard ref, and membership in the
+  parent retryable/recovery-required sets before it can reuse the existing
+  single-order submit/cancel path. Only `fanout_execution_not_approved` and
+  `scheduler_blocked` may remain as parent fanout blockers for this handoff;
+  any other parent fanout blocker rejects the handoff. This does not authorize
+  live fan-out or scheduler behavior.
 - `tools/run_admin_api_usdc_pair_snapshot_live_submit.py` can use
   `--submit-from-run-state` to record the one-product allowlist-readiness and
   run-state evidence, then call the backend run-state handoff route. It remains
@@ -566,9 +567,9 @@ has matching `ready_no_live` live-readiness evidence by `client_order_id` and
 the parent run-state has ready aggregate status, recorded run-lock evidence, is
 not paused/aborted, and has ready runtime rate-limit, retry-budget/backoff,
 recovery evidence, selected-product rate/cap/wallet allocation readiness, and
-no selected-product blockers, plus selected-product membership in the parent
-retryable/recovery-required sets; this remains a single-order controlled-live
-path, not fan-out automation.
+no selected-product blockers, plus selected-product candidate readiness,
+cap-guard ref, and membership in the parent retryable/recovery-required sets;
+this remains a single-order controlled-live path, not fan-out automation.
 The backend live-submit runner can exercise this same handoff with
 `--submit-from-run-state`, recording the selected product's run-state id and
 queued live-readiness association in the local artifact before stopping after
@@ -780,8 +781,9 @@ executor call, rejects blocked aggregate parent run-state/cap/wallet/
 live-readiness/notional/partial-success statuses, rejects stale selected-product
 rate/cap/wallet allocation evidence, rejects non-empty selected-product
 blockers, rejects unexpected parent fanout blockers other than
-`fanout_execution_not_approved` and `scheduler_blocked`, and rejects stale
-parent retryable/recovery-required product sets that omit the selected product.
+`fanout_execution_not_approved` and `scheduler_blocked`, rejects stale
+selected-product candidate/cap-guard refs, and rejects stale parent
+retryable/recovery-required product sets that omit the selected product.
 Blocked product rows are no longer reported as retryable or recovery-required.
 Aggregate run-state status fields now fail closed when final product state has
 no queued products.
