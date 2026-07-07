@@ -957,8 +957,8 @@ Final-blocked product rows also clear stale cancel-recovery refs when recovery
 is not required.
 Subagent phase sweep on 2026-07-07 was closed after findings were consumed.
 Remaining live fan-out/scheduler blockers include submit-time revalidation for
-current run-lock/rate-window conflicts, current retry budget/backoff drift, and
-current enabled live-service decision evidence before executor invocation.
+current retry budget/backoff drift and current enabled live-service decision
+evidence before executor invocation.
 A blind contextless review on 2026-07-06 passed the M58 no-live Phase F
 authority-boundary questions and confirmed the change set is a domain module
 under Automation / Campaign / Scheduler, not a reusable admin platform

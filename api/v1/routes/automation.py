@@ -5405,6 +5405,12 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_run_lock_ref_missing")
     if run_state.run_lock_conflict_run_state_id:
         blockers.append("run_state_run_lock_ref_conflict")
+    elif _allowlist_run_state_run_lock_conflict_run_state_id(
+        run_state_store=run_state_store,
+        run_lock_ref=run_state.run_lock_ref,
+        run_state_id=run_state.run_state_id,
+    ):
+        blockers.append("run_state_run_lock_ref_conflict")
     run_lock_recorded_at = _parse_reference_timestamp(
         run_state.run_lock_recorded_at
     )
@@ -5421,6 +5427,12 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
     if not run_state.rate_limit_window_ref:
         blockers.append("run_state_rate_limit_window_ref_missing")
     if run_state.rate_limit_window_conflict_run_state_id:
+        blockers.append("run_state_rate_limit_window_ref_conflict")
+    elif _allowlist_run_state_rate_limit_window_conflict_run_state_id(
+        run_state_store=run_state_store,
+        rate_limit_window_ref=run_state.rate_limit_window_ref,
+        run_state_id=run_state.run_state_id,
+    ):
         blockers.append("run_state_rate_limit_window_ref_conflict")
     queued_product_state_ids = [
         item.product_id

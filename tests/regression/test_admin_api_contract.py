@@ -40014,7 +40014,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidate
     )
     source_run_state = run_state_store.find_by_run_state_id(ready["run_state_id"])
     assert source_run_state is not None
-    refreshed_window_started_at = datetime.now(timezone.utc).replace(microsecond=0)
+    refreshed_window_started_at = datetime.now(timezone.utc).replace(
+        microsecond=0
+    ) + timedelta(seconds=30)
     run_state_store.append(
         source_run_state.model_copy(
             update={
@@ -43008,6 +43010,110 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_ru
                 "cancel that client_order_id before any additional order",
             ],
             "operator_notes": "runtime conflict source ids still present",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert "run_state_run_lock_ref_conflict" in payload["message"]
+    assert "run_state_rate_limit_window_ref_conflict" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidates_runtime_ref_conflicts(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-current-runtime-conflict",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-submit-current-runtime-conflict-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(ready["run_state_id"])
+    assert source_run_state is not None
+    refreshed_window_started_at = datetime.now(timezone.utc).replace(
+        microsecond=0
+    ) + timedelta(seconds=30)
+    refreshed_run_state = source_run_state.model_copy(
+        update={
+            "run_lock_recorded_at": refreshed_window_started_at.isoformat(),
+            "rate_limit_window_started_at": refreshed_window_started_at.isoformat(),
+            "rate_limit_window_expires_at": (
+                refreshed_window_started_at + timedelta(seconds=1)
+            ).isoformat(),
+        }
+    )
+    run_state_store.append(refreshed_run_state)
+    conflict_product_states = [
+        item.model_copy(
+            update={
+                "recovery_state": "not_required",
+                "recovery_state_ref": None,
+            }
+        )
+        for item in refreshed_run_state.product_states
+    ]
+    run_state_store.append(
+        refreshed_run_state.model_copy(
+            update={
+                "run_state_id": (
+                    "m58-usdc-allowlist-live-submit-current-runtime-conflict-source"
+                ),
+                "idempotency_key": (
+                    "idem-m58-usdc-allowlist-live-submit-current-runtime-conflict-source"
+                ),
+                "audit_id": (
+                    "audit-m58-usdc-allowlist-live-submit-current-runtime-conflict-source"
+                ),
+                "product_states": conflict_product_states,
+            }
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-current-runtime-conflict"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json={
+            "submission_id": (
+                "m58-usdc-allowlist-live-submit-current-runtime-conflict"
+            ),
+            "readiness_id": ready["live_readiness_id"],
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one run-state selected order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "current runtime ref conflicts in store",
         },
     )
 
