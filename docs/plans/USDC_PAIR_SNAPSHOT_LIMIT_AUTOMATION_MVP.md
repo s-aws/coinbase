@@ -138,10 +138,10 @@ Available building blocks:
   any other parent fanout blocker rejects the handoff. Live-submit also
   recomputes parent product-scope, live-readiness, queued, blocked, retryable,
   and recovery-required product sets and counts from product-row state, plus
-  aggregate fan-out, wallet-allocation, and live-wallet notional totals. It also
-  re-enforces the standing 100 USDC fan-out cap and overage readback before
-  invoking the executor. This does not authorize live fan-out or scheduler
-  behavior.
+  aggregate fan-out, wallet-available/allocation, wallet blocker, and
+  live-wallet notional totals. It also re-enforces the standing 100 USDC
+  fan-out cap and overage readback before invoking the executor. This does not
+  authorize live fan-out or scheduler behavior.
 - `tools/run_admin_api_usdc_pair_snapshot_live_submit.py` can use
   `--submit-from-run-state` to record the one-product allowlist-readiness and
   run-state evidence, then call the backend run-state handoff route. It remains
