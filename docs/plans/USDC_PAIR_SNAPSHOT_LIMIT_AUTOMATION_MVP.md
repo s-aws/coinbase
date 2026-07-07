@@ -176,9 +176,10 @@ Missing before live automation:
   run-state contract now records `live_wallet_reservation_status` and
   `live_wallet_reservation_blockers` so this missing live-wallet layer is
   durable evidence, not a chat-only caveat. Phase F run-state now blocks rows
-  with `live_wallet_active_reservation_overcommit` when unreleased no-live
-  reservation evidence plus the current reservation would exceed the recorded
-  wallet proof. Phase F run-state now requires matching Phase E live-readiness
+  with `live_wallet_active_reservation_overcommit` and records
+  `live_wallet_active_reservation_overcommit_run_state_ids` when unreleased
+  no-live reservation evidence plus the current reservation would exceed the
+  recorded wallet proof. Phase F run-state now requires matching Phase E live-readiness
   evidence before a product can be queued in no-live rehearsal, and the
   single-product Phase E live-readiness route fails closed when the latest
   backend cap/guard proof does not cover the submitted notional or required
@@ -625,7 +626,8 @@ Run-state live-submit revalidates these wallet lifecycle refs against the
 stored queued product rows so the selected product cannot hand off through
 duplicated reservation/debit/release refs in stale run-state evidence.
 Unreleased active no-live reservations that would overcommit the current wallet
-proof fail closed with `live_wallet_active_reservation_overcommit`. These
+proof fail closed with `live_wallet_active_reservation_overcommit` and record
+`live_wallet_active_reservation_overcommit_run_state_ids`. These
 reference conflicts and active-overcommit blockers remove affected rows from
 queued product ids and zero their wallet allocation. This evidence remains
 `fanout_readiness_status=blocked`, `fanout_execution_status=blocked`,
@@ -879,8 +881,9 @@ Historical debit/release ref conflicts record
 `live_wallet_debit_ref_conflict_run_state_id` and
 `live_wallet_release_ref_conflict_run_state_id`.
 Unreleased active no-live reservations that would overcommit the wallet proof
-fail closed
-with `live_wallet_active_reservation_overcommit`, remove the affected row from
+fail closed with `live_wallet_active_reservation_overcommit`, record
+`live_wallet_active_reservation_overcommit_run_state_ids`, remove the affected
+row from
 queued product ids, and zero wallet allocation.
 The run-state live-submit handoff also rejects missing, blocked, or stale latest
 parent/product live-wallet reservation/debit/release evidence, blocked parent

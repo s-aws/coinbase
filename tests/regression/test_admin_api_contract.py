@@ -36233,6 +36233,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_active_wallet_r
     assert product_row["live_wallet_reservation_blockers"] == [
         "live_wallet_active_reservation_overcommit"
     ]
+    assert product_row["live_wallet_active_reservation_overcommit_run_state_ids"] == [
+        "m58-usdc-run-state-wallet-active-overcommit-source"
+    ]
     assert product_row["blockers"] == ["live_wallet_active_reservation_overcommit"]
     assert product_row["live_coinbase_execution"] == "not_run"
     assert payload["live_coinbase_execution"] == "not_run"

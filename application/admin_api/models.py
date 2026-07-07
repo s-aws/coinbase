@@ -3074,6 +3074,9 @@ class UsdcPairSnapshotAllowlistRunStateProductItem(BaseModel):
     live_wallet_reservation_ref_conflict_run_state_id: str | None = None
     live_wallet_debit_ref_conflict_run_state_id: str | None = None
     live_wallet_release_ref_conflict_run_state_id: str | None = None
+    live_wallet_active_reservation_overcommit_run_state_ids: list[str] = Field(
+        default_factory=list
+    )
     live_readiness_status: str = Field(
         default="not_evaluated",
         min_length=1,
