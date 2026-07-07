@@ -170027,6 +170027,16 @@ components:
           default: '0'
           examples:
           - '1.00'
+        live_wallet_ledger_status:
+          type: string
+          minLength: 1
+          title: Live Wallet Ledger Status
+          default: blocked_no_live
+        live_wallet_ledger_blockers:
+          items:
+            type: string
+          type: array
+          title: Live Wallet Ledger Blockers
         live_readiness_status:
           type: string
           minLength: 1

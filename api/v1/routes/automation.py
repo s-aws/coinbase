@@ -219,6 +219,12 @@ USDC_PAIR_SNAPSHOT_LIVE_WALLET_RELEASE_REF_CONFLICT_BLOCKER = (
 USDC_PAIR_SNAPSHOT_LIVE_WALLET_ACTIVE_RESERVATION_OVERCOMMIT_BLOCKER = (
     "live_wallet_active_reservation_overcommit"
 )
+USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BLOCKED_STATUS = "blocked_no_live"
+USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BLOCKERS = [
+    "live_wallet_balance_evidence_missing",
+    "live_wallet_ledger_overcommit_prevention_missing",
+    "live_wallet_ledger_debit_release_missing",
+]
 USDC_PAIR_SNAPSHOT_RUN_LOCK_MISSING_BLOCKER = "run_lock_ref_missing"
 USDC_PAIR_SNAPSHOT_RUN_LOCK_CONFLICT_BLOCKER = "run_lock_ref_conflict"
 USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_MISSING_BLOCKER = (
@@ -745,6 +751,8 @@ def _allowlist_run_state_item_from_record(
         live_wallet_overcommit_attempted_notional_usdc=(
             record.live_wallet_overcommit_attempted_notional_usdc
         ),
+        live_wallet_ledger_status=record.live_wallet_ledger_status,
+        live_wallet_ledger_blockers=record.live_wallet_ledger_blockers,
         live_readiness_status=record.live_readiness_status,
         live_ready_product_ids=record.live_ready_product_ids,
         live_readiness_missing_product_ids=(
@@ -4929,6 +4937,12 @@ def _record_usdc_pair_allowlist_run_state(
         live_wallet_overcommit_attempted_notional_usdc=(
             wallet_allocation["live_wallet_overcommit_attempted_notional_usdc"]
         ),
+        live_wallet_ledger_status=(
+            USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BLOCKED_STATUS
+        ),
+        live_wallet_ledger_blockers=list(
+            USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BLOCKERS
+        ),
         live_readiness_status=live_readiness_status,
         live_ready_product_ids=live_ready_product_ids,
         live_readiness_missing_product_ids=live_readiness_missing_product_ids,
@@ -5904,6 +5918,16 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append(
             "run_state_live_wallet_active_reservation_overcommit_present"
         )
+    if (
+        run_state.live_wallet_ledger_status
+        != USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BLOCKED_STATUS
+    ):
+        blockers.append("run_state_live_wallet_ledger_not_blocked")
+    if (
+        run_state.live_wallet_ledger_blockers
+        != USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BLOCKERS
+    ):
+        blockers.append("run_state_live_wallet_ledger_blockers_mismatch")
 
     if blockers:
         raise UsdcPairSnapshotError(

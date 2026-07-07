@@ -247,6 +247,14 @@ class UsdcPairSnapshotAllowlistRunStateRecord(BaseModel):
     )
     live_wallet_active_reserved_notional_usdc: str = "0"
     live_wallet_overcommit_attempted_notional_usdc: str = "0"
+    live_wallet_ledger_status: str = Field(default="blocked_no_live", min_length=1)
+    live_wallet_ledger_blockers: list[str] = Field(
+        default_factory=lambda: [
+            "live_wallet_balance_evidence_missing",
+            "live_wallet_ledger_overcommit_prevention_missing",
+            "live_wallet_ledger_debit_release_missing",
+        ]
+    )
     live_readiness_status: str = Field(
         default="legacy_unverified",
         min_length=1,
