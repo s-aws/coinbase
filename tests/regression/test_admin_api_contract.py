@@ -34560,6 +34560,146 @@ def test_admin_api_usdc_pair_snapshot_allowlist_readiness_records_retry_recovery
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_readiness_blocks_reused_recovery_plan_ref(
+    monkeypatch,
+):
+    from application.admin_api.models import UsdcPairSnapshotOrderPlanRowItem
+    from application.admin_api.usdc_pair_snapshot import (
+        UsdcPairSnapshotOrderPlanRecord,
+    )
+
+    client = _client(monkeypatch)
+    client.admin_api_test_usdc_pair_snapshot_order_plan_store.append(
+        UsdcPairSnapshotOrderPlanRecord(
+            plan_id="m58-usdc-allowlist-recovery-plan-reuse-plan",
+            snapshot_run_id="m58-usdc-allowlist-recovery-plan-reuse-snapshot",
+            side=OrderSide.BUY.value,
+            max_notional_per_product_usdc="1.00",
+            max_total_notional_usdc="1.00",
+            planned_total_notional_usdc="1.00",
+            product_ids=["BTC-USDC"],
+            time_in_force=TimeInForce.GOOD_UNTIL_CANCELLED.value,
+            order_plan_rows=[
+                UsdcPairSnapshotOrderPlanRowItem(
+                    product_id="BTC-USDC",
+                    plan_status="planned",
+                    side=OrderSide.BUY,
+                    time_in_force=TimeInForce.GOOD_UNTIL_CANCELLED,
+                    client_order_id="m58-allowlist-recovery-plan-reuse-BTC-USDC",
+                    idempotency_key="idem-m58-recovery-plan-reuse:BTC-USDC",
+                    requested_notional_usdc="1.00",
+                    max_notional_per_product_usdc="1.00",
+                    snapshot_price="100.00",
+                    price_source="test_backend_price_feed",
+                    price_freshness_status="fresh",
+                    price_acceptance_status="accepted",
+                    limit_price="50.00",
+                    base_size="0.02000000",
+                    quote_size="1.00",
+                    planned_notional_usdc="1.00",
+                    run_cap_status="passed",
+                    run_cap_remaining_usdc="0.00",
+                    proof_chain_status="accepted",
+                    proof_chain_blockers=[],
+                    approval_snapshot_required=True,
+                    approval_snapshot_id="approval-m58-recovery-plan-reuse-btc",
+                    admission_audit_required=True,
+                    admission_audit_id="audit-m58-recovery-plan-reuse-btc",
+                    cap_guard_decision_required=True,
+                    cap_guard_decision_id="cap-m58-recovery-plan-reuse-btc",
+                    reconciliation_plan_required=True,
+                    reconciliation_plan_id="recon-m58-recovery-plan-reuse-btc",
+                    live_service_decision_required=True,
+                    live_service_decision_id="live-service-m58-recovery-plan-reuse-btc",
+                ),
+            ],
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_allowlist_recovery_plan_source",
+            idempotency_key="idem-m58-usdc-allowlist-recovery-plan-source",
+            payload_hash="7" * 64,
+        )
+    )
+
+    source_response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "m58-usdc-allowlist-recovery-plan-reuse-plan/allowlist-readiness"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-allowlist-recovery-plan-source",
+            operator_intent="m58_usdc_snapshot_allowlist_recovery_plan_source",
+        ),
+        json={
+            "readiness_id": "m58-usdc-allowlist-recovery-plan-source",
+            "product_ids": ["BTC-USDC"],
+            "max_products": 1,
+            "retry_budget_per_product": 2,
+            "run_rate_limit_budget_ref": "m58-rate-limit-budget-recovery-source",
+            "cancel_recovery_plan_ref": "m58-cancel-recovery-plan-shared",
+            "operator_notes": "source recovery plan evidence",
+        },
+    )
+    assert source_response.status_code == 200
+    source_readiness = source_response.json()["readiness"]
+    assert source_readiness["candidate_product_ids"] == ["BTC-USDC"]
+    assert source_readiness["recovery_required_product_ids"] == ["BTC-USDC"]
+    assert source_readiness["product_readiness_rows"][0][
+        "recovery_state_ref"
+    ] == "m58-cancel-recovery-plan-shared:BTC-USDC"
+
+    conflict_response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            "m58-usdc-allowlist-recovery-plan-reuse-plan/allowlist-readiness"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-allowlist-recovery-plan-conflict",
+            operator_intent="m58_usdc_snapshot_allowlist_recovery_plan_conflict",
+        ),
+        json={
+            "readiness_id": "m58-usdc-allowlist-recovery-plan-conflict",
+            "product_ids": ["BTC-USDC"],
+            "max_products": 1,
+            "retry_budget_per_product": 2,
+            "run_rate_limit_budget_ref": "m58-rate-limit-budget-recovery-conflict",
+            "cancel_recovery_plan_ref": "m58-cancel-recovery-plan-shared",
+            "operator_notes": "reused recovery plan evidence",
+        },
+    )
+
+    assert conflict_response.status_code == 200
+    payload = conflict_response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+
+    readiness = payload["readiness"]
+    assert readiness["candidate_product_ids"] == ["BTC-USDC"]
+    assert readiness["blocked_product_ids"] == ["BTC-USDC"]
+    assert readiness["retryable_product_ids"] == []
+    assert readiness["recovery_required_product_ids"] == []
+    assert readiness["run_rate_limit_status"] == "blocked"
+    assert readiness["retry_budget_status"] == "blocked"
+    assert readiness["recovery_readiness_status"] == "blocked"
+    assert readiness["partial_success_status"] == "blocked"
+    assert "cancel_recovery_plan_ref_conflict" in readiness["fanout_blockers"]
+    assert "product_evidence_blocked" in readiness["fanout_blockers"]
+
+    product_row = readiness["product_readiness_rows"][0]
+    assert product_row["readiness_status"] == "blocked"
+    assert product_row["retry_status"] == "blocked"
+    assert product_row["rate_limit_status"] == "blocked"
+    assert product_row["retry_budget_status"] == "blocked"
+    assert product_row["retry_attempts_available"] == 0
+    assert product_row["cancel_recovery_status"] == "not_required"
+    assert product_row["blockers"] == ["cancel_recovery_plan_ref_conflict"]
+    assert product_row["recovery_state_ref"] == "recon-m58-recovery-plan-reuse-btc"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehearsal(
     monkeypatch,
 ):

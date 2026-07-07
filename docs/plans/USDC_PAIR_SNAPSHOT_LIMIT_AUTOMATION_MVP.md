@@ -71,7 +71,9 @@ Available building blocks:
   a recovery ref bound to a different product, fail closed with
   `cancel_recovery_ref_missing` or `cancel_recovery_ref_product_mismatch`
   before cap/wallet allocation. Reused recovery refs from a prior queued
-  run-state attempt fail closed with `cancel_recovery_ref_conflict`.
+  run-state attempt fail closed with `cancel_recovery_ref_conflict`, and reused
+  allowlist-readiness recovery plan refs fail closed with
+  `cancel_recovery_plan_ref_conflict` before run-state creation.
   Pause or abort requests now fail closed by removing queued products before
   cap/wallet allocation and recording `run_paused_no_live` or
   `run_aborted_no_live` blockers.
@@ -557,8 +559,9 @@ record `run_lock_ref_missing`, `run_lock_ref_conflict`,
 `rate_limit_window_ref_missing`, `rate_limit_window_ref_conflict`,
 `rate_limit_window_capacity_exceeded`, `retry_budget_exhausted`,
 `retry_backoff_ref_missing`, or `retry_backoff_ref_conflict`.
-Candidate products with ready recovery status but missing, product-mismatched,
-or reused recovery refs are removed from queued product ids and record
+Candidate products with ready recovery status but reused recovery plan refs,
+missing refs, product-mismatched refs, or reused product refs are removed from
+queued product ids and record `cancel_recovery_plan_ref_conflict`,
 `cancel_recovery_ref_missing`, `cancel_recovery_ref_product_mismatch`, or
 `cancel_recovery_ref_conflict`.
 Pause or abort requests also remove queued products before cap/wallet
