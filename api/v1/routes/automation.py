@@ -5305,6 +5305,13 @@ def _record_usdc_pair_live_submission(
     submitted_notional = _decimal_value(readiness.submitted_notional_usdc)
     row_limit_price = _decimal_value(row.limit_price)
     readiness_limit_price = _decimal_value(readiness.intended_limit_price)
+    plan_side = _enum_text(plan.side).strip().upper()
+    row_side = _enum_text(row.side).strip().upper()
+    readiness_side = _enum_text(readiness.side).strip().upper()
+    if not plan_side or not row_side or not readiness_side or (
+        plan_side != readiness_side or row_side != readiness_side
+    ):
+        blockers.append("readiness_side_mismatch")
     if (
         row_planned_notional is None
         or readiness_planned_notional is None

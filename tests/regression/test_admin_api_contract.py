@@ -40131,6 +40131,79 @@ def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_row_limit_
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_row_side_match(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-order-plan-live-submit-side-mismatch-run",
+        allowlist_readiness_id=(
+            "m58-usdc-order-plan-live-submit-side-mismatch-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    order_plan_store = client.admin_api_test_usdc_pair_snapshot_order_plan_store
+    source_plan = order_plan_store.find_by_plan_id(ready["plan_id"])
+    assert source_plan is not None
+    source_row = source_plan.order_plan_rows[0]
+    order_plan_store.append(
+        source_plan.model_copy(
+            update={
+                "order_plan_rows": [
+                    source_row.model_copy(
+                        update={
+                            "side": OrderSide.SELL,
+                        }
+                    )
+                ]
+            }
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            f"{ready['plan_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-order-plan-live-submit-side-mismatch"
+            ),
+            operator_intent="m58_usdc_snapshot_live_submit",
+        ),
+        json={
+            "submission_id": "m58-usdc-order-plan-live-submit-side-mismatch",
+            "readiness_id": ready["live_readiness_id"],
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one far-from-market Coinbase limit order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "stale selected row side for direct live submit",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == "usdc_pair_snapshot_order_plan_live_submit"
+    assert "readiness_side_mismatch" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_order_plan_live_readiness_rejects_ambiguous_order_plan_rows(
     monkeypatch,
 ):
