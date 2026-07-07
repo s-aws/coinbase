@@ -789,6 +789,9 @@ def _allowlist_run_state_item_from_record(
             record.retry_backoff_conflict_run_state_id
         ),
         cancel_recovery_plan_ref=record.cancel_recovery_plan_ref,
+        recovery_ref_conflict_run_state_id=(
+            record.recovery_ref_conflict_run_state_id
+        ),
         recovery_status=record.recovery_status,
         partial_success_status=record.partial_success_status,
         fanout_execution_status=record.fanout_execution_status,
@@ -4637,6 +4640,14 @@ def _record_usdc_pair_allowlist_run_state(
             run_state_id=body.run_state_id,
         )
     )
+    recovery_ref_conflict_run_state_id = next(
+        (
+            item.recovery_ref_conflict_run_state_id
+            for item in product_states
+            if item.recovery_ref_conflict_run_state_id
+        ),
+        None,
+    )
     product_states, cap_allocation = (
         _apply_allowlist_run_state_cap_allocation(
             product_states=product_states,
@@ -4858,6 +4869,7 @@ def _record_usdc_pair_allowlist_run_state(
         retry_backoff_ref=body.retry_backoff_ref,
         retry_backoff_conflict_run_state_id=retry_backoff_conflict_run_state_id,
         cancel_recovery_plan_ref=readiness.cancel_recovery_plan_ref,
+        recovery_ref_conflict_run_state_id=recovery_ref_conflict_run_state_id,
         recovery_status=runtime_statuses["recovery_status"],
         partial_success_status=runtime_statuses["partial_success_status"],
         fanout_execution_status="blocked",
@@ -5383,8 +5395,12 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_retry_budget_not_ready")
     if run_state.retry_backoff_status not in {"not_required", "ready_no_live"}:
         blockers.append("run_state_retry_backoff_not_ready")
+    if run_state.retry_backoff_conflict_run_state_id:
+        blockers.append("run_state_retry_backoff_ref_conflict")
     if run_state.recovery_status != "ready_no_live":
         blockers.append("run_state_recovery_not_ready")
+    if run_state.recovery_ref_conflict_run_state_id:
+        blockers.append("run_state_recovery_ref_conflict")
     if run_state.live_wallet_reservation_status != "ready_no_live":
         blockers.append("run_state_live_wallet_reservation_not_ready")
     if not run_state.live_wallet_reservation_ids:

@@ -904,8 +904,8 @@ invalid run-lock timestamp evidence, missing or invalid rate-window start/end
 evidence, non-default rate-window cap/seconds policy, mismatched rate-window
 duration, run-lock timestamps outside the rate window, or over-cap rate-window
 readback, attempted-order counts that do not match queued rows, or non-empty
-run-lock/rate-window conflict source ids before executor invocation, rejects
-blocked aggregate parent
+run-lock/rate-window/retry-backoff/recovery conflict source ids before executor
+invocation, rejects blocked aggregate parent
 run-state/cap/wallet/
 live-readiness/notional/partial-success statuses, rejects stale selected-product
 price-freshness timestamp/status or recomputed price-distance evidence, rejects

@@ -170191,6 +170191,11 @@ components:
           - type: string
           - type: 'null'
           title: Cancel Recovery Plan Ref
+        recovery_ref_conflict_run_state_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recovery Ref Conflict Run State Id
         recovery_status:
           type: string
           minLength: 1
