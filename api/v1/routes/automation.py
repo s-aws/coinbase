@@ -216,6 +216,9 @@ USDC_PAIR_SNAPSHOT_LIVE_WALLET_DEBIT_REF_CONFLICT_BLOCKER = (
 USDC_PAIR_SNAPSHOT_LIVE_WALLET_RELEASE_REF_CONFLICT_BLOCKER = (
     "live_wallet_release_ref_conflict"
 )
+USDC_PAIR_SNAPSHOT_LIVE_WALLET_ACTIVE_RESERVATION_OVERCOMMIT_BLOCKER = (
+    "live_wallet_active_reservation_overcommit"
+)
 USDC_PAIR_SNAPSHOT_RUN_LOCK_MISSING_BLOCKER = "run_lock_ref_missing"
 USDC_PAIR_SNAPSHOT_RUN_LOCK_CONFLICT_BLOCKER = "run_lock_ref_conflict"
 USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_MISSING_BLOCKER = (
@@ -3565,6 +3568,11 @@ def _live_wallet_historical_reference_blockers(
     reservation_store: FileUsdcPairSnapshotLiveWalletReservationStore,
 ) -> list[str]:
     blockers: list[str] = []
+    wallet_available = _non_negative_decimal_value(
+        record.wallet_available_notional_usdc
+    )
+    reserved_notional = _non_negative_decimal_value(record.reserved_notional_usdc)
+    active_reserved_notional = Decimal("0")
     for existing in reservation_store.read_recent(limit=500):
         if existing.reservation_id == record.reservation_id:
             if _live_wallet_reservation_ref_conflicts(
@@ -3583,8 +3591,26 @@ def _live_wallet_historical_reference_blockers(
             blockers.append(
                 USDC_PAIR_SNAPSHOT_LIVE_WALLET_RELEASE_REF_CONFLICT_BLOCKER
             )
-        if len(set(blockers)) == 2:
-            break
+        if (
+            existing.reservation_status == "reserved_no_live"
+            and existing.release_status != "released_no_live"
+            and not existing.live_exchange_submitted
+            and not existing.live_coinbase_orders_ran
+            and existing.live_coinbase_execution == "not_run"
+            and existing.notional_usdc == "0"
+        ):
+            active_reserved_notional += (
+                _non_negative_decimal_value(existing.reserved_notional_usdc)
+                or Decimal("0")
+            )
+    if (
+        wallet_available is not None
+        and reserved_notional is not None
+        and active_reserved_notional + reserved_notional > wallet_available
+    ):
+        blockers.append(
+            USDC_PAIR_SNAPSHOT_LIVE_WALLET_ACTIVE_RESERVATION_OVERCOMMIT_BLOCKER
+        )
     return _dedupe(blockers)
 
 
@@ -3611,6 +3637,7 @@ def _live_wallet_reference_conflict_blockers_by_product(
         USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_REF_CONFLICT_BLOCKER,
         USDC_PAIR_SNAPSHOT_LIVE_WALLET_DEBIT_REF_CONFLICT_BLOCKER,
         USDC_PAIR_SNAPSHOT_LIVE_WALLET_RELEASE_REF_CONFLICT_BLOCKER,
+        USDC_PAIR_SNAPSHOT_LIVE_WALLET_ACTIVE_RESERVATION_OVERCOMMIT_BLOCKER,
     }
     for item in product_states:
         if item.execution_state != "queued_no_live":
@@ -3671,6 +3698,14 @@ def _apply_live_wallet_reference_conflict_blockers(
                 in conflict_blockers
                 else "reserved_no_live"
             )
+            wallet_allocation_status = (
+                "live_wallet_active_reservation_overcommit"
+                if (
+                    USDC_PAIR_SNAPSHOT_LIVE_WALLET_ACTIVE_RESERVATION_OVERCOMMIT_BLOCKER
+                    in conflict_blockers
+                )
+                else "live_wallet_reference_conflict"
+            )
             updated.append(
                 item.model_copy(
                     update={
@@ -3680,9 +3715,7 @@ def _apply_live_wallet_reference_conflict_blockers(
                         "recovery_state": "not_required",
                         "recovery_state_ref": None,
                         "retry_attempts_available": 0,
-                        "wallet_allocation_status": (
-                            "live_wallet_reference_conflict"
-                        ),
+                        "wallet_allocation_status": wallet_allocation_status,
                         "wallet_allocated_notional_usdc": _decimal_string(
                             Decimal("0")
                         ),

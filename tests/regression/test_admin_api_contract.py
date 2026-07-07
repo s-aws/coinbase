@@ -35856,6 +35856,101 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_accepts_debit_release_
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_active_wallet_reservation_overcommit(
+    monkeypatch,
+):
+    from application.admin_api.usdc_pair_snapshot import (
+        UsdcPairSnapshotLiveWalletReservationRecord,
+    )
+
+    client = _client(monkeypatch)
+    readiness_id = "m58-usdc-run-state-wallet-active-overcommit"
+    run_state_id = "m58-usdc-run-state-wallet-active-overcommit"
+    reservation_id = "wallet-reservation-m58-active-overcommit"
+    _append_usdc_pair_snapshot_live_wallet_reservation_ref_fixture(
+        client,
+        readiness_id=readiness_id,
+        run_state_id=run_state_id,
+        cap_guard_decision_id="cap-m58-run-state-wallet-active-overcommit",
+        reservation_id=reservation_id,
+        debit_status="debited_no_live",
+        release_status="released_no_live",
+        reservation_record_extra={
+            "debit_id": "wallet-debit-m58-active-overcommit",
+            "debited_notional_usdc": "1.00",
+            "release_id": "wallet-release-m58-active-overcommit",
+            "released_notional_usdc": "1.00",
+            "release_reason": "no_live_run_state_rehearsal",
+        },
+    )
+    client.admin_api_test_usdc_pair_snapshot_live_wallet_reservation_store.append(
+        UsdcPairSnapshotLiveWalletReservationRecord(
+            reservation_id="wallet-reservation-m58-active-overcommit-source",
+            run_state_id="m58-usdc-run-state-wallet-active-overcommit-source",
+            readiness_id="m58-usdc-run-state-wallet-active-overcommit-source",
+            plan_id="m58-usdc-allowlist-run-state-negative-plan",
+            snapshot_run_id="m58-usdc-allowlist-run-state-negative-snapshot",
+            product_id="ETH-USDC",
+            client_order_id="m58-usdc-run-state-active-overcommit-ETH-USDC",
+            reserved_notional_usdc="0.75",
+            wallet_available_notional_usdc="1.00",
+            reservation_status="reserved_no_live",
+            debit_status="missing_no_live",
+            release_status="missing_no_live",
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_live_wallet_reservation",
+            idempotency_key="idem-wallet-reservation-m58-active-overcommit-source",
+            payload_hash="5" * 64,
+            audit_id="audit-wallet-reservation-m58-active-overcommit-source",
+            operator_notes="active unreleased reservation source for overcommit test",
+            detail="No-live M58 live-wallet reservation evidence remains active.",
+        )
+    )
+
+    payload = _post_usdc_pair_snapshot_live_wallet_reservation_run_state(
+        client,
+        readiness_id=readiness_id,
+        run_state_id=run_state_id,
+        reservation_id=reservation_id,
+    )
+
+    run_state = payload["run_state"]
+    assert run_state["run_state_status"] == "blocked"
+    assert run_state["queued_product_ids"] == []
+    assert run_state["blocked_product_ids"] == ["BTC-USDC"]
+    assert run_state["wallet_allocation_status"] == "blocked"
+    assert run_state["wallet_allocated_notional_usdc"] == "0.00"
+    assert run_state["live_wallet_reservation_status"] == "reserved_no_live"
+    assert run_state["live_wallet_reservation_blockers"] == [
+        "live_wallet_active_reservation_overcommit"
+    ]
+    assert "live_wallet_active_reservation_overcommit" in run_state[
+        "fanout_blockers"
+    ]
+    assert "product_evidence_blocked" in run_state["fanout_blockers"]
+
+    product_row = run_state["product_states"][0]
+    assert product_row["execution_state"] == "blocked"
+    assert product_row["retry_state"] == "blocked"
+    assert product_row["rate_limit_state"] == "blocked"
+    assert product_row["recovery_state"] == "not_required"
+    assert product_row["retry_attempts_available"] == 0
+    assert (
+        product_row["wallet_allocation_status"]
+        == "live_wallet_active_reservation_overcommit"
+    )
+    assert product_row["wallet_allocated_notional_usdc"] == "0.00"
+    assert product_row["live_wallet_reservation_status"] == "reserved_no_live"
+    assert product_row["live_wallet_reservation_blockers"] == [
+        "live_wallet_active_reservation_overcommit"
+    ]
+    assert product_row["blockers"] == ["live_wallet_active_reservation_overcommit"]
+    assert product_row["live_coinbase_execution"] == "not_run"
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_reused_debit_release_refs(
     monkeypatch,
 ):

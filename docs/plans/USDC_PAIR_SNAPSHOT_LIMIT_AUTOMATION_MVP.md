@@ -144,13 +144,16 @@ Missing before live automation:
   funds, release reservations, or authorize multi-product live fan-out. The
   run-state contract now records `live_wallet_reservation_status` and
   `live_wallet_reservation_blockers` so this missing live-wallet layer is
-  durable evidence, not a chat-only caveat. Phase F run-state now requires
-  matching Phase E live-readiness evidence before a product can be queued in
-  no-live rehearsal, and the single-product Phase E live-readiness route fails
-  closed when the latest backend cap/guard proof does not cover the submitted
-  notional or required wallet availability. The one-selected-product run-state
-  handoff can reuse that submit/cancel proof chain, but it still does not
-  reserve/debit wallet balance or authorize multi-product live fan-out.
+  durable evidence, not a chat-only caveat. Phase F run-state now blocks rows
+  with `live_wallet_active_reservation_overcommit` when unreleased no-live
+  reservation evidence plus the current reservation would exceed the recorded
+  wallet proof. Phase F run-state now requires matching Phase E live-readiness
+  evidence before a product can be queued in no-live rehearsal, and the
+  single-product Phase E live-readiness route fails closed when the latest
+  backend cap/guard proof does not cover the submitted notional or required
+  wallet availability. The one-selected-product run-state handoff can reuse
+  that submit/cancel proof chain, but it still does not reserve/debit wallet
+  balance or authorize multi-product live fan-out.
 - Durable approval, admission-audit, cap/guard, reconciliation, and enabled
   live-service decisions for every planned order.
 - Runtime fan-out rate-limit handling, retry execution, partial failure,
@@ -559,9 +562,11 @@ the one-selected-product handoff proof path. Reused no-live reservation refs
 with a different run/readiness binding fail closed with
 `live_wallet_reservation_ref_conflict`; reused debit or release refs across
 queued products or prior reservation records fail closed with
-`live_wallet_debit_ref_conflict` or `live_wallet_release_ref_conflict`. These
-reference conflicts remove affected rows from queued product ids and zero their
-wallet allocation. This evidence remains
+`live_wallet_debit_ref_conflict` or `live_wallet_release_ref_conflict`.
+Unreleased active no-live reservations that would overcommit the current wallet
+proof fail closed with `live_wallet_active_reservation_overcommit`. These
+reference conflicts and active-overcommit blockers remove affected rows from
+queued product ids and zero their wallet allocation. This evidence remains
 `fanout_readiness_status=blocked`, `fanout_execution_status=blocked`,
 `live_coinbase_execution=not_run`, and notional `0`; it does not submit
 Coinbase orders, fan out execution, fetch/reserve/debit live wallet balance,
@@ -784,7 +789,10 @@ one-selected-product handoff proof path. Reused no-live reservation refs with a
 different run/readiness binding now fail closed with
 `live_wallet_reservation_ref_conflict`; reused debit or release refs across
 queued products or prior reservation records fail closed with explicit wallet
-reference conflict blockers and zero affected wallet allocation.
+reference conflict blockers and zero affected wallet allocation. Unreleased
+active no-live reservations that would overcommit the wallet proof fail closed
+with `live_wallet_active_reservation_overcommit`, remove the affected row from
+queued product ids, and zero wallet allocation.
 The run-state live-submit handoff also rejects missing, blocked, or stale latest
 parent/product live-wallet reservation/debit/release evidence, blocked parent
 run-lock, pause/abort, rate-limit, retry-budget/backoff, or recovery evidence
