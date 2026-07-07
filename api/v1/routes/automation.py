@@ -5316,6 +5316,16 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_rate_limit_not_ready")
     if not run_state.rate_limit_window_ref:
         blockers.append("run_state_rate_limit_window_ref_missing")
+    if (
+        run_state.rate_limit_max_orders_per_window
+        != USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_ORDER_CAP
+    ):
+        blockers.append("run_state_rate_limit_window_order_cap_mismatch")
+    if (
+        run_state.rate_limit_window_seconds
+        != USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_SECONDS
+    ):
+        blockers.append("run_state_rate_limit_window_seconds_mismatch")
     rate_limit_window_started_at = _parse_reference_timestamp(
         run_state.rate_limit_window_started_at
     )

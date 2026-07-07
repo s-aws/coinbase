@@ -41402,6 +41402,87 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_mi
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_relaxed_rate_window_policy(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-relaxed-rate-window",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-submit-relaxed-rate-window-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(ready["run_state_id"])
+    assert source_run_state is not None
+    rate_limit_window_started_at = datetime.now(timezone.utc).replace(microsecond=0)
+    run_state_store.append(
+        source_run_state.model_copy(
+            update={
+                "rate_limit_max_orders_per_window": 6,
+                "rate_limit_window_seconds": 2,
+                "rate_limit_window_started_at": (
+                    rate_limit_window_started_at.isoformat()
+                ),
+                "rate_limit_window_expires_at": (
+                    rate_limit_window_started_at + timedelta(seconds=2)
+                ).isoformat(),
+                "rate_limit_attempted_order_count": 1,
+                "rate_limit_window_within_cap": True,
+            }
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-relaxed-rate-window"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json={
+            "submission_id": "m58-usdc-allowlist-live-submit-relaxed-rate-window",
+            "readiness_id": ready["live_readiness_id"],
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one run-state selected order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "relaxed parent rate-window policy readback",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert "run_state_rate_limit_window_order_cap_mismatch" in payload["message"]
+    assert "run_state_rate_limit_window_seconds_mismatch" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_retry_recovery_evidence(
     monkeypatch,
 ):
