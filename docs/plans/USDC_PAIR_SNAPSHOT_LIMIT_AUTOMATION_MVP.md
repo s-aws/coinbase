@@ -1012,7 +1012,9 @@ The backend release gate now records `m58_usdc_pair_live_fanout_gate` and
 `m58_usdc_pair_scheduler_gate` as warnings, plus
 `m58_usdc_pair_contextless_review_gate` as passed for the current
 one-selected-product boundary. The fan-out warning now names the durable
-no-live wallet-ledger record readback as still insufficient for live fan-out.
+no-live wallet-ledger record readback plus hidden queued order-plan row,
+proof-chain, proof-ref, price, size, and notional drift guards as still
+insufficient for live fan-out.
 These checks are release-readiness evidence only; they do not authorize live
 fan-out, scheduling, or browser trading authority.
 A blind contextless review on 2026-07-06 passed the M58 no-live Phase F

@@ -63564,6 +63564,18 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "private wallet-ledger planned/allocated/active-reserved/overcommit "
         "readback"
     ) in release_checks["m58_usdc_pair_live_fanout_gate"]["detail"]
+    assert "Hidden queued order-plan rows" in release_checks[
+        "m58_usdc_pair_live_fanout_gate"
+    ]["detail"]
+    assert "queued order-plan proof-chain evidence" in release_checks[
+        "m58_usdc_pair_live_fanout_gate"
+    ]["detail"]
+    assert "queued order-plan/live-readiness proof refs" in release_checks[
+        "m58_usdc_pair_live_fanout_gate"
+    ]["detail"]
+    assert "queued order-plan/live-readiness price, size, or notional" in release_checks[
+        "m58_usdc_pair_live_fanout_gate"
+    ]["detail"]
     assert "standing-cap scope readback" in release_checks[
         "m58_usdc_pair_live_fanout_gate"
     ]["detail"]
