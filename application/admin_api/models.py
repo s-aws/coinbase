@@ -3077,6 +3077,7 @@ class UsdcPairSnapshotAllowlistRunStateProductItem(BaseModel):
     live_readiness_id: str | None = None
     live_readiness_source: str | None = None
     recovery_state_ref: str | None = None
+    recovery_ref_conflict_run_state_id: str | None = None
     blockers: list[str] = Field(default_factory=list)
     live_exchange_submitted: bool = False
     live_coinbase_orders_ran: bool = False

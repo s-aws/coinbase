@@ -170570,6 +170570,11 @@ components:
           - type: string
           - type: 'null'
           title: Recovery State Ref
+        recovery_ref_conflict_run_state_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Recovery Ref Conflict Run State Id
         blockers:
           items:
             type: string

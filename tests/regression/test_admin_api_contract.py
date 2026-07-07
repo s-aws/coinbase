@@ -39030,6 +39030,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_reused_recovery
     assert source_payload["run_state"]["product_states"][0][
         "recovery_state_ref"
     ] == "m58-cancel-recovery-negative:BTC-USDC"
+    assert source_payload["run_state"]["product_states"][0][
+        "recovery_ref_conflict_run_state_id"
+    ] is None
     assert source_payload["live_coinbase_execution"] == "not_run"
 
     retry_response = client.post(
@@ -39084,6 +39087,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_reused_recovery
     assert product_row["retry_backoff_ref"] == "m58-retry-backoff-recovery-ref-reuse"
     assert product_row["recovery_state"] == "not_required"
     assert product_row["recovery_state_ref"] is None
+    assert product_row["recovery_ref_conflict_run_state_id"] == (
+        "m58-usdc-allowlist-run-state-recovery-ref-source"
+    )
     assert product_row["retry_attempts_available"] == 0
     assert product_row["fanout_cap_allocation_status"] == "not_queued"
     assert product_row["wallet_allocation_status"] == "not_queued"

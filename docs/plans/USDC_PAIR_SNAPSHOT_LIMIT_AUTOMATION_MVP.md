@@ -70,7 +70,9 @@ Available building blocks:
   `run_lock_conflict_run_state_id` and
   `rate_limit_window_conflict_run_state_id` when runtime refs conflict,
   `retry_backoff_conflict_run_state_id` when retry-backoff evidence conflicts,
-  the configured `rate_limit_max_orders_per_window`, the
+  `recovery_ref_conflict_run_state_id` when recovery refs conflict with prior
+  queued run-state evidence, the configured
+  `rate_limit_max_orders_per_window`, the
   `rate_limit_attempted_order_count` before runtime blocking, and
   `rate_limit_window_within_cap` as capacity proof. Product run-state rows now
   also record `retry_budget_per_product` and `retry_prior_attempt_count` so
@@ -81,7 +83,8 @@ Available building blocks:
   a recovery ref bound to a different product, fail closed with
   `cancel_recovery_ref_missing` or `cancel_recovery_ref_product_mismatch`
   before cap/wallet allocation. Reused recovery refs from a prior queued
-  run-state attempt fail closed with `cancel_recovery_ref_conflict`, and reused
+  run-state attempt fail closed with `cancel_recovery_ref_conflict` and record
+  the prior `recovery_ref_conflict_run_state_id`, and reused
   allowlist-readiness recovery plan refs fail closed with
   `cancel_recovery_plan_ref_conflict` before run-state creation.
   Pause or abort requests now fail closed by removing queued products before
@@ -572,6 +575,7 @@ record `run_lock_ref_missing`, `run_lock_ref_conflict`,
 run-state also exposes `run_lock_conflict_run_state_id`,
 `rate_limit_window_conflict_run_state_id`,
 `retry_backoff_conflict_run_state_id`,
+`recovery_ref_conflict_run_state_id`,
 `rate_limit_max_orders_per_window`,
 `rate_limit_attempted_order_count`, and `rate_limit_window_within_cap` before
 any future scheduler or fan-out path can rely on the rate-limit window.
@@ -584,7 +588,8 @@ Candidate products with ready recovery status but reused recovery plan refs,
 missing refs, product-mismatched refs, or reused product refs are removed from
 queued product ids and record `cancel_recovery_plan_ref_conflict`,
 `cancel_recovery_ref_missing`, `cancel_recovery_ref_product_mismatch`, or
-`cancel_recovery_ref_conflict`.
+`cancel_recovery_ref_conflict`; reused product refs also record
+`recovery_ref_conflict_run_state_id` as source run-state evidence.
 Pause or abort requests also remove queued products before cap/wallet
 allocation and record `run_paused_no_live` or `run_aborted_no_live` blockers.
 Products blocked by cap allocation, wallet allocation, missing live-readiness,

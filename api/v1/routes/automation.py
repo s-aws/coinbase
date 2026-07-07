@@ -3369,7 +3369,7 @@ def _apply_allowlist_run_state_retry_backoff(
     return updated, _dedupe(blockers)
 
 
-def _allowlist_run_state_recovery_ref_conflict_blocker(
+def _allowlist_run_state_recovery_ref_conflict_run_state_id(
     *,
     run_state_store: FileUsdcPairSnapshotAllowlistRunStateStore,
     run_state_id: str | None,
@@ -3393,7 +3393,7 @@ def _allowlist_run_state_recovery_ref_conflict_blocker(
                 and str(product_state.client_order_id or "").strip()
                 == client_order_id
             ):
-                return USDC_PAIR_SNAPSHOT_CANCEL_RECOVERY_REF_CONFLICT_BLOCKER
+                return record.run_state_id
     return None
 
 
@@ -3409,10 +3409,17 @@ def _apply_allowlist_run_state_recovery_ref_conflicts(
         if item.execution_state != "queued_no_live":
             updated.append(item)
             continue
-        blocker = _allowlist_run_state_recovery_ref_conflict_blocker(
-            run_state_store=run_state_store,
-            run_state_id=run_state_id,
-            item=item,
+        conflict_run_state_id = (
+            _allowlist_run_state_recovery_ref_conflict_run_state_id(
+                run_state_store=run_state_store,
+                run_state_id=run_state_id,
+                item=item,
+            )
+        )
+        blocker = (
+            USDC_PAIR_SNAPSHOT_CANCEL_RECOVERY_REF_CONFLICT_BLOCKER
+            if conflict_run_state_id
+            else None
         )
         if not blocker:
             updated.append(item)
@@ -3426,6 +3433,7 @@ def _apply_allowlist_run_state_recovery_ref_conflicts(
                     "rate_limit_state": "blocked",
                     "recovery_state": "not_required",
                     "recovery_state_ref": None,
+                    "recovery_ref_conflict_run_state_id": conflict_run_state_id,
                     "retry_attempts_available": 0,
                     "blockers": _dedupe(list(item.blockers) + [blocker]),
                 }
@@ -5043,7 +5051,7 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
             blockers.append("run_state_product_recovery_ref_product_mismatch")
         if (
             product_row.recovery_state == "ready_no_live"
-            and _allowlist_run_state_recovery_ref_conflict_blocker(
+            and _allowlist_run_state_recovery_ref_conflict_run_state_id(
                 run_state_store=run_state_store,
                 run_state_id=run_state.run_state_id,
                 item=product_row,
