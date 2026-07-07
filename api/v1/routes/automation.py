@@ -5424,6 +5424,8 @@ def _record_usdc_pair_live_submission(
     )
     if not readiness.single_order_only or readiness.order_count != 1:
         blockers.append("single_order_only_required")
+    if not readiness.minimum_order_size_preferred:
+        blockers.append("minimum_order_size_preferred_required")
     if readiness.full_snapshot_fill_test:
         blockers.append("manual_review_required_for_full_snapshot_fill_test")
     if not readiness.cancel_before_additional_orders:
