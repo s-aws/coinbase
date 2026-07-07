@@ -4853,6 +4853,120 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_association(
         )
 
 
+def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_evidence(
+    *,
+    run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    product_row: UsdcPairSnapshotAllowlistRunStateProductItem,
+    reservation_store: FileUsdcPairSnapshotLiveWalletReservationStore,
+) -> None:
+    blockers: list[str] = []
+    reservation_id = str(product_row.live_wallet_reservation_id or "").strip()
+    if not reservation_id:
+        blockers.append("run_state_live_wallet_reservation_id_missing")
+    elif reservation_id not in run_state.live_wallet_reservation_ids:
+        blockers.append("run_state_live_wallet_reservation_parent_id_missing")
+
+    record = (
+        reservation_store.find_by_reservation_id(reservation_id)
+        if reservation_id
+        else None
+    )
+    if record is None:
+        blockers.append("run_state_live_wallet_reservation_record_missing")
+    else:
+        planned_notional = _decimal_value(product_row.planned_notional_usdc)
+        reserved_notional = _non_negative_decimal_value(
+            record.reserved_notional_usdc
+        )
+        debited_notional = _non_negative_decimal_value(
+            record.debited_notional_usdc
+        )
+        released_notional = _non_negative_decimal_value(
+            record.released_notional_usdc
+        )
+        if record.run_state_id != run_state.run_state_id:
+            blockers.append("run_state_live_wallet_reservation_run_state_mismatch")
+        if record.readiness_id != run_state.readiness_id:
+            blockers.append("run_state_live_wallet_reservation_readiness_mismatch")
+        if record.plan_id != run_state.plan_id:
+            blockers.append("run_state_live_wallet_reservation_plan_mismatch")
+        if record.snapshot_run_id != run_state.snapshot_run_id:
+            blockers.append("run_state_live_wallet_reservation_snapshot_mismatch")
+        if (
+            record.product_id.strip().upper()
+            != product_row.product_id.strip().upper()
+        ):
+            blockers.append("run_state_live_wallet_reservation_product_mismatch")
+        if record.client_order_id.strip() != str(
+            product_row.client_order_id or ""
+        ).strip():
+            blockers.append("run_state_live_wallet_reservation_client_order_mismatch")
+        if (
+            reserved_notional is None
+            or planned_notional is None
+            or reserved_notional != planned_notional
+        ):
+            blockers.append("run_state_live_wallet_reservation_notional_mismatch")
+        if record.reservation_status != "reserved_no_live":
+            blockers.append("run_state_live_wallet_reservation_not_reserved")
+        if (
+            record.live_exchange_submitted
+            or record.live_coinbase_orders_ran
+            or record.live_coinbase_execution != "not_run"
+            or record.notional_usdc != "0"
+        ):
+            blockers.append("run_state_live_wallet_reservation_not_no_live")
+        if record.debit_status != "debited_no_live":
+            blockers.append("run_state_live_wallet_debit_not_debited")
+        if not record.debit_id:
+            blockers.append("run_state_live_wallet_debit_id_missing")
+        elif record.debit_id != product_row.live_wallet_debit_id:
+            blockers.append("run_state_live_wallet_debit_id_mismatch")
+        if (
+            record.debit_id
+            and record.debit_id not in run_state.live_wallet_debit_ids
+        ):
+            blockers.append("run_state_live_wallet_debit_parent_id_missing")
+        if (
+            debited_notional is None
+            or planned_notional is None
+            or debited_notional != planned_notional
+        ):
+            blockers.append("run_state_live_wallet_debit_notional_mismatch")
+        if record.release_status != "released_no_live":
+            blockers.append("run_state_live_wallet_release_not_released")
+        if not record.release_id:
+            blockers.append("run_state_live_wallet_release_id_missing")
+        elif record.release_id != product_row.live_wallet_release_id:
+            blockers.append("run_state_live_wallet_release_id_mismatch")
+        if (
+            record.release_id
+            and record.release_id not in run_state.live_wallet_release_ids
+        ):
+            blockers.append("run_state_live_wallet_release_parent_id_missing")
+        if not record.release_reason:
+            blockers.append("run_state_live_wallet_release_reason_missing")
+        if (
+            released_notional is None
+            or planned_notional is None
+            or released_notional != planned_notional
+        ):
+            blockers.append("run_state_live_wallet_release_notional_mismatch")
+        blockers.extend(
+            f"run_state_{blocker}"
+            for blocker in _live_wallet_historical_reference_blockers(
+                record=record,
+                reservation_store=reservation_store,
+            )
+        )
+
+    if blockers:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live submit blocked: "
+            + ",".join(_dedupe(blockers))
+        )
+
+
 def _usdc_pair_live_order_configuration(
     readiness: UsdcPairSnapshotOrderPlanLiveReadinessRecord,
 ) -> dict[str, Any]:
@@ -5888,6 +6002,10 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
         FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
         Depends(get_usdc_pair_snapshot_order_plan_live_readiness_store),
     ],
+    live_wallet_reservation_store: Annotated[
+        FileUsdcPairSnapshotLiveWalletReservationStore,
+        Depends(get_usdc_pair_snapshot_live_wallet_reservation_store),
+    ],
     submit_store: Annotated[
         FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
         Depends(get_usdc_pair_snapshot_order_plan_live_submit_store),
@@ -5915,7 +6033,7 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
             raise UsdcPairSnapshotError(
                 "USDC pair snapshot allowlist run-state was not found."
             )
-        _validate_usdc_pair_allowlist_run_state_live_submit(
+        product_row = _validate_usdc_pair_allowlist_run_state_live_submit(
             run_state=run_state,
             body=body,
         )
@@ -5947,6 +6065,11 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
             run_state=run_state,
             plan=plan,
             readiness=readiness,
+        )
+        _validate_usdc_pair_allowlist_run_state_live_submit_wallet_evidence(
+            run_state=run_state,
+            product_row=product_row,
+            reservation_store=live_wallet_reservation_store,
         )
         return _record_usdc_pair_live_submission(
             plan=plan,

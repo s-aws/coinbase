@@ -36271,6 +36271,7 @@ def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
     )
     from application.admin_api.usdc_pair_snapshot import (
         UsdcPairSnapshotAllowlistRunStateRecord,
+        UsdcPairSnapshotLiveWalletReservationRecord,
         UsdcPairSnapshotOrderPlanRecord,
     )
 
@@ -36417,6 +36418,49 @@ def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
         recovery_state_ref=f"m58-cancel-recovery:{product_id}",
         blockers=blockers,
     )
+    if wallet_ready_for_submit:
+        client.admin_api_test_usdc_pair_snapshot_live_wallet_reservation_store.append(
+            UsdcPairSnapshotLiveWalletReservationRecord(
+                reservation_id=(
+                    "wallet-reservation-"
+                    f"{allowlist_readiness_id}-{normalized_product_id}"
+                ),
+                run_state_id=run_state_id,
+                readiness_id=allowlist_readiness_id,
+                plan_id=plan_id,
+                snapshot_run_id=snapshot_run_id,
+                product_id=product_id,
+                client_order_id=client_order_id,
+                reserved_notional_usdc="1.00",
+                wallet_available_notional_usdc="1.00",
+                reservation_status="reserved_no_live",
+                debit_status="debited_no_live",
+                debit_id=(
+                    f"wallet-debit-{allowlist_readiness_id}-"
+                    f"{normalized_product_id}"
+                ),
+                debited_notional_usdc="1.00",
+                release_status="released_no_live",
+                release_id=(
+                    f"wallet-release-{allowlist_readiness_id}-{normalized_product_id}"
+                ),
+                released_notional_usdc="1.00",
+                release_reason="no_live_run_state_rehearsal",
+                actor_id="contract-test",
+                operator_intent="m58_usdc_snapshot_live_wallet_reservation",
+                idempotency_key=(
+                    f"idem-wallet-reservation-{allowlist_readiness_id}-"
+                    f"{normalized_product_id}"
+                ),
+                payload_hash="7" * 64,
+                audit_id=f"audit-wallet-reservation-{allowlist_readiness_id}",
+                operator_notes="wallet reservation source for live-submit fixture",
+                detail=(
+                    "No-live wallet reservation/debit/release evidence for "
+                    "run-state live-submit fixture."
+                ),
+            )
+        )
     client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store.append(
         UsdcPairSnapshotAllowlistRunStateRecord(
             run_state_id=run_state_id,
@@ -38759,6 +38803,109 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_w
     )
     assert "run_state_live_wallet_reservation_not_ready" in payload["message"]
     assert "run_state_product_live_wallet_reservation_not_ready" in payload[
+        "message"
+    ]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidates_wallet_reservation(
+    monkeypatch,
+):
+    from application.admin_api.usdc_pair_snapshot import (
+        UsdcPairSnapshotLiveWalletReservationRecord,
+    )
+
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-wallet-stale",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-submit-wallet-stale-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    normalized_product_id = ready["product_id"].replace("-", "_").lower()
+    reservation_id = (
+        "wallet-reservation-"
+        f"{ready['allowlist_readiness_id']}-{normalized_product_id}"
+    )
+    client.admin_api_test_usdc_pair_snapshot_live_wallet_reservation_store.append(
+        UsdcPairSnapshotLiveWalletReservationRecord(
+            reservation_id=reservation_id,
+            run_state_id="m58-usdc-allowlist-live-submit-wallet-stale-other-run",
+            readiness_id=ready["allowlist_readiness_id"],
+            plan_id=ready["plan_id"],
+            snapshot_run_id=ready["snapshot_run_id"],
+            product_id=ready["product_id"],
+            client_order_id=ready["client_order_id"],
+            reserved_notional_usdc="1.00",
+            wallet_available_notional_usdc="1.00",
+            reservation_status="reserved_no_live",
+            debit_status="debited_no_live",
+            debit_id=(
+                f"wallet-debit-{ready['allowlist_readiness_id']}-"
+                f"{normalized_product_id}"
+            ),
+            debited_notional_usdc="1.00",
+            release_status="released_no_live",
+            release_id=(
+                f"wallet-release-{ready['allowlist_readiness_id']}-"
+                f"{normalized_product_id}"
+            ),
+            released_notional_usdc="1.00",
+            release_reason="no_live_run_state_rehearsal",
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_live_wallet_reservation",
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-wallet-stale-reservation"
+            ),
+            payload_hash="a" * 64,
+            audit_id="audit-m58-usdc-allowlist-live-submit-wallet-stale",
+            operator_notes="latest reservation record is stale for live submit",
+            detail="Stale no-live wallet reservation evidence for live-submit.",
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-allowlist-live-submit-wallet-stale",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json={
+            "submission_id": "m58-usdc-allowlist-live-submit-wallet-stale",
+            "readiness_id": ready["live_readiness_id"],
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one run-state selected order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "stale latest wallet reservation evidence",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert "run_state_live_wallet_reservation_run_state_mismatch" in payload[
         "message"
     ]
     assert payload["live_exchange_submitted"] is False
