@@ -5458,6 +5458,10 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
     ):
         blockers.append("run_state_allocated_fanout_notional_mismatch")
     max_fanout_notional = _decimal_value(run_state.max_fanout_notional_usdc)
+    if max_fanout_notional is None:
+        blockers.append("run_state_max_fanout_notional_invalid")
+    elif max_fanout_notional > Decimal("100"):
+        blockers.append("run_state_max_fanout_notional_cap_exceeded")
     if max_fanout_notional is None or allocated_fanout_notional is None:
         blockers.append("run_state_fanout_cap_remaining_mismatch")
     elif _usdc_pair_decimal_mismatch(
@@ -5465,6 +5469,13 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         max_fanout_notional - allocated_fanout_notional,
     ):
         blockers.append("run_state_fanout_cap_remaining_mismatch")
+    if max_fanout_notional is None or planned_fanout_notional is None:
+        blockers.append("run_state_fanout_cap_overage_mismatch")
+    elif _usdc_pair_decimal_mismatch(
+        run_state.fanout_cap_overage_usdc,
+        max(planned_fanout_notional - max_fanout_notional, Decimal("0")),
+    ):
+        blockers.append("run_state_fanout_cap_overage_mismatch")
     if wallet_allocated_notional is None or _usdc_pair_decimal_mismatch(
         run_state.wallet_allocated_notional_usdc,
         wallet_allocated_notional,
