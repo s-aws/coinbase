@@ -137,7 +137,8 @@ Available building blocks:
   run-state/cap/wallet/live-readiness/notional/partial-success statuses
   with fan-out execution still blocked,
   selected-product rate/cap/wallet
-  allocation readiness, no queued product-row blockers, plus recorded parent
+  allocation readiness, ready queued product-row runtime/allocation/wallet
+  reservation states, no queued product-row blockers, plus recorded parent
   run-lock, runtime rate-limit, retry-budget/backoff, recovery evidence, and
   selected-product candidate readiness, cap-guard ref, and membership in the
   parent retryable/recovery-required sets before it can reuse the existing
@@ -713,7 +714,8 @@ preferred, readiness still has a cancel rollback plan ref, and the parent
 run-state has ready aggregate
 status, recorded run-lock evidence, is not paused/aborted, and has ready runtime rate-limit,
 retry-budget/backoff, recovery evidence, selected-product rate/cap/wallet
-allocation readiness, and no queued product-row blockers, plus selected-product
+allocation readiness, ready queued product-row runtime/allocation/wallet
+reservation states, and no queued product-row blockers, plus selected-product
 candidate readiness, cap-guard ref, a non-empty selected-product recovery ref
 bound to that product and not reused by another queued run-state, and
 membership in the parent

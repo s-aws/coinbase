@@ -5768,9 +5768,39 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
             if blocker
         ]
     )
+    queued_product_retry_blocked = any(
+        item.execution_state == "queued_no_live"
+        and item.retry_state != "ready_no_live"
+        for item in run_state.product_states
+    )
+    queued_product_rate_limit_blocked = any(
+        item.execution_state == "queued_no_live"
+        and item.rate_limit_state != "ready_no_live"
+        for item in run_state.product_states
+    )
     queued_product_retry_backoff_blocked = any(
         item.execution_state == "queued_no_live"
         and item.retry_backoff_status not in {"not_required", "ready_no_live"}
+        for item in run_state.product_states
+    )
+    queued_product_recovery_blocked = any(
+        item.execution_state == "queued_no_live"
+        and item.recovery_state != "ready_no_live"
+        for item in run_state.product_states
+    )
+    queued_product_fanout_cap_unallocated = any(
+        item.execution_state == "queued_no_live"
+        and item.fanout_cap_allocation_status != "allocated_no_live"
+        for item in run_state.product_states
+    )
+    queued_product_wallet_unallocated = any(
+        item.execution_state == "queued_no_live"
+        and item.wallet_allocation_status != "allocated_no_live"
+        for item in run_state.product_states
+    )
+    queued_product_live_wallet_not_ready = any(
+        item.execution_state == "queued_no_live"
+        and item.live_wallet_reservation_status != "ready_no_live"
         for item in run_state.product_states
     )
     live_readiness_blockers = _dedupe(
@@ -5819,8 +5849,20 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_product_recovery_ref_conflict")
     if queued_product_row_blockers:
         blockers.append("run_state_product_blockers_present")
+    if queued_product_retry_blocked:
+        blockers.append("run_state_product_retry_not_ready")
+    if queued_product_rate_limit_blocked:
+        blockers.append("run_state_product_rate_limit_not_ready")
     if queued_product_retry_backoff_blocked:
         blockers.append("run_state_product_retry_backoff_not_ready")
+    if queued_product_recovery_blocked:
+        blockers.append("run_state_product_recovery_not_ready")
+    if queued_product_fanout_cap_unallocated:
+        blockers.append("run_state_product_fanout_cap_not_allocated")
+    if queued_product_wallet_unallocated:
+        blockers.append("run_state_product_wallet_allocation_not_allocated")
+    if queued_product_live_wallet_not_ready:
+        blockers.append("run_state_product_live_wallet_reservation_not_ready")
     if run_state.live_readiness_blockers != live_readiness_blockers:
         blockers.append("run_state_live_readiness_blockers_mismatch")
     if run_state.live_readiness_blockers:
