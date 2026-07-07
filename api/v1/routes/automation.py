@@ -763,6 +763,7 @@ def _allowlist_run_state_item_from_record(
         recovery_required_product_count=record.recovery_required_product_count,
         run_lock_status=record.run_lock_status,
         run_lock_ref=record.run_lock_ref,
+        run_lock_recorded_at=record.run_lock_recorded_at,
         run_lock_conflict_run_state_id=record.run_lock_conflict_run_state_id,
         pause_resume_status=record.pause_resume_status,
         abort_status=record.abort_status,
@@ -4555,9 +4556,11 @@ def _record_usdc_pair_allowlist_run_state(
         USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_ORDER_CAP
     )
     rate_limit_window_seconds = USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_SECONDS
-    rate_limit_window_started_at = datetime.now(timezone.utc).replace(
-        microsecond=0
+    runtime_recorded_at = datetime.now(timezone.utc).replace(microsecond=0)
+    run_lock_recorded_at = (
+        runtime_recorded_at.isoformat() if body.run_lock_ref else None
     )
+    rate_limit_window_started_at = runtime_recorded_at
     rate_limit_window_expires_at = rate_limit_window_started_at + timedelta(
         seconds=rate_limit_window_seconds
     )
@@ -4833,6 +4836,7 @@ def _record_usdc_pair_allowlist_run_state(
             else "recorded_no_live"
         ),
         run_lock_ref=body.run_lock_ref,
+        run_lock_recorded_at=run_lock_recorded_at,
         run_lock_conflict_run_state_id=run_lock_conflict_run_state_id,
         pause_resume_status=(
             "paused_no_live" if body.pause_requested else "running_no_live"

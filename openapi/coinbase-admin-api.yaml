@@ -170106,6 +170106,11 @@ components:
           - type: string
           - type: 'null'
           title: Run Lock Ref
+        run_lock_recorded_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Run Lock Recorded At
         run_lock_conflict_run_state_id:
           anyOf:
           - type: string

@@ -267,6 +267,7 @@ class UsdcPairSnapshotAllowlistRunStateRecord(BaseModel):
     recovery_required_product_count: int = 0
     run_lock_status: str = Field(min_length=1)
     run_lock_ref: str | None = None
+    run_lock_recorded_at: str | None = None
     run_lock_conflict_run_state_id: str | None = None
     pause_resume_status: str = Field(min_length=1)
     abort_status: str = Field(min_length=1)
