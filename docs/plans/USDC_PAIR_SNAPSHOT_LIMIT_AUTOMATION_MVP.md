@@ -137,7 +137,8 @@ Available building blocks:
   `scheduler_blocked` may remain as parent fanout blockers for this handoff;
   any other parent fanout blocker rejects the handoff. Live-submit also
   recomputes queued, blocked, retryable, and recovery-required product sets and
-  counts from product-row state and rejects stale aggregate readback before
+  counts from product-row state, plus aggregate fan-out, wallet-allocation, and
+  live-wallet notional totals, and rejects stale aggregate readback before
   invoking the executor. This does not authorize live fan-out or scheduler
   behavior.
 - `tools/run_admin_api_usdc_pair_snapshot_live_submit.py` can use

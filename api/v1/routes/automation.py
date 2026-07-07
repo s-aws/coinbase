@@ -5173,6 +5173,21 @@ def _normalized_usdc_pair_product_id_multiset(product_ids: list[str]) -> list[st
     )
 
 
+def _sum_usdc_pair_decimal_values(values: list[str]) -> Decimal | None:
+    total = Decimal("0")
+    for value in values:
+        decimal_value = _non_negative_decimal_value(value)
+        if decimal_value is None:
+            return None
+        total += decimal_value
+    return total
+
+
+def _usdc_pair_decimal_mismatch(value: str | None, expected: Decimal) -> bool:
+    decimal_value = _non_negative_decimal_value(value)
+    return decimal_value is None or decimal_value != expected
+
+
 def _validate_usdc_pair_allowlist_run_state_live_submit(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
@@ -5410,6 +5425,76 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_recovery_required_product_count_mismatch")
     if run_state.rate_limit_attempted_order_count != queued_product_state_count:
         blockers.append("run_state_rate_limit_attempted_order_count_mismatch")
+    planned_fanout_notional = _sum_usdc_pair_decimal_values(
+        [
+            item.planned_notional_usdc
+            for item in run_state.product_states
+            if item.execution_state == "queued_no_live"
+        ]
+    )
+    allocated_fanout_notional = _sum_usdc_pair_decimal_values(
+        [item.allocated_notional_usdc for item in run_state.product_states]
+    )
+    wallet_allocated_notional = _sum_usdc_pair_decimal_values(
+        [item.wallet_allocated_notional_usdc for item in run_state.product_states]
+    )
+    live_wallet_reserved_notional = _sum_usdc_pair_decimal_values(
+        [item.live_wallet_reserved_notional_usdc for item in run_state.product_states]
+    )
+    live_wallet_debited_notional = _sum_usdc_pair_decimal_values(
+        [item.live_wallet_debited_notional_usdc for item in run_state.product_states]
+    )
+    live_wallet_released_notional = _sum_usdc_pair_decimal_values(
+        [item.live_wallet_released_notional_usdc for item in run_state.product_states]
+    )
+    if planned_fanout_notional is None or _usdc_pair_decimal_mismatch(
+        run_state.planned_fanout_notional_usdc,
+        planned_fanout_notional,
+    ):
+        blockers.append("run_state_planned_fanout_notional_mismatch")
+    if allocated_fanout_notional is None or _usdc_pair_decimal_mismatch(
+        run_state.allocated_fanout_notional_usdc,
+        allocated_fanout_notional,
+    ):
+        blockers.append("run_state_allocated_fanout_notional_mismatch")
+    max_fanout_notional = _decimal_value(run_state.max_fanout_notional_usdc)
+    if max_fanout_notional is None or allocated_fanout_notional is None:
+        blockers.append("run_state_fanout_cap_remaining_mismatch")
+    elif _usdc_pair_decimal_mismatch(
+        run_state.fanout_cap_remaining_usdc,
+        max_fanout_notional - allocated_fanout_notional,
+    ):
+        blockers.append("run_state_fanout_cap_remaining_mismatch")
+    if wallet_allocated_notional is None or _usdc_pair_decimal_mismatch(
+        run_state.wallet_allocated_notional_usdc,
+        wallet_allocated_notional,
+    ):
+        blockers.append("run_state_wallet_allocated_notional_mismatch")
+    wallet_available_notional = _non_negative_decimal_value(
+        run_state.wallet_available_notional_usdc
+    )
+    if wallet_available_notional is None or wallet_allocated_notional is None:
+        blockers.append("run_state_wallet_remaining_mismatch")
+    elif _usdc_pair_decimal_mismatch(
+        run_state.wallet_remaining_usdc,
+        wallet_available_notional - wallet_allocated_notional,
+    ):
+        blockers.append("run_state_wallet_remaining_mismatch")
+    if live_wallet_reserved_notional is None or _usdc_pair_decimal_mismatch(
+        run_state.live_wallet_reserved_notional_usdc,
+        live_wallet_reserved_notional,
+    ):
+        blockers.append("run_state_live_wallet_reserved_notional_mismatch")
+    if live_wallet_debited_notional is None or _usdc_pair_decimal_mismatch(
+        run_state.live_wallet_debited_notional_usdc,
+        live_wallet_debited_notional,
+    ):
+        blockers.append("run_state_live_wallet_debited_notional_mismatch")
+    if live_wallet_released_notional is None or _usdc_pair_decimal_mismatch(
+        run_state.live_wallet_released_notional_usdc,
+        live_wallet_released_notional,
+    ):
+        blockers.append("run_state_live_wallet_released_notional_mismatch")
     if (
         run_state.rate_limit_max_orders_per_window
         != USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_ORDER_CAP
