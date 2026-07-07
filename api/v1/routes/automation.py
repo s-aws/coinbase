@@ -5769,6 +5769,15 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_evidence(
         released_notional = _non_negative_decimal_value(
             record.released_notional_usdc
         )
+        product_reserved_notional = _non_negative_decimal_value(
+            product_row.live_wallet_reserved_notional_usdc
+        )
+        product_debited_notional = _non_negative_decimal_value(
+            product_row.live_wallet_debited_notional_usdc
+        )
+        product_released_notional = _non_negative_decimal_value(
+            product_row.live_wallet_released_notional_usdc
+        )
         if record.run_state_id != run_state.run_state_id:
             blockers.append("run_state_live_wallet_reservation_run_state_mismatch")
         if record.readiness_id != run_state.readiness_id:
@@ -5792,6 +5801,14 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_evidence(
             or reserved_notional != planned_notional
         ):
             blockers.append("run_state_live_wallet_reservation_notional_mismatch")
+        if (
+            product_reserved_notional is None
+            or reserved_notional is None
+            or product_reserved_notional != reserved_notional
+        ):
+            blockers.append(
+                "run_state_product_live_wallet_reserved_notional_mismatch"
+            )
         if record.reservation_status != "reserved_no_live":
             blockers.append("run_state_live_wallet_reservation_not_reserved")
         if (
@@ -5818,6 +5835,12 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_evidence(
             or debited_notional != planned_notional
         ):
             blockers.append("run_state_live_wallet_debit_notional_mismatch")
+        if (
+            product_debited_notional is None
+            or debited_notional is None
+            or product_debited_notional != debited_notional
+        ):
+            blockers.append("run_state_product_live_wallet_debit_notional_mismatch")
         if record.release_status != "released_no_live":
             blockers.append("run_state_live_wallet_release_not_released")
         if not record.release_id:
@@ -5837,6 +5860,12 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_evidence(
             or released_notional != planned_notional
         ):
             blockers.append("run_state_live_wallet_release_notional_mismatch")
+        if (
+            product_released_notional is None
+            or released_notional is None
+            or product_released_notional != released_notional
+        ):
+            blockers.append("run_state_product_live_wallet_release_notional_mismatch")
         blockers.extend(
             f"run_state_{blocker}"
             for blocker in _live_wallet_historical_reference_blockers(

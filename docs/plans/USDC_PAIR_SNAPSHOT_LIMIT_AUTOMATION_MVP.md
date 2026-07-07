@@ -121,7 +121,8 @@ Available building blocks:
   live-readiness, matching run-state/order-plan/live-readiness `plan_id` and
   `snapshot_run_id` association, ready parent and product live-wallet
   reservation/debit/release evidence revalidated against the latest reservation
-  store record, latest live-readiness price-freshness timestamps/statuses and
+  store record, selected-product wallet notional readback matching that latest
+  record, latest live-readiness price-freshness timestamps/statuses and
   recomputed price-distance evidence still passed, latest cap-guard submitted
   notional and wallet evidence still passed, ready aggregate parent
   run-state/cap/wallet/live-readiness/notional/partial-success statuses
@@ -908,7 +909,8 @@ fail closed with `live_wallet_active_reservation_overcommit`, record
 run-state readback and blocked product rows, remove the affected row from queued
 product ids, and zero wallet allocation.
 The run-state live-submit handoff also rejects missing, blocked, or stale latest
-parent/product live-wallet reservation/debit/release evidence, non-empty
+parent/product live-wallet reservation/debit/release evidence, stale
+selected-product wallet reserved/debited/released notional readback, non-empty
 product wallet reservation/debit/release conflict source ids, non-empty
 parent or selected-product active-overcommit readback, blocked parent run-lock,
 pause/abort, rate-limit, retry-budget/backoff, or recovery evidence, missing or
