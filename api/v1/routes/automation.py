@@ -3875,6 +3875,18 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_live_exchange_already_submitted")
     if run_state.notional_usdc != "0":
         blockers.append("run_state_notional_not_zero")
+    if run_state.run_lock_status != "recorded_no_live":
+        blockers.append("run_state_run_lock_not_recorded")
+    if not run_state.run_lock_ref:
+        blockers.append("run_state_run_lock_ref_missing")
+    if run_state.pause_resume_status != "running_no_live":
+        blockers.append("run_state_not_running")
+    if run_state.abort_status != "not_requested":
+        blockers.append("run_state_abort_requested")
+    if run_state.rate_limit_status != "ready_no_live":
+        blockers.append("run_state_rate_limit_not_ready")
+    if not run_state.rate_limit_window_ref:
+        blockers.append("run_state_rate_limit_window_ref_missing")
 
     if blockers:
         raise UsdcPairSnapshotError(
