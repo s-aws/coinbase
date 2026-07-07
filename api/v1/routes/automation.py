@@ -5315,6 +5315,33 @@ def _record_usdc_pair_live_submission(
         or row_planned_notional != submitted_notional
     ):
         blockers.append("readiness_submitted_notional_mismatch")
+    proof_ref_checks = {
+        "readiness_approval_snapshot_mismatch": (
+            row.approval_snapshot_id,
+            readiness.approval_snapshot_id,
+        ),
+        "readiness_admission_audit_mismatch": (
+            row.admission_audit_id,
+            readiness.admission_audit_id,
+        ),
+        "readiness_cap_guard_decision_mismatch": (
+            row.cap_guard_decision_id,
+            readiness.cap_guard_decision_id,
+        ),
+        "readiness_reconciliation_plan_mismatch": (
+            row.reconciliation_plan_id,
+            readiness.reconciliation_plan_id,
+        ),
+        "readiness_live_service_decision_mismatch": (
+            row.live_service_decision_id,
+            readiness.live_service_decision_id,
+        ),
+    }
+    blockers.extend(
+        blocker
+        for blocker, (row_ref, readiness_ref) in proof_ref_checks.items()
+        if str(row_ref or "").strip() != str(readiness_ref or "").strip()
+    )
     if not body.confirm_live_submit:
         blockers.append("confirm_live_submit_required")
     if not body.confirm_single_order_only:

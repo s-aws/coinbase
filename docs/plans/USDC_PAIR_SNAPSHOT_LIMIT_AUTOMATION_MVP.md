@@ -604,8 +604,9 @@ order plan contains exactly one matching selected row,
 latest live-readiness freshness
 timestamps/statuses, far-from-bid evidence, and snapshot non-fill evidence still
 pass after recomputation, readiness planned/submitted notional still matches the
-selected order-plan row, latest cap-guard submitted-notional and wallet checks
-still cover the selected notional, and the parent run-state has ready aggregate
+selected order-plan row, readiness proof refs still match the selected
+order-plan row, latest cap-guard submitted-notional and wallet checks still
+cover the selected notional, and the parent run-state has ready aggregate
 status, recorded run-lock evidence, is not paused/aborted, and has ready runtime rate-limit,
 retry-budget/backoff, recovery evidence, selected-product rate/cap/wallet
 allocation readiness, and no selected-product blockers, plus selected-product
@@ -829,6 +830,7 @@ live-readiness/notional/partial-success statuses, rejects stale selected-product
 price-freshness timestamp/status or recomputed price-distance evidence, rejects
 stale selected-product order-plan/live-readiness snapshot association, rejects
 stale selected-product planned/submitted notional evidence, rejects
+stale selected-product proof refs, rejects
 stale selected-product cap-guard submitted-notional or wallet evidence, rejects
 ambiguous selected-product run-state rows, rejects stale selected-product
 rate/cap/wallet allocation evidence, rejects ambiguous selected-product

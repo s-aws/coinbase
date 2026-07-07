@@ -35460,15 +35460,13 @@ def _append_usdc_pair_snapshot_run_state_live_readiness(
             cancel_before_additional_orders=True,
             cancel_rollback_plan_ref=f"m58-cancel-before-next-{normalized_product_id}",
             full_snapshot_fill_test=False,
-            approval_snapshot_id=f"approval-{readiness_id}-{normalized_product_id}",
-            admission_audit_id=f"admission-{readiness_id}-{normalized_product_id}",
+            approval_snapshot_id=f"approval-{readiness_id}",
+            admission_audit_id=f"admission-{readiness_id}",
             cap_guard_decision_id=(
                 cap_guard_decision_id or f"cap-{readiness_id}-{normalized_product_id}"
             ),
-            reconciliation_plan_id=f"recon-{readiness_id}-{normalized_product_id}",
-            live_service_decision_id=(
-                f"live-service-{readiness_id}-{normalized_product_id}"
-            ),
+            reconciliation_plan_id=f"recon-{readiness_id}",
+            live_service_decision_id=f"live-service-{readiness_id}",
             actor_id="contract-test",
             operator_intent="m58_usdc_snapshot_live_readiness",
             idempotency_key=f"idem-{readiness_id}-live-readiness-{normalized_product_id}",
@@ -39896,6 +39894,85 @@ def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_row_notion
     assert payload["failure_stage"] == "usdc_pair_snapshot_order_plan_live_submit"
     assert "readiness_planned_notional_mismatch" in payload["message"]
     assert "readiness_submitted_notional_mismatch" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_row_proof_refs(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-order-plan-live-submit-proof-ref-mismatch-run",
+        allowlist_readiness_id=(
+            "m58-usdc-order-plan-live-submit-proof-ref-mismatch-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    readiness_store = (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_live_readiness_store
+    )
+    source_readiness = next(
+        record
+        for record in readiness_store.read_recent(limit=10)
+        if record.readiness_id == ready["live_readiness_id"]
+    )
+    readiness_store.append(
+        source_readiness.model_copy(
+            update={
+                "approval_snapshot_id": "stale-approval-proof-ref",
+                "admission_audit_id": "stale-admission-proof-ref",
+                "cap_guard_decision_id": "stale-cap-guard-proof-ref",
+                "reconciliation_plan_id": "stale-reconciliation-proof-ref",
+                "live_service_decision_id": "stale-live-service-proof-ref",
+            }
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            f"{ready['plan_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-order-plan-live-submit-proof-ref-mismatch"
+            ),
+            operator_intent="m58_usdc_snapshot_live_submit",
+        ),
+        json={
+            "submission_id": "m58-usdc-order-plan-live-submit-proof-ref-mismatch",
+            "readiness_id": ready["live_readiness_id"],
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one far-from-market Coinbase limit order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "stale proof refs for direct live submit",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == "usdc_pair_snapshot_order_plan_live_submit"
+    assert "readiness_approval_snapshot_mismatch" in payload["message"]
+    assert "readiness_admission_audit_mismatch" in payload["message"]
+    assert "readiness_cap_guard_decision_mismatch" in payload["message"]
+    assert "readiness_reconciliation_plan_mismatch" in payload["message"]
+    assert "readiness_live_service_decision_mismatch" in payload["message"]
     assert payload["live_exchange_submitted"] is False
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_execution"] == "not_run"
