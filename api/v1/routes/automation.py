@@ -6302,6 +6302,7 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_queued_live_readiness(
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
     selected_product_row: UsdcPairSnapshotAllowlistRunStateProductItem,
     readiness_store: FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
+    live_service_decision_store: FileAdminApiLiveServiceDecisionStore,
 ) -> None:
     blockers: list[str] = []
     selected_product_id = selected_product_row.product_id.strip().upper()
@@ -6353,6 +6354,23 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_queued_live_readiness(
             blockers.append(
                 "run_state_product_live_readiness_submit_blockers_present"
             )
+        live_service_decision_id = str(
+            readiness.live_service_decision_id or ""
+        ).strip()
+        live_service_decision = (
+            live_service_decision_store.find_by_decision_id(
+                live_service_decision_id
+            )
+            if live_service_decision_id
+            else None
+        )
+        if live_service_decision is None:
+            blockers.append("run_state_product_live_service_decision_missing")
+        elif not _enabled_usdc_pair_live_service_decision_matches(
+            live_service_decision,
+            row=item,
+        ):
+            blockers.append("run_state_product_live_service_decision_not_enabled")
         if readiness.reference_bid_price_freshness_status != "fresh":
             blockers.append(
                 "run_state_product_live_readiness_reference_bid_price_not_fresh"
@@ -8078,6 +8096,7 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
             run_state=run_state,
             selected_product_row=product_row,
             readiness_store=readiness_store,
+            live_service_decision_store=live_service_decision_store,
         )
         _validate_usdc_pair_allowlist_run_state_live_submit_queued_cap_guard(
             run_state=run_state,
