@@ -170555,6 +170555,16 @@ components:
           - type: string
           - type: 'null'
           title: Live Wallet Reservation Ref Conflict Run State Id
+        live_wallet_debit_ref_conflict_run_state_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Wallet Debit Ref Conflict Run State Id
+        live_wallet_release_ref_conflict_run_state_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Wallet Release Ref Conflict Run State Id
         live_readiness_status:
           type: string
           minLength: 1

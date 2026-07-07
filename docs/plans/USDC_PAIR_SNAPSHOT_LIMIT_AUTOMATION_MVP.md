@@ -108,6 +108,9 @@ Available building blocks:
   refs
   across queued products or prior reservation records fail closed with
   `live_wallet_debit_ref_conflict` or `live_wallet_release_ref_conflict`.
+  Historical debit/release ref conflicts record
+  `live_wallet_debit_ref_conflict_run_state_id` and
+  `live_wallet_release_ref_conflict_run_state_id`.
   These reference conflicts remove affected rows from the queued set and zero
   their wallet allocation.
   Final-blocked products also clear stale cancel-recovery refs when recovery is
@@ -615,6 +618,9 @@ with a different run/readiness binding fail closed with
 refs across
 queued products or prior reservation records fail closed with
 `live_wallet_debit_ref_conflict` or `live_wallet_release_ref_conflict`.
+Historical debit/release ref conflicts record
+`live_wallet_debit_ref_conflict_run_state_id` and
+`live_wallet_release_ref_conflict_run_state_id`.
 Run-state live-submit revalidates these wallet lifecycle refs against the
 stored queued product rows so the selected product cannot hand off through
 duplicated reservation/debit/release refs in stale run-state evidence.
@@ -868,8 +874,12 @@ different run/readiness binding now fail closed with
 `live_wallet_reservation_ref_conflict_run_state_id`; reused debit or release
 refs across
 queued products or prior reservation records fail closed with explicit wallet
-reference conflict blockers and zero affected wallet allocation. Unreleased
-active no-live reservations that would overcommit the wallet proof fail closed
+reference conflict blockers and zero affected wallet allocation.
+Historical debit/release ref conflicts record
+`live_wallet_debit_ref_conflict_run_state_id` and
+`live_wallet_release_ref_conflict_run_state_id`.
+Unreleased active no-live reservations that would overcommit the wallet proof
+fail closed
 with `live_wallet_active_reservation_overcommit`, remove the affected row from
 queued product ids, and zero wallet allocation.
 The run-state live-submit handoff also rejects missing, blocked, or stale latest
