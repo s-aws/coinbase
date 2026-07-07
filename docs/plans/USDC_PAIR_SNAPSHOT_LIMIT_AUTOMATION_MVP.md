@@ -920,8 +920,8 @@ selected-product wallet reserved/debited/released notional readback, non-empty
 product wallet reservation/debit/release conflict source ids, non-empty
 parent or selected-product active-overcommit readback, blocked parent run-lock,
 pause/abort, rate-limit, retry-budget/backoff, or recovery evidence, missing or
-invalid run-lock timestamp evidence, missing or invalid rate-window start/end
-evidence, non-default rate-window cap/seconds policy, mismatched rate-window
+invalid run-lock timestamp evidence, missing, invalid, or expired rate-window
+start/end evidence, non-default rate-window cap/seconds policy, mismatched rate-window
 duration, run-lock timestamps outside the rate window, or over-cap rate-window
 readback, attempted-order counts that do not match queued rows, or non-empty
 run-lock/rate-window/retry-backoff/recovery conflict source ids before executor
@@ -957,9 +957,8 @@ Final-blocked product rows also clear stale cancel-recovery refs when recovery
 is not required.
 Subagent phase sweep on 2026-07-07 was closed after findings were consumed.
 Remaining live fan-out/scheduler blockers include submit-time revalidation for
-expired rate-limit windows, current run-lock/rate-window conflicts, current
-retry budget/backoff drift, and current enabled live-service decision evidence
-before executor invocation.
+current run-lock/rate-window conflicts, current retry budget/backoff drift, and
+current enabled live-service decision evidence before executor invocation.
 A blind contextless review on 2026-07-06 passed the M58 no-live Phase F
 authority-boundary questions and confirmed the change set is a domain module
 under Automation / Campaign / Scheduler, not a reusable admin platform

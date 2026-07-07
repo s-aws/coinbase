@@ -5701,6 +5701,8 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
             < rate_limit_window_expires_at
         ):
             blockers.append("run_state_run_lock_recorded_at_outside_rate_window")
+        if datetime.now(timezone.utc) >= rate_limit_window_expires_at:
+            blockers.append("run_state_rate_limit_window_expired")
     if run_state.retry_budget_status != "ready_no_live":
         blockers.append("run_state_retry_budget_not_ready")
     if run_state.retry_backoff_status not in {"not_required", "ready_no_live"}:
