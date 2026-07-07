@@ -6427,8 +6427,39 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_queued_live_readiness(
             blockers.append(
                 "run_state_product_live_readiness_cancel_rollback_plan_ref_required"
             )
+        product_planned_notional = _decimal_value(item.planned_notional_usdc)
+        readiness_planned_notional = _decimal_value(
+            readiness.planned_notional_usdc
+        )
         submitted_notional = _decimal_value(readiness.submitted_notional_usdc)
+        max_submitted_notional = _decimal_value(
+            readiness.max_submitted_notional_usdc
+        )
         max_executed_notional = _decimal_value(readiness.max_executed_notional_usdc)
+        if (
+            product_planned_notional is None
+            or readiness_planned_notional is None
+            or product_planned_notional != readiness_planned_notional
+        ):
+            blockers.append(
+                "run_state_product_live_readiness_planned_notional_mismatch"
+            )
+        if (
+            product_planned_notional is None
+            or submitted_notional is None
+            or product_planned_notional != submitted_notional
+        ):
+            blockers.append(
+                "run_state_product_live_readiness_submitted_notional_mismatch"
+            )
+        if (
+            submitted_notional is None
+            or max_submitted_notional is None
+            or submitted_notional != max_submitted_notional
+        ):
+            blockers.append(
+                "run_state_product_live_readiness_max_submitted_notional_mismatch"
+            )
         if submitted_notional is None:
             blockers.append(
                 "run_state_product_live_readiness_submitted_notional_invalid"
