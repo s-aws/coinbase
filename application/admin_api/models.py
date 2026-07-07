@@ -2904,6 +2904,7 @@ class UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem(BaseModel):
     cancel_recovery_status: str = Field(default="not_required", min_length=1)
     blockers: list[str] = Field(default_factory=list)
     recovery_state_ref: str | None = None
+    cancel_recovery_plan_ref_conflict_readiness_id: str | None = None
     live_exchange_submitted: bool = False
     live_coinbase_orders_ran: bool = False
     live_coinbase_execution: str = "not_run"

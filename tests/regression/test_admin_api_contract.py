@@ -34646,6 +34646,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_readiness_blocks_reused_recovery
     assert source_readiness["product_readiness_rows"][0][
         "recovery_state_ref"
     ] == "m58-cancel-recovery-plan-shared:BTC-USDC"
+    assert source_readiness["product_readiness_rows"][0][
+        "cancel_recovery_plan_ref_conflict_readiness_id"
+    ] is None
 
     conflict_response = client.post(
         (
@@ -34695,6 +34698,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_readiness_blocks_reused_recovery
     assert product_row["retry_attempts_available"] == 0
     assert product_row["cancel_recovery_status"] == "not_required"
     assert product_row["blockers"] == ["cancel_recovery_plan_ref_conflict"]
+    assert product_row["cancel_recovery_plan_ref_conflict_readiness_id"] == (
+        "m58-usdc-allowlist-recovery-plan-source"
+    )
     assert product_row["recovery_state_ref"] == "recon-m58-recovery-plan-reuse-btc"
     assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
 

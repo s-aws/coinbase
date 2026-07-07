@@ -78,7 +78,9 @@ Available building blocks:
   also record `retry_budget_per_product` and `retry_prior_attempt_count` so
   retry-budget exhaustion is auditable without inferring from remaining
   attempts alone. Aggregate run-state evidence records the consumed
-  `cancel_recovery_plan_ref` from allowlist-readiness.
+  `cancel_recovery_plan_ref` from allowlist-readiness. Allowlist-readiness
+  product rows record `cancel_recovery_plan_ref_conflict_readiness_id` when
+  recovery-plan refs conflict with prior readiness evidence.
   Candidate products with recovery status marked ready but no recovery ref, or
   a recovery ref bound to a different product, fail closed with
   `cancel_recovery_ref_missing` or `cancel_recovery_ref_product_mismatch`
@@ -86,7 +88,8 @@ Available building blocks:
   run-state attempt fail closed with `cancel_recovery_ref_conflict` and record
   the prior `recovery_ref_conflict_run_state_id`, and reused
   allowlist-readiness recovery plan refs fail closed with
-  `cancel_recovery_plan_ref_conflict` before run-state creation.
+  `cancel_recovery_plan_ref_conflict` and record the prior
+  `cancel_recovery_plan_ref_conflict_readiness_id` before run-state creation.
   Pause or abort requests now fail closed by removing queued products before
   cap/wallet allocation and recording `run_paused_no_live` or
   `run_aborted_no_live` blockers.
@@ -583,13 +586,17 @@ Product run-state rows also expose `retry_budget_per_product` and
 `retry_prior_attempt_count` before retry budget/backoff blockers clear
 remaining attempts. Aggregate run-state evidence also exposes the
 allowlist-readiness `cancel_recovery_plan_ref` that produced per-product
-recovery refs.
+recovery refs. Allowlist-readiness product rows also expose
+`cancel_recovery_plan_ref_conflict_readiness_id` when recovery-plan refs conflict
+with prior readiness evidence.
 Candidate products with ready recovery status but reused recovery plan refs,
 missing refs, product-mismatched refs, or reused product refs are removed from
 queued product ids and record `cancel_recovery_plan_ref_conflict`,
 `cancel_recovery_ref_missing`, `cancel_recovery_ref_product_mismatch`, or
 `cancel_recovery_ref_conflict`; reused product refs also record
 `recovery_ref_conflict_run_state_id` as source run-state evidence.
+Reused recovery plan refs record
+`cancel_recovery_plan_ref_conflict_readiness_id` as source readiness evidence.
 Pause or abort requests also remove queued products before cap/wallet
 allocation and record `run_paused_no_live` or `run_aborted_no_live` blockers.
 Products blocked by cap allocation, wallet allocation, missing live-readiness,

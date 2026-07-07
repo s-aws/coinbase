@@ -2660,7 +2660,7 @@ def _allowlist_product_readiness_row(
     retry_budget_per_product: int,
     run_rate_limit_budget_ref: str | None,
     cancel_recovery_plan_ref: str | None,
-    cancel_recovery_plan_ref_conflict: bool = False,
+    cancel_recovery_plan_ref_conflict_readiness_id: str | None = None,
 ) -> UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem:
     if row is None:
         return UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem(
@@ -2698,7 +2698,7 @@ def _allowlist_product_readiness_row(
             blockers.append("retry_budget_missing")
         if not cancel_recovery_plan_ref:
             blockers.append("cancel_recovery_plan_missing")
-        if cancel_recovery_plan_ref_conflict:
+        if cancel_recovery_plan_ref_conflict_readiness_id:
             blockers.append("cancel_recovery_plan_ref_conflict")
 
     readiness_status = "blocked" if blockers else "candidate"
@@ -2731,22 +2731,25 @@ def _allowlist_product_readiness_row(
         cancel_recovery_status="ready_no_live" if ready else "not_required",
         blockers=blockers,
         recovery_state_ref=recovery_state_ref,
+        cancel_recovery_plan_ref_conflict_readiness_id=(
+            cancel_recovery_plan_ref_conflict_readiness_id
+        ),
     )
 
 
-def _allowlist_readiness_cancel_recovery_plan_ref_conflict_product_ids(
+def _allowlist_readiness_cancel_recovery_plan_ref_conflict_readiness_ids(
     *,
     readiness_store: FileUsdcPairSnapshotOrderPlanAllowlistReadinessStore,
     readiness_id: str | None,
     cancel_recovery_plan_ref: str | None,
     product_ids: list[str],
-) -> set[str]:
+) -> dict[str, str]:
     normalized_ref = str(cancel_recovery_plan_ref or "").strip()
     if not normalized_ref:
-        return set()
+        return {}
     requested_readiness_id = str(readiness_id or "")
     requested_product_ids = set(_normalized_allowlist_product_ids(product_ids))
-    conflict_product_ids: set[str] = set()
+    conflict_readiness_ids: dict[str, str] = {}
     for record in readiness_store.read_recent(limit=500):
         if record.readiness_id == requested_readiness_id:
             continue
@@ -2754,9 +2757,12 @@ def _allowlist_readiness_cancel_recovery_plan_ref_conflict_product_ids(
             continue
         for product_id in record.recovery_required_product_ids:
             normalized_product_id = product_id.strip().upper()
-            if normalized_product_id in requested_product_ids:
-                conflict_product_ids.add(normalized_product_id)
-    return conflict_product_ids
+            if (
+                normalized_product_id in requested_product_ids
+                and normalized_product_id not in conflict_readiness_ids
+            ):
+                conflict_readiness_ids[normalized_product_id] = record.readiness_id
+    return conflict_readiness_ids
 
 
 def _record_usdc_pair_allowlist_readiness(
@@ -2777,8 +2783,8 @@ def _record_usdc_pair_allowlist_readiness(
         )
 
     rows_by_product = _order_plan_rows_by_product(plan)
-    cancel_recovery_ref_conflict_product_ids = (
-        _allowlist_readiness_cancel_recovery_plan_ref_conflict_product_ids(
+    cancel_recovery_ref_conflict_readiness_ids = (
+        _allowlist_readiness_cancel_recovery_plan_ref_conflict_readiness_ids(
             readiness_store=readiness_store,
             readiness_id=body.readiness_id,
             cancel_recovery_plan_ref=body.cancel_recovery_plan_ref,
@@ -2792,8 +2798,8 @@ def _record_usdc_pair_allowlist_readiness(
             retry_budget_per_product=body.retry_budget_per_product,
             run_rate_limit_budget_ref=body.run_rate_limit_budget_ref,
             cancel_recovery_plan_ref=body.cancel_recovery_plan_ref,
-            cancel_recovery_plan_ref_conflict=(
-                product_id in cancel_recovery_ref_conflict_product_ids
+            cancel_recovery_plan_ref_conflict_readiness_id=(
+                cancel_recovery_ref_conflict_readiness_ids.get(product_id)
             ),
         )
         for product_id in product_ids
@@ -2834,7 +2840,7 @@ def _record_usdc_pair_allowlist_readiness(
         "fanout_execution_not_approved",
         "scheduler_blocked",
     ])
-    if cancel_recovery_ref_conflict_product_ids:
+    if cancel_recovery_ref_conflict_readiness_ids:
         fanout_blockers.append("cancel_recovery_plan_ref_conflict")
     if blocked_product_ids:
         fanout_blockers.append("product_evidence_blocked")

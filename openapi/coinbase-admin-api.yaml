@@ -171128,6 +171128,11 @@ components:
           - type: string
           - type: 'null'
           title: Recovery State Ref
+        cancel_recovery_plan_ref_conflict_readiness_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cancel Recovery Plan Ref Conflict Readiness Id
         live_exchange_submitted:
           type: boolean
           title: Live Exchange Submitted
