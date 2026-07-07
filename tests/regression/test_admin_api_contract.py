@@ -35491,6 +35491,10 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_cap_exceeded(
     assert run_state["fanout_cap_overage_usdc"] == "0.50"
     assert run_state["fanout_cap_allocation_status"] == "exceeded"
     assert run_state["fanout_notional_status"] == "exceeded"
+    assert run_state["rate_limit_status"] == "blocked"
+    assert run_state["retry_budget_status"] == "blocked"
+    assert run_state["recovery_status"] == "blocked"
+    assert run_state["partial_success_status"] == "blocked"
     assert run_state["fanout_execution_status"] == "blocked"
     assert run_state["run_state_status"] == "blocked"
     assert run_state["fanout_blockers"] == [
@@ -35612,6 +35616,10 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_wallet_exceeded
     assert run_state["recovery_required_product_ids"] == []
     assert run_state["retryable_product_count"] == 0
     assert run_state["recovery_required_product_count"] == 0
+    assert run_state["rate_limit_status"] == "blocked"
+    assert run_state["retry_budget_status"] == "blocked"
+    assert run_state["recovery_status"] == "blocked"
+    assert run_state["partial_success_status"] == "blocked"
     assert run_state["run_state_status"] == "blocked"
     assert "product_evidence_blocked" in run_state["fanout_blockers"]
 
@@ -35815,6 +35823,10 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_missing_live_re
     assert run_state["recovery_required_product_ids"] == []
     assert run_state["retryable_product_count"] == 0
     assert run_state["recovery_required_product_count"] == 0
+    assert run_state["rate_limit_status"] == "blocked"
+    assert run_state["retry_budget_status"] == "blocked"
+    assert run_state["recovery_status"] == "blocked"
+    assert run_state["partial_success_status"] == "blocked"
     assert run_state["run_state_status"] == "blocked"
     assert "product_evidence_blocked" in run_state["fanout_blockers"]
 
@@ -35943,6 +35955,10 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_pause_abort_fail_close
     assert run_state["run_state_status"] == expected_run_state_status
     assert run_state["pause_resume_status"] == expected_pause_resume_status
     assert run_state["abort_status"] == expected_abort_status
+    assert run_state["rate_limit_status"] == "blocked"
+    assert run_state["retry_budget_status"] == "blocked"
+    assert run_state["recovery_status"] == "blocked"
+    assert run_state["partial_success_status"] == "blocked"
     assert run_state["queued_product_ids"] == []
     assert run_state["blocked_product_ids"] == ["BTC-USDC"]
     assert run_state["queued_product_count"] == 0

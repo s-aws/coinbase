@@ -3280,6 +3280,38 @@ def _allowlist_run_state_status(
     return "ready_no_live"
 
 
+def _allowlist_run_state_runtime_statuses(
+    *,
+    readiness: UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
+    product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
+) -> dict[str, str]:
+    queued = any(item.execution_state == "queued_no_live" for item in product_states)
+    blocked = any(item.execution_state == "blocked" for item in product_states)
+    retryable = any(item.retry_state == "ready_no_live" for item in product_states)
+    recovery_required = any(
+        item.recovery_state == "ready_no_live" for item in product_states
+    )
+    if not queued:
+        return {
+            "rate_limit_status": "blocked",
+            "retry_budget_status": "blocked",
+            "recovery_status": "blocked",
+            "partial_success_status": "blocked",
+        }
+    return {
+        "rate_limit_status": readiness.run_rate_limit_status,
+        "retry_budget_status": (
+            readiness.retry_budget_status if retryable else "blocked"
+        ),
+        "recovery_status": (
+            readiness.recovery_readiness_status if recovery_required else "blocked"
+        ),
+        "partial_success_status": (
+            "partial_ready_no_live" if blocked else "ready_no_live"
+        ),
+    }
+
+
 def _record_usdc_pair_allowlist_run_state(
     *,
     readiness: UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
@@ -3419,6 +3451,10 @@ def _record_usdc_pair_allowlist_run_state(
         pause_requested=body.pause_requested,
         abort_requested=body.abort_requested,
     )
+    runtime_statuses = _allowlist_run_state_runtime_statuses(
+        readiness=readiness,
+        product_states=product_states,
+    )
     record = UsdcPairSnapshotAllowlistRunStateRecord(
         run_state_id=body.run_state_id
         or f"m58-usdc-allowlist-run-state-{uuid4()}",
@@ -3474,11 +3510,11 @@ def _record_usdc_pair_allowlist_run_state(
             "paused_no_live" if body.pause_requested else "running_no_live"
         ),
         abort_status="aborted_no_live" if body.abort_requested else "not_requested",
-        rate_limit_status=readiness.run_rate_limit_status,
+        rate_limit_status=runtime_statuses["rate_limit_status"],
         rate_limit_window_ref=body.rate_limit_window_ref,
-        retry_budget_status=readiness.retry_budget_status,
-        recovery_status=readiness.recovery_readiness_status,
-        partial_success_status=readiness.partial_success_status,
+        retry_budget_status=runtime_statuses["retry_budget_status"],
+        recovery_status=runtime_statuses["recovery_status"],
+        partial_success_status=runtime_statuses["partial_success_status"],
         fanout_execution_status="blocked",
         run_state_status=run_state_status,
         fanout_blockers=fanout_blockers,

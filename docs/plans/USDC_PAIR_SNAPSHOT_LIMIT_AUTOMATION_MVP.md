@@ -60,7 +60,9 @@ Available building blocks:
   Products blocked by cap allocation, wallet allocation, missing live-readiness,
   pause, or abort no longer remain retryable or recovery-required in run-state
   evidence; their retry state is blocked, recovery is not required, and retry
-  attempts are zero.
+  attempts are zero. Aggregate rate-limit, retry-budget, recovery, and
+  partial-success status now derive from final product state instead of stale
+  pre-allocation readiness.
   A backend-owned run-state-to-live-submit handoff route now requires one
   explicitly selected queued product with matching `ready_no_live` Phase E
   live-readiness before it can reuse the existing single-order submit/cancel
@@ -500,7 +502,8 @@ ids before any future fan-out decision. Pause or abort requests also remove
 queued products before cap/wallet allocation and record
 `run_paused_no_live` or `run_aborted_no_live` blockers. Products blocked by
 cap allocation, wallet allocation, missing live-readiness, pause, or abort are
-not counted as retryable or recovery-required. This evidence remains
+not counted as retryable or recovery-required, and aggregate readiness statuses
+fail closed when no product remains queued. This evidence remains
 `fanout_readiness_status=blocked`, `fanout_execution_status=blocked`,
 `live_coinbase_execution=not_run`, and notional `0`; it does not submit
 Coinbase orders, fan out execution, fetch/reserve/debit live wallet balance,
@@ -701,8 +704,9 @@ allocation, while live wallet reservation/debit/release blockers are exposed
 as missing no-live evidence. Pause/abort no-live runtime-control evidence now
 fails closed by clearing queued products and recording explicit blockers.
 Blocked product rows are no longer reported as retryable or recovery-required.
-A
-blind contextless review on 2026-07-06 passed the M58 no-live Phase F
+Aggregate run-state status fields now fail closed when final product state has
+no queued products.
+A blind contextless review on 2026-07-06 passed the M58 no-live Phase F
 authority-boundary questions and confirmed the change set is a domain module
 under Automation / Campaign / Scheduler, not a reusable admin platform
 primitive. The review also confirmed future live fan-out remains unsafe and
