@@ -2964,6 +2964,16 @@ def _allowlist_run_state_product_item(
         and not row.recovery_state_ref
     ):
         blockers.append("cancel_recovery_ref_missing")
+    if (
+        row.readiness_status == "candidate"
+        and row.cancel_recovery_status == "ready_no_live"
+        and row.recovery_state_ref
+        and not _recovery_ref_matches_product(
+            recovery_state_ref=row.recovery_state_ref,
+            product_id=row.product_id,
+        )
+    ):
+        blockers.append("cancel_recovery_ref_product_mismatch")
     live_readiness_status = "not_queued"
     live_readiness_id = None
     live_readiness_source = None
@@ -3043,6 +3053,20 @@ def _allowlist_run_state_rate_limit_window_conflict_blocker(
             and record.run_state_id != requested_run_state_id
         ),
         None,
+    )
+
+
+def _recovery_ref_matches_product(
+    *,
+    recovery_state_ref: str | None,
+    product_id: str,
+) -> bool:
+    normalized_ref = str(recovery_state_ref or "").strip()
+    if not normalized_ref or ":" not in normalized_ref:
+        return False
+    return (
+        normalized_ref.rsplit(":", 1)[-1].strip().upper()
+        == product_id.strip().upper()
     )
 
 
@@ -4337,7 +4361,11 @@ def _record_usdc_pair_allowlist_run_state(
             blocker
             for item in product_states
             for blocker in item.blockers
-            if blocker == "cancel_recovery_ref_missing"
+            if blocker
+            in {
+                "cancel_recovery_ref_missing",
+                "cancel_recovery_ref_product_mismatch",
+            }
         ]
     )
     if live_readiness_blocked_product_ids:
@@ -4784,6 +4812,15 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
             and not product_row.recovery_state_ref
         ):
             blockers.append("run_state_product_recovery_ref_missing")
+        if (
+            product_row.recovery_state == "ready_no_live"
+            and product_row.recovery_state_ref
+            and not _recovery_ref_matches_product(
+                recovery_state_ref=product_row.recovery_state_ref,
+                product_id=product_row.product_id,
+            )
+        ):
+            blockers.append("run_state_product_recovery_ref_product_mismatch")
         if product_row.retry_attempts_available < 1:
             blockers.append("run_state_product_retry_attempts_missing")
         if product_row.fanout_cap_allocation_status != "allocated_no_live":

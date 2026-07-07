@@ -35924,6 +35924,75 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_missing_recover
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_mismatched_recovery_ref_product(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    readiness_id = "m58-usdc-run-state-recovery-ref-product-mismatch"
+    run_state_id = "m58-usdc-run-state-recovery-ref-product-mismatch"
+    reservation_id = "wallet-reservation-m58-recovery-ref-product-mismatch"
+    _append_usdc_pair_snapshot_live_wallet_reservation_ref_fixture(
+        client,
+        readiness_id=readiness_id,
+        run_state_id=run_state_id,
+        cap_guard_decision_id="cap-m58-run-state-recovery-ref-product-mismatch",
+        reservation_id=reservation_id,
+        debit_status="debited_no_live",
+        release_status="released_no_live",
+        reservation_record_extra={
+            "debit_id": "wallet-debit-m58-recovery-ref-product-mismatch",
+            "debited_notional_usdc": "1.00",
+            "release_id": "wallet-release-m58-recovery-ref-product-mismatch",
+            "released_notional_usdc": "1.00",
+            "release_reason": "no_live_run_state_rehearsal",
+        },
+    )
+    readiness_store = (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_allowlist_readiness_store
+    )
+    source_readiness = readiness_store.find_by_readiness_id(readiness_id)
+    assert source_readiness is not None
+    readiness_store.append(
+        source_readiness.model_copy(
+            update={
+                "product_readiness_rows": [
+                    item.model_copy(
+                        update={
+                            "recovery_state_ref": (
+                                "m58-cancel-recovery-negative:ETH-USDC"
+                            )
+                        }
+                    )
+                    for item in source_readiness.product_readiness_rows
+                ]
+            }
+        )
+    )
+
+    payload = _post_usdc_pair_snapshot_live_wallet_reservation_run_state(
+        client,
+        readiness_id=readiness_id,
+        run_state_id=run_state_id,
+        reservation_id=reservation_id,
+    )
+
+    run_state = payload["run_state"]
+    assert run_state["run_state_status"] == "blocked"
+    assert run_state["queued_product_ids"] == []
+    assert run_state["blocked_product_ids"] == ["BTC-USDC"]
+    assert "cancel_recovery_ref_product_mismatch" in run_state["fanout_blockers"]
+    assert "product_evidence_blocked" in run_state["fanout_blockers"]
+
+    product_row = run_state["product_states"][0]
+    assert product_row["execution_state"] == "blocked"
+    assert product_row["recovery_state"] == "not_required"
+    assert product_row["recovery_state_ref"] is None
+    assert product_row["blockers"] == ["cancel_recovery_ref_product_mismatch"]
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_active_wallet_reservation_overcommit(
     monkeypatch,
 ):
@@ -39741,6 +39810,82 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_r
         "usdc_pair_snapshot_allowlist_run_state_live_submit"
     )
     assert "run_state_product_recovery_ref_missing" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_recovery_ref_product_match(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-recovery-ref-product",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-submit-recovery-ref-product-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(ready["run_state_id"])
+    assert source_run_state is not None
+    mismatched_ref_product_states = [
+        item.model_copy(
+            update={"recovery_state_ref": "m58-cancel-recovery:ETH-USDC"}
+        )
+        for item in source_run_state.product_states
+    ]
+    run_state_store.append(
+        source_run_state.model_copy(
+            update={"product_states": mismatched_ref_product_states}
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-recovery-ref-product"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json={
+            "submission_id": "m58-usdc-allowlist-live-submit-recovery-ref-product",
+            "readiness_id": ready["live_readiness_id"],
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one run-state selected order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "mismatched selected product recovery evidence ref",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert "run_state_product_recovery_ref_product_mismatch" in payload[
+        "message"
+    ]
     assert payload["live_exchange_submitted"] is False
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_execution"] == "not_run"
