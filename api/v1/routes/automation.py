@@ -2370,14 +2370,31 @@ def _find_usdc_pair_order_plan_row(
     product_id: str,
     client_order_id: str,
 ) -> Any | None:
+    return next(
+        iter(
+            _matching_usdc_pair_order_plan_rows(
+                plan,
+                product_id=product_id,
+                client_order_id=client_order_id,
+            )
+        ),
+        None,
+    )
+
+
+def _matching_usdc_pair_order_plan_rows(
+    plan: UsdcPairSnapshotOrderPlanRecord,
+    *,
+    product_id: str,
+    client_order_id: str,
+) -> list[Any]:
     normalized_product_id = product_id.upper()
-    for row in plan.order_plan_rows:
-        if (
-            row.product_id.upper() == normalized_product_id
-            and row.client_order_id == client_order_id
-        ):
-            return row
-    return None
+    return [
+        row
+        for row in plan.order_plan_rows
+        if row.product_id.upper() == normalized_product_id
+        and row.client_order_id == client_order_id
+    ]
 
 
 def _usdc_pair_live_service_product_scope_matches(
@@ -6225,14 +6242,20 @@ def submit_usdc_pair_snapshot_order_plan_live_order(
             raise UsdcPairSnapshotError(
                 "USDC pair snapshot order-plan not found."
             )
-        row = _find_usdc_pair_order_plan_row(
+        matching_plan_rows = _matching_usdc_pair_order_plan_rows(
             plan,
             product_id=body.product_id,
             client_order_id=body.client_order_id,
         )
+        row = matching_plan_rows[0] if matching_plan_rows else None
         if row is None:
             raise UsdcPairSnapshotError(
                 "USDC pair snapshot order-plan row not found."
+            )
+        if len(matching_plan_rows) > 1:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot order-plan row ambiguous: "
+                "order_plan_row_selection_ambiguous."
             )
         readiness = _find_usdc_pair_live_readiness_record(
             store=readiness_store,
@@ -6343,14 +6366,20 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
             raise UsdcPairSnapshotError(
                 "USDC pair snapshot order-plan not found."
             )
-        row = _find_usdc_pair_order_plan_row(
+        matching_plan_rows = _matching_usdc_pair_order_plan_rows(
             plan,
             product_id=body.product_id,
             client_order_id=body.client_order_id,
         )
+        row = matching_plan_rows[0] if matching_plan_rows else None
         if row is None:
             raise UsdcPairSnapshotError(
                 "USDC pair snapshot order-plan row not found."
+            )
+        if len(matching_plan_rows) > 1:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot order-plan row ambiguous: "
+                "order_plan_row_selection_ambiguous."
             )
         readiness = _find_usdc_pair_live_readiness_record(
             store=readiness_store,
