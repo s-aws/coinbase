@@ -4717,12 +4717,25 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
             blockers.append("run_state_live_readiness_id_mismatch")
         if product_row.retry_state != "ready_no_live":
             blockers.append("run_state_product_retry_not_ready")
+        if product_row.rate_limit_state != "ready_no_live":
+            blockers.append("run_state_product_rate_limit_not_ready")
         if product_row.retry_backoff_status not in {"not_required", "ready_no_live"}:
             blockers.append("run_state_product_retry_backoff_not_ready")
         if product_row.recovery_state != "ready_no_live":
             blockers.append("run_state_product_recovery_not_ready")
         if product_row.retry_attempts_available < 1:
             blockers.append("run_state_product_retry_attempts_missing")
+        if product_row.fanout_cap_allocation_status != "allocated_no_live":
+            blockers.append("run_state_product_fanout_cap_not_allocated")
+        if product_row.wallet_allocation_status != "allocated_no_live":
+            blockers.append("run_state_product_wallet_allocation_not_allocated")
+        if product_row.allocated_notional_usdc != product_row.planned_notional_usdc:
+            blockers.append("run_state_product_allocation_notional_mismatch")
+        if (
+            product_row.wallet_allocated_notional_usdc
+            != product_row.planned_notional_usdc
+        ):
+            blockers.append("run_state_product_wallet_notional_mismatch")
         if product_row.live_wallet_reservation_status != "ready_no_live":
             blockers.append("run_state_product_live_wallet_reservation_not_ready")
         if not product_row.live_wallet_reservation_id:

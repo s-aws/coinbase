@@ -39107,6 +39107,105 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_a
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_product_allocation_readiness(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-product-allocation-blocked",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-submit-product-allocation-blocked-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(ready["run_state_id"])
+    assert source_run_state is not None
+    blocked_product_states = [
+        item.model_copy(
+            update={
+                "rate_limit_state": "blocked",
+                "fanout_cap_allocation_status": "cap_exceeded_no_live",
+                "wallet_allocation_status": "wallet_exceeded_no_live",
+                "allocated_notional_usdc": "0.00",
+                "wallet_allocated_notional_usdc": "0.00",
+                "blockers": [
+                    *item.blockers,
+                    "rate_limit_window_capacity_exceeded",
+                    "fanout_cap_not_allocated",
+                    "wallet_available_notional_exceeded",
+                ],
+            }
+        )
+        for item in source_run_state.product_states
+    ]
+    run_state_store.append(
+        source_run_state.model_copy(
+            update={
+                "product_states": blocked_product_states,
+                "fanout_blockers": [
+                    *source_run_state.fanout_blockers,
+                    "product_allocation_stale",
+                ],
+            }
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-product-allocation-blocked"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json={
+            "submission_id": (
+                "m58-usdc-allowlist-live-submit-product-allocation-blocked"
+            ),
+            "readiness_id": ready["live_readiness_id"],
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one run-state selected order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "blocked product allocation evidence",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert "run_state_product_rate_limit_not_ready" in payload["message"]
+    assert "run_state_product_fanout_cap_not_allocated" in payload["message"]
+    assert "run_state_product_wallet_allocation_not_allocated" in payload[
+        "message"
+    ]
+    assert "run_state_product_allocation_notional_mismatch" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_order_plan_skips_stale_price_evidence(
     tmp_path,
 ):
