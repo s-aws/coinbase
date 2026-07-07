@@ -231,6 +231,7 @@ USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_CAPACITY_BLOCKER = (
     "rate_limit_window_capacity_exceeded"
 )
 USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_ORDER_CAP = 5
+USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_SECONDS = 1
 USDC_PAIR_SNAPSHOT_RETRY_BUDGET_EXHAUSTED_BLOCKER = "retry_budget_exhausted"
 USDC_PAIR_SNAPSHOT_RETRY_BACKOFF_MISSING_BLOCKER = "retry_backoff_ref_missing"
 USDC_PAIR_SNAPSHOT_RETRY_BACKOFF_CONFLICT_BLOCKER = "retry_backoff_ref_conflict"
@@ -773,6 +774,7 @@ def _allowlist_run_state_item_from_record(
         rate_limit_max_orders_per_window=(
             record.rate_limit_max_orders_per_window
         ),
+        rate_limit_window_seconds=record.rate_limit_window_seconds,
         rate_limit_attempted_order_count=(
             record.rate_limit_attempted_order_count
         ),
@@ -4550,6 +4552,7 @@ def _record_usdc_pair_allowlist_run_state(
     rate_limit_max_orders_per_window = (
         USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_ORDER_CAP
     )
+    rate_limit_window_seconds = USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_SECONDS
     rate_limit_window_within_cap = (
         rate_limit_attempted_order_count <= rate_limit_max_orders_per_window
     )
@@ -4833,6 +4836,7 @@ def _record_usdc_pair_allowlist_run_state(
             rate_limit_window_conflict_run_state_id
         ),
         rate_limit_max_orders_per_window=rate_limit_max_orders_per_window,
+        rate_limit_window_seconds=rate_limit_window_seconds,
         rate_limit_attempted_order_count=rate_limit_attempted_order_count,
         rate_limit_window_within_cap=rate_limit_window_within_cap,
         retry_budget_status=runtime_statuses["retry_budget_status"],

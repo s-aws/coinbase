@@ -170138,6 +170138,11 @@ components:
           minimum: 1.0
           title: Rate Limit Max Orders Per Window
           default: 5
+        rate_limit_window_seconds:
+          type: integer
+          minimum: 1.0
+          title: Rate Limit Window Seconds
+          default: 1
         rate_limit_attempted_order_count:
           type: integer
           minimum: 0.0
