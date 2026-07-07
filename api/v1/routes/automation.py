@@ -5319,6 +5319,15 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_rate_limit_not_ready")
     if not run_state.rate_limit_window_ref:
         blockers.append("run_state_rate_limit_window_ref_missing")
+    queued_product_state_count = sum(
+        1
+        for item in run_state.product_states
+        if item.execution_state == "queued_no_live"
+    )
+    if run_state.queued_product_count != queued_product_state_count:
+        blockers.append("run_state_queued_product_count_mismatch")
+    if run_state.rate_limit_attempted_order_count != queued_product_state_count:
+        blockers.append("run_state_rate_limit_attempted_order_count_mismatch")
     if (
         run_state.rate_limit_max_orders_per_window
         != USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_ORDER_CAP
