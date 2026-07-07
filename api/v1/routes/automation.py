@@ -220,6 +220,8 @@ USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_CAPACITY_BLOCKER = (
 )
 USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_ORDER_CAP = 5
 USDC_PAIR_SNAPSHOT_RETRY_BUDGET_EXHAUSTED_BLOCKER = "retry_budget_exhausted"
+USDC_PAIR_SNAPSHOT_RETRY_BACKOFF_MISSING_BLOCKER = "retry_backoff_ref_missing"
+USDC_PAIR_SNAPSHOT_RETRY_BACKOFF_CONFLICT_BLOCKER = "retry_backoff_ref_conflict"
 USDC_PAIR_SNAPSHOT_RUN_PAUSED_BLOCKER = "run_paused_no_live"
 USDC_PAIR_SNAPSHOT_RUN_ABORTED_BLOCKER = "run_aborted_no_live"
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_ACCOUNT_FAMILY = "coinbase_spot"
@@ -737,6 +739,8 @@ def _allowlist_run_state_item_from_record(
         rate_limit_status=record.rate_limit_status,
         rate_limit_window_ref=record.rate_limit_window_ref,
         retry_budget_status=record.retry_budget_status,
+        retry_backoff_status=record.retry_backoff_status,
+        retry_backoff_ref=record.retry_backoff_ref,
         recovery_status=record.recovery_status,
         partial_success_status=record.partial_success_status,
         fanout_execution_status=record.fanout_execution_status,
@@ -2964,6 +2968,7 @@ def _allowlist_run_state_product_item(
         execution_state=execution_state,
         retry_state=row.retry_status if queued else "blocked",
         rate_limit_state=row.rate_limit_status if queued else "blocked",
+        retry_backoff_status="not_required",
         recovery_state=row.cancel_recovery_status if queued else "not_required",
         retry_attempts_available=row.retry_attempts_available if queued else 0,
         planned_notional_usdc=row.planned_notional_usdc,
@@ -3141,6 +3146,96 @@ def _apply_allowlist_run_state_retry_budget(
                         list(item.blockers)
                         + [USDC_PAIR_SNAPSHOT_RETRY_BUDGET_EXHAUSTED_BLOCKER]
                     ),
+                }
+            )
+        )
+    return updated, _dedupe(blockers)
+
+
+def _allowlist_run_state_retry_backoff_conflict_blocker(
+    *,
+    run_state_store: FileUsdcPairSnapshotAllowlistRunStateStore,
+    retry_backoff_ref: str | None,
+    run_state_id: str | None,
+) -> str | None:
+    if not retry_backoff_ref:
+        return None
+    requested_run_state_id = str(run_state_id or "")
+    return next(
+        (
+            USDC_PAIR_SNAPSHOT_RETRY_BACKOFF_CONFLICT_BLOCKER
+            for record in run_state_store.read_recent(limit=500)
+            if record.retry_backoff_ref == retry_backoff_ref
+            and record.run_state_id != requested_run_state_id
+        ),
+        None,
+    )
+
+
+def _apply_allowlist_run_state_retry_backoff(
+    *,
+    product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
+    run_state_store: FileUsdcPairSnapshotAllowlistRunStateStore,
+    readiness_id: str,
+    run_state_id: str | None,
+    retry_backoff_ref: str | None,
+    retry_backoff_conflict_blocker: str | None,
+) -> tuple[list[UsdcPairSnapshotAllowlistRunStateProductItem], list[str]]:
+    updated: list[UsdcPairSnapshotAllowlistRunStateProductItem] = []
+    blockers: list[str] = []
+    for item in product_states:
+        if item.execution_state != "queued_no_live":
+            updated.append(item)
+            continue
+        prior_attempts = _allowlist_run_state_prior_retry_attempt_count(
+            run_state_store=run_state_store,
+            readiness_id=readiness_id,
+            run_state_id=run_state_id,
+            item=item,
+        )
+        if prior_attempts == 0:
+            updated.append(
+                item.model_copy(
+                    update={
+                        "retry_backoff_status": "not_required",
+                        "retry_backoff_ref": None,
+                    }
+                )
+            )
+            continue
+
+        blocker = (
+            retry_backoff_conflict_blocker
+            or (
+                USDC_PAIR_SNAPSHOT_RETRY_BACKOFF_MISSING_BLOCKER
+                if not retry_backoff_ref
+                else None
+            )
+        )
+        if blocker:
+            blockers.append(blocker)
+            updated.append(
+                item.model_copy(
+                    update={
+                        "execution_state": "blocked",
+                        "retry_state": "blocked",
+                        "rate_limit_state": "blocked",
+                        "retry_backoff_status": "blocked",
+                        "retry_backoff_ref": retry_backoff_ref,
+                        "recovery_state": "not_required",
+                        "recovery_state_ref": None,
+                        "retry_attempts_available": 0,
+                        "blockers": _dedupe(list(item.blockers) + [blocker]),
+                    }
+                )
+            )
+            continue
+
+        updated.append(
+            item.model_copy(
+                update={
+                    "retry_backoff_status": "ready_no_live",
+                    "retry_backoff_ref": retry_backoff_ref,
                 }
             )
         )
@@ -3782,6 +3877,12 @@ def _allowlist_run_state_runtime_statuses(
     queued = any(item.execution_state == "queued_no_live" for item in product_states)
     blocked = any(item.execution_state == "blocked" for item in product_states)
     retryable = any(item.retry_state == "ready_no_live" for item in product_states)
+    retry_backoff_ready = any(
+        item.retry_backoff_status == "ready_no_live" for item in product_states
+    )
+    retry_backoff_blocked = any(
+        item.retry_backoff_status == "blocked" for item in product_states
+    )
     recovery_required = any(
         item.recovery_state == "ready_no_live" for item in product_states
     )
@@ -3789,6 +3890,7 @@ def _allowlist_run_state_runtime_statuses(
         return {
             "rate_limit_status": "blocked",
             "retry_budget_status": "blocked",
+            "retry_backoff_status": "blocked",
             "recovery_status": "blocked",
             "partial_success_status": "blocked",
         }
@@ -3796,6 +3898,13 @@ def _allowlist_run_state_runtime_statuses(
         "rate_limit_status": readiness.run_rate_limit_status,
         "retry_budget_status": (
             readiness.retry_budget_status if retryable else "blocked"
+        ),
+        "retry_backoff_status": (
+            "blocked"
+            if retry_backoff_blocked
+            else "ready_no_live"
+            if retry_backoff_ready
+            else "not_required"
         ),
         "recovery_status": (
             readiness.recovery_readiness_status if recovery_required else "blocked"
@@ -3854,6 +3963,13 @@ def _record_usdc_pair_allowlist_run_state(
             run_state_id=body.run_state_id,
         )
     )
+    retry_backoff_conflict_blocker = (
+        _allowlist_run_state_retry_backoff_conflict_blocker(
+            run_state_store=run_state_store,
+            retry_backoff_ref=body.retry_backoff_ref,
+            run_state_id=body.run_state_id,
+        )
+    )
     product_states, runtime_control_blockers = (
         _apply_allowlist_run_state_runtime_controls(
             product_states=product_states,
@@ -3870,6 +3986,16 @@ def _record_usdc_pair_allowlist_run_state(
         run_state_store=run_state_store,
         readiness_id=readiness.readiness_id,
         run_state_id=body.run_state_id,
+    )
+    product_states, retry_backoff_blockers = (
+        _apply_allowlist_run_state_retry_backoff(
+            product_states=product_states,
+            run_state_store=run_state_store,
+            readiness_id=readiness.readiness_id,
+            run_state_id=body.run_state_id,
+            retry_backoff_ref=body.retry_backoff_ref,
+            retry_backoff_conflict_blocker=retry_backoff_conflict_blocker,
+        )
     )
     product_states, cap_allocation = (
         _apply_allowlist_run_state_cap_allocation(
@@ -3946,6 +4072,7 @@ def _record_usdc_pair_allowlist_run_state(
         list(readiness.fanout_blockers)
         + runtime_control_blockers
         + retry_budget_blockers
+        + retry_backoff_blockers
         + wallet_allocation["live_wallet_reservation_blockers"]
         + (
             ["product_evidence_blocked"]
@@ -4051,6 +4178,8 @@ def _record_usdc_pair_allowlist_run_state(
         rate_limit_status=runtime_statuses["rate_limit_status"],
         rate_limit_window_ref=body.rate_limit_window_ref,
         retry_budget_status=runtime_statuses["retry_budget_status"],
+        retry_backoff_status=runtime_statuses["retry_backoff_status"],
+        retry_backoff_ref=body.retry_backoff_ref,
         recovery_status=runtime_statuses["recovery_status"],
         partial_success_status=runtime_statuses["partial_success_status"],
         fanout_execution_status="blocked",

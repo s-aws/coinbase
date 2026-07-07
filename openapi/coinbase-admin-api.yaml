@@ -170104,6 +170104,16 @@ components:
           type: string
           minLength: 1
           title: Retry Budget Status
+        retry_backoff_status:
+          type: string
+          minLength: 1
+          title: Retry Backoff Status
+          default: not_required
+        retry_backoff_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Retry Backoff Ref
         recovery_status:
           type: string
           minLength: 1
@@ -170356,6 +170366,16 @@ components:
           type: string
           minLength: 1
           title: Rate Limit State
+        retry_backoff_status:
+          type: string
+          minLength: 1
+          title: Retry Backoff Status
+          default: not_required
+        retry_backoff_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Retry Backoff Ref
         recovery_state:
           type: string
           minLength: 1
@@ -170577,6 +170597,12 @@ components:
             minLength: 1
           - type: 'null'
           title: Rate Limit Window Ref
+        retry_backoff_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Retry Backoff Ref
         live_wallet_reservation_ids:
           items:
             type: string

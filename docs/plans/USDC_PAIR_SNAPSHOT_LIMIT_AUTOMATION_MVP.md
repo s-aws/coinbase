@@ -54,17 +54,23 @@ Available building blocks:
   Phase E live-readiness association for each queued product by `plan_id`,
   `product_id`, and `client_order_id`; missing or blocked live-readiness
   removes the product from the queued set before any future fan-out decision.
-  Missing or reused run-lock refs and missing runtime rate-limit window refs
-  now fail closed by removing queued products before cap/wallet allocation and
-  recording `run_lock_ref_missing`, `run_lock_ref_conflict`, or
-  `rate_limit_window_ref_missing`.
+  Missing or reused run-lock refs, missing or reused runtime rate-limit window
+  refs, runtime windows with more than five queued products, repeated attempts
+  that exhaust per-product retry budget, and repeated attempts missing or
+  reusing retry-backoff evidence now fail closed by removing queued products
+  before cap/wallet allocation and recording `run_lock_ref_missing`,
+  `run_lock_ref_conflict`, `rate_limit_window_ref_missing`,
+  `rate_limit_window_ref_conflict`, `rate_limit_window_capacity_exceeded`,
+  `retry_budget_exhausted`, `retry_backoff_ref_missing`, or
+  `retry_backoff_ref_conflict`.
   Pause or abort requests now fail closed by removing queued products before
   cap/wallet allocation and recording `run_paused_no_live` or
   `run_aborted_no_live` blockers.
   Products blocked by cap allocation, wallet allocation, missing live-readiness,
-  pause, or abort no longer remain retryable or recovery-required in run-state
-  evidence; their retry state is blocked, recovery is not required, and retry
-  attempts are zero. Aggregate rate-limit, retry-budget, recovery, and
+  runtime controls, retry-budget exhaustion, retry-backoff blockers, pause, or
+  abort no longer remain retryable or recovery-required in run-state evidence;
+  their retry state is blocked, recovery is not required, and retry attempts are
+  zero. Aggregate rate-limit, retry-budget, retry-backoff, recovery, and
   partial-success status now derive from final product state instead of stale
   pre-allocation readiness. Missing live wallet reservation/debit/release
   evidence blocks aggregate run-state fan-out readiness while preserving the
@@ -507,14 +513,19 @@ match the run-state route, method, module, action, permission, service method,
 `client_order_id`, and product scope. Rows with missing, mismatched, blocked,
 invalid, or insufficient wallet proof, or missing/blocked live-readiness proof,
 are blocked in no-live run-state evidence and are removed from queued product
-ids before any future fan-out decision. Missing or reused run-lock refs and
-missing runtime rate-limit window refs remove queued products before cap/wallet
-allocation and record `run_lock_ref_missing`, `run_lock_ref_conflict`, or
-`rate_limit_window_ref_missing`.
+ids before any future fan-out decision. Missing or reused run-lock refs,
+missing or reused runtime rate-limit window refs, runtime windows with more
+than five queued products, retry-budget exhaustion, and missing or reused
+retry-backoff refs remove queued products before cap/wallet allocation and
+record `run_lock_ref_missing`, `run_lock_ref_conflict`,
+`rate_limit_window_ref_missing`, `rate_limit_window_ref_conflict`,
+`rate_limit_window_capacity_exceeded`, `retry_budget_exhausted`,
+`retry_backoff_ref_missing`, or `retry_backoff_ref_conflict`.
 Pause or abort requests also remove queued products before cap/wallet
 allocation and record `run_paused_no_live` or `run_aborted_no_live` blockers.
 Products blocked by cap allocation, wallet allocation, missing live-readiness,
-pause, or abort are not counted as retryable or recovery-required, and
+runtime controls, retry-budget exhaustion, retry-backoff blockers, pause, or
+abort are not counted as retryable or recovery-required, and
 aggregate readiness statuses fail closed when no product remains queued.
 Final-blocked products clear stale cancel-recovery refs when recovery is not
 required. Missing live wallet reservation/debit/release evidence also keeps the
@@ -721,8 +732,10 @@ exact per-product live-readiness association, and fail-closed wallet
 allocation, while live wallet reservation/debit/release blockers are exposed
 as missing no-live evidence. Pause/abort no-live runtime-control evidence now
 fails closed by clearing queued products and recording explicit blockers.
-Missing or reused run-lock refs and missing runtime rate-limit window refs also
-fail closed before cap/wallet allocation.
+Missing or reused run-lock refs, missing or reused runtime rate-limit window
+refs, runtime windows with more than five queued products, retry-budget
+exhaustion, and missing or reused retry-backoff refs also fail closed before
+cap/wallet allocation.
 Missing live wallet reservation/debit/release evidence now blocks aggregate
 run-state fan-out readiness while preserving queued product rows for the
 one-selected-product handoff proof path.

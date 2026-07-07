@@ -3038,6 +3038,8 @@ class UsdcPairSnapshotAllowlistRunStateProductItem(BaseModel):
     execution_state: str = Field(min_length=1)
     retry_state: str = Field(min_length=1)
     rate_limit_state: str = Field(min_length=1)
+    retry_backoff_status: str = Field(default="not_required", min_length=1)
+    retry_backoff_ref: str | None = None
     recovery_state: str = Field(min_length=1)
     retry_attempts_available: int = Field(default=0, ge=0)
     planned_notional_usdc: DecimalString = "0"
@@ -3090,6 +3092,7 @@ class UsdcPairSnapshotAllowlistRunStateRequest(BaseModel):
     max_fanout_notional_usdc: DecimalString = "100"
     run_lock_ref: str | None = Field(default=None, min_length=1)
     rate_limit_window_ref: str | None = Field(default=None, min_length=1)
+    retry_backoff_ref: str | None = Field(default=None, min_length=1)
     live_wallet_reservation_ids: list[str] = Field(default_factory=list)
     pause_requested: bool = False
     abort_requested: bool = False
@@ -3154,6 +3157,8 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
     rate_limit_status: str = Field(min_length=1)
     rate_limit_window_ref: str | None = None
     retry_budget_status: str = Field(min_length=1)
+    retry_backoff_status: str = Field(default="not_required", min_length=1)
+    retry_backoff_ref: str | None = None
     recovery_status: str = Field(min_length=1)
     partial_success_status: str = Field(min_length=1)
     fanout_execution_status: str = Field(min_length=1)
