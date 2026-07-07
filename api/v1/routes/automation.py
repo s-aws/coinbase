@@ -655,6 +655,15 @@ def _allowlist_run_state_item_from_record(
         wallet_allocated_notional_usdc=record.wallet_allocated_notional_usdc,
         wallet_remaining_usdc=record.wallet_remaining_usdc,
         wallet_allocation_blockers=record.wallet_allocation_blockers,
+        live_readiness_status=record.live_readiness_status,
+        live_ready_product_ids=record.live_ready_product_ids,
+        live_readiness_missing_product_ids=(
+            record.live_readiness_missing_product_ids
+        ),
+        live_readiness_blocked_product_ids=(
+            record.live_readiness_blocked_product_ids
+        ),
+        live_readiness_blockers=record.live_readiness_blockers,
         fanout_notional_status=record.fanout_notional_status,
         product_ids=record.product_ids,
         queued_product_ids=record.queued_product_ids,
@@ -2735,10 +2744,88 @@ def _record_usdc_pair_allowlist_readiness(
     return _allowlist_readiness_item_from_record(record)
 
 
+def _matching_allowlist_live_readiness_record(
+    *,
+    store: FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
+    plan_id: str,
+    product_id: str,
+    client_order_id: str | None,
+) -> UsdcPairSnapshotOrderPlanLiveReadinessRecord | None:
+    normalized_product_id = product_id.strip().upper()
+    normalized_client_order_id = str(client_order_id or "").strip()
+    for record in store.read_recent(limit=500):
+        if record.plan_id != plan_id:
+            continue
+        if record.product_id.strip().upper() != normalized_product_id:
+            continue
+        if record.client_order_id.strip() != normalized_client_order_id:
+            continue
+        return record
+    return None
+
+
+def _allowlist_live_readiness_evidence(
+    *,
+    store: FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
+    plan_id: str,
+    product_id: str,
+    client_order_id: str | None,
+) -> tuple[str, str | None, str | None, list[str]]:
+    record = _matching_allowlist_live_readiness_record(
+        store=store,
+        plan_id=plan_id,
+        product_id=product_id,
+        client_order_id=client_order_id,
+    )
+    if record is None:
+        return "missing", None, None, ["live_readiness_missing"]
+
+    blockers: list[str] = []
+    if not record.preflight_passed:
+        blockers.extend(record.preflight_blockers or [])
+        if not record.preflight_blockers:
+            blockers.append("live_readiness_preflight_blocked")
+    if not record.submit_route_ready:
+        blockers.extend(record.submit_blockers or [])
+        if not record.submit_blockers:
+            blockers.append("live_readiness_submit_route_blocked")
+    if (
+        record.live_exchange_submitted
+        or record.live_coinbase_orders_ran
+        or record.live_coinbase_execution != "not_run"
+        or record.notional_usdc != "0"
+    ):
+        blockers.append("live_readiness_not_no_live")
+
+    source = record.source
+    if blockers:
+        return "blocked", record.readiness_id, source, _dedupe(blockers)
+    return "ready_no_live", record.readiness_id, source, []
+
+
 def _allowlist_run_state_product_item(
     row: UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem,
+    *,
+    plan_id: str,
+    live_readiness_store: FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
 ) -> UsdcPairSnapshotAllowlistRunStateProductItem:
     blockers = list(row.blockers or [])
+    live_readiness_status = "not_queued"
+    live_readiness_id = None
+    live_readiness_source = None
+    if row.readiness_status == "candidate" and not blockers:
+        (
+            live_readiness_status,
+            live_readiness_id,
+            live_readiness_source,
+            live_readiness_blockers,
+        ) = _allowlist_live_readiness_evidence(
+            store=live_readiness_store,
+            plan_id=plan_id,
+            product_id=row.product_id,
+            client_order_id=row.client_order_id,
+        )
+        blockers = _dedupe(blockers + live_readiness_blockers)
     queued = row.readiness_status == "candidate" and not blockers
     execution_state = "queued_no_live" if queued else "blocked"
     return UsdcPairSnapshotAllowlistRunStateProductItem(
@@ -2753,6 +2840,9 @@ def _allowlist_run_state_product_item(
         retry_attempts_available=row.retry_attempts_available if queued else 0,
         planned_notional_usdc=row.planned_notional_usdc,
         recovery_state_ref=row.recovery_state_ref,
+        live_readiness_status=live_readiness_status,
+        live_readiness_id=live_readiness_id,
+        live_readiness_source=live_readiness_source,
         blockers=blockers,
     )
 
@@ -3071,6 +3161,7 @@ def _record_usdc_pair_allowlist_run_state(
     body: UsdcPairSnapshotAllowlistRunStateRequest,
     run_state_store: FileUsdcPairSnapshotAllowlistRunStateStore,
     cap_guard_store: FileAdminApiCapGuardStore,
+    live_readiness_store: FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
     actor: AdminApiActor,
     operator_intent: str,
     idempotency_key: str,
@@ -3092,7 +3183,11 @@ def _record_usdc_pair_allowlist_run_state(
         )
 
     product_states = [
-        _allowlist_run_state_product_item(row)
+        _allowlist_run_state_product_item(
+            row,
+            plan_id=readiness.plan_id,
+            live_readiness_store=live_readiness_store,
+        )
         for row in readiness.product_readiness_rows
     ]
     product_states, cap_allocation = (
@@ -3133,6 +3228,35 @@ def _record_usdc_pair_allowlist_run_state(
         for item in product_states
         if item.recovery_state == "ready_no_live"
     ]
+    live_ready_product_ids = [
+        item.product_id
+        for item in product_states
+        if item.live_readiness_status == "ready_no_live"
+    ]
+    live_readiness_missing_product_ids = [
+        item.product_id
+        for item in product_states
+        if item.live_readiness_status == "missing"
+    ]
+    live_readiness_blocked_product_ids = [
+        item.product_id
+        for item in product_states
+        if item.live_readiness_status in {"missing", "blocked"}
+    ]
+    live_readiness_blockers = _dedupe(
+        [
+            blocker
+            for item in product_states
+            for blocker in item.blockers
+            if blocker.startswith("live_readiness_")
+        ]
+    )
+    if live_readiness_blocked_product_ids:
+        live_readiness_status = "blocked"
+    elif live_ready_product_ids:
+        live_readiness_status = "ready_no_live"
+    else:
+        live_readiness_status = "not_required"
     fanout_blockers = _dedupe(
         list(readiness.fanout_blockers)
         + (
@@ -3182,6 +3306,11 @@ def _record_usdc_pair_allowlist_run_state(
         ),
         wallet_remaining_usdc=wallet_allocation["wallet_remaining_usdc"],
         wallet_allocation_blockers=wallet_allocation["wallet_allocation_blockers"],
+        live_readiness_status=live_readiness_status,
+        live_ready_product_ids=live_ready_product_ids,
+        live_readiness_missing_product_ids=live_readiness_missing_product_ids,
+        live_readiness_blocked_product_ids=live_readiness_blocked_product_ids,
+        live_readiness_blockers=live_readiness_blockers,
         fanout_notional_status=fanout_notional_status,
         product_ids=readiness.product_ids,
         queued_product_ids=queued_product_ids,
@@ -4227,6 +4356,10 @@ def record_usdc_pair_snapshot_allowlist_run_state(
         FileAdminApiCapGuardStore,
         Depends(get_usdc_pair_snapshot_cap_guard_store),
     ],
+    live_readiness_store: Annotated[
+        FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
+        Depends(get_usdc_pair_snapshot_order_plan_live_readiness_store),
+    ],
     idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
     audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
 ) -> JSONResponse:
@@ -4251,6 +4384,7 @@ def record_usdc_pair_snapshot_allowlist_run_state(
             body=body,
             run_state_store=run_state_store,
             cap_guard_store=cap_guard_store,
+            live_readiness_store=live_readiness_store,
             actor=actor,
             operator_intent=operator_intent,
             idempotency_key=idempotency_key,

@@ -48,7 +48,10 @@ Available building blocks:
   scheduler. Run-state evidence now records no-live run-cap allocation,
   allocated notional, cap remaining, cap overage, and cap-guard decision refs
   per product, plus no-live wallet allocation evidence derived from existing
-  backend cap-guard wallet proofs.
+  backend cap-guard wallet proofs. Run-state evidence now also requires exact
+  Phase E live-readiness association for each queued product by `plan_id`,
+  `product_id`, and `client_order_id`; missing or blocked live-readiness
+  removes the product from the queued set before any future fan-out decision.
 - Backend proof-refresh mutation for existing order plans that resolves exact,
   unexpired, non-revoked approval lifecycle snapshots without browser
   authority or live execution, and can link exact durable admission-audit
@@ -79,9 +82,11 @@ Missing before live automation:
   overcommit during fan-out. Phase F run-state now proves no-live run-cap
   allocation and no-live wallet allocation from existing cap-guard wallet
   proofs, but it still does not fetch live wallet balance, reserve/debit
-  funds, or authorize multi-product live fan-out. The single-product Phase E
-  live-readiness route fails closed when the latest backend cap/guard proof
-  does not cover the submitted notional or required wallet availability.
+  funds, or authorize multi-product live fan-out. Phase F run-state now
+  requires matching Phase E live-readiness evidence before a product can be
+  queued in no-live rehearsal, and the single-product Phase E live-readiness
+  route fails closed when the latest backend cap/guard proof does not cover the
+  submitted notional or required wallet availability.
 - Durable approval, admission-audit, cap/guard, reconciliation, and enabled
   live-service decisions for every planned order.
 - Runtime fan-out rate-limit handling, retry execution, partial failure,
@@ -436,12 +441,17 @@ planned notional, allocated notional, cap remaining, cap overage, and
 per-product allocation status, plus cap-guard decision refs. It also records
 no-live wallet allocation status, available wallet proof, allocated wallet
 notional, remaining wallet capacity, blockers, and wallet-check source derived
-from existing backend cap-guard records. Wallet allocation now requires the
-cap-guard record to match the run-state route, method, module, action,
-permission, service method, `client_order_id`, and product scope. Rows with
-missing, mismatched, blocked, invalid, or insufficient wallet proof are blocked
-in no-live run-state evidence and are removed from queued product ids before
-any future fan-out decision. This evidence remains
+from existing backend cap-guard records. It also records no-live live-readiness
+association status, ready/missing/blocked product ids, live-readiness blockers,
+and per-product readiness ids/sources. Queued products must have exact matching
+Phase E live-readiness evidence for `plan_id`, `product_id`, and
+`client_order_id`, with preflight and submit-route readiness passing and no
+Coinbase execution. Wallet allocation now requires the cap-guard record to
+match the run-state route, method, module, action, permission, service method,
+`client_order_id`, and product scope. Rows with missing, mismatched, blocked,
+invalid, or insufficient wallet proof, or missing/blocked live-readiness proof,
+are blocked in no-live run-state evidence and are removed from queued product
+ids before any future fan-out decision. This evidence remains
 `fanout_readiness_status=blocked`, `fanout_execution_status=blocked`,
 `live_coinbase_execution=not_run`, and notional `0`; it does not submit
 Coinbase orders, fan out execution, fetch/reserve/debit live wallet balance,
@@ -627,8 +637,9 @@ controlled-live scope all pass.
 
 As of 2026-07-06, Phase E single-product controlled-live submit/cancel evidence
 exists and Phase F no-live allowlist-readiness/run-state evidence includes
-backend run-cap allocation, exact cap-guard association, and fail-closed
-wallet allocation. A blind contextless review on 2026-07-06 passed the M58
+backend run-cap allocation, exact cap-guard association, exact per-product
+live-readiness association, and fail-closed wallet allocation. A blind
+contextless review on 2026-07-06 passed the M58
 no-live Phase F authority-boundary questions and confirmed the change set is a
 domain module under Automation / Campaign / Scheduler, not a reusable admin
 platform primitive. The review also confirmed future live fan-out remains

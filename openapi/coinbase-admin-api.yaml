@@ -169848,6 +169848,31 @@ components:
             type: string
           type: array
           title: Wallet Allocation Blockers
+        live_readiness_status:
+          type: string
+          minLength: 1
+          title: Live Readiness Status
+          default: legacy_unverified
+        live_ready_product_ids:
+          items:
+            type: string
+          type: array
+          title: Live Ready Product Ids
+        live_readiness_missing_product_ids:
+          items:
+            type: string
+          type: array
+          title: Live Readiness Missing Product Ids
+        live_readiness_blocked_product_ids:
+          items:
+            type: string
+          type: array
+          title: Live Readiness Blocked Product Ids
+        live_readiness_blockers:
+          items:
+            type: string
+          type: array
+          title: Live Readiness Blockers
         fanout_notional_status:
           type: string
           minLength: 1
@@ -170253,6 +170278,21 @@ components:
           - type: string
           - type: 'null'
           title: Wallet Check Source
+        live_readiness_status:
+          type: string
+          minLength: 1
+          title: Live Readiness Status
+          default: not_evaluated
+        live_readiness_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Readiness Id
+        live_readiness_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Readiness Source
         recovery_state_ref:
           anyOf:
           - type: string
