@@ -72,7 +72,8 @@ Available building blocks:
   `rate_limit_window_within_cap` as capacity proof. Product run-state rows now
   also record `retry_budget_per_product` and `retry_prior_attempt_count` so
   retry-budget exhaustion is auditable without inferring from remaining
-  attempts alone.
+  attempts alone. Aggregate run-state evidence records the consumed
+  `cancel_recovery_plan_ref` from allowlist-readiness.
   Candidate products with recovery status marked ready but no recovery ref, or
   a recovery ref bound to a different product, fail closed with
   `cancel_recovery_ref_missing` or `cancel_recovery_ref_product_mismatch`
@@ -570,7 +571,9 @@ run-state also exposes `rate_limit_max_orders_per_window`,
 any future scheduler or fan-out path can rely on the rate-limit window.
 Product run-state rows also expose `retry_budget_per_product` and
 `retry_prior_attempt_count` before retry budget/backoff blockers clear
-remaining attempts.
+remaining attempts. Aggregate run-state evidence also exposes the
+allowlist-readiness `cancel_recovery_plan_ref` that produced per-product
+recovery refs.
 Candidate products with ready recovery status but reused recovery plan refs,
 missing refs, product-mismatched refs, or reused product refs are removed from
 queued product ids and record `cancel_recovery_plan_ref_conflict`,
@@ -833,7 +836,8 @@ exhaustion, and missing or reused retry-backoff refs also fail closed before
 cap/wallet allocation. Run-state records preserve the configured rate-limit
 window cap, attempted order count, and within-cap result as durable evidence.
 Product rows preserve configured retry budget and prior-attempt count as
-durable retry/backoff evidence.
+durable retry/backoff evidence. Aggregate run-state records preserve the
+consumed cancel/recovery plan ref.
 Missing live wallet reservation/debit/release evidence now blocks aggregate
 run-state fan-out readiness while preserving queued product rows for the
 one-selected-product handoff proof path. Reused no-live reservation refs with a

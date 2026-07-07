@@ -272,6 +272,7 @@ class UsdcPairSnapshotAllowlistRunStateRecord(BaseModel):
     retry_budget_status: str = Field(min_length=1)
     retry_backoff_status: str = Field(default="not_required", min_length=1)
     retry_backoff_ref: str | None = None
+    cancel_recovery_plan_ref: str | None = None
     recovery_status: str = Field(min_length=1)
     partial_success_status: str = Field(min_length=1)
     fanout_execution_status: str = "blocked"

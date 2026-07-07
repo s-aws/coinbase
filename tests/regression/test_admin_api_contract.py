@@ -34903,6 +34903,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
     assert run_state["rate_limit_window_within_cap"] is True
     assert run_state["retry_budget_status"] == "ready_no_live"
     assert run_state["recovery_status"] == "ready_no_live"
+    assert run_state["cancel_recovery_plan_ref"] == (
+        "m58-cancel-recovery-run-state"
+    )
     assert run_state["partial_success_status"] == "partial_ready_no_live"
     assert run_state["fanout_execution_status"] == "blocked"
     assert run_state["run_state_status"] == "blocked"

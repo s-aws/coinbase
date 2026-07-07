@@ -170128,6 +170128,11 @@ components:
           - type: string
           - type: 'null'
           title: Retry Backoff Ref
+        cancel_recovery_plan_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cancel Recovery Plan Ref
         recovery_status:
           type: string
           minLength: 1
