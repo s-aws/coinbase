@@ -205,6 +205,8 @@ USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_BLOCKERS = [
     "live_wallet_debit_missing",
     "live_wallet_release_missing",
 ]
+USDC_PAIR_SNAPSHOT_RUN_PAUSED_BLOCKER = "run_paused_no_live"
+USDC_PAIR_SNAPSHOT_RUN_ABORTED_BLOCKER = "run_aborted_no_live"
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_ACCOUNT_FAMILY = "coinbase_spot"
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_VENUE_SCOPE = "coinbase_advanced_trade"
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_INTX_APPLICABILITY = "not_applicable"
@@ -2879,6 +2881,40 @@ def _allowlist_run_state_product_item(
     )
 
 
+def _apply_allowlist_run_state_runtime_controls(
+    *,
+    product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
+    pause_requested: bool,
+    abort_requested: bool,
+) -> tuple[list[UsdcPairSnapshotAllowlistRunStateProductItem], list[str]]:
+    runtime_blocker = None
+    if abort_requested:
+        runtime_blocker = USDC_PAIR_SNAPSHOT_RUN_ABORTED_BLOCKER
+    elif pause_requested:
+        runtime_blocker = USDC_PAIR_SNAPSHOT_RUN_PAUSED_BLOCKER
+    if runtime_blocker is None:
+        return product_states, []
+
+    updated: list[UsdcPairSnapshotAllowlistRunStateProductItem] = []
+    for item in product_states:
+        if item.execution_state != "queued_no_live":
+            updated.append(item)
+            continue
+        updated.append(
+            item.model_copy(
+                update={
+                    "execution_state": "blocked",
+                    "retry_state": "blocked",
+                    "rate_limit_state": "blocked",
+                    "recovery_state": "not_required",
+                    "retry_attempts_available": 0,
+                    "blockers": _dedupe(list(item.blockers) + [runtime_blocker]),
+                }
+            )
+        )
+    return updated, [runtime_blocker]
+
+
 def _apply_allowlist_run_state_cap_allocation(
     *,
     product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
@@ -3263,6 +3299,13 @@ def _record_usdc_pair_allowlist_run_state(
         )
         for row in readiness.product_readiness_rows
     ]
+    product_states, runtime_control_blockers = (
+        _apply_allowlist_run_state_runtime_controls(
+            product_states=product_states,
+            pause_requested=body.pause_requested,
+            abort_requested=body.abort_requested,
+        )
+    )
     product_states, cap_allocation = (
         _apply_allowlist_run_state_cap_allocation(
             product_states=product_states,
@@ -3332,6 +3375,7 @@ def _record_usdc_pair_allowlist_run_state(
         live_readiness_status = "not_required"
     fanout_blockers = _dedupe(
         list(readiness.fanout_blockers)
+        + runtime_control_blockers
         + (
             ["live_wallet_reservation_missing"]
             if wallet_allocation["live_wallet_reservation_status"]
