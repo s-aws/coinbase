@@ -35176,6 +35176,9 @@ def _append_usdc_pair_snapshot_run_state_live_readiness(
     cap_guard_decision_id: str | None,
     reference_bid_price_freshness_status: str = "fresh",
     last_filled_price_freshness_status: str = "fresh",
+    intended_limit_price: str = "50.00",
+    far_from_bid_status: str = "passed",
+    snapshot_non_fill_status: str = "passed",
 ) -> None:
     from application.admin_api.usdc_pair_snapshot import (
         UsdcPairSnapshotOrderPlanLiveReadinessRecord,
@@ -35199,9 +35202,9 @@ def _append_usdc_pair_snapshot_run_state_live_readiness(
             last_filled_price_source="coinbase_advanced_trade.last_trade",
             last_filled_price_captured_at=captured_at,
             last_filled_price_freshness_status=last_filled_price_freshness_status,
-            intended_limit_price="50.00",
-            far_from_bid_status="passed",
-            snapshot_non_fill_status="passed",
+            intended_limit_price=intended_limit_price,
+            far_from_bid_status=far_from_bid_status,
+            snapshot_non_fill_status=snapshot_non_fill_status,
             submitted_notional_usdc=planned_notional_usdc,
             max_submitted_notional_usdc=planned_notional_usdc,
             max_executed_notional_usdc="0.01",
@@ -36585,6 +36588,130 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_non_fresh_live_
         "live_readiness_reference_bid_price_stale",
         "live_readiness_last_filled_price_future_timestamp",
     ]
+    assert product_row["live_coinbase_execution"] == "not_run"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+@pytest.mark.parametrize(
+    ("case_id", "live_readiness_kwargs"),
+    [
+        (
+            "blocked-status",
+            {
+                "far_from_bid_status": "blocked",
+                "snapshot_non_fill_status": "blocked",
+            },
+        ),
+        ("inconsistent-price", {"intended_limit_price": "95.00"}),
+    ],
+)
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_non_fill_live_readiness(
+    monkeypatch,
+    case_id,
+    live_readiness_kwargs,
+):
+    client = _client(monkeypatch)
+    readiness_id = f"m58-usdc-allowlist-run-state-non-fill-{case_id}"
+    cap_guard_decision_id = f"cap-m58-run-state-non-fill-{case_id}"
+    expected_blockers = [
+        "live_readiness_far_from_bid_price_required",
+        "live_readiness_snapshot_non_fill_price_distance_required",
+    ]
+    client.admin_api_test_cap_guard_store.append(
+        CapGuardDecisionRecord(
+            decision_id=cap_guard_decision_id,
+            route=(
+                "/api/v1/automation/usdc-pair-snapshot-order-plan-"
+                "allowlist-readiness/{readiness_id}/run-state"
+            ),
+            method="POST",
+            module_id="automation",
+            identity_key="client_order_id",
+            identity_value="m58-usdc-run-state-negative-BTC-USDC",
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method="record_usdc_pair_snapshot_allowlist_run_state",
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+            idempotency_key=f"idem-{cap_guard_decision_id}",
+            payload_hash="9" * 64,
+            approval_snapshot_id=f"approval-{cap_guard_decision_id}",
+            admission_audit_id=f"admission-{cap_guard_decision_id}",
+            allowed=True,
+            status=AdminApiGateStatus.PASSED,
+            cap_policy_ref="m58_phase_f_submitted_notional_cap",
+            guard_policy_ref="m58_phase_f_wallet_allocation_guard",
+            product_scope="BTC-USDC",
+            max_submitted_notional_usdc="1.00",
+            max_executed_notional_usdc="0",
+            wallet_check_required=True,
+            wallet_check_status=AdminApiGateStatus.PASSED,
+            wallet_available_notional_usdc="1.00",
+            wallet_check_source="m58_usdc_pair_non_fill_live_readiness_fixture",
+            reason=(
+                "No-live Phase F wallet allocation passes, but non-fill "
+                "live-readiness evidence is intentionally not live-grade."
+            ),
+        )
+    )
+    _append_usdc_pair_snapshot_allowlist_run_state_readiness(
+        client,
+        readiness_id=readiness_id,
+        planned_notional_usdc="1.00",
+        cap_guard_decision_id=cap_guard_decision_id,
+        append_live_readiness=False,
+    )
+    _append_usdc_pair_snapshot_run_state_live_readiness(
+        client,
+        readiness_id=readiness_id,
+        plan_id="m58-usdc-allowlist-run-state-negative-plan",
+        snapshot_run_id="m58-usdc-allowlist-run-state-negative-snapshot",
+        product_id="BTC-USDC",
+        client_order_id="m58-usdc-run-state-negative-BTC-USDC",
+        planned_notional_usdc="1.00",
+        cap_guard_decision_id=cap_guard_decision_id,
+        **live_readiness_kwargs,
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+            f"{readiness_id}/run-state"
+        ),
+        headers=_headers(
+            idempotency_key=f"idem-usdc-allowlist-run-state-non-fill-{case_id}",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_non_fill",
+        ),
+        json={
+            "run_state_id": f"m58-usdc-allowlist-run-state-non-fill-{case_id}",
+            "execution_mode": "no_live_rehearsal",
+            "max_fanout_notional_usdc": "100",
+            "run_lock_ref": f"m58-run-lock-non-fill-{case_id}",
+            "rate_limit_window_ref": f"m58-rate-limit-window-non-fill-{case_id}",
+            "pause_requested": False,
+            "abort_requested": False,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    run_state = payload["run_state"]
+    assert run_state["live_readiness_status"] == "blocked"
+    assert run_state["live_readiness_blockers"] == expected_blockers
+    assert run_state["queued_product_ids"] == []
+    assert run_state["blocked_product_ids"] == ["BTC-USDC"]
+    assert run_state["allocated_fanout_notional_usdc"] == "0.00"
+    assert run_state["wallet_allocated_notional_usdc"] == "0.00"
+    assert "product_evidence_blocked" in run_state["fanout_blockers"]
+    product_row = run_state["product_states"][0]
+    assert product_row["execution_state"] == "blocked"
+    assert product_row["live_readiness_status"] == "blocked"
+    assert product_row["blockers"] == expected_blockers
     assert product_row["live_coinbase_execution"] == "not_run"
     assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
 

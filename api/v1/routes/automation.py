@@ -2859,6 +2859,7 @@ def _allowlist_live_readiness_evidence(
             blockers.append(f"live_readiness_{field_name}_{recorded_status}")
         if current_status != "fresh":
             blockers.append(f"live_readiness_{field_name}_{current_status}")
+    blockers.extend(_allowlist_live_readiness_non_fill_blockers(record))
     if not record.preflight_passed:
         blockers.extend(record.preflight_blockers or [])
         if not record.preflight_blockers:
@@ -2879,6 +2880,47 @@ def _allowlist_live_readiness_evidence(
     if blockers:
         return "blocked", record.readiness_id, source, _dedupe(blockers)
     return "ready_no_live", record.readiness_id, source, []
+
+
+def _allowlist_live_readiness_non_fill_blockers(
+    record: UsdcPairSnapshotOrderPlanLiveReadinessRecord,
+) -> list[str]:
+    blockers: list[str] = []
+    intended_price = _decimal_value(record.intended_limit_price)
+    reference_bid = _decimal_value(record.reference_bid_price)
+    last_filled_price = _decimal_value(record.last_filled_price)
+    try:
+        side = OrderSide(record.side)
+    except ValueError:
+        blockers.append("live_readiness_side_invalid")
+        side = None
+
+    far_from_bid_blocker = "live_readiness_far_from_bid_price_required"
+    snapshot_non_fill_blocker = (
+        "live_readiness_snapshot_non_fill_price_distance_required"
+    )
+    if record.far_from_bid_status != "passed":
+        blockers.append(far_from_bid_blocker)
+    if record.snapshot_non_fill_status != "passed":
+        blockers.append(snapshot_non_fill_blocker)
+
+    if intended_price is None or reference_bid is None or last_filled_price is None:
+        blockers.append("live_readiness_price_reference_invalid")
+        return _dedupe(blockers)
+    if side is None:
+        return _dedupe(blockers)
+
+    if side == OrderSide.BUY:
+        far_from_bid_passed = intended_price <= reference_bid * Decimal("0.50")
+        non_fill_passed = intended_price <= last_filled_price * Decimal("0.90")
+    else:
+        far_from_bid_passed = intended_price >= reference_bid * Decimal("1.50")
+        non_fill_passed = intended_price >= last_filled_price * Decimal("1.10")
+    if not far_from_bid_passed:
+        blockers.append(far_from_bid_blocker)
+    if not non_fill_passed:
+        blockers.append(snapshot_non_fill_blocker)
+    return _dedupe(blockers)
 
 
 def _allowlist_run_state_product_item(
