@@ -92,7 +92,8 @@ Available building blocks:
   live-readiness, matching run-state/order-plan/live-readiness `plan_id` and
   `snapshot_run_id` association, ready parent and product live-wallet
   reservation/debit/release evidence revalidated against the latest reservation
-  store record, ready aggregate parent
+  store record, latest live-readiness price-distance statuses still passed,
+  ready aggregate parent
   run-state/cap/wallet/live-readiness/notional/partial-success statuses,
   selected-product rate/cap/wallet
   allocation readiness, no selected-product blockers, plus recorded parent
@@ -569,12 +570,13 @@ run-state to the existing Phase E submit/cancel route only when the product row
 has matching `ready_no_live` live-readiness evidence by `client_order_id`, the
 run-state/order-plan/live-readiness `plan_id` and `snapshot_run_id` association
 is current, the latest wallet reservation/debit/release record still matches
-the selected run-state/product/notional tuple, and the parent run-state has
-ready aggregate status, recorded run-lock evidence, is not paused/aborted, and
-has ready runtime rate-limit, retry-budget/backoff, recovery evidence,
-selected-product rate/cap/wallet allocation readiness, and no selected-product
-blockers, plus selected-product candidate readiness, cap-guard ref, and
-membership in the parent retryable/recovery-required sets;
+the selected run-state/product/notional tuple, latest live-readiness
+far-from-bid and snapshot non-fill statuses still pass, and the parent
+run-state has ready aggregate status, recorded run-lock evidence, is not
+paused/aborted, and has ready runtime rate-limit, retry-budget/backoff,
+recovery evidence, selected-product rate/cap/wallet allocation readiness, and
+no selected-product blockers, plus selected-product candidate readiness,
+cap-guard ref, and membership in the parent retryable/recovery-required sets;
 this remains a single-order controlled-live path, not fan-out automation.
 The backend live-submit runner can exercise this same handoff with
 `--submit-from-run-state`, recording the selected product's run-state id and
@@ -785,7 +787,8 @@ parent/product live-wallet reservation/debit/release evidence, blocked parent
 run-lock, pause/abort, rate-limit, retry-budget/backoff, or recovery evidence
 before any executor call, rejects blocked aggregate parent run-state/cap/wallet/
 live-readiness/notional/partial-success statuses, rejects stale selected-product
-rate/cap/wallet allocation evidence, rejects non-empty selected-product
+price-distance status, rejects stale selected-product rate/cap/wallet allocation
+evidence, rejects non-empty selected-product
 blockers, rejects unexpected parent fanout blockers other than
 `fanout_execution_not_approved` and `scheduler_blocked`, rejects stale
 selected-product candidate/cap-guard refs, rejects stale run-state/order-plan/
