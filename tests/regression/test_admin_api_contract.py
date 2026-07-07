@@ -35081,6 +35081,103 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_requires_wallet_check_
     assert updated[0].blockers == ["cap_guard_wallet_check_not_required"]
 
 
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_requires_cap_guard_notional_proof(
+    tmp_path,
+):
+    from api.v1.routes.automation import (
+        _apply_allowlist_run_state_wallet_allocation,
+    )
+    from application.admin_api.models import (
+        UsdcPairSnapshotAllowlistRunStateProductItem,
+    )
+
+    cap_guard_store = FileAdminApiCapGuardStore(tmp_path / "cap_guard.jsonl")
+    cap_guard_store.append(
+        CapGuardDecisionRecord(
+            decision_id="cap-m58-run-state-cap-wallet-underproof",
+            route=(
+                "/api/v1/automation/usdc-pair-snapshot-order-plan-"
+                "allowlist-readiness/{readiness_id}/run-state"
+            ),
+            method="POST",
+            module_id="automation",
+            identity_key="client_order_id",
+            identity_value="m58-usdc-run-state-BTC-USDC",
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method="record_usdc_pair_snapshot_allowlist_run_state",
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+            idempotency_key="idem-usdc-allowlist-run-state-underproof",
+            payload_hash="8" * 64,
+            approval_snapshot_id="approval-m58-run-state-underproof",
+            admission_audit_id="admission-m58-run-state-underproof",
+            allowed=True,
+            status=AdminApiGateStatus.PASSED,
+            cap_policy_ref="m58_phase_f_submitted_notional_cap",
+            guard_policy_ref="m58_phase_f_wallet_allocation_guard",
+            product_scope="BTC-USDC",
+            max_submitted_notional_usdc="0.50",
+            max_executed_notional_usdc="0",
+            wallet_check_required=True,
+            wallet_check_status=AdminApiGateStatus.PASSED,
+            wallet_available_notional_usdc="0.50",
+            wallet_check_source="m58_usdc_pair_cap_wallet_underproof_fixture",
+            reason="M58 run-state cap/wallet proof is below planned notional.",
+        )
+    )
+
+    product_states = [
+        UsdcPairSnapshotAllowlistRunStateProductItem(
+            product_id="BTC-USDC",
+            client_order_id="m58-usdc-run-state-BTC-USDC",
+            cap_guard_decision_id="cap-m58-run-state-cap-wallet-underproof",
+            readiness_status="candidate",
+            execution_state="queued_no_live",
+            retry_state="ready_no_live",
+            rate_limit_state="ready_no_live",
+            recovery_state="ready_no_live",
+            retry_attempts_available=1,
+            planned_notional_usdc="1.00",
+            allocated_notional_usdc="1.00",
+            fanout_cap_allocation_status="allocated_no_live",
+            fanout_cap_remaining_after_usdc="99.00",
+        )
+    ]
+
+    updated, allocation = _apply_allowlist_run_state_wallet_allocation(
+        product_states=product_states,
+        cap_guard_store=cap_guard_store,
+    )
+
+    assert allocation["wallet_allocation_status"] == "blocked"
+    assert allocation["wallet_available_notional_usdc"] == "0.00"
+    assert allocation["wallet_allocated_notional_usdc"] == "0.00"
+    assert allocation["wallet_remaining_usdc"] == "0.00"
+    assert allocation["wallet_allocation_blockers"] == [
+        "cap_guard_submitted_notional_exceeded",
+        "cap_guard_wallet_available_notional_exceeded",
+    ]
+    assert updated[0].execution_state == "blocked"
+    assert updated[0].retry_state == "blocked"
+    assert updated[0].rate_limit_state == "blocked"
+    assert updated[0].recovery_state == "not_required"
+    assert updated[0].recovery_state_ref is None
+    assert updated[0].retry_attempts_available == 0
+    assert updated[0].wallet_allocation_status == "cap_guard_wallet_proof_blocked"
+    assert updated[0].wallet_available_notional_usdc == "0.00"
+    assert updated[0].wallet_allocated_notional_usdc == "0.00"
+    assert updated[0].wallet_remaining_after_usdc == "0.00"
+    assert updated[0].wallet_check_source == (
+        "m58_usdc_pair_cap_wallet_underproof_fixture"
+    )
+    assert updated[0].blockers == [
+        "cap_guard_submitted_notional_exceeded",
+        "cap_guard_wallet_available_notional_exceeded",
+    ]
+
+
 def _append_usdc_pair_snapshot_allowlist_run_state_readiness(
     client,
     *,
@@ -36625,11 +36722,11 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_wallet_exceeded
 
     run_state = payload["run_state"]
     assert run_state["wallet_allocation_status"] == "blocked"
-    assert run_state["wallet_available_notional_usdc"] == "0.50"
+    assert run_state["wallet_available_notional_usdc"] == "0.00"
     assert run_state["wallet_allocated_notional_usdc"] == "0.00"
-    assert run_state["wallet_remaining_usdc"] == "0.50"
+    assert run_state["wallet_remaining_usdc"] == "0.00"
     assert run_state["wallet_allocation_blockers"] == [
-        "wallet_available_notional_exceeded"
+        "cap_guard_wallet_available_notional_exceeded"
     ]
     assert run_state["queued_product_ids"] == []
     assert run_state["blocked_product_ids"] == ["BTC-USDC"]
@@ -36654,12 +36751,16 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_wallet_exceeded
     assert product_row["recovery_state"] == "not_required"
     assert product_row["recovery_state_ref"] is None
     assert product_row["retry_attempts_available"] == 0
-    assert product_row["wallet_allocation_status"] == "wallet_exceeded_no_live"
-    assert product_row["wallet_available_notional_usdc"] == "0.50"
+    assert product_row["wallet_allocation_status"] == (
+        "cap_guard_wallet_proof_blocked"
+    )
+    assert product_row["wallet_available_notional_usdc"] == "0.00"
     assert product_row["wallet_allocated_notional_usdc"] == "0.00"
-    assert product_row["wallet_remaining_after_usdc"] == "0.50"
+    assert product_row["wallet_remaining_after_usdc"] == "0.00"
     assert product_row["wallet_check_source"] == "m58_usdc_pair_low_wallet_fixture"
-    assert product_row["blockers"] == ["wallet_available_notional_exceeded"]
+    assert product_row["blockers"] == [
+        "cap_guard_wallet_available_notional_exceeded"
+    ]
     assert product_row["live_coinbase_execution"] == "not_run"
     assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
 

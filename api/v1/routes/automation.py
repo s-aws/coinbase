@@ -3745,6 +3745,11 @@ def _allowlist_run_state_cap_guard_record_blockers(
     item: UsdcPairSnapshotAllowlistRunStateProductItem,
 ) -> list[str]:
     blockers: list[str] = []
+    planned_notional = _decimal_value(item.planned_notional_usdc)
+    cap_notional = _non_negative_decimal_value(record.max_submitted_notional_usdc)
+    wallet_available = _non_negative_decimal_value(
+        record.wallet_available_notional_usdc
+    )
     if record.route != USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_ROUTE:
         blockers.append("cap_guard_route_mismatch")
     if record.method != "POST":
@@ -3770,6 +3775,18 @@ def _allowlist_run_state_cap_guard_record_blockers(
         blockers.append("cap_guard_service_method_mismatch")
     if str(record.product_scope).upper() != item.product_id.upper():
         blockers.append("cap_guard_product_scope_mismatch")
+    if (
+        planned_notional is None
+        or cap_notional is None
+        or cap_notional < planned_notional
+    ):
+        blockers.append("cap_guard_submitted_notional_exceeded")
+    if (
+        planned_notional is None
+        or wallet_available is None
+        or wallet_available < planned_notional
+    ):
+        blockers.append("cap_guard_wallet_available_notional_exceeded")
     return blockers
 
 

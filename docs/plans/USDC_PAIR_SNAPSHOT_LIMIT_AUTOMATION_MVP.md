@@ -48,7 +48,11 @@ Available building blocks:
   scheduler. Run-state evidence now records no-live run-cap allocation,
   allocated notional, cap remaining, cap overage, and cap-guard decision refs
   per product, plus no-live wallet allocation evidence derived from existing
-  backend cap-guard wallet proofs. Run-state evidence now also exposes live
+  backend cap-guard wallet proofs. The cap-guard proof must cover the product's
+  planned notional through both max-submitted and wallet-available notional, or
+  run-state fails closed with `cap_guard_submitted_notional_exceeded` or
+  `cap_guard_wallet_available_notional_exceeded` before allocation. Run-state
+  evidence now also exposes live
   wallet reservation, debit, and release blockers as `missing_no_live`
   evidence for queued products. Run-state evidence now also requires exact
   Phase E live-readiness association for each queued product by `plan_id`,
@@ -516,10 +520,12 @@ Phase E live-readiness evidence for `plan_id`, `product_id`, and
 `client_order_id`, with preflight and submit-route readiness passing and no
 Coinbase execution. Wallet allocation now requires the cap-guard record to
 match the run-state route, method, module, action, permission, service method,
-`client_order_id`, and product scope. Rows with missing, mismatched, blocked,
-invalid, or insufficient wallet proof, or missing/blocked live-readiness proof,
-are blocked in no-live run-state evidence and are removed from queued product
-ids before any future fan-out decision. Missing or reused run-lock refs,
+`client_order_id`, and product scope, and to prove max-submitted plus
+wallet-available notional that covers the product's planned notional. Rows with
+missing, mismatched, blocked, invalid, optional, or under-notional wallet/cap
+proof, or missing/blocked live-readiness proof, are blocked in no-live
+run-state evidence and are removed from queued product ids before any future
+fan-out decision. Missing or reused run-lock refs,
 missing or reused runtime rate-limit window refs, runtime windows with more
 than five queued products, retry-budget exhaustion, and missing or reused
 retry-backoff refs remove queued products before cap/wallet allocation and
@@ -742,8 +748,10 @@ passed with exchange readback, and Phase F no-live allowlist-readiness/run-state
 evidence includes backend run-cap allocation, exact cap-guard association,
 exact per-product live-readiness association, and fail-closed wallet
 allocation, while live wallet reservation/debit/release blockers are exposed
-as missing no-live evidence. Pause/abort no-live runtime-control evidence now
-fails closed by clearing queued products and recording explicit blockers.
+as missing no-live evidence. Under-notional cap-guard max-submitted or
+wallet-available proof now fails closed before wallet allocation. Pause/abort
+no-live runtime-control evidence now fails closed by clearing queued products
+and recording explicit blockers.
 Missing or reused run-lock refs, missing or reused runtime rate-limit window
 refs, runtime windows with more than five queued products, retry-budget
 exhaustion, and missing or reused retry-backoff refs also fail closed before
