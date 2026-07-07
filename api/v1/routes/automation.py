@@ -5883,6 +5883,23 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
     live_wallet_released_notional = _sum_usdc_pair_decimal_values(
         [item.live_wallet_released_notional_usdc for item in run_state.product_states]
     )
+    live_wallet_active_overcommit_run_state_ids = [
+        run_state_id
+        for item in run_state.product_states
+        for run_state_id in item.live_wallet_active_reservation_overcommit_run_state_ids
+    ]
+    live_wallet_active_reserved_notional = _sum_usdc_pair_decimal_values(
+        [
+            item.live_wallet_active_reserved_notional_usdc
+            for item in run_state.product_states
+        ]
+    )
+    live_wallet_overcommit_attempted_notional = _sum_usdc_pair_decimal_values(
+        [
+            item.live_wallet_overcommit_attempted_notional_usdc
+            for item in run_state.product_states
+        ]
+    )
     if planned_fanout_notional is None or _usdc_pair_decimal_mismatch(
         run_state.planned_fanout_notional_usdc,
         planned_fanout_notional,
@@ -5951,6 +5968,45 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         live_wallet_released_notional,
     ):
         blockers.append("run_state_live_wallet_released_notional_mismatch")
+    if _normalized_usdc_pair_string_multiset(
+        run_state.live_wallet_active_reservation_overcommit_run_state_ids
+    ) != _normalized_usdc_pair_string_multiset(
+        live_wallet_active_overcommit_run_state_ids
+    ):
+        blockers.append(
+            "run_state_live_wallet_active_reservation_"
+            "overcommit_run_state_ids_mismatch"
+        )
+    if (
+        live_wallet_active_reserved_notional is None
+        or _usdc_pair_decimal_mismatch(
+            run_state.live_wallet_active_reserved_notional_usdc,
+            live_wallet_active_reserved_notional,
+        )
+    ):
+        blockers.append("run_state_live_wallet_active_reserved_notional_mismatch")
+    if (
+        live_wallet_overcommit_attempted_notional is None
+        or _usdc_pair_decimal_mismatch(
+            run_state.live_wallet_overcommit_attempted_notional_usdc,
+            live_wallet_overcommit_attempted_notional,
+        )
+    ):
+        blockers.append("run_state_live_wallet_overcommit_attempted_notional_mismatch")
+    if (
+        live_wallet_active_overcommit_run_state_ids
+        or (
+            live_wallet_active_reserved_notional is not None
+            and live_wallet_active_reserved_notional != Decimal("0")
+        )
+        or (
+            live_wallet_overcommit_attempted_notional is not None
+            and live_wallet_overcommit_attempted_notional != Decimal("0")
+        )
+    ):
+        blockers.append(
+            "run_state_product_live_wallet_active_reservation_overcommit_present"
+        )
     if (
         run_state.rate_limit_max_orders_per_window
         != USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_ORDER_CAP

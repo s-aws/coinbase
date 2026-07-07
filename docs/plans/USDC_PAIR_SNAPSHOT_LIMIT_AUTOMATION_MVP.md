@@ -943,7 +943,7 @@ The run-state live-submit handoff also rejects missing, blocked, or stale latest
 parent/product live-wallet reservation/debit/release evidence, stale
 selected-product wallet reserved/debited/released notional readback, non-empty
 product wallet reservation/debit/release conflict source ids, non-empty
-parent or selected-product active-overcommit readback, blocked parent run-lock,
+parent or any product-row active-overcommit readback, blocked parent run-lock,
 pause/abort, rate-limit, retry-budget/backoff, or recovery evidence, missing or
 invalid run-lock timestamp evidence, missing, invalid, or expired rate-window
 start/end evidence, non-default rate-window cap/seconds policy, mismatched rate-window
