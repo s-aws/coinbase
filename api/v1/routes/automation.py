@@ -6543,6 +6543,43 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_queued_cap_guard(
         )
 
 
+def _validate_usdc_pair_allowlist_run_state_live_submit_queued_order_plan(
+    *,
+    run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    selected_product_row: UsdcPairSnapshotAllowlistRunStateProductItem,
+    plan: UsdcPairSnapshotOrderPlanRecord,
+) -> None:
+    blockers: list[str] = []
+    selected_product_id = selected_product_row.product_id.strip().upper()
+    selected_client_order_id = str(
+        selected_product_row.client_order_id or ""
+    ).strip()
+    for item in run_state.product_states:
+        if item.execution_state != "queued_no_live":
+            continue
+        if (
+            item.product_id.strip().upper() == selected_product_id
+            and str(item.client_order_id or "").strip() == selected_client_order_id
+        ):
+            continue
+        matching_rows = _matching_usdc_pair_order_plan_rows(
+            plan,
+            product_id=item.product_id,
+            client_order_id=str(item.client_order_id or "").strip(),
+        )
+        if not matching_rows:
+            blockers.append("run_state_product_order_plan_row_missing")
+            continue
+        if len(matching_rows) > 1:
+            blockers.append("run_state_product_order_plan_row_ambiguous")
+
+    if blockers:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live submit blocked: "
+            + ",".join(_dedupe(blockers))
+        )
+
+
 def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_evidence(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
@@ -8133,6 +8170,11 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
             run_state=run_state,
             selected_product_row=product_row,
             cap_guard_store=cap_guard_store,
+        )
+        _validate_usdc_pair_allowlist_run_state_live_submit_queued_order_plan(
+            run_state=run_state,
+            selected_product_row=product_row,
+            plan=plan,
         )
         _validate_usdc_pair_allowlist_run_state_live_submit_wallet_evidence(
             run_state=run_state,

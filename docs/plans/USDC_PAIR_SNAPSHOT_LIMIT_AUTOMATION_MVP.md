@@ -717,8 +717,9 @@ status, recorded run-lock evidence, is not paused/aborted, and has ready runtime
 retry-budget/backoff, recovery evidence, selected-product rate/cap/wallet
 allocation readiness, ready queued product-row runtime/allocation/wallet
 reservation states, queued product-row wallet lifecycle refs, queued
-product-row candidate/cap-guard record refs/live-readiness record, source, and
-content/notional/live-service refs, and no queued product-row blockers, plus a non-empty selected-product recovery ref
+product-row candidate/cap-guard record refs/live-readiness record, source,
+content/notional/live-service refs, matching queued order-plan rows, and no
+queued product-row blockers, plus a non-empty selected-product recovery ref
 bound to that product and not reused by another queued run-state, and
 membership in the parent
 retryable/recovery-required sets;
@@ -974,7 +975,8 @@ rate/cap/wallet allocation evidence, rejects missing queued product-row wallet
 lifecycle refs, rejects stale queued product-row live-readiness record/source
 associations, readiness content/freshness/notional evidence, or
 missing/disabled queued live-service decision evidence, rejects stale queued
-product-row cap-guard record evidence,
+product-row cap-guard record evidence or missing/ambiguous queued order-plan
+rows,
 rejects ambiguous selected-product
 order-plan rows, rejects missing
 or product-mismatched selected-product recovery refs, rejects reused
