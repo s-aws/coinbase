@@ -465,7 +465,7 @@ public/release-candidate handoff, or when explicitly requested. See
 [Regression Process](REGRESSION_PROCESS.md) for the canonical policy:
 
 ```powershell
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 ```
 
 Use `python -m pytest tests\regression\ -v --tb=short` only as an intentional

@@ -40,13 +40,13 @@ must preserve the existing single trading behavior path.
 Use the ownership checker to inspect changed files:
 
 ```powershell
-python tools/check_ownership.py
+python3.13 tools/check_ownership.py
 ```
 
 To enforce one owner explicitly:
 
 ```powershell
-python tools/check_ownership.py --owner stealth_lifecycle
+python3.13 tools/check_ownership.py --owner stealth_lifecycle
 ```
 
 Pull requests use `.github/PULL_REQUEST_TEMPLATE.md` to record the primary
@@ -69,7 +69,7 @@ release-hardening closeout, Admin API/backend association closeout, or explicit
 user request:
 
 ```powershell
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 ```
 
 Use `pytest tests/regression/ -v --tb=short` only as an intentional sequential
@@ -97,7 +97,7 @@ Before full closeout gates and after interrupted or timed-out backend/frontend
 test commands, run:
 
 ```powershell
-python tools/check_stale_test_processes.py --include-sibling-frontend
+python3.13 tools/check_stale_test_processes.py --include-sibling-frontend
 ```
 
 Use `--kill` only for matched repo-owned test command lines that are stale or
@@ -108,7 +108,7 @@ not terminate generic `node.exe`,
 After a memory-guard abort or unexplained memory spike, also run:
 
 ```powershell
-python tools/check_runtime_artifacts.py
+python3.13 tools/check_runtime_artifacts.py
 ```
 
 It is report-only and identifies oversized `runtime_state/` test artifacts; do

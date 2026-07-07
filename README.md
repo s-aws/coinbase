@@ -74,14 +74,16 @@ approval/closeout, release-hardening closeout, Admin API/backend association
 closeout, or explicit user request gate. See
 [Regression Process](docs/REGRESSION_PROCESS.md) for the durable policy.
 
-On EC2 Linux, use `python3` for backend scripts and compile checks because the
-`python` alias may be unavailable. Use the installed `pytest` executable
-directly for test targets unless a command specifically requires module
-execution.
+On EC2 Linux, use `python3.13` for backend scripts, OpenAPI generation,
+ownership checks, and compile checks. The `python` alias may be unavailable,
+and `/usr/bin/python3` may not be the backend dependency interpreter. Use the
+installed `pytest` executable directly for test targets unless a command
+specifically requires module execution; the repo pytest executable runs under
+Python 3.13.
 
 Use the process-parallel runner for that closeout gate:
 ```powershell
-python tools\run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 ```
 
 Sequential pytest is a fallback only when the runner cannot be used:

@@ -11,7 +11,7 @@ below. For ordinary phase work, run focused tests and validators that cover the
 changed behavior. Run full backend regression only before durable milestone
 closeout, public/release-candidate handoff, deployment approval/closeout,
 release-hardening closeout, Admin API/backend association closeout, or explicit
-user request. Use `python tools/run_parallel_regression.py --workers 4` for
+user request. Use `python3.13 tools/run_parallel_regression.py --workers 4` for
 full closeout runs; do not use Python threads to parallelize the regression
 suite.
 
@@ -11688,7 +11688,7 @@ authority.
 
 ### Phase 4277 - Full Backend Regression
 
-- Run `python tools/run_parallel_regression.py --workers 4`.
+- Run `python3.13 tools/run_parallel_regression.py --workers 4`.
 
 ### Phase 4278 - Full Frontend Release Gate
 
@@ -13299,7 +13299,7 @@ forward cap approval:
 
 Stop advancement to the next phase until fixed when any of these occur:
 
-- `python tools/run_parallel_regression.py --workers 4` fails at a required
+- `python3.13 tools/run_parallel_regression.py --workers 4` fails at a required
   backend milestone closeout gate.
 - Frontend `npm run release:gate` fails after frontend release/BFF/API work.
 - A blind/contextless review finds a blocking ambiguity or unsafe path.
@@ -20215,7 +20215,7 @@ The 1481-1500 range closed M49-M52:
 
 ### Phase 1079 - Full Backend Regression
 
-- Run `python tools/run_parallel_regression.py --workers 4`.
+- Run `python3.13 tools/run_parallel_regression.py --workers 4`.
 
 ### Phase 1080 - Full Gates And Summary
 
@@ -20359,7 +20359,7 @@ The 1481-1500 range closed M49-M52:
 
 ### Phase 1060 - Full Gates And Summary
 
-- Run `python tools/run_parallel_regression.py --workers 4` and frontend
+- Run `python3.13 tools/run_parallel_regression.py --workers 4` and frontend
   `npm run release:gate`, then summarize implementation, verification, live
   posture, commits, and next objective scope.
 
@@ -22299,7 +22299,7 @@ Completion evidence:
 
 ### Phase 858 - Full Backend Regression
 
-- Run `python tools/run_parallel_regression.py --workers 4`.
+- Run `python3.13 tools/run_parallel_regression.py --workers 4`.
 
 ### Phase 859 - Full Frontend Release Gate
 
@@ -22850,7 +22850,7 @@ association closeout, or when explicitly requested.
 Backend milestone/release closeout changes:
 
 ```powershell
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 ```
 
 Sequential fallback only when `pytest-xdist` is unavailable:

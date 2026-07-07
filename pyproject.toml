@@ -6,6 +6,7 @@
 #
 # Install (one-time, from repo root):
 #     py -3.13 -m pip install -e .
+#     python3.13 -m pip install -e .[test]
 #
 # Verify:
 #     py -3.13 -c "from database.database import PostgresDB; print(PostgresDB)"

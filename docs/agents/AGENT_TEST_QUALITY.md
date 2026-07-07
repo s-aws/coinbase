@@ -38,7 +38,7 @@ pytest tests/regression/test_db_prod_guard.py -v --tb=short
 See `docs/REGRESSION_PROCESS.md` for the canonical regression policy.
 
 ```powershell
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 ```
 
 The runner rejects `--workers auto` and values above `4` to keep peak memory
@@ -63,7 +63,7 @@ normal stale age threshold. Do not disable the guard for normal milestone
 closeout.
 
 ```powershell
-python tools/run_parallel_regression.py --check-serial-classification-only
+python3.13 tools/run_parallel_regression.py --check-serial-classification-only
 ```
 
 Use `# parallel-regression: serial-safe: <reason>` only when the static

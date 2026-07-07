@@ -11,7 +11,7 @@ below. For ordinary Admin API work, run focused tests and validators that cover
 the changed behavior. Run full backend regression only before durable milestone
 closeout, public/release-candidate handoff, deployment approval/closeout,
 release-hardening closeout, Admin API/backend association closeout, or explicit
-user request. Use `python tools/run_parallel_regression.py --workers 4` for
+user request. Use `python3.13 tools/run_parallel_regression.py --workers 4` for
 full closeout runs; do not use Python threads to parallelize the regression
 suite.
 
@@ -2435,7 +2435,7 @@ authority.
 
 ### Phase 4558 - Full Backend Regression
 
-- Run `python tools/run_parallel_regression.py --workers 4`.
+- Run `python3.13 tools/run_parallel_regression.py --workers 4`.
 
 ### Phase 4559 - Full Frontend Release Gate
 
@@ -2540,7 +2540,7 @@ grant BFF execution authority.
 
 ### Phase 4518 - Full Backend Regression
 
-- Run `python tools/run_parallel_regression.py --workers 4`.
+- Run `python3.13 tools/run_parallel_regression.py --workers 4`.
 
 ### Phase 4519 - Full Frontend Release Gate
 
@@ -2708,7 +2708,7 @@ browser authority, or grant BFF execution authority.
 
 ### Phase 4317 - Full Backend Regression
 
-- Run `python tools/run_parallel_regression.py --workers 4`.
+- Run `python3.13 tools/run_parallel_regression.py --workers 4`.
 
 ### Phase 4318 - Full Frontend Release Gate
 
@@ -2812,7 +2812,7 @@ execution authority.
 
 ### Phase 4277 - Full Backend Regression
 
-- Run `python tools/run_parallel_regression.py --workers 4`.
+- Run `python3.13 tools/run_parallel_regression.py --workers 4`.
 
 ### Phase 4278 - Full Frontend Release Gate
 
@@ -11009,7 +11009,7 @@ Exit criteria:
 
 - Existing dashboard tests still pass.
 - New HTTP tests pass.
-- `python tools/run_parallel_regression.py --workers 4` passes.
+- `python3.13 tools/run_parallel_regression.py --workers 4` passes.
 
 ## Phase 9 - Frontend Integration
 
@@ -11067,7 +11067,7 @@ When implementation starts, add focused tests for:
 The full backend gate remains:
 
 ```powershell
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 ```
 
 Use `pytest tests/regression/ -v --tb=short` only as an intentional sequential
@@ -11220,7 +11220,7 @@ Exit criteria:
 
 Exit criteria:
 
-- `python tools/run_parallel_regression.py --workers 4` passes.
+- `python3.13 tools/run_parallel_regression.py --workers 4` passes.
 
 ### Phase 256 - Admin Bootstrap Endpoint
 
@@ -11623,7 +11623,7 @@ Exit criteria:
 
 Exit criteria:
 
-- `python tools/run_parallel_regression.py --workers 4` passes.
+- `python3.13 tools/run_parallel_regression.py --workers 4` passes.
 
 ### Phase 299 - Cross-Repo Release Notes
 
@@ -11922,7 +11922,7 @@ Exit criteria:
 
 Exit criteria:
 
-- `python tools/run_parallel_regression.py --workers 4` passes.
+- `python3.13 tools/run_parallel_regression.py --workers 4` passes.
 
 ### Phase 329 - Cross-Repo Release Notes
 
@@ -13453,7 +13453,7 @@ execution in this batch is backend smoke evidence only.
 
 ### Phase 481 - Full Backend Regression Gate
 
-- Run `python tools/run_parallel_regression.py --workers 4`.
+- Run `python3.13 tools/run_parallel_regression.py --workers 4`.
 
 ### Phase 482 - Roadmap And Review Log Closure
 
@@ -15807,7 +15807,7 @@ Completion evidence:
 
 ### Phase 858 - Full Backend Regression
 
-- Run `python tools/run_parallel_regression.py --workers 4`.
+- Run `python3.13 tools/run_parallel_regression.py --workers 4`.
 
 ### Phase 859 - Full Frontend Release Gate
 

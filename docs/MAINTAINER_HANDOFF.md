@@ -101,7 +101,7 @@ candidate handoff, deployment approval/closeout, release-hardening closeout,
 Admin API/backend association closeout, or explicit-request gate:
 
 ```powershell
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 python tools\run_autonomous_work_queue_check.py --summary-only
 ```
 

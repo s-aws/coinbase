@@ -213,7 +213,7 @@ planning, admission, live execution, campaign automation, inventory authority,
 or reconciliation:
 
 - Required full regression closeout gate:
-  `python tools/run_parallel_regression.py --workers 4`.
+  `python3.13 tools/run_parallel_regression.py --workers 4`.
 - Sequential fallback:
   `pytest tests/regression/ -v --tb=short` only when `pytest-xdist` is
   unavailable and the fallback is intentional.
@@ -421,7 +421,7 @@ Optional external checks:
 Acceptance:
 
 - The full regression closeout gate
-  `python tools/run_parallel_regression.py --workers 4` passes.
+  `python3.13 tools/run_parallel_regression.py --workers 4` passes.
 - Focused spot readiness tests can be run independently.
 - Browser smoke can be run independently when `pytest-playwright` and Chromium
   are installed.

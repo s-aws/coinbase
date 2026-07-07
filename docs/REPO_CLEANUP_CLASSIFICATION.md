@@ -136,7 +136,7 @@ a separate plan.
 
 ```powershell
 python -m py_compile tools/classify_repo_files.py
-python tools/check_ownership.py
+python3.13 tools/check_ownership.py
 python tools/classify_repo_files.py --quiet --fail-category empty_artifact_candidate --fail-category root_historical_note --fail-category root_diagnostic_tool --fail-category root_test_candidate --fail-category experimental_ui_candidate --fail-category ui_fixture_or_export_candidate --fail-category root_runtime_output
 ```
 
@@ -145,7 +145,7 @@ python tools/classify_repo_files.py --quiet --fail-category empty_artifact_candi
   closeout, run the full regression gate:
 
 ```powershell
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 ```
 
 Use `pytest tests/regression/ -v --tb=short` only as an intentional sequential

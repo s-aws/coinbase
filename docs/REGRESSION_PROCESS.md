@@ -11,12 +11,13 @@ behavior. Do not run the full regression suite by default for every phase.
 
 ## Interpreter Selection
 
-On EC2 Linux, the `python` alias may be absent. Use `python3` for backend
-scripts and compile checks, for example:
+On EC2 Linux, the `python` alias may be absent and `/usr/bin/python3` may not
+be the backend dependency interpreter. Use `python3.13` for backend scripts,
+OpenAPI generation, ownership checks, and compile checks, for example:
 
 ```bash
-python3 tools/check_ownership.py
-python3 -m py_compile api/v1/routes/automation.py
+python3.13 tools/check_ownership.py
+python3.13 -m py_compile api/v1/routes/automation.py
 ```
 
 The repo pytest executable is available and valid for focused regression runs:
@@ -25,15 +26,17 @@ The repo pytest executable is available and valid for focused regression runs:
 pytest tests/regression/test_admin_api_contract.py -q --tb=short
 ```
 
-Do not treat `/bin/bash: python: command not found` as missing pytest. Rerun
-scripts with `python3`, or run tests through the installed `pytest` executable.
+Do not treat `/bin/bash: python: command not found` or `ModuleNotFoundError`
+from `/usr/bin/python3` as missing pytest or missing dependencies. Rerun
+scripts with `python3.13`, or run tests through the installed `pytest`
+executable.
 
 Examples of ordinary checks:
 
 ```powershell
-python -m pytest tests/regression/test_admin_api_contract.py -q --tb=short
-python tools/run_autonomous_work_queue_check.py --summary-only
-python tools/generate_admin_api_openapi.py
+pytest tests/regression/test_admin_api_contract.py -q --tb=short
+python3.13 tools/run_autonomous_work_queue_check.py --summary-only
+python3.13 tools/generate_admin_api_openapi.py
 ```
 
 Choose checks from the files, owners, and behavior touched by the change. The
@@ -54,7 +57,7 @@ Run the full backend regression suite before:
 Canonical closeout command:
 
 ```powershell
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 ```
 
 The runner rejects `--workers auto` and any value above `4`. Raise that code
@@ -66,7 +69,7 @@ can multiply memory use even when individual tests are not leaking.
 The runner first checks for oversized repo-local runtime artifacts under
 `runtime_state/` and fails before pytest when those artifacts exceed `1 GiB`.
 Treat a `runtime_artifact_preflight_failed` summary as a failed closeout gate:
-run `python tools/check_runtime_artifacts.py`, preserve the summary evidence,
+run `python3.13 tools/check_runtime_artifacts.py`, preserve the summary evidence,
 and clean or archive artifacts only after explicit operator cleanup approval.
 Use `--disable-runtime-artifact-preflight` only for a scoped diagnostic run
 after preserving artifact evidence.
@@ -122,7 +125,7 @@ after any interrupted or timed-out backend/frontend test command, run the stale
 process checker:
 
 ```powershell
-python tools/check_stale_test_processes.py --include-sibling-frontend
+python3.13 tools/check_stale_test_processes.py --include-sibling-frontend
 ```
 
 The checker is report-only by default and only matches pytest, Vitest,
@@ -140,7 +143,7 @@ longer part of an active validation run, terminate only those matched process
 trees explicitly:
 
 ```powershell
-python tools/check_stale_test_processes.py --include-sibling-frontend --kill
+python3.13 tools/check_stale_test_processes.py --include-sibling-frontend --kill
 ```
 
 Do not manually kill generic `node.exe`, `python.exe`, `Code.exe`, `Codex.exe`,
@@ -156,7 +159,7 @@ and later tests harder to attribute. After a memory-guard abort or unexplained
 memory spike, run the report-only artifact checker:
 
 ```powershell
-python tools/check_runtime_artifacts.py
+python3.13 tools/check_runtime_artifacts.py
 ```
 
 The full regression runner already uses this checker as a fail-fast preflight
@@ -164,7 +167,7 @@ with a `1 GiB` cap. Use the checker directly when investigating memory growth
 or when preserving evidence before an operator-approved cleanup:
 
 ```powershell
-python tools/check_runtime_artifacts.py --fail-above-gb 1
+python3.13 tools/check_runtime_artifacts.py --fail-above-gb 1
 ```
 
 The checker emits `RUNTIME_ARTIFACT_SUMMARY` and never deletes files. Preserve
@@ -213,7 +216,7 @@ When the static classifier reports a false positive, add a documented comment:
 Run only the classification preflight with:
 
 ```powershell
-python tools/run_parallel_regression.py --check-serial-classification-only
+python3.13 tools/run_parallel_regression.py --check-serial-classification-only
 ```
 
 ## Sequential Fallback

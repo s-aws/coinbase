@@ -11,7 +11,7 @@ deployment approval/closeout, release-hardening closeout, Admin API/backend
 association closeout, or explicit full-gate request:
 
 ```powershell
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 ```
 
 Run the focused spot readiness gate after spot trading changes:

@@ -46,9 +46,9 @@ implemented in two places.
 ## Checking Ownership
 
 ```powershell
-python tools/check_ownership.py
-python tools/check_ownership.py --owner <owner_id>
-python tools/check_ownership.py --list
+python3.13 tools/check_ownership.py
+python3.13 tools/check_ownership.py --owner <owner_id>
+python3.13 tools/check_ownership.py --list
 ```
 
 The public CI workflow checks that changed files are owned. Private

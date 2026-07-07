@@ -1,6 +1,11 @@
 # Test suite requirements and dependencies.
 #
-# Install with: pip install -r tests/requirements.txt
+# Install with: python3.13 -m pip install -r tests/requirements.txt
+
+# Backend runtime/API dependencies plus the project test extra. This keeps
+# FastAPI and the local package installed for test and OpenAPI-generation
+# commands that import the FastAPI app.
+-e .[test]
 
 # Core testing framework
 pytest>=7.0.0
