@@ -9,6 +9,25 @@ conflict.
 Ordinary phase work uses focused tests and validators that cover the changed
 behavior. Do not run the full regression suite by default for every phase.
 
+## Interpreter Selection
+
+On EC2 Linux, the `python` alias may be absent. Use `python3` for backend
+scripts and compile checks, for example:
+
+```bash
+python3 tools/check_ownership.py
+python3 -m py_compile api/v1/routes/automation.py
+```
+
+The repo pytest executable is available and valid for focused regression runs:
+
+```bash
+pytest tests/regression/test_admin_api_contract.py -q --tb=short
+```
+
+Do not treat `/bin/bash: python: command not found` as missing pytest. Rerun
+scripts with `python3`, or run tests through the installed `pytest` executable.
+
 Examples of ordinary checks:
 
 ```powershell

@@ -212,6 +212,9 @@ USDC_PAIR_SNAPSHOT_RUN_LOCK_CONFLICT_BLOCKER = "run_lock_ref_conflict"
 USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_MISSING_BLOCKER = (
     "rate_limit_window_ref_missing"
 )
+USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_CONFLICT_BLOCKER = (
+    "rate_limit_window_ref_conflict"
+)
 USDC_PAIR_SNAPSHOT_RUN_PAUSED_BLOCKER = "run_paused_no_live"
 USDC_PAIR_SNAPSHOT_RUN_ABORTED_BLOCKER = "run_aborted_no_live"
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_ACCOUNT_FAMILY = "coinbase_spot"
@@ -2991,12 +2994,33 @@ def _allowlist_run_state_run_lock_conflict_blocker(
     )
 
 
+def _allowlist_run_state_rate_limit_window_conflict_blocker(
+    *,
+    run_state_store: FileUsdcPairSnapshotAllowlistRunStateStore,
+    rate_limit_window_ref: str | None,
+    run_state_id: str | None,
+) -> str | None:
+    if not rate_limit_window_ref:
+        return None
+    requested_run_state_id = str(run_state_id or "")
+    return next(
+        (
+            USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_CONFLICT_BLOCKER
+            for record in run_state_store.read_recent(limit=500)
+            if record.rate_limit_window_ref == rate_limit_window_ref
+            and record.run_state_id != requested_run_state_id
+        ),
+        None,
+    )
+
+
 def _apply_allowlist_run_state_runtime_controls(
     *,
     product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
     run_lock_ref: str | None,
     run_lock_conflict_blocker: str | None,
     rate_limit_window_ref: str | None,
+    rate_limit_window_conflict_blocker: str | None,
     pause_requested: bool,
     abort_requested: bool,
 ) -> tuple[list[UsdcPairSnapshotAllowlistRunStateProductItem], list[str]]:
@@ -3011,6 +3035,8 @@ def _apply_allowlist_run_state_runtime_controls(
         runtime_blocker = run_lock_conflict_blocker
     elif not rate_limit_window_ref:
         runtime_blocker = USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_MISSING_BLOCKER
+    elif rate_limit_window_conflict_blocker:
+        runtime_blocker = rate_limit_window_conflict_blocker
     if runtime_blocker is None:
         return product_states, []
 
@@ -3735,12 +3761,20 @@ def _record_usdc_pair_allowlist_run_state(
         run_lock_ref=body.run_lock_ref,
         run_state_id=body.run_state_id,
     )
+    rate_limit_window_conflict_blocker = (
+        _allowlist_run_state_rate_limit_window_conflict_blocker(
+            run_state_store=run_state_store,
+            rate_limit_window_ref=body.rate_limit_window_ref,
+            run_state_id=body.run_state_id,
+        )
+    )
     product_states, runtime_control_blockers = (
         _apply_allowlist_run_state_runtime_controls(
             product_states=product_states,
             run_lock_ref=body.run_lock_ref,
             run_lock_conflict_blocker=run_lock_conflict_blocker,
             rate_limit_window_ref=body.rate_limit_window_ref,
+            rate_limit_window_conflict_blocker=rate_limit_window_conflict_blocker,
             pause_requested=body.pause_requested,
             abort_requested=body.abort_requested,
         )

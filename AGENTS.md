@@ -118,11 +118,12 @@ If a recommendation would land softer than the evidence warrants, the recommenda
 - Use `process_memory_snapshots` from the summary as host attribution evidence. They distinguish pytest workers from Codex, VS Code, browsers, WSL, Docker, or unrelated host processes instead of guessing after terminated processes have disappeared.
 - Before full closeout gates and after interrupted or timed-out backend/frontend test commands, run the stale test-process checker. It is report-only unless `--kill` is explicitly provided and must only target matched repo-owned test command lines that are stale or above the default high-memory threshold: `python tools/check_stale_test_processes.py --include-sibling-frontend`.
 - After memory-guard aborts or unexpected regression memory spikes, run the report-only runtime artifact checker before retrying: `python tools/check_runtime_artifacts.py`. It identifies oversized `runtime_state/` test payloads such as stale Admin API idempotency response blobs; do not delete artifacts without explicit cleanup approval.
+- On EC2 Linux, the `python` alias may be absent. Use `python3` for backend scripts and compile checks, for example `python3 tools/check_ownership.py` or `python3 -m py_compile ...`. The repo pytest executable is available and valid for focused tests, so prefer direct `pytest ...` for regression targets unless a command specifically requires module execution. Do not treat `/bin/bash: python: command not found` as missing pytest; rerun the script with `python3` or the test with `pytest`.
 
 Canonical full regression closeout command:
 
 ```bash
-python tools/run_parallel_regression.py --workers 4
+python3 tools/run_parallel_regression.py --workers 4
 ```
 
 Use the sequential fallback only when `pytest-xdist` is unavailable and the

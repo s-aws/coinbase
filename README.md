@@ -74,6 +74,11 @@ approval/closeout, release-hardening closeout, Admin API/backend association
 closeout, or explicit user request gate. See
 [Regression Process](docs/REGRESSION_PROCESS.md) for the durable policy.
 
+On EC2 Linux, use `python3` for backend scripts and compile checks because the
+`python` alias may be unavailable. Use the installed `pytest` executable
+directly for test targets unless a command specifically requires module
+execution.
+
 Use the process-parallel runner for that closeout gate:
 ```powershell
 python tools\run_parallel_regression.py --workers 4
