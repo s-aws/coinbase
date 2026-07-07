@@ -57,6 +57,10 @@ Available building blocks:
   Pause or abort requests now fail closed by removing queued products before
   cap/wallet allocation and recording `run_paused_no_live` or
   `run_aborted_no_live` blockers.
+  Products blocked by cap allocation, wallet allocation, missing live-readiness,
+  pause, or abort no longer remain retryable or recovery-required in run-state
+  evidence; their retry state is blocked, recovery is not required, and retry
+  attempts are zero.
   A backend-owned run-state-to-live-submit handoff route now requires one
   explicitly selected queued product with matching `ready_no_live` Phase E
   live-readiness before it can reuse the existing single-order submit/cancel
@@ -494,7 +498,9 @@ invalid, or insufficient wallet proof, or missing/blocked live-readiness proof,
 are blocked in no-live run-state evidence and are removed from queued product
 ids before any future fan-out decision. Pause or abort requests also remove
 queued products before cap/wallet allocation and record
-`run_paused_no_live` or `run_aborted_no_live` blockers. This evidence remains
+`run_paused_no_live` or `run_aborted_no_live` blockers. Products blocked by
+cap allocation, wallet allocation, missing live-readiness, pause, or abort are
+not counted as retryable or recovery-required. This evidence remains
 `fanout_readiness_status=blocked`, `fanout_execution_status=blocked`,
 `live_coinbase_execution=not_run`, and notional `0`; it does not submit
 Coinbase orders, fan out execution, fetch/reserve/debit live wallet balance,
@@ -693,7 +699,9 @@ evidence includes backend run-cap allocation, exact cap-guard association,
 exact per-product live-readiness association, and fail-closed wallet
 allocation, while live wallet reservation/debit/release blockers are exposed
 as missing no-live evidence. Pause/abort no-live runtime-control evidence now
-fails closed by clearing queued products and recording explicit blockers. A
+fails closed by clearing queued products and recording explicit blockers.
+Blocked product rows are no longer reported as retryable or recovery-required.
+A
 blind contextless review on 2026-07-06 passed the M58 no-live Phase F
 authority-boundary questions and confirmed the change set is a domain module
 under Automation / Campaign / Scheduler, not a reusable admin platform

@@ -2868,9 +2868,9 @@ def _allowlist_run_state_product_item(
         cap_guard_decision_id=row.cap_guard_decision_id,
         readiness_status=row.readiness_status,
         execution_state=execution_state,
-        retry_state=row.retry_status,
-        rate_limit_state=row.rate_limit_status,
-        recovery_state=row.cancel_recovery_status,
+        retry_state=row.retry_status if queued else "blocked",
+        rate_limit_state=row.rate_limit_status if queued else "blocked",
+        recovery_state=row.cancel_recovery_status if queued else "not_required",
         retry_attempts_available=row.retry_attempts_available if queued else 0,
         planned_notional_usdc=row.planned_notional_usdc,
         recovery_state_ref=row.recovery_state_ref,
@@ -2968,6 +2968,10 @@ def _apply_allowlist_run_state_cap_allocation(
             item.model_copy(
                 update={
                     "execution_state": "blocked",
+                    "retry_state": "blocked",
+                    "rate_limit_state": "blocked",
+                    "recovery_state": "not_required",
+                    "retry_attempts_available": 0,
                     "allocated_notional_usdc": _decimal_string(Decimal("0")),
                     "fanout_cap_allocation_status": "cap_exceeded_no_live",
                     "fanout_cap_remaining_after_usdc": _decimal_string(remaining),
@@ -3131,6 +3135,10 @@ def _apply_allowlist_run_state_wallet_allocation(
                 item.model_copy(
                     update={
                         "execution_state": "blocked",
+                        "retry_state": "blocked",
+                        "rate_limit_state": "blocked",
+                        "recovery_state": "not_required",
+                        "retry_attempts_available": 0,
                         "wallet_allocation_status": "cap_guard_wallet_proof_blocked",
                         "wallet_available_notional_usdc": _decimal_string(
                             wallet_available
@@ -3158,6 +3166,10 @@ def _apply_allowlist_run_state_wallet_allocation(
                 item.model_copy(
                     update={
                         "execution_state": "blocked",
+                        "retry_state": "blocked",
+                        "rate_limit_state": "blocked",
+                        "recovery_state": "not_required",
+                        "retry_attempts_available": 0,
                         "wallet_allocation_status": "missing_cap_guard_proof",
                         "wallet_available_notional_usdc": _decimal_string(
                             wallet_available
@@ -3208,6 +3220,10 @@ def _apply_allowlist_run_state_wallet_allocation(
             item.model_copy(
                 update={
                     "execution_state": "blocked",
+                    "retry_state": "blocked",
+                    "rate_limit_state": "blocked",
+                    "recovery_state": "not_required",
+                    "retry_attempts_available": 0,
                     "wallet_allocation_status": "wallet_exceeded_no_live",
                     "wallet_available_notional_usdc": _decimal_string(
                         wallet_available

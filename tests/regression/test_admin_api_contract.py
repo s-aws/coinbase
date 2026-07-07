@@ -35499,8 +35499,16 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_cap_exceeded(
     ]
     assert run_state["queued_product_ids"] == []
     assert run_state["blocked_product_ids"] == ["BTC-USDC"]
+    assert run_state["retryable_product_ids"] == []
+    assert run_state["recovery_required_product_ids"] == []
+    assert run_state["retryable_product_count"] == 0
+    assert run_state["recovery_required_product_count"] == 0
     product_state = run_state["product_states"][0]
     assert product_state["execution_state"] == "blocked"
+    assert product_state["retry_state"] == "blocked"
+    assert product_state["rate_limit_state"] == "blocked"
+    assert product_state["recovery_state"] == "not_required"
+    assert product_state["retry_attempts_available"] == 0
     assert product_state["fanout_cap_allocation_status"] == "cap_exceeded_no_live"
     assert product_state["allocated_notional_usdc"] == "0.00"
     assert product_state["fanout_cap_remaining_after_usdc"] == "0.50"
@@ -35600,12 +35608,20 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_wallet_exceeded
     assert run_state["blocked_product_ids"] == ["BTC-USDC"]
     assert run_state["queued_product_count"] == 0
     assert run_state["blocked_product_count"] == 1
+    assert run_state["retryable_product_ids"] == []
+    assert run_state["recovery_required_product_ids"] == []
+    assert run_state["retryable_product_count"] == 0
+    assert run_state["recovery_required_product_count"] == 0
     assert run_state["run_state_status"] == "blocked"
     assert "product_evidence_blocked" in run_state["fanout_blockers"]
 
     product_row = run_state["product_states"][0]
     assert product_row["product_id"] == "BTC-USDC"
     assert product_row["execution_state"] == "blocked"
+    assert product_row["retry_state"] == "blocked"
+    assert product_row["rate_limit_state"] == "blocked"
+    assert product_row["recovery_state"] == "not_required"
+    assert product_row["retry_attempts_available"] == 0
     assert product_row["wallet_allocation_status"] == "wallet_exceeded_no_live"
     assert product_row["wallet_available_notional_usdc"] == "0.50"
     assert product_row["wallet_allocated_notional_usdc"] == "0.00"
@@ -35795,12 +35811,20 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_missing_live_re
     assert run_state["blocked_product_ids"] == ["BTC-USDC"]
     assert run_state["queued_product_count"] == 0
     assert run_state["blocked_product_count"] == 1
+    assert run_state["retryable_product_ids"] == []
+    assert run_state["recovery_required_product_ids"] == []
+    assert run_state["retryable_product_count"] == 0
+    assert run_state["recovery_required_product_count"] == 0
     assert run_state["run_state_status"] == "blocked"
     assert "product_evidence_blocked" in run_state["fanout_blockers"]
 
     product_row = run_state["product_states"][0]
     assert product_row["product_id"] == "BTC-USDC"
     assert product_row["execution_state"] == "blocked"
+    assert product_row["retry_state"] == "blocked"
+    assert product_row["rate_limit_state"] == "blocked"
+    assert product_row["recovery_state"] == "not_required"
+    assert product_row["retry_attempts_available"] == 0
     assert product_row["fanout_cap_allocation_status"] == "not_queued"
     assert product_row["wallet_allocation_status"] == "not_queued"
     assert product_row["live_readiness_status"] == "missing"
