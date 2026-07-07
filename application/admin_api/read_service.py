@@ -51123,10 +51123,14 @@ class AdminApiReadService:
                 status=AdminApiGateStatus.WARNING,
                 detail=(
                     "M58 scheduler and unattended execution remain technically "
-                    "blocked until durable run locks, non-reused runtime windows, "
-                    "5 orders per second enforcement, pause/abort/retry/recovery "
-                    "behavior, wallet overcommit prevention, release-gate "
-                    "evidence, and contextless review exist."
+                    "blocked. Current no-live scheduler evidence covers "
+                    "recorded run locks, non-reused runtime windows, 5 orders "
+                    "per second readback, pause/abort fail-closed handling, "
+                    "retry-budget/backoff evidence, and recovery refs. There "
+                    "is still no time-based scheduler or unattended execution; "
+                    "remaining work is durable worker semantics, live wallet "
+                    "ledger behavior, release-gate evidence, and contextless "
+                    "review before scheduler broadening."
                 ),
             ),
             AdminGateCheck(

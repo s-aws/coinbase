@@ -60515,6 +60515,12 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "5 orders per second" in release_checks["m58_usdc_pair_scheduler_gate"][
         "detail"
     ]
+    assert "no-live scheduler evidence covers recorded run locks" in release_checks[
+        "m58_usdc_pair_scheduler_gate"
+    ]["detail"]
+    assert "no time-based scheduler or unattended execution" in release_checks[
+        "m58_usdc_pair_scheduler_gate"
+    ]["detail"]
     assert (
         release_checks["m58_usdc_pair_contextless_review_gate"]["status"]
         == AdminApiGateStatus.PASSED.value
