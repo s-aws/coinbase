@@ -39830,6 +39830,91 @@ def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_snapshot_m
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_order_plan_live_readiness_rejects_ambiguous_order_plan_rows(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-live-readiness-ambiguous-plan-row-run",
+        allowlist_readiness_id=(
+            "m58-usdc-live-readiness-ambiguous-plan-row-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        append_live_readiness=False,
+    )
+    order_plan_store = client.admin_api_test_usdc_pair_snapshot_order_plan_store
+    source_plan = order_plan_store.find_by_plan_id(ready["plan_id"])
+    assert source_plan is not None
+    source_row = source_plan.order_plan_rows[0]
+    order_plan_store.append(
+        source_plan.model_copy(
+            update={
+                "order_plan_rows": [
+                    source_row,
+                    source_row.model_copy(
+                        update={
+                            "snapshot_price": "101.00",
+                            "limit_price": "50.50",
+                            "quote_size": "1.01",
+                            "planned_notional_usdc": "1.01",
+                        }
+                    ),
+                ],
+            }
+        )
+    )
+    captured_at = datetime.now(timezone.utc).isoformat()
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            f"{ready['plan_id']}/live-readiness"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-live-readiness-ambiguous-plan-row"
+            ),
+            operator_intent="m58_usdc_snapshot_live_readiness",
+        ),
+        json={
+            "readiness_id": (
+                "m58-usdc-live-readiness-ambiguous-plan-row"
+            ),
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "reference_bid_price": "100.00",
+            "reference_bid_price_source": "coinbase_advanced_trade.best_bid",
+            "reference_bid_price_captured_at": captured_at,
+            "last_filled_price": "100.00",
+            "last_filled_price_source": "coinbase_advanced_trade.last_trade",
+            "last_filled_price_captured_at": captured_at,
+            "intended_limit_price": "50.00",
+            "submitted_notional_usdc": "1.00",
+            "max_executed_notional_usdc": "0.01",
+            "minimum_order_size_preferred": True,
+            "single_order_only": True,
+            "cancel_before_additional_orders": True,
+            "cancel_rollback_plan_ref": "m58-cancel-before-next-ambiguous-row",
+            "full_snapshot_fill_test": False,
+            "operator_notes": "ambiguous order-plan row must block readiness",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == "usdc_pair_snapshot_order_plan_live_readiness"
+    assert "order_plan_row_selection_ambiguous" in payload["message"]
+    assert payload["readiness"] is None
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidates_price_distance_status(
     monkeypatch,
 ):

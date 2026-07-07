@@ -593,7 +593,8 @@ The backend can also hand off one explicitly selected queued product from a
 run-state to the existing Phase E submit/cancel route only when the product row
 has matching `ready_no_live` live-readiness evidence by `client_order_id`, the
 run-state/order-plan/live-readiness `plan_id` and `snapshot_run_id` association
-is current, and the shared direct live-submit recorder rejects stale order-plan/
+is current, live-readiness preflight rejects ambiguous selected order-plan rows,
+and the shared direct live-submit recorder rejects stale order-plan/
 live-readiness `snapshot_run_id` associations before executor invocation. The
 latest wallet reservation/debit/release record still matches
 the selected run-state/product/notional tuple, the stored run-state product rows
