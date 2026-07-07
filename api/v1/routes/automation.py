@@ -5304,9 +5304,12 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_run_lock_not_recorded")
     if not run_state.run_lock_ref:
         blockers.append("run_state_run_lock_ref_missing")
+    run_lock_recorded_at = _parse_reference_timestamp(
+        run_state.run_lock_recorded_at
+    )
     if not run_state.run_lock_recorded_at:
         blockers.append("run_state_run_lock_recorded_at_missing")
-    elif _parse_reference_timestamp(run_state.run_lock_recorded_at) is None:
+    elif run_lock_recorded_at is None:
         blockers.append("run_state_run_lock_recorded_at_invalid")
     if run_state.pause_resume_status != "running_no_live":
         blockers.append("run_state_not_running")
@@ -5357,6 +5360,12 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
             != run_state.rate_limit_window_seconds
         ):
             blockers.append("run_state_rate_limit_window_seconds_mismatch")
+        if run_lock_recorded_at and not (
+            rate_limit_window_started_at
+            <= run_lock_recorded_at
+            < rate_limit_window_expires_at
+        ):
+            blockers.append("run_state_run_lock_recorded_at_outside_rate_window")
     if run_state.retry_budget_status != "ready_no_live":
         blockers.append("run_state_retry_budget_not_ready")
     if run_state.retry_backoff_status not in {"not_required", "ready_no_live"}:

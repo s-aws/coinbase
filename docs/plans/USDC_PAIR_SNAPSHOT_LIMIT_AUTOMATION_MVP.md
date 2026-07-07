@@ -902,8 +902,9 @@ parent or selected-product active-overcommit readback, blocked parent run-lock,
 pause/abort, rate-limit, retry-budget/backoff, or recovery evidence, missing or
 invalid run-lock timestamp evidence, missing or invalid rate-window start/end
 evidence, non-default rate-window cap/seconds policy, mismatched rate-window
-duration, or over-cap rate-window readback before any executor call, rejects
-blocked aggregate parent run-state/cap/wallet/
+duration, run-lock timestamps outside the rate window, or over-cap rate-window
+readback before any executor call, rejects blocked aggregate parent
+run-state/cap/wallet/
 live-readiness/notional/partial-success statuses, rejects stale selected-product
 price-freshness timestamp/status or recomputed price-distance evidence, rejects
 stale selected-product order-plan/live-readiness snapshot association, rejects
