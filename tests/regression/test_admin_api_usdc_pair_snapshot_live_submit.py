@@ -149,6 +149,57 @@ def test_usdc_pair_snapshot_live_runner_records_submit_cancel_sequence(
     ).exists()
 
 
+def test_usdc_pair_snapshot_live_runner_can_submit_from_run_state_handoff(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-admin-token")
+    config = _config(
+        tmp_path,
+        submit_from_run_state=True,
+        allowlist_readiness_id="m58-runner-allowlist-readiness",
+        run_state_id="m58-runner-run-state",
+    )
+    fake_executor = _FakeLiveExecutor()
+
+    summary = runner.run_usdc_pair_snapshot_live_submit(
+        config,
+        live_executor=fake_executor,
+        require_runtime_ready=False,
+        require_credentials=False,
+    )
+
+    assert summary["status"] == "passed"
+    assert summary["live_submit_source"] == "allowlist_run_state"
+    assert summary["allowlist_readiness_id"] == "m58-runner-allowlist-readiness"
+    assert summary["run_state_id"] == "m58-runner-run-state"
+    assert summary["run_state_status"] == "ready_no_live"
+    assert summary["run_state_queued_product_ids"] == ["BTC-USDC"]
+    assert summary["run_state_live_readiness_id"] == "m58-runner-readiness"
+    assert summary["fanout_execution_status"] == "blocked"
+    assert summary["fanout_blockers"] == [
+        "fanout_execution_not_approved",
+        "scheduler_blocked",
+    ]
+    assert summary["live_coinbase_execution"] == "submitted_cancelled"
+    assert summary["submitted_notional_usdc"] == "1.00"
+    assert summary["executed_notional_usdc"] == "0"
+
+    assert len(fake_executor.calls) == 1
+    assert fake_executor.calls[0]["client_order_id"] == "m58-runner-plan-BTC-USDC"
+
+    assert (
+        tmp_path
+        / "state"
+        / "admin_api_usdc_pair_snapshot_order_plan_allowlist_readiness.jsonl"
+    ).exists()
+    assert (
+        tmp_path
+        / "state"
+        / "admin_api_usdc_pair_snapshot_allowlist_run_states.jsonl"
+    ).exists()
+
+
 def test_usdc_pair_snapshot_live_runner_bumps_minimum_request_for_high_price(
     tmp_path,
     monkeypatch,

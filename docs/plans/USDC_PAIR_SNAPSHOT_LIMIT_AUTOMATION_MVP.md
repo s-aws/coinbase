@@ -56,6 +56,11 @@ Available building blocks:
   explicitly selected queued product with matching `ready_no_live` Phase E
   live-readiness before it can reuse the existing single-order submit/cancel
   path; this does not authorize live fan-out or scheduler behavior.
+- `tools/run_admin_api_usdc_pair_snapshot_live_submit.py` can use
+  `--submit-from-run-state` to record the one-product allowlist-readiness and
+  run-state evidence, then call the backend run-state handoff route. It remains
+  one invocation, one selected product, one order, immediate submit/cancel, and
+  no scheduler.
 - Backend proof-refresh mutation for existing order plans that resolves exact,
   unexpired, non-revoked approval lifecycle snapshots without browser
   authority or live execution, and can link exact durable admission-audit
@@ -466,6 +471,10 @@ The backend can also hand off one explicitly selected queued product from a
 run-state to the existing Phase E submit/cancel route only when the product row
 has matching `ready_no_live` live-readiness evidence by `client_order_id`;
 this remains a single-order controlled-live path, not fan-out automation.
+The backend live-submit runner can exercise this same handoff with
+`--submit-from-run-state`, recording the selected product's run-state id and
+queued live-readiness association in the local artifact before stopping after
+submit/cancel evidence.
 
 Deliverables:
 

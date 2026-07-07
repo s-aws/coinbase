@@ -84,6 +84,17 @@ ORDER_PLAN_ROUTE = (
 )
 ORDER_PLAN_ENDPOINT = f"POST {ORDER_PLAN_ROUTE}"
 ORDER_PLAN_SERVICE_METHOD = "record_usdc_pair_snapshot_order_plan"
+ALLOWLIST_READINESS_ROUTE = (
+    "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+    "{plan_id}/allowlist-readiness"
+)
+ALLOWLIST_RUN_STATE_ROUTE = (
+    "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+    "{readiness_id}/run-state"
+)
+ALLOWLIST_RUN_STATE_SERVICE_METHOD = (
+    "record_usdc_pair_snapshot_allowlist_run_state"
+)
 AUTOMATION_MODULE_ID = "automation"
 LIVE_SERVICE_ACCOUNT_FAMILY = "coinbase_spot"
 LIVE_SERVICE_VENUE_SCOPE = "coinbase_advanced_trade"
@@ -104,6 +115,12 @@ STATE_LOG_FILENAMES = {
     ),
     "COINBASE_ADMIN_API_USDC_PAIR_SNAPSHOT_ORDER_PLAN_LOG_PATH": (
         "admin_api_usdc_pair_snapshot_order_plans.jsonl"
+    ),
+    "COINBASE_ADMIN_API_USDC_PAIR_SNAPSHOT_ORDER_PLAN_ALLOWLIST_READINESS_LOG_PATH": (
+        "admin_api_usdc_pair_snapshot_order_plan_allowlist_readiness.jsonl"
+    ),
+    "COINBASE_ADMIN_API_USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LOG_PATH": (
+        "admin_api_usdc_pair_snapshot_allowlist_run_states.jsonl"
     ),
     "COINBASE_ADMIN_API_USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_READINESS_LOG_PATH": (
         "admin_api_usdc_pair_snapshot_order_plan_live_readiness.jsonl"
@@ -140,6 +157,14 @@ class UsdcPairSnapshotLiveSubmitConfig:
     plan_id: str | None = None
     readiness_id: str | None = None
     submission_id: str | None = None
+    submit_from_run_state: bool = False
+    allowlist_readiness_id: str | None = None
+    run_state_id: str | None = None
+    max_fanout_notional_usdc: str = "100"
+    retry_budget_per_product: int = 1
+    run_rate_limit_budget_ref: str | None = None
+    run_lock_ref: str | None = None
+    rate_limit_window_ref: str | None = None
     idempotency_prefix: str | None = None
     correlation_id: str | None = None
     actor_id: str = "local-operator"
@@ -191,6 +216,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--plan-id", default=None)
     parser.add_argument("--readiness-id", default=None)
     parser.add_argument("--submission-id", default=None)
+    parser.add_argument("--submit-from-run-state", action="store_true")
+    parser.add_argument("--allowlist-readiness-id", default=None)
+    parser.add_argument("--run-state-id", default=None)
+    parser.add_argument("--max-fanout-notional-usdc", default="100")
+    parser.add_argument("--retry-budget-per-product", type=int, default=1)
+    parser.add_argument("--run-rate-limit-budget-ref", default=None)
+    parser.add_argument("--run-lock-ref", default=None)
+    parser.add_argument("--rate-limit-window-ref", default=None)
     parser.add_argument("--idempotency-prefix", default=None)
     parser.add_argument("--correlation-id", default=None)
     parser.add_argument("--actor-id", default="local-operator")
@@ -239,6 +272,20 @@ def config_from_args(args: argparse.Namespace) -> UsdcPairSnapshotLiveSubmitConf
         plan_id=args.plan_id or f"{prefix}-plan",
         readiness_id=args.readiness_id or f"{prefix}-readiness",
         submission_id=args.submission_id or f"{prefix}-submission",
+        submit_from_run_state=bool(args.submit_from_run_state),
+        allowlist_readiness_id=(
+            args.allowlist_readiness_id or f"{prefix}-allowlist-readiness"
+        ),
+        run_state_id=args.run_state_id or f"{prefix}-run-state",
+        max_fanout_notional_usdc=str(args.max_fanout_notional_usdc),
+        retry_budget_per_product=int(args.retry_budget_per_product),
+        run_rate_limit_budget_ref=(
+            args.run_rate_limit_budget_ref or f"{prefix}-rate-limit-budget"
+        ),
+        run_lock_ref=args.run_lock_ref or f"{prefix}-run-lock",
+        rate_limit_window_ref=(
+            args.rate_limit_window_ref or f"{prefix}-rate-limit-window"
+        ),
         idempotency_prefix=prefix,
         correlation_id=args.correlation_id or f"{prefix}-correlation",
         actor_id=str(args.actor_id),
@@ -279,6 +326,18 @@ def validate_live_submit_config(config: UsdcPairSnapshotLiveSubmitConfig) -> Non
         raise ValueError("submitted_notional_usdc must be greater than zero.")
     if submitted > MAX_SUBMITTED_NOTIONAL_USDC:
         raise ValueError("submitted_notional_usdc must not exceed 10 USDC.")
+    if config.submit_from_run_state:
+        max_fanout_notional = decimal_value(config.max_fanout_notional_usdc)
+        if max_fanout_notional <= 0:
+            raise ValueError("max_fanout_notional_usdc must be greater than zero.")
+        if max_fanout_notional > Decimal("100"):
+            raise ValueError("max_fanout_notional_usdc must not exceed 100 USDC.")
+        if max_fanout_notional < submitted:
+            raise ValueError(
+                "max_fanout_notional_usdc must cover submitted_notional_usdc."
+            )
+        if config.retry_budget_per_product < 1:
+            raise ValueError("retry_budget_per_product must be at least 1.")
     if max_executed > submitted:
         raise ValueError("max_executed_notional_usdc must not exceed submitted.")
     if reference_bid <= 0 or last_filled <= 0 or intended <= 0:
@@ -465,13 +524,108 @@ def run_usdc_pair_snapshot_live_submit(
                 readiness_payload.get("readiness"),
                 "readiness",
             )
+            live_submit_path = (
+                "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+                f"{config.plan_id}/live-submit"
+            )
+            live_submit_phase = "live-submit"
+            live_submit_source = "order_plan"
+            allowlist_payload: dict[str, Any] | None = None
+            run_state_payload: dict[str, Any] | None = None
+            run_state_product: dict[str, Any] = {}
+            if config.submit_from_run_state:
+                runner_prefix = config.idempotency_prefix or "m58-usdc-live"
+                append_run_state_handoff_evidence(
+                    config=config,
+                    row=refreshed_row,
+                )
+                allowlist_payload = _post_json(
+                    client,
+                    (
+                        "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+                        f"{config.plan_id}/allowlist-readiness"
+                    ),
+                    headers=_headers(config, "allowlist-readiness"),
+                    json_body={
+                        "readiness_id": config.allowlist_readiness_id,
+                        "product_ids": [config.product_id],
+                        "max_products": 1,
+                        "retry_budget_per_product": config.retry_budget_per_product,
+                        "run_rate_limit_budget_ref": (
+                            config.run_rate_limit_budget_ref
+                            or f"{runner_prefix}-rate-limit-budget"
+                        ),
+                        "cancel_recovery_plan_ref": (
+                            config.cancel_rollback_plan_ref
+                        ),
+                        "operator_notes": (
+                            "M58 one-product run-state handoff readiness."
+                        ),
+                    },
+                )
+                allowlist_readiness = require_mapping(
+                    allowlist_payload.get("readiness"),
+                    "allowlist readiness",
+                )
+                run_state_payload = _post_json(
+                    client,
+                    (
+                        "/api/v1/automation/usdc-pair-snapshot-order-plan-"
+                        "allowlist-readiness/"
+                        f"{allowlist_readiness['readiness_id']}/run-state"
+                    ),
+                    headers=_headers(config, "run-state"),
+                    json_body={
+                        "run_state_id": config.run_state_id,
+                        "execution_mode": "no_live_rehearsal",
+                        "max_fanout_notional_usdc": (
+                            decimal_text(config.max_fanout_notional_usdc)
+                        ),
+                        "run_lock_ref": (
+                            config.run_lock_ref or f"{runner_prefix}-run-lock"
+                        ),
+                        "rate_limit_window_ref": (
+                            config.rate_limit_window_ref
+                            or f"{runner_prefix}-rate-limit-window"
+                        ),
+                        "pause_requested": False,
+                        "abort_requested": False,
+                        "operator_notes": (
+                            "M58 one-product no-live run-state source for "
+                            "controlled-live handoff."
+                        ),
+                    },
+                )
+                run_state = require_mapping(
+                    run_state_payload.get("run_state"),
+                    "run state",
+                )
+                run_state_product = run_state_product_state(
+                    run_state,
+                    product_id=config.product_id,
+                    client_order_id=str(readiness["client_order_id"]),
+                )
+                if run_state_product.get("execution_state") != "queued_no_live":
+                    raise RuntimeError(
+                        "M58 run-state handoff blocked: selected product is not queued."
+                    )
+                if (
+                    run_state_product.get("live_readiness_id")
+                    != readiness["readiness_id"]
+                ):
+                    raise RuntimeError(
+                        "M58 run-state handoff blocked: live-readiness id mismatch."
+                    )
+                live_submit_path = (
+                    "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+                    f"{run_state['run_state_id']}/live-submit"
+                )
+                live_submit_phase = "run-state-live-submit"
+                live_submit_source = "allowlist_run_state"
             live_submit_payload = _post_json(
                 client,
-                (
-                    "/api/v1/automation/usdc-pair-snapshot-order-plans/"
-                    f"{config.plan_id}/live-submit"
-                ),
-                headers=_headers(config, "live-submit"),
+                live_submit_path,
+                headers=_headers(config, live_submit_phase),
                 json_body={
                     "submission_id": config.submission_id,
                     "readiness_id": readiness["readiness_id"],
@@ -511,6 +665,22 @@ def run_usdc_pair_snapshot_live_submit(
     final_plan = require_mapping(final_refresh_payload.get("plan"), "final plan")
     final_row = planned_row_for_product(final_plan, config.product_id)
     submission = require_mapping(live_submit_payload.get("submission"), "submission")
+    allowlist_readiness = (
+        require_mapping(allowlist_payload.get("readiness"), "allowlist readiness")
+        if allowlist_payload
+        else {}
+    )
+    run_state = (
+        require_mapping(run_state_payload.get("run_state"), "run state")
+        if run_state_payload
+        else {}
+    )
+    if run_state and not run_state_product:
+        run_state_product = run_state_product_state(
+            run_state,
+            product_id=config.product_id,
+            client_order_id=str(submission.get("client_order_id") or ""),
+        )
     status_value = (
         "passed"
         if (
@@ -556,6 +726,18 @@ def run_usdc_pair_snapshot_live_submit(
         "intended_limit_price": config.intended_limit_price,
         "run_id": config.run_id,
         "plan_id": config.plan_id,
+        "live_submit_source": live_submit_source,
+        "allowlist_readiness_id": allowlist_readiness.get("readiness_id"),
+        "allowlist_readiness_status": allowlist_readiness.get(
+            "fanout_readiness_status"
+        ),
+        "run_state_id": run_state.get("run_state_id"),
+        "run_state_status": run_state.get("run_state_status"),
+        "run_state_queued_product_ids": run_state.get("queued_product_ids"),
+        "run_state_live_readiness_id": run_state_product.get("live_readiness_id"),
+        "fanout_execution_status": run_state.get("fanout_execution_status"),
+        "fanout_blockers": run_state.get("fanout_blockers"),
+        "max_fanout_notional_usdc": run_state.get("max_fanout_notional_usdc"),
         "readiness_id": readiness.get("readiness_id"),
         "submission_id": submission.get("submission_id"),
         "client_order_id": submission.get("client_order_id"),
@@ -834,6 +1016,54 @@ def append_proof_chain_evidence(
     }
 
 
+def append_run_state_handoff_evidence(
+    *,
+    config: UsdcPairSnapshotLiveSubmitConfig,
+    row: Mapping[str, Any],
+) -> dict[str, str]:
+    """Append run-state route-bound wallet proof for one selected product."""
+
+    cap_guard_store = FileAdminApiCapGuardStore()
+    prefix = config.idempotency_prefix or "m58-usdc-live"
+    cap_guard_store.append(
+        CapGuardDecisionRecord(
+            decision_id=str(row["cap_guard_decision_id"]),
+            route=ALLOWLIST_RUN_STATE_ROUTE,
+            method="POST",
+            module_id=AUTOMATION_MODULE_ID,
+            identity_key="client_order_id",
+            identity_value=str(row["client_order_id"]),
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method=ALLOWLIST_RUN_STATE_SERVICE_METHOD,
+            actor_id=config.actor_id,
+            operator_intent="m58_usdc_snapshot_live_pilot_run_state",
+            idempotency_key=f"{prefix}:run-state",
+            payload_hash="9" * 64,
+            approval_snapshot_id=str(row["approval_snapshot_id"]),
+            admission_audit_id=str(row["admission_audit_id"]),
+            allowed=True,
+            status=AdminApiGateStatus.PASSED,
+            cap_policy_ref="m58_phase_f_single_selected_run_state_cap",
+            guard_policy_ref="m58_phase_f_wallet_allocation_guard",
+            product_scope=config.product_id,
+            max_submitted_notional_usdc=str(row["planned_notional_usdc"]),
+            max_executed_notional_usdc="0",
+            wallet_check_required=True,
+            wallet_check_status=AdminApiGateStatus.PASSED,
+            wallet_available_notional_usdc=str(row["planned_notional_usdc"]),
+            wallet_check_source="m58_usdc_pair_run_state_live_submit_runner",
+            reason=(
+                "M58 one-product run-state handoff wallet allocation proof."
+            ),
+        )
+    )
+    return {
+        "cap_guard_decision_id": str(row["cap_guard_decision_id"]),
+        "wallet_check_source": "m58_usdc_pair_run_state_live_submit_runner",
+    }
+
+
 def command_evidence(
     *,
     config: UsdcPairSnapshotLiveSubmitConfig,
@@ -872,6 +1102,28 @@ def planned_row_for_product(
         ):
             return dict(row)
     raise ValueError(f"Planned M58 row not found for {product_id}.")
+
+
+def run_state_product_state(
+    run_state: Mapping[str, Any],
+    *,
+    product_id: str,
+    client_order_id: str,
+) -> dict[str, Any]:
+    """Return one run-state product row or raise."""
+
+    normalized_product_id = product_id.upper()
+    for row in run_state.get("product_states", []):
+        if not isinstance(row, Mapping):
+            continue
+        if (
+            str(row.get("product_id", "")).upper() == normalized_product_id
+            and str(row.get("client_order_id") or "") == client_order_id
+        ):
+            return dict(row)
+    raise RuntimeError(
+        f"Run-state product row not found for {product_id} {client_order_id}."
+    )
 
 
 def _headers(

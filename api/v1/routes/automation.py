@@ -2576,12 +2576,17 @@ def _allowlist_product_readiness_row(
     blockers: list[str] = []
     plan_status = str(getattr(row, "plan_status", "") or "")
     proof_chain_status = str(getattr(row, "proof_chain_status", "") or "")
+    proof_chain_blockers = list(getattr(row, "proof_chain_blockers", []) or [])
     run_cap_status = str(getattr(row, "run_cap_status", "") or "")
+    pending_single_live_submission = (
+        proof_chain_status == "blocked"
+        and proof_chain_blockers == [USDC_PAIR_SNAPSHOT_LIVE_SUBMISSION_MISSING_BLOCKER]
+    )
     if plan_status != "planned":
         blockers.append("order_plan_row_not_planned")
         if run_cap_status == "exceeded":
             blockers.append("run_cap_exhausted")
-    elif proof_chain_status != "accepted":
+    elif proof_chain_status != "accepted" and not pending_single_live_submission:
         blockers.append("proof_chain_not_accepted")
 
     if not blockers:
