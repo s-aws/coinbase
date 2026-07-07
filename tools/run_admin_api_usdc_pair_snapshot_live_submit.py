@@ -738,11 +738,47 @@ def run_usdc_pair_snapshot_live_submit(
         "run_state_live_wallet_reservation_status": run_state.get(
             "live_wallet_reservation_status"
         ),
+        "run_state_live_wallet_reservation_ids": run_state.get(
+            "live_wallet_reservation_ids"
+        ),
+        "run_state_live_wallet_reserved_notional_usdc": run_state.get(
+            "live_wallet_reserved_notional_usdc"
+        ),
+        "run_state_live_wallet_debit_ids": run_state.get(
+            "live_wallet_debit_ids"
+        ),
+        "run_state_live_wallet_debited_notional_usdc": run_state.get(
+            "live_wallet_debited_notional_usdc"
+        ),
+        "run_state_live_wallet_release_ids": run_state.get(
+            "live_wallet_release_ids"
+        ),
+        "run_state_live_wallet_released_notional_usdc": run_state.get(
+            "live_wallet_released_notional_usdc"
+        ),
         "run_state_live_wallet_reservation_blockers": run_state.get(
             "live_wallet_reservation_blockers"
         ),
         "run_state_product_live_wallet_reservation_status": (
             run_state_product.get("live_wallet_reservation_status")
+        ),
+        "run_state_product_live_wallet_reservation_id": (
+            run_state_product.get("live_wallet_reservation_id")
+        ),
+        "run_state_product_live_wallet_reserved_notional_usdc": (
+            run_state_product.get("live_wallet_reserved_notional_usdc")
+        ),
+        "run_state_product_live_wallet_debit_id": (
+            run_state_product.get("live_wallet_debit_id")
+        ),
+        "run_state_product_live_wallet_debited_notional_usdc": (
+            run_state_product.get("live_wallet_debited_notional_usdc")
+        ),
+        "run_state_product_live_wallet_release_id": (
+            run_state_product.get("live_wallet_release_id")
+        ),
+        "run_state_product_live_wallet_released_notional_usdc": (
+            run_state_product.get("live_wallet_released_notional_usdc")
         ),
         "run_state_product_live_wallet_reservation_blockers": (
             run_state_product.get("live_wallet_reservation_blockers")

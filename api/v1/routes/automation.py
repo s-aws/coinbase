@@ -692,6 +692,14 @@ def _allowlist_run_state_item_from_record(
         live_wallet_reserved_notional_usdc=(
             record.live_wallet_reserved_notional_usdc
         ),
+        live_wallet_debit_ids=record.live_wallet_debit_ids,
+        live_wallet_debited_notional_usdc=(
+            record.live_wallet_debited_notional_usdc
+        ),
+        live_wallet_release_ids=record.live_wallet_release_ids,
+        live_wallet_released_notional_usdc=(
+            record.live_wallet_released_notional_usdc
+        ),
         live_wallet_reservation_blockers=(
             record.live_wallet_reservation_blockers
         ),
@@ -3085,6 +3093,10 @@ def _live_wallet_reservation_evidence(
             "live_wallet_reservation_status": "not_queued",
             "live_wallet_reservation_id": None,
             "live_wallet_reserved_notional_usdc": "0.00",
+            "live_wallet_debit_id": None,
+            "live_wallet_debited_notional_usdc": "0.00",
+            "live_wallet_release_id": None,
+            "live_wallet_released_notional_usdc": "0.00",
             "live_wallet_reservation_blockers": [],
         }
     normalized_reservation_ids = [
@@ -3103,6 +3115,10 @@ def _live_wallet_reservation_evidence(
             "live_wallet_reservation_status": "missing_no_live",
             "live_wallet_reservation_id": None,
             "live_wallet_reserved_notional_usdc": "0.00",
+            "live_wallet_debit_id": None,
+            "live_wallet_debited_notional_usdc": "0.00",
+            "live_wallet_release_id": None,
+            "live_wallet_released_notional_usdc": "0.00",
             "live_wallet_reservation_blockers": list(
                 USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_BLOCKERS
             ),
@@ -3127,11 +3143,15 @@ def _live_wallet_reservation_evidence(
             mismatch_blockers.extend(record_blockers)
             continue
 
-        blockers: list[str] = []
-        if record.debit_status != "debited_no_live":
-            blockers.append("live_wallet_debit_missing")
-        if record.release_status != "released_no_live":
-            blockers.append("live_wallet_release_missing")
+        debit_blockers = _live_wallet_debit_evidence_blockers(
+            record=record,
+            planned_notional=planned_notional,
+        )
+        release_blockers = _live_wallet_release_evidence_blockers(
+            record=record,
+            planned_notional=planned_notional,
+        )
+        blockers = debit_blockers + release_blockers
         return {
             "live_wallet_reservation_status": (
                 "reserved_no_live" if blockers else "ready_no_live"
@@ -3140,6 +3160,16 @@ def _live_wallet_reservation_evidence(
             "live_wallet_reserved_notional_usdc": _decimal_string(
                 planned_notional or Decimal("0")
             ),
+            "live_wallet_debit_id": record.debit_id,
+            "live_wallet_debited_notional_usdc": _decimal_string(
+                _non_negative_decimal_value(record.debited_notional_usdc)
+                or Decimal("0")
+            ),
+            "live_wallet_release_id": record.release_id,
+            "live_wallet_released_notional_usdc": _decimal_string(
+                _non_negative_decimal_value(record.released_notional_usdc)
+                or Decimal("0")
+            ),
             "live_wallet_reservation_blockers": blockers,
         }
 
@@ -3147,6 +3177,10 @@ def _live_wallet_reservation_evidence(
         "live_wallet_reservation_status": "missing_no_live",
         "live_wallet_reservation_id": None,
         "live_wallet_reserved_notional_usdc": "0.00",
+        "live_wallet_debit_id": None,
+        "live_wallet_debited_notional_usdc": "0.00",
+        "live_wallet_release_id": None,
+        "live_wallet_released_notional_usdc": "0.00",
         "live_wallet_reservation_blockers": _dedupe(
             mismatch_blockers
             or list(USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_BLOCKERS)
@@ -3192,6 +3226,46 @@ def _live_wallet_reservation_record_blockers(
     ):
         blockers.append("live_wallet_reservation_not_no_live")
     return blockers
+
+
+def _live_wallet_debit_evidence_blockers(
+    *,
+    record: UsdcPairSnapshotLiveWalletReservationRecord,
+    planned_notional: Decimal | None,
+) -> list[str]:
+    if record.debit_status != "debited_no_live" or not record.debit_id:
+        return ["live_wallet_debit_missing"]
+
+    debited_notional = _non_negative_decimal_value(record.debited_notional_usdc)
+    if (
+        debited_notional is None
+        or planned_notional is None
+        or debited_notional != planned_notional
+    ):
+        return ["live_wallet_debit_notional_mismatch"]
+    return []
+
+
+def _live_wallet_release_evidence_blockers(
+    *,
+    record: UsdcPairSnapshotLiveWalletReservationRecord,
+    planned_notional: Decimal | None,
+) -> list[str]:
+    if (
+        record.release_status != "released_no_live"
+        or not record.release_id
+        or not record.release_reason
+    ):
+        return ["live_wallet_release_missing"]
+
+    released_notional = _non_negative_decimal_value(record.released_notional_usdc)
+    if (
+        released_notional is None
+        or planned_notional is None
+        or released_notional != planned_notional
+    ):
+        return ["live_wallet_release_notional_mismatch"]
+    return []
 
 
 def _live_wallet_reservation_aggregate_status(
@@ -3473,6 +3547,30 @@ def _apply_allowlist_run_state_wallet_allocation(
         )
         for item in updated
     )
+    live_wallet_debit_ids = _dedupe(
+        [item.live_wallet_debit_id for item in updated if item.live_wallet_debit_id]
+    )
+    live_wallet_debited_notional = sum(
+        (
+            _decimal_value(item.live_wallet_debited_notional_usdc)
+            or Decimal("0")
+        )
+        for item in updated
+    )
+    live_wallet_release_ids = _dedupe(
+        [
+            item.live_wallet_release_id
+            for item in updated
+            if item.live_wallet_release_id
+        ]
+    )
+    live_wallet_released_notional = sum(
+        (
+            _decimal_value(item.live_wallet_released_notional_usdc)
+            or Decimal("0")
+        )
+        for item in updated
+    )
     return updated, {
         "wallet_allocation_status": (
             "passed" if not wallet_blockers else "blocked"
@@ -3488,6 +3586,14 @@ def _apply_allowlist_run_state_wallet_allocation(
         "live_wallet_reservation_ids": live_wallet_reservation_ids,
         "live_wallet_reserved_notional_usdc": _decimal_string(
             live_wallet_reserved_notional
+        ),
+        "live_wallet_debit_ids": live_wallet_debit_ids,
+        "live_wallet_debited_notional_usdc": _decimal_string(
+            live_wallet_debited_notional
+        ),
+        "live_wallet_release_ids": live_wallet_release_ids,
+        "live_wallet_released_notional_usdc": _decimal_string(
+            live_wallet_released_notional
         ),
         "live_wallet_reservation_blockers": live_wallet_reservation_blockers,
     }
@@ -3734,6 +3840,14 @@ def _record_usdc_pair_allowlist_run_state(
         ),
         live_wallet_reserved_notional_usdc=(
             wallet_allocation["live_wallet_reserved_notional_usdc"]
+        ),
+        live_wallet_debit_ids=wallet_allocation["live_wallet_debit_ids"],
+        live_wallet_debited_notional_usdc=(
+            wallet_allocation["live_wallet_debited_notional_usdc"]
+        ),
+        live_wallet_release_ids=wallet_allocation["live_wallet_release_ids"],
+        live_wallet_released_notional_usdc=(
+            wallet_allocation["live_wallet_released_notional_usdc"]
         ),
         live_wallet_reservation_blockers=(
             wallet_allocation["live_wallet_reservation_blockers"]

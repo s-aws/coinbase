@@ -237,6 +237,10 @@ class UsdcPairSnapshotAllowlistRunStateRecord(BaseModel):
     )
     live_wallet_reservation_ids: list[str] = Field(default_factory=list)
     live_wallet_reserved_notional_usdc: str = "0"
+    live_wallet_debit_ids: list[str] = Field(default_factory=list)
+    live_wallet_debited_notional_usdc: str = "0"
+    live_wallet_release_ids: list[str] = Field(default_factory=list)
+    live_wallet_released_notional_usdc: str = "0"
     live_wallet_reservation_blockers: list[str] = Field(default_factory=list)
     live_readiness_status: str = Field(
         default="legacy_unverified",
@@ -304,7 +308,12 @@ class UsdcPairSnapshotLiveWalletReservationRecord(BaseModel):
     wallet_available_notional_usdc: str = Field(min_length=1)
     reservation_status: str = Field(default="reserved_no_live", min_length=1)
     debit_status: str = Field(default="missing_no_live", min_length=1)
+    debit_id: str | None = None
+    debited_notional_usdc: str = "0"
     release_status: str = Field(default="missing_no_live", min_length=1)
+    release_id: str | None = None
+    released_notional_usdc: str = "0"
+    release_reason: str | None = None
     actor_id: str = Field(min_length=1)
     operator_intent: str = Field(min_length=1)
     idempotency_key: str = Field(min_length=1)

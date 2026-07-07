@@ -3061,6 +3061,10 @@ class UsdcPairSnapshotAllowlistRunStateProductItem(BaseModel):
     )
     live_wallet_reservation_id: str | None = None
     live_wallet_reserved_notional_usdc: DecimalString = "0"
+    live_wallet_debit_id: str | None = None
+    live_wallet_debited_notional_usdc: DecimalString = "0"
+    live_wallet_release_id: str | None = None
+    live_wallet_released_notional_usdc: DecimalString = "0"
     live_wallet_reservation_blockers: list[str] = Field(default_factory=list)
     live_readiness_status: str = Field(
         default="not_evaluated",
@@ -3120,6 +3124,10 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
     )
     live_wallet_reservation_ids: list[str] = Field(default_factory=list)
     live_wallet_reserved_notional_usdc: DecimalString = "0"
+    live_wallet_debit_ids: list[str] = Field(default_factory=list)
+    live_wallet_debited_notional_usdc: DecimalString = "0"
+    live_wallet_release_ids: list[str] = Field(default_factory=list)
+    live_wallet_released_notional_usdc: DecimalString = "0"
     live_wallet_reservation_blockers: list[str] = Field(default_factory=list)
     live_readiness_status: str = Field(
         default="legacy_unverified",

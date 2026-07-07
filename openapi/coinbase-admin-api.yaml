@@ -169971,6 +169971,34 @@ components:
           default: '0'
           examples:
           - '1.00'
+        live_wallet_debit_ids:
+          items:
+            type: string
+          type: array
+          title: Live Wallet Debit Ids
+        live_wallet_debited_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Live Wallet Debited Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_wallet_release_ids:
+          items:
+            type: string
+          type: array
+          title: Live Wallet Release Ids
+        live_wallet_released_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Live Wallet Released Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
         live_wallet_reservation_blockers:
           items:
             type: string
@@ -170420,6 +170448,34 @@ components:
           type: string
           pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
           title: Live Wallet Reserved Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_wallet_debit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Wallet Debit Id
+        live_wallet_debited_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Live Wallet Debited Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_wallet_release_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Wallet Release Id
+        live_wallet_released_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Live Wallet Released Notional Usdc
           description: Decimal value serialized as a string; floats are not part of
             the API contract.
           default: '0'
