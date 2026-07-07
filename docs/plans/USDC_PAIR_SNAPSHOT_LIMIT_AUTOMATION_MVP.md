@@ -898,6 +898,7 @@ run-state readback and blocked product rows, remove the affected row from queued
 product ids, and zero wallet allocation.
 The run-state live-submit handoff also rejects missing, blocked, or stale latest
 parent/product live-wallet reservation/debit/release evidence, non-empty
+product wallet reservation/debit/release conflict source ids, non-empty
 parent or selected-product active-overcommit readback, blocked parent run-lock,
 pause/abort, rate-limit, retry-budget/backoff, or recovery evidence, missing or
 invalid run-lock timestamp evidence, missing or invalid rate-window start/end

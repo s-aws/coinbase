@@ -3947,6 +3947,18 @@ def _live_wallet_reference_conflict_blockers_by_product(
             for blocker in item.live_wallet_reservation_blockers
             if blocker in conflict_blocker_values
         ]
+        if item.live_wallet_reservation_ref_conflict_run_state_id:
+            blockers.append(
+                USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_REF_CONFLICT_BLOCKER
+            )
+        if item.live_wallet_debit_ref_conflict_run_state_id:
+            blockers.append(
+                USDC_PAIR_SNAPSHOT_LIVE_WALLET_DEBIT_REF_CONFLICT_BLOCKER
+            )
+        if item.live_wallet_release_ref_conflict_run_state_id:
+            blockers.append(
+                USDC_PAIR_SNAPSHOT_LIVE_WALLET_RELEASE_REF_CONFLICT_BLOCKER
+            )
         if (
             item.live_wallet_reservation_id
             and reservation_counts.get(item.live_wallet_reservation_id, 0) > 1
