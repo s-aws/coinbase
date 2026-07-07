@@ -5040,6 +5040,10 @@ def _record_usdc_pair_live_submission(
         blockers.append("readiness_submit_route_not_ready")
     if readiness.submit_blockers:
         blockers.append("readiness_submit_blockers_present")
+    if readiness.reference_bid_price_freshness_status != "fresh":
+        blockers.append("readiness_reference_bid_price_not_fresh")
+    if readiness.last_filled_price_freshness_status != "fresh":
+        blockers.append("readiness_last_filled_price_not_fresh")
     if readiness.far_from_bid_status != "passed":
         blockers.append("readiness_far_from_bid_status_not_passed")
     if readiness.snapshot_non_fill_status != "passed":
