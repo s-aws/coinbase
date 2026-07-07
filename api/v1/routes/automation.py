@@ -4566,10 +4566,29 @@ def _allowlist_run_state_runtime_statuses(
         "recovery_status": (
             readiness.recovery_readiness_status if recovery_required else "blocked"
         ),
-        "partial_success_status": (
-            "partial_ready_no_live" if blocked else "ready_no_live"
+        "partial_success_status": _allowlist_run_state_partial_success_status(
+            queued_product_count=sum(
+                1
+                for item in product_states
+                if item.execution_state == "queued_no_live"
+            ),
+            blocked_product_count=sum(
+                1 for item in product_states if item.execution_state == "blocked"
+            ),
         ),
     }
+
+
+def _allowlist_run_state_partial_success_status(
+    *,
+    queued_product_count: int,
+    blocked_product_count: int,
+) -> str:
+    if queued_product_count <= 0:
+        return "blocked"
+    if blocked_product_count > 0:
+        return "partial_ready_no_live"
+    return "ready_no_live"
 
 
 def _record_usdc_pair_allowlist_run_state(
@@ -5610,6 +5629,12 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         != recovery_required_product_state_count
     ):
         blockers.append("run_state_recovery_required_product_count_mismatch")
+    expected_partial_success_status = _allowlist_run_state_partial_success_status(
+        queued_product_count=queued_product_state_count,
+        blocked_product_count=blocked_product_state_count,
+    )
+    if run_state.partial_success_status != expected_partial_success_status:
+        blockers.append("run_state_partial_success_status_mismatch")
     if run_state.rate_limit_attempted_order_count != queued_product_state_count:
         blockers.append("run_state_rate_limit_attempted_order_count_mismatch")
     expected_rate_limit_window_remaining_order_count = max(
