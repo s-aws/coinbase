@@ -63540,6 +63540,10 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "m58_usdc_pair_live_fanout_gate",
         "m58_usdc_pair_scheduler_gate",
         "m58_usdc_pair_contextless_review_gate",
+        "m58_usdc_pair_live_wallet_ledger_gate",
+        "m58_usdc_pair_runtime_fanout_gate",
+        "m58_usdc_pair_release_gate_clearance",
+        "m58_usdc_pair_fanout_contextless_review_gate",
     }
     assert (
         release_checks["m58_usdc_pair_live_fanout_gate"]["status"]
@@ -63583,6 +63587,40 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         release_checks["m58_usdc_pair_scheduler_gate"]["status"]
         == AdminApiGateStatus.WARNING.value
     )
+    assert (
+        release_checks["m58_usdc_pair_live_wallet_ledger_gate"]["status"]
+        == AdminApiGateStatus.WARNING.value
+    )
+    assert "live wallet ledger semantics" in release_checks[
+        "m58_usdc_pair_live_wallet_ledger_gate"
+    ]["detail"]
+    assert "no-live wallet-ledger readback is insufficient" in release_checks[
+        "m58_usdc_pair_live_wallet_ledger_gate"
+    ]["detail"]
+    assert (
+        release_checks["m58_usdc_pair_runtime_fanout_gate"]["status"]
+        == AdminApiGateStatus.WARNING.value
+    )
+    assert "runtime fan-out remains blocked" in release_checks[
+        "m58_usdc_pair_runtime_fanout_gate"
+    ]["detail"]
+    assert "5 orders per second" in release_checks[
+        "m58_usdc_pair_runtime_fanout_gate"
+    ]["detail"]
+    assert (
+        release_checks["m58_usdc_pair_release_gate_clearance"]["status"]
+        == AdminApiGateStatus.WARNING.value
+    )
+    assert "must clear these warning checks" in release_checks[
+        "m58_usdc_pair_release_gate_clearance"
+    ]["detail"]
+    assert (
+        release_checks["m58_usdc_pair_fanout_contextless_review_gate"]["status"]
+        == AdminApiGateStatus.WARNING.value
+    )
+    assert "Repeat contextless review before live fan-out" in release_checks[
+        "m58_usdc_pair_fanout_contextless_review_gate"
+    ]["detail"]
     assert "5 orders per second" in release_checks["m58_usdc_pair_scheduler_gate"][
         "detail"
     ]

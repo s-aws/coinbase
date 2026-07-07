@@ -51145,6 +51145,49 @@ class AdminApiReadService:
                 ),
             ),
             AdminGateCheck(
+                name="m58_usdc_pair_live_wallet_ledger_gate",
+                status=AdminApiGateStatus.WARNING,
+                detail=(
+                    "M58 live wallet ledger semantics remain blocked. Current "
+                    "no-live wallet-ledger readback is insufficient for live "
+                    "fan-out because it does not fetch live balances, reserve "
+                    "or debit funds, release live reservations, or prove "
+                    "overcommit prevention across submit, cancel, failure, "
+                    "pause, abort, and retry outcomes."
+                ),
+            ),
+            AdminGateCheck(
+                name="m58_usdc_pair_runtime_fanout_gate",
+                status=AdminApiGateStatus.WARNING,
+                detail=(
+                    "M58 runtime fan-out remains blocked. Current evidence "
+                    "records 5 orders per second rate-window readback, run "
+                    "locks, retry/backoff, pause/abort, and recovery refs, "
+                    "but it has no backend worker that can submit multiple "
+                    "products while preserving wallet, cap, retry, cancel, "
+                    "and recovery invariants."
+                ),
+            ),
+            AdminGateCheck(
+                name="m58_usdc_pair_release_gate_clearance",
+                status=AdminApiGateStatus.WARNING,
+                detail=(
+                    "M58 live fan-out and scheduler release must clear these "
+                    "warning checks with focused backend evidence, no-live "
+                    "regression evidence, and a release-gate run that records "
+                    "no live Coinbase execution by default."
+                ),
+            ),
+            AdminGateCheck(
+                name="m58_usdc_pair_fanout_contextless_review_gate",
+                status=AdminApiGateStatus.WARNING,
+                detail=(
+                    "Repeat contextless review before live fan-out or "
+                    "scheduler broadening. The current passed contextless "
+                    "review only covers the one selected product boundary."
+                ),
+            ),
+            AdminGateCheck(
                 name="m58_usdc_pair_contextless_review_gate",
                 status=AdminApiGateStatus.PASSED,
                 detail=(

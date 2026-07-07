@@ -1011,7 +1011,11 @@ multi-product wallet lifecycle readback.
 The backend release gate now records `m58_usdc_pair_live_fanout_gate` and
 `m58_usdc_pair_scheduler_gate` as warnings, plus
 `m58_usdc_pair_contextless_review_gate` as passed for the current
-one-selected-product boundary. The fan-out warning now names the durable
+one-selected-product boundary. It also exposes warning subchecks for
+`m58_usdc_pair_live_wallet_ledger_gate`,
+`m58_usdc_pair_runtime_fanout_gate`,
+`m58_usdc_pair_release_gate_clearance`, and
+`m58_usdc_pair_fanout_contextless_review_gate`. The fan-out warning now names the durable
 no-live wallet-ledger record readback plus hidden queued order-plan row,
 proof-chain, proof-ref, price, size, and notional drift guards as still
 insufficient for live fan-out.
