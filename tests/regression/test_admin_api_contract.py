@@ -39492,6 +39492,98 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidate
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidates_wallet_ref_uniqueness(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-wallet-ref-duplicate",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-submit-wallet-ref-duplicate-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(ready["run_state_id"])
+    assert source_run_state is not None
+    source_product = source_run_state.product_states[0]
+    duplicate_product = source_product.model_copy(
+        update={
+            "product_id": "ETH-USDC",
+            "client_order_id": (
+                "m58-usdc-allowlist-live-submit-wallet-ref-duplicate-eth"
+            ),
+            "cap_guard_decision_id": (
+                "cap-m58-usdc-allowlist-live-submit-wallet-ref-duplicate-eth"
+            ),
+            "recovery_state_ref": "m58-cancel-recovery:ETH-USDC",
+        }
+    )
+    run_state_store.append(
+        source_run_state.model_copy(
+            update={
+                "product_ids": [ready["product_id"], "ETH-USDC"],
+                "queued_product_ids": [ready["product_id"], "ETH-USDC"],
+                "retryable_product_ids": [ready["product_id"], "ETH-USDC"],
+                "recovery_required_product_ids": [ready["product_id"], "ETH-USDC"],
+                "queued_product_count": 2,
+                "retryable_product_count": 2,
+                "recovery_required_product_count": 2,
+                "product_states": [source_product, duplicate_product],
+            }
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-wallet-ref-duplicate"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json={
+            "submission_id": "m58-usdc-allowlist-live-submit-wallet-ref-duplicate",
+            "readiness_id": ready["live_readiness_id"],
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one run-state selected order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "stale duplicate wallet refs in run-state evidence",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert "run_state_live_wallet_reservation_ref_conflict" in payload["message"]
+    assert "run_state_live_wallet_debit_ref_conflict" in payload["message"]
+    assert "run_state_live_wallet_release_ref_conflict" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_revalidates_price_distance_status(
     monkeypatch,
 ):

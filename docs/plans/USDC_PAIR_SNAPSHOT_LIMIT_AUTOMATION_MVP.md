@@ -578,6 +578,9 @@ with a different run/readiness binding fail closed with
 `live_wallet_reservation_ref_conflict`; reused debit or release refs across
 queued products or prior reservation records fail closed with
 `live_wallet_debit_ref_conflict` or `live_wallet_release_ref_conflict`.
+Run-state live-submit revalidates these wallet lifecycle refs against the
+stored queued product rows so the selected product cannot hand off through
+duplicated reservation/debit/release refs in stale run-state evidence.
 Unreleased active no-live reservations that would overcommit the current wallet
 proof fail closed with `live_wallet_active_reservation_overcommit`. These
 reference conflicts and active-overcommit blockers remove affected rows from
@@ -591,7 +594,9 @@ run-state to the existing Phase E submit/cancel route only when the product row
 has matching `ready_no_live` live-readiness evidence by `client_order_id`, the
 run-state/order-plan/live-readiness `plan_id` and `snapshot_run_id` association
 is current, the latest wallet reservation/debit/release record still matches
-the selected run-state/product/notional tuple, latest live-readiness freshness
+the selected run-state/product/notional tuple, the stored run-state product rows
+do not duplicate the selected product's wallet reservation/debit/release refs,
+latest live-readiness freshness
 timestamps/statuses, far-from-bid evidence, and snapshot non-fill evidence still
 pass after recomputation, latest cap-guard submitted-notional and wallet checks
 still cover the selected notional, and the parent run-state has ready aggregate
@@ -819,7 +824,8 @@ price-freshness timestamp/status or recomputed price-distance evidence, rejects
 stale selected-product cap-guard submitted-notional or wallet evidence, rejects
 stale selected-product rate/cap/wallet allocation evidence, rejects missing
 or product-mismatched selected-product recovery refs, rejects reused
-selected-product recovery refs, rejects non-empty selected-product
+selected-product recovery refs, rejects duplicated selected-product wallet
+reservation/debit/release refs in stored run-state product rows, rejects non-empty selected-product
 blockers, rejects unexpected parent fanout blockers other than
 `fanout_execution_not_approved` and `scheduler_blocked`, rejects stale
 selected-product candidate/cap-guard refs, rejects stale run-state/order-plan/

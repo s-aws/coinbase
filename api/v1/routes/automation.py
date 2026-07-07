@@ -3757,11 +3757,16 @@ def _live_wallet_reference_conflict_blockers_by_product(
     *,
     product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
 ) -> dict[str, list[str]]:
+    reservation_counts: dict[str, int] = {}
     debit_counts: dict[str, int] = {}
     release_counts: dict[str, int] = {}
     for item in product_states:
         if item.execution_state != "queued_no_live":
             continue
+        if item.live_wallet_reservation_id:
+            reservation_counts[item.live_wallet_reservation_id] = (
+                reservation_counts.get(item.live_wallet_reservation_id, 0) + 1
+            )
         if item.live_wallet_debit_id:
             debit_counts[item.live_wallet_debit_id] = (
                 debit_counts.get(item.live_wallet_debit_id, 0) + 1
@@ -3786,6 +3791,13 @@ def _live_wallet_reference_conflict_blockers_by_product(
             for blocker in item.live_wallet_reservation_blockers
             if blocker in conflict_blocker_values
         ]
+        if (
+            item.live_wallet_reservation_id
+            and reservation_counts.get(item.live_wallet_reservation_id, 0) > 1
+        ):
+            blockers.append(
+                USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_REF_CONFLICT_BLOCKER
+            )
         if (
             item.live_wallet_debit_id
             and debit_counts.get(item.live_wallet_debit_id, 0) > 1
@@ -4973,6 +4985,17 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
             blockers.append("run_state_product_live_wallet_release_id_missing")
         if product_row.live_wallet_reservation_blockers:
             blockers.append("run_state_product_live_wallet_blockers_present")
+        wallet_ref_blockers_by_product = (
+            _live_wallet_reference_conflict_blockers_by_product(
+                product_states=run_state.product_states,
+            )
+        )
+        for product_id, wallet_ref_blockers in wallet_ref_blockers_by_product.items():
+            if product_id.strip().upper() != normalized_body_product_id:
+                continue
+            blockers.extend(
+                f"run_state_{blocker}" for blocker in wallet_ref_blockers
+            )
         if str(product_row.client_order_id or "").strip() != body.client_order_id:
             blockers.append("run_state_client_order_id_mismatch")
         if product_row.live_coinbase_execution != "not_run":
