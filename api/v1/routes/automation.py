@@ -5296,6 +5296,8 @@ def _record_usdc_pair_live_submission(
         blockers.append("readiness_client_order_id_mismatch")
     if plan.plan_id != readiness.plan_id:
         blockers.append("readiness_plan_mismatch")
+    if plan.snapshot_run_id != readiness.snapshot_run_id:
+        blockers.append("readiness_snapshot_mismatch")
     if row.client_order_id != readiness.client_order_id:
         blockers.append("order_plan_row_mismatch")
     if not body.confirm_live_submit:

@@ -593,7 +593,9 @@ The backend can also hand off one explicitly selected queued product from a
 run-state to the existing Phase E submit/cancel route only when the product row
 has matching `ready_no_live` live-readiness evidence by `client_order_id`, the
 run-state/order-plan/live-readiness `plan_id` and `snapshot_run_id` association
-is current, the latest wallet reservation/debit/release record still matches
+is current, and the shared direct live-submit recorder rejects stale order-plan/
+live-readiness `snapshot_run_id` associations before executor invocation. The
+latest wallet reservation/debit/release record still matches
 the selected run-state/product/notional tuple, the stored run-state product rows
 contain exactly one row for the selected `product_id`/`client_order_id` and do
 not duplicate the selected product's wallet reservation/debit/release refs, the
@@ -823,6 +825,7 @@ run-lock, pause/abort, rate-limit, retry-budget/backoff, or recovery evidence
 before any executor call, rejects blocked aggregate parent run-state/cap/wallet/
 live-readiness/notional/partial-success statuses, rejects stale selected-product
 price-freshness timestamp/status or recomputed price-distance evidence, rejects
+stale selected-product order-plan/live-readiness snapshot association, rejects
 stale selected-product cap-guard submitted-notional or wallet evidence, rejects
 ambiguous selected-product run-state rows, rejects stale selected-product
 rate/cap/wallet allocation evidence, rejects ambiguous selected-product
