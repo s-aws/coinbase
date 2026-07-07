@@ -34898,6 +34898,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
     assert run_state["pause_resume_status"] == "running_no_live"
     assert run_state["abort_status"] == "not_requested"
     assert run_state["rate_limit_status"] == "ready_no_live"
+    assert run_state["rate_limit_max_orders_per_window"] == 5
+    assert run_state["rate_limit_attempted_order_count"] == 1
+    assert run_state["rate_limit_window_within_cap"] is True
     assert run_state["retry_budget_status"] == "ready_no_live"
     assert run_state["recovery_status"] == "ready_no_live"
     assert run_state["partial_success_status"] == "partial_ready_no_live"
@@ -38400,6 +38403,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_rate_limit_wind
     run_state = payload["run_state"]
     assert run_state["run_lock_status"] == "recorded_no_live"
     assert run_state["rate_limit_status"] == "blocked"
+    assert run_state["rate_limit_max_orders_per_window"] == 5
+    assert run_state["rate_limit_attempted_order_count"] == len(products)
+    assert run_state["rate_limit_window_within_cap"] is False
     assert run_state["run_state_status"] == "blocked"
     assert run_state["queued_product_ids"] == []
     assert run_state["blocked_product_ids"] == products

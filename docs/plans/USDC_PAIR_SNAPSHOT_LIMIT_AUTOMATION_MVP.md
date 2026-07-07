@@ -66,7 +66,10 @@ Available building blocks:
   `run_lock_ref_conflict`, `rate_limit_window_ref_missing`,
   `rate_limit_window_ref_conflict`, `rate_limit_window_capacity_exceeded`,
   `retry_budget_exhausted`, `retry_backoff_ref_missing`, or
-  `retry_backoff_ref_conflict`.
+  `retry_backoff_ref_conflict`. Run-state evidence now records the configured
+  `rate_limit_max_orders_per_window`, the
+  `rate_limit_attempted_order_count` before runtime blocking, and
+  `rate_limit_window_within_cap` as capacity proof.
   Candidate products with recovery status marked ready but no recovery ref, or
   a recovery ref bound to a different product, fail closed with
   `cancel_recovery_ref_missing` or `cancel_recovery_ref_product_mismatch`
@@ -558,7 +561,10 @@ retry-backoff refs remove queued products before cap/wallet allocation and
 record `run_lock_ref_missing`, `run_lock_ref_conflict`,
 `rate_limit_window_ref_missing`, `rate_limit_window_ref_conflict`,
 `rate_limit_window_capacity_exceeded`, `retry_budget_exhausted`,
-`retry_backoff_ref_missing`, or `retry_backoff_ref_conflict`.
+`retry_backoff_ref_missing`, or `retry_backoff_ref_conflict`. The stored
+run-state also exposes `rate_limit_max_orders_per_window`,
+`rate_limit_attempted_order_count`, and `rate_limit_window_within_cap` before
+any future scheduler or fan-out path can rely on the rate-limit window.
 Candidate products with ready recovery status but reused recovery plan refs,
 missing refs, product-mismatched refs, or reused product refs are removed from
 queued product ids and record `cancel_recovery_plan_ref_conflict`,
@@ -818,7 +824,8 @@ and recording explicit blockers.
 Missing or reused run-lock refs, missing or reused runtime rate-limit window
 refs, runtime windows with more than five queued products, retry-budget
 exhaustion, and missing or reused retry-backoff refs also fail closed before
-cap/wallet allocation.
+cap/wallet allocation. Run-state records preserve the configured rate-limit
+window cap, attempted order count, and within-cap result as durable evidence.
 Missing live wallet reservation/debit/release evidence now blocks aggregate
 run-state fan-out readiness while preserving queued product rows for the
 one-selected-product handoff proof path. Reused no-live reservation refs with a

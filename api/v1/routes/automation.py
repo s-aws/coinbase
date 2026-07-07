@@ -757,6 +757,13 @@ def _allowlist_run_state_item_from_record(
         abort_status=record.abort_status,
         rate_limit_status=record.rate_limit_status,
         rate_limit_window_ref=record.rate_limit_window_ref,
+        rate_limit_max_orders_per_window=(
+            record.rate_limit_max_orders_per_window
+        ),
+        rate_limit_attempted_order_count=(
+            record.rate_limit_attempted_order_count
+        ),
+        rate_limit_window_within_cap=record.rate_limit_window_within_cap,
         retry_budget_status=record.retry_budget_status,
         retry_backoff_status=record.retry_backoff_status,
         retry_backoff_ref=record.retry_backoff_ref,
@@ -4383,6 +4390,15 @@ def _record_usdc_pair_allowlist_run_state(
         )
         for row in readiness.product_readiness_rows
     ]
+    rate_limit_attempted_order_count = sum(
+        1 for item in product_states if item.execution_state == "queued_no_live"
+    )
+    rate_limit_max_orders_per_window = (
+        USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_ORDER_CAP
+    )
+    rate_limit_window_within_cap = (
+        rate_limit_attempted_order_count <= rate_limit_max_orders_per_window
+    )
     run_lock_conflict_blocker = _allowlist_run_state_run_lock_conflict_blocker(
         run_state_store=run_state_store,
         run_lock_ref=body.run_lock_ref,
@@ -4630,6 +4646,9 @@ def _record_usdc_pair_allowlist_run_state(
         abort_status="aborted_no_live" if body.abort_requested else "not_requested",
         rate_limit_status=runtime_statuses["rate_limit_status"],
         rate_limit_window_ref=body.rate_limit_window_ref,
+        rate_limit_max_orders_per_window=rate_limit_max_orders_per_window,
+        rate_limit_attempted_order_count=rate_limit_attempted_order_count,
+        rate_limit_window_within_cap=rate_limit_window_within_cap,
         retry_budget_status=runtime_statuses["retry_budget_status"],
         retry_backoff_status=runtime_statuses["retry_backoff_status"],
         retry_backoff_ref=body.retry_backoff_ref,

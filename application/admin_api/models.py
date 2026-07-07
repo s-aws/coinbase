@@ -3156,6 +3156,9 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
     abort_status: str = Field(min_length=1)
     rate_limit_status: str = Field(min_length=1)
     rate_limit_window_ref: str | None = None
+    rate_limit_max_orders_per_window: int = Field(default=5, ge=1)
+    rate_limit_attempted_order_count: int = Field(default=0, ge=0)
+    rate_limit_window_within_cap: bool = True
     retry_budget_status: str = Field(min_length=1)
     retry_backoff_status: str = Field(default="not_required", min_length=1)
     retry_backoff_ref: str | None = None
