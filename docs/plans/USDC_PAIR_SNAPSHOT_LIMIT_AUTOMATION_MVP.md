@@ -947,8 +947,10 @@ reservation/debit/release refs in stored run-state product rows, rejects non-emp
 blockers, rejects unexpected parent fanout blockers other than
 `fanout_execution_not_approved` and `scheduler_blocked`, rejects parent fanout
 execution status that is no longer blocked, rejects stale
-selected-product candidate/cap-guard refs, rejects stale run-state/order-plan/
-live-readiness `plan_id` or `snapshot_run_id` association, and rejects stale
+selected-product candidate/cap-guard refs, rejects current retry-budget drift
+from newer queued run-state attempts, rejects current retry-backoff ref reuse
+from the run-state store, rejects stale run-state/order-plan/live-readiness
+`plan_id` or `snapshot_run_id` association, and rejects stale
 parent retryable/recovery-required product sets that omit the selected product.
 Blocked product rows are no longer reported as retryable or recovery-required.
 Aggregate run-state status fields now fail closed when final product state has
@@ -957,8 +959,7 @@ Final-blocked product rows also clear stale cancel-recovery refs when recovery
 is not required.
 Subagent phase sweep on 2026-07-07 was closed after findings were consumed.
 Remaining live fan-out/scheduler blockers include submit-time revalidation for
-current retry budget/backoff drift and current enabled live-service decision
-evidence before executor invocation.
+current enabled live-service decision evidence before executor invocation.
 A blind contextless review on 2026-07-06 passed the M58 no-live Phase F
 authority-boundary questions and confirmed the change set is a domain module
 under Automation / Campaign / Scheduler, not a reusable admin platform

@@ -5319,6 +5319,34 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
             > product_row.retry_budget_per_product
         ):
             blockers.append("run_state_product_retry_budget_count_mismatch")
+        current_retry_prior_attempt_count = (
+            _allowlist_run_state_prior_retry_attempt_count(
+                run_state_store=run_state_store,
+                readiness_id=run_state.readiness_id,
+                run_state_id=run_state.run_state_id,
+                item=product_row,
+            )
+        )
+        if current_retry_prior_attempt_count != product_row.retry_prior_attempt_count:
+            blockers.append("run_state_product_retry_prior_attempt_count_stale")
+        if (
+            product_row.retry_budget_per_product >= 1
+            and current_retry_prior_attempt_count
+            >= product_row.retry_budget_per_product
+        ):
+            blockers.append("run_state_product_retry_budget_exhausted")
+        if current_retry_prior_attempt_count > 0:
+            if product_row.retry_backoff_status != "ready_no_live":
+                blockers.append("run_state_product_retry_backoff_not_ready")
+            if not product_row.retry_backoff_ref:
+                blockers.append("run_state_product_retry_backoff_ref_missing")
+            if not run_state.retry_backoff_ref:
+                blockers.append("run_state_retry_backoff_ref_missing")
+            elif (
+                product_row.retry_backoff_ref
+                and product_row.retry_backoff_ref != run_state.retry_backoff_ref
+            ):
+                blockers.append("run_state_product_retry_backoff_ref_mismatch")
         if product_row.fanout_cap_allocation_status != "allocated_no_live":
             blockers.append("run_state_product_fanout_cap_not_allocated")
         if product_row.wallet_allocation_status != "allocated_no_live":
@@ -5725,6 +5753,12 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
     ):
         blockers.append("run_state_retry_backoff_ref_missing")
     if run_state.retry_backoff_conflict_run_state_id:
+        blockers.append("run_state_retry_backoff_ref_conflict")
+    elif _allowlist_run_state_retry_backoff_conflict_run_state_id(
+        run_state_store=run_state_store,
+        retry_backoff_ref=run_state.retry_backoff_ref,
+        run_state_id=run_state.run_state_id,
+    ):
         blockers.append("run_state_retry_backoff_ref_conflict")
     if run_state.recovery_status != "ready_no_live":
         blockers.append("run_state_recovery_not_ready")
