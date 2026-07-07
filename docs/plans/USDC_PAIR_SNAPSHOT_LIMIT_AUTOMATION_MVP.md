@@ -119,8 +119,8 @@ Available building blocks:
   A backend-owned run-state-to-live-submit handoff route now requires one
   explicitly selected queued product with matching `ready_no_live` Phase E
   live-readiness, matching run-state/order-plan/live-readiness `plan_id` and
-  `snapshot_run_id` association, selected-product live-readiness source
-  association, ready parent and product live-wallet
+  `snapshot_run_id` association, non-empty selected-product live-readiness
+  source association, ready parent and product live-wallet
   reservation/debit/release evidence revalidated against the latest reservation
   store record, selected-product wallet notional readback matching that latest
   record, latest live-readiness price-freshness timestamps/statuses and
@@ -923,7 +923,7 @@ invocation, rejects blocked aggregate parent
 run-state/cap/wallet/
 live-readiness/notional/partial-success statuses, rejects stale selected-product
 price-freshness timestamp/status or recomputed price-distance evidence, rejects
-stale selected-product order-plan/live-readiness snapshot or source
+stale selected-product order-plan/live-readiness snapshot or missing/stale source
 association, rejects
 stale selected-product side, planned/submitted/max-submitted notional,
 limit-price, quote-size, or minimum-order-size-preference evidence,

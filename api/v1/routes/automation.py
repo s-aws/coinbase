@@ -5731,9 +5731,15 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_association(
         blockers.append("run_state_readiness_plan_mismatch")
     if run_state.snapshot_run_id != readiness.snapshot_run_id:
         blockers.append("run_state_readiness_snapshot_mismatch")
-    if str(product_row.live_readiness_source or "").strip() != str(
-        readiness.source or ""
-    ).strip():
+    product_live_readiness_source = str(
+        product_row.live_readiness_source or ""
+    ).strip()
+    live_readiness_source = str(readiness.source or "").strip()
+    if not live_readiness_source:
+        blockers.append("run_state_live_readiness_source_missing")
+    if not product_live_readiness_source:
+        blockers.append("run_state_product_live_readiness_source_missing")
+    if product_live_readiness_source != live_readiness_source:
         blockers.append("run_state_product_live_readiness_source_mismatch")
 
     if blockers:
