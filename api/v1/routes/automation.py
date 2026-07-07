@@ -5828,6 +5828,21 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         and item.live_wallet_reservation_status != "ready_no_live"
         for item in run_state.product_states
     )
+    queued_product_live_wallet_reservation_id_missing = any(
+        item.execution_state == "queued_no_live"
+        and not item.live_wallet_reservation_id
+        for item in run_state.product_states
+    )
+    queued_product_live_wallet_debit_id_missing = any(
+        item.execution_state == "queued_no_live"
+        and not item.live_wallet_debit_id
+        for item in run_state.product_states
+    )
+    queued_product_live_wallet_release_id_missing = any(
+        item.execution_state == "queued_no_live"
+        and not item.live_wallet_release_id
+        for item in run_state.product_states
+    )
     live_readiness_blockers = _dedupe(
         [
             blocker
@@ -5899,6 +5914,12 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_product_wallet_allocation_not_allocated")
     if queued_product_live_wallet_not_ready:
         blockers.append("run_state_product_live_wallet_reservation_not_ready")
+    if queued_product_live_wallet_reservation_id_missing:
+        blockers.append("run_state_product_live_wallet_reservation_id_missing")
+    if queued_product_live_wallet_debit_id_missing:
+        blockers.append("run_state_product_live_wallet_debit_id_missing")
+    if queued_product_live_wallet_release_id_missing:
+        blockers.append("run_state_product_live_wallet_release_id_missing")
     if run_state.live_readiness_blockers != live_readiness_blockers:
         blockers.append("run_state_live_readiness_blockers_mismatch")
     if run_state.live_readiness_blockers:
