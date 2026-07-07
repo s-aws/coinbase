@@ -5304,6 +5304,8 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_run_lock_not_recorded")
     if not run_state.run_lock_ref:
         blockers.append("run_state_run_lock_ref_missing")
+    if run_state.run_lock_conflict_run_state_id:
+        blockers.append("run_state_run_lock_ref_conflict")
     run_lock_recorded_at = _parse_reference_timestamp(
         run_state.run_lock_recorded_at
     )
@@ -5319,6 +5321,8 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_rate_limit_not_ready")
     if not run_state.rate_limit_window_ref:
         blockers.append("run_state_rate_limit_window_ref_missing")
+    if run_state.rate_limit_window_conflict_run_state_id:
+        blockers.append("run_state_rate_limit_window_ref_conflict")
     queued_product_state_count = sum(
         1
         for item in run_state.product_states

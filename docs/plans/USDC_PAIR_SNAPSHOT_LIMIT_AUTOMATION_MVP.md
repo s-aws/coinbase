@@ -903,8 +903,9 @@ pause/abort, rate-limit, retry-budget/backoff, or recovery evidence, missing or
 invalid run-lock timestamp evidence, missing or invalid rate-window start/end
 evidence, non-default rate-window cap/seconds policy, mismatched rate-window
 duration, run-lock timestamps outside the rate window, or over-cap rate-window
-readback, and attempted-order counts that do not match queued rows before
-executor invocation, rejects blocked aggregate parent
+readback, attempted-order counts that do not match queued rows, or non-empty
+run-lock/rate-window conflict source ids before executor invocation, rejects
+blocked aggregate parent
 run-state/cap/wallet/
 live-readiness/notional/partial-success statuses, rejects stale selected-product
 price-freshness timestamp/status or recomputed price-distance evidence, rejects
