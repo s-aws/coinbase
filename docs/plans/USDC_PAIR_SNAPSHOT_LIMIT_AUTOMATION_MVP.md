@@ -721,7 +721,8 @@ product-row candidate/cap-guard record refs/live-readiness record, source,
 content/notional/live-service refs, matching queued order-plan rows with
 matching planned notional, cap-guard/live-service refs, and accepted or
 pending-submit proof-chain status, with proof refs matching queued
-live-readiness records, and no
+live-readiness records plus matching side, limit-price, quote-size, and
+notional readback, and no
 queued product-row blockers, plus a non-empty selected-product recovery ref
 bound to that product and not reused by another queued run-state, and
 membership in the parent
@@ -980,7 +981,7 @@ associations, readiness content/freshness/notional evidence, or
 missing/disabled queued live-service decision evidence, rejects stale queued
 product-row cap-guard record evidence or missing/ambiguous/stale queued
 order-plan rows, blocked queued order-plan proof-chain evidence, or stale
-queued order-plan/live-readiness proof refs,
+queued order-plan/live-readiness proof refs or price/size/notional evidence,
 rejects ambiguous selected-product
 order-plan rows, rejects missing
 or product-mismatched selected-product recovery refs, rejects reused

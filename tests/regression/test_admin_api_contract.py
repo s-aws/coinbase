@@ -44133,6 +44133,10 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
                 "cap_guard_decision_mismatch"
             ),
         ),
+        (
+            "readiness_limit_price_mismatch",
+            "run_state_product_order_plan_readiness_limit_price_mismatch",
+        ),
     ],
 )
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hidden_queued_order_plan_row_gaps(
@@ -44190,6 +44194,14 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
     extra_live_service_decision_id = (
         f"m58-usdc-live-service-{extra_client_order_id}"
     )
+    extra_reconciliation_plan_id = (
+        "recon-m58-usdc-allowlist-live-submit-hidden-order-plan-eth"
+    )
+    extra_readiness_cap_guard_decision_id = (
+        "cap-stale-m58-usdc-allowlist-live-submit-hidden-order-plan-eth"
+        if hidden_order_plan_shape == "readiness_cap_guard_ref_mismatch"
+        else extra_cap_guard_decision_id
+    )
     extra_product_row = source_product_row.model_copy(
         update={
             "product_id": "ETH-USDC",
@@ -44213,6 +44225,8 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
                 "readiness_id": extra_readiness_id,
                 "product_id": "ETH-USDC",
                 "client_order_id": extra_client_order_id,
+                "cap_guard_decision_id": extra_readiness_cap_guard_decision_id,
+                "reconciliation_plan_id": extra_reconciliation_plan_id,
                 "live_service_decision_id": extra_live_service_decision_id,
             }
         )
@@ -44343,6 +44357,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
         "live_service_ref_mismatch",
         "proof_chain_blocked",
         "readiness_cap_guard_ref_mismatch",
+        "readiness_limit_price_mismatch",
     }:
         order_plan_store = client.admin_api_test_usdc_pair_snapshot_order_plan_store
         source_plan = order_plan_store.find_by_plan_id(ready["plan_id"])
@@ -44368,6 +44383,11 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
             if hidden_order_plan_shape == "proof_chain_blocked"
             else []
         )
+        hidden_order_plan_limit_price = (
+            "49.00"
+            if hidden_order_plan_shape == "readiness_limit_price_mismatch"
+            else source_order_plan_row.limit_price
+        )
         hidden_order_plan_row = source_order_plan_row.model_copy(
             update={
                 "product_id": "ETH-USDC",
@@ -44386,10 +44406,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hi
                 "admission_audit_id": (
                     f"admission-{ready['allowlist_readiness_id']}"
                 ),
-                "reconciliation_plan_id": (
-                    "recon-m58-usdc-allowlist-live-submit-hidden-order-plan-eth"
-                ),
+                "reconciliation_plan_id": extra_reconciliation_plan_id,
                 "live_service_decision_id": hidden_order_plan_live_service_decision_id,
+                "limit_price": hidden_order_plan_limit_price,
                 "proof_chain_status": hidden_order_plan_proof_chain_status,
                 "proof_chain_blockers": hidden_order_plan_proof_chain_blockers,
             }

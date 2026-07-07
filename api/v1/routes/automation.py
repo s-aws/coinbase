@@ -6652,6 +6652,61 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_queued_order_plan(
             for blocker, (row_ref, readiness_ref) in proof_ref_checks.items()
             if str(row_ref or "").strip() != str(readiness_ref or "").strip()
         )
+        readiness_planned_notional = _decimal_value(
+            readiness.planned_notional_usdc
+        )
+        submitted_notional = _decimal_value(readiness.submitted_notional_usdc)
+        max_submitted_notional = _decimal_value(
+            readiness.max_submitted_notional_usdc
+        )
+        row_limit_price = _decimal_value(row.limit_price)
+        readiness_limit_price = _decimal_value(readiness.intended_limit_price)
+        row_quote_size = _decimal_value(row.quote_size)
+        readiness_quote_size = _decimal_value(readiness.quote_size)
+        plan_side = _enum_text(plan.side).strip().upper()
+        row_side = _enum_text(row.side).strip().upper()
+        readiness_side = _enum_text(readiness.side).strip().upper()
+        if not plan_side or not row_side or not readiness_side or (
+            plan_side != readiness_side or row_side != readiness_side
+        ):
+            blockers.append("run_state_product_order_plan_readiness_side_mismatch")
+        if (
+            row_planned_notional is None
+            or readiness_planned_notional is None
+            or row_planned_notional != readiness_planned_notional
+        ):
+            blockers.append(
+                "run_state_product_order_plan_readiness_planned_notional_mismatch"
+            )
+        if (
+            row_planned_notional is None
+            or submitted_notional is None
+            or row_planned_notional != submitted_notional
+        ):
+            blockers.append(
+                "run_state_product_order_plan_readiness_submitted_notional_mismatch"
+            )
+        if (
+            submitted_notional is None
+            or max_submitted_notional is None
+            or submitted_notional != max_submitted_notional
+        ):
+            blockers.append(
+                "run_state_product_order_plan_readiness_"
+                "max_submitted_notional_mismatch"
+            )
+        if (
+            row_limit_price is None
+            or readiness_limit_price is None
+            or row_limit_price != readiness_limit_price
+        ):
+            blockers.append(
+                "run_state_product_order_plan_readiness_limit_price_mismatch"
+            )
+        if row_quote_size != readiness_quote_size:
+            blockers.append(
+                "run_state_product_order_plan_readiness_quote_size_mismatch"
+            )
 
     if blockers:
         raise UsdcPairSnapshotError(
