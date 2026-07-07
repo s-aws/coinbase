@@ -5303,6 +5303,7 @@ def _record_usdc_pair_live_submission(
     row_planned_notional = _decimal_value(row.planned_notional_usdc)
     readiness_planned_notional = _decimal_value(readiness.planned_notional_usdc)
     submitted_notional = _decimal_value(readiness.submitted_notional_usdc)
+    max_submitted_notional = _decimal_value(readiness.max_submitted_notional_usdc)
     row_limit_price = _decimal_value(row.limit_price)
     readiness_limit_price = _decimal_value(readiness.intended_limit_price)
     row_quote_size = _decimal_value(row.quote_size)
@@ -5326,6 +5327,12 @@ def _record_usdc_pair_live_submission(
         or row_planned_notional != submitted_notional
     ):
         blockers.append("readiness_submitted_notional_mismatch")
+    if (
+        submitted_notional is None
+        or max_submitted_notional is None
+        or submitted_notional != max_submitted_notional
+    ):
+        blockers.append("readiness_max_submitted_notional_mismatch")
     if (
         row_limit_price is None
         or readiness_limit_price is None
