@@ -5303,6 +5303,8 @@ def _record_usdc_pair_live_submission(
     row_planned_notional = _decimal_value(row.planned_notional_usdc)
     readiness_planned_notional = _decimal_value(readiness.planned_notional_usdc)
     submitted_notional = _decimal_value(readiness.submitted_notional_usdc)
+    row_limit_price = _decimal_value(row.limit_price)
+    readiness_limit_price = _decimal_value(readiness.intended_limit_price)
     if (
         row_planned_notional is None
         or readiness_planned_notional is None
@@ -5315,6 +5317,12 @@ def _record_usdc_pair_live_submission(
         or row_planned_notional != submitted_notional
     ):
         blockers.append("readiness_submitted_notional_mismatch")
+    if (
+        row_limit_price is None
+        or readiness_limit_price is None
+        or row_limit_price != readiness_limit_price
+    ):
+        blockers.append("readiness_limit_price_mismatch")
     row_proof_chain_status = str(
         getattr(row, "proof_chain_status", "") or ""
     ).strip()
