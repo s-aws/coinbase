@@ -612,7 +612,8 @@ quote size, selected order-plan row proof-chain status is still accepted with
 no row proof-chain blockers, readiness proof refs still match the selected
 order-plan row, latest cap-guard submitted-notional and wallet checks still
 cover the selected notional, readiness still asserts minimum order size is
-preferred, and the parent run-state has ready aggregate
+preferred, readiness still has a cancel rollback plan ref, and the parent
+run-state has ready aggregate
 status, recorded run-lock evidence, is not paused/aborted, and has ready runtime rate-limit,
 retry-budget/backoff, recovery evidence, selected-product rate/cap/wallet
 allocation readiness, and no selected-product blockers, plus selected-product
@@ -837,6 +838,7 @@ price-freshness timestamp/status or recomputed price-distance evidence, rejects
 stale selected-product order-plan/live-readiness snapshot association, rejects
 stale selected-product side, planned/submitted/max-submitted notional,
 limit-price, quote-size, or minimum-order-size-preference evidence,
+rejects missing selected-product cancel rollback refs,
 rejects blocked selected-product row proof-chain status or row proof-chain
 blockers, rejects
 stale selected-product proof refs, rejects

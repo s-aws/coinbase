@@ -5430,6 +5430,8 @@ def _record_usdc_pair_live_submission(
         blockers.append("manual_review_required_for_full_snapshot_fill_test")
     if not readiness.cancel_before_additional_orders:
         blockers.append("cancel_before_additional_orders_required")
+    if not str(readiness.cancel_rollback_plan_ref or "").strip():
+        blockers.append("cancel_rollback_plan_ref_required")
     max_executed_notional = _decimal_value(readiness.max_executed_notional_usdc)
     _, cap_guard_blockers = _usdc_pair_live_readiness_cap_guard_evidence(
         store=cap_guard_store,
