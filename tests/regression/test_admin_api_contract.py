@@ -34297,7 +34297,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_readiness_records_no_live_summar
     assert readiness["fanout_readiness_status"] == "blocked"
     assert readiness["fanout_blockers"] == [
         "allowlist_product_count_exceeds_max",
-        "fanout_execution_not_approved",
+        "fanout_execution_technically_blocked",
         "scheduler_blocked",
         "product_evidence_blocked",
     ]
@@ -34500,7 +34500,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_readiness_records_retry_recovery
     assert readiness["partial_success_status"] == "ready_no_live"
     assert readiness["fanout_readiness_status"] == "blocked"
     assert readiness["fanout_blockers"] == [
-        "fanout_execution_not_approved",
+        "fanout_execution_technically_blocked",
         "scheduler_blocked",
     ]
     assert readiness["failure_isolation_status"] == "ready_no_live"
@@ -34774,7 +34774,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
             run_rate_limit_budget_ref="m58-rate-limit-budget-run-state",
             cancel_recovery_plan_ref="m58-cancel-recovery-run-state",
             fanout_readiness_status="blocked",
-            fanout_blockers=["fanout_execution_not_approved", "scheduler_blocked"],
+            fanout_blockers=["fanout_execution_technically_blocked", "scheduler_blocked"],
             product_readiness_rows=[
                 UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem(
                     product_id="BTC-USDC",
@@ -34943,7 +34943,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
     assert run_state["fanout_execution_status"] == "blocked"
     assert run_state["run_state_status"] == "blocked"
     assert run_state["fanout_blockers"] == [
-        "fanout_execution_not_approved",
+        "fanout_execution_technically_blocked",
         "scheduler_blocked",
         "live_wallet_reservation_missing",
         "live_wallet_debit_missing",
@@ -35398,7 +35398,7 @@ def _append_usdc_pair_snapshot_allowlist_run_state_readiness(
             run_rate_limit_budget_ref="m58-rate-limit-budget-negative",
             cancel_recovery_plan_ref="m58-cancel-recovery-negative",
             fanout_readiness_status="blocked",
-            fanout_blockers=["fanout_execution_not_approved"],
+            fanout_blockers=["fanout_execution_technically_blocked"],
             product_readiness_rows=[
                 UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem(
                     product_id="BTC-USDC",
@@ -36048,7 +36048,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_accepts_debit_release_
         "wallet-release-m58-debit-release"
     ]
     assert run_state["live_wallet_released_notional_usdc"] == "1.00"
-    assert run_state["fanout_blockers"] == ["fanout_execution_not_approved"]
+    assert run_state["fanout_blockers"] == ["fanout_execution_technically_blocked"]
     product_row = run_state["product_states"][0]
     assert product_row["live_wallet_reservation_status"] == "ready_no_live"
     assert product_row["live_wallet_reservation_blockers"] == []
@@ -36210,7 +36210,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_accepts_multi_product_
             cancel_recovery_plan_ref="m58-cancel-recovery-multi",
             fanout_readiness_status="blocked",
             fanout_blockers=[
-                "fanout_execution_not_approved",
+                "fanout_execution_technically_blocked",
                 "scheduler_blocked",
             ],
             product_readiness_rows=product_rows,
@@ -36259,7 +36259,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_accepts_multi_product_
     assert run_state["run_state_status"] == "ready_no_live"
     assert run_state["fanout_execution_status"] == "blocked"
     assert run_state["fanout_blockers"] == [
-        "fanout_execution_not_approved",
+        "fanout_execution_technically_blocked",
         "scheduler_blocked",
     ]
     assert run_state["queued_product_ids"] == products
@@ -36704,7 +36704,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_reused_debit_re
             run_rate_limit_budget_ref="m58-rate-limit-budget-ref-reuse",
             cancel_recovery_plan_ref="m58-cancel-recovery-ref-reuse",
             fanout_readiness_status="blocked",
-            fanout_blockers=["fanout_execution_not_approved"],
+            fanout_blockers=["fanout_execution_technically_blocked"],
             product_readiness_rows=product_rows,
             actor_id="contract-test",
             operator_intent="m58_usdc_snapshot_allowlist_readiness",
@@ -37312,7 +37312,7 @@ def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
             partial_success_status="ready_no_live" if queued else "blocked",
             fanout_execution_status="blocked",
             run_state_status="ready_no_live" if queued and live_ready else "blocked",
-            fanout_blockers=["fanout_execution_not_approved", "scheduler_blocked"],
+            fanout_blockers=["fanout_execution_technically_blocked", "scheduler_blocked"],
             product_states=[product_row],
             actor_id="contract-test",
             operator_intent="m58_usdc_snapshot_allowlist_run_state",
@@ -37501,7 +37501,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_cap_exceeded(
     assert run_state["fanout_execution_status"] == "blocked"
     assert run_state["run_state_status"] == "blocked"
     assert run_state["fanout_blockers"] == [
-        "fanout_execution_not_approved",
+        "fanout_execution_technically_blocked",
         "fanout_notional_cap_exceeded",
     ]
     assert run_state["queued_product_ids"] == []
@@ -38721,7 +38721,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_rate_limit_wind
             run_rate_limit_budget_ref="m58-rate-limit-budget-capacity",
             cancel_recovery_plan_ref="m58-cancel-recovery-capacity",
             fanout_readiness_status="blocked",
-            fanout_blockers=["fanout_execution_not_approved"],
+            fanout_blockers=["fanout_execution_technically_blocked"],
             product_readiness_rows=product_rows,
             actor_id="contract-test",
             operator_intent="m58_usdc_snapshot_allowlist_readiness",
@@ -42018,7 +42018,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
                 "scheduler_execution_blockers": [],
                 "scheduler_unattended_execution": "ran",
                 "fanout_blockers": [
-                    "fanout_execution_not_approved",
+                    "fanout_execution_technically_blocked",
                     "scheduler_blocked",
                 ],
             }

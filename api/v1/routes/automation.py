@@ -246,11 +246,18 @@ USDC_PAIR_SNAPSHOT_CANCEL_RECOVERY_REF_CONFLICT_BLOCKER = (
 )
 USDC_PAIR_SNAPSHOT_RUN_PAUSED_BLOCKER = "run_paused_no_live"
 USDC_PAIR_SNAPSHOT_RUN_ABORTED_BLOCKER = "run_aborted_no_live"
+USDC_PAIR_SNAPSHOT_FANOUT_EXECUTION_LEGACY_APPROVAL_BLOCKER = (
+    "fanout_execution_not_approved"
+)
+USDC_PAIR_SNAPSHOT_FANOUT_EXECUTION_TECHNICAL_BLOCKER = (
+    "fanout_execution_technically_blocked"
+)
 USDC_PAIR_SNAPSHOT_SCHEDULER_BLOCKED_BLOCKER = "scheduler_blocked"
 USDC_PAIR_SNAPSHOT_SCHEDULER_EXECUTION_BLOCKED_STATUS = "blocked_no_live"
 USDC_PAIR_SNAPSHOT_SCHEDULER_UNATTENDED_NOT_RUN = "not_run"
 USDC_PAIR_SNAPSHOT_RUN_STATE_LIVE_SUBMIT_ALLOWED_FANOUT_BLOCKERS = {
-    "fanout_execution_not_approved",
+    USDC_PAIR_SNAPSHOT_FANOUT_EXECUTION_LEGACY_APPROVAL_BLOCKER,
+    USDC_PAIR_SNAPSHOT_FANOUT_EXECUTION_TECHNICAL_BLOCKER,
     USDC_PAIR_SNAPSHOT_SCHEDULER_BLOCKED_BLOCKER,
 }
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_ACCOUNT_FAMILY = "coinbase_spot"
@@ -2912,7 +2919,7 @@ def _record_usdc_pair_allowlist_readiness(
     if len(product_ids) > body.max_products:
         fanout_blockers.append("allowlist_product_count_exceeds_max")
     fanout_blockers.extend([
-        "fanout_execution_not_approved",
+        USDC_PAIR_SNAPSHOT_FANOUT_EXECUTION_TECHNICAL_BLOCKER,
         USDC_PAIR_SNAPSHOT_SCHEDULER_BLOCKED_BLOCKER,
     ])
     if cancel_recovery_ref_conflict_readiness_ids:

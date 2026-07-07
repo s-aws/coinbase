@@ -210,7 +210,7 @@ def test_usdc_pair_snapshot_live_runner_can_submit_from_run_state_handoff(
     assert summary["run_state_product_live_wallet_reservation_blockers"] == []
     assert summary["fanout_execution_status"] == "blocked"
     assert summary["fanout_blockers"] == [
-        "fanout_execution_not_approved",
+        "fanout_execution_technically_blocked",
         "scheduler_blocked",
     ]
     assert summary["live_coinbase_execution"] == "submitted_cancelled"

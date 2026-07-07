@@ -144,7 +144,7 @@ Available building blocks:
   single-order submit/cancel path. The selected product must also carry a
   non-empty recovery ref bound to that product when recovery is
   `ready_no_live`. Only
-  `fanout_execution_not_approved` and
+  `fanout_execution_technically_blocked` and
   `scheduler_blocked` may remain as parent fanout blockers for this handoff;
   any other parent fanout blocker rejects the handoff, and the parent
   fan-out execution status must still be blocked. Live-submit also
@@ -546,7 +546,7 @@ cancelled the same `client_order_id`, recorded
 `cancel_rollback_complete=true`, and
 `proof_chain_status_after_submission=accepted` with no proof-chain blockers.
 Run-state fan-out execution remained blocked with
-`fanout_execution_not_approved` and `scheduler_blocked`. Readback verified
+`fanout_execution_technically_blocked` and `scheduler_blocked`. Readback verified
 exchange status `CANCELLED`, executed notional `0`, and `0` open BTC-USDC
 orders. Durable local evidence artifacts:
 `artifacts/coinbase-backend-m58-usdc-live-submit-20260707-011114-run-state.json`
@@ -966,7 +966,7 @@ or product-mismatched selected-product recovery refs, rejects reused
 selected-product recovery refs, rejects duplicated selected-product wallet
 reservation/debit/release refs in stored run-state product rows, rejects non-empty selected-product
 blockers, rejects unexpected parent fanout blockers other than
-`fanout_execution_not_approved` and `scheduler_blocked`, rejects parent fanout
+`fanout_execution_technically_blocked` and `scheduler_blocked`, rejects parent fanout
 execution status that is no longer blocked, rejects stale
 selected-product candidate/cap-guard refs, rejects current retry-budget drift
 from newer queued run-state attempts, rejects current retry-backoff ref reuse
