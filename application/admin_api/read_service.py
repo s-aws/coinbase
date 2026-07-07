@@ -51107,12 +51107,15 @@ class AdminApiReadService:
                 detail=(
                     "M58 live fan-out remains technically blocked. Current "
                     "supported live behavior is one selected run-state product "
-                    "submitted and cancelled through the backend handoff only; "
-                    "every product still needs live-grade price freshness, "
-                    "approval/admission/cap/reconciliation/live-service evidence, "
-                    "multi-product wallet controls, runtime rate-window/retry/"
-                    "recovery semantics, release-gate evidence, and contextless "
-                    "review before fan-out broadening."
+                    "submitted and cancelled through the backend handoff only, "
+                    "and no-live evidence now includes two-product no-live "
+                    "wallet lifecycle readback with unique "
+                    "reservation/debit/release refs. Every product still needs "
+                    "live-grade price freshness, approval/admission/cap/"
+                    "reconciliation/live-service evidence, live wallet ledger "
+                    "semantics, runtime rate-window/retry/recovery semantics, "
+                    "release-gate evidence, and contextless review before "
+                    "fan-out broadening."
                 ),
             ),
             AdminGateCheck(

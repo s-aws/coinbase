@@ -60502,6 +60502,12 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "one selected run-state product" in release_checks[
         "m58_usdc_pair_live_fanout_gate"
     ]["detail"]
+    assert "two-product no-live wallet lifecycle readback" in release_checks[
+        "m58_usdc_pair_live_fanout_gate"
+    ]["detail"]
+    assert "live wallet ledger semantics" in release_checks[
+        "m58_usdc_pair_live_fanout_gate"
+    ]["detail"]
     assert (
         release_checks["m58_usdc_pair_scheduler_gate"]["status"]
         == AdminApiGateStatus.WARNING.value
