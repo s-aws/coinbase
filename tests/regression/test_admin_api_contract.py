@@ -35850,6 +35850,79 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_missing_live_re
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_missing_run_lock(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    readiness_id = "m58-usdc-allowlist-run-state-missing-run-lock"
+    _append_usdc_pair_snapshot_allowlist_run_state_readiness(
+        client,
+        readiness_id=readiness_id,
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+            f"{readiness_id}/run-state"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-allowlist-run-state-missing-run-lock",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_missing_run_lock",
+        ),
+        json={
+            "run_state_id": "m58-usdc-allowlist-run-state-missing-run-lock",
+            "execution_mode": "no_live_rehearsal",
+            "max_fanout_notional_usdc": "100",
+            "rate_limit_window_ref": "m58-rate-limit-window-missing-run-lock",
+            "pause_requested": False,
+            "abort_requested": False,
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+
+    run_state = payload["run_state"]
+    assert run_state["run_lock_status"] == "missing_run_lock_ref"
+    assert run_state["run_lock_ref"] is None
+    assert run_state["run_state_status"] == "blocked"
+    assert run_state["queued_product_ids"] == []
+    assert run_state["blocked_product_ids"] == ["BTC-USDC"]
+    assert run_state["retryable_product_ids"] == []
+    assert run_state["recovery_required_product_ids"] == []
+    assert run_state["queued_product_count"] == 0
+    assert run_state["blocked_product_count"] == 1
+    assert run_state["retryable_product_count"] == 0
+    assert run_state["recovery_required_product_count"] == 0
+    assert run_state["rate_limit_status"] == "blocked"
+    assert run_state["retry_budget_status"] == "blocked"
+    assert run_state["recovery_status"] == "blocked"
+    assert run_state["partial_success_status"] == "blocked"
+    assert "run_lock_ref_missing" in run_state["fanout_blockers"]
+    assert "product_evidence_blocked" in run_state["fanout_blockers"]
+
+    product_row = run_state["product_states"][0]
+    assert product_row["product_id"] == "BTC-USDC"
+    assert product_row["execution_state"] == "blocked"
+    assert product_row["retry_state"] == "blocked"
+    assert product_row["rate_limit_state"] == "blocked"
+    assert product_row["recovery_state"] == "not_required"
+    assert product_row["recovery_state_ref"] is None
+    assert product_row["retry_attempts_available"] == 0
+    assert product_row["fanout_cap_allocation_status"] == "not_queued"
+    assert product_row["wallet_allocation_status"] == "not_queued"
+    assert product_row["live_wallet_reservation_status"] == "not_queued"
+    assert product_row["blockers"] == ["run_lock_ref_missing"]
+    assert product_row["live_coinbase_execution"] == "not_run"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 @pytest.mark.parametrize(
     (
         "control_payload",

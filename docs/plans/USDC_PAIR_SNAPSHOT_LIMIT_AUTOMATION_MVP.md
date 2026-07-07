@@ -54,6 +54,8 @@ Available building blocks:
   Phase E live-readiness association for each queued product by `plan_id`,
   `product_id`, and `client_order_id`; missing or blocked live-readiness
   removes the product from the queued set before any future fan-out decision.
+  Missing run-lock refs now fail closed by removing queued products before
+  cap/wallet allocation and recording `run_lock_ref_missing`.
   Pause or abort requests now fail closed by removing queued products before
   cap/wallet allocation and recording `run_paused_no_live` or
   `run_aborted_no_live` blockers.
@@ -499,13 +501,15 @@ match the run-state route, method, module, action, permission, service method,
 `client_order_id`, and product scope. Rows with missing, mismatched, blocked,
 invalid, or insufficient wallet proof, or missing/blocked live-readiness proof,
 are blocked in no-live run-state evidence and are removed from queued product
-ids before any future fan-out decision. Pause or abort requests also remove
-queued products before cap/wallet allocation and record
-`run_paused_no_live` or `run_aborted_no_live` blockers. Products blocked by
-cap allocation, wallet allocation, missing live-readiness, pause, or abort are
-not counted as retryable or recovery-required, and aggregate readiness statuses
-fail closed when no product remains queued. Final-blocked products clear stale
-cancel-recovery refs when recovery is not required. This evidence remains
+ids before any future fan-out decision. Missing run-lock refs remove queued
+products before cap/wallet allocation and record `run_lock_ref_missing`.
+Pause or abort requests also remove queued products before cap/wallet
+allocation and record `run_paused_no_live` or `run_aborted_no_live` blockers.
+Products blocked by cap allocation, wallet allocation, missing live-readiness,
+pause, or abort are not counted as retryable or recovery-required, and
+aggregate readiness statuses fail closed when no product remains queued.
+Final-blocked products clear stale cancel-recovery refs when recovery is not
+required. This evidence remains
 `fanout_readiness_status=blocked`, `fanout_execution_status=blocked`,
 `live_coinbase_execution=not_run`, and notional `0`; it does not submit
 Coinbase orders, fan out execution, fetch/reserve/debit live wallet balance,
@@ -705,6 +709,7 @@ exact per-product live-readiness association, and fail-closed wallet
 allocation, while live wallet reservation/debit/release blockers are exposed
 as missing no-live evidence. Pause/abort no-live runtime-control evidence now
 fails closed by clearing queued products and recording explicit blockers.
+Missing run-lock refs also fail closed before cap/wallet allocation.
 Blocked product rows are no longer reported as retryable or recovery-required.
 Aggregate run-state status fields now fail closed when final product state has
 no queued products.

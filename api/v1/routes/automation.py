@@ -205,6 +205,7 @@ USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_BLOCKERS = [
     "live_wallet_debit_missing",
     "live_wallet_release_missing",
 ]
+USDC_PAIR_SNAPSHOT_RUN_LOCK_MISSING_BLOCKER = "run_lock_ref_missing"
 USDC_PAIR_SNAPSHOT_RUN_PAUSED_BLOCKER = "run_paused_no_live"
 USDC_PAIR_SNAPSHOT_RUN_ABORTED_BLOCKER = "run_aborted_no_live"
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_ACCOUNT_FAMILY = "coinbase_spot"
@@ -2888,6 +2889,7 @@ def _allowlist_run_state_product_item(
 def _apply_allowlist_run_state_runtime_controls(
     *,
     product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
+    run_lock_ref: str | None,
     pause_requested: bool,
     abort_requested: bool,
 ) -> tuple[list[UsdcPairSnapshotAllowlistRunStateProductItem], list[str]]:
@@ -2896,6 +2898,8 @@ def _apply_allowlist_run_state_runtime_controls(
         runtime_blocker = USDC_PAIR_SNAPSHOT_RUN_ABORTED_BLOCKER
     elif pause_requested:
         runtime_blocker = USDC_PAIR_SNAPSHOT_RUN_PAUSED_BLOCKER
+    elif not run_lock_ref:
+        runtime_blocker = USDC_PAIR_SNAPSHOT_RUN_LOCK_MISSING_BLOCKER
     if runtime_blocker is None:
         return product_states, []
 
@@ -3359,6 +3363,7 @@ def _record_usdc_pair_allowlist_run_state(
     product_states, runtime_control_blockers = (
         _apply_allowlist_run_state_runtime_controls(
             product_states=product_states,
+            run_lock_ref=body.run_lock_ref,
             pause_requested=body.pause_requested,
             abort_requested=body.abort_requested,
         )
