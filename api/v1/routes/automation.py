@@ -5315,6 +5315,16 @@ def _record_usdc_pair_live_submission(
         or row_planned_notional != submitted_notional
     ):
         blockers.append("readiness_submitted_notional_mismatch")
+    row_proof_chain_status = str(
+        getattr(row, "proof_chain_status", "") or ""
+    ).strip()
+    row_proof_chain_blockers = list(
+        getattr(row, "proof_chain_blockers", []) or []
+    )
+    if row_proof_chain_status != "accepted":
+        blockers.append("order_plan_row_proof_chain_not_accepted")
+    if row_proof_chain_blockers:
+        blockers.append("order_plan_row_proof_chain_blockers_present")
     proof_ref_checks = {
         "readiness_approval_snapshot_mismatch": (
             row.approval_snapshot_id,
