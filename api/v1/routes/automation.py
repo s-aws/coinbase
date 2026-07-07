@@ -5718,6 +5718,7 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
 def _validate_usdc_pair_allowlist_run_state_live_submit_association(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    product_row: UsdcPairSnapshotAllowlistRunStateProductItem,
     plan: UsdcPairSnapshotOrderPlanRecord,
     readiness: UsdcPairSnapshotOrderPlanLiveReadinessRecord,
 ) -> None:
@@ -5730,6 +5731,10 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_association(
         blockers.append("run_state_readiness_plan_mismatch")
     if run_state.snapshot_run_id != readiness.snapshot_run_id:
         blockers.append("run_state_readiness_snapshot_mismatch")
+    if str(product_row.live_readiness_source or "").strip() != str(
+        readiness.source or ""
+    ).strip():
+        blockers.append("run_state_product_live_readiness_source_mismatch")
 
     if blockers:
         raise UsdcPairSnapshotError(
@@ -7121,6 +7126,7 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
             )
         _validate_usdc_pair_allowlist_run_state_live_submit_association(
             run_state=run_state,
+            product_row=product_row,
             plan=plan,
             readiness=readiness,
         )
