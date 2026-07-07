@@ -234,6 +234,9 @@ USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_ORDER_CAP = 5
 USDC_PAIR_SNAPSHOT_RETRY_BUDGET_EXHAUSTED_BLOCKER = "retry_budget_exhausted"
 USDC_PAIR_SNAPSHOT_RETRY_BACKOFF_MISSING_BLOCKER = "retry_backoff_ref_missing"
 USDC_PAIR_SNAPSHOT_RETRY_BACKOFF_CONFLICT_BLOCKER = "retry_backoff_ref_conflict"
+USDC_PAIR_SNAPSHOT_CANCEL_RECOVERY_REF_CONFLICT_BLOCKER = (
+    "cancel_recovery_ref_conflict"
+)
 USDC_PAIR_SNAPSHOT_RUN_PAUSED_BLOCKER = "run_paused_no_live"
 USDC_PAIR_SNAPSHOT_RUN_ABORTED_BLOCKER = "run_aborted_no_live"
 USDC_PAIR_SNAPSHOT_RUN_STATE_LIVE_SUBMIT_ALLOWED_FANOUT_BLOCKERS = {
@@ -3288,6 +3291,71 @@ def _apply_allowlist_run_state_retry_backoff(
     return updated, _dedupe(blockers)
 
 
+def _allowlist_run_state_recovery_ref_conflict_blocker(
+    *,
+    run_state_store: FileUsdcPairSnapshotAllowlistRunStateStore,
+    run_state_id: str | None,
+    item: UsdcPairSnapshotAllowlistRunStateProductItem,
+) -> str | None:
+    recovery_state_ref = str(item.recovery_state_ref or "").strip()
+    if not recovery_state_ref:
+        return None
+    requested_run_state_id = str(run_state_id or "")
+    product_id = item.product_id.strip().upper()
+    client_order_id = str(item.client_order_id or "").strip()
+    for record in run_state_store.read_recent(limit=500):
+        if record.run_state_id == requested_run_state_id:
+            continue
+        for product_state in record.product_states:
+            if (
+                product_state.execution_state == "queued_no_live"
+                and str(product_state.recovery_state_ref or "").strip()
+                == recovery_state_ref
+                and product_state.product_id.strip().upper() == product_id
+                and str(product_state.client_order_id or "").strip()
+                == client_order_id
+            ):
+                return USDC_PAIR_SNAPSHOT_CANCEL_RECOVERY_REF_CONFLICT_BLOCKER
+    return None
+
+
+def _apply_allowlist_run_state_recovery_ref_conflicts(
+    *,
+    product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
+    run_state_store: FileUsdcPairSnapshotAllowlistRunStateStore,
+    run_state_id: str | None,
+) -> tuple[list[UsdcPairSnapshotAllowlistRunStateProductItem], list[str]]:
+    updated: list[UsdcPairSnapshotAllowlistRunStateProductItem] = []
+    blockers: list[str] = []
+    for item in product_states:
+        if item.execution_state != "queued_no_live":
+            updated.append(item)
+            continue
+        blocker = _allowlist_run_state_recovery_ref_conflict_blocker(
+            run_state_store=run_state_store,
+            run_state_id=run_state_id,
+            item=item,
+        )
+        if not blocker:
+            updated.append(item)
+            continue
+        blockers.append(blocker)
+        updated.append(
+            item.model_copy(
+                update={
+                    "execution_state": "blocked",
+                    "retry_state": "blocked",
+                    "rate_limit_state": "blocked",
+                    "recovery_state": "not_required",
+                    "recovery_state_ref": None,
+                    "retry_attempts_available": 0,
+                    "blockers": _dedupe(list(item.blockers) + [blocker]),
+                }
+            )
+        )
+    return updated, _dedupe(blockers)
+
+
 def _apply_allowlist_run_state_cap_allocation(
     *,
     product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
@@ -4291,6 +4359,13 @@ def _record_usdc_pair_allowlist_run_state(
             retry_backoff_conflict_blocker=retry_backoff_conflict_blocker,
         )
     )
+    product_states, recovery_ref_conflict_blockers = (
+        _apply_allowlist_run_state_recovery_ref_conflicts(
+            product_states=product_states,
+            run_state_store=run_state_store,
+            run_state_id=body.run_state_id,
+        )
+    )
     product_states, cap_allocation = (
         _apply_allowlist_run_state_cap_allocation(
             product_states=product_states,
@@ -4380,6 +4455,7 @@ def _record_usdc_pair_allowlist_run_state(
         + retry_budget_blockers
         + retry_backoff_blockers
         + recovery_ref_blockers
+        + recovery_ref_conflict_blockers
         + wallet_allocation["live_wallet_reservation_blockers"]
         + (
             ["product_evidence_blocked"]
@@ -4758,6 +4834,7 @@ def _find_usdc_pair_allowlist_run_state_product(
 def _validate_usdc_pair_allowlist_run_state_live_submit(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    run_state_store: FileUsdcPairSnapshotAllowlistRunStateStore,
     body: UsdcPairSnapshotOrderPlanLiveSubmitRequest,
 ) -> UsdcPairSnapshotAllowlistRunStateProductItem:
     blockers: list[str] = []
@@ -4821,6 +4898,15 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
             )
         ):
             blockers.append("run_state_product_recovery_ref_product_mismatch")
+        if (
+            product_row.recovery_state == "ready_no_live"
+            and _allowlist_run_state_recovery_ref_conflict_blocker(
+                run_state_store=run_state_store,
+                run_state_id=run_state.run_state_id,
+                item=product_row,
+            )
+        ):
+            blockers.append("run_state_product_recovery_ref_conflict")
         if product_row.retry_attempts_available < 1:
             blockers.append("run_state_product_retry_attempts_missing")
         if product_row.fanout_cap_allocation_status != "allocated_no_live":
@@ -6167,6 +6253,7 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
             )
         product_row = _validate_usdc_pair_allowlist_run_state_live_submit(
             run_state=run_state,
+            run_state_store=run_state_store,
             body=body,
         )
         plan = order_plan_store.find_by_plan_id(run_state.plan_id)

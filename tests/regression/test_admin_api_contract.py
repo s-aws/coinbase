@@ -38666,6 +38666,31 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_retry_backoff_r
     assert source_payload["run_state"]["retry_backoff_status"] == "not_required"
     assert source_payload["live_coinbase_execution"] == "not_run"
 
+    readiness_store = (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_allowlist_readiness_store
+    )
+    source_readiness = readiness_store.find_by_readiness_id(readiness_id)
+    assert source_readiness is not None
+    readiness_store.append(
+        source_readiness.model_copy(
+            update={
+                "cancel_recovery_plan_ref": (
+                    "m58-cancel-recovery-retry-backoff-ready"
+                ),
+                "product_readiness_rows": [
+                    item.model_copy(
+                        update={
+                            "recovery_state_ref": (
+                                "m58-cancel-recovery-retry-backoff-ready:BTC-USDC"
+                            )
+                        }
+                    )
+                    for item in source_readiness.product_readiness_rows
+                ],
+            }
+        )
+    )
+
     ready_retry_response = client.post(
         (
             "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
@@ -38754,6 +38779,145 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_retry_backoff_r
     assert product_row["fanout_cap_allocation_status"] == "not_queued"
     assert product_row["wallet_allocation_status"] == "not_queued"
     assert product_row["blockers"] == ["retry_backoff_ref_conflict"]
+    assert product_row["live_coinbase_execution"] == "not_run"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_reused_recovery_ref(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    readiness_id = "m58-usdc-allowlist-run-state-recovery-ref-reuse"
+    cap_guard_decision_id = "cap-m58-run-state-recovery-ref-reuse"
+    client.admin_api_test_cap_guard_store.append(
+        CapGuardDecisionRecord(
+            decision_id=cap_guard_decision_id,
+            route=(
+                "/api/v1/automation/usdc-pair-snapshot-order-plan-"
+                "allowlist-readiness/{readiness_id}/run-state"
+            ),
+            method="POST",
+            module_id="automation",
+            identity_key="client_order_id",
+            identity_value="m58-usdc-run-state-negative-BTC-USDC",
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method="record_usdc_pair_snapshot_allowlist_run_state",
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+            idempotency_key="idem-usdc-allowlist-run-state-recovery-ref-reuse",
+            payload_hash="9" * 64,
+            approval_snapshot_id="approval-m58-recovery-ref-reuse",
+            admission_audit_id="admission-m58-recovery-ref-reuse",
+            allowed=True,
+            status=AdminApiGateStatus.PASSED,
+            cap_policy_ref="m58_phase_f_submitted_notional_cap",
+            guard_policy_ref="m58_phase_f_wallet_allocation_guard",
+            product_scope="BTC-USDC",
+            max_submitted_notional_usdc="1.00",
+            max_executed_notional_usdc="0",
+            wallet_check_required=True,
+            wallet_check_status=AdminApiGateStatus.PASSED,
+            wallet_available_notional_usdc="1.00",
+            wallet_check_source="m58_usdc_pair_recovery_ref_reuse_fixture",
+            reason="No-live Phase F recovery-ref reuse source evidence.",
+        )
+    )
+    _append_usdc_pair_snapshot_allowlist_run_state_readiness(
+        client,
+        readiness_id=readiness_id,
+        planned_notional_usdc="1.00",
+        cap_guard_decision_id=cap_guard_decision_id,
+        retry_budget_per_product=2,
+    )
+
+    source_response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+            f"{readiness_id}/run-state"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-allowlist-run-state-recovery-ref-source",
+            operator_intent=(
+                "m58_usdc_snapshot_allowlist_run_state_recovery_ref_source"
+            ),
+        ),
+        json={
+            "run_state_id": "m58-usdc-allowlist-run-state-recovery-ref-source",
+            "execution_mode": "no_live_rehearsal",
+            "max_fanout_notional_usdc": "100",
+            "run_lock_ref": "m58-run-lock-recovery-ref-source",
+            "rate_limit_window_ref": "m58-rate-limit-window-recovery-ref-source",
+            "pause_requested": False,
+            "abort_requested": False,
+        },
+    )
+    assert source_response.status_code == 200
+    source_payload = source_response.json()
+    assert source_payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert source_payload["run_state"]["queued_product_ids"] == ["BTC-USDC"]
+    assert source_payload["run_state"]["product_states"][0][
+        "recovery_state_ref"
+    ] == "m58-cancel-recovery-negative:BTC-USDC"
+    assert source_payload["live_coinbase_execution"] == "not_run"
+
+    retry_response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+            f"{readiness_id}/run-state"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-allowlist-run-state-recovery-ref-reuse",
+            operator_intent=(
+                "m58_usdc_snapshot_allowlist_run_state_recovery_ref_reuse"
+            ),
+        ),
+        json={
+            "run_state_id": "m58-usdc-allowlist-run-state-recovery-ref-reuse",
+            "execution_mode": "no_live_rehearsal",
+            "max_fanout_notional_usdc": "100",
+            "run_lock_ref": "m58-run-lock-recovery-ref-reuse",
+            "rate_limit_window_ref": "m58-rate-limit-window-recovery-ref-reuse",
+            "retry_backoff_ref": "m58-retry-backoff-recovery-ref-reuse",
+            "pause_requested": False,
+            "abort_requested": False,
+        },
+    )
+
+    assert retry_response.status_code == 200
+    payload = retry_response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+
+    run_state = payload["run_state"]
+    assert run_state["run_lock_status"] == "recorded_no_live"
+    assert run_state["rate_limit_status"] == "blocked"
+    assert run_state["retry_budget_status"] == "blocked"
+    assert run_state["retry_backoff_status"] == "blocked"
+    assert run_state["recovery_status"] == "blocked"
+    assert run_state["run_state_status"] == "blocked"
+    assert run_state["queued_product_ids"] == []
+    assert run_state["blocked_product_ids"] == ["BTC-USDC"]
+    assert "cancel_recovery_ref_conflict" in run_state["fanout_blockers"]
+    assert "product_evidence_blocked" in run_state["fanout_blockers"]
+
+    product_row = run_state["product_states"][0]
+    assert product_row["product_id"] == "BTC-USDC"
+    assert product_row["execution_state"] == "blocked"
+    assert product_row["retry_state"] == "blocked"
+    assert product_row["rate_limit_state"] == "blocked"
+    assert product_row["retry_backoff_status"] == "ready_no_live"
+    assert product_row["retry_backoff_ref"] == "m58-retry-backoff-recovery-ref-reuse"
+    assert product_row["recovery_state"] == "not_required"
+    assert product_row["recovery_state_ref"] is None
+    assert product_row["retry_attempts_available"] == 0
+    assert product_row["fanout_cap_allocation_status"] == "not_queued"
+    assert product_row["wallet_allocation_status"] == "not_queued"
+    assert product_row["blockers"] == ["cancel_recovery_ref_conflict"]
     assert product_row["live_coinbase_execution"] == "not_run"
     assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
 
@@ -39886,6 +40050,88 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_r
     assert "run_state_product_recovery_ref_product_mismatch" in payload[
         "message"
     ]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_reused_recovery_ref(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-recovery-ref-reuse",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-submit-recovery-ref-reuse-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(ready["run_state_id"])
+    assert source_run_state is not None
+    run_state_store.append(
+        source_run_state.model_copy(
+            update={
+                "run_state_id": (
+                    "m58-usdc-allowlist-live-submit-recovery-ref-reuse-other"
+                ),
+                "run_lock_ref": (
+                    "run-lock-m58-usdc-allowlist-live-submit-recovery-ref-other"
+                ),
+                "rate_limit_window_ref": (
+                    "rate-limit-m58-usdc-allowlist-live-submit-recovery-ref-other"
+                ),
+                "idempotency_key": (
+                    "idem-m58-usdc-allowlist-live-submit-recovery-ref-other"
+                ),
+                "audit_id": "audit-m58-usdc-allowlist-live-submit-recovery-ref-other",
+            }
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-recovery-ref-reuse"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json={
+            "submission_id": "m58-usdc-allowlist-live-submit-recovery-ref-reuse",
+            "readiness_id": ready["live_readiness_id"],
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one run-state selected order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "reused selected product recovery evidence ref",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert "run_state_product_recovery_ref_conflict" in payload["message"]
     assert payload["live_exchange_submitted"] is False
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_execution"] == "not_run"
