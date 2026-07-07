@@ -963,6 +963,11 @@ Subagent phase sweep on 2026-07-07 was closed after findings were consumed.
 Remaining live fan-out/scheduler blockers are now broader multi-product live
 wallet, runtime fan-out, release-gate, and contextless-review evidence rather
 than one-selected-product submit-time freshness checks.
+The backend release gate now records `m58_usdc_pair_live_fanout_gate` and
+`m58_usdc_pair_scheduler_gate` as warnings, plus
+`m58_usdc_pair_contextless_review_gate` as passed for the current
+one-selected-product boundary. These checks are release-readiness evidence only;
+they do not authorize live fan-out, scheduling, or browser trading authority.
 A blind contextless review on 2026-07-06 passed the M58 no-live Phase F
 authority-boundary questions and confirmed the change set is a domain module
 under Automation / Campaign / Scheduler, not a reusable admin platform
@@ -971,3 +976,6 @@ blocked until every product has live-grade price freshness, exact approval,
 admission, cap/guard, reconciliation, enabled live-service evidence,
 multi-product wallet controls, runtime fan-out/retry/recovery semantics,
 release-gate evidence, and another contextless review.
+A second blind contextless review on 2026-07-07 confirmed the current
+backend-owned, spot-only, one-selected-product boundary and requires another
+review before any live fan-out or scheduler broadening.

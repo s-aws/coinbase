@@ -7805,17 +7805,48 @@ class AdminApiReadService:
                     "POST /api/v1/spot/sweep/automation-runs",
                     "POST /api/v1/automation/usdc-pair-snapshot-runs",
                     "POST /api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans",
+                    (
+                        "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
+                        "{plan_id}/allowlist-readiness"
+                    ),
+                    (
+                        "POST /api/v1/automation/"
+                        "usdc-pair-snapshot-order-plan-allowlist-readiness/"
+                        "{readiness_id}/run-state"
+                    ),
+                    (
+                        "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
+                        "{plan_id}/live-readiness"
+                    ),
+                    (
+                        "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
+                        "{plan_id}/live-submit"
+                    ),
+                    (
+                        "POST /api/v1/automation/"
+                        "usdc-pair-snapshot-allowlist-run-states/"
+                        "{run_state_id}/live-submit"
+                    ),
+                    (
+                        "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
+                        "{plan_id}/proof-chain-refresh"
+                    ),
                 ],
                 automation_routes=[
                     "tools/run_spot_portfolio_sweep_live.py",
                     "tools/run_spot_portfolio_sweep_dry_run.py",
                     "tools/run_spot_campaign.py",
+                    "tools/run_admin_api_usdc_pair_snapshot_live_submit.py",
+                    "tools/run_admin_api_usdc_pair_snapshot_live_readback.py",
                 ],
                 identity_keys=[
                     "campaign_id",
                     "config_id",
                     "sweep_config_id",
                     "run_id",
+                    "plan_id",
+                    "readiness_id",
+                    "run_state_id",
                     "client_order_id",
                 ],
                 backend_contract_refs=[
@@ -7835,6 +7866,7 @@ class AdminApiReadService:
                     "README.spot-campaign.md",
                     "README.spot-portfolio-sweep.md",
                     "docs/SPOT_READINESS_ROADMAP.md",
+                    "docs/plans/USDC_PAIR_SNAPSHOT_LIMIT_AUTOMATION_MVP.md",
                 ],
                 required_next_contract=(
                     "Enterprise admin scheduling, approval, execution, recovery, and "
@@ -7844,6 +7876,8 @@ class AdminApiReadService:
                     "live_execution_disabled",
                     "backend scheduling UI contract missing",
                     "approval and reconciliation contracts incomplete",
+                    "M58 live fan-out blocked until wallet, runtime, retry, recovery, release-gate, and contextless-review evidence pass",
+                    "M58 scheduler blocked until durable run locks and non-reused 5 orders per second rate windows exist",
                 ],
                 frontend_boundary=(
                     "Show automation status and draft execution only; do not launch "
@@ -8587,6 +8621,38 @@ class AdminApiReadService:
         spot_order_cancel_proof_chain_rows = [
             route_inventory_item(surface)
             for surface in spot_order_cancel_proof_chain_surfaces
+        ]
+        usdc_pair_snapshot_allowlist_live_handoff_surfaces = [
+            (
+                "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
+                "{plan_id}/allowlist-readiness"
+            ),
+            (
+                "POST /api/v1/automation/"
+                "usdc-pair-snapshot-order-plan-allowlist-readiness/"
+                "{readiness_id}/run-state"
+            ),
+            (
+                "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
+                "{plan_id}/live-readiness"
+            ),
+            (
+                "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
+                "{plan_id}/live-submit"
+            ),
+            (
+                "POST /api/v1/automation/"
+                "usdc-pair-snapshot-allowlist-run-states/"
+                "{run_state_id}/live-submit"
+            ),
+            (
+                "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
+                "{plan_id}/proof-chain-refresh"
+            ),
+        ]
+        usdc_pair_snapshot_allowlist_live_handoff_rows = [
+            route_inventory_item(surface)
+            for surface in usdc_pair_snapshot_allowlist_live_handoff_surfaces
         ]
         mutation_taxonomy = [
             mutation_taxonomy_item(
@@ -9725,6 +9791,117 @@ class AdminApiReadService:
                     "not be copied into futures, perpetuals, or non-spot modules."
                 ),
                 live_adapter_required=False,
+            ),
+            mutation_taxonomy_item(
+                mutation_id="spot.usdc_pair_snapshot_allowlist_live_handoff",
+                mutation_family=AdminApiMutationFamilyType.SPOT_SWEEP_AUTOMATION,
+                workflow_id="spot.sweep_automation_and_live_executor",
+                related_workflow_ids=["spot.order_command_drafts"],
+                module_id="automation",
+                module="Automation",
+                exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED,
+                support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
+                summary=(
+                    "M58 USDC pair snapshot allowlist, run-state, live-readiness, "
+                    "proof-refresh, and controlled-live handoff evidence supports "
+                    "one selected product only; live fan-out and scheduling remain "
+                    "blocked."
+                ),
+                command_surfaces=usdc_pair_snapshot_allowlist_live_handoff_surfaces,
+                action_classes=[
+                    row.action_class
+                    for row in usdc_pair_snapshot_allowlist_live_handoff_rows
+                ],
+                required_permissions=[
+                    row.permission
+                    for row in usdc_pair_snapshot_allowlist_live_handoff_rows
+                ],
+                identity_keys=[
+                    "plan_id",
+                    "readiness_id",
+                    "run_state_id",
+                    "client_order_id",
+                    "product_id",
+                ],
+                idempotency_contract="required for all M58 handoff mutations",
+                approval_contract=(
+                    "exact approval snapshot, proof-chain refresh, and enabled "
+                    "live-service decision required before controlled live submit"
+                ),
+                cap_guard_contract=(
+                    "exact cap-guard route/scope/notional/wallet proof required "
+                    "for the selected product and parent run-state"
+                ),
+                admission_audit_contract=(
+                    "exact admission audit evidence required for the selected "
+                    "client_order_id before live submit"
+                ),
+                reconciliation_contract=(
+                    "cancel rollback, exchange readback, and recovery evidence "
+                    "required for the selected product"
+                ),
+                owning_backend_service=(
+                    "application/admin_api/usdc_pair_snapshot_service.py and "
+                    "api/v1/routes/automation.py"
+                ),
+                shared_command_service_method=(
+                    "record/submit M58 allowlist and controlled-live handoff"
+                ),
+                route_inventory_refs=(
+                    usdc_pair_snapshot_allowlist_live_handoff_surfaces
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/automation.py::record_usdc_pair_snapshot_order_plan_allowlist_readiness",
+                    "api/v1/routes/automation.py::record_usdc_pair_snapshot_allowlist_run_state",
+                    "api/v1/routes/automation.py::record_usdc_pair_snapshot_order_plan_live_readiness",
+                    "api/v1/routes/automation.py::submit_usdc_pair_snapshot_order_plan_live_order",
+                    "api/v1/routes/automation.py::submit_usdc_pair_snapshot_allowlist_run_state_live_order",
+                    "api/v1/routes/automation.py::refresh_usdc_pair_snapshot_order_plan_proof_chain",
+                    "application/admin_api/usdc_pair_snapshot_service.py",
+                    "application/admin_api/usdc_pair_snapshot.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/generated/",
+                    "src/shared/api/contracts/backendApiClient.ts",
+                ],
+                documentation_refs=[
+                    "docs/plans/USDC_PAIR_SNAPSHOT_LIMIT_AUTOMATION_MVP.md",
+                ],
+                required_next_contract=(
+                    "Live fan-out and scheduling require per-product live-grade "
+                    "price freshness, wallet allocation/debit/release semantics, "
+                    "runtime run locks, non-reused 5 orders per second rate "
+                    "windows, retry/recovery semantics, release-gate evidence, "
+                    "and contextless review."
+                ),
+                blockers=[
+                    "live_fanout_blocked",
+                    "scheduler_blocked",
+                    "multi_product_wallet_lifecycle_missing",
+                    "runtime_retry_recovery_fanout_missing",
+                    "release_gate_evidence_required_before_broadening",
+                ],
+                frontend_boundary=(
+                    "Display backend M58 evidence only; the frontend must not fan "
+                    "out orders, run a scheduler, allocate wallet funds, approve "
+                    "execution, or call Coinbase."
+                ),
+                bff_boundary=(
+                    "BFF may forward only to backend M58 Admin API routes with "
+                    "server-held authority; it must not choose products, approve "
+                    "live execution, allocate wallet notional, fan out orders, "
+                    "or schedule retries."
+                ),
+                route_local_boundary=(
+                    "Automation routes must consume durable proof-chain, cap, "
+                    "wallet, runtime, retry, recovery, and live-service evidence; "
+                    "they must not bypass the one-selected-product submit/cancel "
+                    "boundary."
+                ),
+                spot_rule_boundary=(
+                    "M58 handoff is spot USDC-pair evidence only and must not be "
+                    "copied into futures, perpetuals, or non-spot modules."
+                ),
             ),
             mutation_taxonomy_from_surface(
                 surface="POST /api/v1/spot/recovery/apply-executions",
@@ -50923,6 +51100,41 @@ class AdminApiReadService:
                 name="live_coinbase_execution",
                 status=AdminApiGateStatus.PASSED,
                 detail="No live Coinbase execution is performed by this read route.",
+            ),
+            AdminGateCheck(
+                name="m58_usdc_pair_live_fanout_gate",
+                status=AdminApiGateStatus.WARNING,
+                detail=(
+                    "M58 live fan-out remains technically blocked. Current "
+                    "supported live behavior is one selected run-state product "
+                    "submitted and cancelled through the backend handoff only; "
+                    "every product still needs live-grade price freshness, "
+                    "approval/admission/cap/reconciliation/live-service evidence, "
+                    "multi-product wallet controls, runtime rate-window/retry/"
+                    "recovery semantics, release-gate evidence, and contextless "
+                    "review before fan-out broadening."
+                ),
+            ),
+            AdminGateCheck(
+                name="m58_usdc_pair_scheduler_gate",
+                status=AdminApiGateStatus.WARNING,
+                detail=(
+                    "M58 scheduler and unattended execution remain technically "
+                    "blocked until durable run locks, non-reused runtime windows, "
+                    "5 orders per second enforcement, pause/abort/retry/recovery "
+                    "behavior, wallet overcommit prevention, release-gate "
+                    "evidence, and contextless review exist."
+                ),
+            ),
+            AdminGateCheck(
+                name="m58_usdc_pair_contextless_review_gate",
+                status=AdminApiGateStatus.PASSED,
+                detail=(
+                    "2026-07-07 blind contextless review confirmed the current "
+                    "boundary is backend-owned, spot-only, and one selected "
+                    "product only; repeat review before live fan-out or scheduler "
+                    "broadening."
+                ),
             ),
         ]
         status = (
