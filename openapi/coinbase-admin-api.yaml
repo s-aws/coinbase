@@ -170004,6 +170004,29 @@ components:
             type: string
           type: array
           title: Live Wallet Reservation Blockers
+        live_wallet_active_reservation_overcommit_run_state_ids:
+          items:
+            type: string
+          type: array
+          title: Live Wallet Active Reservation Overcommit Run State Ids
+        live_wallet_active_reserved_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Live Wallet Active Reserved Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_wallet_overcommit_attempted_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Live Wallet Overcommit Attempted Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
         live_readiness_status:
           type: string
           minLength: 1

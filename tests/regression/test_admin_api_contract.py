@@ -36213,6 +36213,11 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_active_wallet_r
     assert run_state["live_wallet_reservation_blockers"] == [
         "live_wallet_active_reservation_overcommit"
     ]
+    assert run_state["live_wallet_active_reservation_overcommit_run_state_ids"] == [
+        "m58-usdc-run-state-wallet-active-overcommit-source"
+    ]
+    assert run_state["live_wallet_active_reserved_notional_usdc"] == "0.75"
+    assert run_state["live_wallet_overcommit_attempted_notional_usdc"] == "1.75"
     assert "live_wallet_active_reservation_overcommit" in run_state[
         "fanout_blockers"
     ]

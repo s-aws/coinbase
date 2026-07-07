@@ -180,7 +180,9 @@ Missing before live automation:
   `live_wallet_active_reservation_overcommit_run_state_ids` when unreleased
   no-live reservation evidence plus the current reservation would exceed the
   recorded wallet proof, with `live_wallet_active_reserved_notional_usdc` and
-  `live_wallet_overcommit_attempted_notional_usdc` as notional readback. Phase F
+  `live_wallet_overcommit_attempted_notional_usdc` as notional readback. The
+  aggregate run-state readback carries the deduped source run-state ids and
+  summed active/attempted notionals from those blocked product rows. Phase F
   run-state now requires matching Phase E live-readiness
   evidence before a product can be queued in no-live rehearsal, and the
   single-product Phase E live-readiness route fails closed when the latest
@@ -631,7 +633,8 @@ Unreleased active no-live reservations that would overcommit the current wallet
 proof fail closed with `live_wallet_active_reservation_overcommit` and record
 `live_wallet_active_reservation_overcommit_run_state_ids`,
 `live_wallet_active_reserved_notional_usdc`, and
-`live_wallet_overcommit_attempted_notional_usdc`. These
+`live_wallet_overcommit_attempted_notional_usdc` on the blocked product rows and
+aggregate run-state readback. These
 reference conflicts and active-overcommit blockers remove affected rows from
 queued product ids and zero their wallet allocation. This evidence remains
 `fanout_readiness_status=blocked`, `fanout_execution_status=blocked`,
@@ -888,8 +891,9 @@ Unreleased active no-live reservations that would overcommit the wallet proof
 fail closed with `live_wallet_active_reservation_overcommit`, record
 `live_wallet_active_reservation_overcommit_run_state_ids`,
 `live_wallet_active_reserved_notional_usdc`, and
-`live_wallet_overcommit_attempted_notional_usdc`, remove the affected row from
-queued product ids, and zero wallet allocation.
+`live_wallet_overcommit_attempted_notional_usdc` on both the aggregate
+run-state readback and blocked product rows, remove the affected row from queued
+product ids, and zero wallet allocation.
 The run-state live-submit handoff also rejects missing, blocked, or stale latest
 parent/product live-wallet reservation/debit/release evidence, blocked parent
 run-lock, pause/abort, rate-limit, retry-budget/backoff, or recovery evidence

@@ -3144,6 +3144,11 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
     live_wallet_release_ids: list[str] = Field(default_factory=list)
     live_wallet_released_notional_usdc: DecimalString = "0"
     live_wallet_reservation_blockers: list[str] = Field(default_factory=list)
+    live_wallet_active_reservation_overcommit_run_state_ids: list[str] = Field(
+        default_factory=list
+    )
+    live_wallet_active_reserved_notional_usdc: DecimalString = "0"
+    live_wallet_overcommit_attempted_notional_usdc: DecimalString = "0"
     live_readiness_status: str = Field(
         default="legacy_unverified",
         min_length=1,

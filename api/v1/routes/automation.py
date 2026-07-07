@@ -732,6 +732,15 @@ def _allowlist_run_state_item_from_record(
         live_wallet_reservation_blockers=(
             record.live_wallet_reservation_blockers
         ),
+        live_wallet_active_reservation_overcommit_run_state_ids=(
+            record.live_wallet_active_reservation_overcommit_run_state_ids
+        ),
+        live_wallet_active_reserved_notional_usdc=(
+            record.live_wallet_active_reserved_notional_usdc
+        ),
+        live_wallet_overcommit_attempted_notional_usdc=(
+            record.live_wallet_overcommit_attempted_notional_usdc
+        ),
         live_readiness_status=record.live_readiness_status,
         live_ready_product_ids=record.live_ready_product_ids,
         live_readiness_missing_product_ids=(
@@ -4362,6 +4371,27 @@ def _apply_allowlist_run_state_wallet_allocation(
         )
         for item in updated
     )
+    live_wallet_active_reservation_overcommit_run_state_ids = _dedupe(
+        [
+            run_state_id
+            for item in updated
+            for run_state_id in item.live_wallet_active_reservation_overcommit_run_state_ids
+        ]
+    )
+    live_wallet_active_reserved_notional = sum(
+        (
+            _decimal_value(item.live_wallet_active_reserved_notional_usdc)
+            or Decimal("0")
+        )
+        for item in updated
+    )
+    live_wallet_overcommit_attempted_notional = sum(
+        (
+            _decimal_value(item.live_wallet_overcommit_attempted_notional_usdc)
+            or Decimal("0")
+        )
+        for item in updated
+    )
     return updated, {
         "wallet_allocation_status": (
             "passed" if not wallet_blockers else "blocked"
@@ -4387,6 +4417,15 @@ def _apply_allowlist_run_state_wallet_allocation(
             live_wallet_released_notional
         ),
         "live_wallet_reservation_blockers": live_wallet_reservation_blockers,
+        "live_wallet_active_reservation_overcommit_run_state_ids": (
+            live_wallet_active_reservation_overcommit_run_state_ids
+        ),
+        "live_wallet_active_reserved_notional_usdc": _decimal_string(
+            live_wallet_active_reserved_notional
+        ),
+        "live_wallet_overcommit_attempted_notional_usdc": _decimal_string(
+            live_wallet_overcommit_attempted_notional
+        ),
     }
 
 
@@ -4736,6 +4775,17 @@ def _record_usdc_pair_allowlist_run_state(
         ),
         live_wallet_reservation_blockers=(
             wallet_allocation["live_wallet_reservation_blockers"]
+        ),
+        live_wallet_active_reservation_overcommit_run_state_ids=(
+            wallet_allocation[
+                "live_wallet_active_reservation_overcommit_run_state_ids"
+            ]
+        ),
+        live_wallet_active_reserved_notional_usdc=(
+            wallet_allocation["live_wallet_active_reserved_notional_usdc"]
+        ),
+        live_wallet_overcommit_attempted_notional_usdc=(
+            wallet_allocation["live_wallet_overcommit_attempted_notional_usdc"]
         ),
         live_readiness_status=live_readiness_status,
         live_ready_product_ids=live_ready_product_ids,
