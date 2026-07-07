@@ -38017,6 +38017,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_run_lock_confli
     assert source_payload["status"] == AdminApiCommandStatus.ACCEPTED.value
     assert source_payload["run_state"]["run_lock_status"] == "recorded_no_live"
     assert source_payload["run_state"]["run_lock_ref"] == shared_run_lock_ref
+    assert source_payload["run_state"]["run_lock_conflict_run_state_id"] is None
     assert source_payload["run_state"]["queued_product_ids"] == ["BTC-USDC"]
     assert source_payload["live_coinbase_execution"] == "not_run"
 
@@ -38051,6 +38052,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_run_lock_confli
     run_state = payload["run_state"]
     assert run_state["run_lock_status"] == "conflict_no_live"
     assert run_state["run_lock_ref"] == shared_run_lock_ref
+    assert run_state["run_lock_conflict_run_state_id"] == (
+        "m58-usdc-allowlist-run-state-lock-source"
+    )
     assert run_state["run_state_status"] == "blocked"
     assert run_state["queued_product_ids"] == []
     assert run_state["blocked_product_ids"] == ["BTC-USDC"]
@@ -38170,6 +38174,10 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_rate_limit_wind
         source_payload["run_state"]["rate_limit_window_ref"]
         == shared_rate_limit_window_ref
     )
+    assert (
+        source_payload["run_state"]["rate_limit_window_conflict_run_state_id"]
+        is None
+    )
     assert source_payload["run_state"]["rate_limit_status"] == "ready_no_live"
     assert source_payload["run_state"]["queued_product_ids"] == ["BTC-USDC"]
     assert source_payload["live_coinbase_execution"] == "not_run"
@@ -38209,6 +38217,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_rate_limit_wind
     assert run_state["run_lock_ref"] == "m58-run-lock-rate-window-conflict"
     assert run_state["rate_limit_status"] == "blocked"
     assert run_state["rate_limit_window_ref"] == shared_rate_limit_window_ref
+    assert run_state["rate_limit_window_conflict_run_state_id"] == (
+        "m58-usdc-allowlist-run-state-rate-window-source"
+    )
     assert run_state["run_state_status"] == "blocked"
     assert run_state["queued_product_ids"] == []
     assert run_state["blocked_product_ids"] == ["BTC-USDC"]

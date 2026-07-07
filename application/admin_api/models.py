@@ -3154,10 +3154,12 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
     recovery_required_product_count: int = Field(ge=0)
     run_lock_status: str = Field(min_length=1)
     run_lock_ref: str | None = None
+    run_lock_conflict_run_state_id: str | None = None
     pause_resume_status: str = Field(min_length=1)
     abort_status: str = Field(min_length=1)
     rate_limit_status: str = Field(min_length=1)
     rate_limit_window_ref: str | None = None
+    rate_limit_window_conflict_run_state_id: str | None = None
     rate_limit_max_orders_per_window: int = Field(default=5, ge=1)
     rate_limit_attempted_order_count: int = Field(default=0, ge=0)
     rate_limit_window_within_cap: bool = True

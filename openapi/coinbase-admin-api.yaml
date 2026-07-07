@@ -170083,6 +170083,11 @@ components:
           - type: string
           - type: 'null'
           title: Run Lock Ref
+        run_lock_conflict_run_state_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Run Lock Conflict Run State Id
         pause_resume_status:
           type: string
           minLength: 1
@@ -170100,6 +170105,11 @@ components:
           - type: string
           - type: 'null'
           title: Rate Limit Window Ref
+        rate_limit_window_conflict_run_state_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rate Limit Window Conflict Run State Id
         rate_limit_max_orders_per_window:
           type: integer
           minimum: 1.0

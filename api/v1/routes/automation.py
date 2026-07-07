@@ -753,10 +753,14 @@ def _allowlist_run_state_item_from_record(
         recovery_required_product_count=record.recovery_required_product_count,
         run_lock_status=record.run_lock_status,
         run_lock_ref=record.run_lock_ref,
+        run_lock_conflict_run_state_id=record.run_lock_conflict_run_state_id,
         pause_resume_status=record.pause_resume_status,
         abort_status=record.abort_status,
         rate_limit_status=record.rate_limit_status,
         rate_limit_window_ref=record.rate_limit_window_ref,
+        rate_limit_window_conflict_run_state_id=(
+            record.rate_limit_window_conflict_run_state_id
+        ),
         rate_limit_max_orders_per_window=(
             record.rate_limit_max_orders_per_window
         ),
@@ -3086,7 +3090,7 @@ def _allowlist_run_state_product_item(
     )
 
 
-def _allowlist_run_state_run_lock_conflict_blocker(
+def _allowlist_run_state_run_lock_conflict_run_state_id(
     *,
     run_state_store: FileUsdcPairSnapshotAllowlistRunStateStore,
     run_lock_ref: str | None,
@@ -3097,7 +3101,7 @@ def _allowlist_run_state_run_lock_conflict_blocker(
     requested_run_state_id = str(run_state_id or "")
     return next(
         (
-            USDC_PAIR_SNAPSHOT_RUN_LOCK_CONFLICT_BLOCKER
+            record.run_state_id
             for record in run_state_store.read_recent(limit=500)
             if record.run_lock_ref == run_lock_ref
             and record.run_state_id != requested_run_state_id
@@ -3106,7 +3110,7 @@ def _allowlist_run_state_run_lock_conflict_blocker(
     )
 
 
-def _allowlist_run_state_rate_limit_window_conflict_blocker(
+def _allowlist_run_state_rate_limit_window_conflict_run_state_id(
     *,
     run_state_store: FileUsdcPairSnapshotAllowlistRunStateStore,
     rate_limit_window_ref: str | None,
@@ -3117,7 +3121,7 @@ def _allowlist_run_state_rate_limit_window_conflict_blocker(
     requested_run_state_id = str(run_state_id or "")
     return next(
         (
-            USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_CONFLICT_BLOCKER
+            record.run_state_id
             for record in run_state_store.read_recent(limit=500)
             if record.rate_limit_window_ref == rate_limit_window_ref
             and record.run_state_id != requested_run_state_id
@@ -4405,17 +4409,29 @@ def _record_usdc_pair_allowlist_run_state(
     rate_limit_window_within_cap = (
         rate_limit_attempted_order_count <= rate_limit_max_orders_per_window
     )
-    run_lock_conflict_blocker = _allowlist_run_state_run_lock_conflict_blocker(
-        run_state_store=run_state_store,
-        run_lock_ref=body.run_lock_ref,
-        run_state_id=body.run_state_id,
+    run_lock_conflict_run_state_id = (
+        _allowlist_run_state_run_lock_conflict_run_state_id(
+            run_state_store=run_state_store,
+            run_lock_ref=body.run_lock_ref,
+            run_state_id=body.run_state_id,
+        )
     )
-    rate_limit_window_conflict_blocker = (
-        _allowlist_run_state_rate_limit_window_conflict_blocker(
+    run_lock_conflict_blocker = (
+        USDC_PAIR_SNAPSHOT_RUN_LOCK_CONFLICT_BLOCKER
+        if run_lock_conflict_run_state_id
+        else None
+    )
+    rate_limit_window_conflict_run_state_id = (
+        _allowlist_run_state_rate_limit_window_conflict_run_state_id(
             run_state_store=run_state_store,
             rate_limit_window_ref=body.rate_limit_window_ref,
             run_state_id=body.run_state_id,
         )
+    )
+    rate_limit_window_conflict_blocker = (
+        USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_CONFLICT_BLOCKER
+        if rate_limit_window_conflict_run_state_id
+        else None
     )
     retry_backoff_conflict_blocker = (
         _allowlist_run_state_retry_backoff_conflict_blocker(
@@ -4646,12 +4662,16 @@ def _record_usdc_pair_allowlist_run_state(
             else "recorded_no_live"
         ),
         run_lock_ref=body.run_lock_ref,
+        run_lock_conflict_run_state_id=run_lock_conflict_run_state_id,
         pause_resume_status=(
             "paused_no_live" if body.pause_requested else "running_no_live"
         ),
         abort_status="aborted_no_live" if body.abort_requested else "not_requested",
         rate_limit_status=runtime_statuses["rate_limit_status"],
         rate_limit_window_ref=body.rate_limit_window_ref,
+        rate_limit_window_conflict_run_state_id=(
+            rate_limit_window_conflict_run_state_id
+        ),
         rate_limit_max_orders_per_window=rate_limit_max_orders_per_window,
         rate_limit_attempted_order_count=rate_limit_attempted_order_count,
         rate_limit_window_within_cap=rate_limit_window_within_cap,
