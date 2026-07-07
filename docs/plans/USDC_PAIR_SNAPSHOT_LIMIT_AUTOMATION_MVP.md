@@ -90,11 +90,12 @@ Available building blocks:
   A backend-owned run-state-to-live-submit handoff route now requires one
   explicitly selected queued product with matching `ready_no_live` Phase E
   live-readiness, ready parent and product live-wallet reservation/debit/release
-  evidence, plus recorded parent run-lock, runtime rate-limit,
-  retry-budget/backoff, recovery evidence, and selected-product membership in
-  the parent retryable/recovery-required sets before it can reuse the existing
-  single-order submit/cancel path; this does not authorize live fan-out or
-  scheduler behavior.
+  evidence, ready aggregate parent run-state/cap/wallet/live-readiness/
+  notional/partial-success statuses, plus recorded parent run-lock, runtime
+  rate-limit, retry-budget/backoff, recovery evidence, and selected-product
+  membership in the parent retryable/recovery-required sets before it can reuse
+  the existing single-order submit/cancel path; this does not authorize live
+  fan-out or scheduler behavior.
 - `tools/run_admin_api_usdc_pair_snapshot_live_submit.py` can use
   `--submit-from-run-state` to record the one-product allowlist-readiness and
   run-state evidence, then call the backend run-state handoff route. It remains
@@ -559,10 +560,11 @@ or run a scheduler.
 The backend can also hand off one explicitly selected queued product from a
 run-state to the existing Phase E submit/cancel route only when the product row
 has matching `ready_no_live` live-readiness evidence by `client_order_id` and
-the parent run-state has recorded run-lock evidence, is not paused/aborted, and
-has ready runtime rate-limit, retry-budget/backoff, recovery evidence, and
-selected-product membership in the parent retryable/recovery-required sets;
-this remains a single-order controlled-live path, not fan-out automation.
+the parent run-state has ready aggregate status, recorded run-lock evidence, is
+not paused/aborted, and has ready runtime rate-limit, retry-budget/backoff,
+recovery evidence, and selected-product membership in the parent
+retryable/recovery-required sets; this remains a single-order controlled-live
+path, not fan-out automation.
 The backend live-submit runner can exercise this same handoff with
 `--submit-from-run-state`, recording the selected product's run-state id and
 queued live-readiness association in the local artifact before stopping after
@@ -770,8 +772,9 @@ reference conflict blockers and zero affected wallet allocation.
 The run-state live-submit handoff also rejects missing or blocked parent/product
 live-wallet reservation/debit/release evidence, blocked parent run-lock,
 pause/abort, rate-limit, retry-budget/backoff, or recovery evidence before any
-executor call, and rejects stale parent retryable/recovery-required product
-sets that omit the selected product.
+executor call, rejects blocked aggregate parent run-state/cap/wallet/
+live-readiness/notional/partial-success statuses, and rejects stale parent
+retryable/recovery-required product sets that omit the selected product.
 Blocked product rows are no longer reported as retryable or recovery-required.
 Aggregate run-state status fields now fail closed when final product state has
 no queued products.

@@ -4745,6 +4745,18 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_live_exchange_already_submitted")
     if run_state.notional_usdc != "0":
         blockers.append("run_state_notional_not_zero")
+    if run_state.run_state_status != "ready_no_live":
+        blockers.append("run_state_not_ready")
+    if run_state.fanout_cap_allocation_status != "passed":
+        blockers.append("run_state_fanout_cap_not_passed")
+    if run_state.wallet_allocation_status != "passed":
+        blockers.append("run_state_wallet_allocation_not_passed")
+    if run_state.live_readiness_status != "ready_no_live":
+        blockers.append("run_state_parent_live_readiness_not_ready")
+    if run_state.fanout_notional_status != "passed":
+        blockers.append("run_state_fanout_notional_not_passed")
+    if run_state.partial_success_status != "ready_no_live":
+        blockers.append("run_state_partial_success_not_ready")
     if run_state.run_lock_status != "recorded_no_live":
         blockers.append("run_state_run_lock_not_recorded")
     if not run_state.run_lock_ref:
