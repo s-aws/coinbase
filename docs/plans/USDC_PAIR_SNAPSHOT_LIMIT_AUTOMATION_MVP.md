@@ -89,9 +89,10 @@ Available building blocks:
   not required.
   A backend-owned run-state-to-live-submit handoff route now requires one
   explicitly selected queued product with matching `ready_no_live` Phase E
-  live-readiness plus recorded parent run-lock and runtime rate-limit evidence
-  before it can reuse the existing single-order submit/cancel path; this does
-  not authorize live fan-out or scheduler behavior.
+  live-readiness, ready parent and product live-wallet reservation/debit/release
+  evidence, plus recorded parent run-lock and runtime rate-limit evidence before
+  it can reuse the existing single-order submit/cancel path; this does not
+  authorize live fan-out or scheduler behavior.
 - `tools/run_admin_api_usdc_pair_snapshot_live_submit.py` can use
   `--submit-from-run-state` to record the one-product allowlist-readiness and
   run-state evidence, then call the backend run-state handoff route. It remains
@@ -763,7 +764,8 @@ different run/readiness binding now fail closed with
 `live_wallet_reservation_ref_conflict`; reused debit or release refs across
 queued products or prior reservation records fail closed with explicit wallet
 reference conflict blockers and zero affected wallet allocation.
-The run-state live-submit handoff also rejects blocked parent run-lock,
+The run-state live-submit handoff also rejects missing or blocked parent/product
+live-wallet reservation/debit/release evidence, blocked parent run-lock,
 pause/abort, or rate-limit evidence before any executor call.
 Blocked product rows are no longer reported as retryable or recovery-required.
 Aggregate run-state status fields now fail closed when final product state has

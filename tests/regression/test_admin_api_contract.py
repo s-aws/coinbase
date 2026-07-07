@@ -36262,6 +36262,7 @@ def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
     client_order_id: str = "m58-usdc-allowlist-live-submit-BTC-USDC",
     queued: bool = True,
     live_ready: bool = True,
+    wallet_ready: bool = True,
     append_live_readiness: bool = True,
 ) -> dict[str, str]:
     from application.admin_api.models import (
@@ -36352,6 +36353,7 @@ def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
         )
 
     blockers = [] if queued and live_ready else ["live_readiness_missing"]
+    wallet_ready_for_submit = queued and wallet_ready
     product_row = UsdcPairSnapshotAllowlistRunStateProductItem(
         product_id=product_id,
         client_order_id=client_order_id,
@@ -36374,6 +36376,36 @@ def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
         wallet_remaining_after_usdc="0.00",
         wallet_check_source=(
             "m58_usdc_pair_allowlist_live_submit_fixture" if queued else None
+        ),
+        live_wallet_reservation_status=(
+            "ready_no_live" if wallet_ready_for_submit else "missing_no_live"
+        ),
+        live_wallet_reservation_id=(
+            f"wallet-reservation-{allowlist_readiness_id}-{normalized_product_id}"
+            if wallet_ready_for_submit
+            else None
+        ),
+        live_wallet_reserved_notional_usdc="1.00" if wallet_ready_for_submit else "0",
+        live_wallet_debit_id=(
+            f"wallet-debit-{allowlist_readiness_id}-{normalized_product_id}"
+            if wallet_ready_for_submit
+            else None
+        ),
+        live_wallet_debited_notional_usdc="1.00" if wallet_ready_for_submit else "0",
+        live_wallet_release_id=(
+            f"wallet-release-{allowlist_readiness_id}-{normalized_product_id}"
+            if wallet_ready_for_submit
+            else None
+        ),
+        live_wallet_released_notional_usdc="1.00" if wallet_ready_for_submit else "0",
+        live_wallet_reservation_blockers=(
+            []
+            if wallet_ready_for_submit
+            else [
+                "live_wallet_reservation_missing",
+                "live_wallet_debit_missing",
+                "live_wallet_release_missing",
+            ]
         ),
         live_readiness_status="ready_no_live" if live_ready else "missing",
         live_readiness_id=live_readiness_id if live_ready else None,
@@ -36402,6 +36434,47 @@ def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
             wallet_available_notional_usdc="1.00" if queued else "0.00",
             wallet_allocated_notional_usdc="1.00" if queued else "0.00",
             wallet_remaining_usdc="0.00",
+            live_wallet_reservation_status=(
+                "ready_no_live" if wallet_ready_for_submit else "missing_no_live"
+            ),
+            live_wallet_reservation_ids=(
+                [
+                    (
+                        "wallet-reservation-"
+                        f"{allowlist_readiness_id}-{normalized_product_id}"
+                    )
+                ]
+                if wallet_ready_for_submit
+                else []
+            ),
+            live_wallet_reserved_notional_usdc=(
+                "1.00" if wallet_ready_for_submit else "0"
+            ),
+            live_wallet_debit_ids=(
+                [f"wallet-debit-{allowlist_readiness_id}-{normalized_product_id}"]
+                if wallet_ready_for_submit
+                else []
+            ),
+            live_wallet_debited_notional_usdc=(
+                "1.00" if wallet_ready_for_submit else "0"
+            ),
+            live_wallet_release_ids=(
+                [f"wallet-release-{allowlist_readiness_id}-{normalized_product_id}"]
+                if wallet_ready_for_submit
+                else []
+            ),
+            live_wallet_released_notional_usdc=(
+                "1.00" if wallet_ready_for_submit else "0"
+            ),
+            live_wallet_reservation_blockers=(
+                []
+                if wallet_ready_for_submit
+                else [
+                    "live_wallet_reservation_missing",
+                    "live_wallet_debit_missing",
+                    "live_wallet_release_missing",
+                ]
+            ),
             live_readiness_status="ready_no_live" if live_ready else "blocked",
             live_ready_product_ids=[product_id] if live_ready else [],
             live_readiness_missing_product_ids=[] if live_ready else [product_id],
@@ -38633,6 +38706,66 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_q
     assert replay.headers["x-idempotency-replayed"] == "true"
     assert replay.json() == ready_payload
     assert len(client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls) == 1
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_wallet_evidence(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready_without_wallet = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-wallet-blocked",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-submit-wallet-blocked-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=False,
+        append_live_readiness=True,
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready_without_wallet['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-allowlist-live-submit-wallet-blocked",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json={
+            "submission_id": "m58-usdc-allowlist-live-submit-wallet-blocked",
+            "readiness_id": ready_without_wallet["live_readiness_id"],
+            "product_id": ready_without_wallet["product_id"],
+            "client_order_id": ready_without_wallet["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one run-state selected order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "wallet-blocked run-state live-submit handoff",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert "run_state_live_wallet_reservation_not_ready" in payload["message"]
+    assert "run_state_product_live_wallet_reservation_not_ready" in payload[
+        "message"
+    ]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
 
 
 @pytest.mark.regression

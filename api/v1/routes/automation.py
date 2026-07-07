@@ -4702,6 +4702,16 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
             blockers.append("run_state_live_readiness_not_ready")
         if product_row.live_readiness_id != body.readiness_id:
             blockers.append("run_state_live_readiness_id_mismatch")
+        if product_row.live_wallet_reservation_status != "ready_no_live":
+            blockers.append("run_state_product_live_wallet_reservation_not_ready")
+        if not product_row.live_wallet_reservation_id:
+            blockers.append("run_state_product_live_wallet_reservation_id_missing")
+        if not product_row.live_wallet_debit_id:
+            blockers.append("run_state_product_live_wallet_debit_id_missing")
+        if not product_row.live_wallet_release_id:
+            blockers.append("run_state_product_live_wallet_release_id_missing")
+        if product_row.live_wallet_reservation_blockers:
+            blockers.append("run_state_product_live_wallet_blockers_present")
         if str(product_row.client_order_id or "").strip() != body.client_order_id:
             blockers.append("run_state_client_order_id_mismatch")
         if product_row.live_coinbase_execution != "not_run":
@@ -4726,6 +4736,16 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_rate_limit_not_ready")
     if not run_state.rate_limit_window_ref:
         blockers.append("run_state_rate_limit_window_ref_missing")
+    if run_state.live_wallet_reservation_status != "ready_no_live":
+        blockers.append("run_state_live_wallet_reservation_not_ready")
+    if not run_state.live_wallet_reservation_ids:
+        blockers.append("run_state_live_wallet_reservation_ids_missing")
+    if not run_state.live_wallet_debit_ids:
+        blockers.append("run_state_live_wallet_debit_ids_missing")
+    if not run_state.live_wallet_release_ids:
+        blockers.append("run_state_live_wallet_release_ids_missing")
+    if run_state.live_wallet_reservation_blockers:
+        blockers.append("run_state_live_wallet_blockers_present")
 
     if blockers:
         raise UsdcPairSnapshotError(
