@@ -580,6 +580,7 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     from api.v1.routes import stealth as stealth_routes
     from application.admin_api.usdc_pair_snapshot import (
         FileUsdcPairSnapshotAllowlistRunStateStore,
+        FileUsdcPairSnapshotLiveWalletLedgerStore,
         FileUsdcPairSnapshotLiveWalletReservationStore,
         FileUsdcPairSnapshotOrderPlanAllowlistReadinessStore,
         FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
@@ -642,6 +643,11 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     usdc_pair_snapshot_live_wallet_reservation_store = (
         FileUsdcPairSnapshotLiveWalletReservationStore(
             store_dir / "usdc_pair_snapshot_live_wallet_reservations.jsonl"
+        )
+    )
+    usdc_pair_snapshot_live_wallet_ledger_store = (
+        FileUsdcPairSnapshotLiveWalletLedgerStore(
+            store_dir / "usdc_pair_snapshot_live_wallet_ledger.jsonl"
         )
     )
     usdc_pair_snapshot_live_order_executor = (
@@ -828,6 +834,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
         automation_routes.get_usdc_pair_snapshot_live_wallet_reservation_store
     ] = lambda: usdc_pair_snapshot_live_wallet_reservation_store
     app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_live_wallet_ledger_store
+    ] = lambda: usdc_pair_snapshot_live_wallet_ledger_store
+    app.dependency_overrides[
         automation_routes.get_usdc_pair_snapshot_live_order_executor
     ] = lambda: usdc_pair_snapshot_live_order_executor
     app.dependency_overrides[
@@ -979,6 +988,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     )
     client.admin_api_test_usdc_pair_snapshot_live_wallet_reservation_store = (
         usdc_pair_snapshot_live_wallet_reservation_store
+    )
+    client.admin_api_test_usdc_pair_snapshot_live_wallet_ledger_store = (
+        usdc_pair_snapshot_live_wallet_ledger_store
     )
     client.admin_api_test_usdc_pair_snapshot_live_order_executor = (
         usdc_pair_snapshot_live_order_executor
@@ -34895,11 +34907,47 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
         "live_wallet_release_missing",
     ]
     assert run_state["live_wallet_ledger_status"] == "blocked_no_live"
+    assert run_state["live_wallet_ledger_id"] == (
+        "m58-usdc-allowlist-run-state-test-live-wallet-ledger"
+    )
+    assert run_state["live_wallet_ledger_balance_status"] == "missing_live"
+    assert run_state["live_wallet_ledger_overcommit_prevention_status"] == (
+        "blocked_no_live"
+    )
+    assert run_state["live_wallet_ledger_debit_release_status"] == "blocked_no_live"
+    assert run_state["live_wallet_ledger_wallet_available_notional_usdc"] == "1.00"
+    assert run_state["live_wallet_ledger_reserved_notional_usdc"] == "0.00"
+    assert run_state["live_wallet_ledger_debited_notional_usdc"] == "0.00"
+    assert run_state["live_wallet_ledger_released_notional_usdc"] == "0.00"
     assert run_state["live_wallet_ledger_blockers"] == [
         "live_wallet_balance_evidence_missing",
         "live_wallet_ledger_overcommit_prevention_missing",
         "live_wallet_ledger_debit_release_missing",
     ]
+    ledger_record = (
+        client.admin_api_test_usdc_pair_snapshot_live_wallet_ledger_store.find_by_ledger_id(
+            run_state["live_wallet_ledger_id"]
+        )
+    )
+    assert ledger_record is not None
+    assert ledger_record.run_state_id == run_state["run_state_id"]
+    assert ledger_record.readiness_id == run_state["readiness_id"]
+    assert ledger_record.plan_id == run_state["plan_id"]
+    assert ledger_record.snapshot_run_id == run_state["snapshot_run_id"]
+    assert ledger_record.ledger_status == "blocked_no_live"
+    assert ledger_record.wallet_balance_status == "missing_live"
+    assert ledger_record.overcommit_prevention_status == "blocked_no_live"
+    assert ledger_record.debit_release_status == "blocked_no_live"
+    assert ledger_record.wallet_available_notional_usdc == "1.00"
+    assert ledger_record.reserved_notional_usdc == "0.00"
+    assert ledger_record.debited_notional_usdc == "0.00"
+    assert ledger_record.released_notional_usdc == "0.00"
+    assert ledger_record.ledger_blockers == [
+        "live_wallet_balance_evidence_missing",
+        "live_wallet_ledger_overcommit_prevention_missing",
+        "live_wallet_ledger_debit_release_missing",
+    ]
+    assert ledger_record.live_coinbase_execution == "not_run"
     assert run_state["live_readiness_status"] == "ready_no_live"
     assert run_state["live_ready_product_ids"] == ["BTC-USDC"]
     assert run_state["live_readiness_missing_product_ids"] == []
@@ -36992,6 +37040,7 @@ def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
     )
     from application.admin_api.usdc_pair_snapshot import (
         UsdcPairSnapshotAllowlistRunStateRecord,
+        UsdcPairSnapshotLiveWalletLedgerRecord,
         UsdcPairSnapshotLiveWalletReservationRecord,
         UsdcPairSnapshotOrderPlanRecord,
     )
@@ -37114,6 +37163,7 @@ def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
         microsecond=0
     ) + timedelta(seconds=30)
     rate_limit_window_expires_at = runtime_recorded_at + timedelta(seconds=1)
+    live_wallet_ledger_id = f"{run_state_id}-live-wallet-ledger"
     product_row = UsdcPairSnapshotAllowlistRunStateProductItem(
         product_id=product_id,
         client_order_id=client_order_id,
@@ -37221,6 +37271,40 @@ def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
                 ),
             )
         )
+    client.admin_api_test_usdc_pair_snapshot_live_wallet_ledger_store.append(
+        UsdcPairSnapshotLiveWalletLedgerRecord(
+            ledger_id=live_wallet_ledger_id,
+            run_state_id=run_state_id,
+            readiness_id=allowlist_readiness_id,
+            plan_id=plan_id,
+            snapshot_run_id=snapshot_run_id,
+            wallet_available_notional_usdc="1.00" if queued else "0.00",
+            planned_fanout_notional_usdc="1.00",
+            allocated_fanout_notional_usdc="1.00" if queued else "0.00",
+            reserved_notional_usdc="1.00" if wallet_ready_for_submit else "0",
+            debited_notional_usdc="1.00" if wallet_ready_for_submit else "0",
+            released_notional_usdc="1.00" if wallet_ready_for_submit else "0",
+            ledger_status="blocked_no_live",
+            wallet_balance_status="missing_live",
+            overcommit_prevention_status="blocked_no_live",
+            debit_release_status="blocked_no_live",
+            ledger_blockers=[
+                "live_wallet_balance_evidence_missing",
+                "live_wallet_ledger_overcommit_prevention_missing",
+                "live_wallet_ledger_debit_release_missing",
+            ],
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_live_wallet_ledger",
+            idempotency_key=f"idem-wallet-ledger-{run_state_id}",
+            payload_hash="5" * 64,
+            audit_id=f"audit-wallet-ledger-{run_state_id}",
+            operator_notes="wallet ledger source for live-submit fixture",
+            detail=(
+                "No-live wallet ledger boundary evidence for run-state "
+                "live-submit fixture."
+            ),
+        )
+    )
     client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store.append(
         UsdcPairSnapshotAllowlistRunStateRecord(
             run_state_id=run_state_id,
@@ -37278,6 +37362,22 @@ def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
                     "live_wallet_debit_missing",
                     "live_wallet_release_missing",
                 ]
+            ),
+            live_wallet_ledger_id=live_wallet_ledger_id,
+            live_wallet_ledger_balance_status="missing_live",
+            live_wallet_ledger_overcommit_prevention_status="blocked_no_live",
+            live_wallet_ledger_debit_release_status="blocked_no_live",
+            live_wallet_ledger_wallet_available_notional_usdc=(
+                "1.00" if queued else "0.00"
+            ),
+            live_wallet_ledger_reserved_notional_usdc=(
+                "1.00" if wallet_ready_for_submit else "0"
+            ),
+            live_wallet_ledger_debited_notional_usdc=(
+                "1.00" if wallet_ready_for_submit else "0"
+            ),
+            live_wallet_ledger_released_notional_usdc=(
+                "1.00" if wallet_ready_for_submit else "0"
             ),
             live_readiness_status="ready_no_live" if live_ready else "blocked",
             live_ready_product_ids=[product_id] if live_ready else [],
@@ -42125,6 +42225,76 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
     )
     assert "run_state_live_wallet_ledger_not_blocked" in payload["message"]
     assert "run_state_live_wallet_ledger_blockers_mismatch" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_wallet_ledger_record(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-wallet-ledger-missing",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-submit-wallet-ledger-missing-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(ready["run_state_id"])
+    assert source_run_state is not None
+    run_state_store.append(
+        source_run_state.model_copy(
+            update={
+                "live_wallet_ledger_id": "missing-live-wallet-ledger-record",
+            }
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-wallet-ledger-missing"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json={
+            "submission_id": "m58-usdc-allowlist-live-submit-wallet-ledger-missing",
+            "readiness_id": ready["live_readiness_id"],
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one run-state selected order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "missing wallet ledger record must fail closed",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert "run_state_live_wallet_ledger_record_missing" in payload["message"]
     assert payload["live_exchange_submitted"] is False
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_execution"] == "not_run"

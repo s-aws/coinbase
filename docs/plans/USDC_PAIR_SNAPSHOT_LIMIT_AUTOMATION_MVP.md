@@ -209,12 +209,14 @@ Missing before live automation:
   `live_wallet_overcommit_attempted_notional_usdc` as notional readback. The
   aggregate run-state readback carries the deduped source run-state ids and
   summed active/attempted notionals from those blocked product rows, and now
-  records `live_wallet_ledger_status` and `live_wallet_ledger_blockers` as
-  explicit no-live evidence that live wallet ledger balance,
-  overcommit-prevention, and debit/release semantics are still not proven.
-  Live-submit rejects stale or contradictory wallet-ledger readback before
-  executor invocation. Phase F run-state now requires matching Phase E live-readiness
-  evidence before a product can be queued in no-live rehearsal, and the
+  records a durable `live_wallet_ledger_id`, `live_wallet_ledger_status`,
+  ledger sub-status, ledger notional readback, and
+  `live_wallet_ledger_blockers` as explicit no-live evidence that live wallet
+  ledger balance, overcommit-prevention, and debit/release semantics are still
+  not proven. Live-submit rejects missing, stale, or contradictory wallet-ledger
+  record readback before executor invocation. Phase F run-state now requires
+  matching Phase E live-readiness evidence before a product can be queued in
+  no-live rehearsal, and the
   single-product Phase E live-readiness route fails closed when the latest
   backend cap/guard proof does not cover the submitted notional or required
   wallet availability. The one-selected-product run-state handoff can reuse

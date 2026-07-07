@@ -76,6 +76,7 @@ from application.admin_api.mvp_service import (
 )
 from application.admin_api.usdc_pair_snapshot import (
     FileUsdcPairSnapshotAllowlistRunStateStore,
+    FileUsdcPairSnapshotLiveWalletLedgerStore,
     FileUsdcPairSnapshotLiveWalletReservationStore,
     FileUsdcPairSnapshotOrderPlanAllowlistReadinessStore,
     FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
@@ -83,6 +84,7 @@ from application.admin_api.usdc_pair_snapshot import (
     FileUsdcPairSnapshotOrderPlanStore,
     FileUsdcPairSnapshotRunStore,
     UsdcPairSnapshotAllowlistRunStateRecord,
+    UsdcPairSnapshotLiveWalletLedgerRecord,
     UsdcPairSnapshotLiveWalletReservationRecord,
     UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
     UsdcPairSnapshotOrderPlanLiveReadinessRecord,
@@ -220,6 +222,11 @@ USDC_PAIR_SNAPSHOT_LIVE_WALLET_ACTIVE_RESERVATION_OVERCOMMIT_BLOCKER = (
     "live_wallet_active_reservation_overcommit"
 )
 USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BLOCKED_STATUS = "blocked_no_live"
+USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BALANCE_STATUS = "missing_live"
+USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_OVERCOMMIT_PREVENTION_STATUS = (
+    "blocked_no_live"
+)
+USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_DEBIT_RELEASE_STATUS = "blocked_no_live"
 USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BLOCKERS = [
     "live_wallet_balance_evidence_missing",
     "live_wallet_ledger_overcommit_prevention_missing",
@@ -451,6 +458,14 @@ def get_usdc_pair_snapshot_live_wallet_reservation_store() -> (
     """Return durable M58 live-wallet reservation evidence storage."""
 
     return FileUsdcPairSnapshotLiveWalletReservationStore()
+
+
+def get_usdc_pair_snapshot_live_wallet_ledger_store() -> (
+    FileUsdcPairSnapshotLiveWalletLedgerStore
+):
+    """Return durable M58 live-wallet ledger boundary storage."""
+
+    return FileUsdcPairSnapshotLiveWalletLedgerStore()
 
 
 def get_usdc_pair_snapshot_order_plan_live_readiness_store() -> (
@@ -760,6 +775,26 @@ def _allowlist_run_state_item_from_record(
             record.live_wallet_overcommit_attempted_notional_usdc
         ),
         live_wallet_ledger_status=record.live_wallet_ledger_status,
+        live_wallet_ledger_id=record.live_wallet_ledger_id,
+        live_wallet_ledger_balance_status=record.live_wallet_ledger_balance_status,
+        live_wallet_ledger_overcommit_prevention_status=(
+            record.live_wallet_ledger_overcommit_prevention_status
+        ),
+        live_wallet_ledger_debit_release_status=(
+            record.live_wallet_ledger_debit_release_status
+        ),
+        live_wallet_ledger_wallet_available_notional_usdc=(
+            record.live_wallet_ledger_wallet_available_notional_usdc
+        ),
+        live_wallet_ledger_reserved_notional_usdc=(
+            record.live_wallet_ledger_reserved_notional_usdc
+        ),
+        live_wallet_ledger_debited_notional_usdc=(
+            record.live_wallet_ledger_debited_notional_usdc
+        ),
+        live_wallet_ledger_released_notional_usdc=(
+            record.live_wallet_ledger_released_notional_usdc
+        ),
         live_wallet_ledger_blockers=record.live_wallet_ledger_blockers,
         live_readiness_status=record.live_readiness_status,
         live_ready_product_ids=record.live_ready_product_ids,
@@ -4636,6 +4671,7 @@ def _record_usdc_pair_allowlist_run_state(
     cap_guard_store: FileAdminApiCapGuardStore,
     live_readiness_store: FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
     live_wallet_reservation_store: FileUsdcPairSnapshotLiveWalletReservationStore,
+    live_wallet_ledger_store: FileUsdcPairSnapshotLiveWalletLedgerStore,
     actor: AdminApiActor,
     operator_intent: str,
     idempotency_key: str,
@@ -4890,9 +4926,59 @@ def _record_usdc_pair_allowlist_run_state(
         readiness=readiness,
         product_states=product_states,
     )
+    run_state_id = body.run_state_id or f"m58-usdc-allowlist-run-state-{uuid4()}"
+    live_wallet_ledger = UsdcPairSnapshotLiveWalletLedgerRecord(
+        ledger_id=f"{run_state_id}-live-wallet-ledger",
+        run_state_id=run_state_id,
+        readiness_id=readiness.readiness_id,
+        plan_id=readiness.plan_id,
+        snapshot_run_id=readiness.snapshot_run_id,
+        wallet_available_notional_usdc=(
+            wallet_allocation["wallet_available_notional_usdc"]
+        ),
+        planned_fanout_notional_usdc=_decimal_string(planned_fanout_notional),
+        allocated_fanout_notional_usdc=(
+            cap_allocation["allocated_fanout_notional_usdc"]
+        ),
+        reserved_notional_usdc=(
+            wallet_allocation["live_wallet_reserved_notional_usdc"]
+        ),
+        debited_notional_usdc=(
+            wallet_allocation["live_wallet_debited_notional_usdc"]
+        ),
+        released_notional_usdc=(
+            wallet_allocation["live_wallet_released_notional_usdc"]
+        ),
+        active_reserved_notional_usdc=(
+            wallet_allocation["live_wallet_active_reserved_notional_usdc"]
+        ),
+        overcommit_attempted_notional_usdc=(
+            wallet_allocation["live_wallet_overcommit_attempted_notional_usdc"]
+        ),
+        ledger_status=USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BLOCKED_STATUS,
+        wallet_balance_status=USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BALANCE_STATUS,
+        overcommit_prevention_status=(
+            USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_OVERCOMMIT_PREVENTION_STATUS
+        ),
+        debit_release_status=(
+            USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_DEBIT_RELEASE_STATUS
+        ),
+        ledger_blockers=list(USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BLOCKERS),
+        actor_id=actor.actor_id,
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        audit_id=audit_id,
+        operator_notes=body.operator_notes,
+        detail=(
+            "M58 live wallet ledger remains a backend-owned no-live boundary; "
+            "live balance, overcommit prevention, and debit/release semantics "
+            "are not enabled for fan-out."
+        ),
+    )
+    live_wallet_ledger_store.append(live_wallet_ledger)
     record = UsdcPairSnapshotAllowlistRunStateRecord(
-        run_state_id=body.run_state_id
-        or f"m58-usdc-allowlist-run-state-{uuid4()}",
+        run_state_id=run_state_id,
         readiness_id=readiness.readiness_id,
         plan_id=readiness.plan_id,
         snapshot_run_id=readiness.snapshot_run_id,
@@ -4948,11 +5034,31 @@ def _record_usdc_pair_allowlist_run_state(
             wallet_allocation["live_wallet_overcommit_attempted_notional_usdc"]
         ),
         live_wallet_ledger_status=(
-            USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BLOCKED_STATUS
+            live_wallet_ledger.ledger_status
         ),
-        live_wallet_ledger_blockers=list(
-            USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BLOCKERS
+        live_wallet_ledger_id=live_wallet_ledger.ledger_id,
+        live_wallet_ledger_balance_status=(
+            live_wallet_ledger.wallet_balance_status
         ),
+        live_wallet_ledger_overcommit_prevention_status=(
+            live_wallet_ledger.overcommit_prevention_status
+        ),
+        live_wallet_ledger_debit_release_status=(
+            live_wallet_ledger.debit_release_status
+        ),
+        live_wallet_ledger_wallet_available_notional_usdc=(
+            live_wallet_ledger.wallet_available_notional_usdc
+        ),
+        live_wallet_ledger_reserved_notional_usdc=(
+            live_wallet_ledger.reserved_notional_usdc
+        ),
+        live_wallet_ledger_debited_notional_usdc=(
+            live_wallet_ledger.debited_notional_usdc
+        ),
+        live_wallet_ledger_released_notional_usdc=(
+            live_wallet_ledger.released_notional_usdc
+        ),
+        live_wallet_ledger_blockers=list(live_wallet_ledger.ledger_blockers),
         live_readiness_status=live_readiness_status,
         live_ready_product_ids=live_ready_product_ids,
         live_readiness_missing_product_ids=live_readiness_missing_product_ids,
@@ -6140,6 +6246,132 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_evidence(
         )
 
 
+def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_ledger(
+    *,
+    run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    ledger_store: FileUsdcPairSnapshotLiveWalletLedgerStore,
+) -> None:
+    blockers: list[str] = []
+    ledger_id = str(run_state.live_wallet_ledger_id or "").strip()
+    if not ledger_id:
+        blockers.append("run_state_live_wallet_ledger_id_missing")
+    if (
+        run_state.live_wallet_ledger_balance_status
+        != USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BALANCE_STATUS
+    ):
+        blockers.append("run_state_live_wallet_ledger_balance_status_mismatch")
+    if (
+        run_state.live_wallet_ledger_overcommit_prevention_status
+        != USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_OVERCOMMIT_PREVENTION_STATUS
+    ):
+        blockers.append(
+            "run_state_live_wallet_ledger_overcommit_prevention_status_mismatch"
+        )
+    if (
+        run_state.live_wallet_ledger_debit_release_status
+        != USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_DEBIT_RELEASE_STATUS
+    ):
+        blockers.append("run_state_live_wallet_ledger_debit_release_status_mismatch")
+
+    record = ledger_store.find_by_ledger_id(ledger_id) if ledger_id else None
+    if record is None:
+        blockers.append("run_state_live_wallet_ledger_record_missing")
+    else:
+        if record.run_state_id != run_state.run_state_id:
+            blockers.append("run_state_live_wallet_ledger_run_state_mismatch")
+        if record.readiness_id != run_state.readiness_id:
+            blockers.append("run_state_live_wallet_ledger_readiness_mismatch")
+        if record.plan_id != run_state.plan_id:
+            blockers.append("run_state_live_wallet_ledger_plan_mismatch")
+        if record.snapshot_run_id != run_state.snapshot_run_id:
+            blockers.append("run_state_live_wallet_ledger_snapshot_mismatch")
+        if record.ledger_status != run_state.live_wallet_ledger_status:
+            blockers.append("run_state_live_wallet_ledger_status_mismatch")
+        if (
+            record.ledger_status
+            != USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BLOCKED_STATUS
+        ):
+            blockers.append("run_state_live_wallet_ledger_record_not_blocked")
+        if (
+            record.wallet_balance_status
+            != USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BALANCE_STATUS
+        ):
+            blockers.append(
+                "run_state_live_wallet_ledger_record_balance_status_mismatch"
+            )
+        if (
+            record.overcommit_prevention_status
+            != USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_OVERCOMMIT_PREVENTION_STATUS
+        ):
+            blockers.append(
+                "run_state_live_wallet_ledger_record_"
+                "overcommit_prevention_status_mismatch"
+            )
+        if (
+            record.debit_release_status
+            != USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_DEBIT_RELEASE_STATUS
+        ):
+            blockers.append(
+                "run_state_live_wallet_ledger_record_debit_release_status_mismatch"
+            )
+        if (
+            record.wallet_balance_status
+            != run_state.live_wallet_ledger_balance_status
+        ):
+            blockers.append("run_state_live_wallet_ledger_balance_status_mismatch")
+        if (
+            record.overcommit_prevention_status
+            != run_state.live_wallet_ledger_overcommit_prevention_status
+        ):
+            blockers.append(
+                "run_state_live_wallet_ledger_overcommit_prevention_status_mismatch"
+            )
+        if (
+            record.debit_release_status
+            != run_state.live_wallet_ledger_debit_release_status
+        ):
+            blockers.append(
+                "run_state_live_wallet_ledger_debit_release_status_mismatch"
+            )
+        if record.ledger_blockers != run_state.live_wallet_ledger_blockers:
+            blockers.append("run_state_live_wallet_ledger_record_blockers_mismatch")
+        if record.ledger_blockers != USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BLOCKERS:
+            blockers.append("run_state_live_wallet_ledger_record_blockers_stale")
+        if (
+            record.wallet_available_notional_usdc
+            != run_state.live_wallet_ledger_wallet_available_notional_usdc
+        ):
+            blockers.append("run_state_live_wallet_ledger_wallet_available_mismatch")
+        if (
+            record.reserved_notional_usdc
+            != run_state.live_wallet_ledger_reserved_notional_usdc
+        ):
+            blockers.append("run_state_live_wallet_ledger_reserved_notional_mismatch")
+        if (
+            record.debited_notional_usdc
+            != run_state.live_wallet_ledger_debited_notional_usdc
+        ):
+            blockers.append("run_state_live_wallet_ledger_debited_notional_mismatch")
+        if (
+            record.released_notional_usdc
+            != run_state.live_wallet_ledger_released_notional_usdc
+        ):
+            blockers.append("run_state_live_wallet_ledger_released_notional_mismatch")
+        if (
+            record.live_exchange_submitted
+            or record.live_coinbase_orders_ran
+            or record.live_coinbase_execution != "not_run"
+            or record.notional_usdc != "0"
+        ):
+            blockers.append("run_state_live_wallet_ledger_not_no_live")
+
+    if blockers:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live submit blocked: "
+            + ",".join(_dedupe(blockers))
+        )
+
+
 def _usdc_pair_live_order_configuration(
     readiness: UsdcPairSnapshotOrderPlanLiveReadinessRecord,
 ) -> dict[str, Any]:
@@ -7060,6 +7292,10 @@ def record_usdc_pair_snapshot_allowlist_run_state(
         FileUsdcPairSnapshotLiveWalletReservationStore,
         Depends(get_usdc_pair_snapshot_live_wallet_reservation_store),
     ],
+    live_wallet_ledger_store: Annotated[
+        FileUsdcPairSnapshotLiveWalletLedgerStore,
+        Depends(get_usdc_pair_snapshot_live_wallet_ledger_store),
+    ],
     idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
     audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
 ) -> JSONResponse:
@@ -7086,6 +7322,7 @@ def record_usdc_pair_snapshot_allowlist_run_state(
             cap_guard_store=cap_guard_store,
             live_readiness_store=live_readiness_store,
             live_wallet_reservation_store=live_wallet_reservation_store,
+            live_wallet_ledger_store=live_wallet_ledger_store,
             actor=actor,
             operator_intent=operator_intent,
             idempotency_key=idempotency_key,
@@ -7346,6 +7583,10 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
         FileUsdcPairSnapshotLiveWalletReservationStore,
         Depends(get_usdc_pair_snapshot_live_wallet_reservation_store),
     ],
+    live_wallet_ledger_store: Annotated[
+        FileUsdcPairSnapshotLiveWalletLedgerStore,
+        Depends(get_usdc_pair_snapshot_live_wallet_ledger_store),
+    ],
     submit_store: Annotated[
         FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
         Depends(get_usdc_pair_snapshot_order_plan_live_submit_store),
@@ -7418,6 +7659,10 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
             run_state=run_state,
             product_row=product_row,
             reservation_store=live_wallet_reservation_store,
+        )
+        _validate_usdc_pair_allowlist_run_state_live_submit_wallet_ledger(
+            run_state=run_state,
+            ledger_store=live_wallet_ledger_store,
         )
         return _record_usdc_pair_live_submission(
             plan=plan,

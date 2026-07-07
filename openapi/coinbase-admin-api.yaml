@@ -170032,6 +170032,62 @@ components:
           minLength: 1
           title: Live Wallet Ledger Status
           default: blocked_no_live
+        live_wallet_ledger_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Wallet Ledger Id
+        live_wallet_ledger_balance_status:
+          type: string
+          minLength: 1
+          title: Live Wallet Ledger Balance Status
+          default: missing_live
+        live_wallet_ledger_overcommit_prevention_status:
+          type: string
+          minLength: 1
+          title: Live Wallet Ledger Overcommit Prevention Status
+          default: blocked_no_live
+        live_wallet_ledger_debit_release_status:
+          type: string
+          minLength: 1
+          title: Live Wallet Ledger Debit Release Status
+          default: blocked_no_live
+        live_wallet_ledger_wallet_available_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Live Wallet Ledger Wallet Available Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_wallet_ledger_reserved_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Live Wallet Ledger Reserved Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_wallet_ledger_debited_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Live Wallet Ledger Debited Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_wallet_ledger_released_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Live Wallet Ledger Released Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
         live_wallet_ledger_blockers:
           items:
             type: string
