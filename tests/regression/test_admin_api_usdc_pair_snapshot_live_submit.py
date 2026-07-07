@@ -197,6 +197,8 @@ def test_usdc_pair_snapshot_live_runner_can_submit_from_run_state_handoff(
         "fanout_execution_not_approved",
         "scheduler_blocked",
         "live_wallet_reservation_missing",
+        "live_wallet_debit_missing",
+        "live_wallet_release_missing",
     ]
     assert summary["live_coinbase_execution"] == "submitted_cancelled"
     assert summary["submitted_notional_usdc"] == "1.00"

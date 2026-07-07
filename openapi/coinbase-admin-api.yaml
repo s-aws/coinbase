@@ -169957,6 +169957,20 @@ components:
           minLength: 1
           title: Live Wallet Reservation Status
           default: not_evaluated
+        live_wallet_reservation_ids:
+          items:
+            type: string
+          type: array
+          title: Live Wallet Reservation Ids
+        live_wallet_reserved_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Live Wallet Reserved Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
         live_wallet_reservation_blockers:
           items:
             type: string
@@ -170397,6 +170411,20 @@ components:
           minLength: 1
           title: Live Wallet Reservation Status
           default: not_evaluated
+        live_wallet_reservation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Wallet Reservation Id
+        live_wallet_reserved_notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Live Wallet Reserved Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
         live_wallet_reservation_blockers:
           items:
             type: string
@@ -170493,6 +170521,11 @@ components:
             minLength: 1
           - type: 'null'
           title: Rate Limit Window Ref
+        live_wallet_reservation_ids:
+          items:
+            type: string
+          type: array
+          title: Live Wallet Reservation Ids
         pause_requested:
           type: boolean
           title: Pause Requested

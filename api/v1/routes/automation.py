@@ -76,12 +76,14 @@ from application.admin_api.mvp_service import (
 )
 from application.admin_api.usdc_pair_snapshot import (
     FileUsdcPairSnapshotAllowlistRunStateStore,
+    FileUsdcPairSnapshotLiveWalletReservationStore,
     FileUsdcPairSnapshotOrderPlanAllowlistReadinessStore,
     FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
     FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
     FileUsdcPairSnapshotOrderPlanStore,
     FileUsdcPairSnapshotRunStore,
     UsdcPairSnapshotAllowlistRunStateRecord,
+    UsdcPairSnapshotLiveWalletReservationRecord,
     UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
     UsdcPairSnapshotOrderPlanLiveReadinessRecord,
     UsdcPairSnapshotOrderPlanLiveSubmitRecord,
@@ -396,6 +398,14 @@ def get_usdc_pair_snapshot_allowlist_run_state_store() -> (
     return FileUsdcPairSnapshotAllowlistRunStateStore()
 
 
+def get_usdc_pair_snapshot_live_wallet_reservation_store() -> (
+    FileUsdcPairSnapshotLiveWalletReservationStore
+):
+    """Return durable M58 live-wallet reservation evidence storage."""
+
+    return FileUsdcPairSnapshotLiveWalletReservationStore()
+
+
 def get_usdc_pair_snapshot_order_plan_live_readiness_store() -> (
     FileUsdcPairSnapshotOrderPlanLiveReadinessStore
 ):
@@ -678,6 +688,10 @@ def _allowlist_run_state_item_from_record(
         wallet_remaining_usdc=record.wallet_remaining_usdc,
         wallet_allocation_blockers=record.wallet_allocation_blockers,
         live_wallet_reservation_status=record.live_wallet_reservation_status,
+        live_wallet_reservation_ids=record.live_wallet_reservation_ids,
+        live_wallet_reserved_notional_usdc=(
+            record.live_wallet_reserved_notional_usdc
+        ),
         live_wallet_reservation_blockers=(
             record.live_wallet_reservation_blockers
         ),
@@ -3060,18 +3074,143 @@ def _dedupe(values: list[str]) -> list[str]:
 def _live_wallet_reservation_evidence(
     *,
     queued_for_no_live: bool,
+    item: UsdcPairSnapshotAllowlistRunStateProductItem | None = None,
+    run_state_id: str | None = None,
+    readiness: UsdcPairSnapshotOrderPlanAllowlistReadinessRecord | None = None,
+    reservation_store: FileUsdcPairSnapshotLiveWalletReservationStore | None = None,
+    reservation_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     if not queued_for_no_live:
         return {
             "live_wallet_reservation_status": "not_queued",
+            "live_wallet_reservation_id": None,
+            "live_wallet_reserved_notional_usdc": "0.00",
             "live_wallet_reservation_blockers": [],
         }
+    normalized_reservation_ids = [
+        reservation_id.strip()
+        for reservation_id in (reservation_ids or [])
+        if reservation_id.strip()
+    ]
+    if (
+        item is None
+        or readiness is None
+        or reservation_store is None
+        or not run_state_id
+        or not normalized_reservation_ids
+    ):
+        return {
+            "live_wallet_reservation_status": "missing_no_live",
+            "live_wallet_reservation_id": None,
+            "live_wallet_reserved_notional_usdc": "0.00",
+            "live_wallet_reservation_blockers": list(
+                USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_BLOCKERS
+            ),
+        }
+
+    planned_notional = _decimal_value(item.planned_notional_usdc)
+    mismatch_blockers: list[str] = []
+    for reservation_id in normalized_reservation_ids:
+        record = reservation_store.find_by_reservation_id(reservation_id)
+        if record is None:
+            mismatch_blockers.append("live_wallet_reservation_missing")
+            continue
+
+        record_blockers = _live_wallet_reservation_record_blockers(
+            record=record,
+            item=item,
+            run_state_id=run_state_id,
+            readiness=readiness,
+            planned_notional=planned_notional,
+        )
+        if record_blockers:
+            mismatch_blockers.extend(record_blockers)
+            continue
+
+        blockers: list[str] = []
+        if record.debit_status != "debited_no_live":
+            blockers.append("live_wallet_debit_missing")
+        if record.release_status != "released_no_live":
+            blockers.append("live_wallet_release_missing")
+        return {
+            "live_wallet_reservation_status": (
+                "reserved_no_live" if blockers else "ready_no_live"
+            ),
+            "live_wallet_reservation_id": record.reservation_id,
+            "live_wallet_reserved_notional_usdc": _decimal_string(
+                planned_notional or Decimal("0")
+            ),
+            "live_wallet_reservation_blockers": blockers,
+        }
+
     return {
         "live_wallet_reservation_status": "missing_no_live",
-        "live_wallet_reservation_blockers": list(
-            USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_BLOCKERS
+        "live_wallet_reservation_id": None,
+        "live_wallet_reserved_notional_usdc": "0.00",
+        "live_wallet_reservation_blockers": _dedupe(
+            mismatch_blockers
+            or list(USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_BLOCKERS)
         ),
     }
+
+
+def _live_wallet_reservation_record_blockers(
+    *,
+    record: UsdcPairSnapshotLiveWalletReservationRecord,
+    item: UsdcPairSnapshotAllowlistRunStateProductItem,
+    run_state_id: str,
+    readiness: UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
+    planned_notional: Decimal | None,
+) -> list[str]:
+    blockers: list[str] = []
+    if record.run_state_id != run_state_id:
+        blockers.append("live_wallet_reservation_run_state_mismatch")
+    if record.readiness_id != readiness.readiness_id:
+        blockers.append("live_wallet_reservation_readiness_mismatch")
+    if record.plan_id != readiness.plan_id:
+        blockers.append("live_wallet_reservation_plan_mismatch")
+    if record.snapshot_run_id != readiness.snapshot_run_id:
+        blockers.append("live_wallet_reservation_snapshot_mismatch")
+    if record.product_id.strip().upper() != item.product_id.strip().upper():
+        blockers.append("live_wallet_reservation_product_mismatch")
+    if record.client_order_id.strip() != str(item.client_order_id or "").strip():
+        blockers.append("live_wallet_reservation_client_order_mismatch")
+    reserved_notional = _non_negative_decimal_value(record.reserved_notional_usdc)
+    if (
+        reserved_notional is None
+        or planned_notional is None
+        or reserved_notional != planned_notional
+    ):
+        blockers.append("live_wallet_reservation_notional_mismatch")
+    if record.reservation_status != "reserved_no_live":
+        blockers.append("live_wallet_reservation_not_reserved")
+    if (
+        record.live_exchange_submitted
+        or record.live_coinbase_orders_ran
+        or record.live_coinbase_execution != "not_run"
+        or record.notional_usdc != "0"
+    ):
+        blockers.append("live_wallet_reservation_not_no_live")
+    return blockers
+
+
+def _live_wallet_reservation_aggregate_status(
+    *,
+    blockers: list[str],
+    reserved_ids: list[str],
+) -> str:
+    if not blockers and reserved_ids:
+        return "ready_no_live"
+    if any(
+        blocker.startswith("live_wallet_reservation_")
+        for blocker in blockers
+    ):
+        return "missing_no_live"
+    if blockers and reserved_ids:
+        return "reserved_no_live"
+    if blockers:
+        return "missing_no_live"
+    return "not_queued"
 
 
 def _allowlist_run_state_cap_guard_record_blockers(
@@ -3112,6 +3251,12 @@ def _apply_allowlist_run_state_wallet_allocation(
     *,
     product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
     cap_guard_store: FileAdminApiCapGuardStore,
+    run_state_id: str | None = None,
+    readiness: UsdcPairSnapshotOrderPlanAllowlistReadinessRecord | None = None,
+    live_wallet_reservation_store: (
+        FileUsdcPairSnapshotLiveWalletReservationStore | None
+    ) = None,
+    live_wallet_reservation_ids: list[str] | None = None,
 ) -> tuple[list[UsdcPairSnapshotAllowlistRunStateProductItem], dict[str, Any]]:
     wallet_proofs: dict[str, Any] = {}
     wallet_proof_records: dict[str, Any] = {}
@@ -3269,7 +3414,12 @@ def _apply_allowlist_run_state_wallet_allocation(
                         ),
                         "wallet_check_source": record.wallet_check_source,
                         **_live_wallet_reservation_evidence(
-                            queued_for_no_live=True
+                            queued_for_no_live=True,
+                            item=item,
+                            run_state_id=run_state_id,
+                            readiness=readiness,
+                            reservation_store=live_wallet_reservation_store,
+                            reservation_ids=live_wallet_reservation_ids,
                         ),
                     }
                 )
@@ -3309,6 +3459,20 @@ def _apply_allowlist_run_state_wallet_allocation(
             for blocker in item.live_wallet_reservation_blockers
         ]
     )
+    live_wallet_reservation_ids = _dedupe(
+        [
+            item.live_wallet_reservation_id
+            for item in updated
+            if item.live_wallet_reservation_id
+        ]
+    )
+    live_wallet_reserved_notional = sum(
+        (
+            _decimal_value(item.live_wallet_reserved_notional_usdc)
+            or Decimal("0")
+        )
+        for item in updated
+    )
     return updated, {
         "wallet_allocation_status": (
             "passed" if not wallet_blockers else "blocked"
@@ -3317,8 +3481,13 @@ def _apply_allowlist_run_state_wallet_allocation(
         "wallet_allocated_notional_usdc": _decimal_string(allocated_total),
         "wallet_remaining_usdc": _decimal_string(wallet_available - allocated_total),
         "wallet_allocation_blockers": wallet_blockers,
-        "live_wallet_reservation_status": (
-            "missing_no_live" if live_wallet_reservation_blockers else "not_queued"
+        "live_wallet_reservation_status": _live_wallet_reservation_aggregate_status(
+            blockers=live_wallet_reservation_blockers,
+            reserved_ids=live_wallet_reservation_ids,
+        ),
+        "live_wallet_reservation_ids": live_wallet_reservation_ids,
+        "live_wallet_reserved_notional_usdc": _decimal_string(
+            live_wallet_reserved_notional
         ),
         "live_wallet_reservation_blockers": live_wallet_reservation_blockers,
     }
@@ -3340,7 +3509,7 @@ def _allowlist_run_state_status(
         return "blocked"
     if blocked_product_ids:
         return "blocked"
-    if live_wallet_reservation_status == "missing_no_live":
+    if live_wallet_reservation_status not in {"not_queued", "ready_no_live"}:
         return "blocked"
     return "ready_no_live"
 
@@ -3384,6 +3553,7 @@ def _record_usdc_pair_allowlist_run_state(
     run_state_store: FileUsdcPairSnapshotAllowlistRunStateStore,
     cap_guard_store: FileAdminApiCapGuardStore,
     live_readiness_store: FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
+    live_wallet_reservation_store: FileUsdcPairSnapshotLiveWalletReservationStore,
     actor: AdminApiActor,
     operator_intent: str,
     idempotency_key: str,
@@ -3437,6 +3607,10 @@ def _record_usdc_pair_allowlist_run_state(
         _apply_allowlist_run_state_wallet_allocation(
             product_states=product_states,
             cap_guard_store=cap_guard_store,
+            run_state_id=body.run_state_id,
+            readiness=readiness,
+            live_wallet_reservation_store=live_wallet_reservation_store,
+            live_wallet_reservation_ids=body.live_wallet_reservation_ids,
         )
     )
     queued_product_ids = [
@@ -3497,12 +3671,7 @@ def _record_usdc_pair_allowlist_run_state(
     fanout_blockers = _dedupe(
         list(readiness.fanout_blockers)
         + runtime_control_blockers
-        + (
-            ["live_wallet_reservation_missing"]
-            if wallet_allocation["live_wallet_reservation_status"]
-            == "missing_no_live"
-            else []
-        )
+        + wallet_allocation["live_wallet_reservation_blockers"]
         + (
             ["product_evidence_blocked"]
             if any(
@@ -3559,6 +3728,12 @@ def _record_usdc_pair_allowlist_run_state(
         wallet_allocation_blockers=wallet_allocation["wallet_allocation_blockers"],
         live_wallet_reservation_status=(
             wallet_allocation["live_wallet_reservation_status"]
+        ),
+        live_wallet_reservation_ids=(
+            wallet_allocation["live_wallet_reservation_ids"]
+        ),
+        live_wallet_reserved_notional_usdc=(
+            wallet_allocation["live_wallet_reserved_notional_usdc"]
         ),
         live_wallet_reservation_blockers=(
             wallet_allocation["live_wallet_reservation_blockers"]
@@ -4705,6 +4880,10 @@ def record_usdc_pair_snapshot_allowlist_run_state(
         FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
         Depends(get_usdc_pair_snapshot_order_plan_live_readiness_store),
     ],
+    live_wallet_reservation_store: Annotated[
+        FileUsdcPairSnapshotLiveWalletReservationStore,
+        Depends(get_usdc_pair_snapshot_live_wallet_reservation_store),
+    ],
     idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
     audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
 ) -> JSONResponse:
@@ -4730,6 +4909,7 @@ def record_usdc_pair_snapshot_allowlist_run_state(
             run_state_store=run_state_store,
             cap_guard_store=cap_guard_store,
             live_readiness_store=live_readiness_store,
+            live_wallet_reservation_store=live_wallet_reservation_store,
             actor=actor,
             operator_intent=operator_intent,
             idempotency_key=idempotency_key,

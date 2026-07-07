@@ -235,6 +235,8 @@ class UsdcPairSnapshotAllowlistRunStateRecord(BaseModel):
         default="legacy_unverified",
         min_length=1,
     )
+    live_wallet_reservation_ids: list[str] = Field(default_factory=list)
+    live_wallet_reserved_notional_usdc: str = "0"
     live_wallet_reservation_blockers: list[str] = Field(default_factory=list)
     live_readiness_status: str = Field(
         default="legacy_unverified",
@@ -281,6 +283,40 @@ class UsdcPairSnapshotAllowlistRunStateRecord(BaseModel):
     notional_usdc: str = "0"
     detail: str = Field(min_length=1)
     source: str = "admin_api_usdc_pair_snapshot_allowlist_run_state_log"
+
+
+class UsdcPairSnapshotLiveWalletReservationRecord(BaseModel):
+    """Append-only backend no-live M58 live-wallet reservation evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reservation_id: str = Field(min_length=1)
+    run_state_id: str = Field(min_length=1)
+    readiness_id: str = Field(min_length=1)
+    plan_id: str = Field(min_length=1)
+    snapshot_run_id: str = Field(min_length=1)
+    product_id: str = Field(min_length=1)
+    client_order_id: str = Field(min_length=1)
+    recorded_at: str = Field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+    reserved_notional_usdc: str = Field(min_length=1)
+    wallet_available_notional_usdc: str = Field(min_length=1)
+    reservation_status: str = Field(default="reserved_no_live", min_length=1)
+    debit_status: str = Field(default="missing_no_live", min_length=1)
+    release_status: str = Field(default="missing_no_live", min_length=1)
+    actor_id: str = Field(min_length=1)
+    operator_intent: str = Field(min_length=1)
+    idempotency_key: str = Field(min_length=1)
+    payload_hash: str = Field(min_length=64, max_length=64)
+    audit_id: str | None = None
+    operator_notes: str | None = None
+    live_exchange_submitted: bool = False
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_execution: str = "not_run"
+    notional_usdc: str = "0"
+    detail: str = Field(min_length=1)
+    source: str = "admin_api_usdc_pair_snapshot_live_wallet_reservation_log"
 
 
 class UsdcPairSnapshotOrderPlanLiveSubmitRecord(BaseModel):
@@ -735,6 +771,88 @@ class FileUsdcPairSnapshotAllowlistRunStateStore:
             ),
             None,
         )
+
+
+class FileUsdcPairSnapshotLiveWalletReservationStore:
+    """Append-only JSONL store for M58 no-live wallet reservation evidence."""
+
+    def __init__(self, path: Path | str | None = None) -> None:
+        configured_path = (
+            path
+            or os.environ.get(
+                "COINBASE_ADMIN_API_USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_LOG_PATH"
+            )
+            or Path("runtime_state")
+            / "admin_api_usdc_pair_snapshot_live_wallet_reservations.jsonl"
+        )
+        self.path = Path(configured_path)
+        self._lock = RLock()
+
+    def append(self, record: UsdcPairSnapshotLiveWalletReservationRecord) -> str:
+        with self._lock:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            with self.path.open("a", encoding="utf-8") as handle:
+                handle.write(record.model_dump_json() + "\n")
+            return record.reservation_id
+
+    def read_recent(
+        self,
+        *,
+        limit: int = 100,
+    ) -> list[UsdcPairSnapshotLiveWalletReservationRecord]:
+        normalized_limit = max(1, min(limit, 500))
+        with self._lock:
+            if not self.path.exists():
+                return []
+            lines = self.path.read_text(encoding="utf-8").splitlines()
+        records: list[UsdcPairSnapshotLiveWalletReservationRecord] = []
+        for line in reversed(lines):
+            if not line.strip():
+                continue
+            try:
+                records.append(
+                    UsdcPairSnapshotLiveWalletReservationRecord.model_validate_json(
+                        line
+                    )
+                )
+            except ValueError:
+                continue
+            if len(records) >= normalized_limit:
+                break
+        return records
+
+    def find_by_reservation_id(
+        self,
+        reservation_id: str,
+    ) -> UsdcPairSnapshotLiveWalletReservationRecord | None:
+        """Return the latest readable wallet reservation record for an id."""
+
+        return next(
+            (
+                record
+                for record in self.read_recent(limit=500)
+                if record.reservation_id == reservation_id
+            ),
+            None,
+        )
+
+    def count_records(self) -> int:
+        """Return the number of readable wallet reservation records."""
+
+        with self._lock:
+            if not self.path.exists():
+                return 0
+            lines = self.path.read_text(encoding="utf-8").splitlines()
+        count = 0
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                UsdcPairSnapshotLiveWalletReservationRecord.model_validate_json(line)
+            except ValueError:
+                continue
+            count += 1
+        return count
 
 
 class FileUsdcPairSnapshotOrderPlanLiveSubmitStore:
