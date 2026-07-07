@@ -233,6 +233,10 @@ USDC_PAIR_SNAPSHOT_RETRY_BACKOFF_MISSING_BLOCKER = "retry_backoff_ref_missing"
 USDC_PAIR_SNAPSHOT_RETRY_BACKOFF_CONFLICT_BLOCKER = "retry_backoff_ref_conflict"
 USDC_PAIR_SNAPSHOT_RUN_PAUSED_BLOCKER = "run_paused_no_live"
 USDC_PAIR_SNAPSHOT_RUN_ABORTED_BLOCKER = "run_aborted_no_live"
+USDC_PAIR_SNAPSHOT_RUN_STATE_LIVE_SUBMIT_ALLOWED_FANOUT_BLOCKERS = {
+    "fanout_execution_not_approved",
+    "scheduler_blocked",
+}
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_ACCOUNT_FAMILY = "coinbase_spot"
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_VENUE_SCOPE = "coinbase_advanced_trade"
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_INTX_APPLICABILITY = "not_applicable"
@@ -4772,6 +4776,14 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_fanout_notional_not_passed")
     if run_state.partial_success_status != "ready_no_live":
         blockers.append("run_state_partial_success_not_ready")
+    unexpected_fanout_blockers = [
+        blocker
+        for blocker in run_state.fanout_blockers
+        if blocker
+        not in USDC_PAIR_SNAPSHOT_RUN_STATE_LIVE_SUBMIT_ALLOWED_FANOUT_BLOCKERS
+    ]
+    if unexpected_fanout_blockers:
+        blockers.append("run_state_parent_fanout_blockers_present")
     if run_state.run_lock_status != "recorded_no_live":
         blockers.append("run_state_run_lock_not_recorded")
     if not run_state.run_lock_ref:
