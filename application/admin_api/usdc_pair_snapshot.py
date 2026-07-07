@@ -231,6 +231,11 @@ class UsdcPairSnapshotAllowlistRunStateRecord(BaseModel):
     wallet_allocated_notional_usdc: str = "0"
     wallet_remaining_usdc: str = "0"
     wallet_allocation_blockers: list[str] = Field(default_factory=list)
+    live_wallet_reservation_status: str = Field(
+        default="legacy_unverified",
+        min_length=1,
+    )
+    live_wallet_reservation_blockers: list[str] = Field(default_factory=list)
     live_readiness_status: str = Field(
         default="legacy_unverified",
         min_length=1,

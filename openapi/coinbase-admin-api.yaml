@@ -169952,6 +169952,16 @@ components:
             type: string
           type: array
           title: Wallet Allocation Blockers
+        live_wallet_reservation_status:
+          type: string
+          minLength: 1
+          title: Live Wallet Reservation Status
+          default: not_evaluated
+        live_wallet_reservation_blockers:
+          items:
+            type: string
+          type: array
+          title: Live Wallet Reservation Blockers
         live_readiness_status:
           type: string
           minLength: 1
@@ -170382,6 +170392,16 @@ components:
           - type: string
           - type: 'null'
           title: Wallet Check Source
+        live_wallet_reservation_status:
+          type: string
+          minLength: 1
+          title: Live Wallet Reservation Status
+          default: not_evaluated
+        live_wallet_reservation_blockers:
+          items:
+            type: string
+          type: array
+          title: Live Wallet Reservation Blockers
         live_readiness_status:
           type: string
           minLength: 1

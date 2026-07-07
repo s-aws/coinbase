@@ -34730,6 +34730,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
     assert run_state["wallet_allocated_notional_usdc"] == "1.00"
     assert run_state["wallet_remaining_usdc"] == "0.00"
     assert run_state["wallet_allocation_blockers"] == []
+    assert run_state["live_wallet_reservation_status"] == "missing_no_live"
+    assert run_state["live_wallet_reservation_blockers"] == [
+        "live_wallet_reservation_missing",
+        "live_wallet_debit_missing",
+        "live_wallet_release_missing",
+    ]
     assert run_state["live_readiness_status"] == "ready_no_live"
     assert run_state["live_ready_product_ids"] == ["BTC-USDC"]
     assert run_state["live_readiness_missing_product_ids"] == []
@@ -34748,6 +34754,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
     assert run_state["fanout_blockers"] == [
         "fanout_execution_not_approved",
         "scheduler_blocked",
+        "live_wallet_reservation_missing",
         "product_evidence_blocked",
     ]
     assert run_state["queued_product_ids"] == ["BTC-USDC"]
@@ -34784,6 +34791,14 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
     assert product_states["BTC-USDC"]["wallet_check_source"] == (
         "m58_usdc_pair_allowlist_run_state_fixture"
     )
+    assert product_states["BTC-USDC"]["live_wallet_reservation_status"] == (
+        "missing_no_live"
+    )
+    assert product_states["BTC-USDC"]["live_wallet_reservation_blockers"] == [
+        "live_wallet_reservation_missing",
+        "live_wallet_debit_missing",
+        "live_wallet_release_missing",
+    ]
     assert product_states["BTC-USDC"]["live_readiness_status"] == "ready_no_live"
     assert product_states["BTC-USDC"]["live_readiness_id"] == (
         "m58-usdc-allowlist-run-state-readiness-test-live-readiness-btc_usdc"
@@ -34802,6 +34817,10 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
     assert product_states["ETH-USDC"]["allocated_notional_usdc"] == "0.00"
     assert product_states["ETH-USDC"]["fanout_cap_remaining_after_usdc"] == "99.00"
     assert product_states["ETH-USDC"]["wallet_allocation_status"] == "not_queued"
+    assert product_states["ETH-USDC"]["live_wallet_reservation_status"] == (
+        "not_queued"
+    )
+    assert product_states["ETH-USDC"]["live_wallet_reservation_blockers"] == []
     assert product_states["ETH-USDC"]["blockers"] == [
         "proof_chain_not_accepted"
     ]

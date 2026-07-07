@@ -735,6 +735,18 @@ def run_usdc_pair_snapshot_live_submit(
         "run_state_status": run_state.get("run_state_status"),
         "run_state_queued_product_ids": run_state.get("queued_product_ids"),
         "run_state_live_readiness_id": run_state_product.get("live_readiness_id"),
+        "run_state_live_wallet_reservation_status": run_state.get(
+            "live_wallet_reservation_status"
+        ),
+        "run_state_live_wallet_reservation_blockers": run_state.get(
+            "live_wallet_reservation_blockers"
+        ),
+        "run_state_product_live_wallet_reservation_status": (
+            run_state_product.get("live_wallet_reservation_status")
+        ),
+        "run_state_product_live_wallet_reservation_blockers": (
+            run_state_product.get("live_wallet_reservation_blockers")
+        ),
         "fanout_execution_status": run_state.get("fanout_execution_status"),
         "fanout_blockers": run_state.get("fanout_blockers"),
         "max_fanout_notional_usdc": run_state.get("max_fanout_notional_usdc"),

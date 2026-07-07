@@ -200,6 +200,11 @@ USDC_PAIR_SNAPSHOT_LIVE_SERVICE_DISABLED_BLOCKER = (
     USDC_PAIR_ORDER_PLAN_LIVE_DISABLED_BLOCKER
 )
 USDC_PAIR_SNAPSHOT_LIVE_SUBMISSION_MISSING_BLOCKER = "live_submission_missing"
+USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_BLOCKERS = [
+    "live_wallet_reservation_missing",
+    "live_wallet_debit_missing",
+    "live_wallet_release_missing",
+]
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_ACCOUNT_FAMILY = "coinbase_spot"
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_VENUE_SCOPE = "coinbase_advanced_trade"
 USDC_PAIR_SNAPSHOT_LIVE_SERVICE_INTX_APPLICABILITY = "not_applicable"
@@ -665,6 +670,10 @@ def _allowlist_run_state_item_from_record(
         wallet_allocated_notional_usdc=record.wallet_allocated_notional_usdc,
         wallet_remaining_usdc=record.wallet_remaining_usdc,
         wallet_allocation_blockers=record.wallet_allocation_blockers,
+        live_wallet_reservation_status=record.live_wallet_reservation_status,
+        live_wallet_reservation_blockers=(
+            record.live_wallet_reservation_blockers
+        ),
         live_readiness_status=record.live_readiness_status,
         live_ready_product_ids=record.live_ready_product_ids,
         live_readiness_missing_product_ids=(
@@ -2951,6 +2960,23 @@ def _dedupe(values: list[str]) -> list[str]:
     return list(dict.fromkeys(value for value in values if value))
 
 
+def _live_wallet_reservation_evidence(
+    *,
+    queued_for_no_live: bool,
+) -> dict[str, Any]:
+    if not queued_for_no_live:
+        return {
+            "live_wallet_reservation_status": "not_queued",
+            "live_wallet_reservation_blockers": [],
+        }
+    return {
+        "live_wallet_reservation_status": "missing_no_live",
+        "live_wallet_reservation_blockers": list(
+            USDC_PAIR_SNAPSHOT_LIVE_WALLET_RESERVATION_BLOCKERS
+        ),
+    }
+
+
 def _allowlist_run_state_cap_guard_record_blockers(
     *,
     record: Any,
@@ -3053,6 +3079,9 @@ def _apply_allowlist_run_state_wallet_allocation(
                             Decimal("0")
                         ),
                         "wallet_remaining_after_usdc": _decimal_string(remaining),
+                        **_live_wallet_reservation_evidence(
+                            queued_for_no_live=False
+                        ),
                     }
                 )
             )
@@ -3079,6 +3108,9 @@ def _apply_allowlist_run_state_wallet_allocation(
                             if blocked_record is not None
                             else None
                         ),
+                        **_live_wallet_reservation_evidence(
+                            queued_for_no_live=False
+                        ),
                         "blockers": _dedupe(list(item.blockers) + proof_blockers),
                     }
                 )
@@ -3098,6 +3130,9 @@ def _apply_allowlist_run_state_wallet_allocation(
                             Decimal("0")
                         ),
                         "wallet_remaining_after_usdc": _decimal_string(remaining),
+                        **_live_wallet_reservation_evidence(
+                            queued_for_no_live=False
+                        ),
                         "blockers": _dedupe(
                             list(item.blockers) + ["cap_guard_decision_missing"]
                         ),
@@ -3124,6 +3159,9 @@ def _apply_allowlist_run_state_wallet_allocation(
                             wallet_available - allocated_total
                         ),
                         "wallet_check_source": record.wallet_check_source,
+                        **_live_wallet_reservation_evidence(
+                            queued_for_no_live=True
+                        ),
                     }
                 )
             )
@@ -3141,6 +3179,7 @@ def _apply_allowlist_run_state_wallet_allocation(
                     "wallet_allocated_notional_usdc": _decimal_string(Decimal("0")),
                     "wallet_remaining_after_usdc": _decimal_string(remaining),
                     "wallet_check_source": record.wallet_check_source,
+                    **_live_wallet_reservation_evidence(queued_for_no_live=False),
                     "blockers": _dedupe(
                         list(item.blockers) + ["wallet_available_notional_exceeded"]
                     ),
@@ -3149,6 +3188,13 @@ def _apply_allowlist_run_state_wallet_allocation(
         )
 
     wallet_blockers = _dedupe(blockers)
+    live_wallet_reservation_blockers = _dedupe(
+        [
+            blocker
+            for item in updated
+            for blocker in item.live_wallet_reservation_blockers
+        ]
+    )
     return updated, {
         "wallet_allocation_status": (
             "passed" if not wallet_blockers else "blocked"
@@ -3157,6 +3203,10 @@ def _apply_allowlist_run_state_wallet_allocation(
         "wallet_allocated_notional_usdc": _decimal_string(allocated_total),
         "wallet_remaining_usdc": _decimal_string(wallet_available - allocated_total),
         "wallet_allocation_blockers": wallet_blockers,
+        "live_wallet_reservation_status": (
+            "missing_no_live" if live_wallet_reservation_blockers else "not_queued"
+        ),
+        "live_wallet_reservation_blockers": live_wallet_reservation_blockers,
     }
 
 
@@ -3283,6 +3333,12 @@ def _record_usdc_pair_allowlist_run_state(
     fanout_blockers = _dedupe(
         list(readiness.fanout_blockers)
         + (
+            ["live_wallet_reservation_missing"]
+            if wallet_allocation["live_wallet_reservation_status"]
+            == "missing_no_live"
+            else []
+        )
+        + (
             ["product_evidence_blocked"]
             if any(
                 item.execution_state == "blocked"
@@ -3329,6 +3385,12 @@ def _record_usdc_pair_allowlist_run_state(
         ),
         wallet_remaining_usdc=wallet_allocation["wallet_remaining_usdc"],
         wallet_allocation_blockers=wallet_allocation["wallet_allocation_blockers"],
+        live_wallet_reservation_status=(
+            wallet_allocation["live_wallet_reservation_status"]
+        ),
+        live_wallet_reservation_blockers=(
+            wallet_allocation["live_wallet_reservation_blockers"]
+        ),
         live_readiness_status=live_readiness_status,
         live_ready_product_ids=live_ready_product_ids,
         live_readiness_missing_product_ids=live_readiness_missing_product_ids,

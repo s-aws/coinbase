@@ -176,10 +176,27 @@ def test_usdc_pair_snapshot_live_runner_can_submit_from_run_state_handoff(
     assert summary["run_state_status"] == "ready_no_live"
     assert summary["run_state_queued_product_ids"] == ["BTC-USDC"]
     assert summary["run_state_live_readiness_id"] == "m58-runner-readiness"
+    assert summary["run_state_live_wallet_reservation_status"] == (
+        "missing_no_live"
+    )
+    assert summary["run_state_live_wallet_reservation_blockers"] == [
+        "live_wallet_reservation_missing",
+        "live_wallet_debit_missing",
+        "live_wallet_release_missing",
+    ]
+    assert summary["run_state_product_live_wallet_reservation_status"] == (
+        "missing_no_live"
+    )
+    assert summary["run_state_product_live_wallet_reservation_blockers"] == [
+        "live_wallet_reservation_missing",
+        "live_wallet_debit_missing",
+        "live_wallet_release_missing",
+    ]
     assert summary["fanout_execution_status"] == "blocked"
     assert summary["fanout_blockers"] == [
         "fanout_execution_not_approved",
         "scheduler_blocked",
+        "live_wallet_reservation_missing",
     ]
     assert summary["live_coinbase_execution"] == "submitted_cancelled"
     assert summary["submitted_notional_usdc"] == "1.00"
