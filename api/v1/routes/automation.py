@@ -3406,7 +3406,11 @@ def _live_wallet_reservation_evidence(
             record=record,
             planned_notional=planned_notional,
         )
-        blockers = debit_blockers + release_blockers
+        reference_conflict_blockers = _live_wallet_historical_reference_blockers(
+            record=record,
+            reservation_store=reservation_store,
+        )
+        blockers = debit_blockers + release_blockers + reference_conflict_blockers
         return {
             "live_wallet_reservation_status": (
                 "reserved_no_live" if blockers else "ready_no_live"
@@ -3523,6 +3527,28 @@ def _live_wallet_release_evidence_blockers(
     return []
 
 
+def _live_wallet_historical_reference_blockers(
+    *,
+    record: UsdcPairSnapshotLiveWalletReservationRecord,
+    reservation_store: FileUsdcPairSnapshotLiveWalletReservationStore,
+) -> list[str]:
+    blockers: list[str] = []
+    for existing in reservation_store.read_recent(limit=500):
+        if existing.reservation_id == record.reservation_id:
+            continue
+        if record.debit_id and existing.debit_id == record.debit_id:
+            blockers.append(
+                USDC_PAIR_SNAPSHOT_LIVE_WALLET_DEBIT_REF_CONFLICT_BLOCKER
+            )
+        if record.release_id and existing.release_id == record.release_id:
+            blockers.append(
+                USDC_PAIR_SNAPSHOT_LIVE_WALLET_RELEASE_REF_CONFLICT_BLOCKER
+            )
+        if len(set(blockers)) == 2:
+            break
+    return _dedupe(blockers)
+
+
 def _live_wallet_reference_conflict_blockers_by_product(
     *,
     product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
@@ -3542,10 +3568,18 @@ def _live_wallet_reference_conflict_blockers_by_product(
             )
 
     blockers_by_product: dict[str, list[str]] = {}
+    conflict_blocker_values = {
+        USDC_PAIR_SNAPSHOT_LIVE_WALLET_DEBIT_REF_CONFLICT_BLOCKER,
+        USDC_PAIR_SNAPSHOT_LIVE_WALLET_RELEASE_REF_CONFLICT_BLOCKER,
+    }
     for item in product_states:
         if item.execution_state != "queued_no_live":
             continue
-        blockers: list[str] = []
+        blockers: list[str] = [
+            blocker
+            for blocker in item.live_wallet_reservation_blockers
+            if blocker in conflict_blocker_values
+        ]
         if (
             item.live_wallet_debit_id
             and debit_counts.get(item.live_wallet_debit_id, 0) > 1

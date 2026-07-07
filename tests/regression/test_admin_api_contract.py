@@ -35983,6 +35983,96 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_reused_debit_re
     assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
 
 
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_historical_debit_release_ref_reuse(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    shared_debit_id = "wallet-debit-m58-historical-ref-reuse"
+    shared_release_id = "wallet-release-m58-historical-ref-reuse"
+    _append_usdc_pair_snapshot_live_wallet_reservation_ref_fixture(
+        client,
+        readiness_id="m58-usdc-run-state-wallet-ref-source",
+        run_state_id="m58-usdc-run-state-wallet-ref-source",
+        cap_guard_decision_id="cap-m58-run-state-wallet-ref-source",
+        reservation_id="wallet-reservation-m58-historical-ref-source",
+        debit_status="debited_no_live",
+        release_status="released_no_live",
+        reservation_record_extra={
+            "debit_id": shared_debit_id,
+            "debited_notional_usdc": "1.00",
+            "release_id": shared_release_id,
+            "released_notional_usdc": "1.00",
+            "release_reason": "no_live_run_state_rehearsal",
+        },
+    )
+    readiness_id = "m58-usdc-run-state-wallet-ref-current"
+    run_state_id = "m58-usdc-run-state-wallet-ref-current"
+    reservation_id = "wallet-reservation-m58-historical-ref-current"
+    _append_usdc_pair_snapshot_live_wallet_reservation_ref_fixture(
+        client,
+        readiness_id=readiness_id,
+        run_state_id=run_state_id,
+        cap_guard_decision_id="cap-m58-run-state-wallet-ref-current",
+        reservation_id=reservation_id,
+        debit_status="debited_no_live",
+        release_status="released_no_live",
+        reservation_record_extra={
+            "debit_id": shared_debit_id,
+            "debited_notional_usdc": "1.00",
+            "release_id": shared_release_id,
+            "released_notional_usdc": "1.00",
+            "release_reason": "no_live_run_state_rehearsal",
+        },
+    )
+
+    payload = _post_usdc_pair_snapshot_live_wallet_reservation_run_state(
+        client,
+        readiness_id=readiness_id,
+        run_state_id=run_state_id,
+        reservation_id=reservation_id,
+    )
+
+    run_state = payload["run_state"]
+    assert run_state["run_state_status"] == "blocked"
+    assert run_state["queued_product_ids"] == []
+    assert run_state["blocked_product_ids"] == ["BTC-USDC"]
+    assert run_state["wallet_allocation_status"] == "blocked"
+    assert run_state["wallet_allocated_notional_usdc"] == "0.00"
+    assert run_state["live_wallet_reservation_status"] == "reserved_no_live"
+    assert run_state["live_wallet_reservation_blockers"] == [
+        "live_wallet_debit_ref_conflict",
+        "live_wallet_release_ref_conflict",
+    ]
+    assert "live_wallet_debit_ref_conflict" in run_state["fanout_blockers"]
+    assert "live_wallet_release_ref_conflict" in run_state["fanout_blockers"]
+    assert "product_evidence_blocked" in run_state["fanout_blockers"]
+
+    product_row = run_state["product_states"][0]
+    assert product_row["execution_state"] == "blocked"
+    assert product_row["retry_state"] == "blocked"
+    assert product_row["rate_limit_state"] == "blocked"
+    assert product_row["recovery_state"] == "not_required"
+    assert product_row["retry_attempts_available"] == 0
+    assert product_row["wallet_allocation_status"] == (
+        "live_wallet_reference_conflict"
+    )
+    assert product_row["wallet_allocated_notional_usdc"] == "0.00"
+    assert product_row["live_wallet_reservation_status"] == "reserved_no_live"
+    assert product_row["live_wallet_debit_id"] == shared_debit_id
+    assert product_row["live_wallet_release_id"] == shared_release_id
+    assert product_row["live_wallet_reservation_blockers"] == [
+        "live_wallet_debit_ref_conflict",
+        "live_wallet_release_ref_conflict",
+    ]
+    assert product_row["blockers"] == [
+        "live_wallet_debit_ref_conflict",
+        "live_wallet_release_ref_conflict",
+    ]
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
 def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
     client,
     *,

@@ -75,7 +75,8 @@ Available building blocks:
   pre-allocation readiness. Missing live wallet reservation/debit/release
   evidence blocks aggregate run-state fan-out readiness while preserving the
   queued product row for the one-selected-product handoff proof path. Reused
-  no-live debit or release refs across queued products fail closed with
+  no-live debit or release refs across queued products or prior reservation
+  records fail closed with
   `live_wallet_debit_ref_conflict` or `live_wallet_release_ref_conflict`,
   remove those rows from the queued set, and zero their wallet allocation.
   Final-blocked products also clear stale cancel-recovery refs when recovery is
@@ -534,9 +535,10 @@ Final-blocked products clear stale cancel-recovery refs when recovery is not
 required. Missing live wallet reservation/debit/release evidence also keeps the
 aggregate run-state blocked for fan-out while preserving queued product rows for
 the one-selected-product handoff proof path. Reused no-live debit or release
-refs across queued products fail closed with `live_wallet_debit_ref_conflict`
-or `live_wallet_release_ref_conflict`, remove the affected rows from queued
-product ids, and zero their wallet allocation. This evidence remains
+refs across queued products or prior reservation records fail closed with
+`live_wallet_debit_ref_conflict` or `live_wallet_release_ref_conflict`, remove
+the affected rows from queued product ids, and zero their wallet allocation.
+This evidence remains
 `fanout_readiness_status=blocked`, `fanout_execution_status=blocked`,
 `live_coinbase_execution=not_run`, and notional `0`; it does not submit
 Coinbase orders, fan out execution, fetch/reserve/debit live wallet balance,
@@ -745,8 +747,9 @@ cap/wallet allocation.
 Missing live wallet reservation/debit/release evidence now blocks aggregate
 run-state fan-out readiness while preserving queued product rows for the
 one-selected-product handoff proof path. Reused no-live debit or release refs
-now fail closed with explicit wallet reference conflict blockers and zero
-affected wallet allocation.
+across queued products or prior reservation records now fail closed with
+explicit wallet reference conflict blockers and zero affected wallet
+allocation.
 The run-state live-submit handoff also rejects blocked parent run-lock,
 pause/abort, or rate-limit evidence before any executor call.
 Blocked product rows are no longer reported as retryable or recovery-required.
