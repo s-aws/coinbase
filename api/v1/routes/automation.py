@@ -275,6 +275,12 @@ USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_BLOCKERS = [
     "scheduler_cadence_not_configured",
     "scheduler_release_gate_uncleared",
 ]
+USDC_PAIR_SNAPSHOT_SCHEDULER_RECOVERY_RUNBOOK_BLOCKED_STATUS = "blocked_no_live"
+USDC_PAIR_SNAPSHOT_SCHEDULER_RECOVERY_RUNBOOK_BLOCKERS = [
+    "scheduler_recovery_runbook_missing",
+    "scheduler_recovery_worker_missing",
+    "scheduler_reconciliation_replay_missing",
+]
 USDC_PAIR_SNAPSHOT_RUN_STATE_LIVE_SUBMIT_ALLOWED_FANOUT_BLOCKERS = {
     USDC_PAIR_SNAPSHOT_FANOUT_EXECUTION_LEGACY_APPROVAL_BLOCKER,
     USDC_PAIR_SNAPSHOT_FANOUT_EXECUTION_TECHNICAL_BLOCKER,
@@ -879,6 +885,13 @@ def _allowlist_run_state_item_from_record(
         scheduler_worker_ref=record.scheduler_worker_ref,
         scheduler_cadence_status=record.scheduler_cadence_status,
         scheduler_cadence_blockers=record.scheduler_cadence_blockers,
+        scheduler_recovery_runbook_status=(
+            record.scheduler_recovery_runbook_status
+        ),
+        scheduler_recovery_runbook_ref=record.scheduler_recovery_runbook_ref,
+        scheduler_recovery_runbook_blockers=(
+            record.scheduler_recovery_runbook_blockers
+        ),
         fanout_execution_status=record.fanout_execution_status,
         run_state_status=record.run_state_status,
         fanout_blockers=record.fanout_blockers,
@@ -5158,6 +5171,13 @@ def _record_usdc_pair_allowlist_run_state(
         scheduler_cadence_blockers=list(
             USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_BLOCKERS
         ),
+        scheduler_recovery_runbook_status=(
+            USDC_PAIR_SNAPSHOT_SCHEDULER_RECOVERY_RUNBOOK_BLOCKED_STATUS
+        ),
+        scheduler_recovery_runbook_ref=None,
+        scheduler_recovery_runbook_blockers=list(
+            USDC_PAIR_SNAPSHOT_SCHEDULER_RECOVERY_RUNBOOK_BLOCKERS
+        ),
         fanout_execution_status="blocked",
         run_state_status=run_state_status,
         fanout_blockers=fanout_blockers,
@@ -5725,6 +5745,26 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         for blocker in USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_BLOCKERS
     ):
         blockers.append("run_state_scheduler_cadence_blockers_missing")
+    if (
+        run_state.scheduler_recovery_runbook_status
+        != USDC_PAIR_SNAPSHOT_SCHEDULER_RECOVERY_RUNBOOK_BLOCKED_STATUS
+    ):
+        blockers.append("run_state_scheduler_recovery_runbook_not_blocked")
+    if run_state.scheduler_recovery_runbook_ref:
+        blockers.append("run_state_scheduler_recovery_runbook_ref_present")
+    scheduler_recovery_runbook_blockers = list(
+        run_state.scheduler_recovery_runbook_blockers
+    )
+    if (
+        scheduler_recovery_runbook_blockers
+        != USDC_PAIR_SNAPSHOT_SCHEDULER_RECOVERY_RUNBOOK_BLOCKERS
+    ):
+        blockers.append("run_state_scheduler_recovery_runbook_blockers_mismatch")
+    if any(
+        blocker not in scheduler_recovery_runbook_blockers
+        for blocker in USDC_PAIR_SNAPSHOT_SCHEDULER_RECOVERY_RUNBOOK_BLOCKERS
+    ):
+        blockers.append("run_state_scheduler_recovery_runbook_blockers_missing")
     if run_state.run_lock_status != "recorded_no_live":
         blockers.append("run_state_run_lock_not_recorded")
     if not run_state.run_lock_ref:

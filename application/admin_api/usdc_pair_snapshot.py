@@ -346,6 +346,18 @@ class UsdcPairSnapshotAllowlistRunStateRecord(BaseModel):
             "scheduler_release_gate_uncleared",
         ]
     )
+    scheduler_recovery_runbook_status: str = Field(
+        default="blocked_no_live",
+        min_length=1,
+    )
+    scheduler_recovery_runbook_ref: str | None = None
+    scheduler_recovery_runbook_blockers: list[str] = Field(
+        default_factory=lambda: [
+            "scheduler_recovery_runbook_missing",
+            "scheduler_recovery_worker_missing",
+            "scheduler_reconciliation_replay_missing",
+        ]
+    )
     fanout_execution_status: str = "blocked"
     run_state_status: str = "blocked"
     fanout_blockers: list[str] = Field(default_factory=list)

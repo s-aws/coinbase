@@ -170335,6 +170335,21 @@ components:
             type: string
           type: array
           title: Scheduler Cadence Blockers
+        scheduler_recovery_runbook_status:
+          type: string
+          minLength: 1
+          title: Scheduler Recovery Runbook Status
+          default: blocked_no_live
+        scheduler_recovery_runbook_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scheduler Recovery Runbook Ref
+        scheduler_recovery_runbook_blockers:
+          items:
+            type: string
+          type: array
+          title: Scheduler Recovery Runbook Blockers
         fanout_execution_status:
           type: string
           minLength: 1
