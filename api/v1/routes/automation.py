@@ -260,6 +260,12 @@ USDC_PAIR_SNAPSHOT_FANOUT_EXECUTION_TECHNICAL_BLOCKER = (
     "fanout_execution_technically_blocked"
 )
 USDC_PAIR_SNAPSHOT_FANOUT_SCOPE_AUTHORIZED_STATUS = "standing_cap_authorized"
+USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_EXECUTION_BLOCKED_STATUS = "blocked_no_live"
+USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_BLOCKERS = [
+    "runtime_fanout_worker_missing",
+    "runtime_fanout_wallet_ledger_live_semantics_missing",
+    "runtime_fanout_retry_recovery_semantics_missing",
+]
 USDC_PAIR_SNAPSHOT_SCHEDULER_BLOCKED_BLOCKER = "scheduler_blocked"
 USDC_PAIR_SNAPSHOT_SCHEDULER_EXECUTION_BLOCKED_STATUS = "blocked_no_live"
 USDC_PAIR_SNAPSHOT_SCHEDULER_UNATTENDED_NOT_RUN = "not_run"
@@ -856,6 +862,11 @@ def _allowlist_run_state_item_from_record(
         ),
         recovery_status=record.recovery_status,
         partial_success_status=record.partial_success_status,
+        runtime_fanout_execution_status=record.runtime_fanout_execution_status,
+        runtime_fanout_worker_ref=record.runtime_fanout_worker_ref,
+        runtime_fanout_execution_blockers=(
+            record.runtime_fanout_execution_blockers
+        ),
         scheduler_execution_status=record.scheduler_execution_status,
         scheduler_execution_blockers=record.scheduler_execution_blockers,
         scheduler_unattended_execution=record.scheduler_unattended_execution,
@@ -5117,6 +5128,13 @@ def _record_usdc_pair_allowlist_run_state(
         recovery_ref_conflict_run_state_id=recovery_ref_conflict_run_state_id,
         recovery_status=runtime_statuses["recovery_status"],
         partial_success_status=runtime_statuses["partial_success_status"],
+        runtime_fanout_execution_status=(
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_EXECUTION_BLOCKED_STATUS
+        ),
+        runtime_fanout_worker_ref=None,
+        runtime_fanout_execution_blockers=list(
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_BLOCKERS
+        ),
         scheduler_execution_status=(
             USDC_PAIR_SNAPSHOT_SCHEDULER_EXECUTION_BLOCKED_STATUS
         ),
@@ -5628,6 +5646,26 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         blockers.append("run_state_partial_success_not_ready")
     if run_state.fanout_execution_status != "blocked":
         blockers.append("run_state_fanout_execution_not_blocked")
+    if (
+        run_state.runtime_fanout_execution_status
+        != USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_EXECUTION_BLOCKED_STATUS
+    ):
+        blockers.append("run_state_runtime_fanout_execution_not_blocked")
+    if run_state.runtime_fanout_worker_ref:
+        blockers.append("run_state_runtime_fanout_worker_ref_present")
+    runtime_fanout_execution_blockers = list(
+        run_state.runtime_fanout_execution_blockers
+    )
+    if (
+        runtime_fanout_execution_blockers
+        != USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_BLOCKERS
+    ):
+        blockers.append("run_state_runtime_fanout_blockers_mismatch")
+    if any(
+        blocker not in runtime_fanout_execution_blockers
+        for blocker in USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_BLOCKERS
+    ):
+        blockers.append("run_state_runtime_fanout_blockers_missing")
     unexpected_fanout_blockers = [
         blocker
         for blocker in run_state.fanout_blockers

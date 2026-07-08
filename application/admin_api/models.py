@@ -3222,6 +3222,18 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
     recovery_ref_conflict_run_state_id: str | None = None
     recovery_status: str = Field(min_length=1)
     partial_success_status: str = Field(min_length=1)
+    runtime_fanout_execution_status: str = Field(
+        default="blocked_no_live",
+        min_length=1,
+    )
+    runtime_fanout_worker_ref: str | None = None
+    runtime_fanout_execution_blockers: list[str] = Field(
+        default_factory=lambda: [
+            "runtime_fanout_worker_missing",
+            "runtime_fanout_wallet_ledger_live_semantics_missing",
+            "runtime_fanout_retry_recovery_semantics_missing",
+        ]
+    )
     scheduler_execution_status: str = Field(default="blocked_no_live", min_length=1)
     scheduler_execution_blockers: list[str] = Field(
         default_factory=lambda: ["scheduler_blocked"]

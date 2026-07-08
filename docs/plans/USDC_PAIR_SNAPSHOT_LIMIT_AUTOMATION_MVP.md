@@ -79,6 +79,10 @@ Available building blocks:
   `rate_limit_window_remaining_order_count`,
   `rate_limit_window_overage_order_count`, and `rate_limit_window_within_cap`
   as 5-per-1-second window capacity proof. Run-state evidence now also records
+  `runtime_fanout_execution_status`, `runtime_fanout_worker_ref`, and
+  `runtime_fanout_execution_blockers` as explicit blocked runtime fan-out
+  readback; live-submit rejects stale runtime fan-out readback that claims a
+  worker exists or omits required runtime fan-out blockers. It also records
   `scheduler_execution_status`, `scheduler_execution_blockers`, and
   `scheduler_unattended_execution` as explicit backend
   no-scheduler/no-unattended-execution readback, and live-submit rejects stale
@@ -636,9 +640,12 @@ run-state also exposes `run_lock_recorded_at`, `run_lock_conflict_run_state_id`,
 `rate_limit_attempted_order_count`, `rate_limit_window_remaining_order_count`,
 `rate_limit_window_overage_order_count`, and `rate_limit_window_within_cap`
 before any future scheduler or fan-out path can rely on the rate-limit window.
-It also exposes `scheduler_execution_status`, `scheduler_execution_blockers`,
-and `scheduler_unattended_execution` before any future scheduler or fan-out path
-can rely on no-scheduler/no-unattended-execution evidence.
+It also exposes `runtime_fanout_execution_status`,
+`runtime_fanout_worker_ref`, and `runtime_fanout_execution_blockers` before any
+future fan-out worker can clear the runtime fan-out blocker, and exposes
+`scheduler_execution_status`, `scheduler_execution_blockers`, and
+`scheduler_unattended_execution` before any future scheduler or fan-out path can
+rely on no-scheduler/no-unattended-execution evidence.
 Product run-state rows also expose `retry_budget_per_product` and
 `retry_prior_attempt_count` before retry budget/backoff blockers clear
 remaining attempts. Aggregate run-state evidence also exposes the
@@ -1008,6 +1015,9 @@ Remaining live fan-out/scheduler blockers are now broader live wallet ledger,
 runtime fan-out, release-gate, and contextless-review evidence rather than
 one-selected-product submit-time freshness checks or missing no-live
 multi-product wallet lifecycle readback.
+Current run-state readback records blocked runtime fan-out status, no worker
+ref, and required runtime fan-out blockers; this is explicit blocker evidence,
+not live fan-out authority.
 The backend release gate now records `m58_usdc_pair_live_fanout_gate` and
 `m58_usdc_pair_scheduler_gate` as warnings, plus
 `m58_usdc_pair_contextless_review_gate` as passed for the current
