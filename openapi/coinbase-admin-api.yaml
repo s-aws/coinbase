@@ -171164,6 +171164,24 @@ components:
             minLength: 1
           - type: 'null'
           title: Runtime Fanout Rate Limit Release Gate Ref
+        runtime_fanout_pause_control_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Pause Control Ref
+        runtime_fanout_abort_control_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Abort Control Ref
+        runtime_fanout_runtime_control_binding_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Runtime Control Binding Ref
         live_wallet_reservation_ids:
           items:
             type: string

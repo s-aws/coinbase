@@ -4934,6 +4934,43 @@ def _allowlist_run_state_rate_limit_readback(
     )
 
 
+def _allowlist_run_state_runtime_control_readback(
+    *,
+    pause_control_ref: str | None,
+    abort_control_ref: str | None,
+    binding_ref: str | None,
+) -> tuple[str, str | None, list[str]]:
+    blockers: list[str] = []
+    normalized_pause_control_ref = (
+        pause_control_ref.strip() if pause_control_ref else None
+    )
+    normalized_abort_control_ref = (
+        abort_control_ref.strip() if abort_control_ref else None
+    )
+    normalized_binding_ref = binding_ref.strip() if binding_ref else None
+    if not normalized_pause_control_ref:
+        blockers.append("runtime_fanout_pause_control_missing")
+    if not normalized_abort_control_ref:
+        blockers.append("runtime_fanout_abort_control_missing")
+    if not normalized_binding_ref:
+        blockers.append("runtime_fanout_runtime_control_binding_missing")
+    if blockers:
+        return (
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RUNTIME_CONTROL_BLOCKED_STATUS,
+            None,
+            blockers,
+        )
+    return (
+        "ready_no_live",
+        (
+            f"pause:{normalized_pause_control_ref};"
+            f"abort:{normalized_abort_control_ref};"
+            f"binding:{normalized_binding_ref}"
+        ),
+        [],
+    )
+
+
 def _allowlist_run_state_runtime_statuses(
     *,
     readiness: UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
@@ -5282,6 +5319,15 @@ def _record_usdc_pair_allowlist_run_state(
         rate_limit_window_conflict_blocker=rate_limit_window_conflict_blocker,
         rate_limit_window_within_cap=rate_limit_window_within_cap,
     )
+    (
+        runtime_fanout_runtime_control_status,
+        runtime_fanout_runtime_control_ref,
+        runtime_fanout_runtime_control_blockers,
+    ) = _allowlist_run_state_runtime_control_readback(
+        pause_control_ref=body.runtime_fanout_pause_control_ref,
+        abort_control_ref=body.runtime_fanout_abort_control_ref,
+        binding_ref=body.runtime_fanout_runtime_control_binding_ref,
+    )
     run_state_id = body.run_state_id or f"m58-usdc-allowlist-run-state-{uuid4()}"
     live_wallet_ledger = UsdcPairSnapshotLiveWalletLedgerRecord(
         ledger_id=f"{run_state_id}-live-wallet-ledger",
@@ -5556,11 +5602,11 @@ def _record_usdc_pair_allowlist_run_state(
             runtime_fanout_rate_limit_blockers
         ),
         runtime_fanout_runtime_control_status=(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RUNTIME_CONTROL_BLOCKED_STATUS
+            runtime_fanout_runtime_control_status
         ),
-        runtime_fanout_runtime_control_ref=None,
+        runtime_fanout_runtime_control_ref=runtime_fanout_runtime_control_ref,
         runtime_fanout_runtime_control_blockers=list(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RUNTIME_CONTROL_BLOCKERS
+            runtime_fanout_runtime_control_blockers
         ),
         scheduler_execution_status=(
             USDC_PAIR_SNAPSHOT_SCHEDULER_EXECUTION_BLOCKED_STATUS
