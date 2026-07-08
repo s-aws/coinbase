@@ -625,6 +625,10 @@ class UsdcPairSnapshotLiveWalletLedgerRecord(BaseModel):
     readiness_id: str = Field(min_length=1)
     plan_id: str = Field(min_length=1)
     snapshot_run_id: str = Field(min_length=1)
+    queued_product_ids: list[str] = Field(default_factory=list)
+    live_wallet_reservation_ids: list[str] = Field(default_factory=list)
+    live_wallet_debit_ids: list[str] = Field(default_factory=list)
+    live_wallet_release_ids: list[str] = Field(default_factory=list)
     recorded_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )

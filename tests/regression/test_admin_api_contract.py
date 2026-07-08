@@ -34934,6 +34934,10 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
     assert ledger_record.readiness_id == run_state["readiness_id"]
     assert ledger_record.plan_id == run_state["plan_id"]
     assert ledger_record.snapshot_run_id == run_state["snapshot_run_id"]
+    assert ledger_record.queued_product_ids == ["BTC-USDC"]
+    assert ledger_record.live_wallet_reservation_ids == []
+    assert ledger_record.live_wallet_debit_ids == []
+    assert ledger_record.live_wallet_release_ids == []
     assert ledger_record.ledger_status == "blocked_no_live"
     assert ledger_record.wallet_balance_status == "missing_live"
     assert ledger_record.overcommit_prevention_status == "blocked_no_live"
@@ -37415,6 +37419,27 @@ def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
             readiness_id=allowlist_readiness_id,
             plan_id=plan_id,
             snapshot_run_id=snapshot_run_id,
+            queued_product_ids=[product_id] if queued else [],
+            live_wallet_reservation_ids=(
+                [
+                    (
+                        "wallet-reservation-"
+                        f"{allowlist_readiness_id}-{normalized_product_id}"
+                    )
+                ]
+                if wallet_ready_for_submit
+                else []
+            ),
+            live_wallet_debit_ids=(
+                [f"wallet-debit-{allowlist_readiness_id}-{normalized_product_id}"]
+                if wallet_ready_for_submit
+                else []
+            ),
+            live_wallet_release_ids=(
+                [f"wallet-release-{allowlist_readiness_id}-{normalized_product_id}"]
+                if wallet_ready_for_submit
+                else []
+            ),
             wallet_available_notional_usdc="1.00" if queued else "0.00",
             planned_fanout_notional_usdc="1.00",
             allocated_fanout_notional_usdc="1.00" if queued else "0.00",
@@ -42524,6 +42549,92 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
         "run_state_live_wallet_ledger_overcommit_attempted_notional_mismatch"
         in payload["message"]
     )
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_stale_wallet_ledger_tuple_set(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-wallet-ledger-tuple-stale",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-submit-wallet-ledger-tuple-stale-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    ledger_store = client.admin_api_test_usdc_pair_snapshot_live_wallet_ledger_store
+    source_ledger = ledger_store.find_by_ledger_id(
+        f"{ready['run_state_id']}-live-wallet-ledger"
+    )
+    assert source_ledger is not None
+    ledger_store.append(
+        source_ledger.model_copy(
+            update={
+                "queued_product_ids": ["ETH-USDC"],
+                "live_wallet_reservation_ids": [
+                    "wallet-reservation-stale-ledger-tuple"
+                ],
+                "live_wallet_debit_ids": ["wallet-debit-stale-ledger-tuple"],
+                "live_wallet_release_ids": ["wallet-release-stale-ledger-tuple"],
+            }
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-wallet-ledger-tuple-stale"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json={
+            "submission_id": (
+                "m58-usdc-allowlist-live-submit-wallet-ledger-tuple-stale"
+            ),
+            "readiness_id": ready["live_readiness_id"],
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one run-state selected order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "stale wallet ledger tuple set must fail closed",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert "run_state_live_wallet_ledger_queued_product_ids_mismatch" in payload[
+        "message"
+    ]
+    assert (
+        "run_state_live_wallet_ledger_reservation_ids_mismatch"
+        in payload["message"]
+    )
+    assert "run_state_live_wallet_ledger_debit_ids_mismatch" in payload["message"]
+    assert "run_state_live_wallet_ledger_release_ids_mismatch" in payload["message"]
     assert payload["live_exchange_submitted"] is False
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_execution"] == "not_run"

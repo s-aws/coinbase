@@ -281,7 +281,8 @@ Missing before live automation:
   ledger balance, overcommit-prevention, and debit/release semantics are still
   not proven. Live-submit rejects missing, stale, or contradictory wallet-ledger
   record readback, including planned/allocated/active-reserved/overcommit
-  notional drift, before executor invocation. Phase F run-state now requires
+  notional drift and queued product or reservation/debit/release id-set drift,
+  before executor invocation. Phase F run-state now requires
   matching Phase E live-readiness evidence before a product can be queued in
   no-live rehearsal, and the
   single-product Phase E live-readiness route fails closed when the latest

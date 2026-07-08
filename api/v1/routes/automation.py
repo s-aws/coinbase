@@ -5184,6 +5184,12 @@ def _record_usdc_pair_allowlist_run_state(
         readiness_id=readiness.readiness_id,
         plan_id=readiness.plan_id,
         snapshot_run_id=readiness.snapshot_run_id,
+        queued_product_ids=list(queued_product_ids),
+        live_wallet_reservation_ids=list(
+            wallet_allocation["live_wallet_reservation_ids"]
+        ),
+        live_wallet_debit_ids=list(wallet_allocation["live_wallet_debit_ids"]),
+        live_wallet_release_ids=list(wallet_allocation["live_wallet_release_ids"]),
         wallet_available_notional_usdc=(
             wallet_allocation["wallet_available_notional_usdc"]
         ),
@@ -7679,6 +7685,24 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_ledger(
             blockers.append("run_state_live_wallet_ledger_plan_mismatch")
         if record.snapshot_run_id != run_state.snapshot_run_id:
             blockers.append("run_state_live_wallet_ledger_snapshot_mismatch")
+        if _normalized_usdc_pair_product_id_multiset(
+            record.queued_product_ids
+        ) != _normalized_usdc_pair_product_id_multiset(run_state.queued_product_ids):
+            blockers.append("run_state_live_wallet_ledger_queued_product_ids_mismatch")
+        if _normalized_usdc_pair_string_multiset(
+            record.live_wallet_reservation_ids
+        ) != _normalized_usdc_pair_string_multiset(
+            run_state.live_wallet_reservation_ids
+        ):
+            blockers.append("run_state_live_wallet_ledger_reservation_ids_mismatch")
+        if _normalized_usdc_pair_string_multiset(
+            record.live_wallet_debit_ids
+        ) != _normalized_usdc_pair_string_multiset(run_state.live_wallet_debit_ids):
+            blockers.append("run_state_live_wallet_ledger_debit_ids_mismatch")
+        if _normalized_usdc_pair_string_multiset(
+            record.live_wallet_release_ids
+        ) != _normalized_usdc_pair_string_multiset(run_state.live_wallet_release_ids):
+            blockers.append("run_state_live_wallet_ledger_release_ids_mismatch")
         if record.ledger_status != run_state.live_wallet_ledger_status:
             blockers.append("run_state_live_wallet_ledger_status_mismatch")
         if (
