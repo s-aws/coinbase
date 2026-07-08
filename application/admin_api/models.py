@@ -3263,6 +3263,17 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
             "scheduler_wallet_debit_release_missing",
         ]
     )
+    scheduler_release_review_status: str = Field(
+        default="blocked_no_live",
+        min_length=1,
+    )
+    scheduler_release_review_ref: str | None = None
+    scheduler_release_review_blockers: list[str] = Field(
+        default_factory=lambda: [
+            "scheduler_release_gate_uncleared",
+            "scheduler_contextless_review_missing",
+        ]
+    )
     scheduler_worker_ref: str | None = None
     scheduler_cadence_status: str = Field(default="disabled_no_live", min_length=1)
     scheduler_cadence_blockers: list[str] = Field(

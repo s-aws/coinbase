@@ -170350,6 +170350,21 @@ components:
             type: string
           type: array
           title: Scheduler Wallet Ledger Blockers
+        scheduler_release_review_status:
+          type: string
+          minLength: 1
+          title: Scheduler Release Review Status
+          default: blocked_no_live
+        scheduler_release_review_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scheduler Release Review Ref
+        scheduler_release_review_blockers:
+          items:
+            type: string
+          type: array
+          title: Scheduler Release Review Blockers
         scheduler_worker_ref:
           anyOf:
           - type: string

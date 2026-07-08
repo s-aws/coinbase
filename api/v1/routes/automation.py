@@ -281,6 +281,11 @@ USDC_PAIR_SNAPSHOT_SCHEDULER_WALLET_LEDGER_BLOCKERS = [
     "scheduler_wallet_overcommit_prevention_missing",
     "scheduler_wallet_debit_release_missing",
 ]
+USDC_PAIR_SNAPSHOT_SCHEDULER_RELEASE_REVIEW_BLOCKED_STATUS = "blocked_no_live"
+USDC_PAIR_SNAPSHOT_SCHEDULER_RELEASE_REVIEW_BLOCKERS = [
+    "scheduler_release_gate_uncleared",
+    "scheduler_contextless_review_missing",
+]
 USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_DISABLED_STATUS = "disabled_no_live"
 USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_BLOCKERS = [
     "scheduler_worker_missing",
@@ -901,6 +906,11 @@ def _allowlist_run_state_item_from_record(
         scheduler_wallet_ledger_ref=record.scheduler_wallet_ledger_ref,
         scheduler_wallet_ledger_blockers=(
             record.scheduler_wallet_ledger_blockers
+        ),
+        scheduler_release_review_status=record.scheduler_release_review_status,
+        scheduler_release_review_ref=record.scheduler_release_review_ref,
+        scheduler_release_review_blockers=(
+            record.scheduler_release_review_blockers
         ),
         scheduler_worker_ref=record.scheduler_worker_ref,
         scheduler_cadence_status=record.scheduler_cadence_status,
@@ -5198,6 +5208,13 @@ def _record_usdc_pair_allowlist_run_state(
         scheduler_wallet_ledger_blockers=list(
             USDC_PAIR_SNAPSHOT_SCHEDULER_WALLET_LEDGER_BLOCKERS
         ),
+        scheduler_release_review_status=(
+            USDC_PAIR_SNAPSHOT_SCHEDULER_RELEASE_REVIEW_BLOCKED_STATUS
+        ),
+        scheduler_release_review_ref=None,
+        scheduler_release_review_blockers=list(
+            USDC_PAIR_SNAPSHOT_SCHEDULER_RELEASE_REVIEW_BLOCKERS
+        ),
         scheduler_worker_ref=None,
         scheduler_cadence_status=(
             USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_DISABLED_STATUS
@@ -5804,6 +5821,26 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         for blocker in USDC_PAIR_SNAPSHOT_SCHEDULER_WALLET_LEDGER_BLOCKERS
     ):
         blockers.append("run_state_scheduler_wallet_ledger_blockers_missing")
+    if (
+        run_state.scheduler_release_review_status
+        != USDC_PAIR_SNAPSHOT_SCHEDULER_RELEASE_REVIEW_BLOCKED_STATUS
+    ):
+        blockers.append("run_state_scheduler_release_review_not_blocked")
+    if run_state.scheduler_release_review_ref:
+        blockers.append("run_state_scheduler_release_review_ref_present")
+    scheduler_release_review_blockers = list(
+        run_state.scheduler_release_review_blockers
+    )
+    if (
+        scheduler_release_review_blockers
+        != USDC_PAIR_SNAPSHOT_SCHEDULER_RELEASE_REVIEW_BLOCKERS
+    ):
+        blockers.append("run_state_scheduler_release_review_blockers_mismatch")
+    if any(
+        blocker not in scheduler_release_review_blockers
+        for blocker in USDC_PAIR_SNAPSHOT_SCHEDULER_RELEASE_REVIEW_BLOCKERS
+    ):
+        blockers.append("run_state_scheduler_release_review_blockers_missing")
     if run_state.scheduler_worker_ref:
         blockers.append("run_state_scheduler_worker_ref_present")
     if (

@@ -35004,6 +35004,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
         "scheduler_wallet_overcommit_prevention_missing",
         "scheduler_wallet_debit_release_missing",
     ]
+    assert run_state["scheduler_release_review_status"] == "blocked_no_live"
+    assert run_state["scheduler_release_review_ref"] is None
+    assert run_state["scheduler_release_review_blockers"] == [
+        "scheduler_release_gate_uncleared",
+        "scheduler_contextless_review_missing",
+    ]
     assert run_state["scheduler_worker_ref"] is None
     assert run_state["scheduler_cadence_status"] == "disabled_no_live"
     assert run_state["scheduler_cadence_blockers"] == [
@@ -45031,6 +45037,11 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
                     "m58-scheduler-wallet-ledger-stale"
                 ),
                 "scheduler_wallet_ledger_blockers": [],
+                "scheduler_release_review_status": "ready_no_live",
+                "scheduler_release_review_ref": (
+                    "m58-scheduler-release-review-stale"
+                ),
+                "scheduler_release_review_blockers": [],
                 "scheduler_worker_ref": "m58-scheduler-worker-stale",
                 "scheduler_cadence_status": "ready_no_live",
                 "scheduler_cadence_blockers": [],
@@ -45090,6 +45101,13 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
     assert "run_state_scheduler_wallet_ledger_not_blocked" in payload["message"]
     assert "run_state_scheduler_wallet_ledger_ref_present" in payload["message"]
     assert "run_state_scheduler_wallet_ledger_blockers_missing" in payload[
+        "message"
+    ]
+    assert "run_state_scheduler_release_review_not_blocked" in payload[
+        "message"
+    ]
+    assert "run_state_scheduler_release_review_ref_present" in payload["message"]
+    assert "run_state_scheduler_release_review_blockers_missing" in payload[
         "message"
     ]
     assert "run_state_scheduler_worker_ref_present" in payload["message"]
@@ -63811,6 +63829,15 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "m58_usdc_pair_scheduler_gate"
     ]["detail"]
     assert "scheduler_wallet_ledger_blockers" in release_checks[
+        "m58_usdc_pair_scheduler_gate"
+    ]["detail"]
+    assert "scheduler_release_review_status=blocked_no_live" in release_checks[
+        "m58_usdc_pair_scheduler_gate"
+    ]["detail"]
+    assert "scheduler_release_review_ref absent" in release_checks[
+        "m58_usdc_pair_scheduler_gate"
+    ]["detail"]
+    assert "scheduler_release_review_blockers" in release_checks[
         "m58_usdc_pair_scheduler_gate"
     ]["detail"]
     assert "scheduler_worker_ref absent" in release_checks[
