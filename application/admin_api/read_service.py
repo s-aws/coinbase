@@ -51163,9 +51163,12 @@ class AdminApiReadService:
                     "M58 runtime fan-out remains blocked. Current evidence "
                     "records 5 orders per second rate-window readback, run "
                     "locks, retry/backoff, pause/abort, and recovery refs, "
-                    "but it has no backend worker that can submit multiple "
-                    "products while preserving wallet, cap, retry, cancel, "
-                    "and recovery invariants."
+                    "plus runtime_fanout_execution_status=blocked_no_live, "
+                    "runtime_fanout_worker_ref absent, and required "
+                    "runtime_fanout_execution_blockers. It still has no "
+                    "backend worker that can submit multiple products while "
+                    "preserving wallet, cap, retry, cancel, and recovery "
+                    "invariants."
                 ),
             ),
             AdminGateCheck(

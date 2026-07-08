@@ -63692,6 +63692,15 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "5 orders per second" in release_checks[
         "m58_usdc_pair_runtime_fanout_gate"
     ]["detail"]
+    assert "runtime_fanout_execution_status=blocked_no_live" in release_checks[
+        "m58_usdc_pair_runtime_fanout_gate"
+    ]["detail"]
+    assert "runtime_fanout_worker_ref absent" in release_checks[
+        "m58_usdc_pair_runtime_fanout_gate"
+    ]["detail"]
+    assert "runtime_fanout_execution_blockers" in release_checks[
+        "m58_usdc_pair_runtime_fanout_gate"
+    ]["detail"]
     assert (
         release_checks["m58_usdc_pair_release_gate_clearance"]["status"]
         == AdminApiGateStatus.WARNING.value
