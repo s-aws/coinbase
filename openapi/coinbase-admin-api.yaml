@@ -170380,6 +170380,21 @@ components:
             type: string
           type: array
           title: Scheduler Worker Blockers
+        scheduler_rate_limit_status:
+          type: string
+          minLength: 1
+          title: Scheduler Rate Limit Status
+          default: blocked_no_live
+        scheduler_rate_limit_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scheduler Rate Limit Ref
+        scheduler_rate_limit_blockers:
+          items:
+            type: string
+          type: array
+          title: Scheduler Rate Limit Blockers
         scheduler_cadence_status:
           type: string
           minLength: 1

@@ -3283,6 +3283,18 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
             "scheduler_worker_idempotency_missing",
         ]
     )
+    scheduler_rate_limit_status: str = Field(
+        default="blocked_no_live",
+        min_length=1,
+    )
+    scheduler_rate_limit_ref: str | None = None
+    scheduler_rate_limit_blockers: list[str] = Field(
+        default_factory=lambda: [
+            "scheduler_rate_limit_worker_missing",
+            "scheduler_rate_limit_runtime_binding_missing",
+            "scheduler_rate_limit_release_gate_uncleared",
+        ]
+    )
     scheduler_cadence_status: str = Field(default="disabled_no_live", min_length=1)
     scheduler_cadence_blockers: list[str] = Field(
         default_factory=lambda: [
