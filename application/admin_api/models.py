@@ -3329,6 +3329,18 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
             "runtime_fanout_contextless_review_missing",
         ]
     )
+    runtime_fanout_rate_limit_status: str = Field(
+        default="blocked_no_live",
+        min_length=1,
+    )
+    runtime_fanout_rate_limit_ref: str | None = None
+    runtime_fanout_rate_limit_blockers: list[str] = Field(
+        default_factory=lambda: [
+            "runtime_fanout_rate_limit_worker_missing",
+            "runtime_fanout_rate_limit_runtime_binding_missing",
+            "runtime_fanout_rate_limit_release_gate_uncleared",
+        ]
+    )
     scheduler_execution_status: str = Field(default="blocked_no_live", min_length=1)
     scheduler_execution_blockers: list[str] = Field(
         default_factory=lambda: ["scheduler_blocked"]

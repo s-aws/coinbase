@@ -128,7 +128,12 @@ Available building blocks:
   and `runtime_fanout_release_review_blockers` as explicit blocked runtime
   fan-out release-review readback; live-submit rejects stale runtime fan-out
   release-review readback that claims release/contextless review is ready,
-  supplies a ref, or omits required blockers. It also records
+  supplies a ref, or omits required blockers. Run-state evidence now also
+  records `runtime_fanout_rate_limit_status`, `runtime_fanout_rate_limit_ref`,
+  and `runtime_fanout_rate_limit_blockers` as explicit blocked runtime fan-out
+  rate-limit proof readback; live-submit rejects stale runtime fan-out
+  rate-limit readback that claims fan-out rate enforcement is ready, supplies a
+  ref, or omits required blockers. It also records
   `scheduler_execution_status`, `scheduler_execution_blockers`,
   `scheduler_unattended_execution`, `scheduler_worker_ref`,
   `scheduler_cadence_status`, `scheduler_cadence_blockers`,
@@ -705,10 +710,12 @@ It also exposes `runtime_fanout_execution_status`,
 `runtime_fanout_wallet_ledger_blockers`,
 `runtime_fanout_retry_recovery_status`, `runtime_fanout_retry_recovery_ref`,
 `runtime_fanout_retry_recovery_blockers`,
-`runtime_fanout_release_review_status`, `runtime_fanout_release_review_ref`, and
-`runtime_fanout_release_review_blockers` before any future fan-out worker can
-clear the runtime fan-out, cap-guard, wallet-ledger, retry/recovery, and
-release-review blockers, and exposes
+`runtime_fanout_release_review_status`, `runtime_fanout_release_review_ref`,
+`runtime_fanout_release_review_blockers`,
+`runtime_fanout_rate_limit_status`, `runtime_fanout_rate_limit_ref`, and
+`runtime_fanout_rate_limit_blockers` before any future fan-out worker can clear
+the runtime fan-out, cap-guard, wallet-ledger, retry/recovery, release-review,
+and rate-limit blockers, and exposes
 `scheduler_execution_status`, `scheduler_execution_blockers`,
 `scheduler_unattended_execution`, `scheduler_standing_cap_status`,
 `scheduler_standing_cap_ref`, `scheduler_standing_cap_blockers`,
@@ -1120,8 +1127,9 @@ required cap-guard blockers, blocked runtime fan-out wallet-ledger status,
 absent wallet-ledger ref, required wallet-ledger blockers, blocked runtime
 fan-out retry/recovery status, absent retry/recovery ref, and required
 retry/recovery blockers, blocked runtime fan-out release-review status, absent
-release-review ref, and required release-review blockers; this is explicit
-blocker evidence, not live fan-out authority.
+release-review ref, required release-review blockers, blocked runtime fan-out
+rate-limit status, absent rate-limit ref, and required rate-limit blockers;
+this is explicit blocker evidence, not live fan-out authority.
 The backend release gate now records `m58_usdc_pair_live_fanout_gate` and
 `m58_usdc_pair_scheduler_gate` as warnings, plus
 `m58_usdc_pair_contextless_review_gate` as passed for the current
@@ -1153,7 +1161,9 @@ required `runtime_fanout_cap_guard_blockers`, plus blocked
 `runtime_fanout_retry_recovery_blockers`, plus blocked
 `runtime_fanout_release_review_status`, absent
 `runtime_fanout_release_review_ref`, and required
-`runtime_fanout_release_review_blockers`. The scheduler warning now names
+`runtime_fanout_release_review_blockers`, plus blocked
+`runtime_fanout_rate_limit_status`, absent `runtime_fanout_rate_limit_ref`, and
+required `runtime_fanout_rate_limit_blockers`. The scheduler warning now names
 absent `scheduler_worker_ref`, disabled `scheduler_cadence_status`, and
 required `scheduler_cadence_blockers`, plus blocked
 `scheduler_recovery_runbook_status`, absent `scheduler_recovery_runbook_ref`,

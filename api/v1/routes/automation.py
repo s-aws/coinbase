@@ -327,6 +327,12 @@ USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RELEASE_REVIEW_BLOCKERS = [
     "runtime_fanout_release_gate_uncleared",
     "runtime_fanout_contextless_review_missing",
 ]
+USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RATE_LIMIT_BLOCKED_STATUS = "blocked_no_live"
+USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RATE_LIMIT_BLOCKERS = [
+    "runtime_fanout_rate_limit_worker_missing",
+    "runtime_fanout_rate_limit_runtime_binding_missing",
+    "runtime_fanout_rate_limit_release_gate_uncleared",
+]
 USDC_PAIR_SNAPSHOT_SCHEDULER_BLOCKED_BLOCKER = "scheduler_blocked"
 USDC_PAIR_SNAPSHOT_SCHEDULER_EXECUTION_BLOCKED_STATUS = "blocked_no_live"
 USDC_PAIR_SNAPSHOT_SCHEDULER_UNATTENDED_NOT_RUN = "not_run"
@@ -1045,6 +1051,9 @@ def _allowlist_run_state_item_from_record(
         runtime_fanout_release_review_blockers=(
             record.runtime_fanout_release_review_blockers
         ),
+        runtime_fanout_rate_limit_status=record.runtime_fanout_rate_limit_status,
+        runtime_fanout_rate_limit_ref=record.runtime_fanout_rate_limit_ref,
+        runtime_fanout_rate_limit_blockers=record.runtime_fanout_rate_limit_blockers,
         scheduler_execution_status=record.scheduler_execution_status,
         scheduler_execution_blockers=record.scheduler_execution_blockers,
         scheduler_unattended_execution=record.scheduler_unattended_execution,
@@ -5405,6 +5414,13 @@ def _record_usdc_pair_allowlist_run_state(
         runtime_fanout_release_review_blockers=list(
             USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RELEASE_REVIEW_BLOCKERS
         ),
+        runtime_fanout_rate_limit_status=(
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RATE_LIMIT_BLOCKED_STATUS
+        ),
+        runtime_fanout_rate_limit_ref=None,
+        runtime_fanout_rate_limit_blockers=list(
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RATE_LIMIT_BLOCKERS
+        ),
         scheduler_execution_status=(
             USDC_PAIR_SNAPSHOT_SCHEDULER_EXECUTION_BLOCKED_STATUS
         ),
@@ -6160,6 +6176,26 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         for blocker in USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RELEASE_REVIEW_BLOCKERS
     ):
         blockers.append("run_state_runtime_fanout_release_review_blockers_missing")
+    if (
+        run_state.runtime_fanout_rate_limit_status
+        != USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RATE_LIMIT_BLOCKED_STATUS
+    ):
+        blockers.append("run_state_runtime_fanout_rate_limit_not_blocked")
+    if run_state.runtime_fanout_rate_limit_ref:
+        blockers.append("run_state_runtime_fanout_rate_limit_ref_present")
+    runtime_fanout_rate_limit_blockers = list(
+        run_state.runtime_fanout_rate_limit_blockers
+    )
+    if (
+        runtime_fanout_rate_limit_blockers
+        != USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RATE_LIMIT_BLOCKERS
+    ):
+        blockers.append("run_state_runtime_fanout_rate_limit_blockers_mismatch")
+    if any(
+        blocker not in runtime_fanout_rate_limit_blockers
+        for blocker in USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RATE_LIMIT_BLOCKERS
+    ):
+        blockers.append("run_state_runtime_fanout_rate_limit_blockers_missing")
     unexpected_fanout_blockers = [
         blocker
         for blocker in run_state.fanout_blockers

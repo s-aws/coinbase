@@ -35113,6 +35113,13 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
         "runtime_fanout_release_gate_uncleared",
         "runtime_fanout_contextless_review_missing",
     ]
+    assert run_state["runtime_fanout_rate_limit_status"] == "blocked_no_live"
+    assert run_state["runtime_fanout_rate_limit_ref"] is None
+    assert run_state["runtime_fanout_rate_limit_blockers"] == [
+        "runtime_fanout_rate_limit_worker_missing",
+        "runtime_fanout_rate_limit_runtime_binding_missing",
+        "runtime_fanout_rate_limit_release_gate_uncleared",
+    ]
     assert run_state["fanout_execution_status"] == "blocked"
     assert run_state["run_state_status"] == "blocked"
     assert run_state["fanout_blockers"] == [
@@ -45071,6 +45078,11 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
                     "m58-runtime-fanout-release-review-stale"
                 ),
                 "runtime_fanout_release_review_blockers": [],
+                "runtime_fanout_rate_limit_status": "ready_no_live",
+                "runtime_fanout_rate_limit_ref": (
+                    "m58-runtime-fanout-rate-limit-stale"
+                ),
+                "runtime_fanout_rate_limit_blockers": [],
                 "fanout_blockers": [
                     "fanout_execution_technically_blocked",
                     "scheduler_blocked",
@@ -45186,6 +45198,15 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
         "message"
     ]
     assert "run_state_runtime_fanout_release_review_blockers_missing" in payload[
+        "message"
+    ]
+    assert "run_state_runtime_fanout_rate_limit_not_blocked" in payload[
+        "message"
+    ]
+    assert "run_state_runtime_fanout_rate_limit_ref_present" in payload[
+        "message"
+    ]
+    assert "run_state_runtime_fanout_rate_limit_blockers_missing" in payload[
         "message"
     ]
     assert payload["live_exchange_submitted"] is False
@@ -64087,6 +64108,15 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "m58_usdc_pair_runtime_fanout_gate"
     ]["detail"]
     assert "runtime_fanout_release_review_blockers" in release_checks[
+        "m58_usdc_pair_runtime_fanout_gate"
+    ]["detail"]
+    assert "runtime_fanout_rate_limit_status=blocked_no_live" in release_checks[
+        "m58_usdc_pair_runtime_fanout_gate"
+    ]["detail"]
+    assert "runtime_fanout_rate_limit_ref absent" in release_checks[
+        "m58_usdc_pair_runtime_fanout_gate"
+    ]["detail"]
+    assert "runtime_fanout_rate_limit_blockers" in release_checks[
         "m58_usdc_pair_runtime_fanout_gate"
     ]["detail"]
     assert (
