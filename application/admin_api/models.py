@@ -3234,6 +3234,18 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
             "runtime_fanout_retry_recovery_semantics_missing",
         ]
     )
+    runtime_fanout_price_freshness_status: str = Field(
+        default="blocked_no_live",
+        min_length=1,
+    )
+    runtime_fanout_price_freshness_ref: str | None = None
+    runtime_fanout_price_freshness_blockers: list[str] = Field(
+        default_factory=lambda: [
+            "runtime_fanout_price_freshness_binding_missing",
+            "runtime_fanout_reference_bid_recheck_missing",
+            "runtime_fanout_last_fill_distance_recheck_missing",
+        ]
+    )
     runtime_fanout_cap_guard_status: str = Field(
         default="blocked_no_live",
         min_length=1,

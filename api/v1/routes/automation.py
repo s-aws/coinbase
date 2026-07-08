@@ -266,6 +266,14 @@ USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_BLOCKERS = [
     "runtime_fanout_wallet_ledger_live_semantics_missing",
     "runtime_fanout_retry_recovery_semantics_missing",
 ]
+USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_PRICE_FRESHNESS_BLOCKED_STATUS = (
+    "blocked_no_live"
+)
+USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_PRICE_FRESHNESS_BLOCKERS = [
+    "runtime_fanout_price_freshness_binding_missing",
+    "runtime_fanout_reference_bid_recheck_missing",
+    "runtime_fanout_last_fill_distance_recheck_missing",
+]
 USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_CAP_GUARD_BLOCKED_STATUS = "blocked_no_live"
 USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_CAP_GUARD_BLOCKERS = [
     "runtime_fanout_cap_guard_binding_missing",
@@ -941,6 +949,15 @@ def _allowlist_run_state_item_from_record(
         runtime_fanout_worker_ref=record.runtime_fanout_worker_ref,
         runtime_fanout_execution_blockers=(
             record.runtime_fanout_execution_blockers
+        ),
+        runtime_fanout_price_freshness_status=(
+            record.runtime_fanout_price_freshness_status
+        ),
+        runtime_fanout_price_freshness_ref=(
+            record.runtime_fanout_price_freshness_ref
+        ),
+        runtime_fanout_price_freshness_blockers=(
+            record.runtime_fanout_price_freshness_blockers
         ),
         runtime_fanout_cap_guard_status=record.runtime_fanout_cap_guard_status,
         runtime_fanout_cap_guard_ref=record.runtime_fanout_cap_guard_ref,
@@ -5269,6 +5286,13 @@ def _record_usdc_pair_allowlist_run_state(
         runtime_fanout_execution_blockers=list(
             USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_BLOCKERS
         ),
+        runtime_fanout_price_freshness_status=(
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_PRICE_FRESHNESS_BLOCKED_STATUS
+        ),
+        runtime_fanout_price_freshness_ref=None,
+        runtime_fanout_price_freshness_blockers=list(
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_PRICE_FRESHNESS_BLOCKERS
+        ),
         runtime_fanout_cap_guard_status=(
             USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_CAP_GUARD_BLOCKED_STATUS
         ),
@@ -5879,6 +5903,28 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         for blocker in USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_BLOCKERS
     ):
         blockers.append("run_state_runtime_fanout_blockers_missing")
+    if (
+        run_state.runtime_fanout_price_freshness_status
+        != USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_PRICE_FRESHNESS_BLOCKED_STATUS
+    ):
+        blockers.append("run_state_runtime_fanout_price_freshness_not_blocked")
+    if run_state.runtime_fanout_price_freshness_ref:
+        blockers.append("run_state_runtime_fanout_price_freshness_ref_present")
+    runtime_fanout_price_freshness_blockers = list(
+        run_state.runtime_fanout_price_freshness_blockers
+    )
+    if (
+        runtime_fanout_price_freshness_blockers
+        != USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_PRICE_FRESHNESS_BLOCKERS
+    ):
+        blockers.append(
+            "run_state_runtime_fanout_price_freshness_blockers_mismatch"
+        )
+    if any(
+        blocker not in runtime_fanout_price_freshness_blockers
+        for blocker in USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_PRICE_FRESHNESS_BLOCKERS
+    ):
+        blockers.append("run_state_runtime_fanout_price_freshness_blockers_missing")
     if (
         run_state.runtime_fanout_cap_guard_status
         != USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_CAP_GUARD_BLOCKED_STATUS

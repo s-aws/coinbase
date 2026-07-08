@@ -83,6 +83,12 @@ Available building blocks:
   `runtime_fanout_execution_blockers` as explicit blocked runtime fan-out
   readback; live-submit rejects stale runtime fan-out readback that claims a
   worker exists or omits required runtime fan-out blockers. Run-state evidence
+  now also records `runtime_fanout_price_freshness_status`,
+  `runtime_fanout_price_freshness_ref`, and
+  `runtime_fanout_price_freshness_blockers` as explicit blocked runtime
+  fan-out price-freshness readback; live-submit rejects stale runtime fan-out
+  price-freshness readback that claims those semantics are ready, supplies a
+  ref, or omits required blockers. Run-state evidence
   now also records `runtime_fanout_cap_guard_status`,
   `runtime_fanout_cap_guard_ref`, and `runtime_fanout_cap_guard_blockers` as
   explicit blocked runtime fan-out cap-guard readback; live-submit rejects
@@ -662,6 +668,8 @@ run-state also exposes `run_lock_recorded_at`, `run_lock_conflict_run_state_id`,
 before any future scheduler or fan-out path can rely on the rate-limit window.
 It also exposes `runtime_fanout_execution_status`,
 `runtime_fanout_worker_ref`, `runtime_fanout_execution_blockers`,
+`runtime_fanout_price_freshness_status`, `runtime_fanout_price_freshness_ref`,
+`runtime_fanout_price_freshness_blockers`,
 `runtime_fanout_cap_guard_status`, `runtime_fanout_cap_guard_ref`,
 `runtime_fanout_cap_guard_blockers`,
 `runtime_fanout_wallet_ledger_status`, `runtime_fanout_wallet_ledger_ref`,
@@ -1070,12 +1078,13 @@ runtime fan-out, release-gate, and contextless-review evidence rather than
 one-selected-product submit-time freshness checks or missing no-live
 multi-product wallet lifecycle readback.
 Current run-state readback records blocked runtime fan-out status, no worker
-ref, required runtime fan-out blockers, blocked runtime fan-out cap-guard
-status, absent cap-guard ref, required cap-guard blockers, blocked runtime
-fan-out wallet-ledger status, absent wallet-ledger ref, required wallet-ledger
-blockers, blocked runtime fan-out retry/recovery status, absent retry/recovery
-ref, and required retry/recovery blockers; this is explicit blocker evidence,
-not live fan-out authority.
+ref, required runtime fan-out blockers, blocked runtime fan-out price-freshness
+status, absent price-freshness ref, required price-freshness blockers, blocked
+runtime fan-out cap-guard status, absent cap-guard ref, required cap-guard
+blockers, blocked runtime fan-out wallet-ledger status, absent wallet-ledger ref,
+required wallet-ledger blockers, blocked runtime fan-out retry/recovery status,
+absent retry/recovery ref, and required retry/recovery blockers; this is
+explicit blocker evidence, not live fan-out authority.
 The backend release gate now records `m58_usdc_pair_live_fanout_gate` and
 `m58_usdc_pair_scheduler_gate` as warnings, plus
 `m58_usdc_pair_contextless_review_gate` as passed for the current
@@ -1086,6 +1095,9 @@ one-selected-product boundary. It also exposes warning subchecks for
 `m58_usdc_pair_fanout_contextless_review_gate`. The runtime fan-out warning
 now names the blocked `runtime_fanout_execution_status`, absent worker ref, and
 required `runtime_fanout_execution_blockers`, plus blocked
+`runtime_fanout_price_freshness_status`, absent
+`runtime_fanout_price_freshness_ref`, and required
+`runtime_fanout_price_freshness_blockers`, plus blocked
 `runtime_fanout_cap_guard_status`, absent `runtime_fanout_cap_guard_ref`, and
 required `runtime_fanout_cap_guard_blockers`, plus blocked
 `runtime_fanout_wallet_ledger_status`, absent
