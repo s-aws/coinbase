@@ -170365,11 +170365,21 @@ components:
             type: string
           type: array
           title: Scheduler Release Review Blockers
+        scheduler_worker_status:
+          type: string
+          minLength: 1
+          title: Scheduler Worker Status
+          default: blocked_no_live
         scheduler_worker_ref:
           anyOf:
           - type: string
           - type: 'null'
           title: Scheduler Worker Ref
+        scheduler_worker_blockers:
+          items:
+            type: string
+          type: array
+          title: Scheduler Worker Blockers
         scheduler_cadence_status:
           type: string
           minLength: 1

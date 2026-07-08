@@ -653,13 +653,14 @@ future fan-out worker can clear the runtime fan-out blocker, and exposes
 `scheduler_wallet_ledger_blockers`,
 `scheduler_release_review_status`, `scheduler_release_review_ref`,
 `scheduler_release_review_blockers`,
-`scheduler_worker_ref`,
+`scheduler_worker_status`, `scheduler_worker_ref`,
+`scheduler_worker_blockers`,
 `scheduler_cadence_status`, `scheduler_cadence_blockers`,
 `scheduler_recovery_runbook_status`, `scheduler_recovery_runbook_ref`, and
 `scheduler_recovery_runbook_blockers` before any future scheduler or fan-out
 path can rely on no-scheduler/no-unattended-execution evidence or scheduled
 standing-cap proof, scheduled wallet-ledger/overcommit evidence, or scheduler
-release/contextless-review evidence.
+release/contextless-review evidence, or durable scheduler-worker evidence.
 Product run-state rows also expose `retry_budget_per_product` and
 `retry_prior_attempt_count` before retry budget/backoff blockers clear
 remaining attempts. Aggregate run-state evidence also exposes the

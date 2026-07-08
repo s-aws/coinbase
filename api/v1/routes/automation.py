@@ -286,6 +286,12 @@ USDC_PAIR_SNAPSHOT_SCHEDULER_RELEASE_REVIEW_BLOCKERS = [
     "scheduler_release_gate_uncleared",
     "scheduler_contextless_review_missing",
 ]
+USDC_PAIR_SNAPSHOT_SCHEDULER_WORKER_BLOCKED_STATUS = "blocked_no_live"
+USDC_PAIR_SNAPSHOT_SCHEDULER_WORKER_BLOCKERS = [
+    "scheduler_worker_missing",
+    "scheduler_durable_worker_missing",
+    "scheduler_worker_idempotency_missing",
+]
 USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_DISABLED_STATUS = "disabled_no_live"
 USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_BLOCKERS = [
     "scheduler_worker_missing",
@@ -912,7 +918,9 @@ def _allowlist_run_state_item_from_record(
         scheduler_release_review_blockers=(
             record.scheduler_release_review_blockers
         ),
+        scheduler_worker_status=record.scheduler_worker_status,
         scheduler_worker_ref=record.scheduler_worker_ref,
+        scheduler_worker_blockers=record.scheduler_worker_blockers,
         scheduler_cadence_status=record.scheduler_cadence_status,
         scheduler_cadence_blockers=record.scheduler_cadence_blockers,
         scheduler_recovery_runbook_status=(
@@ -5215,7 +5223,9 @@ def _record_usdc_pair_allowlist_run_state(
         scheduler_release_review_blockers=list(
             USDC_PAIR_SNAPSHOT_SCHEDULER_RELEASE_REVIEW_BLOCKERS
         ),
+        scheduler_worker_status=USDC_PAIR_SNAPSHOT_SCHEDULER_WORKER_BLOCKED_STATUS,
         scheduler_worker_ref=None,
+        scheduler_worker_blockers=list(USDC_PAIR_SNAPSHOT_SCHEDULER_WORKER_BLOCKERS),
         scheduler_cadence_status=(
             USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_DISABLED_STATUS
         ),
@@ -5841,8 +5851,21 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         for blocker in USDC_PAIR_SNAPSHOT_SCHEDULER_RELEASE_REVIEW_BLOCKERS
     ):
         blockers.append("run_state_scheduler_release_review_blockers_missing")
+    if (
+        run_state.scheduler_worker_status
+        != USDC_PAIR_SNAPSHOT_SCHEDULER_WORKER_BLOCKED_STATUS
+    ):
+        blockers.append("run_state_scheduler_worker_not_blocked")
     if run_state.scheduler_worker_ref:
         blockers.append("run_state_scheduler_worker_ref_present")
+    scheduler_worker_blockers = list(run_state.scheduler_worker_blockers)
+    if scheduler_worker_blockers != USDC_PAIR_SNAPSHOT_SCHEDULER_WORKER_BLOCKERS:
+        blockers.append("run_state_scheduler_worker_blockers_mismatch")
+    if any(
+        blocker not in scheduler_worker_blockers
+        for blocker in USDC_PAIR_SNAPSHOT_SCHEDULER_WORKER_BLOCKERS
+    ):
+        blockers.append("run_state_scheduler_worker_blockers_missing")
     if (
         run_state.scheduler_cadence_status
         != USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_DISABLED_STATUS
