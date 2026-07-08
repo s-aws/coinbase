@@ -266,6 +266,14 @@ USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_BLOCKERS = [
     "runtime_fanout_wallet_ledger_live_semantics_missing",
     "runtime_fanout_retry_recovery_semantics_missing",
 ]
+USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_WALLET_LEDGER_BLOCKED_STATUS = (
+    "blocked_no_live"
+)
+USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_WALLET_LEDGER_BLOCKERS = [
+    "runtime_fanout_live_wallet_ledger_missing",
+    "runtime_fanout_wallet_overcommit_binding_missing",
+    "runtime_fanout_wallet_debit_release_binding_missing",
+]
 USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RETRY_RECOVERY_BLOCKED_STATUS = (
     "blocked_no_live"
 )
@@ -927,6 +935,15 @@ def _allowlist_run_state_item_from_record(
         runtime_fanout_worker_ref=record.runtime_fanout_worker_ref,
         runtime_fanout_execution_blockers=(
             record.runtime_fanout_execution_blockers
+        ),
+        runtime_fanout_wallet_ledger_status=(
+            record.runtime_fanout_wallet_ledger_status
+        ),
+        runtime_fanout_wallet_ledger_ref=(
+            record.runtime_fanout_wallet_ledger_ref
+        ),
+        runtime_fanout_wallet_ledger_blockers=(
+            record.runtime_fanout_wallet_ledger_blockers
         ),
         runtime_fanout_retry_recovery_status=(
             record.runtime_fanout_retry_recovery_status
@@ -5241,6 +5258,13 @@ def _record_usdc_pair_allowlist_run_state(
         runtime_fanout_execution_blockers=list(
             USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_BLOCKERS
         ),
+        runtime_fanout_wallet_ledger_status=(
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_WALLET_LEDGER_BLOCKED_STATUS
+        ),
+        runtime_fanout_wallet_ledger_ref=None,
+        runtime_fanout_wallet_ledger_blockers=list(
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_WALLET_LEDGER_BLOCKERS
+        ),
         runtime_fanout_retry_recovery_status=(
             USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RETRY_RECOVERY_BLOCKED_STATUS
         ),
@@ -5837,6 +5861,28 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         for blocker in USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_BLOCKERS
     ):
         blockers.append("run_state_runtime_fanout_blockers_missing")
+    if (
+        run_state.runtime_fanout_wallet_ledger_status
+        != USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_WALLET_LEDGER_BLOCKED_STATUS
+    ):
+        blockers.append("run_state_runtime_fanout_wallet_ledger_not_blocked")
+    if run_state.runtime_fanout_wallet_ledger_ref:
+        blockers.append("run_state_runtime_fanout_wallet_ledger_ref_present")
+    runtime_fanout_wallet_ledger_blockers = list(
+        run_state.runtime_fanout_wallet_ledger_blockers
+    )
+    if (
+        runtime_fanout_wallet_ledger_blockers
+        != USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_WALLET_LEDGER_BLOCKERS
+    ):
+        blockers.append(
+            "run_state_runtime_fanout_wallet_ledger_blockers_mismatch"
+        )
+    if any(
+        blocker not in runtime_fanout_wallet_ledger_blockers
+        for blocker in USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_WALLET_LEDGER_BLOCKERS
+    ):
+        blockers.append("run_state_runtime_fanout_wallet_ledger_blockers_missing")
     if (
         run_state.runtime_fanout_retry_recovery_status
         != USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RETRY_RECOVERY_BLOCKED_STATUS

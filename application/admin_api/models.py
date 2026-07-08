@@ -3234,6 +3234,18 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
             "runtime_fanout_retry_recovery_semantics_missing",
         ]
     )
+    runtime_fanout_wallet_ledger_status: str = Field(
+        default="blocked_no_live",
+        min_length=1,
+    )
+    runtime_fanout_wallet_ledger_ref: str | None = None
+    runtime_fanout_wallet_ledger_blockers: list[str] = Field(
+        default_factory=lambda: [
+            "runtime_fanout_live_wallet_ledger_missing",
+            "runtime_fanout_wallet_overcommit_binding_missing",
+            "runtime_fanout_wallet_debit_release_binding_missing",
+        ]
+    )
     runtime_fanout_retry_recovery_status: str = Field(
         default="blocked_no_live",
         min_length=1,
