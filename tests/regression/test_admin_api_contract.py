@@ -42728,6 +42728,81 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_stale_wallet_ledger_mode_source(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-wallet-ledger-mode-stale",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-submit-wallet-ledger-mode-stale-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    ledger_store = client.admin_api_test_usdc_pair_snapshot_live_wallet_ledger_store
+    source_ledger = ledger_store.find_by_ledger_id(
+        f"{ready['run_state_id']}-live-wallet-ledger"
+    )
+    assert source_ledger is not None
+    ledger_store.append(
+        source_ledger.model_copy(
+            update={
+                "ledger_mode": "live_wallet_ledger",
+                "wallet_balance_source": "coinbase_live_wallet_balance",
+            }
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-wallet-ledger-mode-stale"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json={
+            "submission_id": "m58-usdc-allowlist-live-submit-wallet-ledger-mode-stale",
+            "readiness_id": ready["live_readiness_id"],
+            "product_id": ready["product_id"],
+            "client_order_id": ready["client_order_id"],
+            "confirm_live_submit": True,
+            "confirm_single_order_only": True,
+            "confirm_cancel_before_additional_orders": True,
+            "confirm_no_additional_orders": True,
+            "operator_stop_conditions": [
+                "submit one run-state selected order only",
+                "cancel that client_order_id before any additional order",
+            ],
+            "operator_notes": "stale wallet ledger mode/source must fail closed",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert "run_state_live_wallet_ledger_mode_mismatch" in payload["message"]
+    assert "run_state_live_wallet_ledger_balance_source_mismatch" in payload[
+        "message"
+    ]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_hidden_product_overcommit_readback(
     monkeypatch,
 ):

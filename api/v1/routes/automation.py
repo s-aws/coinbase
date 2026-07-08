@@ -221,6 +221,10 @@ USDC_PAIR_SNAPSHOT_LIVE_WALLET_RELEASE_REF_CONFLICT_BLOCKER = (
 USDC_PAIR_SNAPSHOT_LIVE_WALLET_ACTIVE_RESERVATION_OVERCOMMIT_BLOCKER = (
     "live_wallet_active_reservation_overcommit"
 )
+USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_MODE = "no_live_boundary"
+USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BALANCE_SOURCE = (
+    "cap_guard_wallet_available_notional_no_live"
+)
 USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BLOCKED_STATUS = "blocked_no_live"
 USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BALANCE_STATUS = "missing_live"
 USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_OVERCOMMIT_PREVENTION_STATUS = (
@@ -7697,6 +7701,13 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_ledger(
             blockers.append("run_state_live_wallet_ledger_plan_mismatch")
         if record.snapshot_run_id != run_state.snapshot_run_id:
             blockers.append("run_state_live_wallet_ledger_snapshot_mismatch")
+        if record.ledger_mode != USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_MODE:
+            blockers.append("run_state_live_wallet_ledger_mode_mismatch")
+        if (
+            record.wallet_balance_source
+            != USDC_PAIR_SNAPSHOT_LIVE_WALLET_LEDGER_BALANCE_SOURCE
+        ):
+            blockers.append("run_state_live_wallet_ledger_balance_source_mismatch")
         if _normalized_usdc_pair_product_id_multiset(
             record.queued_product_ids
         ) != _normalized_usdc_pair_product_id_multiset(run_state.queued_product_ids):
