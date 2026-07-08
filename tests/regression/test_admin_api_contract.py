@@ -35058,6 +35058,13 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
         "runtime_fanout_wallet_ledger_live_semantics_missing",
         "runtime_fanout_retry_recovery_semantics_missing",
     ]
+    assert run_state["runtime_fanout_retry_recovery_status"] == "blocked_no_live"
+    assert run_state["runtime_fanout_retry_recovery_ref"] is None
+    assert run_state["runtime_fanout_retry_recovery_blockers"] == [
+        "runtime_fanout_retry_budget_binding_missing",
+        "runtime_fanout_recovery_replay_binding_missing",
+        "runtime_fanout_partial_failure_policy_missing",
+    ]
     assert run_state["fanout_execution_status"] == "blocked"
     assert run_state["run_state_status"] == "blocked"
     assert run_state["fanout_blockers"] == [
@@ -44976,6 +44983,11 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
                 "runtime_fanout_execution_status": "ready_no_live",
                 "runtime_fanout_worker_ref": "m58-runtime-fanout-worker-stale",
                 "runtime_fanout_execution_blockers": [],
+                "runtime_fanout_retry_recovery_status": "ready_no_live",
+                "runtime_fanout_retry_recovery_ref": (
+                    "m58-runtime-fanout-retry-recovery-stale"
+                ),
+                "runtime_fanout_retry_recovery_blockers": [],
                 "fanout_blockers": [
                     "fanout_execution_technically_blocked",
                     "scheduler_blocked",
@@ -45021,6 +45033,15 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
     assert "run_state_runtime_fanout_execution_not_blocked" in payload["message"]
     assert "run_state_runtime_fanout_worker_ref_present" in payload["message"]
     assert "run_state_runtime_fanout_blockers_missing" in payload["message"]
+    assert "run_state_runtime_fanout_retry_recovery_not_blocked" in payload[
+        "message"
+    ]
+    assert "run_state_runtime_fanout_retry_recovery_ref_present" in payload[
+        "message"
+    ]
+    assert "run_state_runtime_fanout_retry_recovery_blockers_missing" in payload[
+        "message"
+    ]
     assert payload["live_exchange_submitted"] is False
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_execution"] == "not_run"
@@ -63848,6 +63869,15 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "m58_usdc_pair_runtime_fanout_gate"
     ]["detail"]
     assert "runtime_fanout_execution_blockers" in release_checks[
+        "m58_usdc_pair_runtime_fanout_gate"
+    ]["detail"]
+    assert "runtime_fanout_retry_recovery_status=blocked_no_live" in release_checks[
+        "m58_usdc_pair_runtime_fanout_gate"
+    ]["detail"]
+    assert "runtime_fanout_retry_recovery_ref absent" in release_checks[
+        "m58_usdc_pair_runtime_fanout_gate"
+    ]["detail"]
+    assert "runtime_fanout_retry_recovery_blockers" in release_checks[
         "m58_usdc_pair_runtime_fanout_gate"
     ]["detail"]
     assert (

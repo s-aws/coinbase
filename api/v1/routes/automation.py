@@ -266,6 +266,14 @@ USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_BLOCKERS = [
     "runtime_fanout_wallet_ledger_live_semantics_missing",
     "runtime_fanout_retry_recovery_semantics_missing",
 ]
+USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RETRY_RECOVERY_BLOCKED_STATUS = (
+    "blocked_no_live"
+)
+USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RETRY_RECOVERY_BLOCKERS = [
+    "runtime_fanout_retry_budget_binding_missing",
+    "runtime_fanout_recovery_replay_binding_missing",
+    "runtime_fanout_partial_failure_policy_missing",
+]
 USDC_PAIR_SNAPSHOT_SCHEDULER_BLOCKED_BLOCKER = "scheduler_blocked"
 USDC_PAIR_SNAPSHOT_SCHEDULER_EXECUTION_BLOCKED_STATUS = "blocked_no_live"
 USDC_PAIR_SNAPSHOT_SCHEDULER_UNATTENDED_NOT_RUN = "not_run"
@@ -919,6 +927,15 @@ def _allowlist_run_state_item_from_record(
         runtime_fanout_worker_ref=record.runtime_fanout_worker_ref,
         runtime_fanout_execution_blockers=(
             record.runtime_fanout_execution_blockers
+        ),
+        runtime_fanout_retry_recovery_status=(
+            record.runtime_fanout_retry_recovery_status
+        ),
+        runtime_fanout_retry_recovery_ref=(
+            record.runtime_fanout_retry_recovery_ref
+        ),
+        runtime_fanout_retry_recovery_blockers=(
+            record.runtime_fanout_retry_recovery_blockers
         ),
         scheduler_execution_status=record.scheduler_execution_status,
         scheduler_execution_blockers=record.scheduler_execution_blockers,
@@ -5224,6 +5241,13 @@ def _record_usdc_pair_allowlist_run_state(
         runtime_fanout_execution_blockers=list(
             USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_BLOCKERS
         ),
+        runtime_fanout_retry_recovery_status=(
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RETRY_RECOVERY_BLOCKED_STATUS
+        ),
+        runtime_fanout_retry_recovery_ref=None,
+        runtime_fanout_retry_recovery_blockers=list(
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RETRY_RECOVERY_BLOCKERS
+        ),
         scheduler_execution_status=(
             USDC_PAIR_SNAPSHOT_SCHEDULER_EXECUTION_BLOCKED_STATUS
         ),
@@ -5813,6 +5837,28 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         for blocker in USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_BLOCKERS
     ):
         blockers.append("run_state_runtime_fanout_blockers_missing")
+    if (
+        run_state.runtime_fanout_retry_recovery_status
+        != USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RETRY_RECOVERY_BLOCKED_STATUS
+    ):
+        blockers.append("run_state_runtime_fanout_retry_recovery_not_blocked")
+    if run_state.runtime_fanout_retry_recovery_ref:
+        blockers.append("run_state_runtime_fanout_retry_recovery_ref_present")
+    runtime_fanout_retry_recovery_blockers = list(
+        run_state.runtime_fanout_retry_recovery_blockers
+    )
+    if (
+        runtime_fanout_retry_recovery_blockers
+        != USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RETRY_RECOVERY_BLOCKERS
+    ):
+        blockers.append(
+            "run_state_runtime_fanout_retry_recovery_blockers_mismatch"
+        )
+    if any(
+        blocker not in runtime_fanout_retry_recovery_blockers
+        for blocker in USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RETRY_RECOVERY_BLOCKERS
+    ):
+        blockers.append("run_state_runtime_fanout_retry_recovery_blockers_missing")
     unexpected_fanout_blockers = [
         blocker
         for blocker in run_state.fanout_blockers

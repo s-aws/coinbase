@@ -3234,6 +3234,18 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
             "runtime_fanout_retry_recovery_semantics_missing",
         ]
     )
+    runtime_fanout_retry_recovery_status: str = Field(
+        default="blocked_no_live",
+        min_length=1,
+    )
+    runtime_fanout_retry_recovery_ref: str | None = None
+    runtime_fanout_retry_recovery_blockers: list[str] = Field(
+        default_factory=lambda: [
+            "runtime_fanout_retry_budget_binding_missing",
+            "runtime_fanout_recovery_replay_binding_missing",
+            "runtime_fanout_partial_failure_policy_missing",
+        ]
+    )
     scheduler_execution_status: str = Field(default="blocked_no_live", min_length=1)
     scheduler_execution_blockers: list[str] = Field(
         default_factory=lambda: ["scheduler_blocked"]

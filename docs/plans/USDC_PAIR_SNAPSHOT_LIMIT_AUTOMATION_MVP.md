@@ -82,7 +82,13 @@ Available building blocks:
   `runtime_fanout_execution_status`, `runtime_fanout_worker_ref`, and
   `runtime_fanout_execution_blockers` as explicit blocked runtime fan-out
   readback; live-submit rejects stale runtime fan-out readback that claims a
-  worker exists or omits required runtime fan-out blockers. It also records
+  worker exists or omits required runtime fan-out blockers. Run-state evidence
+  now also records `runtime_fanout_retry_recovery_status`,
+  `runtime_fanout_retry_recovery_ref`, and
+  `runtime_fanout_retry_recovery_blockers` as explicit blocked runtime
+  fan-out retry/recovery readback; live-submit rejects stale runtime fan-out
+  retry/recovery readback that claims those semantics are ready, supplies a ref,
+  or omits required blockers. It also records
   `scheduler_execution_status`, `scheduler_execution_blockers`,
   `scheduler_unattended_execution`, `scheduler_worker_ref`,
   `scheduler_cadence_status`, `scheduler_cadence_blockers`,
@@ -644,8 +650,10 @@ run-state also exposes `run_lock_recorded_at`, `run_lock_conflict_run_state_id`,
 `rate_limit_window_overage_order_count`, and `rate_limit_window_within_cap`
 before any future scheduler or fan-out path can rely on the rate-limit window.
 It also exposes `runtime_fanout_execution_status`,
-`runtime_fanout_worker_ref`, and `runtime_fanout_execution_blockers` before any
-future fan-out worker can clear the runtime fan-out blocker, and exposes
+`runtime_fanout_worker_ref`, `runtime_fanout_execution_blockers`,
+`runtime_fanout_retry_recovery_status`, `runtime_fanout_retry_recovery_ref`, and
+`runtime_fanout_retry_recovery_blockers` before any future fan-out worker can
+clear the runtime fan-out and retry/recovery blockers, and exposes
 `scheduler_execution_status`, `scheduler_execution_blockers`,
 `scheduler_unattended_execution`, `scheduler_standing_cap_status`,
 `scheduler_standing_cap_ref`, `scheduler_standing_cap_blockers`,
@@ -1046,8 +1054,9 @@ runtime fan-out, release-gate, and contextless-review evidence rather than
 one-selected-product submit-time freshness checks or missing no-live
 multi-product wallet lifecycle readback.
 Current run-state readback records blocked runtime fan-out status, no worker
-ref, and required runtime fan-out blockers; this is explicit blocker evidence,
-not live fan-out authority.
+ref, required runtime fan-out blockers, blocked runtime fan-out retry/recovery
+status, absent retry/recovery ref, and required retry/recovery blockers; this
+is explicit blocker evidence, not live fan-out authority.
 The backend release gate now records `m58_usdc_pair_live_fanout_gate` and
 `m58_usdc_pair_scheduler_gate` as warnings, plus
 `m58_usdc_pair_contextless_review_gate` as passed for the current
@@ -1057,7 +1066,10 @@ one-selected-product boundary. It also exposes warning subchecks for
 `m58_usdc_pair_release_gate_clearance`, and
 `m58_usdc_pair_fanout_contextless_review_gate`. The runtime fan-out warning
 now names the blocked `runtime_fanout_execution_status`, absent worker ref, and
-required `runtime_fanout_execution_blockers`. The scheduler warning now names
+required `runtime_fanout_execution_blockers`, plus blocked
+`runtime_fanout_retry_recovery_status`, absent
+`runtime_fanout_retry_recovery_ref`, and required
+`runtime_fanout_retry_recovery_blockers`. The scheduler warning now names
 absent `scheduler_worker_ref`, disabled `scheduler_cadence_status`, and
 required `scheduler_cadence_blockers`, plus blocked
 `scheduler_recovery_runbook_status`, absent `scheduler_recovery_runbook_ref`,
