@@ -172697,6 +172697,15 @@ components:
           type: string
           minLength: 1
           title: Submission Id
+        live_submit_source:
+          type: string
+          title: Live Submit Source
+          default: order_plan
+        run_state_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Run State Id
         readiness_id:
           type: string
           minLength: 1

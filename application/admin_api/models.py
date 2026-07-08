@@ -3557,6 +3557,8 @@ class UsdcPairSnapshotOrderPlanLiveSubmitItem(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     submission_id: str = Field(min_length=1)
+    live_submit_source: str = "order_plan"
+    run_state_id: str | None = None
     readiness_id: str = Field(min_length=1)
     plan_id: str = Field(min_length=1)
     snapshot_run_id: str = Field(min_length=1)

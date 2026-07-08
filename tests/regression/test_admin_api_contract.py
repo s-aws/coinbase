@@ -39966,6 +39966,8 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_q
     assert ready_payload["notional_usdc"] == "1.00"
     submission = ready_payload["submission"]
     assert submission["submission_id"] == ready_body["submission_id"]
+    assert submission["live_submit_source"] == "allowlist_run_state"
+    assert submission["run_state_id"] == ready["run_state_id"]
     assert submission["readiness_id"] == ready["live_readiness_id"]
     assert submission["plan_id"] == ready["plan_id"]
     assert submission["product_id"] == ready["product_id"]
@@ -39997,6 +39999,17 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_q
     assert replay.headers["x-idempotency-replayed"] == "true"
     assert replay.json() == ready_payload
     assert len(client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls) == 1
+
+    readback = client.get(
+        "/api/v1/automation/usdc-pair-snapshot-order-plan-live-submissions?limit=5",
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-allowlist-live-submit-ready-readback",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit_readback",
+            roles=AdminApiRole.AUDITOR.value,
+        ),
+    )
+    assert readback.status_code == 200
+    assert readback.json()["submissions"][0] == submission
 
 
 @pytest.mark.regression

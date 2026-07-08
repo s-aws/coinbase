@@ -1256,6 +1256,8 @@ def _live_submit_item_from_record(
 ) -> UsdcPairSnapshotOrderPlanLiveSubmitItem:
     return UsdcPairSnapshotOrderPlanLiveSubmitItem(
         submission_id=record.submission_id,
+        live_submit_source=record.live_submit_source,
+        run_state_id=record.run_state_id,
         readiness_id=record.readiness_id,
         plan_id=record.plan_id,
         snapshot_run_id=record.snapshot_run_id,
@@ -7907,6 +7909,8 @@ def _record_usdc_pair_live_submission(
     idempotency_key: str,
     payload_hash: str,
     audit_id: str,
+    live_submit_source: str = "order_plan",
+    run_state_id: str | None = None,
 ) -> UsdcPairSnapshotOrderPlanLiveSubmitItem:
     blockers: list[str] = []
     if body.product_id.upper() != readiness.product_id.upper():
@@ -8138,6 +8142,8 @@ def _record_usdc_pair_live_submission(
         submission_id=(
             body.submission_id or f"m58-usdc-live-submit-{uuid4()}"
         ),
+        live_submit_source=live_submit_source,
+        run_state_id=run_state_id,
         readiness_id=readiness.readiness_id,
         plan_id=plan.plan_id,
         snapshot_run_id=plan.snapshot_run_id,
@@ -9183,6 +9189,8 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
             idempotency_key=idempotency_key,
             payload_hash=payload_hash,
             audit_id=audit_id,
+            live_submit_source="allowlist_run_state",
+            run_state_id=run_state.run_state_id,
         )
 
     return _execute_idempotent_live_submit(
