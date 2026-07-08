@@ -5185,6 +5185,7 @@ def _record_usdc_pair_allowlist_run_state(
         plan_id=readiness.plan_id,
         snapshot_run_id=readiness.snapshot_run_id,
         queued_product_ids=list(queued_product_ids),
+        queued_client_order_ids=_queued_usdc_pair_client_order_ids(product_states),
         live_wallet_reservation_ids=list(
             wallet_allocation["live_wallet_reservation_ids"]
         ),
@@ -5807,6 +5808,17 @@ def _normalized_usdc_pair_product_id_multiset(product_ids: list[str]) -> list[st
 
 def _normalized_usdc_pair_string_multiset(values: list[str]) -> list[str]:
     return sorted(str(value).strip() for value in values if str(value).strip())
+
+
+def _queued_usdc_pair_client_order_ids(
+    product_states: list[UsdcPairSnapshotAllowlistRunStateProductItem],
+) -> list[str]:
+    return [
+        str(row.client_order_id).strip()
+        for row in product_states
+        if row.execution_state == "queued_no_live"
+        and str(row.client_order_id).strip()
+    ]
 
 
 def _sum_usdc_pair_decimal_values(values: list[str]) -> Decimal | None:
@@ -7689,6 +7701,12 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_ledger(
             record.queued_product_ids
         ) != _normalized_usdc_pair_product_id_multiset(run_state.queued_product_ids):
             blockers.append("run_state_live_wallet_ledger_queued_product_ids_mismatch")
+        if _normalized_usdc_pair_string_multiset(
+            record.queued_client_order_ids
+        ) != _normalized_usdc_pair_string_multiset(
+            _queued_usdc_pair_client_order_ids(run_state.product_states)
+        ):
+            blockers.append("run_state_live_wallet_ledger_client_order_ids_mismatch")
         if _normalized_usdc_pair_string_multiset(
             record.live_wallet_reservation_ids
         ) != _normalized_usdc_pair_string_multiset(
