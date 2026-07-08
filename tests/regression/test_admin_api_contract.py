@@ -35031,6 +35031,13 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
         "scheduler_abort_control_missing",
         "scheduler_runtime_control_binding_missing",
     ]
+    assert run_state["scheduler_retry_policy_status"] == "blocked_no_live"
+    assert run_state["scheduler_retry_policy_ref"] is None
+    assert run_state["scheduler_retry_policy_blockers"] == [
+        "scheduler_retry_budget_policy_missing",
+        "scheduler_retry_backoff_binding_missing",
+        "scheduler_retry_release_gate_uncleared",
+    ]
     assert run_state["scheduler_cadence_status"] == "disabled_no_live"
     assert run_state["scheduler_cadence_blockers"] == [
         "scheduler_worker_missing",
@@ -45073,6 +45080,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
                     "m58-scheduler-runtime-control-stale"
                 ),
                 "scheduler_runtime_control_blockers": [],
+                "scheduler_retry_policy_status": "ready_no_live",
+                "scheduler_retry_policy_ref": "m58-scheduler-retry-policy-stale",
+                "scheduler_retry_policy_blockers": [],
                 "scheduler_cadence_status": "ready_no_live",
                 "scheduler_cadence_blockers": [],
                 "scheduler_recovery_runbook_status": "ready_no_live",
@@ -45155,6 +45165,13 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
         "message"
     ]
     assert "run_state_scheduler_runtime_control_blockers_missing" in payload[
+        "message"
+    ]
+    assert "run_state_scheduler_retry_policy_not_blocked" in payload[
+        "message"
+    ]
+    assert "run_state_scheduler_retry_policy_ref_present" in payload["message"]
+    assert "run_state_scheduler_retry_policy_blockers_missing" in payload[
         "message"
     ]
     assert "run_state_scheduler_cadence_not_disabled" in payload["message"]
@@ -63911,6 +63928,15 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "m58_usdc_pair_scheduler_gate"
     ]["detail"]
     assert "scheduler_runtime_control_blockers" in release_checks[
+        "m58_usdc_pair_scheduler_gate"
+    ]["detail"]
+    assert "scheduler_retry_policy_status=blocked_no_live" in release_checks[
+        "m58_usdc_pair_scheduler_gate"
+    ]["detail"]
+    assert "scheduler_retry_policy_ref absent" in release_checks[
+        "m58_usdc_pair_scheduler_gate"
+    ]["detail"]
+    assert "scheduler_retry_policy_blockers" in release_checks[
         "m58_usdc_pair_scheduler_gate"
     ]["detail"]
     assert "scheduler_cadence_status=disabled_no_live" in release_checks[

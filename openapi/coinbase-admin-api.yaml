@@ -170410,6 +170410,21 @@ components:
             type: string
           type: array
           title: Scheduler Runtime Control Blockers
+        scheduler_retry_policy_status:
+          type: string
+          minLength: 1
+          title: Scheduler Retry Policy Status
+          default: blocked_no_live
+        scheduler_retry_policy_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scheduler Retry Policy Ref
+        scheduler_retry_policy_blockers:
+          items:
+            type: string
+          type: array
+          title: Scheduler Retry Policy Blockers
         scheduler_cadence_status:
           type: string
           minLength: 1

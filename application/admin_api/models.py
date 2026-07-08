@@ -3307,6 +3307,18 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
             "scheduler_runtime_control_binding_missing",
         ]
     )
+    scheduler_retry_policy_status: str = Field(
+        default="blocked_no_live",
+        min_length=1,
+    )
+    scheduler_retry_policy_ref: str | None = None
+    scheduler_retry_policy_blockers: list[str] = Field(
+        default_factory=lambda: [
+            "scheduler_retry_budget_policy_missing",
+            "scheduler_retry_backoff_binding_missing",
+            "scheduler_retry_release_gate_uncleared",
+        ]
+    )
     scheduler_cadence_status: str = Field(default="disabled_no_live", min_length=1)
     scheduler_cadence_blockers: list[str] = Field(
         default_factory=lambda: [

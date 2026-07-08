@@ -304,6 +304,12 @@ USDC_PAIR_SNAPSHOT_SCHEDULER_RUNTIME_CONTROL_BLOCKERS = [
     "scheduler_abort_control_missing",
     "scheduler_runtime_control_binding_missing",
 ]
+USDC_PAIR_SNAPSHOT_SCHEDULER_RETRY_POLICY_BLOCKED_STATUS = "blocked_no_live"
+USDC_PAIR_SNAPSHOT_SCHEDULER_RETRY_POLICY_BLOCKERS = [
+    "scheduler_retry_budget_policy_missing",
+    "scheduler_retry_backoff_binding_missing",
+    "scheduler_retry_release_gate_uncleared",
+]
 USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_DISABLED_STATUS = "disabled_no_live"
 USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_BLOCKERS = [
     "scheduler_worker_missing",
@@ -941,6 +947,9 @@ def _allowlist_run_state_item_from_record(
         scheduler_runtime_control_blockers=(
             record.scheduler_runtime_control_blockers
         ),
+        scheduler_retry_policy_status=record.scheduler_retry_policy_status,
+        scheduler_retry_policy_ref=record.scheduler_retry_policy_ref,
+        scheduler_retry_policy_blockers=record.scheduler_retry_policy_blockers,
         scheduler_cadence_status=record.scheduler_cadence_status,
         scheduler_cadence_blockers=record.scheduler_cadence_blockers,
         scheduler_recovery_runbook_status=(
@@ -5260,6 +5269,13 @@ def _record_usdc_pair_allowlist_run_state(
         scheduler_runtime_control_blockers=list(
             USDC_PAIR_SNAPSHOT_SCHEDULER_RUNTIME_CONTROL_BLOCKERS
         ),
+        scheduler_retry_policy_status=(
+            USDC_PAIR_SNAPSHOT_SCHEDULER_RETRY_POLICY_BLOCKED_STATUS
+        ),
+        scheduler_retry_policy_ref=None,
+        scheduler_retry_policy_blockers=list(
+            USDC_PAIR_SNAPSHOT_SCHEDULER_RETRY_POLICY_BLOCKERS
+        ),
         scheduler_cadence_status=(
             USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_DISABLED_STATUS
         ),
@@ -5938,6 +5954,26 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         for blocker in USDC_PAIR_SNAPSHOT_SCHEDULER_RUNTIME_CONTROL_BLOCKERS
     ):
         blockers.append("run_state_scheduler_runtime_control_blockers_missing")
+    if (
+        run_state.scheduler_retry_policy_status
+        != USDC_PAIR_SNAPSHOT_SCHEDULER_RETRY_POLICY_BLOCKED_STATUS
+    ):
+        blockers.append("run_state_scheduler_retry_policy_not_blocked")
+    if run_state.scheduler_retry_policy_ref:
+        blockers.append("run_state_scheduler_retry_policy_ref_present")
+    scheduler_retry_policy_blockers = list(
+        run_state.scheduler_retry_policy_blockers
+    )
+    if (
+        scheduler_retry_policy_blockers
+        != USDC_PAIR_SNAPSHOT_SCHEDULER_RETRY_POLICY_BLOCKERS
+    ):
+        blockers.append("run_state_scheduler_retry_policy_blockers_mismatch")
+    if any(
+        blocker not in scheduler_retry_policy_blockers
+        for blocker in USDC_PAIR_SNAPSHOT_SCHEDULER_RETRY_POLICY_BLOCKERS
+    ):
+        blockers.append("run_state_scheduler_retry_policy_blockers_missing")
     if (
         run_state.scheduler_cadence_status
         != USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_DISABLED_STATUS

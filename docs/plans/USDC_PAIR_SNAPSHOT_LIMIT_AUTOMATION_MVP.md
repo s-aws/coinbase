@@ -659,6 +659,8 @@ future fan-out worker can clear the runtime fan-out blocker, and exposes
 `scheduler_rate_limit_blockers`,
 `scheduler_runtime_control_status`, `scheduler_runtime_control_ref`,
 `scheduler_runtime_control_blockers`,
+`scheduler_retry_policy_status`, `scheduler_retry_policy_ref`,
+`scheduler_retry_policy_blockers`,
 `scheduler_cadence_status`, `scheduler_cadence_blockers`,
 `scheduler_recovery_runbook_status`, `scheduler_recovery_runbook_ref`, and
 `scheduler_recovery_runbook_blockers` before any future scheduler or fan-out
@@ -671,6 +673,9 @@ rate-limit window instead of bypassing it.
 Scheduler runtime-control readback remains blocked until a future scheduler
 worker proves it consumes backend pause and abort control state before queuing
 or submitting any order.
+Scheduler retry-policy readback remains blocked until a future scheduler worker
+proves it consumes backend retry-budget and retry-backoff evidence before
+retrying any product.
 Product run-state rows also expose `retry_budget_per_product` and
 `retry_prior_attempt_count` before retry budget/backoff blockers clear
 remaining attempts. Aggregate run-state evidence also exposes the
