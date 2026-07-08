@@ -35276,6 +35276,109 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_release_review_refs(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    client.admin_api_test_cap_guard_store.append(
+        CapGuardDecisionRecord(
+            decision_id="cap-m58-run-state-release-review-btc",
+            route=(
+                "/api/v1/automation/usdc-pair-snapshot-order-plan-"
+                "allowlist-readiness/{readiness_id}/run-state"
+            ),
+            method="POST",
+            module_id="automation",
+            identity_key="client_order_id",
+            identity_value="m58-usdc-run-state-negative-BTC-USDC",
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method="record_usdc_pair_snapshot_allowlist_run_state",
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+            idempotency_key="idem-usdc-allowlist-run-state-release-review",
+            payload_hash="8" * 64,
+            approval_snapshot_id="approval-m58-run-state-release-review-btc",
+            admission_audit_id="admission-m58-run-state-release-review-btc",
+            allowed=True,
+            status=AdminApiGateStatus.PASSED,
+            cap_policy_ref="m58_phase_f_submitted_notional_cap",
+            guard_policy_ref="m58_phase_f_wallet_allocation_guard",
+            product_scope="BTC-USDC",
+            max_submitted_notional_usdc="1.00",
+            max_executed_notional_usdc="0",
+            wallet_check_required=True,
+            wallet_check_status=AdminApiGateStatus.PASSED,
+            wallet_available_notional_usdc="1.00",
+            wallet_check_source="m58_usdc_pair_allowlist_run_state_fixture",
+            reason="No-live Phase F release-review source evidence.",
+        )
+    )
+    _append_usdc_pair_snapshot_allowlist_run_state_readiness(
+        client,
+        readiness_id="m58-usdc-allowlist-run-state-release-review-readiness",
+        plan_id="m58-usdc-allowlist-run-state-release-review-plan",
+        snapshot_run_id="m58-usdc-allowlist-run-state-release-review-snapshot",
+        cap_guard_decision_id="cap-m58-run-state-release-review-btc",
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+            "m58-usdc-allowlist-run-state-release-review-readiness/run-state"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-allowlist-run-state-release-review",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+        ),
+        json={
+            "run_state_id": "m58-usdc-allowlist-run-state-release-review",
+            "execution_mode": "no_live_rehearsal",
+            "max_fanout_notional_usdc": "100",
+            "run_lock_ref": "m58-run-lock-release-review",
+            "rate_limit_window_ref": "m58-rate-limit-window-release-review",
+            "runtime_fanout_release_gate_ref": (
+                "m58-release-gate-no-live-20260708"
+            ),
+            "runtime_fanout_contextless_review_ref": (
+                "m58-contextless-review-fanout-20260708"
+            ),
+            "pause_requested": False,
+            "abort_requested": False,
+            "operator_notes": (
+                "no-live runtime fan-out release/contextless review evidence"
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+
+    run_state = payload["run_state"]
+    assert run_state["runtime_fanout_release_review_status"] == "ready_no_live"
+    assert run_state["runtime_fanout_release_review_ref"] == (
+        "release_gate:m58-release-gate-no-live-20260708;"
+        "contextless_review:m58-contextless-review-fanout-20260708"
+    )
+    assert run_state["runtime_fanout_release_review_blockers"] == []
+    assert run_state["runtime_fanout_execution_status"] == "blocked_no_live"
+    assert run_state["runtime_fanout_worker_ref"] is None
+    assert "runtime_fanout_worker_missing" in run_state[
+        "runtime_fanout_execution_blockers"
+    ]
+    assert run_state["scheduler_release_review_status"] == "blocked_no_live"
+    assert run_state["scheduler_release_review_ref"] is None
+    assert run_state["fanout_execution_status"] == "blocked"
+    assert "fanout_execution_technically_blocked" in run_state["fanout_blockers"]
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_wallet_allocation_requires_passed_cap_guard(
     tmp_path,
 ):
@@ -64412,111 +64515,73 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         release_checks["m58_usdc_pair_runtime_fanout_gate"]["status"]
         == AdminApiGateStatus.WARNING.value
     )
-    assert "runtime fan-out remains blocked" in release_checks[
+    runtime_fanout_detail = release_checks[
         "m58_usdc_pair_runtime_fanout_gate"
     ]["detail"]
-    assert "5 orders per second" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_execution_status=blocked_no_live" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_worker_ref absent" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_execution_blockers" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_price_freshness_status=blocked_no_live" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_price_freshness_ref absent" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_price_freshness_blockers" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_live_service_status=blocked_no_live" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_live_service_ref absent" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_live_service_blockers" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_admission_audit_status=blocked_no_live" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_admission_audit_ref absent" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_admission_audit_blockers" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_reconciliation_status=blocked_no_live" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_reconciliation_ref absent" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_reconciliation_blockers" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_cap_guard_status=blocked_no_live" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_cap_guard_ref absent" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_cap_guard_blockers" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_wallet_ledger_status=blocked_no_live" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_wallet_ledger_ref absent" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_wallet_ledger_blockers" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_retry_recovery_status=blocked_no_live" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_retry_recovery_ref absent" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_retry_recovery_blockers" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_release_review_status=blocked_no_live" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_release_review_ref absent" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_release_review_blockers" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_rate_limit_status=blocked_no_live" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_rate_limit_ref absent" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_rate_limit_blockers" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_runtime_control_status=blocked_no_live" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_runtime_control_ref absent" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
-    assert "runtime_fanout_runtime_control_blockers" in release_checks[
-        "m58_usdc_pair_runtime_fanout_gate"
-    ]["detail"]
+    assert "runtime fan-out remains blocked" in runtime_fanout_detail
+    assert "5 orders per second" in runtime_fanout_detail
+    assert "runtime_fanout_execution_status=blocked_no_live" in (
+        runtime_fanout_detail
+    )
+    assert "runtime_fanout_worker_ref absent" in runtime_fanout_detail
+    assert "runtime_fanout_execution_blockers" in runtime_fanout_detail
+    assert "runtime_fanout_price_freshness_status=blocked_no_live" in (
+        runtime_fanout_detail
+    )
+    assert "runtime_fanout_price_freshness_ref absent" in runtime_fanout_detail
+    assert "runtime_fanout_price_freshness_blockers" in runtime_fanout_detail
+    assert "runtime_fanout_live_service_status=blocked_no_live" in (
+        runtime_fanout_detail
+    )
+    assert "runtime_fanout_live_service_ref absent" in runtime_fanout_detail
+    assert "runtime_fanout_live_service_blockers" in runtime_fanout_detail
+    assert "runtime_fanout_admission_audit_status=blocked_no_live" in (
+        runtime_fanout_detail
+    )
+    assert "runtime_fanout_admission_audit_ref absent" in runtime_fanout_detail
+    assert "runtime_fanout_admission_audit_blockers" in runtime_fanout_detail
+    assert "runtime_fanout_reconciliation_status=blocked_no_live" in (
+        runtime_fanout_detail
+    )
+    assert "runtime_fanout_reconciliation_ref absent" in runtime_fanout_detail
+    assert "runtime_fanout_reconciliation_blockers" in runtime_fanout_detail
+    assert "runtime_fanout_cap_guard_status=blocked_no_live" in (
+        runtime_fanout_detail
+    )
+    assert "runtime_fanout_cap_guard_ref absent" in runtime_fanout_detail
+    assert "runtime_fanout_cap_guard_blockers" in runtime_fanout_detail
+    assert "runtime_fanout_wallet_ledger_status=blocked_no_live" in (
+        runtime_fanout_detail
+    )
+    assert "runtime_fanout_wallet_ledger_ref absent" in runtime_fanout_detail
+    assert "runtime_fanout_wallet_ledger_blockers" in runtime_fanout_detail
+    assert "runtime_fanout_retry_recovery_status=blocked_no_live" in (
+        runtime_fanout_detail
+    )
+    assert "runtime_fanout_retry_recovery_ref absent" in runtime_fanout_detail
+    assert "runtime_fanout_retry_recovery_blockers" in runtime_fanout_detail
+    assert "runtime_fanout_release_review_status=blocked_no_live" in (
+        runtime_fanout_detail
+    )
+    assert "runtime_fanout_release_review_ref absent" in runtime_fanout_detail
+    assert "runtime_fanout_release_review_blockers" in runtime_fanout_detail
+    assert "runtime fan-out release/contextless review refs can now record" in (
+        runtime_fanout_detail
+    )
+    assert (
+        "does not clear worker, wallet, retry, rate, or runtime-control blockers"
+        in runtime_fanout_detail
+    )
+    assert "runtime_fanout_rate_limit_status=blocked_no_live" in (
+        runtime_fanout_detail
+    )
+    assert "runtime_fanout_rate_limit_ref absent" in runtime_fanout_detail
+    assert "runtime_fanout_rate_limit_blockers" in runtime_fanout_detail
+    assert "runtime_fanout_runtime_control_status=blocked_no_live" in (
+        runtime_fanout_detail
+    )
+    assert "runtime_fanout_runtime_control_ref absent" in runtime_fanout_detail
+    assert "runtime_fanout_runtime_control_blockers" in runtime_fanout_detail
     assert (
         release_checks["m58_usdc_pair_release_gate_clearance"]["status"]
         == AdminApiGateStatus.WARNING.value

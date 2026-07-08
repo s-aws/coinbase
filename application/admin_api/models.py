@@ -3105,6 +3105,11 @@ class UsdcPairSnapshotAllowlistRunStateRequest(BaseModel):
     run_lock_ref: str | None = Field(default=None, min_length=1)
     rate_limit_window_ref: str | None = Field(default=None, min_length=1)
     retry_backoff_ref: str | None = Field(default=None, min_length=1)
+    runtime_fanout_release_gate_ref: str | None = Field(default=None, min_length=1)
+    runtime_fanout_contextless_review_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
     live_wallet_reservation_ids: list[str] = Field(default_factory=list)
     pause_requested: bool = False
     abort_requested: bool = False

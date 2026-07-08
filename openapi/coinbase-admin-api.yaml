@@ -171134,6 +171134,18 @@ components:
             minLength: 1
           - type: 'null'
           title: Retry Backoff Ref
+        runtime_fanout_release_gate_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Release Gate Ref
+        runtime_fanout_contextless_review_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Contextless Review Ref
         live_wallet_reservation_ids:
           items:
             type: string

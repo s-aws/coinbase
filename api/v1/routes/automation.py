@@ -4855,6 +4855,38 @@ def _allowlist_run_state_status(
     return "ready_no_live"
 
 
+def _allowlist_run_state_release_review_readback(
+    *,
+    release_gate_ref: str | None,
+    contextless_review_ref: str | None,
+) -> tuple[str, str | None, list[str]]:
+    blockers: list[str] = []
+    normalized_release_gate_ref = (
+        release_gate_ref.strip() if release_gate_ref else None
+    )
+    normalized_contextless_review_ref = (
+        contextless_review_ref.strip() if contextless_review_ref else None
+    )
+    if not normalized_release_gate_ref:
+        blockers.append("runtime_fanout_release_gate_uncleared")
+    if not normalized_contextless_review_ref:
+        blockers.append("runtime_fanout_contextless_review_missing")
+    if blockers:
+        return (
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RELEASE_REVIEW_BLOCKED_STATUS,
+            None,
+            blockers,
+        )
+    return (
+        "ready_no_live",
+        (
+            f"release_gate:{normalized_release_gate_ref};"
+            f"contextless_review:{normalized_contextless_review_ref}"
+        ),
+        [],
+    )
+
+
 def _allowlist_run_state_runtime_statuses(
     *,
     readiness: UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
@@ -5183,6 +5215,14 @@ def _record_usdc_pair_allowlist_run_state(
         readiness=readiness,
         product_states=product_states,
     )
+    (
+        runtime_fanout_release_review_status,
+        runtime_fanout_release_review_ref,
+        runtime_fanout_release_review_blockers,
+    ) = _allowlist_run_state_release_review_readback(
+        release_gate_ref=body.runtime_fanout_release_gate_ref,
+        contextless_review_ref=body.runtime_fanout_contextless_review_ref,
+    )
     run_state_id = body.run_state_id or f"m58-usdc-allowlist-run-state-{uuid4()}"
     live_wallet_ledger = UsdcPairSnapshotLiveWalletLedgerRecord(
         ledger_id=f"{run_state_id}-live-wallet-ledger",
@@ -5443,11 +5483,11 @@ def _record_usdc_pair_allowlist_run_state(
             USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RETRY_RECOVERY_BLOCKERS
         ),
         runtime_fanout_release_review_status=(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RELEASE_REVIEW_BLOCKED_STATUS
+            runtime_fanout_release_review_status
         ),
-        runtime_fanout_release_review_ref=None,
+        runtime_fanout_release_review_ref=runtime_fanout_release_review_ref,
         runtime_fanout_release_review_blockers=list(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RELEASE_REVIEW_BLOCKERS
+            runtime_fanout_release_review_blockers
         ),
         runtime_fanout_rate_limit_status=(
             USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RATE_LIMIT_BLOCKED_STATUS
