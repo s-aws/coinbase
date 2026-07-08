@@ -3318,6 +3318,17 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
             "runtime_fanout_partial_failure_policy_missing",
         ]
     )
+    runtime_fanout_release_review_status: str = Field(
+        default="blocked_no_live",
+        min_length=1,
+    )
+    runtime_fanout_release_review_ref: str | None = None
+    runtime_fanout_release_review_blockers: list[str] = Field(
+        default_factory=lambda: [
+            "runtime_fanout_release_gate_uncleared",
+            "runtime_fanout_contextless_review_missing",
+        ]
+    )
     scheduler_execution_status: str = Field(default="blocked_no_live", min_length=1)
     scheduler_execution_blockers: list[str] = Field(
         default_factory=lambda: ["scheduler_blocked"]

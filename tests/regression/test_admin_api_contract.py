@@ -35107,6 +35107,12 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
         "runtime_fanout_recovery_replay_binding_missing",
         "runtime_fanout_partial_failure_policy_missing",
     ]
+    assert run_state["runtime_fanout_release_review_status"] == "blocked_no_live"
+    assert run_state["runtime_fanout_release_review_ref"] is None
+    assert run_state["runtime_fanout_release_review_blockers"] == [
+        "runtime_fanout_release_gate_uncleared",
+        "runtime_fanout_contextless_review_missing",
+    ]
     assert run_state["fanout_execution_status"] == "blocked"
     assert run_state["run_state_status"] == "blocked"
     assert run_state["fanout_blockers"] == [
@@ -45060,6 +45066,11 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
                     "m58-runtime-fanout-retry-recovery-stale"
                 ),
                 "runtime_fanout_retry_recovery_blockers": [],
+                "runtime_fanout_release_review_status": "ready_no_live",
+                "runtime_fanout_release_review_ref": (
+                    "m58-runtime-fanout-release-review-stale"
+                ),
+                "runtime_fanout_release_review_blockers": [],
                 "fanout_blockers": [
                     "fanout_execution_technically_blocked",
                     "scheduler_blocked",
@@ -45166,6 +45177,15 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
         "message"
     ]
     assert "run_state_runtime_fanout_retry_recovery_blockers_missing" in payload[
+        "message"
+    ]
+    assert "run_state_runtime_fanout_release_review_not_blocked" in payload[
+        "message"
+    ]
+    assert "run_state_runtime_fanout_release_review_ref_present" in payload[
+        "message"
+    ]
+    assert "run_state_runtime_fanout_release_review_blockers_missing" in payload[
         "message"
     ]
     assert payload["live_exchange_submitted"] is False
@@ -64058,6 +64078,15 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "m58_usdc_pair_runtime_fanout_gate"
     ]["detail"]
     assert "runtime_fanout_retry_recovery_blockers" in release_checks[
+        "m58_usdc_pair_runtime_fanout_gate"
+    ]["detail"]
+    assert "runtime_fanout_release_review_status=blocked_no_live" in release_checks[
+        "m58_usdc_pair_runtime_fanout_gate"
+    ]["detail"]
+    assert "runtime_fanout_release_review_ref absent" in release_checks[
+        "m58_usdc_pair_runtime_fanout_gate"
+    ]["detail"]
+    assert "runtime_fanout_release_review_blockers" in release_checks[
         "m58_usdc_pair_runtime_fanout_gate"
     ]["detail"]
     assert (
