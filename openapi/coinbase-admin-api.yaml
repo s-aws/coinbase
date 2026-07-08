@@ -171146,6 +171146,24 @@ components:
             minLength: 1
           - type: 'null'
           title: Runtime Fanout Contextless Review Ref
+        runtime_fanout_rate_limit_worker_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Rate Limit Worker Ref
+        runtime_fanout_rate_limit_binding_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Rate Limit Binding Ref
+        runtime_fanout_rate_limit_release_gate_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Rate Limit Release Gate Ref
         live_wallet_reservation_ids:
           items:
             type: string

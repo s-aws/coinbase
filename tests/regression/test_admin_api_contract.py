@@ -35379,6 +35379,116 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_release_review
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_rate_limit_refs(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    client.admin_api_test_cap_guard_store.append(
+        CapGuardDecisionRecord(
+            decision_id="cap-m58-run-state-rate-limit-btc",
+            route=(
+                "/api/v1/automation/usdc-pair-snapshot-order-plan-"
+                "allowlist-readiness/{readiness_id}/run-state"
+            ),
+            method="POST",
+            module_id="automation",
+            identity_key="client_order_id",
+            identity_value="m58-usdc-run-state-negative-BTC-USDC",
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method="record_usdc_pair_snapshot_allowlist_run_state",
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+            idempotency_key="idem-usdc-allowlist-run-state-rate-limit",
+            payload_hash="8" * 64,
+            approval_snapshot_id="approval-m58-run-state-rate-limit-btc",
+            admission_audit_id="admission-m58-run-state-rate-limit-btc",
+            allowed=True,
+            status=AdminApiGateStatus.PASSED,
+            cap_policy_ref="m58_phase_f_submitted_notional_cap",
+            guard_policy_ref="m58_phase_f_wallet_allocation_guard",
+            product_scope="BTC-USDC",
+            max_submitted_notional_usdc="1.00",
+            max_executed_notional_usdc="0",
+            wallet_check_required=True,
+            wallet_check_status=AdminApiGateStatus.PASSED,
+            wallet_available_notional_usdc="1.00",
+            wallet_check_source="m58_usdc_pair_allowlist_run_state_fixture",
+            reason="No-live Phase F rate-limit source evidence.",
+        )
+    )
+    _append_usdc_pair_snapshot_allowlist_run_state_readiness(
+        client,
+        readiness_id="m58-usdc-allowlist-run-state-rate-limit-readiness",
+        plan_id="m58-usdc-allowlist-run-state-rate-limit-plan",
+        snapshot_run_id="m58-usdc-allowlist-run-state-rate-limit-snapshot",
+        cap_guard_decision_id="cap-m58-run-state-rate-limit-btc",
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+            "m58-usdc-allowlist-run-state-rate-limit-readiness/run-state"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-allowlist-run-state-rate-limit",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+        ),
+        json={
+            "run_state_id": "m58-usdc-allowlist-run-state-rate-limit",
+            "execution_mode": "no_live_rehearsal",
+            "max_fanout_notional_usdc": "100",
+            "run_lock_ref": "m58-run-lock-rate-limit",
+            "rate_limit_window_ref": "m58-rate-limit-window-rate-limit",
+            "runtime_fanout_rate_limit_worker_ref": (
+                "m58-rate-limit-worker-no-live-20260708"
+            ),
+            "runtime_fanout_rate_limit_binding_ref": (
+                "m58-rate-limit-binding-no-live-20260708"
+            ),
+            "runtime_fanout_rate_limit_release_gate_ref": (
+                "m58-rate-limit-release-gate-no-live-20260708"
+            ),
+            "pause_requested": False,
+            "abort_requested": False,
+            "operator_notes": "no-live runtime fan-out rate-limit evidence",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+
+    run_state = payload["run_state"]
+    assert run_state["runtime_fanout_rate_limit_status"] == "ready_no_live"
+    assert run_state["runtime_fanout_rate_limit_ref"] == (
+        "worker:m58-rate-limit-worker-no-live-20260708;"
+        "binding:m58-rate-limit-binding-no-live-20260708;"
+        "release_gate:m58-rate-limit-release-gate-no-live-20260708"
+    )
+    assert run_state["runtime_fanout_rate_limit_blockers"] == []
+    assert run_state["rate_limit_status"] == "ready_no_live"
+    assert run_state["rate_limit_max_orders_per_window"] == 5
+    assert run_state["rate_limit_window_seconds"] == 1
+    assert run_state["rate_limit_attempted_order_count"] == 1
+    assert run_state["rate_limit_window_within_cap"] is True
+    assert run_state["runtime_fanout_execution_status"] == "blocked_no_live"
+    assert run_state["runtime_fanout_worker_ref"] is None
+    assert "runtime_fanout_worker_missing" in run_state[
+        "runtime_fanout_execution_blockers"
+    ]
+    assert run_state["scheduler_rate_limit_status"] == "blocked_no_live"
+    assert run_state["scheduler_rate_limit_ref"] is None
+    assert run_state["fanout_execution_status"] == "blocked"
+    assert "fanout_execution_technically_blocked" in run_state["fanout_blockers"]
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_wallet_allocation_requires_passed_cap_guard(
     tmp_path,
 ):
@@ -38615,6 +38725,15 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_missing_rate_li
             "execution_mode": "no_live_rehearsal",
             "max_fanout_notional_usdc": "100",
             "run_lock_ref": "m58-run-lock-missing-rate-window",
+            "runtime_fanout_rate_limit_worker_ref": (
+                "m58-rate-limit-worker-missing-window"
+            ),
+            "runtime_fanout_rate_limit_binding_ref": (
+                "m58-rate-limit-binding-missing-window"
+            ),
+            "runtime_fanout_rate_limit_release_gate_ref": (
+                "m58-rate-limit-release-gate-missing-window"
+            ),
             "pause_requested": False,
             "abort_requested": False,
         },
@@ -38642,6 +38761,11 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_missing_rate_li
     assert run_state["retryable_product_count"] == 0
     assert run_state["recovery_required_product_count"] == 0
     assert run_state["rate_limit_status"] == "blocked"
+    assert run_state["runtime_fanout_rate_limit_status"] == "blocked_no_live"
+    assert run_state["runtime_fanout_rate_limit_ref"] is None
+    assert run_state["runtime_fanout_rate_limit_blockers"] == [
+        "rate_limit_window_ref_missing"
+    ]
     assert run_state["retry_budget_status"] == "blocked"
     assert run_state["recovery_status"] == "blocked"
     assert run_state["partial_success_status"] == "blocked"
@@ -38919,6 +39043,15 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_rate_limit_wind
             "max_fanout_notional_usdc": "100",
             "run_lock_ref": "m58-run-lock-rate-window-conflict",
             "rate_limit_window_ref": shared_rate_limit_window_ref,
+            "runtime_fanout_rate_limit_worker_ref": (
+                "m58-rate-limit-worker-window-conflict"
+            ),
+            "runtime_fanout_rate_limit_binding_ref": (
+                "m58-rate-limit-binding-window-conflict"
+            ),
+            "runtime_fanout_rate_limit_release_gate_ref": (
+                "m58-rate-limit-release-gate-window-conflict"
+            ),
             "pause_requested": False,
             "abort_requested": False,
         },
@@ -38940,6 +39073,11 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_rate_limit_wind
     assert run_state["rate_limit_window_conflict_run_state_id"] == (
         "m58-usdc-allowlist-run-state-rate-window-source"
     )
+    assert run_state["runtime_fanout_rate_limit_status"] == "blocked_no_live"
+    assert run_state["runtime_fanout_rate_limit_ref"] is None
+    assert run_state["runtime_fanout_rate_limit_blockers"] == [
+        "rate_limit_window_ref_conflict"
+    ]
     assert run_state["run_state_status"] == "blocked"
     assert run_state["queued_product_ids"] == []
     assert run_state["blocked_product_ids"] == ["BTC-USDC"]
@@ -39121,6 +39259,15 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_rate_limit_wind
             "max_fanout_notional_usdc": "100",
             "run_lock_ref": "m58-run-lock-rate-window-capacity",
             "rate_limit_window_ref": "m58-rate-limit-window-capacity",
+            "runtime_fanout_rate_limit_worker_ref": (
+                "m58-rate-limit-worker-window-capacity"
+            ),
+            "runtime_fanout_rate_limit_binding_ref": (
+                "m58-rate-limit-binding-window-capacity"
+            ),
+            "runtime_fanout_rate_limit_release_gate_ref": (
+                "m58-rate-limit-release-gate-window-capacity"
+            ),
             "pause_requested": False,
             "abort_requested": False,
         },
@@ -39158,6 +39305,11 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_blocks_rate_limit_wind
     assert run_state["rate_limit_window_remaining_order_count"] == 0
     assert run_state["rate_limit_window_overage_order_count"] == 1
     assert run_state["rate_limit_window_within_cap"] is False
+    assert run_state["runtime_fanout_rate_limit_status"] == "blocked_no_live"
+    assert run_state["runtime_fanout_rate_limit_ref"] is None
+    assert run_state["runtime_fanout_rate_limit_blockers"] == [
+        "rate_limit_window_capacity_exceeded"
+    ]
     assert run_state["run_state_status"] == "blocked"
     assert run_state["queued_product_ids"] == []
     assert run_state["blocked_product_ids"] == products
@@ -64577,6 +64729,17 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert "runtime_fanout_rate_limit_ref absent" in runtime_fanout_detail
     assert "runtime_fanout_rate_limit_blockers" in runtime_fanout_detail
+    assert (
+        "runtime fan-out rate-limit worker/binding/release refs can now record"
+        in runtime_fanout_detail
+    )
+    assert "current rate-limit window is present, non-conflicting, and within cap" in (
+        runtime_fanout_detail
+    )
+    assert (
+        "does not clear worker, wallet, retry, runtime-control, scheduler, "
+        "or Coinbase execution blockers"
+    ) in runtime_fanout_detail
     assert "runtime_fanout_runtime_control_status=blocked_no_live" in (
         runtime_fanout_detail
     )

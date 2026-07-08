@@ -4887,6 +4887,53 @@ def _allowlist_run_state_release_review_readback(
     )
 
 
+def _allowlist_run_state_rate_limit_readback(
+    *,
+    worker_ref: str | None,
+    binding_ref: str | None,
+    release_gate_ref: str | None,
+    rate_limit_window_ref: str | None,
+    rate_limit_window_conflict_blocker: str | None,
+    rate_limit_window_within_cap: bool,
+) -> tuple[str, str | None, list[str]]:
+    blockers: list[str] = []
+    normalized_worker_ref = worker_ref.strip() if worker_ref else None
+    normalized_binding_ref = binding_ref.strip() if binding_ref else None
+    normalized_release_gate_ref = (
+        release_gate_ref.strip() if release_gate_ref else None
+    )
+    normalized_rate_limit_window_ref = (
+        rate_limit_window_ref.strip() if rate_limit_window_ref else None
+    )
+    if not normalized_worker_ref:
+        blockers.append("runtime_fanout_rate_limit_worker_missing")
+    if not normalized_binding_ref:
+        blockers.append("runtime_fanout_rate_limit_runtime_binding_missing")
+    if not normalized_release_gate_ref:
+        blockers.append("runtime_fanout_rate_limit_release_gate_uncleared")
+    if not normalized_rate_limit_window_ref:
+        blockers.append(USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_MISSING_BLOCKER)
+    if rate_limit_window_conflict_blocker:
+        blockers.append(rate_limit_window_conflict_blocker)
+    if not rate_limit_window_within_cap:
+        blockers.append(USDC_PAIR_SNAPSHOT_RATE_LIMIT_WINDOW_CAPACITY_BLOCKER)
+    if blockers:
+        return (
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RATE_LIMIT_BLOCKED_STATUS,
+            None,
+            blockers,
+        )
+    return (
+        "ready_no_live",
+        (
+            f"worker:{normalized_worker_ref};"
+            f"binding:{normalized_binding_ref};"
+            f"release_gate:{normalized_release_gate_ref}"
+        ),
+        [],
+    )
+
+
 def _allowlist_run_state_runtime_statuses(
     *,
     readiness: UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
@@ -5223,6 +5270,18 @@ def _record_usdc_pair_allowlist_run_state(
         release_gate_ref=body.runtime_fanout_release_gate_ref,
         contextless_review_ref=body.runtime_fanout_contextless_review_ref,
     )
+    (
+        runtime_fanout_rate_limit_status,
+        runtime_fanout_rate_limit_ref,
+        runtime_fanout_rate_limit_blockers,
+    ) = _allowlist_run_state_rate_limit_readback(
+        worker_ref=body.runtime_fanout_rate_limit_worker_ref,
+        binding_ref=body.runtime_fanout_rate_limit_binding_ref,
+        release_gate_ref=body.runtime_fanout_rate_limit_release_gate_ref,
+        rate_limit_window_ref=body.rate_limit_window_ref,
+        rate_limit_window_conflict_blocker=rate_limit_window_conflict_blocker,
+        rate_limit_window_within_cap=rate_limit_window_within_cap,
+    )
     run_state_id = body.run_state_id or f"m58-usdc-allowlist-run-state-{uuid4()}"
     live_wallet_ledger = UsdcPairSnapshotLiveWalletLedgerRecord(
         ledger_id=f"{run_state_id}-live-wallet-ledger",
@@ -5490,11 +5549,11 @@ def _record_usdc_pair_allowlist_run_state(
             runtime_fanout_release_review_blockers
         ),
         runtime_fanout_rate_limit_status=(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RATE_LIMIT_BLOCKED_STATUS
+            runtime_fanout_rate_limit_status
         ),
-        runtime_fanout_rate_limit_ref=None,
+        runtime_fanout_rate_limit_ref=runtime_fanout_rate_limit_ref,
         runtime_fanout_rate_limit_blockers=list(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RATE_LIMIT_BLOCKERS
+            runtime_fanout_rate_limit_blockers
         ),
         runtime_fanout_runtime_control_status=(
             USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RUNTIME_CONTROL_BLOCKED_STATUS
