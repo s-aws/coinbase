@@ -101,6 +101,12 @@ Available building blocks:
   fan-out admission-audit readback; live-submit rejects stale runtime fan-out
   admission-audit readback that claims backend admission binding is ready,
   supplies a ref, or omits required blockers. Run-state evidence
+  now also records `runtime_fanout_reconciliation_status`,
+  `runtime_fanout_reconciliation_ref`, and
+  `runtime_fanout_reconciliation_blockers` as explicit blocked runtime fan-out
+  reconciliation readback; live-submit rejects stale runtime fan-out
+  reconciliation readback that claims reconciliation binding is ready, supplies
+  a ref, or omits required blockers. Run-state evidence
   now also records `runtime_fanout_cap_guard_status`,
   `runtime_fanout_cap_guard_ref`, and `runtime_fanout_cap_guard_blockers` as
   explicit blocked runtime fan-out cap-guard readback; live-submit rejects
@@ -686,6 +692,8 @@ It also exposes `runtime_fanout_execution_status`,
 `runtime_fanout_live_service_blockers`,
 `runtime_fanout_admission_audit_status`, `runtime_fanout_admission_audit_ref`,
 `runtime_fanout_admission_audit_blockers`,
+`runtime_fanout_reconciliation_status`, `runtime_fanout_reconciliation_ref`,
+`runtime_fanout_reconciliation_blockers`,
 `runtime_fanout_cap_guard_status`, `runtime_fanout_cap_guard_ref`,
 `runtime_fanout_cap_guard_blockers`,
 `runtime_fanout_wallet_ledger_status`, `runtime_fanout_wallet_ledger_ref`,
@@ -1099,11 +1107,13 @@ status, absent price-freshness ref, required price-freshness blockers, blocked
 runtime fan-out live-service status, absent live-service ref, required
 live-service blockers, blocked runtime fan-out admission-audit status, absent
 admission-audit ref, required admission-audit blockers, blocked runtime fan-out
-cap-guard status, absent cap-guard ref, required cap-guard blockers, blocked
-runtime fan-out wallet-ledger status, absent wallet-ledger ref, required
-wallet-ledger blockers, blocked runtime fan-out retry/recovery status, absent
-retry/recovery ref, and required retry/recovery blockers; this is explicit
-blocker evidence, not live fan-out authority.
+reconciliation status, absent reconciliation ref, required reconciliation
+blockers, blocked runtime fan-out cap-guard status, absent cap-guard ref,
+required cap-guard blockers, blocked runtime fan-out wallet-ledger status,
+absent wallet-ledger ref, required wallet-ledger blockers, blocked runtime
+fan-out retry/recovery status, absent retry/recovery ref, and required
+retry/recovery blockers; this is explicit blocker evidence, not live fan-out
+authority.
 The backend release gate now records `m58_usdc_pair_live_fanout_gate` and
 `m58_usdc_pair_scheduler_gate` as warnings, plus
 `m58_usdc_pair_contextless_review_gate` as passed for the current
@@ -1122,6 +1132,9 @@ and required `runtime_fanout_live_service_blockers`, plus blocked
 `runtime_fanout_admission_audit_status`, absent
 `runtime_fanout_admission_audit_ref`, and required
 `runtime_fanout_admission_audit_blockers`, plus blocked
+`runtime_fanout_reconciliation_status`, absent
+`runtime_fanout_reconciliation_ref`, and required
+`runtime_fanout_reconciliation_blockers`, plus blocked
 `runtime_fanout_cap_guard_status`, absent `runtime_fanout_cap_guard_ref`, and
 required `runtime_fanout_cap_guard_blockers`, plus blocked
 `runtime_fanout_wallet_ledger_status`, absent

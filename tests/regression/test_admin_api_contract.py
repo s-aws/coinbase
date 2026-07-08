@@ -35079,6 +35079,13 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
         "runtime_fanout_admission_decision_recheck_missing",
         "runtime_fanout_operator_intent_audit_recheck_missing",
     ]
+    assert run_state["runtime_fanout_reconciliation_status"] == "blocked_no_live"
+    assert run_state["runtime_fanout_reconciliation_ref"] is None
+    assert run_state["runtime_fanout_reconciliation_blockers"] == [
+        "runtime_fanout_reconciliation_binding_missing",
+        "runtime_fanout_reconciliation_plan_recheck_missing",
+        "runtime_fanout_exchange_readback_recheck_missing",
+    ]
     assert run_state["runtime_fanout_cap_guard_status"] == "blocked_no_live"
     assert run_state["runtime_fanout_cap_guard_ref"] is None
     assert run_state["runtime_fanout_cap_guard_blockers"] == [
@@ -45033,6 +45040,11 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
                     "m58-runtime-fanout-admission-audit-stale"
                 ),
                 "runtime_fanout_admission_audit_blockers": [],
+                "runtime_fanout_reconciliation_status": "ready_no_live",
+                "runtime_fanout_reconciliation_ref": (
+                    "m58-runtime-fanout-reconciliation-stale"
+                ),
+                "runtime_fanout_reconciliation_blockers": [],
                 "runtime_fanout_cap_guard_status": "ready_no_live",
                 "runtime_fanout_cap_guard_ref": (
                     "m58-runtime-fanout-cap-guard-stale"
@@ -45118,6 +45130,15 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
         "message"
     ]
     assert "run_state_runtime_fanout_admission_audit_blockers_missing" in payload[
+        "message"
+    ]
+    assert "run_state_runtime_fanout_reconciliation_not_blocked" in payload[
+        "message"
+    ]
+    assert "run_state_runtime_fanout_reconciliation_ref_present" in payload[
+        "message"
+    ]
+    assert "run_state_runtime_fanout_reconciliation_blockers_missing" in payload[
         "message"
     ]
     assert "run_state_runtime_fanout_cap_guard_not_blocked" in payload[
@@ -64001,6 +64022,15 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "m58_usdc_pair_runtime_fanout_gate"
     ]["detail"]
     assert "runtime_fanout_admission_audit_blockers" in release_checks[
+        "m58_usdc_pair_runtime_fanout_gate"
+    ]["detail"]
+    assert "runtime_fanout_reconciliation_status=blocked_no_live" in release_checks[
+        "m58_usdc_pair_runtime_fanout_gate"
+    ]["detail"]
+    assert "runtime_fanout_reconciliation_ref absent" in release_checks[
+        "m58_usdc_pair_runtime_fanout_gate"
+    ]["detail"]
+    assert "runtime_fanout_reconciliation_blockers" in release_checks[
         "m58_usdc_pair_runtime_fanout_gate"
     ]["detail"]
     assert "runtime_fanout_cap_guard_status=blocked_no_live" in release_checks[

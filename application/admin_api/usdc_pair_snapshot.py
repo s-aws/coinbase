@@ -368,6 +368,18 @@ class UsdcPairSnapshotAllowlistRunStateRecord(BaseModel):
             "runtime_fanout_operator_intent_audit_recheck_missing",
         ]
     )
+    runtime_fanout_reconciliation_status: str = Field(
+        default="blocked_no_live",
+        min_length=1,
+    )
+    runtime_fanout_reconciliation_ref: str | None = None
+    runtime_fanout_reconciliation_blockers: list[str] = Field(
+        default_factory=lambda: [
+            "runtime_fanout_reconciliation_binding_missing",
+            "runtime_fanout_reconciliation_plan_recheck_missing",
+            "runtime_fanout_exchange_readback_recheck_missing",
+        ]
+    )
     runtime_fanout_cap_guard_status: str = Field(
         default="blocked_no_live",
         min_length=1,
