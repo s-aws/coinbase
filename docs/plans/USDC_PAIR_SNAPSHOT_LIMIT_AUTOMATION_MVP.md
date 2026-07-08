@@ -83,10 +83,11 @@ Available building blocks:
   `runtime_fanout_execution_blockers` as explicit blocked runtime fan-out
   readback; live-submit rejects stale runtime fan-out readback that claims a
   worker exists or omits required runtime fan-out blockers. It also records
-  `scheduler_execution_status`, `scheduler_execution_blockers`, and
-  `scheduler_unattended_execution` as explicit backend
-  no-scheduler/no-unattended-execution readback, and live-submit rejects stale
-  or contradictory scheduler readback before executor invocation. Product
+  `scheduler_execution_status`, `scheduler_execution_blockers`,
+  `scheduler_unattended_execution`, `scheduler_worker_ref`,
+  `scheduler_cadence_status`, and `scheduler_cadence_blockers` as explicit
+  backend no-scheduler/no-unattended-execution readback, and live-submit rejects
+  stale or contradictory scheduler readback before executor invocation. Product
   run-state rows now also record `retry_budget_per_product` and
   `retry_prior_attempt_count` so
   retry-budget exhaustion is auditable without inferring from remaining
@@ -643,9 +644,11 @@ before any future scheduler or fan-out path can rely on the rate-limit window.
 It also exposes `runtime_fanout_execution_status`,
 `runtime_fanout_worker_ref`, and `runtime_fanout_execution_blockers` before any
 future fan-out worker can clear the runtime fan-out blocker, and exposes
-`scheduler_execution_status`, `scheduler_execution_blockers`, and
-`scheduler_unattended_execution` before any future scheduler or fan-out path can
-rely on no-scheduler/no-unattended-execution evidence.
+`scheduler_execution_status`, `scheduler_execution_blockers`,
+`scheduler_unattended_execution`, `scheduler_worker_ref`,
+`scheduler_cadence_status`, and `scheduler_cadence_blockers` before any future
+scheduler or fan-out path can rely on no-scheduler/no-unattended-execution
+evidence.
 Product run-state rows also expose `retry_budget_per_product` and
 `retry_prior_attempt_count` before retry budget/backoff blockers clear
 remaining attempts. Aggregate run-state evidence also exposes the
@@ -1027,7 +1030,9 @@ one-selected-product boundary. It also exposes warning subchecks for
 `m58_usdc_pair_release_gate_clearance`, and
 `m58_usdc_pair_fanout_contextless_review_gate`. The runtime fan-out warning
 now names the blocked `runtime_fanout_execution_status`, absent worker ref, and
-required `runtime_fanout_execution_blockers`. The fan-out warning now names the durable
+required `runtime_fanout_execution_blockers`. The scheduler warning now names
+absent `scheduler_worker_ref`, disabled `scheduler_cadence_status`, and
+required `scheduler_cadence_blockers`. The fan-out warning now names the durable
 no-live wallet-ledger record readback plus hidden queued order-plan row,
 proof-chain, proof-ref, price, size, and notional drift guards as still
 insufficient for live fan-out.
