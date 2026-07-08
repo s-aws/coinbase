@@ -170395,6 +170395,21 @@ components:
             type: string
           type: array
           title: Scheduler Rate Limit Blockers
+        scheduler_runtime_control_status:
+          type: string
+          minLength: 1
+          title: Scheduler Runtime Control Status
+          default: blocked_no_live
+        scheduler_runtime_control_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scheduler Runtime Control Ref
+        scheduler_runtime_control_blockers:
+          items:
+            type: string
+          type: array
+          title: Scheduler Runtime Control Blockers
         scheduler_cadence_status:
           type: string
           minLength: 1
