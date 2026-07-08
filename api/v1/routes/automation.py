@@ -266,6 +266,12 @@ USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_BLOCKERS = [
     "runtime_fanout_wallet_ledger_live_semantics_missing",
     "runtime_fanout_retry_recovery_semantics_missing",
 ]
+USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_CAP_GUARD_BLOCKED_STATUS = "blocked_no_live"
+USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_CAP_GUARD_BLOCKERS = [
+    "runtime_fanout_cap_guard_binding_missing",
+    "runtime_fanout_submitted_notional_guard_missing",
+    "runtime_fanout_wallet_available_guard_missing",
+]
 USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_WALLET_LEDGER_BLOCKED_STATUS = (
     "blocked_no_live"
 )
@@ -935,6 +941,11 @@ def _allowlist_run_state_item_from_record(
         runtime_fanout_worker_ref=record.runtime_fanout_worker_ref,
         runtime_fanout_execution_blockers=(
             record.runtime_fanout_execution_blockers
+        ),
+        runtime_fanout_cap_guard_status=record.runtime_fanout_cap_guard_status,
+        runtime_fanout_cap_guard_ref=record.runtime_fanout_cap_guard_ref,
+        runtime_fanout_cap_guard_blockers=(
+            record.runtime_fanout_cap_guard_blockers
         ),
         runtime_fanout_wallet_ledger_status=(
             record.runtime_fanout_wallet_ledger_status
@@ -5258,6 +5269,13 @@ def _record_usdc_pair_allowlist_run_state(
         runtime_fanout_execution_blockers=list(
             USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_BLOCKERS
         ),
+        runtime_fanout_cap_guard_status=(
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_CAP_GUARD_BLOCKED_STATUS
+        ),
+        runtime_fanout_cap_guard_ref=None,
+        runtime_fanout_cap_guard_blockers=list(
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_CAP_GUARD_BLOCKERS
+        ),
         runtime_fanout_wallet_ledger_status=(
             USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_WALLET_LEDGER_BLOCKED_STATUS
         ),
@@ -5861,6 +5879,26 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         for blocker in USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_BLOCKERS
     ):
         blockers.append("run_state_runtime_fanout_blockers_missing")
+    if (
+        run_state.runtime_fanout_cap_guard_status
+        != USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_CAP_GUARD_BLOCKED_STATUS
+    ):
+        blockers.append("run_state_runtime_fanout_cap_guard_not_blocked")
+    if run_state.runtime_fanout_cap_guard_ref:
+        blockers.append("run_state_runtime_fanout_cap_guard_ref_present")
+    runtime_fanout_cap_guard_blockers = list(
+        run_state.runtime_fanout_cap_guard_blockers
+    )
+    if (
+        runtime_fanout_cap_guard_blockers
+        != USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_CAP_GUARD_BLOCKERS
+    ):
+        blockers.append("run_state_runtime_fanout_cap_guard_blockers_mismatch")
+    if any(
+        blocker not in runtime_fanout_cap_guard_blockers
+        for blocker in USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_CAP_GUARD_BLOCKERS
+    ):
+        blockers.append("run_state_runtime_fanout_cap_guard_blockers_missing")
     if (
         run_state.runtime_fanout_wallet_ledger_status
         != USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_WALLET_LEDGER_BLOCKED_STATUS

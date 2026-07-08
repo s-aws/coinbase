@@ -3234,6 +3234,18 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
             "runtime_fanout_retry_recovery_semantics_missing",
         ]
     )
+    runtime_fanout_cap_guard_status: str = Field(
+        default="blocked_no_live",
+        min_length=1,
+    )
+    runtime_fanout_cap_guard_ref: str | None = None
+    runtime_fanout_cap_guard_blockers: list[str] = Field(
+        default_factory=lambda: [
+            "runtime_fanout_cap_guard_binding_missing",
+            "runtime_fanout_submitted_notional_guard_missing",
+            "runtime_fanout_wallet_available_guard_missing",
+        ]
+    )
     runtime_fanout_wallet_ledger_status: str = Field(
         default="blocked_no_live",
         min_length=1,
