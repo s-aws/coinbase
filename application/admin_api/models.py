@@ -3258,6 +3258,18 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
             "runtime_fanout_live_service_scope_recheck_missing",
         ]
     )
+    runtime_fanout_admission_audit_status: str = Field(
+        default="blocked_no_live",
+        min_length=1,
+    )
+    runtime_fanout_admission_audit_ref: str | None = None
+    runtime_fanout_admission_audit_blockers: list[str] = Field(
+        default_factory=lambda: [
+            "runtime_fanout_admission_audit_binding_missing",
+            "runtime_fanout_admission_decision_recheck_missing",
+            "runtime_fanout_operator_intent_audit_recheck_missing",
+        ]
+    )
     runtime_fanout_cap_guard_status: str = Field(
         default="blocked_no_live",
         min_length=1,

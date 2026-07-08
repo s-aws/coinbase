@@ -170335,6 +170335,21 @@ components:
             type: string
           type: array
           title: Runtime Fanout Live Service Blockers
+        runtime_fanout_admission_audit_status:
+          type: string
+          minLength: 1
+          title: Runtime Fanout Admission Audit Status
+          default: blocked_no_live
+        runtime_fanout_admission_audit_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Runtime Fanout Admission Audit Ref
+        runtime_fanout_admission_audit_blockers:
+          items:
+            type: string
+          type: array
+          title: Runtime Fanout Admission Audit Blockers
         runtime_fanout_cap_guard_status:
           type: string
           minLength: 1

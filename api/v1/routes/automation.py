@@ -282,6 +282,14 @@ USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_LIVE_SERVICE_BLOCKERS = [
     "runtime_fanout_enabled_decision_recheck_missing",
     "runtime_fanout_live_service_scope_recheck_missing",
 ]
+USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_ADMISSION_AUDIT_BLOCKED_STATUS = (
+    "blocked_no_live"
+)
+USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_ADMISSION_AUDIT_BLOCKERS = [
+    "runtime_fanout_admission_audit_binding_missing",
+    "runtime_fanout_admission_decision_recheck_missing",
+    "runtime_fanout_operator_intent_audit_recheck_missing",
+]
 USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_CAP_GUARD_BLOCKED_STATUS = "blocked_no_live"
 USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_CAP_GUARD_BLOCKERS = [
     "runtime_fanout_cap_guard_binding_missing",
@@ -973,6 +981,15 @@ def _allowlist_run_state_item_from_record(
         runtime_fanout_live_service_ref=record.runtime_fanout_live_service_ref,
         runtime_fanout_live_service_blockers=(
             record.runtime_fanout_live_service_blockers
+        ),
+        runtime_fanout_admission_audit_status=(
+            record.runtime_fanout_admission_audit_status
+        ),
+        runtime_fanout_admission_audit_ref=(
+            record.runtime_fanout_admission_audit_ref
+        ),
+        runtime_fanout_admission_audit_blockers=(
+            record.runtime_fanout_admission_audit_blockers
         ),
         runtime_fanout_cap_guard_status=record.runtime_fanout_cap_guard_status,
         runtime_fanout_cap_guard_ref=record.runtime_fanout_cap_guard_ref,
@@ -5315,6 +5332,13 @@ def _record_usdc_pair_allowlist_run_state(
         runtime_fanout_live_service_blockers=list(
             USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_LIVE_SERVICE_BLOCKERS
         ),
+        runtime_fanout_admission_audit_status=(
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_ADMISSION_AUDIT_BLOCKED_STATUS
+        ),
+        runtime_fanout_admission_audit_ref=None,
+        runtime_fanout_admission_audit_blockers=list(
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_ADMISSION_AUDIT_BLOCKERS
+        ),
         runtime_fanout_cap_guard_status=(
             USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_CAP_GUARD_BLOCKED_STATUS
         ),
@@ -5967,6 +5991,26 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         for blocker in USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_LIVE_SERVICE_BLOCKERS
     ):
         blockers.append("run_state_runtime_fanout_live_service_blockers_missing")
+    if (
+        run_state.runtime_fanout_admission_audit_status
+        != USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_ADMISSION_AUDIT_BLOCKED_STATUS
+    ):
+        blockers.append("run_state_runtime_fanout_admission_audit_not_blocked")
+    if run_state.runtime_fanout_admission_audit_ref:
+        blockers.append("run_state_runtime_fanout_admission_audit_ref_present")
+    runtime_fanout_admission_audit_blockers = list(
+        run_state.runtime_fanout_admission_audit_blockers
+    )
+    if (
+        runtime_fanout_admission_audit_blockers
+        != USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_ADMISSION_AUDIT_BLOCKERS
+    ):
+        blockers.append("run_state_runtime_fanout_admission_audit_blockers_mismatch")
+    if any(
+        blocker not in runtime_fanout_admission_audit_blockers
+        for blocker in USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_ADMISSION_AUDIT_BLOCKERS
+    ):
+        blockers.append("run_state_runtime_fanout_admission_audit_blockers_missing")
     if (
         run_state.runtime_fanout_cap_guard_status
         != USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_CAP_GUARD_BLOCKED_STATUS
