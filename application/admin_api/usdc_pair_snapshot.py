@@ -349,6 +349,18 @@ class UsdcPairSnapshotAllowlistRunStateRecord(BaseModel):
             "scheduler_perpetual_notional_cap_proof_missing",
         ]
     )
+    scheduler_wallet_ledger_status: str = Field(
+        default="blocked_no_live",
+        min_length=1,
+    )
+    scheduler_wallet_ledger_ref: str | None = None
+    scheduler_wallet_ledger_blockers: list[str] = Field(
+        default_factory=lambda: [
+            "scheduler_live_wallet_ledger_missing",
+            "scheduler_wallet_overcommit_prevention_missing",
+            "scheduler_wallet_debit_release_missing",
+        ]
+    )
     scheduler_worker_ref: str | None = None
     scheduler_cadence_status: str = Field(default="disabled_no_live", min_length=1)
     scheduler_cadence_blockers: list[str] = Field(

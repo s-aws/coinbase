@@ -170335,6 +170335,21 @@ components:
             type: string
           type: array
           title: Scheduler Standing Cap Blockers
+        scheduler_wallet_ledger_status:
+          type: string
+          minLength: 1
+          title: Scheduler Wallet Ledger Status
+          default: blocked_no_live
+        scheduler_wallet_ledger_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scheduler Wallet Ledger Ref
+        scheduler_wallet_ledger_blockers:
+          items:
+            type: string
+          type: array
+          title: Scheduler Wallet Ledger Blockers
         scheduler_worker_ref:
           anyOf:
           - type: string
