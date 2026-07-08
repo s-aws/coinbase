@@ -189,7 +189,7 @@ class UsdcPairSnapshotLiveSubmitConfig:
     quote_increment: str = DEFAULT_QUOTE_INCREMENT
     quote_min_size: str = DEFAULT_QUOTE_MIN_SIZE
     full_snapshot_fill_test: bool = False
-    cancel_rollback_plan_ref: str = "m58-cancel-before-additional-orders"
+    cancel_rollback_plan_ref: str | None = None
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -247,6 +247,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-min-size", default=DEFAULT_BASE_MIN_SIZE)
     parser.add_argument("--quote-increment", default=DEFAULT_QUOTE_INCREMENT)
     parser.add_argument("--quote-min-size", default=DEFAULT_QUOTE_MIN_SIZE)
+    parser.add_argument("--cancel-rollback-plan-ref", default=None)
     return parser
 
 
@@ -309,7 +310,18 @@ def config_from_args(args: argparse.Namespace) -> UsdcPairSnapshotLiveSubmitConf
         base_min_size=str(args.base_min_size),
         quote_increment=str(args.quote_increment),
         quote_min_size=str(args.quote_min_size),
+        cancel_rollback_plan_ref=args.cancel_rollback_plan_ref,
     )
+
+
+def cancel_rollback_plan_ref(config: UsdcPairSnapshotLiveSubmitConfig) -> str:
+    """Return the run-scoped cancel/recovery proof ref for this invocation."""
+
+    explicit = str(config.cancel_rollback_plan_ref or "").strip()
+    if explicit:
+        return explicit
+    prefix = str(config.idempotency_prefix or config.plan_id or "m58-usdc-live")
+    return f"{prefix}-cancel-before-additional-orders"
 
 
 def default_state_dir() -> Path:
@@ -409,6 +421,7 @@ def run_usdc_pair_snapshot_live_submit(
     apply_usdc_pair_state_environment(state_dir)
     os.environ.setdefault(AUTH_TOKEN_ENV, LOCAL_AUTH_TOKEN)
     apply_runner_environment()
+    cancel_recovery_ref = cancel_rollback_plan_ref(config)
     operator_requested_notional = decimal_text(config.submitted_notional_usdc)
     requested_notional = decimal_text(planning_request_notional_usdc(config))
     reference_bid_price_source = (
@@ -534,7 +547,7 @@ def run_usdc_pair_snapshot_live_submit(
                     "minimum_order_size_preferred": True,
                     "single_order_only": True,
                     "cancel_before_additional_orders": True,
-                    "cancel_rollback_plan_ref": config.cancel_rollback_plan_ref,
+                    "cancel_rollback_plan_ref": cancel_recovery_ref,
                     "full_snapshot_fill_test": False,
                     "operator_notes": (
                         "M58 single-product far-from-market readiness."
@@ -576,9 +589,7 @@ def run_usdc_pair_snapshot_live_submit(
                             config.run_rate_limit_budget_ref
                             or f"{runner_prefix}-rate-limit-budget"
                         ),
-                        "cancel_recovery_plan_ref": (
-                            config.cancel_rollback_plan_ref
-                        ),
+                        "cancel_recovery_plan_ref": cancel_recovery_ref,
                         "operator_notes": (
                             "M58 one-product run-state handoff readiness."
                         ),
@@ -728,6 +739,7 @@ def run_usdc_pair_snapshot_live_submit(
         "backend_git_commit": read_git_value(["rev-parse", "--short", "HEAD"]),
         "backend_git_branch": read_git_value(["rev-parse", "--abbrev-ref", "HEAD"]),
         "state_dir": str(state_dir.resolve()),
+        "correlation_id": config.correlation_id,
         "product_id": config.product_id,
         "side": config.side,
         "operator_requested_notional_usdc": operator_requested_notional,
@@ -752,9 +764,13 @@ def run_usdc_pair_snapshot_live_submit(
             "last_filled_price_freshness_status"
         ),
         "intended_limit_price": config.intended_limit_price,
+        "cancel_rollback_plan_ref": cancel_recovery_ref,
         "run_id": config.run_id,
         "plan_id": config.plan_id,
         "live_submit_source": live_submit_source,
+        "allowlist_cancel_recovery_plan_ref": allowlist_readiness.get(
+            "cancel_recovery_plan_ref"
+        ),
         "allowlist_readiness_id": allowlist_readiness.get("readiness_id"),
         "allowlist_readiness_status": allowlist_readiness.get(
             "fanout_readiness_status"
@@ -830,6 +846,8 @@ def run_usdc_pair_snapshot_live_submit(
         "order_plan_status": order_plan_payload.get("status"),
         "readiness_status": readiness_payload.get("status"),
         "submission_status": live_submit_payload.get("status"),
+        "live_submit_audit_id": live_submit_payload.get("audit_id"),
+        "submission_audit_id": submission.get("audit_id"),
         "proof_chain_status_after_submission": final_row.get("proof_chain_status"),
         "proof_chain_blockers_after_submission": final_row.get(
             "proof_chain_blockers"

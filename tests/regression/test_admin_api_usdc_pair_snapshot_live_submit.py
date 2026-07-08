@@ -126,6 +126,9 @@ def test_usdc_pair_snapshot_live_runner_records_submit_cancel_sequence(
     assert summary["proof_chain_blockers_after_submission"] == []
     assert summary["readiness_id"] == "m58-runner-readiness"
     assert summary["submission_id"] == "m58-runner-submission"
+    assert summary["correlation_id"] == "corr-m58-runner"
+    assert summary["live_submit_audit_id"]
+    assert summary["submission_audit_id"] == summary["live_submit_audit_id"]
 
     assert len(fake_executor.calls) == 1
     live_call = fake_executor.calls[0]
@@ -237,6 +240,55 @@ def test_usdc_pair_snapshot_live_runner_can_submit_from_run_state_handoff(
         / "state"
         / "admin_api_usdc_pair_snapshot_live_wallet_reservations.jsonl"
     ).exists()
+
+
+def test_usdc_pair_snapshot_live_runner_scopes_default_recovery_ref_per_run(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-admin-token")
+    summaries = []
+    fake_executor = _FakeLiveExecutor()
+
+    for suffix in ("first", "second"):
+        prefix = f"idem-m58-runner-{suffix}"
+        config = _config(
+            tmp_path,
+            submit_from_run_state=True,
+            idempotency_prefix=prefix,
+            run_id=f"m58-runner-snapshot-{suffix}",
+            plan_id=f"m58-runner-plan-{suffix}",
+            readiness_id=f"m58-runner-readiness-{suffix}",
+            submission_id=f"m58-runner-submission-{suffix}",
+            allowlist_readiness_id=f"m58-runner-allowlist-readiness-{suffix}",
+            run_state_id=f"m58-runner-run-state-{suffix}",
+            run_rate_limit_budget_ref=f"{prefix}-rate-limit-budget",
+            run_lock_ref=f"{prefix}-run-lock",
+            rate_limit_window_ref=f"{prefix}-rate-limit-window",
+        )
+        summaries.append(
+            runner.run_usdc_pair_snapshot_live_submit(
+                config,
+                live_executor=fake_executor,
+                require_runtime_ready=False,
+                require_credentials=False,
+            )
+        )
+
+    assert [summary["status"] for summary in summaries] == ["passed", "passed"]
+    assert summaries[0]["cancel_rollback_plan_ref"] == (
+        "idem-m58-runner-first-cancel-before-additional-orders"
+    )
+    assert summaries[1]["cancel_rollback_plan_ref"] == (
+        "idem-m58-runner-second-cancel-before-additional-orders"
+    )
+    assert summaries[0]["allowlist_cancel_recovery_plan_ref"] == (
+        summaries[0]["cancel_rollback_plan_ref"]
+    )
+    assert summaries[1]["allowlist_cancel_recovery_plan_ref"] == (
+        summaries[1]["cancel_rollback_plan_ref"]
+    )
+    assert len(fake_executor.calls) == 2
 
 
 def test_usdc_pair_snapshot_live_runner_bumps_minimum_request_for_high_price(
