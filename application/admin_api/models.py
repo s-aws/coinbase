@@ -3239,6 +3239,18 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
         default_factory=lambda: ["scheduler_blocked"]
     )
     scheduler_unattended_execution: str = Field(default="not_run", min_length=1)
+    scheduler_standing_cap_status: str = Field(
+        default="blocked_no_live",
+        min_length=1,
+    )
+    scheduler_standing_cap_ref: str | None = None
+    scheduler_standing_cap_blockers: list[str] = Field(
+        default_factory=lambda: [
+            "scheduler_standing_cap_policy_missing",
+            "scheduler_spot_notional_cap_proof_missing",
+            "scheduler_perpetual_notional_cap_proof_missing",
+        ]
+    )
     scheduler_worker_ref: str | None = None
     scheduler_cadence_status: str = Field(default="disabled_no_live", min_length=1)
     scheduler_cadence_blockers: list[str] = Field(

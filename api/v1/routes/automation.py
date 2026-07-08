@@ -269,6 +269,12 @@ USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_BLOCKERS = [
 USDC_PAIR_SNAPSHOT_SCHEDULER_BLOCKED_BLOCKER = "scheduler_blocked"
 USDC_PAIR_SNAPSHOT_SCHEDULER_EXECUTION_BLOCKED_STATUS = "blocked_no_live"
 USDC_PAIR_SNAPSHOT_SCHEDULER_UNATTENDED_NOT_RUN = "not_run"
+USDC_PAIR_SNAPSHOT_SCHEDULER_STANDING_CAP_BLOCKED_STATUS = "blocked_no_live"
+USDC_PAIR_SNAPSHOT_SCHEDULER_STANDING_CAP_BLOCKERS = [
+    "scheduler_standing_cap_policy_missing",
+    "scheduler_spot_notional_cap_proof_missing",
+    "scheduler_perpetual_notional_cap_proof_missing",
+]
 USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_DISABLED_STATUS = "disabled_no_live"
 USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_BLOCKERS = [
     "scheduler_worker_missing",
@@ -882,6 +888,9 @@ def _allowlist_run_state_item_from_record(
         scheduler_execution_status=record.scheduler_execution_status,
         scheduler_execution_blockers=record.scheduler_execution_blockers,
         scheduler_unattended_execution=record.scheduler_unattended_execution,
+        scheduler_standing_cap_status=record.scheduler_standing_cap_status,
+        scheduler_standing_cap_ref=record.scheduler_standing_cap_ref,
+        scheduler_standing_cap_blockers=record.scheduler_standing_cap_blockers,
         scheduler_worker_ref=record.scheduler_worker_ref,
         scheduler_cadence_status=record.scheduler_cadence_status,
         scheduler_cadence_blockers=record.scheduler_cadence_blockers,
@@ -5164,6 +5173,13 @@ def _record_usdc_pair_allowlist_run_state(
         scheduler_unattended_execution=(
             USDC_PAIR_SNAPSHOT_SCHEDULER_UNATTENDED_NOT_RUN
         ),
+        scheduler_standing_cap_status=(
+            USDC_PAIR_SNAPSHOT_SCHEDULER_STANDING_CAP_BLOCKED_STATUS
+        ),
+        scheduler_standing_cap_ref=None,
+        scheduler_standing_cap_blockers=list(
+            USDC_PAIR_SNAPSHOT_SCHEDULER_STANDING_CAP_BLOCKERS
+        ),
         scheduler_worker_ref=None,
         scheduler_cadence_status=(
             USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_DISABLED_STATUS
@@ -5730,6 +5746,26 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         != USDC_PAIR_SNAPSHOT_SCHEDULER_UNATTENDED_NOT_RUN
     ):
         blockers.append("run_state_scheduler_unattended_execution_ran")
+    if (
+        run_state.scheduler_standing_cap_status
+        != USDC_PAIR_SNAPSHOT_SCHEDULER_STANDING_CAP_BLOCKED_STATUS
+    ):
+        blockers.append("run_state_scheduler_standing_cap_not_blocked")
+    if run_state.scheduler_standing_cap_ref:
+        blockers.append("run_state_scheduler_standing_cap_ref_present")
+    scheduler_standing_cap_blockers = list(
+        run_state.scheduler_standing_cap_blockers
+    )
+    if (
+        scheduler_standing_cap_blockers
+        != USDC_PAIR_SNAPSHOT_SCHEDULER_STANDING_CAP_BLOCKERS
+    ):
+        blockers.append("run_state_scheduler_standing_cap_blockers_mismatch")
+    if any(
+        blocker not in scheduler_standing_cap_blockers
+        for blocker in USDC_PAIR_SNAPSHOT_SCHEDULER_STANDING_CAP_BLOCKERS
+    ):
+        blockers.append("run_state_scheduler_standing_cap_blockers_missing")
     if run_state.scheduler_worker_ref:
         blockers.append("run_state_scheduler_worker_ref_present")
     if (

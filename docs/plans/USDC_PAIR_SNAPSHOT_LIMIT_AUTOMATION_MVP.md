@@ -647,11 +647,14 @@ It also exposes `runtime_fanout_execution_status`,
 `runtime_fanout_worker_ref`, and `runtime_fanout_execution_blockers` before any
 future fan-out worker can clear the runtime fan-out blocker, and exposes
 `scheduler_execution_status`, `scheduler_execution_blockers`,
-`scheduler_unattended_execution`, `scheduler_worker_ref`,
+`scheduler_unattended_execution`, `scheduler_standing_cap_status`,
+`scheduler_standing_cap_ref`, `scheduler_standing_cap_blockers`,
+`scheduler_worker_ref`,
 `scheduler_cadence_status`, `scheduler_cadence_blockers`,
 `scheduler_recovery_runbook_status`, `scheduler_recovery_runbook_ref`, and
 `scheduler_recovery_runbook_blockers` before any future scheduler or fan-out
-path can rely on no-scheduler/no-unattended-execution evidence.
+path can rely on no-scheduler/no-unattended-execution evidence or scheduled
+standing-cap proof.
 Product run-state rows also expose `retry_budget_per_product` and
 `retry_prior_attempt_count` before retry budget/backoff blockers clear
 remaining attempts. Aggregate run-state evidence also exposes the

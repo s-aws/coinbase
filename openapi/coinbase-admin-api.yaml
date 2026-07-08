@@ -170320,6 +170320,21 @@ components:
           minLength: 1
           title: Scheduler Unattended Execution
           default: not_run
+        scheduler_standing_cap_status:
+          type: string
+          minLength: 1
+          title: Scheduler Standing Cap Status
+          default: blocked_no_live
+        scheduler_standing_cap_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scheduler Standing Cap Ref
+        scheduler_standing_cap_blockers:
+          items:
+            type: string
+          type: array
+          title: Scheduler Standing Cap Blockers
         scheduler_worker_ref:
           anyOf:
           - type: string

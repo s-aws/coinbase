@@ -34990,6 +34990,13 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_no_live_rehear
     assert run_state["scheduler_execution_status"] == "blocked_no_live"
     assert run_state["scheduler_execution_blockers"] == ["scheduler_blocked"]
     assert run_state["scheduler_unattended_execution"] == "not_run"
+    assert run_state["scheduler_standing_cap_status"] == "blocked_no_live"
+    assert run_state["scheduler_standing_cap_ref"] is None
+    assert run_state["scheduler_standing_cap_blockers"] == [
+        "scheduler_standing_cap_policy_missing",
+        "scheduler_spot_notional_cap_proof_missing",
+        "scheduler_perpetual_notional_cap_proof_missing",
+    ]
     assert run_state["scheduler_worker_ref"] is None
     assert run_state["scheduler_cadence_status"] == "disabled_no_live"
     assert run_state["scheduler_cadence_blockers"] == [
@@ -45007,6 +45014,11 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
                 "scheduler_execution_status": "ready_no_live",
                 "scheduler_execution_blockers": [],
                 "scheduler_unattended_execution": "ran",
+                "scheduler_standing_cap_status": "ready_no_live",
+                "scheduler_standing_cap_ref": (
+                    "m58-scheduler-standing-cap-stale"
+                ),
+                "scheduler_standing_cap_blockers": [],
                 "scheduler_worker_ref": "m58-scheduler-worker-stale",
                 "scheduler_cadence_status": "ready_no_live",
                 "scheduler_cadence_blockers": [],
@@ -45058,6 +45070,11 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_st
     assert "run_state_scheduler_execution_not_blocked" in payload["message"]
     assert "run_state_scheduler_blocker_missing" in payload["message"]
     assert "run_state_scheduler_unattended_execution_ran" in payload["message"]
+    assert "run_state_scheduler_standing_cap_not_blocked" in payload["message"]
+    assert "run_state_scheduler_standing_cap_ref_present" in payload["message"]
+    assert "run_state_scheduler_standing_cap_blockers_missing" in payload[
+        "message"
+    ]
     assert "run_state_scheduler_worker_ref_present" in payload["message"]
     assert "run_state_scheduler_cadence_not_disabled" in payload["message"]
     assert "run_state_scheduler_cadence_blockers_missing" in payload["message"]
@@ -63759,6 +63776,15 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "m58_usdc_pair_scheduler_gate"
     ]["detail"]
     assert "explicit scheduler execution readback" in release_checks[
+        "m58_usdc_pair_scheduler_gate"
+    ]["detail"]
+    assert "scheduler_standing_cap_status=blocked_no_live" in release_checks[
+        "m58_usdc_pair_scheduler_gate"
+    ]["detail"]
+    assert "scheduler_standing_cap_ref absent" in release_checks[
+        "m58_usdc_pair_scheduler_gate"
+    ]["detail"]
+    assert "scheduler_standing_cap_blockers" in release_checks[
         "m58_usdc_pair_scheduler_gate"
     ]["detail"]
     assert "scheduler_worker_ref absent" in release_checks[
