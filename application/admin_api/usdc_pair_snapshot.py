@@ -644,6 +644,9 @@ class UsdcPairSnapshotLiveWalletLedgerRecord(BaseModel):
     reserved_notional_usdc: str = "0"
     debited_notional_usdc: str = "0"
     released_notional_usdc: str = "0"
+    active_reservation_overcommit_run_state_ids: list[str] = Field(
+        default_factory=list
+    )
     active_reserved_notional_usdc: str = "0"
     overcommit_attempted_notional_usdc: str = "0"
     ledger_status: str = Field(default="blocked_no_live", min_length=1)

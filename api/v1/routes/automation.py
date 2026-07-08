@@ -5211,6 +5211,11 @@ def _record_usdc_pair_allowlist_run_state(
         released_notional_usdc=(
             wallet_allocation["live_wallet_released_notional_usdc"]
         ),
+        active_reservation_overcommit_run_state_ids=list(
+            wallet_allocation[
+                "live_wallet_active_reservation_overcommit_run_state_ids"
+            ]
+        ),
         active_reserved_notional_usdc=(
             wallet_allocation["live_wallet_active_reserved_notional_usdc"]
         ),
@@ -7824,6 +7829,14 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_ledger(
         ):
             blockers.append(
                 "run_state_live_wallet_ledger_active_reserved_notional_mismatch"
+            )
+        if _normalized_usdc_pair_string_multiset(
+            record.active_reservation_overcommit_run_state_ids
+        ) != _normalized_usdc_pair_string_multiset(
+            run_state.live_wallet_active_reservation_overcommit_run_state_ids
+        ):
+            blockers.append(
+                "run_state_live_wallet_ledger_overcommit_source_ids_mismatch"
             )
         if (
             record.overcommit_attempted_notional_usdc
