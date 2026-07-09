@@ -441,3 +441,194 @@ def test_usdc_pair_snapshot_live_executor_falls_back_to_exchange_order_id(
     assert result["cancel_result"]["success"] is True
     assert result["cancel_result"]["fallback_order_id"] == "exchange-order-1"
     assert result["cancel_result"]["initial_cancel_result"]["success"] is False
+
+
+def test_usdc_pair_snapshot_live_fanout_executor_runs_sequential_submit_cancel():
+    from application.admin_api import usdc_pair_snapshot_live_execution as live_exec
+
+    class FakeOrderExecutor:
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        def submit_and_cancel(self, **kwargs):
+            self.calls.append(dict(kwargs))
+            return {
+                "coinbase_order_id": f"exchange-{kwargs['client_order_id']}",
+                "submit_result": {
+                    "success": True,
+                    "client_order_id": kwargs["client_order_id"],
+                },
+                "cancel_result": {
+                    "success": True,
+                    "client_order_id": kwargs["client_order_id"],
+                },
+                "submitted_at": "2026-07-09T10:00:00+00:00",
+                "cancelled_at": "2026-07-09T10:00:01+00:00",
+                "order_configuration": kwargs["order_configuration"],
+                "live_exchange_submitted": True,
+                "live_coinbase_orders_ran": True,
+                "live_coinbase_execution": "submitted_cancelled",
+                "submitted_notional_usdc": kwargs["submitted_notional_usdc"],
+                "executed_notional_usdc": "0",
+                "max_executed_notional_usdc": kwargs[
+                    "max_executed_notional_usdc"
+                ],
+                "cancel_submitted": True,
+                "cancel_rollback_complete": True,
+            }
+
+    fake_order_executor = FakeOrderExecutor()
+    executor = live_exec.UsdcPairSnapshotLiveFanoutExecutor(
+        order_executor=fake_order_executor
+    )
+
+    result = executor.submit_and_cancel_all(
+        orders=[
+            {
+                "client_order_id": "client-order-1",
+                "product_id": "BTC-USDC",
+                "side": "BUY",
+                "order_configuration": {
+                    "limit_limit_gtc": {
+                        "quote_size": "1.00",
+                        "limit_price": "31500.00",
+                        "post_only": False,
+                    },
+                },
+                "submitted_notional_usdc": "1.00",
+                "max_executed_notional_usdc": "0.01",
+                "cancel_client_order_id": "client-order-1",
+            },
+            {
+                "client_order_id": "client-order-2",
+                "product_id": "ETH-USDC",
+                "side": "BUY",
+                "order_configuration": {
+                    "limit_limit_gtc": {
+                        "quote_size": "1.50",
+                        "limit_price": "1500.00",
+                        "post_only": False,
+                    },
+                },
+                "submitted_notional_usdc": "1.50",
+                "max_executed_notional_usdc": "0.01",
+                "cancel_client_order_id": "client-order-2",
+            },
+        ],
+        max_orders_per_second=5,
+    )
+
+    assert [call["client_order_id"] for call in fake_order_executor.calls] == [
+        "client-order-1",
+        "client-order-2",
+    ]
+    assert result["requested_order_count"] == 2
+    assert result["order_count"] == 2
+    assert result["submitted_notional_usdc"] == "2.50"
+    assert result["executed_notional_usdc"] == "0"
+    assert result["cancel_submitted"] is True
+    assert result["cancel_rollback_complete"] is True
+    assert result["live_exchange_submitted"] is True
+    assert result["live_coinbase_orders_ran"] is True
+    assert result["live_coinbase_execution"] == "submitted_cancelled"
+    assert [order["client_order_id"] for order in result["orders"]] == [
+        "client-order-1",
+        "client-order-2",
+    ]
+
+
+def test_usdc_pair_snapshot_live_fanout_executor_stops_after_cancel_failure():
+    from application.admin_api import usdc_pair_snapshot_live_execution as live_exec
+
+    class FakeOrderExecutor:
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        def submit_and_cancel(self, **kwargs):
+            self.calls.append(dict(kwargs))
+            return {
+                "coinbase_order_id": f"exchange-{kwargs['client_order_id']}",
+                "submit_result": {"success": True},
+                "cancel_result": {"success": False},
+                "order_configuration": kwargs["order_configuration"],
+                "live_exchange_submitted": True,
+                "live_coinbase_orders_ran": True,
+                "live_coinbase_execution": "submitted_cancel_failed",
+                "submitted_notional_usdc": kwargs["submitted_notional_usdc"],
+                "executed_notional_usdc": "0",
+                "max_executed_notional_usdc": kwargs[
+                    "max_executed_notional_usdc"
+                ],
+                "cancel_submitted": False,
+                "cancel_rollback_complete": False,
+            }
+
+    fake_order_executor = FakeOrderExecutor()
+    executor = live_exec.UsdcPairSnapshotLiveFanoutExecutor(
+        order_executor=fake_order_executor
+    )
+
+    result = executor.submit_and_cancel_all(
+        orders=[
+            {
+                "client_order_id": "client-order-1",
+                "product_id": "BTC-USDC",
+                "side": "BUY",
+                "order_configuration": {"limit_limit_gtc": {"quote_size": "1.00"}},
+                "submitted_notional_usdc": "1.00",
+                "max_executed_notional_usdc": "0.01",
+                "cancel_client_order_id": "client-order-1",
+            },
+            {
+                "client_order_id": "client-order-2",
+                "product_id": "ETH-USDC",
+                "side": "BUY",
+                "order_configuration": {"limit_limit_gtc": {"quote_size": "1.50"}},
+                "submitted_notional_usdc": "1.50",
+                "max_executed_notional_usdc": "0.01",
+                "cancel_client_order_id": "client-order-2",
+            },
+        ],
+        max_orders_per_second=5,
+    )
+
+    assert [call["client_order_id"] for call in fake_order_executor.calls] == [
+        "client-order-1"
+    ]
+    assert result["requested_order_count"] == 2
+    assert result["order_count"] == 1
+    assert result["submitted_notional_usdc"] == "1.00"
+    assert result["cancel_submitted"] is False
+    assert result["cancel_rollback_complete"] is False
+    assert result["additional_orders_blocked"] is True
+    assert result["live_coinbase_execution"] == "submitted_cancel_failed"
+
+
+def test_usdc_pair_snapshot_live_fanout_executor_enforces_order_rate_cap():
+    from application.admin_api import usdc_pair_snapshot_live_execution as live_exec
+
+    class FakeOrderExecutor:
+        def submit_and_cancel(self, **_kwargs):
+            raise AssertionError("fan-out executor must fail before submission")
+
+    executor = live_exec.UsdcPairSnapshotLiveFanoutExecutor(
+        order_executor=FakeOrderExecutor()
+    )
+    orders = [
+        {
+            "client_order_id": f"client-order-{index}",
+            "product_id": "BTC-USDC",
+            "side": "BUY",
+            "order_configuration": {"limit_limit_gtc": {"quote_size": "1.00"}},
+            "submitted_notional_usdc": "1.00",
+            "max_executed_notional_usdc": "0.01",
+            "cancel_client_order_id": f"client-order-{index}",
+        }
+        for index in range(6)
+    ]
+
+    with pytest.raises(
+        live_exec.UsdcPairSnapshotLiveExecutionError,
+        match="5 orders per second",
+    ):
+        executor.submit_and_cancel_all(orders=orders, max_orders_per_second=5)

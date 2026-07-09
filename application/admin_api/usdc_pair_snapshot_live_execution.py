@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 import os
-from typing import Any, Mapping
+from typing import Any, Iterable, Mapping, Sequence
 
 from core.runtime_controller import (
     INFLIGHT_REST_CANCEL,
@@ -160,6 +161,165 @@ class UsdcPairSnapshotLiveOrderExecutor:
                 configuration.REST_CLIENT._real = None
             except Exception:
                 pass
+
+
+class UsdcPairSnapshotLiveFanoutExecutor:
+    """Submit queued orders one at a time, requiring cancel before continuing."""
+
+    def __init__(
+        self,
+        order_executor: UsdcPairSnapshotLiveOrderExecutor | None = None,
+    ) -> None:
+        self._order_executor = order_executor or UsdcPairSnapshotLiveOrderExecutor()
+
+    def submit_and_cancel_all(
+        self,
+        *,
+        orders: Sequence[Mapping[str, Any]],
+        max_orders_per_second: int = 5,
+    ) -> dict[str, Any]:
+        order_items = list(orders)
+        if not order_items:
+            raise UsdcPairSnapshotLiveExecutionError(
+                "M58 live fan-out submit requires at least one queued order."
+            )
+        if max_orders_per_second <= 0:
+            raise UsdcPairSnapshotLiveExecutionError(
+                "M58 live fan-out submit requires a positive order rate cap."
+            )
+        if len(order_items) > max_orders_per_second:
+            raise UsdcPairSnapshotLiveExecutionError(
+                "M58 live fan-out submit exceeds "
+                f"{max_orders_per_second} orders per second."
+            )
+
+        results: list[dict[str, Any]] = []
+        for order in order_items:
+            call = _fanout_order_call(order)
+            execution = _object_to_dict(
+                self._order_executor.submit_and_cancel(**call)
+            )
+            execution.setdefault("client_order_id", call["client_order_id"])
+            execution.setdefault("product_id", call["product_id"])
+            execution.setdefault("side", call["side"])
+            execution.setdefault(
+                "submitted_notional_usdc",
+                call["submitted_notional_usdc"],
+            )
+            execution.setdefault(
+                "max_executed_notional_usdc",
+                call["max_executed_notional_usdc"],
+            )
+            results.append(execution)
+            if not _execution_cancel_rollback_complete(execution):
+                break
+
+        cancel_submitted = (
+            len(results) == len(order_items)
+            and all(_execution_cancel_submitted(result) for result in results)
+        )
+        cancel_rollback_complete = (
+            len(results) == len(order_items)
+            and all(
+                _execution_cancel_rollback_complete(result) for result in results
+            )
+        )
+        return {
+            "requested_order_count": len(order_items),
+            "order_count": len(results),
+            "orders": results,
+            "submitted_notional_usdc": _decimal_sum_string(
+                result.get("submitted_notional_usdc") for result in results
+            ),
+            "executed_notional_usdc": _decimal_sum_string(
+                result.get("executed_notional_usdc", "0") for result in results
+            ),
+            "max_executed_notional_usdc": _decimal_sum_string(
+                result.get("max_executed_notional_usdc") for result in results
+            ),
+            "max_orders_per_second": max_orders_per_second,
+            "cancel_submitted": cancel_submitted,
+            "cancel_rollback_complete": cancel_rollback_complete,
+            "additional_orders_blocked": True,
+            "live_exchange_submitted": any(
+                bool(result.get("live_exchange_submitted")) for result in results
+            ),
+            "live_coinbase_orders_ran": any(
+                bool(result.get("live_coinbase_orders_ran")) for result in results
+            ),
+            "live_coinbase_execution": (
+                "submitted_cancelled"
+                if cancel_rollback_complete
+                else "submitted_cancel_failed"
+            ),
+        }
+
+
+def _fanout_order_call(order: Mapping[str, Any]) -> dict[str, Any]:
+    client_order_id = _required_text(order, "client_order_id")
+    cancel_client_order_id = str(
+        order.get("cancel_client_order_id") or client_order_id
+    ).strip()
+    if cancel_client_order_id != client_order_id:
+        raise UsdcPairSnapshotLiveExecutionError(
+            "M58 live fan-out submit requires cancel by the same client_order_id."
+        )
+    order_configuration = order.get("order_configuration")
+    if not isinstance(order_configuration, Mapping):
+        raise UsdcPairSnapshotLiveExecutionError(
+            "M58 live fan-out submit requires order_configuration evidence."
+        )
+    return {
+        "client_order_id": client_order_id,
+        "product_id": _required_text(order, "product_id"),
+        "side": _required_text(order, "side"),
+        "order_configuration": dict(order_configuration),
+        "submitted_notional_usdc": _required_text(
+            order,
+            "submitted_notional_usdc",
+        ),
+        "max_executed_notional_usdc": _required_text(
+            order,
+            "max_executed_notional_usdc",
+        ),
+        "cancel_client_order_id": cancel_client_order_id,
+    }
+
+
+def _required_text(order: Mapping[str, Any], key: str) -> str:
+    value = order.get(key)
+    enum_value = getattr(value, "value", None)
+    text = str(enum_value if enum_value is not None else value or "").strip()
+    if not text:
+        raise UsdcPairSnapshotLiveExecutionError(
+            f"M58 live fan-out submit requires {key}."
+        )
+    return text
+
+
+def _execution_cancel_submitted(execution: Mapping[str, Any]) -> bool:
+    return bool(execution.get("cancel_submitted"))
+
+
+def _execution_cancel_rollback_complete(execution: Mapping[str, Any]) -> bool:
+    return bool(
+        execution.get(
+            "cancel_rollback_complete",
+            execution.get("cancel_submitted"),
+        )
+    )
+
+
+def _decimal_sum_string(values: Iterable[Any]) -> str:
+    total = Decimal("0")
+    for value in values:
+        try:
+            total += Decimal(str(value))
+        except (InvalidOperation, ValueError) as exc:
+            raise UsdcPairSnapshotLiveExecutionError(
+                "M58 live fan-out submit requires valid notional evidence."
+            ) from exc
+    return str(total)
 
 
 def _object_to_dict(value: Any) -> dict[str, Any]:
