@@ -47498,6 +47498,80 @@ def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_replays_rejection_a
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_live_submit_conflicts_cross_endpoint_idempotency_key(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-live-submit-cross-endpoint-run",
+        allowlist_readiness_id="m58-usdc-live-submit-cross-endpoint-readiness",
+        plan_id="m58-usdc-live-submit-cross-endpoint-plan",
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    body = {
+        "submission_id": "m58-usdc-live-submit-cross-endpoint",
+        "readiness_id": ready["live_readiness_id"],
+        "product_id": ready["product_id"],
+        "client_order_id": ready["client_order_id"],
+        "confirm_live_submit": True,
+        "confirm_single_order_only": True,
+        "confirm_cancel_before_additional_orders": True,
+        "confirm_no_additional_orders": True,
+        "operator_stop_conditions": [
+            "submit one far-from-market Coinbase limit order only",
+            "cancel that client_order_id before any additional order",
+        ],
+        "operator_notes": "first live-submit endpoint wins the idempotency key",
+    }
+
+    accepted = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            f"{ready['plan_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-live-submit-cross-endpoint",
+            operator_intent="m58_usdc_snapshot_live_submit",
+        ),
+        json=body,
+    )
+
+    assert accepted.status_code == 200
+    assert accepted.json()["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert accepted.json()["service_method"] == (
+        "submit_usdc_pair_snapshot_order_plan_live_order"
+    )
+    assert len(client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls) == 1
+
+    cross_endpoint = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-live-submit-cross-endpoint",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json=body,
+    )
+
+    assert cross_endpoint.status_code == 409
+    assert "X-Idempotency-Replayed" not in cross_endpoint.headers
+    conflict_payload = cross_endpoint.json()
+    assert conflict_payload["status"] == AdminApiCommandStatus.CONFLICT.value
+    assert conflict_payload["failure_stage"] == "idempotency"
+    assert (
+        conflict_payload["message"]
+        == "Idempotency-Key was already used with a different payload."
+    )
+    assert conflict_payload["live_coinbase_execution"] == "not_run"
+    assert len(client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls) == 1
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_snapshot_match(
     monkeypatch,
 ):
