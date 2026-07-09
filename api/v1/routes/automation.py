@@ -6955,6 +6955,17 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
         blockers.append("run_state_fanout_notional_not_passed")
     if run_state.partial_success_status != "ready_no_live":
         blockers.append("run_state_partial_success_not_ready")
+    queued_product_row_blockers = _dedupe(
+        [
+            blocker
+            for item in run_state.product_states
+            if item.execution_state == "queued_no_live"
+            for blocker in item.blockers
+            if blocker
+        ]
+    )
+    if queued_product_row_blockers:
+        blockers.append("run_state_product_blockers_present")
     if not run_state.queued_product_ids:
         blockers.append("queued_products_missing")
     if run_state.fanout_execution_status != "ready_live":
