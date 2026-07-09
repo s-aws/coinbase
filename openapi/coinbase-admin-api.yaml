@@ -170580,6 +170580,11 @@ components:
           minLength: 1
           title: Scheduler Cadence Status
           default: disabled_no_live
+        scheduler_cadence_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Scheduler Cadence Ref
         scheduler_cadence_blockers:
           items:
             type: string
@@ -171302,6 +171307,24 @@ components:
             minLength: 1
           - type: 'null'
           title: Scheduler Retry Release Gate Ref
+        scheduler_cadence_policy_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Cadence Policy Ref
+        scheduler_cadence_worker_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Cadence Worker Ref
+        scheduler_cadence_release_gate_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Cadence Release Gate Ref
         scheduler_recovery_runbook_ref:
           anyOf:
           - type: string

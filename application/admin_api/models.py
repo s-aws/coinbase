@@ -3214,6 +3214,18 @@ class UsdcPairSnapshotAllowlistRunStateRequest(BaseModel):
         default=None,
         min_length=1,
     )
+    scheduler_cadence_policy_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    scheduler_cadence_worker_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    scheduler_cadence_release_gate_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
     scheduler_recovery_runbook_ref: str | None = Field(
         default=None,
         min_length=1,
@@ -3560,6 +3572,7 @@ class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
         ]
     )
     scheduler_cadence_status: str = Field(default="disabled_no_live", min_length=1)
+    scheduler_cadence_ref: str | None = None
     scheduler_cadence_blockers: list[str] = Field(
         default_factory=lambda: [
             "scheduler_worker_missing",

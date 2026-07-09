@@ -1106,6 +1106,7 @@ def _allowlist_run_state_item_from_record(
         scheduler_retry_policy_ref=record.scheduler_retry_policy_ref,
         scheduler_retry_policy_blockers=record.scheduler_retry_policy_blockers,
         scheduler_cadence_status=record.scheduler_cadence_status,
+        scheduler_cadence_ref=record.scheduler_cadence_ref,
         scheduler_cadence_blockers=record.scheduler_cadence_blockers,
         scheduler_recovery_runbook_status=(
             record.scheduler_recovery_runbook_status
@@ -5239,6 +5240,43 @@ def _allowlist_run_state_scheduler_retry_policy_readback(
     )
 
 
+def _allowlist_run_state_scheduler_cadence_readback(
+    *,
+    cadence_policy_ref: str | None,
+    worker_ref: str | None,
+    release_gate_ref: str | None,
+) -> tuple[str, str | None, list[str]]:
+    blockers: list[str] = []
+    normalized_cadence_policy_ref = (
+        cadence_policy_ref.strip() if cadence_policy_ref else None
+    )
+    normalized_worker_ref = worker_ref.strip() if worker_ref else None
+    normalized_release_gate_ref = (
+        release_gate_ref.strip() if release_gate_ref else None
+    )
+    if not normalized_worker_ref:
+        blockers.append("scheduler_worker_missing")
+    if not normalized_cadence_policy_ref:
+        blockers.append("scheduler_cadence_not_configured")
+    if not normalized_release_gate_ref:
+        blockers.append("scheduler_release_gate_uncleared")
+    if blockers:
+        return (
+            USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_DISABLED_STATUS,
+            None,
+            blockers,
+        )
+    return (
+        "ready_no_live",
+        (
+            f"cadence_policy:{normalized_cadence_policy_ref};"
+            f"worker:{normalized_worker_ref};"
+            f"release_gate:{normalized_release_gate_ref}"
+        ),
+        [],
+    )
+
+
 def _allowlist_run_state_scheduler_recovery_runbook_readback(
     *,
     runbook_ref: str | None,
@@ -5699,6 +5737,15 @@ def _record_usdc_pair_allowlist_run_state(
         release_gate_ref=body.scheduler_retry_release_gate_ref,
     )
     (
+        scheduler_cadence_status,
+        scheduler_cadence_ref,
+        scheduler_cadence_blockers,
+    ) = _allowlist_run_state_scheduler_cadence_readback(
+        cadence_policy_ref=body.scheduler_cadence_policy_ref,
+        worker_ref=body.scheduler_cadence_worker_ref,
+        release_gate_ref=body.scheduler_cadence_release_gate_ref,
+    )
+    (
         scheduler_recovery_runbook_status,
         scheduler_recovery_runbook_ref,
         scheduler_recovery_runbook_blockers,
@@ -6015,12 +6062,9 @@ def _record_usdc_pair_allowlist_run_state(
         scheduler_retry_policy_status=scheduler_retry_policy_status,
         scheduler_retry_policy_ref=scheduler_retry_policy_ref,
         scheduler_retry_policy_blockers=list(scheduler_retry_policy_blockers),
-        scheduler_cadence_status=(
-            USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_DISABLED_STATUS
-        ),
-        scheduler_cadence_blockers=list(
-            USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_BLOCKERS
-        ),
+        scheduler_cadence_status=scheduler_cadence_status,
+        scheduler_cadence_ref=scheduler_cadence_ref,
+        scheduler_cadence_blockers=list(scheduler_cadence_blockers),
         scheduler_recovery_runbook_status=scheduler_recovery_runbook_status,
         scheduler_recovery_runbook_ref=scheduler_recovery_runbook_ref,
         scheduler_recovery_runbook_blockers=list(
@@ -6937,6 +6981,8 @@ def _validate_usdc_pair_allowlist_run_state_live_submit(
         != USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_DISABLED_STATUS
     ):
         blockers.append("run_state_scheduler_cadence_not_disabled")
+    if run_state.scheduler_cadence_ref:
+        blockers.append("run_state_scheduler_cadence_ref_present")
     scheduler_cadence_blockers = list(run_state.scheduler_cadence_blockers)
     if scheduler_cadence_blockers != USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_BLOCKERS:
         blockers.append("run_state_scheduler_cadence_blockers_mismatch")

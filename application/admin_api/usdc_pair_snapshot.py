@@ -537,6 +537,7 @@ class UsdcPairSnapshotAllowlistRunStateRecord(BaseModel):
         ]
     )
     scheduler_cadence_status: str = Field(default="disabled_no_live", min_length=1)
+    scheduler_cadence_ref: str | None = None
     scheduler_cadence_blockers: list[str] = Field(
         default_factory=lambda: [
             "scheduler_worker_missing",
