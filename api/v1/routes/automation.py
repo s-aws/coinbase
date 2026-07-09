@@ -2272,6 +2272,7 @@ def _execute_idempotent_live_submit(
         "USDC pair snapshot order-plan controlled-live submit/cancel "
         "accepted for one order."
     ),
+    cache_rejected_response: bool = False,
 ) -> JSONResponse:
     require_permission(actor, AdminApiPermission.CAMPAIGN_EXECUTE)
     check = idempotency_store.evaluate(
@@ -2345,7 +2346,10 @@ def _execute_idempotent_live_submit(
         response=response,
         audit_id=response.audit_id,
     )
-    if response.status == AdminApiCommandStatus.ACCEPTED:
+    if response.status == AdminApiCommandStatus.ACCEPTED or (
+        cache_rejected_response
+        and response.status == AdminApiCommandStatus.REJECTED
+    ):
         idempotency_store.put_record(
             IdempotencyRecord(
                 idempotency_key=idempotency_key,
@@ -11805,4 +11809,5 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_fanout(
         accepted_message=(
             "USDC pair snapshot allowlist run-state live fan-out submit accepted."
         ),
+        cache_rejected_response=True,
     )

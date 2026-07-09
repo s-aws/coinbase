@@ -42540,6 +42540,90 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_is_
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_replays_rejection_after_proofs_change(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-rejected-replay",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-rejected-replay-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+
+    response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="rejected-replay",
+        operator_notes="initial proof-blocked rejection should be replayed",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    allowlist_readiness_store = (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_allowlist_readiness_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(
+        ready["run_state_id"]
+    )
+    assert source_run_state is not None
+    source_allowlist_readiness = allowlist_readiness_store.find_by_readiness_id(
+        ready["allowlist_readiness_id"]
+    )
+    assert source_allowlist_readiness is not None
+    source_product = source_run_state.product_states[0]
+    source_cap_guard = client.admin_api_test_cap_guard_store.find_by_decision_id(
+        source_product.cap_guard_decision_id
+    )
+    assert source_cap_guard is not None
+    client.admin_api_test_cap_guard_store.append(
+        source_cap_guard.model_copy(
+            update={
+                "route": (
+                    "/api/v1/automation/usdc-pair-snapshot-order-plan-"
+                    "allowlist-readiness/{readiness_id}/run-state"
+                ),
+                "service_method": (
+                    "record_usdc_pair_snapshot_allowlist_run_state"
+                ),
+            }
+        )
+    )
+    allowlist_readiness_store.append(
+        source_allowlist_readiness.model_copy(update={"fanout_blockers": []})
+    )
+    run_state_store.append(
+        source_run_state.model_copy(
+            update=_usdc_pair_snapshot_live_fanout_ready_updates()
+        )
+    )
+
+    replay = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="rejected-replay",
+        operator_notes="initial proof-blocked rejection should be replayed",
+    )
+
+    assert replay.status_code == 200
+    assert replay.headers["X-Idempotency-Replayed"] == "true"
+    assert replay.json() == payload
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_reports_runtime_proof_blockers(
     monkeypatch,
 ):
