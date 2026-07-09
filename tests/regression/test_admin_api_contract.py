@@ -43966,118 +43966,14 @@ def _usdc_pair_snapshot_live_fanout_ready_updates() -> dict[str, Any]:
     }
 
 
-@pytest.mark.regression
-def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_accepts_proof_cleared_single_product(
-    monkeypatch,
-):
-    client = _client(monkeypatch)
-    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
-        client,
-        run_state_id="m58-usdc-allowlist-live-fanout-submit-final-executor-gap",
-        allowlist_readiness_id=(
-            "m58-usdc-allowlist-live-fanout-submit-final-executor-gap-readiness"
-        ),
-        queued=True,
-        live_ready=True,
-        wallet_ready=True,
-        append_live_readiness=True,
-    )
-    run_state_store = (
-        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
-    )
-    allowlist_readiness_store = (
-        client.admin_api_test_usdc_pair_snapshot_order_plan_allowlist_readiness_store
-    )
-    source_run_state = run_state_store.find_by_run_state_id(
-        ready["run_state_id"]
-    )
-    assert source_run_state is not None
-    source_allowlist_readiness = allowlist_readiness_store.find_by_readiness_id(
-        ready["allowlist_readiness_id"]
-    )
-    assert source_allowlist_readiness is not None
-    source_product = source_run_state.product_states[0]
-    source_cap_guard = client.admin_api_test_cap_guard_store.find_by_decision_id(
-        source_product.cap_guard_decision_id
-    )
-    assert source_cap_guard is not None
-    client.admin_api_test_cap_guard_store.append(
-        source_cap_guard.model_copy(
-            update={
-                "route": (
-                    "/api/v1/automation/usdc-pair-snapshot-order-plan-"
-                    "allowlist-readiness/{readiness_id}/run-state"
-                ),
-                "service_method": (
-                    "record_usdc_pair_snapshot_allowlist_run_state"
-                ),
-            }
-        )
-    )
-    allowlist_readiness_store.append(
-        source_allowlist_readiness.model_copy(update={"fanout_blockers": []})
-    )
-    proof_ref_updates = _usdc_pair_snapshot_live_fanout_ready_updates()
-    run_state_store.append(source_run_state.model_copy(update=proof_ref_updates))
-
-    response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
-        client,
-        ready,
-        suffix="final-executor-gap",
-        operator_notes="all route proofs clear before executor wiring",
-    )
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
-    assert payload["service_method"] == (
-        "submit_usdc_pair_snapshot_allowlist_run_state_live_fanout"
-    )
-    assert payload["failure_stage"] is None
-    assert payload["audit_id"]
-    assert payload["live_exchange_submitted"] is True
-    assert payload["live_coinbase_orders_ran"] is True
-    assert payload["live_coinbase_execution"] == "submitted_cancelled"
-    assert payload["notional_usdc"] == "1.00"
-    submission = payload["submission"]
-    assert payload["submissions"] == [submission]
-    assert submission["live_submit_source"] == "allowlist_run_state_fanout"
-    assert submission["run_state_id"] == ready["run_state_id"]
-    assert submission["readiness_id"] == ready["live_readiness_id"]
-    assert submission["product_id"] == ready["product_id"]
-    assert submission["client_order_id"] == ready["client_order_id"]
-    assert submission["cancel_submitted"] is True
-    assert submission["cancel_rollback_complete"] is True
-    assert "fanout_execution_technically_blocked" not in payload["message"]
-    assert "scheduler_blocked" not in payload["message"]
-    assert "runtime_fanout_worker_missing" not in payload["message"]
-    assert len(client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls) == 1
-    live_call = client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls[0]
-    assert live_call["client_order_id"] == ready["client_order_id"]
-    assert live_call["cancel_client_order_id"] == ready["client_order_id"]
-    assert live_call["product_id"] == ready["product_id"]
-
-
-@pytest.mark.regression
-def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_accepts_proof_cleared_multi_product(
-    monkeypatch,
-):
-    client = _client(monkeypatch)
-    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
-        client,
-        run_state_id="m58-usdc-allowlist-live-fanout-submit-multi-product",
-        allowlist_readiness_id=(
-            "m58-usdc-allowlist-live-fanout-submit-multi-product-readiness"
-        ),
-        queued=True,
-        live_ready=True,
-        wallet_ready=True,
-        append_live_readiness=True,
-    )
+def _append_usdc_pair_snapshot_multi_product_live_fanout_ready_fixture(
+    client,
+    ready: dict[str, str],
+) -> dict[str, str]:
     extra_product_id = "ETH-USDC"
     extra_normalized_product_id = extra_product_id.replace("-", "_").lower()
     extra_client_order_id = (
-        "m58-usdc-allowlist-live-fanout-submit-multi-product-ETH-USDC"
+        f"{ready['allowlist_readiness_id']}-live-fanout-{extra_product_id}"
     )
     extra_cap_guard_decision_id = (
         f"cap-{ready['allowlist_readiness_id']}-{extra_normalized_product_id}"
@@ -44351,6 +44247,126 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_acc
         }
     )
     run_state_store.append(source_run_state.model_copy(update=run_state_updates))
+    return {
+        "extra_product_id": extra_product_id,
+        "extra_client_order_id": extra_client_order_id,
+    }
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_accepts_proof_cleared_single_product(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-final-executor-gap",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-final-executor-gap-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    allowlist_readiness_store = (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_allowlist_readiness_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(
+        ready["run_state_id"]
+    )
+    assert source_run_state is not None
+    source_allowlist_readiness = allowlist_readiness_store.find_by_readiness_id(
+        ready["allowlist_readiness_id"]
+    )
+    assert source_allowlist_readiness is not None
+    source_product = source_run_state.product_states[0]
+    source_cap_guard = client.admin_api_test_cap_guard_store.find_by_decision_id(
+        source_product.cap_guard_decision_id
+    )
+    assert source_cap_guard is not None
+    client.admin_api_test_cap_guard_store.append(
+        source_cap_guard.model_copy(
+            update={
+                "route": (
+                    "/api/v1/automation/usdc-pair-snapshot-order-plan-"
+                    "allowlist-readiness/{readiness_id}/run-state"
+                ),
+                "service_method": (
+                    "record_usdc_pair_snapshot_allowlist_run_state"
+                ),
+            }
+        )
+    )
+    allowlist_readiness_store.append(
+        source_allowlist_readiness.model_copy(update={"fanout_blockers": []})
+    )
+    proof_ref_updates = _usdc_pair_snapshot_live_fanout_ready_updates()
+    run_state_store.append(source_run_state.model_copy(update=proof_ref_updates))
+
+    response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="final-executor-gap",
+        operator_notes="all route proofs clear before executor wiring",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["service_method"] == (
+        "submit_usdc_pair_snapshot_allowlist_run_state_live_fanout"
+    )
+    assert payload["failure_stage"] is None
+    assert payload["audit_id"]
+    assert payload["live_exchange_submitted"] is True
+    assert payload["live_coinbase_orders_ran"] is True
+    assert payload["live_coinbase_execution"] == "submitted_cancelled"
+    assert payload["notional_usdc"] == "1.00"
+    submission = payload["submission"]
+    assert payload["submissions"] == [submission]
+    assert submission["live_submit_source"] == "allowlist_run_state_fanout"
+    assert submission["run_state_id"] == ready["run_state_id"]
+    assert submission["readiness_id"] == ready["live_readiness_id"]
+    assert submission["product_id"] == ready["product_id"]
+    assert submission["client_order_id"] == ready["client_order_id"]
+    assert submission["cancel_submitted"] is True
+    assert submission["cancel_rollback_complete"] is True
+    assert "fanout_execution_technically_blocked" not in payload["message"]
+    assert "scheduler_blocked" not in payload["message"]
+    assert "runtime_fanout_worker_missing" not in payload["message"]
+    assert len(client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls) == 1
+    live_call = client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls[0]
+    assert live_call["client_order_id"] == ready["client_order_id"]
+    assert live_call["cancel_client_order_id"] == ready["client_order_id"]
+    assert live_call["product_id"] == ready["product_id"]
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_accepts_proof_cleared_multi_product(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-multi-product",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-multi-product-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    extra = _append_usdc_pair_snapshot_multi_product_live_fanout_ready_fixture(
+        client,
+        ready,
+    )
+    extra_product_id = extra["extra_product_id"]
+    extra_client_order_id = extra["extra_client_order_id"]
 
     response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
         client,
@@ -44394,6 +44410,93 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_acc
     assert [call["cancel_client_order_id"] for call in live_calls] == [
         ready["client_order_id"],
         extra_client_order_id,
+    ]
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_records_cancel_failure_without_second_order(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-cancel-failure",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-cancel-failure-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    extra = _append_usdc_pair_snapshot_multi_product_live_fanout_ready_fixture(
+        client,
+        ready,
+    )
+    fake_order_executor = (
+        client.admin_api_test_usdc_pair_snapshot_live_order_executor
+    )
+
+    def fail_first_cancel(**kwargs):
+        fake_order_executor.calls.append(dict(kwargs))
+        return {
+            "coinbase_order_id": f"exchange-{kwargs['client_order_id']}",
+            "submit_result": {
+                "success": True,
+                "client_order_id": kwargs["client_order_id"],
+            },
+            "cancel_result": {
+                "success": False,
+                "client_order_id": kwargs["client_order_id"],
+            },
+            "submitted_at": "2026-07-09T12:00:00+00:00",
+            "order_configuration": kwargs["order_configuration"],
+            "live_exchange_submitted": True,
+            "live_coinbase_orders_ran": True,
+            "live_coinbase_execution": "submitted_cancel_failed",
+            "executed_notional_usdc": "0",
+            "cancel_submitted": False,
+            "cancel_rollback_complete": False,
+        }
+
+    fake_order_executor.submit_and_cancel = fail_first_cancel
+
+    response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="cancel-failure",
+        operator_notes="cancel failure must stop before second fanout order",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["live_exchange_submitted"] is True
+    assert payload["live_coinbase_orders_ran"] is True
+    assert payload["live_coinbase_execution"] == "submitted_cancel_failed"
+    assert payload["notional_usdc"] == "1.00"
+    submissions = payload["submissions"]
+    assert len(submissions) == 1
+    assert payload["submission"] == submissions[0]
+    submission = submissions[0]
+    assert submission["product_id"] == ready["product_id"]
+    assert submission["client_order_id"] == ready["client_order_id"]
+    assert submission["live_submit_source"] == "allowlist_run_state_fanout"
+    assert submission["cancel_submitted"] is False
+    assert submission["cancel_rollback_complete"] is False
+    assert submission["additional_orders_blocked"] is True
+    assert submission["notional_usdc"] == "1.00"
+    assert submission["executed_notional_usdc"] == "0"
+    live_calls = fake_order_executor.calls
+    assert [call["product_id"] for call in live_calls] == ["BTC-USDC"]
+    assert [call["client_order_id"] for call in live_calls] == [
+        ready["client_order_id"]
+    ]
+    assert extra["extra_product_id"] not in [
+        submission["product_id"] for submission in submissions
+    ]
+    assert extra["extra_client_order_id"] not in [
+        call["client_order_id"] for call in live_calls
     ]
 
 
