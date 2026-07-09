@@ -7056,6 +7056,121 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
         != recovery_required_product_state_count
     ):
         blockers.append("run_state_recovery_required_product_count_mismatch")
+    if run_state.run_lock_status != "recorded_no_live":
+        blockers.append("run_state_run_lock_not_recorded")
+    if not run_state.run_lock_ref:
+        blockers.append("run_state_run_lock_ref_missing")
+    if run_state.run_lock_conflict_run_state_id:
+        blockers.append("run_state_run_lock_ref_conflict")
+    run_lock_recorded_at = _parse_reference_timestamp(
+        run_state.run_lock_recorded_at
+    )
+    if not run_state.run_lock_recorded_at:
+        blockers.append("run_state_run_lock_recorded_at_missing")
+    elif run_lock_recorded_at is None:
+        blockers.append("run_state_run_lock_recorded_at_invalid")
+    if run_state.pause_resume_status != "running_no_live":
+        blockers.append("run_state_not_running")
+    if run_state.abort_status != "not_requested":
+        blockers.append("run_state_abort_requested")
+    if run_state.rate_limit_status != "ready_no_live":
+        blockers.append("run_state_rate_limit_not_ready")
+    if not run_state.rate_limit_window_ref:
+        blockers.append("run_state_rate_limit_window_ref_missing")
+    if run_state.rate_limit_window_conflict_run_state_id:
+        blockers.append("run_state_rate_limit_window_ref_conflict")
+    if (
+        run_state.rate_limit_max_orders_per_window
+        != USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_ORDER_CAP
+    ):
+        blockers.append("run_state_rate_limit_window_order_cap_mismatch")
+    if (
+        run_state.rate_limit_window_seconds
+        != USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_SECONDS
+    ):
+        blockers.append("run_state_rate_limit_window_seconds_mismatch")
+    rate_limit_window_started_at = _parse_reference_timestamp(
+        run_state.rate_limit_window_started_at
+    )
+    rate_limit_window_expires_at = _parse_reference_timestamp(
+        run_state.rate_limit_window_expires_at
+    )
+    if not run_state.rate_limit_window_started_at:
+        blockers.append("run_state_rate_limit_window_started_at_missing")
+    elif rate_limit_window_started_at is None:
+        blockers.append("run_state_rate_limit_window_started_at_invalid")
+    if not run_state.rate_limit_window_expires_at:
+        blockers.append("run_state_rate_limit_window_expires_at_missing")
+    elif rate_limit_window_expires_at is None:
+        blockers.append("run_state_rate_limit_window_expires_at_invalid")
+    if run_state.rate_limit_attempted_order_count != queued_product_state_count:
+        blockers.append("run_state_rate_limit_attempted_order_count_mismatch")
+    expected_rate_limit_window_remaining_order_count = max(
+        run_state.rate_limit_max_orders_per_window
+        - run_state.rate_limit_attempted_order_count,
+        0,
+    )
+    expected_rate_limit_window_overage_order_count = max(
+        run_state.rate_limit_attempted_order_count
+        - run_state.rate_limit_max_orders_per_window,
+        0,
+    )
+    if (
+        run_state.rate_limit_window_remaining_order_count
+        != expected_rate_limit_window_remaining_order_count
+    ):
+        blockers.append(
+            "run_state_rate_limit_window_remaining_order_count_mismatch"
+        )
+    if (
+        run_state.rate_limit_window_overage_order_count
+        != expected_rate_limit_window_overage_order_count
+    ):
+        blockers.append("run_state_rate_limit_window_overage_order_count_mismatch")
+    if (
+        not run_state.rate_limit_window_within_cap
+        or run_state.rate_limit_attempted_order_count
+        > run_state.rate_limit_max_orders_per_window
+        or run_state.rate_limit_window_overage_order_count > 0
+    ):
+        blockers.append("run_state_rate_limit_window_capacity_exceeded")
+    if rate_limit_window_started_at and rate_limit_window_expires_at:
+        rate_limit_window_duration_seconds = (
+            rate_limit_window_expires_at - rate_limit_window_started_at
+        ).total_seconds()
+        if rate_limit_window_duration_seconds <= 0:
+            blockers.append("run_state_rate_limit_window_bounds_invalid")
+        elif (
+            rate_limit_window_duration_seconds
+            != run_state.rate_limit_window_seconds
+        ):
+            blockers.append("run_state_rate_limit_window_seconds_mismatch")
+        if run_lock_recorded_at and not (
+            rate_limit_window_started_at
+            <= run_lock_recorded_at
+            < rate_limit_window_expires_at
+        ):
+            blockers.append("run_state_run_lock_recorded_at_outside_rate_window")
+        if datetime.now(timezone.utc) >= rate_limit_window_expires_at:
+            blockers.append("run_state_rate_limit_window_expired")
+    if run_state.retry_budget_status != "ready_no_live":
+        blockers.append("run_state_retry_budget_not_ready")
+    if run_state.retry_backoff_status not in {"not_required", "ready_no_live"}:
+        blockers.append("run_state_retry_backoff_not_ready")
+    if (
+        run_state.retry_backoff_status == "ready_no_live"
+        and not run_state.retry_backoff_ref
+    ):
+        blockers.append("run_state_retry_backoff_ref_missing")
+    if run_state.retry_backoff_conflict_run_state_id:
+        blockers.append("run_state_retry_backoff_ref_conflict")
+    if run_state.recovery_status != "ready_no_live":
+        blockers.append("run_state_recovery_not_ready")
+    if (
+        run_state.recovery_status == "ready_no_live"
+        and not run_state.cancel_recovery_plan_ref
+    ):
+        blockers.append("run_state_cancel_recovery_plan_ref_missing")
     computed_planned_fanout_notional = _sum_usdc_pair_decimal_values(
         [
             item.planned_notional_usdc

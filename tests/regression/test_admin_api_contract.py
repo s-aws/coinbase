@@ -43480,6 +43480,131 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_stale_parent_runtime_readback(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-runtime-stale",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-runtime-stale-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(
+        ready["run_state_id"]
+    )
+    assert source_run_state is not None
+    run_state_store.append(
+        source_run_state.model_copy(
+            update={
+                "run_lock_status": "blocked",
+                "run_lock_ref": None,
+                "run_lock_recorded_at": None,
+                "run_lock_conflict_run_state_id": (
+                    "m58-usdc-allowlist-live-fanout-run-lock-conflict"
+                ),
+                "pause_resume_status": "paused_no_live",
+                "abort_status": "requested",
+                "rate_limit_status": "blocked",
+                "rate_limit_window_ref": None,
+                "rate_limit_window_conflict_run_state_id": (
+                    "m58-usdc-allowlist-live-fanout-rate-conflict"
+                ),
+                "rate_limit_max_orders_per_window": 6,
+                "rate_limit_window_seconds": 2,
+                "rate_limit_window_started_at": None,
+                "rate_limit_window_expires_at": None,
+                "rate_limit_attempted_order_count": 2,
+                "rate_limit_window_remaining_order_count": 5,
+                "rate_limit_window_overage_order_count": 1,
+                "rate_limit_window_within_cap": False,
+                "retry_budget_status": "blocked",
+                "retry_backoff_status": "blocked",
+                "retry_backoff_conflict_run_state_id": (
+                    "m58-usdc-allowlist-live-fanout-retry-conflict"
+                ),
+                "recovery_status": "ready_no_live",
+                "cancel_recovery_plan_ref": None,
+            }
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-fanout-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-fanout-submit-runtime-stale"
+            ),
+            operator_intent=(
+                "m58_usdc_snapshot_allowlist_run_state_live_fanout_submit"
+            ),
+        ),
+        json={
+            "submission_id": (
+                "m58-usdc-allowlist-live-fanout-submit-runtime-stale"
+            ),
+            "max_fanout_notional_usdc": "100",
+            "confirm_live_fanout_submit": True,
+            "confirm_backend_owned_execution": True,
+            "confirm_cancel_rollback_before_completion": True,
+            "confirm_rate_limit_5_per_second": True,
+            "operator_stop_conditions": [
+                "submit only backend-selected queued products",
+                "cancel or roll back every submitted client_order_id before completion",
+            ],
+            "operator_notes": "stale parent runtime/rate/retry readback",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    for expected_blocker in [
+        "run_state_run_lock_not_recorded",
+        "run_state_run_lock_ref_missing",
+        "run_state_run_lock_ref_conflict",
+        "run_state_run_lock_recorded_at_missing",
+        "run_state_not_running",
+        "run_state_abort_requested",
+        "run_state_rate_limit_not_ready",
+        "run_state_rate_limit_window_ref_missing",
+        "run_state_rate_limit_window_ref_conflict",
+        "run_state_rate_limit_window_order_cap_mismatch",
+        "run_state_rate_limit_window_seconds_mismatch",
+        "run_state_rate_limit_window_started_at_missing",
+        "run_state_rate_limit_window_expires_at_missing",
+        "run_state_rate_limit_attempted_order_count_mismatch",
+        "run_state_rate_limit_window_remaining_order_count_mismatch",
+        "run_state_rate_limit_window_overage_order_count_mismatch",
+        "run_state_rate_limit_window_capacity_exceeded",
+        "run_state_retry_budget_not_ready",
+        "run_state_retry_backoff_not_ready",
+        "run_state_retry_backoff_ref_conflict",
+        "run_state_cancel_recovery_plan_ref_missing",
+    ]:
+        assert expected_blocker in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_wallet_evidence(
     monkeypatch,
 ):
