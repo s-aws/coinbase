@@ -184,6 +184,7 @@ USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_ENDPOINT = (
 USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_SERVICE_METHOD = (
     "submit_usdc_pair_snapshot_order_plan_live_order"
 )
+MISSING_EXECUTED_NOTIONAL_EVIDENCE_STATUS = "missing_or_invalid"
 USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_SUBMIT_ROUTE = (
     "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
     "{run_state_id}/live-submit"
@@ -2740,6 +2741,18 @@ def _non_negative_decimal_value(value: str | None) -> Decimal | None:
     if decimal_value < Decimal("0"):
         return None
     return decimal_value
+
+
+def _execution_executed_notional_evidence(
+    value: Any,
+) -> tuple[str, bool, bool]:
+    text = _non_empty_text(str(value) if value is not None else None)
+    if not text:
+        return "0", False, False
+    decimal_value = _non_negative_decimal_value(text)
+    if decimal_value is None:
+        return "0", False, False
+    return text, decimal_value > Decimal("0"), True
 
 
 def _decimal_string(value: Decimal) -> str:
@@ -10357,16 +10370,21 @@ def _record_usdc_pair_live_submission(
     cancel_submitted = bool(
         execution.get("cancel_submitted", _result_success(cancel_result))
     )
-    executed_notional_usdc = str(execution.get("executed_notional_usdc") or "0")
-    executed_notional_positive = _decimal_value(executed_notional_usdc) is not None
+    (
+        executed_notional_usdc,
+        executed_notional_positive,
+        executed_notional_valid,
+    ) = _execution_executed_notional_evidence(
+        execution.get("executed_notional_usdc")
+    )
     cancel_complete = bool(
         execution.get("cancel_rollback_complete", cancel_submitted)
-    ) and not executed_notional_positive
+    ) and executed_notional_valid and not executed_notional_positive
     live_exchange_submitted = bool(execution.get("live_exchange_submitted"))
     live_coinbase_orders_ran = bool(execution.get("live_coinbase_orders_ran"))
     live_execution = str(
         "submitted_cancel_failed"
-        if executed_notional_positive
+        if not executed_notional_valid or executed_notional_positive
         else execution.get("live_coinbase_execution")
         or (
             "submitted_cancelled"
@@ -10374,6 +10392,13 @@ def _record_usdc_pair_live_submission(
             else "submitted_cancel_failed"
         )
     )
+    if not executed_notional_valid:
+        cancel_result = {
+            **cancel_result,
+            "executed_notional_evidence_status": (
+                MISSING_EXECUTED_NOTIONAL_EVIDENCE_STATUS
+            ),
+        }
 
     record = UsdcPairSnapshotOrderPlanLiveSubmitRecord(
         submission_id=(
@@ -10578,18 +10603,21 @@ def _record_usdc_pair_live_fanout_submissions(
         cancel_submitted = bool(
             execution.get("cancel_submitted", _result_success(cancel_result))
         )
-        executed_notional_usdc = str(execution.get("executed_notional_usdc") or "0")
-        executed_notional_positive = (
-            _decimal_value(executed_notional_usdc) is not None
+        (
+            executed_notional_usdc,
+            executed_notional_positive,
+            executed_notional_valid,
+        ) = _execution_executed_notional_evidence(
+            execution.get("executed_notional_usdc")
         )
         cancel_complete = bool(
             execution.get("cancel_rollback_complete", cancel_submitted)
-        ) and not executed_notional_positive
+        ) and executed_notional_valid and not executed_notional_positive
         live_exchange_submitted = bool(execution.get("live_exchange_submitted"))
         live_coinbase_orders_ran = bool(execution.get("live_coinbase_orders_ran"))
         live_execution = str(
             "submitted_cancel_failed"
-            if executed_notional_positive
+            if not executed_notional_valid or executed_notional_positive
             else execution.get("live_coinbase_execution")
             or (
                 "submitted_cancelled"
@@ -10601,6 +10629,13 @@ def _record_usdc_pair_live_fanout_submissions(
                 )
             )
         )
+        if not executed_notional_valid:
+            cancel_result = {
+                **cancel_result,
+                "executed_notional_evidence_status": (
+                    MISSING_EXECUTED_NOTIONAL_EVIDENCE_STATUS
+                ),
+            }
         record = UsdcPairSnapshotOrderPlanLiveSubmitRecord(
             submission_id=_usdc_pair_live_fanout_submission_id(
                 base_submission_id=base_submission_id,

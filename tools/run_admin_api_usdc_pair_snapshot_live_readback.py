@@ -344,6 +344,11 @@ def readback_checks(
             bool(submission)
             and zero_decimal_evidence(submission.get("executed_notional_usdc")),
         ),
+        check(
+            "m58_submission_executed_notional_evidence_verified",
+            bool(submission)
+            and submission_executed_notional_evidence_verified(submission),
+        ),
         check("m58_client_order_id_present", bool(client_order_id)),
         check("m58_product_id_present", bool(product_id)),
         check("m58_exchange_order_id_present", bool(exchange_order_id)),
@@ -530,6 +535,19 @@ def zero_decimal_evidence(value: Any) -> bool:
     except (InvalidOperation, ValueError):
         return False
     return number == 0
+
+
+def submission_executed_notional_evidence_verified(
+    submission: Mapping[str, Any],
+) -> bool:
+    """Return whether prior submission execution evidence is usable for recovery."""
+
+    cancel_result = object_record(submission.get("cancel_result"))
+    status = text_value(
+        submission.get("executed_notional_evidence_status")
+        or cancel_result.get("executed_notional_evidence_status")
+    )
+    return status not in {"missing_or_invalid", "missing", "invalid", "unknown"}
 
 
 def decimal_text(value: Any) -> str:

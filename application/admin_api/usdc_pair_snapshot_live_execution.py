@@ -20,6 +20,10 @@ from .command_runtime import (
 )
 
 
+MISSING_EXECUTED_NOTIONAL_EVIDENCE_STATUS = "missing_or_invalid"
+VERIFIED_EXECUTED_NOTIONAL_EVIDENCE_STATUS = "verified_decimal"
+
+
 class UsdcPairSnapshotLiveExecutionError(RuntimeError):
     """Raised when controlled-live M58 execution must fail closed."""
 
@@ -221,10 +225,27 @@ class UsdcPairSnapshotLiveFanoutExecutor:
                 "max_executed_notional_usdc",
                 call["max_executed_notional_usdc"],
             )
+            (
+                executed_notional_usdc,
+                executed_notional_positive,
+                executed_notional_valid,
+            ) = _execution_executed_notional_evidence(execution)
+            execution["executed_notional_usdc"] = executed_notional_usdc
+            if not executed_notional_valid:
+                execution["executed_notional_evidence_status"] = (
+                    MISSING_EXECUTED_NOTIONAL_EVIDENCE_STATUS
+                )
+                execution["cancel_rollback_complete"] = False
+                execution["live_coinbase_execution"] = "submitted_cancel_failed"
+            else:
+                execution["executed_notional_evidence_status"] = (
+                    VERIFIED_EXECUTED_NOTIONAL_EVIDENCE_STATUS
+                )
             results.append(execution)
             if (
-                not _execution_cancel_rollback_complete(execution)
-                or _execution_executed_notional_positive(execution)
+                not executed_notional_valid
+                or not _execution_cancel_rollback_complete(execution)
+                or executed_notional_positive
             ):
                 break
 
@@ -245,8 +266,14 @@ class UsdcPairSnapshotLiveFanoutExecutor:
             "submitted_notional_usdc": _decimal_sum_string(
                 result.get("submitted_notional_usdc") for result in results
             ),
-            "executed_notional_usdc": _decimal_sum_string(
-                result.get("executed_notional_usdc", "0") for result in results
+            "executed_notional_usdc": _executed_notional_sum_string(results),
+            "executed_notional_evidence_status": (
+                VERIFIED_EXECUTED_NOTIONAL_EVIDENCE_STATUS
+                if all(
+                    _execution_executed_notional_evidence(result)[2]
+                    for result in results
+                )
+                else MISSING_EXECUTED_NOTIONAL_EVIDENCE_STATUS
             ),
             "max_executed_notional_usdc": _decimal_sum_string(
                 result.get("max_executed_notional_usdc") for result in results
@@ -384,7 +411,27 @@ def _execution_cancel_rollback_complete(execution: Mapping[str, Any]) -> bool:
 
 
 def _execution_executed_notional_positive(execution: Mapping[str, Any]) -> bool:
-    return _decimal_text_positive(execution.get("executed_notional_usdc", "0"))
+    return _execution_executed_notional_evidence(execution)[1]
+
+
+def _execution_executed_notional_evidence(
+    execution: Mapping[str, Any],
+) -> tuple[str, bool, bool]:
+    if (
+        _optional_text(execution.get("executed_notional_evidence_status"))
+        == MISSING_EXECUTED_NOTIONAL_EVIDENCE_STATUS
+    ):
+        return "0", False, False
+    text = _optional_text(execution.get("executed_notional_usdc"))
+    if not text:
+        return "0", False, False
+    try:
+        decimal_value = Decimal(text)
+    except (InvalidOperation, ValueError):
+        return "0", False, False
+    if decimal_value < 0:
+        return "0", False, False
+    return text, decimal_value > 0, True
 
 
 def _decimal_text_positive(value: Any) -> bool:
@@ -406,6 +453,18 @@ def _decimal_sum_string(values: Iterable[Any]) -> str:
                 "M58 live fan-out submit requires valid notional evidence."
             ) from exc
     return str(total)
+
+
+def _executed_notional_sum_string(
+    executions: Iterable[Mapping[str, Any]],
+) -> str:
+    values: list[str] = []
+    for execution in executions:
+        text, _, valid = _execution_executed_notional_evidence(execution)
+        if not valid:
+            return "0"
+        values.append(text)
+    return _decimal_sum_string(values)
 
 
 def _object_to_dict(value: Any) -> dict[str, Any]:

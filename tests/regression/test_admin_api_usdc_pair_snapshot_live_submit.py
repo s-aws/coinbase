@@ -805,6 +805,82 @@ def test_usdc_pair_snapshot_live_fanout_executor_stops_after_any_execution():
     assert result["live_coinbase_execution"] == "submitted_cancel_failed"
 
 
+def test_usdc_pair_snapshot_live_fanout_executor_stops_after_missing_execution_evidence():
+    from application.admin_api import usdc_pair_snapshot_live_execution as live_exec
+
+    class MissingExecutionEvidenceOrderExecutor:
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        def submit_and_cancel(self, **kwargs):
+            self.calls.append(dict(kwargs))
+            return {
+                "coinbase_order_id": f"exchange-{kwargs['client_order_id']}",
+                "client_order_id": kwargs["client_order_id"],
+                "product_id": kwargs["product_id"],
+                "side": kwargs["side"],
+                "submit_result": {"success": True},
+                "cancel_result": {"success": True},
+                "cancel_submitted": True,
+                "cancel_rollback_complete": True,
+                "submitted_notional_usdc": kwargs["submitted_notional_usdc"],
+                "max_executed_notional_usdc": kwargs[
+                    "max_executed_notional_usdc"
+                ],
+                "live_exchange_submitted": True,
+                "live_coinbase_orders_ran": True,
+                "live_coinbase_execution": "submitted_cancelled",
+            }
+
+    fake_order_executor = MissingExecutionEvidenceOrderExecutor()
+    executor = live_exec.UsdcPairSnapshotLiveFanoutExecutor(
+        order_executor=fake_order_executor
+    )
+
+    result = executor.submit_and_cancel_all(
+        orders=[
+            {
+                "client_order_id": "client-order-1",
+                "product_id": "BTC-USDC",
+                "side": "BUY",
+                "order_configuration": {"limit_limit_gtc": {"quote_size": "1.00"}},
+                "submitted_notional_usdc": "1.00",
+                "max_executed_notional_usdc": "0.01",
+                "cancel_client_order_id": "client-order-1",
+            },
+            {
+                "client_order_id": "client-order-2",
+                "product_id": "ETH-USDC",
+                "side": "BUY",
+                "order_configuration": {"limit_limit_gtc": {"quote_size": "1.50"}},
+                "submitted_notional_usdc": "1.50",
+                "max_executed_notional_usdc": "0.01",
+                "cancel_client_order_id": "client-order-2",
+            },
+        ],
+        max_orders_per_second=5,
+    )
+
+    assert [call["client_order_id"] for call in fake_order_executor.calls] == [
+        "client-order-1"
+    ]
+    assert result["requested_order_count"] == 2
+    assert result["order_count"] == 1
+    assert result["submitted_notional_usdc"] == "1.00"
+    assert result["executed_notional_usdc"] == "0"
+    assert result["executed_notional_evidence_status"] == "missing_or_invalid"
+    assert result["cancel_submitted"] is False
+    assert result["cancel_rollback_complete"] is False
+    assert result["additional_orders_blocked"] is True
+    assert result["live_coinbase_execution"] == "submitted_cancel_failed"
+    order = result["orders"][0]
+    assert order["executed_notional_usdc"] == "0"
+    assert order["executed_notional_evidence_status"] == "missing_or_invalid"
+    assert order["cancel_submitted"] is True
+    assert order["cancel_rollback_complete"] is False
+    assert order["live_coinbase_execution"] == "submitted_cancel_failed"
+
+
 def test_usdc_pair_snapshot_live_fanout_executor_rejects_mismatched_execution_evidence():
     from application.admin_api import usdc_pair_snapshot_live_execution as live_exec
 

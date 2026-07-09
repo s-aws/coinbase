@@ -308,3 +308,43 @@ def test_m58_live_readback_requires_exchange_zero_evidence(
     assert summary["status"] == "failed"
     assert failed_check in failed_checks
     assert summary["recovery_record_appended"] is False
+
+
+def test_m58_live_readback_refuses_recovery_for_missing_execution_evidence_status(
+    tmp_path,
+):
+    state_dir = tmp_path / "state"
+    apply_usdc_pair_state_environment(state_dir)
+    store = FileUsdcPairSnapshotOrderPlanLiveSubmitStore()
+    store.append(
+        m58_submission_record(
+            executed_notional_usdc="0",
+            cancel_submitted=True,
+            cancel_rollback_complete=False,
+            cancel_result={
+                "success": True,
+                "executed_notional_evidence_status": "missing_or_invalid",
+            },
+        )
+    )
+    rest_client = FakeM58ReadbackRestClient()
+
+    summary = readback.run_usdc_pair_snapshot_live_readback(
+        rest_client,
+        readback.UsdcPairSnapshotLiveReadbackConfig(
+            submission_id="m58-live-submission",
+            state_dir=state_dir,
+            append_recovery_record=True,
+        ),
+    )
+
+    failed_checks = {
+        check["name"] for check in summary["checks"] if not check["passed"]
+    }
+    assert summary["status"] == "failed"
+    assert "m58_submission_executed_notional_evidence_verified" in failed_checks
+    assert summary["recovery_record_appended"] is False
+    assert (
+        store.find_by_submission_id("m58-live-submission-readback-recovery")
+        is None
+    )
