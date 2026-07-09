@@ -2745,7 +2745,16 @@ def _non_negative_decimal_value(value: str | None) -> Decimal | None:
 
 def _execution_executed_notional_evidence(
     value: Any,
+    *,
+    evidence_status: Any = None,
 ) -> tuple[str, bool, bool]:
+    if (
+        _non_empty_text(
+            str(evidence_status) if evidence_status is not None else None
+        )
+        == MISSING_EXECUTED_NOTIONAL_EVIDENCE_STATUS
+    ):
+        return "0", False, False
     text = _non_empty_text(str(value) if value is not None else None)
     if not text:
         return "0", False, False
@@ -10375,7 +10384,8 @@ def _record_usdc_pair_live_submission(
         executed_notional_positive,
         executed_notional_valid,
     ) = _execution_executed_notional_evidence(
-        execution.get("executed_notional_usdc")
+        execution.get("executed_notional_usdc"),
+        evidence_status=execution.get("executed_notional_evidence_status"),
     )
     cancel_complete = bool(
         execution.get("cancel_rollback_complete", cancel_submitted)
@@ -10608,7 +10618,8 @@ def _record_usdc_pair_live_fanout_submissions(
             executed_notional_positive,
             executed_notional_valid,
         ) = _execution_executed_notional_evidence(
-            execution.get("executed_notional_usdc")
+            execution.get("executed_notional_usdc"),
+            evidence_status=execution.get("executed_notional_evidence_status"),
         )
         cancel_complete = bool(
             execution.get("cancel_rollback_complete", cancel_submitted)
