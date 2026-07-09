@@ -6943,6 +6943,18 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
         blockers.append("run_state_live_exchange_already_submitted")
     if run_state.notional_usdc != "0":
         blockers.append("run_state_notional_not_zero")
+    if run_state.run_state_status != "ready_no_live":
+        blockers.append("run_state_not_ready")
+    if run_state.fanout_cap_allocation_status != "passed":
+        blockers.append("run_state_fanout_cap_not_passed")
+    if run_state.wallet_allocation_status != "passed":
+        blockers.append("run_state_wallet_allocation_not_passed")
+    if run_state.live_readiness_status != "ready_no_live":
+        blockers.append("run_state_parent_live_readiness_not_ready")
+    if run_state.fanout_notional_status != "passed":
+        blockers.append("run_state_fanout_notional_not_passed")
+    if run_state.partial_success_status != "ready_no_live":
+        blockers.append("run_state_partial_success_not_ready")
     if not run_state.queued_product_ids:
         blockers.append("queued_products_missing")
     if run_state.fanout_execution_status != "ready_live":
