@@ -7056,6 +7056,110 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
         != recovery_required_product_state_count
     ):
         blockers.append("run_state_recovery_required_product_count_mismatch")
+    computed_planned_fanout_notional = _sum_usdc_pair_decimal_values(
+        [
+            item.planned_notional_usdc
+            for item in run_state.product_states
+            if item.execution_state == "queued_no_live"
+        ]
+    )
+    computed_allocated_fanout_notional = _sum_usdc_pair_decimal_values(
+        [item.allocated_notional_usdc for item in run_state.product_states]
+    )
+    computed_wallet_allocated_notional = _sum_usdc_pair_decimal_values(
+        [item.wallet_allocated_notional_usdc for item in run_state.product_states]
+    )
+    wallet_available_product_values: list[Decimal] = []
+    wallet_available_product_invalid = False
+    for item in run_state.product_states:
+        if item.execution_state != "queued_no_live":
+            continue
+        wallet_available_product_value = _non_negative_decimal_value(
+            item.wallet_available_notional_usdc
+        )
+        if wallet_available_product_value is None:
+            wallet_available_product_invalid = True
+            continue
+        wallet_available_product_values.append(wallet_available_product_value)
+    if (
+        computed_planned_fanout_notional is None
+        or _usdc_pair_decimal_mismatch(
+            run_state.planned_fanout_notional_usdc,
+            computed_planned_fanout_notional,
+        )
+    ):
+        blockers.append("run_state_planned_fanout_notional_mismatch")
+    if (
+        computed_allocated_fanout_notional is None
+        or _usdc_pair_decimal_mismatch(
+            run_state.allocated_fanout_notional_usdc,
+            computed_allocated_fanout_notional,
+        )
+    ):
+        blockers.append("run_state_allocated_fanout_notional_mismatch")
+    if (
+        max_fanout_notional is not None
+        and computed_planned_fanout_notional is not None
+        and computed_planned_fanout_notional > max_fanout_notional
+    ):
+        blockers.append("planned_fanout_notional_exceeds_request_cap")
+    if (
+        run_state_max_fanout_notional is not None
+        and computed_planned_fanout_notional is not None
+        and computed_planned_fanout_notional > run_state_max_fanout_notional
+    ):
+        blockers.append("planned_fanout_notional_exceeds_run_state_cap")
+    if (
+        run_state_max_fanout_notional is None
+        or computed_allocated_fanout_notional is None
+    ):
+        blockers.append("run_state_fanout_cap_remaining_mismatch")
+    elif _usdc_pair_decimal_mismatch(
+        run_state.fanout_cap_remaining_usdc,
+        run_state_max_fanout_notional - computed_allocated_fanout_notional,
+    ):
+        blockers.append("run_state_fanout_cap_remaining_mismatch")
+    if (
+        run_state_max_fanout_notional is None
+        or computed_planned_fanout_notional is None
+    ):
+        blockers.append("run_state_fanout_cap_overage_mismatch")
+    elif _usdc_pair_decimal_mismatch(
+        run_state.fanout_cap_overage_usdc,
+        max(
+            computed_planned_fanout_notional - run_state_max_fanout_notional,
+            Decimal("0"),
+        ),
+    ):
+        blockers.append("run_state_fanout_cap_overage_mismatch")
+    if (
+        computed_wallet_allocated_notional is None
+        or _usdc_pair_decimal_mismatch(
+            run_state.wallet_allocated_notional_usdc,
+            computed_wallet_allocated_notional,
+        )
+    ):
+        blockers.append("run_state_wallet_allocated_notional_mismatch")
+    wallet_available_notional = _non_negative_decimal_value(
+        run_state.wallet_available_notional_usdc
+    )
+    if wallet_available_product_invalid or not wallet_available_product_values:
+        blockers.append("run_state_wallet_available_notional_mismatch")
+    elif _usdc_pair_decimal_mismatch(
+        run_state.wallet_available_notional_usdc,
+        min(wallet_available_product_values),
+    ):
+        blockers.append("run_state_wallet_available_notional_mismatch")
+    if (
+        wallet_available_notional is None
+        or computed_wallet_allocated_notional is None
+    ):
+        blockers.append("run_state_wallet_remaining_mismatch")
+    elif _usdc_pair_decimal_mismatch(
+        run_state.wallet_remaining_usdc,
+        wallet_available_notional - computed_wallet_allocated_notional,
+    ):
+        blockers.append("run_state_wallet_remaining_mismatch")
     queued_product_row_blockers = _dedupe(
         [
             blocker
