@@ -7181,6 +7181,15 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
         and not run_state.retry_backoff_ref
     ):
         blockers.append("run_state_retry_backoff_ref_missing")
+    current_retry_backoff_conflict_run_state_id = (
+        _allowlist_run_state_retry_backoff_conflict_run_state_id(
+            run_state_store=run_state_store,
+            retry_backoff_ref=run_state.retry_backoff_ref,
+            run_state_id=run_state.run_state_id,
+        )
+    )
+    if current_retry_backoff_conflict_run_state_id:
+        blockers.append("run_state_retry_backoff_ref_conflict")
     if run_state.retry_backoff_conflict_run_state_id:
         blockers.append("run_state_retry_backoff_ref_conflict")
     if run_state.recovery_status != "ready_no_live":
