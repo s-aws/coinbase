@@ -1215,6 +1215,7 @@ fan-out, cancel/rollback, and default 5-orders-per-second confirmations, but
 the route rejects with `live_fanout_executor_not_implemented` plus current
 run-state fanout blockers and runtime fan-out plus scheduler proof category
 blockers. Runtime and scheduler categories that claim `ready_no_live` still
-reject when their proof ref is absent or blockers remain. The route returns
+reject when their proof ref is absent or blockers remain, and the submit
+request cap cannot exceed the recorded run-state fan-out cap. The route returns
 `live_coinbase_execution=not_run` and notional `0`, and does not invoke Coinbase
 until the multi-product executor proof chain exists.

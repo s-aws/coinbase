@@ -6878,6 +6878,16 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
         blockers.append("max_fanout_notional_invalid")
     elif max_fanout_notional > Decimal("100"):
         blockers.append("max_fanout_notional_exceeded")
+    run_state_max_fanout_notional = _decimal_value(
+        run_state.max_fanout_notional_usdc
+    )
+    if run_state_max_fanout_notional is None:
+        blockers.append("run_state_max_fanout_notional_invalid")
+    elif (
+        max_fanout_notional is not None
+        and max_fanout_notional > run_state_max_fanout_notional
+    ):
+        blockers.append("request_fanout_notional_cap_exceeds_run_state_cap")
     planned_fanout_notional = _decimal_value(run_state.planned_fanout_notional_usdc)
     if (
         max_fanout_notional is not None
@@ -6885,6 +6895,12 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
         and planned_fanout_notional > max_fanout_notional
     ):
         blockers.append("planned_fanout_notional_exceeds_request_cap")
+    if (
+        run_state_max_fanout_notional is not None
+        and planned_fanout_notional is not None
+        and planned_fanout_notional > run_state_max_fanout_notional
+    ):
+        blockers.append("planned_fanout_notional_exceeds_run_state_cap")
     if not body.confirm_live_fanout_submit:
         blockers.append("live_fanout_submit_confirmation_missing")
     if not body.confirm_backend_owned_execution:
