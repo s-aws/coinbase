@@ -44552,6 +44552,65 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rev
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_revalidates_runtime_ref_conflicts(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-current-runtime",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-current-runtime-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(ready["run_state_id"])
+    assert source_run_state is not None
+    run_state_store.append(
+        source_run_state.model_copy(
+            update={
+                "run_state_id": (
+                    "m58-usdc-allowlist-live-fanout-submit-current-runtime-source"
+                ),
+                "idempotency_key": (
+                    "idem-m58-usdc-allowlist-live-fanout-current-runtime-source"
+                ),
+                "audit_id": (
+                    "audit-m58-usdc-allowlist-live-fanout-current-runtime-source"
+                ),
+            }
+        )
+    )
+
+    response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="current-runtime",
+        operator_notes="current runtime ref conflicts in store",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    assert "run_state_run_lock_ref_conflict" in payload["message"]
+    assert "run_state_rate_limit_window_ref_conflict" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_live_service_record(
     monkeypatch,
 ):
