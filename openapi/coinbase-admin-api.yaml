@@ -2986,8 +2986,9 @@ paths:
     post:
       tags:
       - automation
-      summary: Fail closed on USDC pair snapshot run-state live fan-out submit
-      description: Record a blocked M58 live fan-out attempt without Coinbase submission.
+      summary: Submit/cancel backend-owned USDC pair snapshot run-state live fan-out
+      description: Submit queued M58 products through backend fan-out and cancel each
+        one.
       operationId: submit_usdc_pair_snapshot_allowlist_run_state_live_fanout_api_v1_automation_usdc_pair_snapshot_allowlist_run_states__run_state_id__live_fanout_submit_post
       parameters:
       - name: run_state_id

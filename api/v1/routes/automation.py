@@ -93,6 +93,7 @@ from application.admin_api.usdc_pair_snapshot import (
     UsdcPairSnapshotOrderPlanRecord,
 )
 from application.admin_api.usdc_pair_snapshot_live_execution import (
+    UsdcPairSnapshotLiveFanoutExecutor,
     UsdcPairSnapshotLiveExecutionError,
     UsdcPairSnapshotLiveOrderExecutor,
 )
@@ -638,6 +639,14 @@ def get_usdc_pair_snapshot_live_order_executor() -> (
     """Return the backend-only M58 controlled-live order executor."""
 
     return UsdcPairSnapshotLiveOrderExecutor()
+
+
+def get_usdc_pair_snapshot_live_fanout_executor() -> (
+    UsdcPairSnapshotLiveFanoutExecutor
+):
+    """Return the backend-only M58 controlled-live fan-out executor."""
+
+    return UsdcPairSnapshotLiveFanoutExecutor()
 
 
 def get_idempotency_store() -> FileIdempotencyStore:
@@ -1587,10 +1596,40 @@ def _live_submit_base_response(
     correlation_id: str,
     idempotency_key: str,
     submission: UsdcPairSnapshotOrderPlanLiveSubmitItem | None = None,
+    submissions: list[UsdcPairSnapshotOrderPlanLiveSubmitItem] | None = None,
     audit_id: str | None = None,
     failure_stage: str | None = None,
     service_method: str = USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_SERVICE_METHOD,
 ) -> UsdcPairSnapshotOrderPlanLiveSubmitResponse:
+    response_submissions = (
+        list(submissions)
+        if submissions is not None
+        else ([submission] if submission else [])
+    )
+    if submission is None and len(response_submissions) == 1:
+        submission = response_submissions[0]
+    live_exchange_submitted = any(
+        item.live_exchange_submitted for item in response_submissions
+    )
+    live_coinbase_orders_ran = any(
+        item.live_coinbase_orders_ran for item in response_submissions
+    )
+    if not live_exchange_submitted:
+        live_coinbase_execution = "not_run"
+    elif any(
+        item.live_coinbase_execution == "submitted_cancel_failed"
+        or not item.cancel_rollback_complete
+        for item in response_submissions
+    ):
+        live_coinbase_execution = "submitted_cancel_failed"
+    else:
+        live_coinbase_execution = "submitted_cancelled"
+    submitted_notional = Decimal("0")
+    for item in response_submissions:
+        item_notional = _non_negative_decimal_value(item.notional_usdc)
+        if item_notional is not None:
+            submitted_notional += item_notional
+
     return UsdcPairSnapshotOrderPlanLiveSubmitResponse(
         status=status_value,
         action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
@@ -1601,17 +1640,13 @@ def _live_submit_base_response(
         idempotency_key=idempotency_key,
         audit_id=audit_id,
         submission=submission,
-        submissions=[submission] if submission else [],
-        live_exchange_submitted=(
-            submission.live_exchange_submitted if submission else False
+        submissions=response_submissions,
+        live_exchange_submitted=live_exchange_submitted,
+        live_coinbase_orders_ran=live_coinbase_orders_ran,
+        live_coinbase_execution=live_coinbase_execution,
+        notional_usdc=(
+            _decimal_string(submitted_notional) if response_submissions else "0"
         ),
-        live_coinbase_orders_ran=(
-            submission.live_coinbase_orders_ran if submission else False
-        ),
-        live_coinbase_execution=(
-            submission.live_coinbase_execution if submission else "not_run"
-        ),
-        notional_usdc=submission.notional_usdc if submission else "0",
         failure_stage=failure_stage,
     )
 
@@ -2225,7 +2260,11 @@ def _execute_idempotent_live_submit(
     operator_intent: str,
     idempotency_store: FileIdempotencyStore,
     audit_store: FileAdminApiAuditStore,
-    operation: Callable[[str], UsdcPairSnapshotOrderPlanLiveSubmitItem],
+    operation: Callable[
+        [str],
+        UsdcPairSnapshotOrderPlanLiveSubmitItem
+        | list[UsdcPairSnapshotOrderPlanLiveSubmitItem],
+    ],
     endpoint: str = USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_ENDPOINT,
     service_method: str = USDC_PAIR_SNAPSHOT_ORDER_PLAN_LIVE_SUBMIT_SERVICE_METHOD,
     failure_stage: str = "usdc_pair_snapshot_order_plan_live_submit",
@@ -2267,7 +2306,17 @@ def _execute_idempotent_live_submit(
 
     try:
         audit_id = str(uuid4())
-        submission = operation(audit_id)
+        operation_result = operation(audit_id)
+        if isinstance(operation_result, list):
+            submissions = operation_result
+            submission = submissions[0] if len(submissions) == 1 else None
+        else:
+            submission = operation_result
+            submissions = [operation_result]
+        if not submissions:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot live submit blocked: no_submissions_recorded"
+            )
         response = _live_submit_base_response(
             status_value=AdminApiCommandStatus.ACCEPTED,
             message=accepted_message,
@@ -2275,6 +2324,7 @@ def _execute_idempotent_live_submit(
             idempotency_key=idempotency_key,
             audit_id=audit_id,
             submission=submission,
+            submissions=submissions,
             service_method=service_method,
         )
     except UsdcPairSnapshotError as exc:
@@ -10383,6 +10433,241 @@ def _record_usdc_pair_live_submission(
     return _live_submit_item_from_record(record)
 
 
+def _usdc_pair_live_fanout_submission_id(
+    *,
+    base_submission_id: str,
+    readiness: UsdcPairSnapshotOrderPlanLiveReadinessRecord,
+    index: int,
+    total_count: int,
+) -> str:
+    if base_submission_id and total_count == 1:
+        return base_submission_id
+    product_suffix = readiness.product_id.lower().replace("/", "-")
+    if base_submission_id:
+        return f"{base_submission_id}-{index + 1}-{product_suffix}"
+    return f"m58-usdc-live-fanout-submit-{uuid4()}-{index + 1}-{product_suffix}"
+
+
+def _record_usdc_pair_live_fanout_submissions(
+    *,
+    run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    plan: UsdcPairSnapshotOrderPlanRecord,
+    body: UsdcPairSnapshotAllowlistRunStateLiveFanoutSubmitRequest,
+    readiness_store: FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
+    submit_store: FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
+    executor: UsdcPairSnapshotLiveFanoutExecutor,
+    actor: AdminApiActor,
+    operator_intent: str,
+    idempotency_key: str,
+    payload_hash: str,
+    audit_id: str,
+) -> list[UsdcPairSnapshotOrderPlanLiveSubmitItem]:
+    blockers: list[str] = []
+    contexts: list[
+        tuple[
+            UsdcPairSnapshotOrderPlanLiveReadinessRecord,
+            dict[str, Any],
+        ]
+    ] = []
+    orders: list[dict[str, Any]] = []
+    for product_row in run_state.product_states:
+        if product_row.execution_state != "queued_no_live":
+            continue
+        client_order_id = str(product_row.client_order_id or "").strip()
+        readiness_id = str(product_row.live_readiness_id or "").strip()
+        if not client_order_id:
+            blockers.append("run_state_product_client_order_id_missing")
+            continue
+        if not readiness_id:
+            blockers.append("run_state_product_live_readiness_id_missing")
+            continue
+        readiness = _find_usdc_pair_live_readiness_record(
+            store=readiness_store,
+            readiness_id=readiness_id,
+            product_id=product_row.product_id,
+            client_order_id=client_order_id,
+        )
+        if readiness is None:
+            blockers.append("run_state_product_live_readiness_record_missing")
+            continue
+        matching_rows = _matching_usdc_pair_order_plan_rows(
+            plan,
+            product_id=product_row.product_id,
+            client_order_id=client_order_id,
+        )
+        if not matching_rows:
+            blockers.append("run_state_product_order_plan_row_missing")
+            continue
+        if len(matching_rows) > 1:
+            blockers.append("run_state_product_order_plan_row_ambiguous")
+            continue
+        if submit_store.find_latest_for_readiness(
+            readiness_id=readiness.readiness_id,
+            product_id=readiness.product_id,
+            client_order_id=readiness.client_order_id,
+        ):
+            blockers.append("run_state_product_live_submission_already_recorded")
+            continue
+        order_configuration = _usdc_pair_live_order_configuration(readiness)
+        contexts.append((readiness, order_configuration))
+        orders.append(
+            {
+                "client_order_id": readiness.client_order_id,
+                "product_id": readiness.product_id,
+                "side": readiness.side,
+                "order_configuration": order_configuration,
+                "submitted_notional_usdc": readiness.submitted_notional_usdc,
+                "max_executed_notional_usdc": readiness.max_executed_notional_usdc,
+                "cancel_client_order_id": readiness.client_order_id,
+            }
+        )
+    if blockers:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
+            + ",".join(_dedupe(blockers))
+        )
+    if not orders:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
+            "queued_products_missing"
+        )
+
+    try:
+        fanout_execution = executor.submit_and_cancel_all(
+            orders=orders,
+            max_orders_per_second=run_state.rate_limit_max_orders_per_window,
+        )
+    except UsdcPairSnapshotLiveExecutionError as exc:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live fan-out submit "
+            f"blocked: {exc}"
+        ) from exc
+    if not isinstance(fanout_execution, Mapping):
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
+            "fanout_executor_result_invalid"
+        )
+    execution_values = fanout_execution.get("orders")
+    if not isinstance(execution_values, list):
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
+            "fanout_executor_orders_missing"
+        )
+    if len(execution_values) > len(contexts):
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
+            "fanout_executor_order_count_invalid"
+        )
+
+    submissions: list[UsdcPairSnapshotOrderPlanLiveSubmitItem] = []
+    base_submission_id = str(body.submission_id or "").strip()
+    for index, ((readiness, order_configuration), execution_value) in enumerate(
+        zip(contexts, execution_values, strict=False)
+    ):
+        execution = _mapping_value(execution_value)
+        submit_result = _mapping_value(execution.get("submit_result"))
+        cancel_result = _mapping_value(execution.get("cancel_result"))
+        cancel_submitted = bool(
+            execution.get("cancel_submitted", _result_success(cancel_result))
+        )
+        cancel_complete = bool(
+            execution.get("cancel_rollback_complete", cancel_submitted)
+        )
+        live_exchange_submitted = bool(execution.get("live_exchange_submitted"))
+        live_coinbase_orders_ran = bool(execution.get("live_coinbase_orders_ran"))
+        live_execution = str(
+            execution.get("live_coinbase_execution")
+            or (
+                "submitted_cancelled"
+                if cancel_complete and live_exchange_submitted
+                else (
+                    "submitted_cancel_failed"
+                    if live_exchange_submitted
+                    else "not_run"
+                )
+            )
+        )
+        record = UsdcPairSnapshotOrderPlanLiveSubmitRecord(
+            submission_id=_usdc_pair_live_fanout_submission_id(
+                base_submission_id=base_submission_id,
+                readiness=readiness,
+                index=index,
+                total_count=len(contexts),
+            ),
+            live_submit_source="allowlist_run_state_fanout",
+            run_state_id=run_state.run_state_id,
+            readiness_id=readiness.readiness_id,
+            plan_id=plan.plan_id,
+            snapshot_run_id=plan.snapshot_run_id,
+            product_id=readiness.product_id,
+            client_order_id=readiness.client_order_id,
+            submitted_at=execution.get("submitted_at"),
+            cancelled_at=execution.get("cancelled_at"),
+            side=readiness.side,
+            order_count=1,
+            single_order_only=True,
+            submitted_notional_usdc=readiness.submitted_notional_usdc,
+            executed_notional_usdc=str(
+                execution.get("executed_notional_usdc") or "0"
+            ),
+            max_executed_notional_usdc=readiness.max_executed_notional_usdc,
+            intended_limit_price=readiness.intended_limit_price,
+            reference_bid_price=readiness.reference_bid_price,
+            last_filled_price=readiness.last_filled_price,
+            cancel_before_additional_orders=True,
+            additional_orders_blocked=True,
+            cancel_submitted=cancel_submitted,
+            cancel_rollback_complete=cancel_complete,
+            cancel_rollback_plan_ref=readiness.cancel_rollback_plan_ref,
+            full_snapshot_fill_test=readiness.full_snapshot_fill_test,
+            approval_snapshot_id=readiness.approval_snapshot_id,
+            admission_audit_id=readiness.admission_audit_id,
+            cap_guard_decision_id=readiness.cap_guard_decision_id,
+            reconciliation_plan_id=readiness.reconciliation_plan_id,
+            live_service_decision_id=readiness.live_service_decision_id,
+            coinbase_order_id=(
+                str(execution["coinbase_order_id"])
+                if execution.get("coinbase_order_id")
+                else None
+            ),
+            coinbase_order_id_evidence_only=True,
+            order_configuration=dict(
+                execution.get("order_configuration") or order_configuration
+            ),
+            submit_result=submit_result,
+            cancel_result=cancel_result,
+            operator_stop_conditions=body.operator_stop_conditions,
+            actor_id=actor.actor_id,
+            operator_intent=operator_intent,
+            idempotency_key=idempotency_key,
+            payload_hash=payload_hash,
+            audit_id=audit_id,
+            operator_notes=body.operator_notes,
+            live_exchange_submitted=live_exchange_submitted,
+            live_coinbase_orders_ran=live_coinbase_orders_ran,
+            live_coinbase_execution=live_execution,
+            notional_usdc=(
+                readiness.submitted_notional_usdc
+                if live_exchange_submitted
+                else "0"
+            ),
+            detail=(
+                "M58 Phase F controlled-live fan-out evidence for one "
+                "backend-selected queued USDC spot product. The backend "
+                "submitted one Coinbase limit order by client_order_id and "
+                "attempted immediate cancellation before later fan-out orders."
+            ),
+        )
+        submit_store.append(record)
+        submissions.append(_live_submit_item_from_record(record))
+    if not submissions:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
+            "fanout_executor_returned_no_submissions"
+        )
+    return submissions
+
+
 def _usdc_pair_order_plan_proof_chain_refresher(
     *,
     approval_store: FileAdminApiApprovalStore,
@@ -11398,7 +11683,7 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
     response_model=UsdcPairSnapshotOrderPlanLiveSubmitResponse,
     status_code=status.HTTP_200_OK,
     responses=LIVE_SUBMIT_ROUTE_RESPONSES,
-    summary="Fail closed on USDC pair snapshot run-state live fan-out submit",
+    summary="Submit/cancel backend-owned USDC pair snapshot run-state live fan-out",
 )
 def submit_usdc_pair_snapshot_allowlist_run_state_live_fanout(
     request: Request,
@@ -11440,10 +11725,18 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_fanout(
         FileUsdcPairSnapshotLiveWalletLedgerStore,
         Depends(get_usdc_pair_snapshot_live_wallet_ledger_store),
     ],
+    submit_store: Annotated[
+        FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
+        Depends(get_usdc_pair_snapshot_order_plan_live_submit_store),
+    ],
+    fanout_executor: Annotated[
+        UsdcPairSnapshotLiveFanoutExecutor,
+        Depends(get_usdc_pair_snapshot_live_fanout_executor),
+    ],
     idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
     audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
 ) -> JSONResponse:
-    """Record a blocked M58 live fan-out attempt without Coinbase submission."""
+    """Submit queued M58 products through backend fan-out and cancel each one."""
 
     endpoint = f"{request.method} {request.url.path}"
     payload_hash = _payload_hash(
@@ -11453,8 +11746,7 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_fanout(
         body=body.model_dump(mode="json"),
     )
 
-    def operation(audit_id: str) -> UsdcPairSnapshotOrderPlanLiveSubmitItem:
-        del audit_id
+    def operation(audit_id: str) -> list[UsdcPairSnapshotOrderPlanLiveSubmitItem]:
         run_state = run_state_store.find_by_run_state_id(run_state_id)
         if run_state is None:
             raise UsdcPairSnapshotError(
@@ -11480,9 +11772,18 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_fanout(
             reservation_store=live_wallet_reservation_store,
             ledger_store=live_wallet_ledger_store,
         )
-        raise UsdcPairSnapshotError(
-            "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
-            "live_fanout_executor_not_implemented"
+        return _record_usdc_pair_live_fanout_submissions(
+            run_state=run_state,
+            plan=plan,
+            body=body,
+            readiness_store=readiness_store,
+            submit_store=submit_store,
+            executor=fanout_executor,
+            actor=actor,
+            operator_intent=operator_intent,
+            idempotency_key=idempotency_key,
+            payload_hash=payload_hash,
+            audit_id=audit_id,
         )
 
     return _execute_idempotent_live_submit(

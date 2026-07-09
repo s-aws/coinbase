@@ -593,6 +593,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
         AdminMvpService,
         AdminMvpStore,
     )
+    from application.admin_api.usdc_pair_snapshot_live_execution import (
+        UsdcPairSnapshotLiveFanoutExecutor,
+    )
 
     monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-admin-token")
     app = create_app()
@@ -652,6 +655,11 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     )
     usdc_pair_snapshot_live_order_executor = (
         _FakeUsdcPairSnapshotLiveOrderExecutor()
+    )
+    usdc_pair_snapshot_live_fanout_executor = (
+        UsdcPairSnapshotLiveFanoutExecutor(
+            order_executor=usdc_pair_snapshot_live_order_executor
+        )
     )
     admin_mvp_service = AdminMvpService(
         AdminMvpDependencies(live_coinbase_execution_enabled=False),
@@ -840,6 +848,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
         automation_routes.get_usdc_pair_snapshot_live_order_executor
     ] = lambda: usdc_pair_snapshot_live_order_executor
     app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_live_fanout_executor
+    ] = lambda: usdc_pair_snapshot_live_fanout_executor
+    app.dependency_overrides[
         automation_routes.get_usdc_pair_snapshot_proof_chain_service
     ] = lambda: admin_mvp_service
     app.dependency_overrides[
@@ -994,6 +1005,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     )
     client.admin_api_test_usdc_pair_snapshot_live_order_executor = (
         usdc_pair_snapshot_live_order_executor
+    )
+    client.admin_api_test_usdc_pair_snapshot_live_fanout_executor = (
+        usdc_pair_snapshot_live_fanout_executor
     )
     client.admin_api_test_mvp_service = admin_mvp_service
     client.admin_api_test_spot_recovery_proof_store = spot_recovery_proof_store
@@ -43808,7 +43822,7 @@ def _post_usdc_pair_snapshot_live_fanout_submit_fixture(
 
 
 @pytest.mark.regression
-def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_keeps_final_executor_guard(
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_accepts_proof_cleared_single_product(
     monkeypatch,
 ):
     client = _client(monkeypatch)
@@ -44011,21 +44025,33 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_kee
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
-    assert payload["failure_stage"] == (
-        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["service_method"] == (
+        "submit_usdc_pair_snapshot_allowlist_run_state_live_fanout"
     )
-    assert payload["submission"] is None
+    assert payload["failure_stage"] is None
     assert payload["audit_id"]
-    assert "live_fanout_executor_not_implemented" in payload["message"]
+    assert payload["live_exchange_submitted"] is True
+    assert payload["live_coinbase_orders_ran"] is True
+    assert payload["live_coinbase_execution"] == "submitted_cancelled"
+    assert payload["notional_usdc"] == "1.00"
+    submission = payload["submission"]
+    assert payload["submissions"] == [submission]
+    assert submission["live_submit_source"] == "allowlist_run_state_fanout"
+    assert submission["run_state_id"] == ready["run_state_id"]
+    assert submission["readiness_id"] == ready["live_readiness_id"]
+    assert submission["product_id"] == ready["product_id"]
+    assert submission["client_order_id"] == ready["client_order_id"]
+    assert submission["cancel_submitted"] is True
+    assert submission["cancel_rollback_complete"] is True
     assert "fanout_execution_technically_blocked" not in payload["message"]
     assert "scheduler_blocked" not in payload["message"]
     assert "runtime_fanout_worker_missing" not in payload["message"]
-    assert payload["live_exchange_submitted"] is False
-    assert payload["live_coinbase_orders_ran"] is False
-    assert payload["live_coinbase_execution"] == "not_run"
-    assert payload["notional_usdc"] == "0"
-    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+    assert len(client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls) == 1
+    live_call = client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls[0]
+    assert live_call["client_order_id"] == ready["client_order_id"]
+    assert live_call["cancel_client_order_id"] == ready["client_order_id"]
+    assert live_call["product_id"] == ready["product_id"]
 
 
 @pytest.mark.regression
