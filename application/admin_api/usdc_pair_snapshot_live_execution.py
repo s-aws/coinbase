@@ -117,11 +117,6 @@ class UsdcPairSnapshotLiveOrderExecutor:
             cancel_error = str(exc)
 
         cancelled_at = datetime.now(timezone.utc).isoformat()
-        live_execution = (
-            "submitted_cancelled"
-            if cancel_submitted
-            else "submitted_cancel_failed"
-        )
         executed_notional_usdc = _coinbase_executed_notional_usdc(
             submit_result_data
         )
@@ -129,6 +124,14 @@ class UsdcPairSnapshotLiveOrderExecutor:
             executed_notional_usdc = _coinbase_executed_notional_usdc(
                 cancel_result_data
             )
+        cancel_rollback_complete = cancel_submitted and not _decimal_text_positive(
+            executed_notional_usdc
+        )
+        live_execution = (
+            "submitted_cancelled"
+            if cancel_rollback_complete
+            else "submitted_cancel_failed"
+        )
         result = {
             "coinbase_order_id": coinbase_order_id,
             "submit_result": submit_result_data,
@@ -143,7 +146,7 @@ class UsdcPairSnapshotLiveOrderExecutor:
             "submitted_notional_usdc": submitted_notional_usdc,
             "max_executed_notional_usdc": max_executed_notional_usdc,
             "cancel_submitted": cancel_submitted,
-            "cancel_rollback_complete": cancel_submitted,
+            "cancel_rollback_complete": cancel_rollback_complete,
         }
         if cancel_error:
             result["cancel_error"] = cancel_error
@@ -381,8 +384,12 @@ def _execution_cancel_rollback_complete(execution: Mapping[str, Any]) -> bool:
 
 
 def _execution_executed_notional_positive(execution: Mapping[str, Any]) -> bool:
+    return _decimal_text_positive(execution.get("executed_notional_usdc", "0"))
+
+
+def _decimal_text_positive(value: Any) -> bool:
     try:
-        return Decimal(str(execution.get("executed_notional_usdc", "0"))) > 0
+        return Decimal(str(value)) > 0
     except (InvalidOperation, ValueError) as exc:
         raise UsdcPairSnapshotLiveExecutionError(
             "M58 live fan-out submit requires valid executed notional evidence."

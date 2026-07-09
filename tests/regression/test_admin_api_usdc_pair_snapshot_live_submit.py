@@ -567,7 +567,8 @@ def test_usdc_pair_snapshot_live_executor_records_immediate_filled_value(
 
     assert result["coinbase_order_id"] == "exchange-order-filled"
     assert result["cancel_submitted"] is True
-    assert result["cancel_rollback_complete"] is True
+    assert result["cancel_rollback_complete"] is False
+    assert result["live_coinbase_execution"] == "submitted_cancel_failed"
     assert result["executed_notional_usdc"] == "0.005"
 
 
