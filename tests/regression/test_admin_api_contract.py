@@ -42407,6 +42407,114 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_q
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_replays_rejection_after_proofs_change(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    blocked = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-rejected-replay",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-submit-rejected-replay-readiness"
+        ),
+        queued=False,
+        live_ready=False,
+        append_live_readiness=False,
+    )
+    body = {
+        "submission_id": "m58-usdc-allowlist-live-submit-rejected-replay",
+        "readiness_id": blocked["live_readiness_id"],
+        "product_id": blocked["product_id"],
+        "client_order_id": blocked["client_order_id"],
+        "confirm_live_submit": True,
+        "confirm_single_order_only": True,
+        "confirm_cancel_before_additional_orders": True,
+        "confirm_no_additional_orders": True,
+        "operator_stop_conditions": [
+            "submit one run-state selected order only",
+            "cancel that client_order_id before any additional order",
+        ],
+        "operator_notes": "initial proof-blocked live-submit rejection",
+    }
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{blocked['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-rejected-replay"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json=body,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+    _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id=blocked["run_state_id"],
+        allowlist_readiness_id=blocked["allowlist_readiness_id"],
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+
+    replay = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{blocked['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-rejected-replay"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json=body,
+    )
+
+    assert replay.status_code == 200
+    assert replay.headers["X-Idempotency-Replayed"] == "true"
+    assert replay.json() == payload
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+    conflict = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{blocked['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-submit-rejected-replay"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json={
+            **body,
+            "operator_notes": "changed body must conflict after rejection cache",
+        },
+    )
+
+    assert conflict.status_code == 409
+    conflict_payload = conflict.json()
+    assert conflict_payload["status"] == AdminApiCommandStatus.CONFLICT.value
+    assert conflict_payload["failure_stage"] == "idempotency"
+    assert conflict_payload["live_coinbase_execution"] == "not_run"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_treats_positive_execution_as_failed_rollback(
     monkeypatch,
 ):
@@ -47283,6 +47391,109 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_am
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_execution"] == "not_run"
     assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_replays_rejection_after_proofs_change(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-order-plan-live-submit-rejected-replay-run",
+        allowlist_readiness_id=(
+            "m58-usdc-order-plan-live-submit-rejected-replay-readiness"
+        ),
+        plan_id="m58-usdc-order-plan-live-submit-rejected-replay",
+        queued=True,
+        live_ready=True,
+        append_live_readiness=False,
+    )
+    body = {
+        "submission_id": "m58-usdc-order-plan-live-submit-rejected-replay",
+        "readiness_id": ready["live_readiness_id"],
+        "product_id": ready["product_id"],
+        "client_order_id": ready["client_order_id"],
+        "confirm_live_submit": True,
+        "confirm_single_order_only": True,
+        "confirm_cancel_before_additional_orders": True,
+        "confirm_no_additional_orders": True,
+        "operator_stop_conditions": [
+            "submit one far-from-market Coinbase limit order only",
+            "cancel that client_order_id before any additional order",
+        ],
+        "operator_notes": "initial missing-readiness live-submit rejection",
+    }
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            f"{ready['plan_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-order-plan-live-submit-rejected-replay",
+            operator_intent="m58_usdc_snapshot_live_submit",
+        ),
+        json=body,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == "usdc_pair_snapshot_order_plan_live_submit"
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+    _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id=ready["run_state_id"],
+        allowlist_readiness_id=ready["allowlist_readiness_id"],
+        plan_id=ready["plan_id"],
+        snapshot_run_id=ready["snapshot_run_id"],
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+
+    replay = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            f"{ready['plan_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-order-plan-live-submit-rejected-replay",
+            operator_intent="m58_usdc_snapshot_live_submit",
+        ),
+        json=body,
+    )
+
+    assert replay.status_code == 200
+    assert replay.headers["X-Idempotency-Replayed"] == "true"
+    assert replay.json() == payload
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+    conflict = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            f"{ready['plan_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-order-plan-live-submit-rejected-replay",
+            operator_intent="m58_usdc_snapshot_live_submit",
+        ),
+        json={
+            **body,
+            "operator_notes": "changed body must conflict after rejection cache",
+        },
+    )
+
+    assert conflict.status_code == 409
+    conflict_payload = conflict.json()
+    assert conflict_payload["status"] == AdminApiCommandStatus.CONFLICT.value
+    assert conflict_payload["failure_stage"] == "idempotency"
+    assert conflict_payload["live_coinbase_execution"] == "not_run"
     assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
 
 

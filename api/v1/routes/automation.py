@@ -11563,6 +11563,7 @@ def submit_usdc_pair_snapshot_order_plan_live_order(
         idempotency_store=idempotency_store,
         audit_store=audit_store,
         operation=operation,
+        cache_rejected_response=True,
     )
 
 
@@ -11739,6 +11740,7 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
             "USDC pair snapshot allowlist run-state controlled-live "
             "submit/cancel accepted for one selected order."
         ),
+        cache_rejected_response=True,
     )
 
 
