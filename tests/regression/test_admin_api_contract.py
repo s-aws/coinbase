@@ -36253,6 +36253,128 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_scheduler_retr
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_scheduler_recovery_runbook_refs(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    client.admin_api_test_cap_guard_store.append(
+        CapGuardDecisionRecord(
+            decision_id="cap-m58-run-state-scheduler-recovery-runbook-btc",
+            route=(
+                "/api/v1/automation/usdc-pair-snapshot-order-plan-"
+                "allowlist-readiness/{readiness_id}/run-state"
+            ),
+            method="POST",
+            module_id="automation",
+            identity_key="client_order_id",
+            identity_value="m58-usdc-run-state-negative-BTC-USDC",
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method="record_usdc_pair_snapshot_allowlist_run_state",
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+            idempotency_key=(
+                "idem-usdc-allowlist-run-state-scheduler-recovery-runbook"
+            ),
+            payload_hash="8" * 64,
+            approval_snapshot_id=(
+                "approval-m58-run-state-scheduler-recovery-runbook-btc"
+            ),
+            admission_audit_id=(
+                "admission-m58-run-state-scheduler-recovery-runbook-btc"
+            ),
+            allowed=True,
+            status=AdminApiGateStatus.PASSED,
+            cap_policy_ref="m58_phase_f_submitted_notional_cap",
+            guard_policy_ref="m58_phase_f_wallet_allocation_guard",
+            product_scope="BTC-USDC",
+            max_submitted_notional_usdc="1.00",
+            max_executed_notional_usdc="0",
+            wallet_check_required=True,
+            wallet_check_status=AdminApiGateStatus.PASSED,
+            wallet_available_notional_usdc="1.00",
+            wallet_check_source="m58_usdc_pair_allowlist_run_state_fixture",
+            reason="No-live M58 scheduler recovery-runbook source evidence.",
+        )
+    )
+    _append_usdc_pair_snapshot_allowlist_run_state_readiness(
+        client,
+        readiness_id="m58-usdc-allowlist-run-state-scheduler-recovery-readiness",
+        plan_id="m58-usdc-allowlist-run-state-scheduler-recovery-plan",
+        snapshot_run_id="m58-usdc-allowlist-run-state-scheduler-recovery-snapshot",
+        cap_guard_decision_id=(
+            "cap-m58-run-state-scheduler-recovery-runbook-btc"
+        ),
+        fanout_blockers=[
+            "fanout_execution_technically_blocked",
+            "scheduler_blocked",
+        ],
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+            "m58-usdc-allowlist-run-state-scheduler-recovery-readiness/run-state"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-usdc-allowlist-run-state-scheduler-recovery-runbook"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+        ),
+        json={
+            "run_state_id": (
+                "m58-usdc-allowlist-run-state-scheduler-recovery-runbook"
+            ),
+            "execution_mode": "no_live_rehearsal",
+            "max_fanout_notional_usdc": "100",
+            "run_lock_ref": "m58-run-lock-scheduler-recovery-runbook",
+            "rate_limit_window_ref": (
+                "m58-rate-limit-window-scheduler-recovery-runbook"
+            ),
+            "scheduler_recovery_runbook_ref": (
+                "m58-scheduler-recovery-runbook-no-live-20260709"
+            ),
+            "scheduler_recovery_worker_ref": (
+                "m58-scheduler-recovery-worker-no-live-20260709"
+            ),
+            "scheduler_reconciliation_replay_ref": (
+                "m58-scheduler-reconciliation-replay-no-live-20260709"
+            ),
+            "pause_requested": False,
+            "abort_requested": False,
+            "operator_notes": "no-live scheduler recovery-runbook evidence",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+
+    run_state = payload["run_state"]
+    assert run_state["scheduler_recovery_runbook_status"] == "ready_no_live"
+    assert run_state["scheduler_recovery_runbook_ref"] == (
+        "runbook:m58-scheduler-recovery-runbook-no-live-20260709;"
+        "worker:m58-scheduler-recovery-worker-no-live-20260709;"
+        "reconciliation_replay:"
+        "m58-scheduler-reconciliation-replay-no-live-20260709"
+    )
+    assert run_state["scheduler_recovery_runbook_blockers"] == []
+    assert run_state["scheduler_execution_status"] == "blocked_no_live"
+    assert run_state["scheduler_execution_blockers"] == ["scheduler_blocked"]
+    assert run_state["scheduler_unattended_execution"] == "not_run"
+    assert run_state["scheduler_cadence_status"] == "disabled_no_live"
+    assert run_state["fanout_execution_status"] == "blocked"
+    assert "fanout_execution_technically_blocked" in run_state["fanout_blockers"]
+    assert "scheduler_blocked" in run_state["fanout_blockers"]
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_wallet_allocation_requires_passed_cap_guard(
     tmp_path,
 ):
@@ -65704,6 +65826,16 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "scheduler_recovery_runbook_blockers" in release_checks[
         "m58_usdc_pair_scheduler_gate"
     ]["detail"]
+    assert (
+        "Scheduler recovery-runbook, recovery-worker, and reconciliation replay refs"
+    ) in release_checks["m58_usdc_pair_scheduler_gate"]["detail"]
+    assert "scheduler_recovery_runbook_status=ready_no_live" in release_checks[
+        "m58_usdc_pair_scheduler_gate"
+    ]["detail"]
+    assert (
+        "This scheduler recovery-runbook readback does not clear wallet, cadence, "
+        "or Coinbase execution blockers"
+    ) in release_checks["m58_usdc_pair_scheduler_gate"]["detail"]
     assert (
         release_checks["m58_usdc_pair_contextless_review_gate"]["status"]
         == AdminApiGateStatus.PASSED.value

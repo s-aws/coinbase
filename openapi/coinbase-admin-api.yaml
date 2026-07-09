@@ -171284,6 +171284,24 @@ components:
             minLength: 1
           - type: 'null'
           title: Scheduler Retry Release Gate Ref
+        scheduler_recovery_runbook_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Recovery Runbook Ref
+        scheduler_recovery_worker_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Recovery Worker Ref
+        scheduler_reconciliation_replay_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Reconciliation Replay Ref
         live_wallet_reservation_ids:
           items:
             type: string

@@ -5200,6 +5200,41 @@ def _allowlist_run_state_scheduler_retry_policy_readback(
     )
 
 
+def _allowlist_run_state_scheduler_recovery_runbook_readback(
+    *,
+    runbook_ref: str | None,
+    worker_ref: str | None,
+    reconciliation_replay_ref: str | None,
+) -> tuple[str, str | None, list[str]]:
+    blockers: list[str] = []
+    normalized_runbook_ref = runbook_ref.strip() if runbook_ref else None
+    normalized_worker_ref = worker_ref.strip() if worker_ref else None
+    normalized_reconciliation_replay_ref = (
+        reconciliation_replay_ref.strip() if reconciliation_replay_ref else None
+    )
+    if not normalized_runbook_ref:
+        blockers.append("scheduler_recovery_runbook_missing")
+    if not normalized_worker_ref:
+        blockers.append("scheduler_recovery_worker_missing")
+    if not normalized_reconciliation_replay_ref:
+        blockers.append("scheduler_reconciliation_replay_missing")
+    if blockers:
+        return (
+            USDC_PAIR_SNAPSHOT_SCHEDULER_RECOVERY_RUNBOOK_BLOCKED_STATUS,
+            None,
+            blockers,
+        )
+    return (
+        "ready_no_live",
+        (
+            f"runbook:{normalized_runbook_ref};"
+            f"worker:{normalized_worker_ref};"
+            f"reconciliation_replay:{normalized_reconciliation_replay_ref}"
+        ),
+        [],
+    )
+
+
 def _allowlist_run_state_runtime_statuses(
     *,
     readiness: UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
@@ -5613,6 +5648,15 @@ def _record_usdc_pair_allowlist_run_state(
         backoff_binding_ref=body.scheduler_retry_backoff_binding_ref,
         release_gate_ref=body.scheduler_retry_release_gate_ref,
     )
+    (
+        scheduler_recovery_runbook_status,
+        scheduler_recovery_runbook_ref,
+        scheduler_recovery_runbook_blockers,
+    ) = _allowlist_run_state_scheduler_recovery_runbook_readback(
+        runbook_ref=body.scheduler_recovery_runbook_ref,
+        worker_ref=body.scheduler_recovery_worker_ref,
+        reconciliation_replay_ref=body.scheduler_reconciliation_replay_ref,
+    )
     run_state_id = body.run_state_id or f"m58-usdc-allowlist-run-state-{uuid4()}"
     live_wallet_ledger = UsdcPairSnapshotLiveWalletLedgerRecord(
         ledger_id=f"{run_state_id}-live-wallet-ledger",
@@ -5931,12 +5975,10 @@ def _record_usdc_pair_allowlist_run_state(
         scheduler_cadence_blockers=list(
             USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_BLOCKERS
         ),
-        scheduler_recovery_runbook_status=(
-            USDC_PAIR_SNAPSHOT_SCHEDULER_RECOVERY_RUNBOOK_BLOCKED_STATUS
-        ),
-        scheduler_recovery_runbook_ref=None,
+        scheduler_recovery_runbook_status=scheduler_recovery_runbook_status,
+        scheduler_recovery_runbook_ref=scheduler_recovery_runbook_ref,
         scheduler_recovery_runbook_blockers=list(
-            USDC_PAIR_SNAPSHOT_SCHEDULER_RECOVERY_RUNBOOK_BLOCKERS
+            scheduler_recovery_runbook_blockers
         ),
         fanout_execution_status="blocked",
         run_state_status=run_state_status,
