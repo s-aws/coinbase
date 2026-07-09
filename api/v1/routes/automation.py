@@ -7241,6 +7241,19 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
         for item in run_state.product_states
         if str(item.recovery_ref_conflict_run_state_id or "").strip()
     ]
+    current_product_recovery_ref_conflict_run_state_ids = [
+        conflict_run_state_id
+        for item in run_state.product_states
+        if item.execution_state == "queued_no_live"
+        for conflict_run_state_id in [
+            _allowlist_run_state_recovery_ref_conflict_run_state_id(
+                run_state_store=run_state_store,
+                run_state_id=run_state.run_state_id,
+                item=item,
+            )
+        ]
+        if conflict_run_state_id
+    ]
     live_wallet_reservation_state_ids = [
         str(item.live_wallet_reservation_id or "")
         for item in run_state.product_states
@@ -7401,6 +7414,8 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
     if all_wallet_ref_blockers:
         blockers.extend(f"run_state_{blocker}" for blocker in all_wallet_ref_blockers)
     if product_recovery_ref_conflict_run_state_ids:
+        blockers.append("run_state_product_recovery_ref_conflict")
+    if current_product_recovery_ref_conflict_run_state_ids:
         blockers.append("run_state_product_recovery_ref_conflict")
     if run_state.recovery_ref_conflict_run_state_id:
         blockers.append("run_state_recovery_ref_conflict")
