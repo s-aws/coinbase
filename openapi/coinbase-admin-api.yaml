@@ -171200,6 +171200,24 @@ components:
             minLength: 1
           - type: 'null'
           title: Scheduler Perpetual Notional Cap Ref
+        scheduler_live_wallet_ledger_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Live Wallet Ledger Ref
+        scheduler_wallet_overcommit_prevention_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Wallet Overcommit Prevention Ref
+        scheduler_wallet_debit_release_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Wallet Debit Release Ref
         scheduler_release_gate_ref:
           anyOf:
           - type: string

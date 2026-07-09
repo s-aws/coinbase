@@ -5008,6 +5008,45 @@ def _allowlist_run_state_scheduler_standing_cap_readback(
     )
 
 
+def _allowlist_run_state_scheduler_wallet_ledger_readback(
+    *,
+    live_wallet_ledger_ref: str | None,
+    overcommit_prevention_ref: str | None,
+    debit_release_ref: str | None,
+) -> tuple[str, str | None, list[str]]:
+    blockers: list[str] = []
+    normalized_live_wallet_ledger_ref = (
+        live_wallet_ledger_ref.strip() if live_wallet_ledger_ref else None
+    )
+    normalized_overcommit_prevention_ref = (
+        overcommit_prevention_ref.strip() if overcommit_prevention_ref else None
+    )
+    normalized_debit_release_ref = (
+        debit_release_ref.strip() if debit_release_ref else None
+    )
+    if not normalized_live_wallet_ledger_ref:
+        blockers.append("scheduler_live_wallet_ledger_missing")
+    if not normalized_overcommit_prevention_ref:
+        blockers.append("scheduler_wallet_overcommit_prevention_missing")
+    if not normalized_debit_release_ref:
+        blockers.append("scheduler_wallet_debit_release_missing")
+    if blockers:
+        return (
+            USDC_PAIR_SNAPSHOT_SCHEDULER_WALLET_LEDGER_BLOCKED_STATUS,
+            None,
+            blockers,
+        )
+    return (
+        "ready_no_live",
+        (
+            f"live_wallet_ledger:{normalized_live_wallet_ledger_ref};"
+            f"overcommit_prevention:{normalized_overcommit_prevention_ref};"
+            f"debit_release:{normalized_debit_release_ref}"
+        ),
+        [],
+    )
+
+
 def _allowlist_run_state_scheduler_release_review_readback(
     *,
     release_gate_ref: str | None,
@@ -5602,6 +5641,17 @@ def _record_usdc_pair_allowlist_run_state(
         perpetual_notional_cap_ref=body.scheduler_perpetual_notional_cap_ref,
     )
     (
+        scheduler_wallet_ledger_status,
+        scheduler_wallet_ledger_ref,
+        scheduler_wallet_ledger_blockers,
+    ) = _allowlist_run_state_scheduler_wallet_ledger_readback(
+        live_wallet_ledger_ref=body.scheduler_live_wallet_ledger_ref,
+        overcommit_prevention_ref=(
+            body.scheduler_wallet_overcommit_prevention_ref
+        ),
+        debit_release_ref=body.scheduler_wallet_debit_release_ref,
+    )
+    (
         scheduler_release_review_status,
         scheduler_release_review_ref,
         scheduler_release_review_blockers,
@@ -5947,13 +5997,9 @@ def _record_usdc_pair_allowlist_run_state(
         scheduler_standing_cap_status=scheduler_standing_cap_status,
         scheduler_standing_cap_ref=scheduler_standing_cap_ref,
         scheduler_standing_cap_blockers=list(scheduler_standing_cap_blockers),
-        scheduler_wallet_ledger_status=(
-            USDC_PAIR_SNAPSHOT_SCHEDULER_WALLET_LEDGER_BLOCKED_STATUS
-        ),
-        scheduler_wallet_ledger_ref=None,
-        scheduler_wallet_ledger_blockers=list(
-            USDC_PAIR_SNAPSHOT_SCHEDULER_WALLET_LEDGER_BLOCKERS
-        ),
+        scheduler_wallet_ledger_status=scheduler_wallet_ledger_status,
+        scheduler_wallet_ledger_ref=scheduler_wallet_ledger_ref,
+        scheduler_wallet_ledger_blockers=list(scheduler_wallet_ledger_blockers),
         scheduler_release_review_status=scheduler_release_review_status,
         scheduler_release_review_ref=scheduler_release_review_ref,
         scheduler_release_review_blockers=list(scheduler_release_review_blockers),

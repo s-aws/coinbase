@@ -3146,6 +3146,18 @@ class UsdcPairSnapshotAllowlistRunStateRequest(BaseModel):
         default=None,
         min_length=1,
     )
+    scheduler_live_wallet_ledger_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    scheduler_wallet_overcommit_prevention_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    scheduler_wallet_debit_release_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
     scheduler_release_gate_ref: str | None = Field(
         default=None,
         min_length=1,
