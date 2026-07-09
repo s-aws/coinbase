@@ -3105,6 +3105,15 @@ class UsdcPairSnapshotAllowlistRunStateRequest(BaseModel):
     run_lock_ref: str | None = Field(default=None, min_length=1)
     rate_limit_window_ref: str | None = Field(default=None, min_length=1)
     retry_backoff_ref: str | None = Field(default=None, min_length=1)
+    runtime_fanout_worker_ref: str | None = Field(default=None, min_length=1)
+    runtime_fanout_durable_worker_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    runtime_fanout_worker_idempotency_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
     runtime_fanout_release_gate_ref: str | None = Field(default=None, min_length=1)
     runtime_fanout_contextless_review_ref: str | None = Field(
         default=None,

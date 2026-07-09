@@ -171139,6 +171139,24 @@ components:
             minLength: 1
           - type: 'null'
           title: Retry Backoff Ref
+        runtime_fanout_worker_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Worker Ref
+        runtime_fanout_durable_worker_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Durable Worker Ref
+        runtime_fanout_worker_idempotency_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Worker Idempotency Ref
         runtime_fanout_release_gate_ref:
           anyOf:
           - type: string

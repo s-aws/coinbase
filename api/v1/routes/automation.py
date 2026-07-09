@@ -4972,6 +4972,50 @@ def _allowlist_run_state_runtime_control_readback(
     )
 
 
+def _allowlist_run_state_runtime_fanout_execution_readback(
+    *,
+    worker_ref: str | None,
+    durable_worker_ref: str | None,
+    worker_idempotency_ref: str | None,
+    wallet_ledger_status: str,
+    retry_recovery_status: str,
+) -> tuple[str, str | None, list[str]]:
+    blockers: list[str] = []
+    normalized_worker_ref = worker_ref.strip() if worker_ref else None
+    normalized_durable_worker_ref = (
+        durable_worker_ref.strip() if durable_worker_ref else None
+    )
+    normalized_worker_idempotency_ref = (
+        worker_idempotency_ref.strip() if worker_idempotency_ref else None
+    )
+    if not normalized_worker_ref:
+        blockers.append("runtime_fanout_worker_missing")
+    else:
+        if not normalized_durable_worker_ref:
+            blockers.append("runtime_fanout_durable_worker_missing")
+        if not normalized_worker_idempotency_ref:
+            blockers.append("runtime_fanout_worker_idempotency_missing")
+    if wallet_ledger_status != "ready_no_live":
+        blockers.append("runtime_fanout_wallet_ledger_live_semantics_missing")
+    if retry_recovery_status != "ready_no_live":
+        blockers.append("runtime_fanout_retry_recovery_semantics_missing")
+    if blockers:
+        return (
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_EXECUTION_BLOCKED_STATUS,
+            None,
+            blockers,
+        )
+    return (
+        "ready_no_live",
+        (
+            f"worker:{normalized_worker_ref};"
+            f"durable_worker:{normalized_durable_worker_ref};"
+            f"idempotency:{normalized_worker_idempotency_ref}"
+        ),
+        [],
+    )
+
+
 def _allowlist_run_state_price_freshness_readback(
     *,
     price_freshness_binding_ref: str | None,
@@ -6069,6 +6113,17 @@ def _record_usdc_pair_allowlist_run_state(
         ),
     )
     (
+        runtime_fanout_execution_status,
+        runtime_fanout_worker_readback_ref,
+        runtime_fanout_execution_blockers,
+    ) = _allowlist_run_state_runtime_fanout_execution_readback(
+        worker_ref=body.runtime_fanout_worker_ref,
+        durable_worker_ref=body.runtime_fanout_durable_worker_ref,
+        worker_idempotency_ref=body.runtime_fanout_worker_idempotency_ref,
+        wallet_ledger_status=runtime_fanout_wallet_ledger_status,
+        retry_recovery_status=runtime_fanout_retry_recovery_status,
+    )
+    (
         scheduler_standing_cap_status,
         scheduler_standing_cap_ref,
         scheduler_standing_cap_blockers,
@@ -6356,13 +6411,9 @@ def _record_usdc_pair_allowlist_run_state(
         recovery_ref_conflict_run_state_id=recovery_ref_conflict_run_state_id,
         recovery_status=runtime_statuses["recovery_status"],
         partial_success_status=runtime_statuses["partial_success_status"],
-        runtime_fanout_execution_status=(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_EXECUTION_BLOCKED_STATUS
-        ),
-        runtime_fanout_worker_ref=None,
-        runtime_fanout_execution_blockers=list(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_BLOCKERS
-        ),
+        runtime_fanout_execution_status=runtime_fanout_execution_status,
+        runtime_fanout_worker_ref=runtime_fanout_worker_readback_ref,
+        runtime_fanout_execution_blockers=list(runtime_fanout_execution_blockers),
         runtime_fanout_price_freshness_status=(
             runtime_fanout_price_freshness_status
         ),
