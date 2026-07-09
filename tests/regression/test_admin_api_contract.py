@@ -47572,6 +47572,146 @@ def test_admin_api_usdc_pair_snapshot_live_submit_conflicts_cross_endpoint_idemp
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_live_readiness_replays_rejection_after_proofs_change(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    source = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-live-readiness-rejected-replay-run",
+        allowlist_readiness_id="m58-usdc-live-readiness-rejected-replay-source",
+        plan_id="m58-usdc-live-readiness-rejected-replay-plan",
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    normalized_product_id = source["product_id"].replace("-", "_").lower()
+    cap_guard_decision_id = (
+        f"cap-{source['allowlist_readiness_id']}-{normalized_product_id}"
+    )
+    cap_guard_store = client.admin_api_test_cap_guard_store
+    cap_guard = cap_guard_store.find_by_decision_id(cap_guard_decision_id)
+    assert cap_guard is not None
+    cap_guard_store.append(
+        cap_guard.model_copy(
+            update={
+                "wallet_available_notional_usdc": "0.50",
+                "wallet_check_source": (
+                    "m58_usdc_pair_live_readiness_rejected_replay_low_wallet"
+                ),
+                "reason": (
+                    "Initial live-readiness proof is blocked by insufficient "
+                    "wallet evidence."
+                ),
+            }
+        )
+    )
+    captured_at = datetime.now(timezone.utc).isoformat()
+    body = {
+        "readiness_id": "m58-usdc-live-readiness-rejected-replay",
+        "product_id": source["product_id"],
+        "client_order_id": source["client_order_id"],
+        "reference_bid_price": "100.00",
+        "reference_bid_price_source": "coinbase_advanced_trade.best_bid",
+        "reference_bid_price_captured_at": captured_at,
+        "last_filled_price": "100.00",
+        "last_filled_price_source": "coinbase_advanced_trade.last_trade",
+        "last_filled_price_captured_at": captured_at,
+        "intended_limit_price": "50.00",
+        "submitted_notional_usdc": "1.00",
+        "max_executed_notional_usdc": "0.01",
+        "minimum_order_size_preferred": True,
+        "single_order_only": True,
+        "cancel_before_additional_orders": True,
+        "cancel_rollback_plan_ref": "cancel-before-next-m58-order",
+        "full_snapshot_fill_test": False,
+        "operator_notes": "initial proof-blocked live-readiness rejection",
+    }
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            f"{source['plan_id']}/live-readiness"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-live-readiness-rejected-replay",
+            operator_intent="m58_usdc_snapshot_live_readiness_rejected_replay",
+        ),
+        json=body,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_order_plan_live_readiness"
+    )
+    assert "cap_guard_wallet_available_notional_exceeded" in payload["message"]
+    assert payload["readiness"] is None
+    assert payload["live_coinbase_execution"] == "not_run"
+
+    cap_guard_store.append(
+        cap_guard.model_copy(
+            update={
+                "wallet_available_notional_usdc": "1.00",
+                "wallet_check_source": (
+                    "m58_usdc_pair_live_readiness_rejected_replay_restored"
+                ),
+                "reason": (
+                    "Later proof restores sufficient wallet evidence, but the "
+                    "same idempotency key must replay the original rejection."
+                ),
+            }
+        )
+    )
+
+    replay = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            f"{source['plan_id']}/live-readiness"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-live-readiness-rejected-replay",
+            operator_intent="m58_usdc_snapshot_live_readiness_rejected_replay",
+        ),
+        json=body,
+    )
+
+    assert replay.status_code == 200
+    assert replay.headers["X-Idempotency-Replayed"] == "true"
+    assert replay.json() == payload
+    readiness_store = (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_live_readiness_store
+    )
+    readiness_records = readiness_store.read_recent(limit=20)
+    assert all(
+        record.readiness_id != body["readiness_id"] for record in readiness_records
+    )
+
+    conflict = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            f"{source['plan_id']}/live-readiness"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-live-readiness-rejected-replay",
+            operator_intent="m58_usdc_snapshot_live_readiness_rejected_replay",
+        ),
+        json={
+            **body,
+            "operator_notes": "changed body must conflict after rejection cache",
+        },
+    )
+
+    assert conflict.status_code == 409
+    conflict_payload = conflict.json()
+    assert conflict_payload["status"] == AdminApiCommandStatus.CONFLICT.value
+    assert conflict_payload["failure_stage"] == "idempotency"
+    assert conflict_payload["readiness"] is None
+    assert conflict_payload["live_coinbase_execution"] == "not_run"
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_order_plan_live_submit_requires_snapshot_match(
     monkeypatch,
 ):
