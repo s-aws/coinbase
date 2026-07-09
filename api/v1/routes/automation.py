@@ -5161,6 +5161,45 @@ def _allowlist_run_state_scheduler_runtime_control_readback(
     )
 
 
+def _allowlist_run_state_scheduler_retry_policy_readback(
+    *,
+    budget_policy_ref: str | None,
+    backoff_binding_ref: str | None,
+    release_gate_ref: str | None,
+) -> tuple[str, str | None, list[str]]:
+    blockers: list[str] = []
+    normalized_budget_policy_ref = (
+        budget_policy_ref.strip() if budget_policy_ref else None
+    )
+    normalized_backoff_binding_ref = (
+        backoff_binding_ref.strip() if backoff_binding_ref else None
+    )
+    normalized_release_gate_ref = (
+        release_gate_ref.strip() if release_gate_ref else None
+    )
+    if not normalized_budget_policy_ref:
+        blockers.append("scheduler_retry_budget_policy_missing")
+    if not normalized_backoff_binding_ref:
+        blockers.append("scheduler_retry_backoff_binding_missing")
+    if not normalized_release_gate_ref:
+        blockers.append("scheduler_retry_release_gate_uncleared")
+    if blockers:
+        return (
+            USDC_PAIR_SNAPSHOT_SCHEDULER_RETRY_POLICY_BLOCKED_STATUS,
+            None,
+            blockers,
+        )
+    return (
+        "ready_no_live",
+        (
+            f"budget_policy:{normalized_budget_policy_ref};"
+            f"backoff_binding:{normalized_backoff_binding_ref};"
+            f"release_gate:{normalized_release_gate_ref}"
+        ),
+        [],
+    )
+
+
 def _allowlist_run_state_runtime_statuses(
     *,
     readiness: UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
@@ -5565,6 +5604,15 @@ def _record_usdc_pair_allowlist_run_state(
         abort_control_ref=body.scheduler_abort_control_ref,
         binding_ref=body.scheduler_runtime_control_binding_ref,
     )
+    (
+        scheduler_retry_policy_status,
+        scheduler_retry_policy_ref,
+        scheduler_retry_policy_blockers,
+    ) = _allowlist_run_state_scheduler_retry_policy_readback(
+        budget_policy_ref=body.scheduler_retry_budget_policy_ref,
+        backoff_binding_ref=body.scheduler_retry_backoff_binding_ref,
+        release_gate_ref=body.scheduler_retry_release_gate_ref,
+    )
     run_state_id = body.run_state_id or f"m58-usdc-allowlist-run-state-{uuid4()}"
     live_wallet_ledger = UsdcPairSnapshotLiveWalletLedgerRecord(
         ledger_id=f"{run_state_id}-live-wallet-ledger",
@@ -5874,13 +5922,9 @@ def _record_usdc_pair_allowlist_run_state(
         scheduler_runtime_control_status=scheduler_runtime_control_status,
         scheduler_runtime_control_ref=scheduler_runtime_control_ref,
         scheduler_runtime_control_blockers=list(scheduler_runtime_control_blockers),
-        scheduler_retry_policy_status=(
-            USDC_PAIR_SNAPSHOT_SCHEDULER_RETRY_POLICY_BLOCKED_STATUS
-        ),
-        scheduler_retry_policy_ref=None,
-        scheduler_retry_policy_blockers=list(
-            USDC_PAIR_SNAPSHOT_SCHEDULER_RETRY_POLICY_BLOCKERS
-        ),
+        scheduler_retry_policy_status=scheduler_retry_policy_status,
+        scheduler_retry_policy_ref=scheduler_retry_policy_ref,
+        scheduler_retry_policy_blockers=list(scheduler_retry_policy_blockers),
         scheduler_cadence_status=(
             USDC_PAIR_SNAPSHOT_SCHEDULER_CADENCE_DISABLED_STATUS
         ),

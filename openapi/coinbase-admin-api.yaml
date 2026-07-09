@@ -171266,6 +171266,24 @@ components:
             minLength: 1
           - type: 'null'
           title: Scheduler Runtime Control Binding Ref
+        scheduler_retry_budget_policy_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Retry Budget Policy Ref
+        scheduler_retry_backoff_binding_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Retry Backoff Binding Ref
+        scheduler_retry_release_gate_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Retry Release Gate Ref
         live_wallet_reservation_ids:
           items:
             type: string
