@@ -39426,15 +39426,18 @@ def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
     live_ready: bool = True,
     wallet_ready: bool = True,
     append_live_readiness: bool = True,
+    append_allowlist_readiness: bool = True,
 ) -> dict[str, str]:
     from application.admin_api.models import (
         UsdcPairSnapshotAllowlistRunStateProductItem,
+        UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem,
         UsdcPairSnapshotOrderPlanRowItem,
     )
     from application.admin_api.usdc_pair_snapshot import (
         UsdcPairSnapshotAllowlistRunStateRecord,
         UsdcPairSnapshotLiveWalletLedgerRecord,
         UsdcPairSnapshotLiveWalletReservationRecord,
+        UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
         UsdcPairSnapshotOrderPlanRecord,
     )
 
@@ -39538,6 +39541,78 @@ def _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
             operator_notes="source order plan for run-state live-submit tests",
         )
     )
+    if append_allowlist_readiness:
+        client.admin_api_test_usdc_pair_snapshot_order_plan_allowlist_readiness_store.append(
+            UsdcPairSnapshotOrderPlanAllowlistReadinessRecord(
+                readiness_id=allowlist_readiness_id,
+                plan_id=plan_id,
+                snapshot_run_id=snapshot_run_id,
+                product_ids=[product_id],
+                selected_product_count=1,
+                max_products=1,
+                candidate_product_ids=[product_id],
+                blocked_product_ids=[],
+                cap_exhausted_product_ids=[],
+                missing_product_ids=[],
+                retryable_product_ids=[product_id] if queued else [],
+                recovery_required_product_ids=[product_id] if queued else [],
+                partial_success_status="ready_no_live" if queued else "blocked",
+                failure_isolation_status="ready_no_live" if queued else "blocked",
+                run_rate_limit_status="ready_no_live" if queued else "blocked",
+                retry_budget_status="ready_no_live" if queued else "blocked",
+                recovery_readiness_status=(
+                    "ready_no_live" if queued else "not_required"
+                ),
+                retry_budget_per_product=1 if queued else 0,
+                run_rate_limit_budget_ref=f"m58-rate-limit-budget-{run_state_id}",
+                cancel_recovery_plan_ref="m58-cancel-recovery",
+                fanout_readiness_status="blocked",
+                fanout_blockers=[
+                    "fanout_execution_technically_blocked",
+                    "scheduler_blocked",
+                ],
+                product_readiness_rows=[
+                    UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem(
+                        product_id=product_id,
+                        client_order_id=client_order_id,
+                        plan_status="planned",
+                        proof_chain_status="accepted",
+                        run_cap_status="passed",
+                        cap_guard_decision_id=cap_guard_decision_id,
+                        planned_notional_usdc="1.00",
+                        readiness_status="candidate",
+                        retry_status="ready_no_live" if queued else "blocked",
+                        failure_isolation_status=(
+                            "ready_no_live" if queued else "blocked"
+                        ),
+                        rate_limit_status=(
+                            "ready_no_live" if queued else "blocked"
+                        ),
+                        retry_budget_status=(
+                            "ready_no_live" if queued else "blocked"
+                        ),
+                        retry_attempts_available=1 if queued else 0,
+                        cancel_recovery_status=(
+                            "ready_no_live" if queued else "not_required"
+                        ),
+                        blockers=[] if queued else ["product_not_queued"],
+                        recovery_state_ref=f"m58-cancel-recovery:{product_id}",
+                    )
+                ],
+                actor_id="contract-test",
+                operator_intent="m58_usdc_snapshot_allowlist_readiness",
+                idempotency_key=f"idem-{allowlist_readiness_id}",
+                payload_hash="6" * 64,
+                audit_id=f"audit-{allowlist_readiness_id}",
+                operator_notes=(
+                    "source allowlist readiness for run-state live-submit tests"
+                ),
+                detail=(
+                    "No-live allowlist readiness source for run-state "
+                    "live-submit handoff tests."
+                ),
+            )
+        )
     if append_live_readiness:
         _append_usdc_pair_snapshot_run_state_live_readiness(
             client,
@@ -43931,6 +44006,99 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
         "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
     )
     assert "run_state_plan_snapshot_mismatch" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_allowlist_readiness_record(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-parent-missing",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-parent-missing-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+        append_allowlist_readiness=False,
+    )
+
+    response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="parent-missing",
+        operator_notes="missing parent allowlist-readiness blocks fan-out",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    assert "run_state_allowlist_readiness_record_missing" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_stale_allowlist_readiness_snapshot(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-parent-stale",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-parent-stale-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    allowlist_readiness_store = (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_allowlist_readiness_store
+    )
+    source_readiness = allowlist_readiness_store.find_by_readiness_id(
+        ready["allowlist_readiness_id"]
+    )
+    assert source_readiness is not None
+    allowlist_readiness_store.append(
+        source_readiness.model_copy(
+            update={
+                "snapshot_run_id": (
+                    "m58-usdc-allowlist-live-fanout-parent-stale-snapshot"
+                ),
+            }
+        )
+    )
+
+    response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="parent-stale-snapshot",
+        operator_notes="stale parent allowlist-readiness snapshot blocks fan-out",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    assert "run_state_allowlist_readiness_snapshot_mismatch" in payload["message"]
     assert payload["live_exchange_submitted"] is False
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_execution"] == "not_run"

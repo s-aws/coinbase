@@ -7716,6 +7716,9 @@ def _validate_usdc_pair_allowlist_run_state_live_fanout_submit(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
     body: UsdcPairSnapshotAllowlistRunStateLiveFanoutSubmitRequest,
+    allowlist_readiness: (
+        UsdcPairSnapshotOrderPlanAllowlistReadinessRecord | None
+    ),
     plan: UsdcPairSnapshotOrderPlanRecord,
     readiness_store: FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
     cap_guard_store: FileAdminApiCapGuardStore,
@@ -7727,6 +7730,15 @@ def _validate_usdc_pair_allowlist_run_state_live_fanout_submit(
         run_state=run_state,
         body=body,
     )
+    if allowlist_readiness is None:
+        blockers.append("run_state_allowlist_readiness_record_missing")
+    else:
+        if allowlist_readiness.readiness_id != run_state.readiness_id:
+            blockers.append("run_state_allowlist_readiness_id_mismatch")
+        if allowlist_readiness.plan_id != run_state.plan_id:
+            blockers.append("run_state_allowlist_readiness_plan_mismatch")
+        if allowlist_readiness.snapshot_run_id != run_state.snapshot_run_id:
+            blockers.append("run_state_allowlist_readiness_snapshot_mismatch")
     if run_state.plan_id != plan.plan_id:
         blockers.append("run_state_plan_id_mismatch")
     if run_state.snapshot_run_id != plan.snapshot_run_id:
@@ -11266,6 +11278,10 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_fanout(
         FileUsdcPairSnapshotAllowlistRunStateStore,
         Depends(get_usdc_pair_snapshot_allowlist_run_state_store),
     ],
+    allowlist_readiness_store: Annotated[
+        FileUsdcPairSnapshotOrderPlanAllowlistReadinessStore,
+        Depends(get_usdc_pair_snapshot_order_plan_allowlist_readiness_store),
+    ],
     order_plan_store: Annotated[
         FileUsdcPairSnapshotOrderPlanStore,
         Depends(get_usdc_pair_snapshot_order_plan_store),
@@ -11310,6 +11326,9 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_fanout(
             raise UsdcPairSnapshotError(
                 "USDC pair snapshot allowlist run-state was not found."
             )
+        allowlist_readiness = allowlist_readiness_store.find_by_readiness_id(
+            run_state.readiness_id
+        )
         plan = order_plan_store.find_by_plan_id(run_state.plan_id)
         if plan is None:
             raise UsdcPairSnapshotError(
@@ -11318,6 +11337,7 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_fanout(
         _validate_usdc_pair_allowlist_run_state_live_fanout_submit(
             run_state=run_state,
             body=body,
+            allowlist_readiness=allowlist_readiness,
             plan=plan,
             readiness_store=readiness_store,
             cap_guard_store=cap_guard_store,
