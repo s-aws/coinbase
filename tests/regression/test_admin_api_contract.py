@@ -43697,6 +43697,194 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_wallet_reservation_record(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-reservation-missing",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-reservation-missing-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    missing_reservation_id = "missing-live-wallet-reservation-record"
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(
+        ready["run_state_id"]
+    )
+    assert source_run_state is not None
+    source_product = source_run_state.product_states[0]
+    run_state_store.append(
+        source_run_state.model_copy(
+            update={
+                "live_wallet_reservation_ids": [missing_reservation_id],
+                "product_states": [
+                    source_product.model_copy(
+                        update={
+                            "live_wallet_reservation_id": missing_reservation_id,
+                        }
+                    )
+                ],
+            }
+        )
+    )
+    ledger_store = client.admin_api_test_usdc_pair_snapshot_live_wallet_ledger_store
+    source_ledger = ledger_store.find_by_ledger_id(
+        f"{ready['run_state_id']}-live-wallet-ledger"
+    )
+    assert source_ledger is not None
+    ledger_store.append(
+        source_ledger.model_copy(
+            update={
+                "live_wallet_reservation_ids": [missing_reservation_id],
+            }
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-fanout-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-fanout-submit-reservation-missing"
+            ),
+            operator_intent=(
+                "m58_usdc_snapshot_allowlist_run_state_live_fanout_submit"
+            ),
+        ),
+        json={
+            "submission_id": (
+                "m58-usdc-allowlist-live-fanout-submit-reservation-missing"
+            ),
+            "max_fanout_notional_usdc": "100",
+            "confirm_live_fanout_submit": True,
+            "confirm_backend_owned_execution": True,
+            "confirm_cancel_rollback_before_completion": True,
+            "confirm_rate_limit_5_per_second": True,
+            "operator_stop_conditions": [
+                "submit only backend-selected queued products",
+                "cancel or roll back every submitted client_order_id before completion",
+            ],
+            "operator_notes": "missing wallet reservation record blocks fan-out",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    assert "run_state_live_wallet_reservation_record_missing" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_stale_wallet_reservation_record(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-reservation-stale",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-reservation-stale-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    reservation_store = (
+        client.admin_api_test_usdc_pair_snapshot_live_wallet_reservation_store
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(
+        ready["run_state_id"]
+    )
+    assert source_run_state is not None
+    reservation_id = source_run_state.product_states[0].live_wallet_reservation_id
+    assert reservation_id is not None
+    source_reservation = reservation_store.find_by_reservation_id(reservation_id)
+    assert source_reservation is not None
+    reservation_store.append(
+        source_reservation.model_copy(
+            update={
+                "reserved_notional_usdc": "2.00",
+                "debited_notional_usdc": "2.00",
+                "released_notional_usdc": "2.00",
+            }
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-fanout-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-fanout-submit-reservation-stale"
+            ),
+            operator_intent=(
+                "m58_usdc_snapshot_allowlist_run_state_live_fanout_submit"
+            ),
+        ),
+        json={
+            "submission_id": (
+                "m58-usdc-allowlist-live-fanout-submit-reservation-stale"
+            ),
+            "max_fanout_notional_usdc": "100",
+            "confirm_live_fanout_submit": True,
+            "confirm_backend_owned_execution": True,
+            "confirm_cancel_rollback_before_completion": True,
+            "confirm_rate_limit_5_per_second": True,
+            "operator_stop_conditions": [
+                "submit only backend-selected queued products",
+                "cancel or roll back every submitted client_order_id before completion",
+            ],
+            "operator_notes": "stale wallet reservation record blocks fan-out",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    for expected_blocker in [
+        "run_state_live_wallet_reservation_notional_mismatch",
+        "run_state_product_live_wallet_reserved_notional_mismatch",
+        "run_state_live_wallet_debit_notional_mismatch",
+        "run_state_product_live_wallet_debit_notional_mismatch",
+        "run_state_live_wallet_release_notional_mismatch",
+        "run_state_product_live_wallet_release_notional_mismatch",
+    ]:
+        assert expected_blocker in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_wallet_ledger_record(
     monkeypatch,
 ):

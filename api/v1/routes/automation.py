@@ -7716,12 +7716,26 @@ def _validate_usdc_pair_allowlist_run_state_live_fanout_submit(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
     body: UsdcPairSnapshotAllowlistRunStateLiveFanoutSubmitRequest,
+    reservation_store: FileUsdcPairSnapshotLiveWalletReservationStore,
     ledger_store: FileUsdcPairSnapshotLiveWalletLedgerStore,
 ) -> None:
     blockers = _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
         run_state=run_state,
         body=body,
     )
+    queued_product_ids = {
+        product_id.strip().upper() for product_id in run_state.queued_product_ids
+    }
+    for product_row in run_state.product_states:
+        if product_row.product_id.strip().upper() not in queued_product_ids:
+            continue
+        blockers.extend(
+            _usdc_pair_allowlist_run_state_live_submit_wallet_evidence_blockers(
+                run_state=run_state,
+                product_row=product_row,
+                reservation_store=reservation_store,
+            )
+        )
     blockers.extend(
         _usdc_pair_allowlist_run_state_live_submit_wallet_ledger_blockers(
             run_state=run_state,
@@ -9416,12 +9430,12 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_queued_order_plan(
         )
 
 
-def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_evidence(
+def _usdc_pair_allowlist_run_state_live_submit_wallet_evidence_blockers(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
     product_row: UsdcPairSnapshotAllowlistRunStateProductItem,
     reservation_store: FileUsdcPairSnapshotLiveWalletReservationStore,
-) -> None:
+) -> list[str]:
     blockers: list[str] = []
     reservation_id = str(product_row.live_wallet_reservation_id or "").strip()
     if not reservation_id:
@@ -9552,10 +9566,24 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_evidence(
             )
         )
 
+    return _dedupe(blockers)
+
+
+def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_evidence(
+    *,
+    run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    product_row: UsdcPairSnapshotAllowlistRunStateProductItem,
+    reservation_store: FileUsdcPairSnapshotLiveWalletReservationStore,
+) -> None:
+    blockers = _usdc_pair_allowlist_run_state_live_submit_wallet_evidence_blockers(
+        run_state=run_state,
+        product_row=product_row,
+        reservation_store=reservation_store,
+    )
     if blockers:
         raise UsdcPairSnapshotError(
             "USDC pair snapshot allowlist run-state live submit blocked: "
-            + ",".join(_dedupe(blockers))
+            + ",".join(blockers)
         )
 
 
@@ -11135,6 +11163,10 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_fanout(
         FileUsdcPairSnapshotAllowlistRunStateStore,
         Depends(get_usdc_pair_snapshot_allowlist_run_state_store),
     ],
+    live_wallet_reservation_store: Annotated[
+        FileUsdcPairSnapshotLiveWalletReservationStore,
+        Depends(get_usdc_pair_snapshot_live_wallet_reservation_store),
+    ],
     live_wallet_ledger_store: Annotated[
         FileUsdcPairSnapshotLiveWalletLedgerStore,
         Depends(get_usdc_pair_snapshot_live_wallet_ledger_store),
@@ -11162,6 +11194,7 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_fanout(
         _validate_usdc_pair_allowlist_run_state_live_fanout_submit(
             run_state=run_state,
             body=body,
+            reservation_store=live_wallet_reservation_store,
             ledger_store=live_wallet_ledger_store,
         )
         raise UsdcPairSnapshotError(
