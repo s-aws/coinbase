@@ -5124,6 +5124,43 @@ def _allowlist_run_state_scheduler_rate_limit_readback(
     )
 
 
+def _allowlist_run_state_scheduler_runtime_control_readback(
+    *,
+    pause_control_ref: str | None,
+    abort_control_ref: str | None,
+    binding_ref: str | None,
+) -> tuple[str, str | None, list[str]]:
+    blockers: list[str] = []
+    normalized_pause_control_ref = (
+        pause_control_ref.strip() if pause_control_ref else None
+    )
+    normalized_abort_control_ref = (
+        abort_control_ref.strip() if abort_control_ref else None
+    )
+    normalized_binding_ref = binding_ref.strip() if binding_ref else None
+    if not normalized_pause_control_ref:
+        blockers.append("scheduler_pause_control_missing")
+    if not normalized_abort_control_ref:
+        blockers.append("scheduler_abort_control_missing")
+    if not normalized_binding_ref:
+        blockers.append("scheduler_runtime_control_binding_missing")
+    if blockers:
+        return (
+            USDC_PAIR_SNAPSHOT_SCHEDULER_RUNTIME_CONTROL_BLOCKED_STATUS,
+            None,
+            blockers,
+        )
+    return (
+        "ready_no_live",
+        (
+            f"pause:{normalized_pause_control_ref};"
+            f"abort:{normalized_abort_control_ref};"
+            f"binding:{normalized_binding_ref}"
+        ),
+        [],
+    )
+
+
 def _allowlist_run_state_runtime_statuses(
     *,
     readiness: UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
@@ -5519,6 +5556,15 @@ def _record_usdc_pair_allowlist_run_state(
         rate_limit_window_conflict_blocker=rate_limit_window_conflict_blocker,
         rate_limit_window_within_cap=rate_limit_window_within_cap,
     )
+    (
+        scheduler_runtime_control_status,
+        scheduler_runtime_control_ref,
+        scheduler_runtime_control_blockers,
+    ) = _allowlist_run_state_scheduler_runtime_control_readback(
+        pause_control_ref=body.scheduler_pause_control_ref,
+        abort_control_ref=body.scheduler_abort_control_ref,
+        binding_ref=body.scheduler_runtime_control_binding_ref,
+    )
     run_state_id = body.run_state_id or f"m58-usdc-allowlist-run-state-{uuid4()}"
     live_wallet_ledger = UsdcPairSnapshotLiveWalletLedgerRecord(
         ledger_id=f"{run_state_id}-live-wallet-ledger",
@@ -5825,13 +5871,9 @@ def _record_usdc_pair_allowlist_run_state(
         scheduler_rate_limit_status=scheduler_rate_limit_status,
         scheduler_rate_limit_ref=scheduler_rate_limit_ref,
         scheduler_rate_limit_blockers=list(scheduler_rate_limit_blockers),
-        scheduler_runtime_control_status=(
-            USDC_PAIR_SNAPSHOT_SCHEDULER_RUNTIME_CONTROL_BLOCKED_STATUS
-        ),
-        scheduler_runtime_control_ref=None,
-        scheduler_runtime_control_blockers=list(
-            USDC_PAIR_SNAPSHOT_SCHEDULER_RUNTIME_CONTROL_BLOCKERS
-        ),
+        scheduler_runtime_control_status=scheduler_runtime_control_status,
+        scheduler_runtime_control_ref=scheduler_runtime_control_ref,
+        scheduler_runtime_control_blockers=list(scheduler_runtime_control_blockers),
         scheduler_retry_policy_status=(
             USDC_PAIR_SNAPSHOT_SCHEDULER_RETRY_POLICY_BLOCKED_STATUS
         ),

@@ -171248,6 +171248,24 @@ components:
             minLength: 1
           - type: 'null'
           title: Scheduler Rate Limit Release Gate Ref
+        scheduler_pause_control_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Pause Control Ref
+        scheduler_abort_control_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Abort Control Ref
+        scheduler_runtime_control_binding_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Runtime Control Binding Ref
         live_wallet_reservation_ids:
           items:
             type: string

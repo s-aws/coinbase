@@ -3178,6 +3178,18 @@ class UsdcPairSnapshotAllowlistRunStateRequest(BaseModel):
         default=None,
         min_length=1,
     )
+    scheduler_pause_control_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    scheduler_abort_control_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    scheduler_runtime_control_binding_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
     live_wallet_reservation_ids: list[str] = Field(default_factory=list)
     pause_requested: bool = False
     abort_requested: bool = False

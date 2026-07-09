@@ -36033,6 +36033,117 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_scheduler_rate
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_scheduler_runtime_control_refs(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    client.admin_api_test_cap_guard_store.append(
+        CapGuardDecisionRecord(
+            decision_id="cap-m58-run-state-scheduler-runtime-control-btc",
+            route=(
+                "/api/v1/automation/usdc-pair-snapshot-order-plan-"
+                "allowlist-readiness/{readiness_id}/run-state"
+            ),
+            method="POST",
+            module_id="automation",
+            identity_key="client_order_id",
+            identity_value="m58-usdc-run-state-negative-BTC-USDC",
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method="record_usdc_pair_snapshot_allowlist_run_state",
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+            idempotency_key="idem-usdc-allowlist-run-state-scheduler-runtime-control",
+            payload_hash="8" * 64,
+            approval_snapshot_id="approval-m58-run-state-scheduler-runtime-control-btc",
+            admission_audit_id="admission-m58-run-state-scheduler-runtime-control-btc",
+            allowed=True,
+            status=AdminApiGateStatus.PASSED,
+            cap_policy_ref="m58_phase_f_submitted_notional_cap",
+            guard_policy_ref="m58_phase_f_wallet_allocation_guard",
+            product_scope="BTC-USDC",
+            max_submitted_notional_usdc="1.00",
+            max_executed_notional_usdc="0",
+            wallet_check_required=True,
+            wallet_check_status=AdminApiGateStatus.PASSED,
+            wallet_available_notional_usdc="1.00",
+            wallet_check_source="m58_usdc_pair_allowlist_run_state_fixture",
+            reason="No-live M58 scheduler runtime-control source evidence.",
+        )
+    )
+    _append_usdc_pair_snapshot_allowlist_run_state_readiness(
+        client,
+        readiness_id="m58-usdc-allowlist-run-state-scheduler-control-readiness",
+        plan_id="m58-usdc-allowlist-run-state-scheduler-control-plan",
+        snapshot_run_id="m58-usdc-allowlist-run-state-scheduler-control-snapshot",
+        cap_guard_decision_id="cap-m58-run-state-scheduler-runtime-control-btc",
+        fanout_blockers=[
+            "fanout_execution_technically_blocked",
+            "scheduler_blocked",
+        ],
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+            "m58-usdc-allowlist-run-state-scheduler-control-readiness/run-state"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-allowlist-run-state-scheduler-runtime-control",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+        ),
+        json={
+            "run_state_id": "m58-usdc-allowlist-run-state-scheduler-runtime-control",
+            "execution_mode": "no_live_rehearsal",
+            "max_fanout_notional_usdc": "100",
+            "run_lock_ref": "m58-run-lock-scheduler-runtime-control",
+            "rate_limit_window_ref": (
+                "m58-rate-limit-window-scheduler-runtime-control"
+            ),
+            "scheduler_pause_control_ref": (
+                "m58-scheduler-pause-control-no-live-20260709"
+            ),
+            "scheduler_abort_control_ref": (
+                "m58-scheduler-abort-control-no-live-20260709"
+            ),
+            "scheduler_runtime_control_binding_ref": (
+                "m58-scheduler-runtime-control-binding-no-live-20260709"
+            ),
+            "pause_requested": False,
+            "abort_requested": False,
+            "operator_notes": "no-live scheduler runtime-control evidence",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+
+    run_state = payload["run_state"]
+    assert run_state["pause_resume_status"] == "running_no_live"
+    assert run_state["abort_status"] == "not_requested"
+    assert run_state["scheduler_runtime_control_status"] == "ready_no_live"
+    assert run_state["scheduler_runtime_control_ref"] == (
+        "pause:m58-scheduler-pause-control-no-live-20260709;"
+        "abort:m58-scheduler-abort-control-no-live-20260709;"
+        "binding:m58-scheduler-runtime-control-binding-no-live-20260709"
+    )
+    assert run_state["scheduler_runtime_control_blockers"] == []
+    assert run_state["scheduler_execution_status"] == "blocked_no_live"
+    assert run_state["scheduler_execution_blockers"] == ["scheduler_blocked"]
+    assert run_state["scheduler_unattended_execution"] == "not_run"
+    assert run_state["scheduler_cadence_status"] == "disabled_no_live"
+    assert run_state["fanout_execution_status"] == "blocked"
+    assert "fanout_execution_technically_blocked" in run_state["fanout_blockers"]
+    assert "scheduler_blocked" in run_state["fanout_blockers"]
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_wallet_allocation_requires_passed_cap_guard(
     tmp_path,
 ):
@@ -65440,6 +65551,16 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     assert "scheduler_runtime_control_blockers" in release_checks[
         "m58_usdc_pair_scheduler_gate"
     ]["detail"]
+    assert "Scheduler pause, abort, and runtime-control binding refs" in release_checks[
+        "m58_usdc_pair_scheduler_gate"
+    ]["detail"]
+    assert "scheduler_runtime_control_status=ready_no_live" in release_checks[
+        "m58_usdc_pair_scheduler_gate"
+    ]["detail"]
+    assert (
+        "This scheduler runtime-control readback does not clear wallet, "
+        "retry-policy, recovery-runbook, cadence, or Coinbase execution blockers"
+    ) in release_checks["m58_usdc_pair_scheduler_gate"]["detail"]
     assert "scheduler_retry_policy_status=blocked_no_live" in release_checks[
         "m58_usdc_pair_scheduler_gate"
     ]["detail"]
