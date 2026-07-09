@@ -6855,10 +6855,18 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
     def extend_if_not_ready(
         *,
         status_value: str,
+        ref_value: str | None,
         blocker_values: list[str],
         fallback: str,
+        ref_missing: str,
+        blockers_present: str,
     ) -> None:
         if status_value == "ready_no_live":
+            if not _non_empty_text(ref_value):
+                blockers.append(ref_missing)
+            if blocker_values:
+                blockers.append(blockers_present)
+                blockers.extend(blocker_values)
             return
         if blocker_values:
             blockers.extend(blocker_values)
@@ -6892,58 +6900,91 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
     blockers.extend(run_state.fanout_blockers)
     extend_if_not_ready(
         status_value=run_state.runtime_fanout_execution_status,
+        ref_value=run_state.runtime_fanout_worker_ref,
         blocker_values=list(run_state.runtime_fanout_execution_blockers),
         fallback="runtime_fanout_execution_not_ready",
+        ref_missing="runtime_fanout_worker_ref_missing",
+        blockers_present="runtime_fanout_execution_blockers_present",
     )
     extend_if_not_ready(
         status_value=run_state.runtime_fanout_price_freshness_status,
+        ref_value=run_state.runtime_fanout_price_freshness_ref,
         blocker_values=list(run_state.runtime_fanout_price_freshness_blockers),
         fallback="runtime_fanout_price_freshness_not_ready",
+        ref_missing="runtime_fanout_price_freshness_ref_missing",
+        blockers_present="runtime_fanout_price_freshness_blockers_present",
     )
     extend_if_not_ready(
         status_value=run_state.runtime_fanout_live_service_status,
+        ref_value=run_state.runtime_fanout_live_service_ref,
         blocker_values=list(run_state.runtime_fanout_live_service_blockers),
         fallback="runtime_fanout_live_service_not_ready",
+        ref_missing="runtime_fanout_live_service_ref_missing",
+        blockers_present="runtime_fanout_live_service_blockers_present",
     )
     extend_if_not_ready(
         status_value=run_state.runtime_fanout_admission_audit_status,
+        ref_value=run_state.runtime_fanout_admission_audit_ref,
         blocker_values=list(run_state.runtime_fanout_admission_audit_blockers),
         fallback="runtime_fanout_admission_audit_not_ready",
+        ref_missing="runtime_fanout_admission_audit_ref_missing",
+        blockers_present="runtime_fanout_admission_audit_blockers_present",
     )
     extend_if_not_ready(
         status_value=run_state.runtime_fanout_reconciliation_status,
+        ref_value=run_state.runtime_fanout_reconciliation_ref,
         blocker_values=list(run_state.runtime_fanout_reconciliation_blockers),
         fallback="runtime_fanout_reconciliation_not_ready",
+        ref_missing="runtime_fanout_reconciliation_ref_missing",
+        blockers_present="runtime_fanout_reconciliation_blockers_present",
     )
     extend_if_not_ready(
         status_value=run_state.runtime_fanout_cap_guard_status,
+        ref_value=run_state.runtime_fanout_cap_guard_ref,
         blocker_values=list(run_state.runtime_fanout_cap_guard_blockers),
         fallback="runtime_fanout_cap_guard_not_ready",
+        ref_missing="runtime_fanout_cap_guard_ref_missing",
+        blockers_present="runtime_fanout_cap_guard_blockers_present",
     )
     extend_if_not_ready(
         status_value=run_state.runtime_fanout_wallet_ledger_status,
+        ref_value=run_state.runtime_fanout_wallet_ledger_ref,
         blocker_values=list(run_state.runtime_fanout_wallet_ledger_blockers),
         fallback="runtime_fanout_wallet_ledger_not_ready",
+        ref_missing="runtime_fanout_wallet_ledger_ref_missing",
+        blockers_present="runtime_fanout_wallet_ledger_blockers_present",
     )
     extend_if_not_ready(
         status_value=run_state.runtime_fanout_retry_recovery_status,
+        ref_value=run_state.runtime_fanout_retry_recovery_ref,
         blocker_values=list(run_state.runtime_fanout_retry_recovery_blockers),
         fallback="runtime_fanout_retry_recovery_not_ready",
+        ref_missing="runtime_fanout_retry_recovery_ref_missing",
+        blockers_present="runtime_fanout_retry_recovery_blockers_present",
     )
     extend_if_not_ready(
         status_value=run_state.runtime_fanout_release_review_status,
+        ref_value=run_state.runtime_fanout_release_review_ref,
         blocker_values=list(run_state.runtime_fanout_release_review_blockers),
         fallback="runtime_fanout_release_review_not_ready",
+        ref_missing="runtime_fanout_release_review_ref_missing",
+        blockers_present="runtime_fanout_release_review_blockers_present",
     )
     extend_if_not_ready(
         status_value=run_state.runtime_fanout_rate_limit_status,
+        ref_value=run_state.runtime_fanout_rate_limit_ref,
         blocker_values=list(run_state.runtime_fanout_rate_limit_blockers),
         fallback="runtime_fanout_rate_limit_not_ready",
+        ref_missing="runtime_fanout_rate_limit_ref_missing",
+        blockers_present="runtime_fanout_rate_limit_blockers_present",
     )
     extend_if_not_ready(
         status_value=run_state.runtime_fanout_runtime_control_status,
+        ref_value=run_state.runtime_fanout_runtime_control_ref,
         blocker_values=list(run_state.runtime_fanout_runtime_control_blockers),
         fallback="runtime_fanout_runtime_control_not_ready",
+        ref_missing="runtime_fanout_runtime_control_ref_missing",
+        blockers_present="runtime_fanout_runtime_control_blockers_present",
     )
     if run_state.scheduler_execution_status != "blocked_no_live":
         blockers.append("scheduler_execution_state_unexpected")
