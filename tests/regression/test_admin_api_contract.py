@@ -66908,14 +66908,20 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         release_checks["m58_usdc_pair_release_gate_clearance"]["status"]
         == AdminApiGateStatus.WARNING.value
     )
-    assert "must clear these warning checks" in release_checks[
+    assert "must clear remaining warning checks" in release_checks[
         "m58_usdc_pair_release_gate_clearance"
     ]["detail"]
     assert (
         release_checks["m58_usdc_pair_fanout_contextless_review_gate"]["status"]
-        == AdminApiGateStatus.WARNING.value
+        == AdminApiGateStatus.PASSED.value
     )
-    assert "Repeat contextless review before live fan-out" in release_checks[
+    assert "2026-07-09 blind contextless review" in release_checks[
+        "m58_usdc_pair_fanout_contextless_review_gate"
+    ]["detail"]
+    assert "fanout_execution_not_approved" in release_checks[
+        "m58_usdc_pair_fanout_contextless_review_gate"
+    ]["detail"]
+    assert "remaining live fan-out blockers" in release_checks[
         "m58_usdc_pair_fanout_contextless_review_gate"
     ]["detail"]
     assert "5 orders per second" in release_checks["m58_usdc_pair_scheduler_gate"][
@@ -67114,7 +67120,7 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         release_checks["m58_usdc_pair_contextless_review_gate"]["status"]
         == AdminApiGateStatus.PASSED.value
     )
-    assert "2026-07-07" in release_checks["m58_usdc_pair_contextless_review_gate"][
+    assert "2026-07-09" in release_checks["m58_usdc_pair_contextless_review_gate"][
         "detail"
     ]
     assert recovery_gate.status_code == 200

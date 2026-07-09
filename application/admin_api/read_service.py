@@ -51124,8 +51124,9 @@ class AdminApiReadService:
                     "live-grade price freshness, approval/admission/cap/"
                     "reconciliation/live-service evidence, live wallet ledger "
                     "semantics, runtime rate-window/retry/recovery semantics, "
-                    "release-gate evidence, and contextless review before "
-                    "fan-out broadening."
+                    "and release-gate clearance before fan-out broadening; "
+                    "2026-07-09 contextless review evidence is recorded "
+                    "separately."
                 ),
             ),
             AdminGateCheck(
@@ -51391,7 +51392,7 @@ class AdminApiReadService:
                 name="m58_usdc_pair_release_gate_clearance",
                 status=AdminApiGateStatus.WARNING,
                 detail=(
-                    "M58 live fan-out and scheduler release must clear these "
+                    "M58 live fan-out and scheduler release must clear remaining "
                     "warning checks with focused backend evidence, no-live "
                     "regression evidence, and a release-gate run that records "
                     "no live Coinbase execution by default."
@@ -51399,11 +51400,16 @@ class AdminApiReadService:
             ),
             AdminGateCheck(
                 name="m58_usdc_pair_fanout_contextless_review_gate",
-                status=AdminApiGateStatus.WARNING,
+                status=AdminApiGateStatus.PASSED,
                 detail=(
-                    "Repeat contextless review before live fan-out or "
-                    "scheduler broadening. The current passed contextless "
-                    "review only covers the one selected product boundary."
+                    "2026-07-09 blind contextless review rechecked M58 "
+                    "live-fanout broadening, confirmed the backend-owned "
+                    "spot-only domain boundary and frontend display-only "
+                    "posture, found the legacy fanout_execution_not_approved "
+                    "parent blocker mismatch, and remediation now rejects that "
+                    "blocker; remaining live fan-out blockers are live-grade "
+                    "wallet, runtime, release-gate, and Coinbase execution "
+                    "proof."
                 ),
             ),
             AdminGateCheck(
@@ -51412,8 +51418,10 @@ class AdminApiReadService:
                 detail=(
                     "2026-07-07 blind contextless review confirmed the current "
                     "boundary is backend-owned, spot-only, and one selected "
-                    "product only; repeat review before live fan-out or scheduler "
-                    "broadening."
+                    "product only. 2026-07-09 blind contextless review rechecked "
+                    "M58 live-fanout broadening and the remediated "
+                    "fanout_execution_not_approved mismatch; repeat review before "
+                    "scheduler broadening or any new authority boundary."
                 ),
             ),
         ]

@@ -1145,11 +1145,12 @@ this is explicit blocker evidence, not live fan-out authority.
 The backend release gate now records `m58_usdc_pair_live_fanout_gate` and
 `m58_usdc_pair_scheduler_gate` as warnings, plus
 `m58_usdc_pair_contextless_review_gate` as passed for the current
-one-selected-product boundary. It also exposes warning subchecks for
+one-selected-product boundary and
+`m58_usdc_pair_fanout_contextless_review_gate` as passed for the 2026-07-09
+live-fanout recheck. It also exposes warning subchecks for
 `m58_usdc_pair_live_wallet_ledger_gate`,
 `m58_usdc_pair_runtime_fanout_gate`,
-`m58_usdc_pair_release_gate_clearance`, and
-`m58_usdc_pair_fanout_contextless_review_gate`. The runtime fan-out warning
+and `m58_usdc_pair_release_gate_clearance`. The runtime fan-out warning
 now names the blocked `runtime_fanout_execution_status`, absent worker ref, and
 required `runtime_fanout_execution_blockers`, plus blocked
 `runtime_fanout_price_freshness_status`, absent
@@ -1195,7 +1196,16 @@ primitive. The review also confirmed future live fan-out remains unsafe and
 blocked until every product has live-grade price freshness, exact approval,
 admission, cap/guard, reconciliation, enabled live-service evidence,
 multi-product wallet controls, runtime fan-out/retry/recovery semantics,
-release-gate evidence, and another contextless review.
+and release-gate evidence. The 2026-07-09 recheck records contextless review
+for the current live-fanout broadening boundary.
 A second blind contextless review on 2026-07-07 confirmed the current
-backend-owned, spot-only, one-selected-product boundary and requires another
-review before any live fan-out or scheduler broadening.
+backend-owned, spot-only, one-selected-product boundary and required the later
+2026-07-09 review before live-fanout broadening. Repeat review before scheduler
+broadening or any new authority boundary.
+A blind contextless review on 2026-07-09 rechecked the M58 live-fanout
+broadening boundary, found the legacy `fanout_execution_not_approved` parent
+blocker mismatch, and was closed after backend remediation rejected that
+blocker as unexpected. Backend and frontend release-gate readbacks now record
+that review as passed for the current live-fanout boundary; live fan-out
+remains technically blocked by wallet, runtime, release-gate, and Coinbase
+execution proof gaps.
