@@ -4971,6 +4971,75 @@ def _allowlist_run_state_runtime_control_readback(
     )
 
 
+def _allowlist_run_state_scheduler_standing_cap_readback(
+    *,
+    policy_ref: str | None,
+    spot_notional_cap_ref: str | None,
+    perpetual_notional_cap_ref: str | None,
+) -> tuple[str, str | None, list[str]]:
+    blockers: list[str] = []
+    normalized_policy_ref = policy_ref.strip() if policy_ref else None
+    normalized_spot_notional_cap_ref = (
+        spot_notional_cap_ref.strip() if spot_notional_cap_ref else None
+    )
+    normalized_perpetual_notional_cap_ref = (
+        perpetual_notional_cap_ref.strip() if perpetual_notional_cap_ref else None
+    )
+    if not normalized_policy_ref:
+        blockers.append("scheduler_standing_cap_policy_missing")
+    if not normalized_spot_notional_cap_ref:
+        blockers.append("scheduler_spot_notional_cap_proof_missing")
+    if not normalized_perpetual_notional_cap_ref:
+        blockers.append("scheduler_perpetual_notional_cap_proof_missing")
+    if blockers:
+        return (
+            USDC_PAIR_SNAPSHOT_SCHEDULER_STANDING_CAP_BLOCKED_STATUS,
+            None,
+            blockers,
+        )
+    return (
+        "ready_no_live",
+        (
+            f"policy:{normalized_policy_ref};"
+            f"spot:{normalized_spot_notional_cap_ref};"
+            f"perpetual:{normalized_perpetual_notional_cap_ref}"
+        ),
+        [],
+    )
+
+
+def _allowlist_run_state_scheduler_release_review_readback(
+    *,
+    release_gate_ref: str | None,
+    contextless_review_ref: str | None,
+) -> tuple[str, str | None, list[str]]:
+    blockers: list[str] = []
+    normalized_release_gate_ref = (
+        release_gate_ref.strip() if release_gate_ref else None
+    )
+    normalized_contextless_review_ref = (
+        contextless_review_ref.strip() if contextless_review_ref else None
+    )
+    if not normalized_release_gate_ref:
+        blockers.append("scheduler_release_gate_uncleared")
+    if not normalized_contextless_review_ref:
+        blockers.append("scheduler_contextless_review_missing")
+    if blockers:
+        return (
+            USDC_PAIR_SNAPSHOT_SCHEDULER_RELEASE_REVIEW_BLOCKED_STATUS,
+            None,
+            blockers,
+        )
+    return (
+        "ready_no_live",
+        (
+            f"release_gate:{normalized_release_gate_ref};"
+            f"contextless_review:{normalized_contextless_review_ref}"
+        ),
+        [],
+    )
+
+
 def _allowlist_run_state_runtime_statuses(
     *,
     readiness: UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
@@ -5328,6 +5397,23 @@ def _record_usdc_pair_allowlist_run_state(
         abort_control_ref=body.runtime_fanout_abort_control_ref,
         binding_ref=body.runtime_fanout_runtime_control_binding_ref,
     )
+    (
+        scheduler_standing_cap_status,
+        scheduler_standing_cap_ref,
+        scheduler_standing_cap_blockers,
+    ) = _allowlist_run_state_scheduler_standing_cap_readback(
+        policy_ref=body.scheduler_standing_cap_policy_ref,
+        spot_notional_cap_ref=body.scheduler_spot_notional_cap_ref,
+        perpetual_notional_cap_ref=body.scheduler_perpetual_notional_cap_ref,
+    )
+    (
+        scheduler_release_review_status,
+        scheduler_release_review_ref,
+        scheduler_release_review_blockers,
+    ) = _allowlist_run_state_scheduler_release_review_readback(
+        release_gate_ref=body.scheduler_release_gate_ref,
+        contextless_review_ref=body.scheduler_contextless_review_ref,
+    )
     run_state_id = body.run_state_id or f"m58-usdc-allowlist-run-state-{uuid4()}"
     live_wallet_ledger = UsdcPairSnapshotLiveWalletLedgerRecord(
         ledger_id=f"{run_state_id}-live-wallet-ledger",
@@ -5615,13 +5701,9 @@ def _record_usdc_pair_allowlist_run_state(
         scheduler_unattended_execution=(
             USDC_PAIR_SNAPSHOT_SCHEDULER_UNATTENDED_NOT_RUN
         ),
-        scheduler_standing_cap_status=(
-            USDC_PAIR_SNAPSHOT_SCHEDULER_STANDING_CAP_BLOCKED_STATUS
-        ),
-        scheduler_standing_cap_ref=None,
-        scheduler_standing_cap_blockers=list(
-            USDC_PAIR_SNAPSHOT_SCHEDULER_STANDING_CAP_BLOCKERS
-        ),
+        scheduler_standing_cap_status=scheduler_standing_cap_status,
+        scheduler_standing_cap_ref=scheduler_standing_cap_ref,
+        scheduler_standing_cap_blockers=list(scheduler_standing_cap_blockers),
         scheduler_wallet_ledger_status=(
             USDC_PAIR_SNAPSHOT_SCHEDULER_WALLET_LEDGER_BLOCKED_STATUS
         ),
@@ -5629,13 +5711,9 @@ def _record_usdc_pair_allowlist_run_state(
         scheduler_wallet_ledger_blockers=list(
             USDC_PAIR_SNAPSHOT_SCHEDULER_WALLET_LEDGER_BLOCKERS
         ),
-        scheduler_release_review_status=(
-            USDC_PAIR_SNAPSHOT_SCHEDULER_RELEASE_REVIEW_BLOCKED_STATUS
-        ),
-        scheduler_release_review_ref=None,
-        scheduler_release_review_blockers=list(
-            USDC_PAIR_SNAPSHOT_SCHEDULER_RELEASE_REVIEW_BLOCKERS
-        ),
+        scheduler_release_review_status=scheduler_release_review_status,
+        scheduler_release_review_ref=scheduler_release_review_ref,
+        scheduler_release_review_blockers=list(scheduler_release_review_blockers),
         scheduler_worker_status=USDC_PAIR_SNAPSHOT_SCHEDULER_WORKER_BLOCKED_STATUS,
         scheduler_worker_ref=None,
         scheduler_worker_blockers=list(USDC_PAIR_SNAPSHOT_SCHEDULER_WORKER_BLOCKERS),

@@ -171182,6 +171182,36 @@ components:
             minLength: 1
           - type: 'null'
           title: Runtime Fanout Runtime Control Binding Ref
+        scheduler_standing_cap_policy_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Standing Cap Policy Ref
+        scheduler_spot_notional_cap_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Spot Notional Cap Ref
+        scheduler_perpetual_notional_cap_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Perpetual Notional Cap Ref
+        scheduler_release_gate_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Release Gate Ref
+        scheduler_contextless_review_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Contextless Review Ref
         live_wallet_reservation_ids:
           items:
             type: string
