@@ -7744,6 +7744,36 @@ def _usdc_pair_allowlist_run_state_live_fanout_allowlist_readiness_blockers(
         blockers.append("run_state_allowlist_readiness_product_rows_mismatch")
     elif readiness_row_keys != run_state_row_keys:
         blockers.append("run_state_allowlist_readiness_product_rows_mismatch")
+    else:
+        readiness_rows_by_key = {
+            (
+                row.product_id.strip().upper(),
+                str(row.client_order_id or "").strip(),
+            ): row
+            for row in allowlist_readiness.product_readiness_rows
+        }
+        run_state_rows_by_key = {
+            (
+                row.product_id.strip().upper(),
+                str(row.client_order_id or "").strip(),
+            ): row
+            for row in run_state.product_states
+        }
+        for key, readiness_row in readiness_rows_by_key.items():
+            run_state_row = run_state_rows_by_key[key]
+            readiness_notional = _decimal_value(readiness_row.planned_notional_usdc)
+            run_state_notional = _decimal_value(run_state_row.planned_notional_usdc)
+            if (
+                readiness_row.cap_guard_decision_id
+                != run_state_row.cap_guard_decision_id
+                or readiness_notional != run_state_notional
+                or readiness_row.readiness_status
+                != run_state_row.readiness_status
+            ):
+                blockers.append(
+                    "run_state_allowlist_readiness_product_content_mismatch"
+                )
+                break
 
     return blockers
 
