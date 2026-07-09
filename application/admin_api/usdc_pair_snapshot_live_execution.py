@@ -122,6 +122,13 @@ class UsdcPairSnapshotLiveOrderExecutor:
             if cancel_submitted
             else "submitted_cancel_failed"
         )
+        executed_notional_usdc = _coinbase_executed_notional_usdc(
+            submit_result_data
+        )
+        if executed_notional_usdc == "0":
+            executed_notional_usdc = _coinbase_executed_notional_usdc(
+                cancel_result_data
+            )
         result = {
             "coinbase_order_id": coinbase_order_id,
             "submit_result": submit_result_data,
@@ -132,7 +139,7 @@ class UsdcPairSnapshotLiveOrderExecutor:
             "live_exchange_submitted": True,
             "live_coinbase_orders_ran": True,
             "live_coinbase_execution": live_execution,
-            "executed_notional_usdc": "0",
+            "executed_notional_usdc": executed_notional_usdc,
             "submitted_notional_usdc": submitted_notional_usdc,
             "max_executed_notional_usdc": max_executed_notional_usdc,
             "cancel_submitted": cancel_submitted,
@@ -212,7 +219,10 @@ class UsdcPairSnapshotLiveFanoutExecutor:
                 call["max_executed_notional_usdc"],
             )
             results.append(execution)
-            if not _execution_cancel_rollback_complete(execution):
+            if (
+                not _execution_cancel_rollback_complete(execution)
+                or _execution_executed_notional_positive(execution)
+            ):
                 break
 
         cancel_submitted = (
@@ -370,6 +380,15 @@ def _execution_cancel_rollback_complete(execution: Mapping[str, Any]) -> bool:
     return _execution_cancel_submitted(execution)
 
 
+def _execution_executed_notional_positive(execution: Mapping[str, Any]) -> bool:
+    try:
+        return Decimal(str(execution.get("executed_notional_usdc", "0"))) > 0
+    except (InvalidOperation, ValueError) as exc:
+        raise UsdcPairSnapshotLiveExecutionError(
+            "M58 live fan-out submit requires valid executed notional evidence."
+        ) from exc
+
+
 def _decimal_sum_string(values: Iterable[Any]) -> str:
     total = Decimal("0")
     for value in values:
@@ -424,6 +443,35 @@ def _coinbase_order_id(result: Any, data: Mapping[str, Any]) -> str | None:
     if isinstance(order, Mapping) and order.get("order_id"):
         return str(order["order_id"])
     return None
+
+
+def _coinbase_executed_notional_usdc(data: Mapping[str, Any]) -> str:
+    for evidence in _coinbase_order_evidence_mappings(data):
+        for field in (
+            "executed_notional_usdc",
+            "filled_value",
+            "executed_value",
+            "filled_quote_value",
+            "filled_quote_size",
+        ):
+            try:
+                decimal_value = Decimal(str(evidence.get(field)))
+            except (InvalidOperation, ValueError):
+                continue
+            if decimal_value >= 0:
+                return str(decimal_value)
+    return "0"
+
+
+def _coinbase_order_evidence_mappings(
+    data: Mapping[str, Any],
+) -> list[Mapping[str, Any]]:
+    mappings: list[Mapping[str, Any]] = [data]
+    for key in ("success_response", "order", "order_response"):
+        value = data.get(key)
+        if isinstance(value, Mapping):
+            mappings.append(value)
+    return mappings
 
 
 def _cancel_result_success(result: Any) -> bool:
