@@ -6937,6 +6937,12 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
         blockers.append("cancel_rollback_confirmation_missing")
     if not body.confirm_rate_limit_5_per_second:
         blockers.append("rate_limit_5_per_second_confirmation_missing")
+    if run_state.live_coinbase_execution != "not_run":
+        blockers.append("run_state_not_no_live")
+    if run_state.live_exchange_submitted or run_state.live_coinbase_orders_ran:
+        blockers.append("run_state_live_exchange_already_submitted")
+    if run_state.notional_usdc != "0":
+        blockers.append("run_state_notional_not_zero")
     if not run_state.queued_product_ids:
         blockers.append("queued_products_missing")
     if run_state.fanout_execution_status != "ready_live":

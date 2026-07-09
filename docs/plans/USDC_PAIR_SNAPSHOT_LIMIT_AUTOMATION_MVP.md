@@ -1217,6 +1217,7 @@ run-state fanout blockers and runtime fan-out plus scheduler proof category
 blockers. Runtime and scheduler categories that claim `ready_no_live` still
 reject when their proof ref is absent or blockers remain, and the submit
 request cap cannot exceed the recorded run-state fan-out cap. Stale cap
-remaining or overage readback also rejects before executor invocation. The route
+remaining or overage readback, prior live-exchange submission readback, or
+nonzero run-state notional also rejects before executor invocation. The route
 returns `live_coinbase_execution=not_run` and notional `0`, and does not invoke
 Coinbase until the multi-product executor proof chain exists.

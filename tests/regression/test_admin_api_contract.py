@@ -42832,6 +42832,84 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_prior_live_execution_readback(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-prior-live",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-prior-live-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(
+        ready["run_state_id"]
+    )
+    assert source_run_state is not None
+    run_state_store.append(
+        source_run_state.model_copy(
+            update={
+                "live_exchange_submitted": True,
+                "live_coinbase_orders_ran": True,
+                "live_coinbase_execution": "submitted",
+                "notional_usdc": "1.00",
+            }
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-fanout-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-fanout-submit-prior-live"
+            ),
+            operator_intent=(
+                "m58_usdc_snapshot_allowlist_run_state_live_fanout_submit"
+            ),
+        ),
+        json={
+            "submission_id": "m58-usdc-allowlist-live-fanout-submit-prior-live",
+            "max_fanout_notional_usdc": "100",
+            "confirm_live_fanout_submit": True,
+            "confirm_backend_owned_execution": True,
+            "confirm_cancel_rollback_before_completion": True,
+            "confirm_rate_limit_5_per_second": True,
+            "operator_stop_conditions": [
+                "submit only backend-selected queued products",
+                "cancel or roll back every submitted client_order_id before completion",
+            ],
+            "operator_notes": "prior live execution readback blocks fan-out",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    assert "run_state_not_no_live" in payload["message"]
+    assert "run_state_live_exchange_already_submitted" in payload["message"]
+    assert "run_state_notional_not_zero" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_wallet_evidence(
     monkeypatch,
 ):
