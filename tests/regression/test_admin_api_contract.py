@@ -44650,6 +44650,119 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_acc
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_replays_accepted_response_after_proofs_change(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-accepted-replay",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-accepted-replay-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    allowlist_readiness_store = (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_allowlist_readiness_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(ready["run_state_id"])
+    assert source_run_state is not None
+    source_allowlist_readiness = allowlist_readiness_store.find_by_readiness_id(
+        ready["allowlist_readiness_id"]
+    )
+    assert source_allowlist_readiness is not None
+    source_product = source_run_state.product_states[0]
+    source_cap_guard = client.admin_api_test_cap_guard_store.find_by_decision_id(
+        source_product.cap_guard_decision_id
+    )
+    assert source_cap_guard is not None
+    client.admin_api_test_cap_guard_store.append(
+        source_cap_guard.model_copy(
+            update={
+                "route": (
+                    "/api/v1/automation/usdc-pair-snapshot-order-plan-"
+                    "allowlist-readiness/{readiness_id}/run-state"
+                ),
+                "service_method": (
+                    "record_usdc_pair_snapshot_allowlist_run_state"
+                ),
+            }
+        )
+    )
+    allowlist_readiness_store.append(
+        source_allowlist_readiness.model_copy(update={"fanout_blockers": []})
+    )
+    run_state_store.append(
+        source_run_state.model_copy(
+            update=_usdc_pair_snapshot_live_fanout_ready_updates()
+        )
+    )
+
+    response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="accepted-replay",
+        operator_notes="accepted fan-out replay must not submit again",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["live_exchange_submitted"] is True
+    assert payload["live_coinbase_orders_ran"] is True
+    assert payload["live_coinbase_execution"] == "submitted_cancelled"
+    assert payload["notional_usdc"] == "1.00"
+    live_calls = list(
+        client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls
+    )
+    assert [call["client_order_id"] for call in live_calls] == [
+        ready["client_order_id"]
+    ]
+
+    current_run_state = run_state_store.find_by_run_state_id(ready["run_state_id"])
+    assert current_run_state is not None
+    run_state_store.append(
+        current_run_state.model_copy(
+            update={
+                "live_exchange_submitted": True,
+                "live_coinbase_orders_ran": True,
+                "live_coinbase_execution": "submitted",
+                "notional_usdc": "1.00",
+            }
+        )
+    )
+
+    replay = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="accepted-replay",
+        operator_notes="accepted fan-out replay must not submit again",
+    )
+
+    assert replay.status_code == 200
+    assert replay.headers["X-Idempotency-Replayed"] == "true"
+    assert replay.json() == payload
+    assert (
+        client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls
+        == live_calls
+    )
+    assert (
+        len(
+            client.admin_api_test_usdc_pair_snapshot_order_plan_live_submit_store.read_recent(
+                limit=10
+            )
+        )
+        == 1
+    )
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_accepts_proof_cleared_multi_product(
     monkeypatch,
 ):
