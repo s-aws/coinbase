@@ -1,10 +1,12 @@
-"""Run one explicit M58 USDC-pair snapshot live submit/cancel pilot.
+"""Run explicit M58 USDC-pair snapshot live submit/cancel pilot evidence.
 
 This helper is backend-only operator tooling. It builds one USDC snapshot,
 derives one order-plan row, records exact durable proof-chain evidence, runs
 the M58 live-readiness preflight, then calls the controlled submit/cancel route.
 It never submits to Coinbase unless ``--confirm-live-submit`` is passed and the
 Admin API live runtime flag is already enabled for this process.
+The optional fan-out attempt mode records the backend live-fanout-submit
+boundary and treats proof-blocked rejection as successful fail-closed evidence.
 """
 
 from __future__ import annotations
@@ -170,6 +172,7 @@ class UsdcPairSnapshotLiveSubmitConfig:
     readiness_id: str | None = None
     submission_id: str | None = None
     submit_from_run_state: bool = False
+    attempt_live_fanout_from_run_state: bool = False
     allowlist_readiness_id: str | None = None
     run_state_id: str | None = None
     max_fanout_notional_usdc: str = "100"
@@ -229,6 +232,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--readiness-id", default=None)
     parser.add_argument("--submission-id", default=None)
     parser.add_argument("--submit-from-run-state", action="store_true")
+    parser.add_argument("--attempt-live-fanout-from-run-state", action="store_true")
     parser.add_argument("--allowlist-readiness-id", default=None)
     parser.add_argument("--run-state-id", default=None)
     parser.add_argument("--max-fanout-notional-usdc", default="100")
@@ -286,6 +290,9 @@ def config_from_args(args: argparse.Namespace) -> UsdcPairSnapshotLiveSubmitConf
         readiness_id=args.readiness_id or f"{prefix}-readiness",
         submission_id=args.submission_id or f"{prefix}-submission",
         submit_from_run_state=bool(args.submit_from_run_state),
+        attempt_live_fanout_from_run_state=bool(
+            args.attempt_live_fanout_from_run_state
+        ),
         allowlist_readiness_id=(
             args.allowlist_readiness_id or f"{prefix}-allowlist-readiness"
         ),
@@ -350,7 +357,12 @@ def validate_live_submit_config(config: UsdcPairSnapshotLiveSubmitConfig) -> Non
         raise ValueError("submitted_notional_usdc must be greater than zero.")
     if submitted > MAX_SUBMITTED_NOTIONAL_USDC:
         raise ValueError("submitted_notional_usdc must not exceed 10 USDC.")
-    if config.submit_from_run_state:
+    if config.submit_from_run_state and config.attempt_live_fanout_from_run_state:
+        raise ValueError(
+            "--submit-from-run-state and --attempt-live-fanout-from-run-state "
+            "are mutually exclusive."
+        )
+    if config.submit_from_run_state or config.attempt_live_fanout_from_run_state:
         max_fanout_notional = decimal_value(config.max_fanout_notional_usdc)
         if max_fanout_notional <= 0:
             raise ValueError("max_fanout_notional_usdc must be greater than zero.")
@@ -409,6 +421,7 @@ def run_usdc_pair_snapshot_live_submit(
     config: UsdcPairSnapshotLiveSubmitConfig,
     *,
     live_executor: Any | None = None,
+    fanout_executor: Any | None = None,
     require_runtime_ready: bool = True,
     require_credentials: bool = True,
 ) -> dict[str, Any]:
@@ -452,7 +465,11 @@ def run_usdc_pair_snapshot_live_submit(
                 f"{runtime_readiness.missing_reason or 'unknown'}"
             )
 
-    client, app = build_test_client(config, live_executor=live_executor)
+    client, app = build_test_client(
+        config,
+        live_executor=live_executor,
+        fanout_executor=fanout_executor,
+    )
     try:
         with client:
             snapshot_payload = _post_json(
@@ -564,10 +581,15 @@ def run_usdc_pair_snapshot_live_submit(
             )
             live_submit_phase = "live-submit"
             live_submit_source = "order_plan"
+            live_submit_body: dict[str, Any] | None = None
+            live_submit_accepted_statuses = (AdminApiCommandStatus.ACCEPTED.value,)
             allowlist_payload: dict[str, Any] | None = None
             run_state_payload: dict[str, Any] | None = None
             run_state_product: dict[str, Any] = {}
-            if config.submit_from_run_state:
+            if (
+                config.submit_from_run_state
+                or config.attempt_live_fanout_from_run_state
+            ):
                 runner_prefix = config.idempotency_prefix or "m58-usdc-live"
                 run_state_evidence = append_run_state_handoff_evidence(
                     config=config,
@@ -655,17 +677,50 @@ def run_usdc_pair_snapshot_live_submit(
                     config=config,
                     row=refreshed_row,
                 )
-                live_submit_path = (
-                    "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
-                    f"{run_state['run_state_id']}/live-submit"
-                )
-                live_submit_phase = "run-state-live-submit"
-                live_submit_source = "allowlist_run_state"
-            live_submit_payload = _post_json(
-                client,
-                live_submit_path,
-                headers=_headers(config, live_submit_phase),
-                json_body={
+                if config.attempt_live_fanout_from_run_state:
+                    live_submit_path = (
+                        "/api/v1/automation/"
+                        "usdc-pair-snapshot-allowlist-run-states/"
+                        f"{run_state['run_state_id']}/live-fanout-submit"
+                    )
+                    live_submit_phase = "run-state-live-fanout-submit"
+                    live_submit_source = "allowlist_run_state_fanout"
+                    live_submit_accepted_statuses = (
+                        AdminApiCommandStatus.ACCEPTED.value,
+                        AdminApiCommandStatus.REJECTED.value,
+                    )
+                else:
+                    live_submit_path = (
+                        "/api/v1/automation/"
+                        "usdc-pair-snapshot-allowlist-run-states/"
+                        f"{run_state['run_state_id']}/live-submit"
+                    )
+                    live_submit_phase = "run-state-live-submit"
+                    live_submit_source = "allowlist_run_state"
+            if config.attempt_live_fanout_from_run_state:
+                live_submit_body = {
+                    "submission_id": config.submission_id,
+                    "max_fanout_notional_usdc": (
+                        decimal_text(config.max_fanout_notional_usdc)
+                    ),
+                    "confirm_live_fanout_submit": True,
+                    "confirm_backend_owned_execution": True,
+                    "confirm_cancel_rollback_before_completion": True,
+                    "confirm_rate_limit_5_per_second": True,
+                    "operator_stop_conditions": [
+                        "submit only backend-selected queued products",
+                        "cancel or roll back every submitted client_order_id "
+                        "before completion",
+                        "stop fan-out before any product whose prior cancel "
+                        "or rollback is incomplete",
+                    ],
+                    "operator_notes": (
+                        "M58 run-state live fan-out submit/cancel boundary "
+                        "pilot."
+                    ),
+                }
+            else:
+                live_submit_body = {
                     "submission_id": config.submission_id,
                     "readiness_id": readiness["readiness_id"],
                     "product_id": config.product_id,
@@ -682,7 +737,13 @@ def run_usdc_pair_snapshot_live_submit(
                     "operator_notes": (
                         "M58 controlled-live submit/cancel pilot."
                     ),
-                },
+                }
+            live_submit_payload = _post_json(
+                client,
+                live_submit_path,
+                headers=_headers(config, live_submit_phase),
+                json_body=live_submit_body,
+                accepted_statuses=live_submit_accepted_statuses,
             )
             final_refresh_payload = _post_json(
                 client,
@@ -703,7 +764,6 @@ def run_usdc_pair_snapshot_live_submit(
 
     final_plan = require_mapping(final_refresh_payload.get("plan"), "final plan")
     final_row = planned_row_for_product(final_plan, config.product_id)
-    submission = require_mapping(live_submit_payload.get("submission"), "submission")
     allowlist_readiness = (
         require_mapping(allowlist_payload.get("readiness"), "allowlist readiness")
         if allowlist_payload
@@ -714,15 +774,40 @@ def run_usdc_pair_snapshot_live_submit(
         if run_state_payload
         else {}
     )
+    submissions = [
+        dict(item)
+        for item in live_submit_payload.get("submissions", [])
+        if isinstance(item, Mapping)
+    ]
+    submission_payload = live_submit_payload.get("submission")
+    if isinstance(submission_payload, Mapping):
+        submission = dict(submission_payload)
+    elif len(submissions) == 1:
+        submission = dict(submissions[0])
+    else:
+        submission = {}
     if run_state and not run_state_product:
         run_state_product = run_state_product_state(
             run_state,
             product_id=config.product_id,
-            client_order_id=str(submission.get("client_order_id") or ""),
+            client_order_id=str(
+                submission.get("client_order_id")
+                or readiness.get("client_order_id")
+                or ""
+            ),
         )
+    live_submit_route_status = str(live_submit_payload.get("status") or "")
+    fanout_submit_expected_blocked = (
+        config.attempt_live_fanout_from_run_state
+        and live_submit_route_status == AdminApiCommandStatus.REJECTED.value
+        and live_submit_payload.get("live_coinbase_execution") == "not_run"
+        and live_submit_payload.get("live_exchange_submitted") is False
+        and live_submit_payload.get("live_coinbase_orders_ran") is False
+    )
     status_value = (
         "passed"
-        if (
+        if fanout_submit_expected_blocked
+        or (
             live_submit_payload.get("live_coinbase_execution")
             == "submitted_cancelled"
             and final_row.get("proof_chain_status") == "accepted"
@@ -846,7 +931,14 @@ def run_usdc_pair_snapshot_live_submit(
         "order_plan_status": order_plan_payload.get("status"),
         "readiness_status": readiness_payload.get("status"),
         "submission_status": live_submit_payload.get("status"),
+        "live_submit_route_status": live_submit_route_status,
         "live_submit_audit_id": live_submit_payload.get("audit_id"),
+        "live_submit_message": live_submit_payload.get("message"),
+        "live_submit_failure_stage": live_submit_payload.get("failure_stage"),
+        "fanout_submit_attempted": config.attempt_live_fanout_from_run_state,
+        "fanout_submit_expected_blocked": fanout_submit_expected_blocked,
+        "submission_count": len(submissions),
+        "submissions": submissions,
         "submission_audit_id": submission.get("audit_id"),
         "proof_chain_status_after_submission": final_row.get("proof_chain_status"),
         "proof_chain_blockers_after_submission": final_row.get(
@@ -878,6 +970,7 @@ def build_test_client(
     config: UsdcPairSnapshotLiveSubmitConfig,
     *,
     live_executor: Any | None = None,
+    fanout_executor: Any | None = None,
 ):
     """Return a TestClient wired to one backend-owned M58 product scope."""
 
@@ -903,6 +996,10 @@ def build_test_client(
         app.dependency_overrides[
             automation_routes.get_usdc_pair_snapshot_live_order_executor
         ] = lambda: live_executor
+    if fanout_executor is not None:
+        app.dependency_overrides[
+            automation_routes.get_usdc_pair_snapshot_live_fanout_executor
+        ] = lambda: fanout_executor
     return TestClient(app), app
 
 
@@ -1413,6 +1510,7 @@ def _post_json(
     *,
     headers: Mapping[str, str],
     json_body: Mapping[str, Any],
+    accepted_statuses: Sequence[str] = (AdminApiCommandStatus.ACCEPTED.value,),
 ) -> dict[str, Any]:
     response = client.post(path, headers=dict(headers), json=dict(json_body))
     try:
@@ -1426,7 +1524,7 @@ def _post_json(
             f"Admin API {path} failed with HTTP {response.status_code}: {payload}"
         )
     status_value = payload.get("status")
-    if status_value != AdminApiCommandStatus.ACCEPTED.value:
+    if status_value not in set(accepted_statuses):
         raise RuntimeError(f"Admin API {path} rejected M58 step: {payload}")
     return payload
 

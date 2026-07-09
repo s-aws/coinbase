@@ -11,6 +11,17 @@ import pytest
 from tools import run_admin_api_usdc_pair_snapshot_live_submit as runner
 
 
+@pytest.fixture(autouse=True)
+def _stable_route_rate_window_for_runner_tests(monkeypatch):
+    from api.v1.routes import automation as automation_routes
+
+    monkeypatch.setattr(
+        automation_routes,
+        "USDC_PAIR_SNAPSHOT_DEFAULT_RATE_LIMIT_WINDOW_SECONDS",
+        30,
+    )
+
+
 class _FakeLiveExecutor:
     def __init__(self) -> None:
         self.calls: list[dict] = []
@@ -36,6 +47,17 @@ class _FakeLiveExecutor:
             "live_coinbase_execution": "submitted_cancelled",
             "executed_notional_usdc": "0",
         }
+
+
+class _FailingFanoutExecutor:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def submit_and_cancel_all(self, **kwargs):
+        self.calls.append(dict(kwargs))
+        raise AssertionError(
+            "fan-out executor must not run for proof-blocked state"
+        )
 
 
 def _config(tmp_path: Path, **overrides) -> runner.UsdcPairSnapshotLiveSubmitConfig:
@@ -240,6 +262,47 @@ def test_usdc_pair_snapshot_live_runner_can_submit_from_run_state_handoff(
         / "state"
         / "admin_api_usdc_pair_snapshot_live_wallet_reservations.jsonl"
     ).exists()
+
+
+def test_usdc_pair_snapshot_live_runner_records_fail_closed_fanout_boundary(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("COINBASE_ADMIN_API_BEARER_TOKEN", "test-admin-token")
+    config = _config(
+        tmp_path,
+        attempt_live_fanout_from_run_state=True,
+        allowlist_readiness_id="m58-runner-allowlist-readiness",
+        run_state_id="m58-runner-run-state",
+    )
+    fake_fanout_executor = _FailingFanoutExecutor()
+
+    summary = runner.run_usdc_pair_snapshot_live_submit(
+        config,
+        fanout_executor=fake_fanout_executor,
+        require_runtime_ready=False,
+        require_credentials=False,
+    )
+
+    assert summary["status"] == "passed"
+    assert summary["live_submit_source"] == "allowlist_run_state_fanout"
+    assert summary["live_submit_route_status"] == "rejected"
+    assert summary["live_submit_failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    assert summary["fanout_submit_attempted"] is True
+    assert summary["fanout_submit_expected_blocked"] is True
+    assert summary["submission_count"] == 0
+    assert summary["submissions"] == []
+    assert summary["submission_id"] is None
+    assert summary["submitted_notional_usdc"] is None
+    assert summary["executed_notional_usdc"] is None
+    assert summary["live_exchange_submitted"] is False
+    assert summary["live_coinbase_orders_ran"] is False
+    assert summary["live_coinbase_execution"] == "not_run"
+    assert summary["notional_usdc"] == "0"
+    assert "runtime_fanout_worker_missing" in summary["live_submit_message"]
+    assert fake_fanout_executor.calls == []
 
 
 def test_usdc_pair_snapshot_live_runner_scopes_default_recovery_ref_per_run(
