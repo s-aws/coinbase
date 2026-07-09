@@ -7716,12 +7716,39 @@ def _validate_usdc_pair_allowlist_run_state_live_fanout_submit(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
     body: UsdcPairSnapshotAllowlistRunStateLiveFanoutSubmitRequest,
+    plan: UsdcPairSnapshotOrderPlanRecord,
+    readiness_store: FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
+    cap_guard_store: FileAdminApiCapGuardStore,
+    live_service_decision_store: FileAdminApiLiveServiceDecisionStore,
     reservation_store: FileUsdcPairSnapshotLiveWalletReservationStore,
     ledger_store: FileUsdcPairSnapshotLiveWalletLedgerStore,
 ) -> None:
     blockers = _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
         run_state=run_state,
         body=body,
+    )
+    blockers.extend(
+        _usdc_pair_allowlist_run_state_live_submit_queued_live_readiness_blockers(
+            run_state=run_state,
+            selected_product_row=None,
+            readiness_store=readiness_store,
+            live_service_decision_store=live_service_decision_store,
+        )
+    )
+    blockers.extend(
+        _usdc_pair_allowlist_run_state_live_submit_queued_cap_guard_blockers(
+            run_state=run_state,
+            selected_product_row=None,
+            cap_guard_store=cap_guard_store,
+        )
+    )
+    blockers.extend(
+        _usdc_pair_allowlist_run_state_live_submit_queued_order_plan_blockers(
+            run_state=run_state,
+            selected_product_row=None,
+            plan=plan,
+            readiness_store=readiness_store,
+        )
     )
     queued_product_ids = {
         product_id.strip().upper() for product_id in run_state.queued_product_ids
@@ -9012,22 +9039,30 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_association(
         )
 
 
-def _validate_usdc_pair_allowlist_run_state_live_submit_queued_live_readiness(
+def _usdc_pair_allowlist_run_state_live_submit_queued_live_readiness_blockers(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
-    selected_product_row: UsdcPairSnapshotAllowlistRunStateProductItem,
+    selected_product_row: UsdcPairSnapshotAllowlistRunStateProductItem | None,
     readiness_store: FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
     live_service_decision_store: FileAdminApiLiveServiceDecisionStore,
-) -> None:
+) -> list[str]:
     blockers: list[str] = []
-    selected_product_id = selected_product_row.product_id.strip().upper()
-    selected_client_order_id = str(
-        selected_product_row.client_order_id or ""
-    ).strip()
+    selected_product_id = (
+        selected_product_row.product_id.strip().upper()
+        if selected_product_row is not None
+        else None
+    )
+    selected_client_order_id = (
+        str(selected_product_row.client_order_id or "").strip()
+        if selected_product_row is not None
+        else None
+    )
     for item in run_state.product_states:
         if item.execution_state != "queued_no_live":
             continue
         is_selected_product = (
+            selected_product_row is not None
+            and
             item.product_id.strip().upper() == selected_product_id
             and str(item.client_order_id or "").strip() == selected_client_order_id
         )
@@ -9195,28 +9230,54 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_queued_live_readiness(
                 "run_state_product_live_readiness_max_executed_notional_exceeds_submitted"
             )
 
-    if blockers:
-        raise UsdcPairSnapshotError(
-            "USDC pair snapshot allowlist run-state live submit blocked: "
-            + ",".join(_dedupe(blockers))
-        )
+    return _dedupe(blockers)
 
 
-def _validate_usdc_pair_allowlist_run_state_live_submit_queued_cap_guard(
+def _validate_usdc_pair_allowlist_run_state_live_submit_queued_live_readiness(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
     selected_product_row: UsdcPairSnapshotAllowlistRunStateProductItem,
-    cap_guard_store: FileAdminApiCapGuardStore,
+    readiness_store: FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
+    live_service_decision_store: FileAdminApiLiveServiceDecisionStore,
 ) -> None:
+    blockers = (
+        _usdc_pair_allowlist_run_state_live_submit_queued_live_readiness_blockers(
+            run_state=run_state,
+            selected_product_row=selected_product_row,
+            readiness_store=readiness_store,
+            live_service_decision_store=live_service_decision_store,
+        )
+    )
+    if blockers:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live submit blocked: "
+            + ",".join(blockers)
+        )
+
+
+def _usdc_pair_allowlist_run_state_live_submit_queued_cap_guard_blockers(
+    *,
+    run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    selected_product_row: UsdcPairSnapshotAllowlistRunStateProductItem | None,
+    cap_guard_store: FileAdminApiCapGuardStore,
+) -> list[str]:
     blockers: list[str] = []
-    selected_product_id = selected_product_row.product_id.strip().upper()
-    selected_client_order_id = str(
-        selected_product_row.client_order_id or ""
-    ).strip()
+    selected_product_id = (
+        selected_product_row.product_id.strip().upper()
+        if selected_product_row is not None
+        else None
+    )
+    selected_client_order_id = (
+        str(selected_product_row.client_order_id or "").strip()
+        if selected_product_row is not None
+        else None
+    )
     for item in run_state.product_states:
         if item.execution_state != "queued_no_live":
             continue
         if (
+            selected_product_row is not None
+            and
             item.product_id.strip().upper() == selected_product_id
             and str(item.client_order_id or "").strip() == selected_client_order_id
         ):
@@ -9251,29 +9312,51 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_queued_cap_guard(
             for blocker in record_blockers
         )
 
-    if blockers:
-        raise UsdcPairSnapshotError(
-            "USDC pair snapshot allowlist run-state live submit blocked: "
-            + ",".join(_dedupe(blockers))
-        )
+    return _dedupe(blockers)
 
 
-def _validate_usdc_pair_allowlist_run_state_live_submit_queued_order_plan(
+def _validate_usdc_pair_allowlist_run_state_live_submit_queued_cap_guard(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
     selected_product_row: UsdcPairSnapshotAllowlistRunStateProductItem,
+    cap_guard_store: FileAdminApiCapGuardStore,
+) -> None:
+    blockers = _usdc_pair_allowlist_run_state_live_submit_queued_cap_guard_blockers(
+        run_state=run_state,
+        selected_product_row=selected_product_row,
+        cap_guard_store=cap_guard_store,
+    )
+    if blockers:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live submit blocked: "
+            + ",".join(blockers)
+        )
+
+
+def _usdc_pair_allowlist_run_state_live_submit_queued_order_plan_blockers(
+    *,
+    run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    selected_product_row: UsdcPairSnapshotAllowlistRunStateProductItem | None,
     plan: UsdcPairSnapshotOrderPlanRecord,
     readiness_store: FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
-) -> None:
+) -> list[str]:
     blockers: list[str] = []
-    selected_product_id = selected_product_row.product_id.strip().upper()
-    selected_client_order_id = str(
-        selected_product_row.client_order_id or ""
-    ).strip()
+    selected_product_id = (
+        selected_product_row.product_id.strip().upper()
+        if selected_product_row is not None
+        else None
+    )
+    selected_client_order_id = (
+        str(selected_product_row.client_order_id or "").strip()
+        if selected_product_row is not None
+        else None
+    )
     for item in run_state.product_states:
         if item.execution_state != "queued_no_live":
             continue
         if (
+            selected_product_row is not None
+            and
             item.product_id.strip().upper() == selected_product_id
             and str(item.client_order_id or "").strip() == selected_client_order_id
         ):
@@ -9423,10 +9506,26 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_queued_order_plan(
                 "run_state_product_order_plan_readiness_quote_size_mismatch"
             )
 
+    return _dedupe(blockers)
+
+
+def _validate_usdc_pair_allowlist_run_state_live_submit_queued_order_plan(
+    *,
+    run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    selected_product_row: UsdcPairSnapshotAllowlistRunStateProductItem,
+    plan: UsdcPairSnapshotOrderPlanRecord,
+    readiness_store: FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
+) -> None:
+    blockers = _usdc_pair_allowlist_run_state_live_submit_queued_order_plan_blockers(
+        run_state=run_state,
+        selected_product_row=selected_product_row,
+        plan=plan,
+        readiness_store=readiness_store,
+    )
     if blockers:
         raise UsdcPairSnapshotError(
             "USDC pair snapshot allowlist run-state live submit blocked: "
-            + ",".join(_dedupe(blockers))
+            + ",".join(blockers)
         )
 
 
@@ -11163,6 +11262,22 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_fanout(
         FileUsdcPairSnapshotAllowlistRunStateStore,
         Depends(get_usdc_pair_snapshot_allowlist_run_state_store),
     ],
+    order_plan_store: Annotated[
+        FileUsdcPairSnapshotOrderPlanStore,
+        Depends(get_usdc_pair_snapshot_order_plan_store),
+    ],
+    readiness_store: Annotated[
+        FileUsdcPairSnapshotOrderPlanLiveReadinessStore,
+        Depends(get_usdc_pair_snapshot_order_plan_live_readiness_store),
+    ],
+    cap_guard_store: Annotated[
+        FileAdminApiCapGuardStore,
+        Depends(get_usdc_pair_snapshot_cap_guard_store),
+    ],
+    live_service_decision_store: Annotated[
+        FileAdminApiLiveServiceDecisionStore,
+        Depends(get_usdc_pair_snapshot_live_service_decision_store),
+    ],
     live_wallet_reservation_store: Annotated[
         FileUsdcPairSnapshotLiveWalletReservationStore,
         Depends(get_usdc_pair_snapshot_live_wallet_reservation_store),
@@ -11191,9 +11306,18 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_fanout(
             raise UsdcPairSnapshotError(
                 "USDC pair snapshot allowlist run-state was not found."
             )
+        plan = order_plan_store.find_by_plan_id(run_state.plan_id)
+        if plan is None:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot order-plan not found."
+            )
         _validate_usdc_pair_allowlist_run_state_live_fanout_submit(
             run_state=run_state,
             body=body,
+            plan=plan,
+            readiness_store=readiness_store,
+            cap_guard_store=cap_guard_store,
+            live_service_decision_store=live_service_decision_store,
             reservation_store=live_wallet_reservation_store,
             ledger_store=live_wallet_ledger_store,
         )

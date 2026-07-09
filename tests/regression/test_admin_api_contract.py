@@ -43696,6 +43696,251 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
     assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
 
 
+def _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+    client,
+    ready: dict[str, str],
+    *,
+    suffix: str,
+    operator_notes: str,
+):
+    return client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-fanout-submit"
+        ),
+        headers=_headers(
+            idempotency_key=f"idem-m58-usdc-allowlist-live-fanout-submit-{suffix}",
+            operator_intent=(
+                "m58_usdc_snapshot_allowlist_run_state_live_fanout_submit"
+            ),
+        ),
+        json={
+            "submission_id": f"m58-usdc-allowlist-live-fanout-submit-{suffix}",
+            "max_fanout_notional_usdc": "100",
+            "confirm_live_fanout_submit": True,
+            "confirm_backend_owned_execution": True,
+            "confirm_cancel_rollback_before_completion": True,
+            "confirm_rate_limit_5_per_second": True,
+            "operator_stop_conditions": [
+                "submit only backend-selected queued products",
+                "cancel or roll back every submitted client_order_id before completion",
+            ],
+            "operator_notes": operator_notes,
+        },
+    )
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_live_readiness_record(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-readiness-missing",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-readiness-missing-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(
+        ready["run_state_id"]
+    )
+    assert source_run_state is not None
+    source_product = source_run_state.product_states[0]
+    run_state_store.append(
+        source_run_state.model_copy(
+            update={
+                "product_states": [
+                    source_product.model_copy(
+                        update={
+                            "live_readiness_id": "missing-live-readiness-record",
+                        }
+                    )
+                ],
+            }
+        )
+    )
+
+    response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="readiness-missing",
+        operator_notes="missing live-readiness store record blocks fan-out",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    assert "run_state_product_live_readiness_record_missing" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_cap_guard_record(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-cap-guard-missing",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-cap-guard-missing-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(
+        ready["run_state_id"]
+    )
+    assert source_run_state is not None
+    source_product = source_run_state.product_states[0]
+    run_state_store.append(
+        source_run_state.model_copy(
+            update={
+                "product_states": [
+                    source_product.model_copy(
+                        update={
+                            "cap_guard_decision_id": "missing-cap-guard-record",
+                        }
+                    )
+                ],
+            }
+        )
+    )
+
+    response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="cap-guard-missing",
+        operator_notes="missing cap-guard store record blocks fan-out",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    assert "run_state_product_cap_guard_record_missing" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_order_plan_row(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-order-plan-missing",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-order-plan-missing-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    order_plan_store = client.admin_api_test_usdc_pair_snapshot_order_plan_store
+    source_plan = order_plan_store.find_by_plan_id(ready["plan_id"])
+    assert source_plan is not None
+    order_plan_store.append(source_plan.model_copy(update={"order_plan_rows": []}))
+
+    response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="order-plan-missing",
+        operator_notes="missing order-plan row blocks fan-out",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    assert "run_state_product_order_plan_row_missing" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_live_service_record(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-live-service-missing",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-live-service-missing-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    readiness_store = (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_live_readiness_store
+    )
+    source_readiness = next(
+        record
+        for record in readiness_store.read_recent(limit=10)
+        if record.readiness_id == ready["live_readiness_id"]
+    )
+    readiness_store.append(
+        source_readiness.model_copy(
+            update={"live_service_decision_id": "missing-live-service-record"}
+        )
+    )
+
+    response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="live-service-missing",
+        operator_notes="missing live-service store record blocks fan-out",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    assert "run_state_product_live_service_decision_missing" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
 @pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_wallet_reservation_record(
     monkeypatch,
