@@ -4972,6 +4972,50 @@ def _allowlist_run_state_runtime_control_readback(
     )
 
 
+def _allowlist_run_state_price_freshness_readback(
+    *,
+    price_freshness_binding_ref: str | None,
+    reference_bid_recheck_ref: str | None,
+    last_fill_distance_recheck_ref: str | None,
+) -> tuple[str, str | None, list[str]]:
+    blockers: list[str] = []
+    normalized_price_freshness_binding_ref = (
+        price_freshness_binding_ref.strip()
+        if price_freshness_binding_ref
+        else None
+    )
+    normalized_reference_bid_recheck_ref = (
+        reference_bid_recheck_ref.strip() if reference_bid_recheck_ref else None
+    )
+    normalized_last_fill_distance_recheck_ref = (
+        last_fill_distance_recheck_ref.strip()
+        if last_fill_distance_recheck_ref
+        else None
+    )
+    if not normalized_price_freshness_binding_ref:
+        blockers.append("runtime_fanout_price_freshness_binding_missing")
+    if not normalized_reference_bid_recheck_ref:
+        blockers.append("runtime_fanout_reference_bid_recheck_missing")
+    if not normalized_last_fill_distance_recheck_ref:
+        blockers.append("runtime_fanout_last_fill_distance_recheck_missing")
+    if blockers:
+        return (
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_PRICE_FRESHNESS_BLOCKED_STATUS,
+            None,
+            blockers,
+        )
+    return (
+        "ready_no_live",
+        (
+            f"price_freshness_binding:{normalized_price_freshness_binding_ref};"
+            f"reference_bid_recheck:{normalized_reference_bid_recheck_ref};"
+            "last_fill_distance_recheck:"
+            f"{normalized_last_fill_distance_recheck_ref}"
+        ),
+        [],
+    )
+
+
 def _allowlist_run_state_wallet_ledger_readback(
     *,
     live_wallet_ledger_ref: str | None,
@@ -5729,6 +5773,21 @@ def _record_usdc_pair_allowlist_run_state(
         contextless_review_ref=body.runtime_fanout_contextless_review_ref,
     )
     (
+        runtime_fanout_price_freshness_status,
+        runtime_fanout_price_freshness_ref,
+        runtime_fanout_price_freshness_blockers,
+    ) = _allowlist_run_state_price_freshness_readback(
+        price_freshness_binding_ref=(
+            body.runtime_fanout_price_freshness_binding_ref
+        ),
+        reference_bid_recheck_ref=(
+            body.runtime_fanout_reference_bid_recheck_ref
+        ),
+        last_fill_distance_recheck_ref=(
+            body.runtime_fanout_last_fill_distance_recheck_ref
+        ),
+    )
+    (
         runtime_fanout_rate_limit_status,
         runtime_fanout_rate_limit_ref,
         runtime_fanout_rate_limit_blockers,
@@ -6073,11 +6132,11 @@ def _record_usdc_pair_allowlist_run_state(
             USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_BLOCKERS
         ),
         runtime_fanout_price_freshness_status=(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_PRICE_FRESHNESS_BLOCKED_STATUS
+            runtime_fanout_price_freshness_status
         ),
-        runtime_fanout_price_freshness_ref=None,
+        runtime_fanout_price_freshness_ref=runtime_fanout_price_freshness_ref,
         runtime_fanout_price_freshness_blockers=list(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_PRICE_FRESHNESS_BLOCKERS
+            runtime_fanout_price_freshness_blockers
         ),
         runtime_fanout_live_service_status=(
             USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_LIVE_SERVICE_BLOCKED_STATUS

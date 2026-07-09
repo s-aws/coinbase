@@ -171187,6 +171187,24 @@ components:
             minLength: 1
           - type: 'null'
           title: Runtime Fanout Runtime Control Binding Ref
+        runtime_fanout_price_freshness_binding_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Price Freshness Binding Ref
+        runtime_fanout_reference_bid_recheck_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Reference Bid Recheck Ref
+        runtime_fanout_last_fill_distance_recheck_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Last Fill Distance Recheck Ref
         runtime_fanout_live_wallet_ledger_ref:
           anyOf:
           - type: string

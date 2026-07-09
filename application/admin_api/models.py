@@ -3134,6 +3134,18 @@ class UsdcPairSnapshotAllowlistRunStateRequest(BaseModel):
         default=None,
         min_length=1,
     )
+    runtime_fanout_price_freshness_binding_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    runtime_fanout_reference_bid_recheck_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    runtime_fanout_last_fill_distance_recheck_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
     runtime_fanout_live_wallet_ledger_ref: str | None = Field(
         default=None,
         min_length=1,
