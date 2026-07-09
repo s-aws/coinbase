@@ -1295,6 +1295,34 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     AdminApiRouteInventoryItem(
         module_id="automation",
         surface=(
+            "POST /api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            "{run_state_id}/live-fanout-submit"
+        ),
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+        permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+        idempotency="required",
+        approval=(
+            "required exact allowlist run-state fan-out evidence and explicit "
+            "backend-owned live fan-out operator confirmations; current "
+            "implementation is fail-closed"
+        ),
+        caps=(
+            "required maximum fan-out notional <= 100 USDC, cancel/rollback "
+            "before phase completion, and default 5 orders per second rate "
+            "limit evidence"
+        ),
+        audit="required",
+        shared_method="submit_usdc_pair_snapshot_allowlist_run_state_live_fanout",
+        parity_test=(
+            "M58 backend-owned live fan-out boundary accepts only explicit "
+            "run-state fan-out submit attempts and rejects before Coinbase "
+            "execution until the backend multi-product executor proof chain "
+            "exists; no scheduler and no browser execution authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="automation",
+        surface=(
             "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
             "{plan_id}/proof-chain-refresh"
         ),

@@ -42390,6 +42390,65 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_le
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_is_fail_closed(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-blocked",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-blocked-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-fanout-submit"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-allowlist-live-fanout-submit-blocked",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_fanout_submit",
+        ),
+        json={
+            "submission_id": "m58-usdc-allowlist-live-fanout-submit-blocked",
+            "max_fanout_notional_usdc": "100",
+            "confirm_live_fanout_submit": True,
+            "confirm_backend_owned_execution": True,
+            "confirm_cancel_rollback_before_completion": True,
+            "confirm_rate_limit_5_per_second": True,
+            "operator_stop_conditions": [
+                "submit only backend-selected queued products",
+                "cancel or roll back every submitted client_order_id before completion",
+            ],
+            "operator_notes": "prove live fan-out boundary remains fail closed",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    assert payload["submission"] is None
+    assert payload["audit_id"]
+    assert "live_fanout_executor_not_implemented" in payload["message"]
+    assert "fanout_execution_technically_blocked" in payload["message"]
+    assert "scheduler_blocked" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_wallet_evidence(
     monkeypatch,
 ):
@@ -79768,6 +79827,38 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     )
     assert "no fan-out" in run_state_live_submit_evidence
     assert "no scheduler" in run_state_live_submit_evidence
+    run_state_live_fanout_submit_route = rows[
+        "POST /api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+        "{run_state_id}/live-fanout-submit"
+    ]
+    assert run_state_live_fanout_submit_route.module_id == "automation"
+    assert run_state_live_fanout_submit_route.shared_method == (
+        "submit_usdc_pair_snapshot_allowlist_run_state_live_fanout"
+    )
+    assert run_state_live_fanout_submit_route.action_class == (
+        AdminApiActionClass.LIVE_EXCHANGE_PLACE
+    )
+    assert run_state_live_fanout_submit_route.permission == (
+        AdminApiPermission.CAMPAIGN_EXECUTE
+    )
+    run_state_live_fanout_submit_evidence = " ".join(
+        (
+            run_state_live_fanout_submit_route.approval,
+            run_state_live_fanout_submit_route.caps,
+            run_state_live_fanout_submit_route.parity_test,
+        )
+    )
+    assert "exact allowlist run-state fan-out evidence" in (
+        run_state_live_fanout_submit_evidence
+    )
+    assert "maximum fan-out notional <= 100 USDC" in (
+        run_state_live_fanout_submit_evidence
+    )
+    assert "5 orders per second" in run_state_live_fanout_submit_evidence
+    assert "fail-closed" in run_state_live_fanout_submit_evidence
+    assert "no browser execution authority" in (
+        run_state_live_fanout_submit_evidence
+    )
     order_plan_refresh_route = rows[
         "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
         "{plan_id}/proof-chain-refresh"

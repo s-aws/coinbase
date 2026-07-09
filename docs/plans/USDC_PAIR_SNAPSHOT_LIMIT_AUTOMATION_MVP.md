@@ -1209,3 +1209,10 @@ blocker as unexpected. Backend and frontend release-gate readbacks now record
 that review as passed for the current live-fanout boundary; live fan-out
 remains technically blocked by wallet, runtime, release-gate, and Coinbase
 execution proof gaps.
+The backend now exposes an explicit run-state `live-fanout-submit` boundary
+for M58 fan-out attempts. It is fail-closed: requests must carry backend-owned
+fan-out, cancel/rollback, and default 5-orders-per-second confirmations, but
+the route rejects with `live_fanout_executor_not_implemented` plus current
+run-state fanout blockers, returns `live_coinbase_execution=not_run` and
+notional `0`, and does not invoke Coinbase until the multi-product executor
+proof chain exists.

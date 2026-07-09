@@ -51,6 +51,7 @@ from application.admin_api.models import (
     UsdcPairSnapshotOrderPlanAllowlistReadinessProductItem,
     UsdcPairSnapshotOrderPlanAllowlistReadinessRequest,
     UsdcPairSnapshotOrderPlanAllowlistReadinessResponse,
+    UsdcPairSnapshotAllowlistRunStateLiveFanoutSubmitRequest,
     UsdcPairSnapshotOrderPlanLiveReadinessItem,
     UsdcPairSnapshotOrderPlanLiveReadinessListResponse,
     UsdcPairSnapshotOrderPlanLiveReadinessRequest,
@@ -191,6 +192,16 @@ USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_SUBMIT_ENDPOINT = (
 )
 USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_SUBMIT_SERVICE_METHOD = (
     "submit_usdc_pair_snapshot_allowlist_run_state_live_order"
+)
+USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_FANOUT_SUBMIT_ROUTE = (
+    "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+    "{run_state_id}/live-fanout-submit"
+)
+USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_FANOUT_SUBMIT_ENDPOINT = (
+    f"POST {USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_FANOUT_SUBMIT_ROUTE}"
+)
+USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_FANOUT_SUBMIT_SERVICE_METHOD = (
+    "submit_usdc_pair_snapshot_allowlist_run_state_live_fanout"
 )
 USDC_PAIR_SNAPSHOT_MODULE_ID = "automation"
 USDC_PAIR_SNAPSHOT_PROOF_BLOCKERS = [
@@ -6834,6 +6845,60 @@ def _usdc_pair_decimal_mismatch(value: str | None, expected: Decimal) -> bool:
     return decimal_value is None or decimal_value != expected
 
 
+def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
+    *,
+    run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    body: UsdcPairSnapshotAllowlistRunStateLiveFanoutSubmitRequest,
+) -> list[str]:
+    blockers: list[str] = ["live_fanout_executor_not_implemented"]
+    max_fanout_notional = _decimal_value(body.max_fanout_notional_usdc)
+    if max_fanout_notional is None or max_fanout_notional <= 0:
+        blockers.append("max_fanout_notional_invalid")
+    elif max_fanout_notional > Decimal("100"):
+        blockers.append("max_fanout_notional_exceeded")
+    planned_fanout_notional = _decimal_value(run_state.planned_fanout_notional_usdc)
+    if (
+        max_fanout_notional is not None
+        and planned_fanout_notional is not None
+        and planned_fanout_notional > max_fanout_notional
+    ):
+        blockers.append("planned_fanout_notional_exceeds_request_cap")
+    if not body.confirm_live_fanout_submit:
+        blockers.append("live_fanout_submit_confirmation_missing")
+    if not body.confirm_backend_owned_execution:
+        blockers.append("backend_owned_execution_confirmation_missing")
+    if not body.confirm_cancel_rollback_before_completion:
+        blockers.append("cancel_rollback_confirmation_missing")
+    if not body.confirm_rate_limit_5_per_second:
+        blockers.append("rate_limit_5_per_second_confirmation_missing")
+    if not run_state.queued_product_ids:
+        blockers.append("queued_products_missing")
+    if run_state.fanout_execution_status != "ready_live":
+        blockers.append(USDC_PAIR_SNAPSHOT_FANOUT_EXECUTION_TECHNICAL_BLOCKER)
+    blockers.extend(run_state.fanout_blockers)
+    if run_state.scheduler_execution_status != "blocked_no_live":
+        blockers.append("scheduler_execution_state_unexpected")
+    if run_state.scheduler_unattended_execution != "not_run":
+        blockers.append("scheduler_unattended_execution_ran")
+    return _dedupe(blockers)
+
+
+def _validate_usdc_pair_allowlist_run_state_live_fanout_submit(
+    *,
+    run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    body: UsdcPairSnapshotAllowlistRunStateLiveFanoutSubmitRequest,
+) -> None:
+    blockers = _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
+        run_state=run_state,
+        body=body,
+    )
+    if blockers:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
+            + ",".join(blockers)
+        )
+
+
 def _validate_usdc_pair_allowlist_run_state_live_submit(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
@@ -10199,5 +10264,75 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_order(
         accepted_message=(
             "USDC pair snapshot allowlist run-state controlled-live "
             "submit/cancel accepted for one selected order."
+        ),
+    )
+
+
+@router.post(
+    "/automation/usdc-pair-snapshot-allowlist-run-states/{run_state_id}/live-fanout-submit",
+    response_model=UsdcPairSnapshotOrderPlanLiveSubmitResponse,
+    status_code=status.HTTP_200_OK,
+    responses=LIVE_SUBMIT_ROUTE_RESPONSES,
+    summary="Fail closed on USDC pair snapshot run-state live fan-out submit",
+)
+def submit_usdc_pair_snapshot_allowlist_run_state_live_fanout(
+    request: Request,
+    run_state_id: str,
+    body: UsdcPairSnapshotAllowlistRunStateLiveFanoutSubmitRequest,
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    run_state_store: Annotated[
+        FileUsdcPairSnapshotAllowlistRunStateStore,
+        Depends(get_usdc_pair_snapshot_allowlist_run_state_store),
+    ],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+) -> JSONResponse:
+    """Record a blocked M58 live fan-out attempt without Coinbase submission."""
+
+    endpoint = f"{request.method} {request.url.path}"
+    payload_hash = _payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        operator_intent=operator_intent,
+        body=body.model_dump(mode="json"),
+    )
+
+    def operation(audit_id: str) -> UsdcPairSnapshotOrderPlanLiveSubmitItem:
+        del audit_id
+        run_state = run_state_store.find_by_run_state_id(run_state_id)
+        if run_state is None:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot allowlist run-state was not found."
+            )
+        _validate_usdc_pair_allowlist_run_state_live_fanout_submit(
+            run_state=run_state,
+            body=body,
+        )
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
+            "live_fanout_executor_not_implemented"
+        )
+
+    return _execute_idempotent_live_submit(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        request_id=correlation_id,
+        operator_intent=operator_intent,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        operation=operation,
+        endpoint=USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_FANOUT_SUBMIT_ENDPOINT,
+        service_method=(
+            USDC_PAIR_SNAPSHOT_ALLOWLIST_RUN_STATE_LIVE_FANOUT_SUBMIT_SERVICE_METHOD
+        ),
+        failure_stage=(
+            "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+        ),
+        accepted_message=(
+            "USDC pair snapshot allowlist run-state live fan-out submit accepted."
         ),
     )

@@ -3337,6 +3337,21 @@ class UsdcPairSnapshotAllowlistRunStateRequest(BaseModel):
     operator_notes: str | None = None
 
 
+class UsdcPairSnapshotAllowlistRunStateLiveFanoutSubmitRequest(BaseModel):
+    """Explicit M58 live fan-out submit attempt envelope."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    submission_id: str | None = Field(default=None, min_length=1)
+    max_fanout_notional_usdc: DecimalString = "100"
+    confirm_live_fanout_submit: bool = False
+    confirm_backend_owned_execution: bool = False
+    confirm_cancel_rollback_before_completion: bool = False
+    confirm_rate_limit_5_per_second: bool = False
+    operator_stop_conditions: list[str] = Field(default_factory=list)
+    operator_notes: str | None = None
+
+
 class UsdcPairSnapshotAllowlistRunStateItem(BaseModel):
     """Durable no-live Phase F allowlist run-state evidence."""
 
