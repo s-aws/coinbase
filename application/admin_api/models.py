@@ -3134,6 +3134,18 @@ class UsdcPairSnapshotAllowlistRunStateRequest(BaseModel):
         default=None,
         min_length=1,
     )
+    runtime_fanout_live_wallet_ledger_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    runtime_fanout_wallet_overcommit_binding_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    runtime_fanout_wallet_debit_release_binding_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
     scheduler_standing_cap_policy_ref: str | None = Field(
         default=None,
         min_length=1,

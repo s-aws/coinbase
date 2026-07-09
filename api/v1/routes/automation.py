@@ -4972,6 +4972,45 @@ def _allowlist_run_state_runtime_control_readback(
     )
 
 
+def _allowlist_run_state_wallet_ledger_readback(
+    *,
+    live_wallet_ledger_ref: str | None,
+    overcommit_binding_ref: str | None,
+    debit_release_binding_ref: str | None,
+) -> tuple[str, str | None, list[str]]:
+    blockers: list[str] = []
+    normalized_live_wallet_ledger_ref = (
+        live_wallet_ledger_ref.strip() if live_wallet_ledger_ref else None
+    )
+    normalized_overcommit_binding_ref = (
+        overcommit_binding_ref.strip() if overcommit_binding_ref else None
+    )
+    normalized_debit_release_binding_ref = (
+        debit_release_binding_ref.strip() if debit_release_binding_ref else None
+    )
+    if not normalized_live_wallet_ledger_ref:
+        blockers.append("runtime_fanout_live_wallet_ledger_missing")
+    if not normalized_overcommit_binding_ref:
+        blockers.append("runtime_fanout_wallet_overcommit_binding_missing")
+    if not normalized_debit_release_binding_ref:
+        blockers.append("runtime_fanout_wallet_debit_release_binding_missing")
+    if blockers:
+        return (
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_WALLET_LEDGER_BLOCKED_STATUS,
+            None,
+            blockers,
+        )
+    return (
+        "ready_no_live",
+        (
+            f"live_wallet_ledger:{normalized_live_wallet_ledger_ref};"
+            f"overcommit_binding:{normalized_overcommit_binding_ref};"
+            f"debit_release_binding:{normalized_debit_release_binding_ref}"
+        ),
+        [],
+    )
+
+
 def _allowlist_run_state_scheduler_standing_cap_readback(
     *,
     policy_ref: str | None,
@@ -5670,6 +5709,19 @@ def _record_usdc_pair_allowlist_run_state(
         binding_ref=body.runtime_fanout_runtime_control_binding_ref,
     )
     (
+        runtime_fanout_wallet_ledger_status,
+        runtime_fanout_wallet_ledger_ref,
+        runtime_fanout_wallet_ledger_blockers,
+    ) = _allowlist_run_state_wallet_ledger_readback(
+        live_wallet_ledger_ref=body.runtime_fanout_live_wallet_ledger_ref,
+        overcommit_binding_ref=(
+            body.runtime_fanout_wallet_overcommit_binding_ref
+        ),
+        debit_release_binding_ref=(
+            body.runtime_fanout_wallet_debit_release_binding_ref
+        ),
+    )
+    (
         scheduler_standing_cap_status,
         scheduler_standing_cap_ref,
         scheduler_standing_cap_blockers,
@@ -6000,11 +6052,11 @@ def _record_usdc_pair_allowlist_run_state(
             USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_CAP_GUARD_BLOCKERS
         ),
         runtime_fanout_wallet_ledger_status=(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_WALLET_LEDGER_BLOCKED_STATUS
+            runtime_fanout_wallet_ledger_status
         ),
-        runtime_fanout_wallet_ledger_ref=None,
+        runtime_fanout_wallet_ledger_ref=runtime_fanout_wallet_ledger_ref,
         runtime_fanout_wallet_ledger_blockers=list(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_WALLET_LEDGER_BLOCKERS
+            runtime_fanout_wallet_ledger_blockers
         ),
         runtime_fanout_retry_recovery_status=(
             USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RETRY_RECOVERY_BLOCKED_STATUS
