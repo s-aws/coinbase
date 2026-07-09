@@ -39999,6 +39999,128 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_rejects_live_mode(
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_replays_rejection_after_readiness_appears(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    readiness_id = "m58-usdc-allowlist-run-state-rejected-replay-readiness"
+    run_state_id = "m58-usdc-allowlist-run-state-rejected-replay"
+    body = {
+        "run_state_id": run_state_id,
+        "execution_mode": "no_live_rehearsal",
+        "max_fanout_notional_usdc": "100",
+        "run_lock_ref": "m58-run-lock-rejected-replay",
+        "rate_limit_window_ref": "m58-rate-limit-window-rejected-replay",
+        "pause_requested": False,
+        "abort_requested": False,
+        "operator_notes": "initial missing-readiness run-state rejection",
+    }
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+            f"{readiness_id}/run-state"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-allowlist-run-state-rejected-replay",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_rejected_replay",
+        ),
+        json=body,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == "usdc_pair_snapshot_allowlist_run_state"
+    assert "allowlist readiness was not found" in payload["message"]
+    assert payload["run_state"] is None
+    assert payload["live_coinbase_execution"] == "not_run"
+
+    cap_guard_decision_id = "cap-m58-usdc-allowlist-run-state-rejected-replay"
+    client.admin_api_test_cap_guard_store.append(
+        CapGuardDecisionRecord(
+            decision_id=cap_guard_decision_id,
+            route=(
+                "/api/v1/automation/usdc-pair-snapshot-order-plan-"
+                "allowlist-readiness/{readiness_id}/run-state"
+            ),
+            method="POST",
+            module_id="automation",
+            identity_key="client_order_id",
+            identity_value="m58-usdc-run-state-negative-BTC-USDC",
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method="record_usdc_pair_snapshot_allowlist_run_state",
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+            idempotency_key="idem-m58-usdc-allowlist-run-state-rejected-replay-cap",
+            payload_hash="9" * 64,
+            approval_snapshot_id="approval-m58-run-state-rejected-replay",
+            admission_audit_id="admission-m58-run-state-rejected-replay",
+            allowed=True,
+            status=AdminApiGateStatus.PASSED,
+            cap_policy_ref="m58_phase_f_submitted_notional_cap",
+            guard_policy_ref="m58_phase_f_wallet_allocation_guard",
+            product_scope="BTC-USDC",
+            max_submitted_notional_usdc="1.00",
+            max_executed_notional_usdc="0",
+            wallet_check_required=True,
+            wallet_check_status=AdminApiGateStatus.PASSED,
+            wallet_available_notional_usdc="1.00",
+            wallet_check_source="m58_usdc_pair_run_state_rejected_replay_fixture",
+            reason="Later source evidence exists but must not replace rejection replay.",
+        )
+    )
+    _append_usdc_pair_snapshot_allowlist_run_state_readiness(
+        client,
+        readiness_id=readiness_id,
+        planned_notional_usdc="1.00",
+        cap_guard_decision_id=cap_guard_decision_id,
+    )
+
+    replay = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+            f"{readiness_id}/run-state"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-allowlist-run-state-rejected-replay",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_rejected_replay",
+        ),
+        json=body,
+    )
+
+    assert replay.status_code == 200
+    assert replay.headers["X-Idempotency-Replayed"] == "true"
+    assert replay.json() == payload
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    run_state_records = run_state_store.read_recent(limit=10)
+    assert all(record.run_state_id != run_state_id for record in run_state_records)
+
+    conflict = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+            f"{readiness_id}/run-state"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-allowlist-run-state-rejected-replay",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_rejected_replay",
+        ),
+        json={**body, "operator_notes": "changed body must conflict"},
+    )
+
+    assert conflict.status_code == 409
+    conflict_payload = conflict.json()
+    assert conflict_payload["status"] == AdminApiCommandStatus.CONFLICT.value
+    assert conflict_payload["failure_stage"] == "idempotency"
+    assert conflict_payload["run_state"] is None
+    assert conflict_payload["live_coinbase_execution"] == "not_run"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_rejects_cap_overflow(
     monkeypatch,
 ):
