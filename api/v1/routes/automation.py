@@ -7081,6 +7081,40 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
             wallet_available_product_invalid = True
             continue
         wallet_available_product_values.append(wallet_available_product_value)
+    all_wallet_ref_blockers_by_product = (
+        _live_wallet_reference_conflict_blockers_by_product(
+            product_states=run_state.product_states,
+        )
+    )
+    all_wallet_ref_blockers = _dedupe(
+        [
+            blocker
+            for product_blockers in all_wallet_ref_blockers_by_product.values()
+            for blocker in product_blockers
+        ]
+    )
+    product_recovery_ref_conflict_run_state_ids = [
+        str(item.recovery_ref_conflict_run_state_id or "").strip()
+        for item in run_state.product_states
+        if str(item.recovery_ref_conflict_run_state_id or "").strip()
+    ]
+    live_wallet_active_overcommit_run_state_ids = [
+        run_state_id
+        for item in run_state.product_states
+        for run_state_id in item.live_wallet_active_reservation_overcommit_run_state_ids
+    ]
+    live_wallet_active_reserved_notional = _sum_usdc_pair_decimal_values(
+        [
+            item.live_wallet_active_reserved_notional_usdc
+            for item in run_state.product_states
+        ]
+    )
+    live_wallet_overcommit_attempted_notional = _sum_usdc_pair_decimal_values(
+        [
+            item.live_wallet_overcommit_attempted_notional_usdc
+            for item in run_state.product_states
+        ]
+    )
     if (
         computed_planned_fanout_notional is None
         or _usdc_pair_decimal_mismatch(
@@ -7160,6 +7194,59 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
         wallet_available_notional - computed_wallet_allocated_notional,
     ):
         blockers.append("run_state_wallet_remaining_mismatch")
+    if all_wallet_ref_blockers:
+        blockers.extend(f"run_state_{blocker}" for blocker in all_wallet_ref_blockers)
+    if product_recovery_ref_conflict_run_state_ids:
+        blockers.append("run_state_product_recovery_ref_conflict")
+    if run_state.recovery_ref_conflict_run_state_id:
+        blockers.append("run_state_recovery_ref_conflict")
+    if _normalized_usdc_pair_string_multiset(
+        run_state.live_wallet_active_reservation_overcommit_run_state_ids
+    ) != _normalized_usdc_pair_string_multiset(
+        live_wallet_active_overcommit_run_state_ids
+    ):
+        blockers.append(
+            "run_state_live_wallet_active_reservation_"
+            "overcommit_run_state_ids_mismatch"
+        )
+    if (
+        live_wallet_active_reserved_notional is None
+        or _usdc_pair_decimal_mismatch(
+            run_state.live_wallet_active_reserved_notional_usdc,
+            live_wallet_active_reserved_notional,
+        )
+    ):
+        blockers.append("run_state_live_wallet_active_reserved_notional_mismatch")
+    if (
+        live_wallet_overcommit_attempted_notional is None
+        or _usdc_pair_decimal_mismatch(
+            run_state.live_wallet_overcommit_attempted_notional_usdc,
+            live_wallet_overcommit_attempted_notional,
+        )
+    ):
+        blockers.append("run_state_live_wallet_overcommit_attempted_notional_mismatch")
+    if (
+        live_wallet_active_overcommit_run_state_ids
+        or (
+            live_wallet_active_reserved_notional is not None
+            and live_wallet_active_reserved_notional != Decimal("0")
+        )
+        or (
+            live_wallet_overcommit_attempted_notional is not None
+            and live_wallet_overcommit_attempted_notional != Decimal("0")
+        )
+    ):
+        blockers.append(
+            "run_state_product_live_wallet_active_reservation_overcommit_present"
+        )
+    if (
+        run_state.live_wallet_active_reservation_overcommit_run_state_ids
+        or _decimal_value(run_state.live_wallet_active_reserved_notional_usdc)
+        or _decimal_value(run_state.live_wallet_overcommit_attempted_notional_usdc)
+    ):
+        blockers.append(
+            "run_state_live_wallet_active_reservation_overcommit_present"
+        )
     queued_product_row_blockers = _dedupe(
         [
             blocker
