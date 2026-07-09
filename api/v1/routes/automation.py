@@ -7716,15 +7716,22 @@ def _validate_usdc_pair_allowlist_run_state_live_fanout_submit(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
     body: UsdcPairSnapshotAllowlistRunStateLiveFanoutSubmitRequest,
+    ledger_store: FileUsdcPairSnapshotLiveWalletLedgerStore,
 ) -> None:
     blockers = _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
         run_state=run_state,
         body=body,
     )
+    blockers.extend(
+        _usdc_pair_allowlist_run_state_live_submit_wallet_ledger_blockers(
+            run_state=run_state,
+            ledger_store=ledger_store,
+        )
+    )
     if blockers:
         raise UsdcPairSnapshotError(
             "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
-            + ",".join(blockers)
+            + ",".join(_dedupe(blockers))
         )
 
 
@@ -9552,11 +9559,11 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_evidence(
         )
 
 
-def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_ledger(
+def _usdc_pair_allowlist_run_state_live_submit_wallet_ledger_blockers(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
     ledger_store: FileUsdcPairSnapshotLiveWalletLedgerStore,
-) -> None:
+) -> list[str]:
     blockers: list[str] = []
     ledger_id = str(run_state.live_wallet_ledger_id or "").strip()
     if not ledger_id:
@@ -9738,10 +9745,22 @@ def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_ledger(
         ):
             blockers.append("run_state_live_wallet_ledger_not_no_live")
 
+    return _dedupe(blockers)
+
+
+def _validate_usdc_pair_allowlist_run_state_live_submit_wallet_ledger(
+    *,
+    run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    ledger_store: FileUsdcPairSnapshotLiveWalletLedgerStore,
+) -> None:
+    blockers = _usdc_pair_allowlist_run_state_live_submit_wallet_ledger_blockers(
+        run_state=run_state,
+        ledger_store=ledger_store,
+    )
     if blockers:
         raise UsdcPairSnapshotError(
             "USDC pair snapshot allowlist run-state live submit blocked: "
-            + ",".join(_dedupe(blockers))
+            + ",".join(blockers)
         )
 
 
@@ -11116,6 +11135,10 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_fanout(
         FileUsdcPairSnapshotAllowlistRunStateStore,
         Depends(get_usdc_pair_snapshot_allowlist_run_state_store),
     ],
+    live_wallet_ledger_store: Annotated[
+        FileUsdcPairSnapshotLiveWalletLedgerStore,
+        Depends(get_usdc_pair_snapshot_live_wallet_ledger_store),
+    ],
     idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
     audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
 ) -> JSONResponse:
@@ -11139,6 +11162,7 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_fanout(
         _validate_usdc_pair_allowlist_run_state_live_fanout_submit(
             run_state=run_state,
             body=body,
+            ledger_store=live_wallet_ledger_store,
         )
         raise UsdcPairSnapshotError(
             "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
