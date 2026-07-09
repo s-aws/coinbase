@@ -42407,6 +42407,96 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_q
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_treats_positive_execution_as_failed_rollback(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-submit-positive-execution",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-submit-positive-execution-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        append_live_readiness=True,
+    )
+    fake_order_executor = (
+        client.admin_api_test_usdc_pair_snapshot_live_order_executor
+    )
+
+    def positive_execution_with_inconsistent_status(**kwargs):
+        fake_order_executor.calls.append(dict(kwargs))
+        return {
+            "coinbase_order_id": f"exchange-{kwargs['client_order_id']}",
+            "submit_result": {
+                "success": True,
+                "client_order_id": kwargs["client_order_id"],
+            },
+            "cancel_result": {
+                "success": True,
+                "client_order_id": kwargs["client_order_id"],
+            },
+            "submitted_at": "2026-07-09T12:00:00+00:00",
+            "cancelled_at": "2026-07-09T12:00:01+00:00",
+            "order_configuration": kwargs["order_configuration"],
+            "live_exchange_submitted": True,
+            "live_coinbase_orders_ran": True,
+            "live_coinbase_execution": "submitted_cancelled",
+            "executed_notional_usdc": "0.005",
+            "cancel_submitted": True,
+            "cancel_rollback_complete": True,
+        }
+
+    fake_order_executor.submit_and_cancel = positive_execution_with_inconsistent_status
+    live_submit_body = {
+        "submission_id": "m58-usdc-allowlist-live-submit-positive-execution-submission",
+        "readiness_id": ready["live_readiness_id"],
+        "product_id": ready["product_id"],
+        "client_order_id": ready["client_order_id"],
+        "confirm_live_submit": True,
+        "confirm_single_order_only": True,
+        "confirm_cancel_before_additional_orders": True,
+        "confirm_no_additional_orders": True,
+        "operator_stop_conditions": [
+            "submit one run-state selected order only",
+            "cancel that client_order_id before any additional order",
+        ],
+        "operator_notes": "positive execution must keep rollback incomplete",
+    }
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-submit"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-allowlist-live-submit-positive-execution",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_submit",
+        ),
+        json=live_submit_body,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["live_exchange_submitted"] is True
+    assert payload["live_coinbase_orders_ran"] is True
+    assert payload["live_coinbase_execution"] == "submitted_cancel_failed"
+    assert payload["notional_usdc"] == "1.00"
+    submission = payload["submission"]
+    assert payload["submissions"] == [submission]
+    assert submission["product_id"] == ready["product_id"]
+    assert submission["client_order_id"] == ready["client_order_id"]
+    assert submission["live_submit_source"] == "allowlist_run_state"
+    assert submission["cancel_submitted"] is True
+    assert submission["cancel_rollback_complete"] is False
+    assert submission["live_coinbase_execution"] == "submitted_cancel_failed"
+    assert submission["executed_notional_usdc"] == "0.005"
+    assert len(fake_order_executor.calls) == 1
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_legacy_fanout_approval_blocker(
     monkeypatch,
 ):
@@ -44631,6 +44721,90 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rec
     assert replay.headers["X-Idempotency-Replayed"] == "true"
     assert replay.json() == payload
     assert fake_order_executor.calls == live_calls
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_treats_positive_execution_as_failed_rollback(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-positive-execution",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-positive-execution-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    extra = _append_usdc_pair_snapshot_multi_product_live_fanout_ready_fixture(
+        client,
+        ready,
+    )
+    fake_order_executor = (
+        client.admin_api_test_usdc_pair_snapshot_live_order_executor
+    )
+
+    def positive_execution_with_inconsistent_status(**kwargs):
+        fake_order_executor.calls.append(dict(kwargs))
+        return {
+            "coinbase_order_id": f"exchange-{kwargs['client_order_id']}",
+            "submit_result": {
+                "success": True,
+                "client_order_id": kwargs["client_order_id"],
+            },
+            "cancel_result": {
+                "success": True,
+                "client_order_id": kwargs["client_order_id"],
+            },
+            "submitted_at": "2026-07-09T12:00:00+00:00",
+            "cancelled_at": "2026-07-09T12:00:01+00:00",
+            "order_configuration": kwargs["order_configuration"],
+            "live_exchange_submitted": True,
+            "live_coinbase_orders_ran": True,
+            "live_coinbase_execution": "submitted_cancelled",
+            "executed_notional_usdc": "0.005",
+            "cancel_submitted": True,
+            "cancel_rollback_complete": True,
+        }
+
+    fake_order_executor.submit_and_cancel = positive_execution_with_inconsistent_status
+
+    response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="positive-execution",
+        operator_notes="positive execution must keep rollback incomplete",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["live_exchange_submitted"] is True
+    assert payload["live_coinbase_orders_ran"] is True
+    assert payload["live_coinbase_execution"] == "submitted_cancel_failed"
+    assert payload["notional_usdc"] == "1.00"
+    submissions = payload["submissions"]
+    assert len(submissions) == 1
+    assert payload["submission"] == submissions[0]
+    submission = submissions[0]
+    assert submission["product_id"] == ready["product_id"]
+    assert submission["client_order_id"] == ready["client_order_id"]
+    assert submission["live_submit_source"] == "allowlist_run_state_fanout"
+    assert submission["cancel_submitted"] is True
+    assert submission["cancel_rollback_complete"] is False
+    assert submission["live_coinbase_execution"] == "submitted_cancel_failed"
+    assert submission["executed_notional_usdc"] == "0.005"
+    live_calls = list(fake_order_executor.calls)
+    assert [call["product_id"] for call in live_calls] == ["BTC-USDC"]
+    assert extra["extra_product_id"] not in [
+        submission["product_id"] for submission in submissions
+    ]
+    assert extra["extra_client_order_id"] not in [
+        call["client_order_id"] for call in live_calls
+    ]
 
 
 @pytest.mark.regression

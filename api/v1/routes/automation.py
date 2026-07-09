@@ -10357,13 +10357,17 @@ def _record_usdc_pair_live_submission(
     cancel_submitted = bool(
         execution.get("cancel_submitted", _result_success(cancel_result))
     )
+    executed_notional_usdc = str(execution.get("executed_notional_usdc") or "0")
+    executed_notional_positive = _decimal_value(executed_notional_usdc) is not None
     cancel_complete = bool(
         execution.get("cancel_rollback_complete", cancel_submitted)
-    )
+    ) and not executed_notional_positive
     live_exchange_submitted = bool(execution.get("live_exchange_submitted"))
     live_coinbase_orders_ran = bool(execution.get("live_coinbase_orders_ran"))
     live_execution = str(
-        execution.get("live_coinbase_execution")
+        "submitted_cancel_failed"
+        if executed_notional_positive
+        else execution.get("live_coinbase_execution")
         or (
             "submitted_cancelled"
             if cancel_complete and live_exchange_submitted
@@ -10388,7 +10392,7 @@ def _record_usdc_pair_live_submission(
         order_count=1,
         single_order_only=True,
         submitted_notional_usdc=readiness.submitted_notional_usdc,
-        executed_notional_usdc=str(execution.get("executed_notional_usdc") or "0"),
+        executed_notional_usdc=executed_notional_usdc,
         max_executed_notional_usdc=readiness.max_executed_notional_usdc,
         intended_limit_price=readiness.intended_limit_price,
         reference_bid_price=readiness.reference_bid_price,
@@ -10574,13 +10578,19 @@ def _record_usdc_pair_live_fanout_submissions(
         cancel_submitted = bool(
             execution.get("cancel_submitted", _result_success(cancel_result))
         )
+        executed_notional_usdc = str(execution.get("executed_notional_usdc") or "0")
+        executed_notional_positive = (
+            _decimal_value(executed_notional_usdc) is not None
+        )
         cancel_complete = bool(
             execution.get("cancel_rollback_complete", cancel_submitted)
-        )
+        ) and not executed_notional_positive
         live_exchange_submitted = bool(execution.get("live_exchange_submitted"))
         live_coinbase_orders_ran = bool(execution.get("live_coinbase_orders_ran"))
         live_execution = str(
-            execution.get("live_coinbase_execution")
+            "submitted_cancel_failed"
+            if executed_notional_positive
+            else execution.get("live_coinbase_execution")
             or (
                 "submitted_cancelled"
                 if cancel_complete and live_exchange_submitted
@@ -10611,9 +10621,7 @@ def _record_usdc_pair_live_fanout_submissions(
             order_count=1,
             single_order_only=True,
             submitted_notional_usdc=readiness.submitted_notional_usdc,
-            executed_notional_usdc=str(
-                execution.get("executed_notional_usdc") or "0"
-            ),
+            executed_notional_usdc=executed_notional_usdc,
             max_executed_notional_usdc=readiness.max_executed_notional_usdc,
             intended_limit_price=readiness.intended_limit_price,
             reference_bid_price=readiness.reference_bid_price,
