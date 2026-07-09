@@ -3146,6 +3146,18 @@ class UsdcPairSnapshotAllowlistRunStateRequest(BaseModel):
         default=None,
         min_length=1,
     )
+    runtime_fanout_live_service_binding_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    runtime_fanout_enabled_decision_recheck_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    runtime_fanout_live_service_scope_recheck_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
     runtime_fanout_live_wallet_ledger_ref: str | None = Field(
         default=None,
         min_length=1,

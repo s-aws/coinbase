@@ -171205,6 +171205,24 @@ components:
             minLength: 1
           - type: 'null'
           title: Runtime Fanout Last Fill Distance Recheck Ref
+        runtime_fanout_live_service_binding_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Live Service Binding Ref
+        runtime_fanout_enabled_decision_recheck_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Enabled Decision Recheck Ref
+        runtime_fanout_live_service_scope_recheck_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Live Service Scope Recheck Ref
         runtime_fanout_live_wallet_ledger_ref:
           anyOf:
           - type: string

@@ -5016,6 +5016,49 @@ def _allowlist_run_state_price_freshness_readback(
     )
 
 
+def _allowlist_run_state_live_service_readback(
+    *,
+    live_service_binding_ref: str | None,
+    enabled_decision_recheck_ref: str | None,
+    live_service_scope_recheck_ref: str | None,
+) -> tuple[str, str | None, list[str]]:
+    blockers: list[str] = []
+    normalized_live_service_binding_ref = (
+        live_service_binding_ref.strip() if live_service_binding_ref else None
+    )
+    normalized_enabled_decision_recheck_ref = (
+        enabled_decision_recheck_ref.strip()
+        if enabled_decision_recheck_ref
+        else None
+    )
+    normalized_live_service_scope_recheck_ref = (
+        live_service_scope_recheck_ref.strip()
+        if live_service_scope_recheck_ref
+        else None
+    )
+    if not normalized_live_service_binding_ref:
+        blockers.append("runtime_fanout_live_service_binding_missing")
+    if not normalized_enabled_decision_recheck_ref:
+        blockers.append("runtime_fanout_enabled_decision_recheck_missing")
+    if not normalized_live_service_scope_recheck_ref:
+        blockers.append("runtime_fanout_live_service_scope_recheck_missing")
+    if blockers:
+        return (
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_LIVE_SERVICE_BLOCKED_STATUS,
+            None,
+            blockers,
+        )
+    return (
+        "ready_no_live",
+        (
+            f"live_service_binding:{normalized_live_service_binding_ref};"
+            f"enabled_decision_recheck:{normalized_enabled_decision_recheck_ref};"
+            f"live_service_scope_recheck:{normalized_live_service_scope_recheck_ref}"
+        ),
+        [],
+    )
+
+
 def _allowlist_run_state_wallet_ledger_readback(
     *,
     live_wallet_ledger_ref: str | None,
@@ -5788,6 +5831,19 @@ def _record_usdc_pair_allowlist_run_state(
         ),
     )
     (
+        runtime_fanout_live_service_status,
+        runtime_fanout_live_service_ref,
+        runtime_fanout_live_service_blockers,
+    ) = _allowlist_run_state_live_service_readback(
+        live_service_binding_ref=body.runtime_fanout_live_service_binding_ref,
+        enabled_decision_recheck_ref=(
+            body.runtime_fanout_enabled_decision_recheck_ref
+        ),
+        live_service_scope_recheck_ref=(
+            body.runtime_fanout_live_service_scope_recheck_ref
+        ),
+    )
+    (
         runtime_fanout_rate_limit_status,
         runtime_fanout_rate_limit_ref,
         runtime_fanout_rate_limit_blockers,
@@ -6139,11 +6195,11 @@ def _record_usdc_pair_allowlist_run_state(
             runtime_fanout_price_freshness_blockers
         ),
         runtime_fanout_live_service_status=(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_LIVE_SERVICE_BLOCKED_STATUS
+            runtime_fanout_live_service_status
         ),
-        runtime_fanout_live_service_ref=None,
+        runtime_fanout_live_service_ref=runtime_fanout_live_service_ref,
         runtime_fanout_live_service_blockers=list(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_LIVE_SERVICE_BLOCKERS
+            runtime_fanout_live_service_blockers
         ),
         runtime_fanout_admission_audit_status=(
             USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_ADMISSION_AUDIT_BLOCKED_STATUS
