@@ -6851,7 +6851,7 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
     run_state_store: FileUsdcPairSnapshotAllowlistRunStateStore,
     body: UsdcPairSnapshotAllowlistRunStateLiveFanoutSubmitRequest,
 ) -> list[str]:
-    blockers: list[str] = ["live_fanout_executor_not_implemented"]
+    blockers: list[str] = []
 
     def extend_if_not_ready(
         *,

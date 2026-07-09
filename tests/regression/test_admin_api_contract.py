@@ -42513,9 +42513,10 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_is_
     )
     assert payload["submission"] is None
     assert payload["audit_id"]
-    assert "live_fanout_executor_not_implemented" in payload["message"]
+    assert "live_fanout_executor_not_implemented" not in payload["message"]
     assert "fanout_execution_technically_blocked" in payload["message"]
     assert "scheduler_blocked" in payload["message"]
+    assert "runtime_fanout_worker_missing" in payload["message"]
     assert payload["live_exchange_submitted"] is False
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_execution"] == "not_run"
@@ -43803,6 +43804,227 @@ def _post_usdc_pair_snapshot_live_fanout_submit_fixture(
             "operator_notes": operator_notes,
         },
     )
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_keeps_final_executor_guard(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-final-executor-gap",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-final-executor-gap-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    allowlist_readiness_store = (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_allowlist_readiness_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(
+        ready["run_state_id"]
+    )
+    assert source_run_state is not None
+    source_allowlist_readiness = allowlist_readiness_store.find_by_readiness_id(
+        ready["allowlist_readiness_id"]
+    )
+    assert source_allowlist_readiness is not None
+    source_product = source_run_state.product_states[0]
+    source_cap_guard = client.admin_api_test_cap_guard_store.find_by_decision_id(
+        source_product.cap_guard_decision_id
+    )
+    assert source_cap_guard is not None
+    client.admin_api_test_cap_guard_store.append(
+        source_cap_guard.model_copy(
+            update={
+                "route": (
+                    "/api/v1/automation/usdc-pair-snapshot-order-plan-"
+                    "allowlist-readiness/{readiness_id}/run-state"
+                ),
+                "service_method": (
+                    "record_usdc_pair_snapshot_allowlist_run_state"
+                ),
+            }
+        )
+    )
+    allowlist_readiness_store.append(
+        source_allowlist_readiness.model_copy(update={"fanout_blockers": []})
+    )
+    proof_ref_updates = {
+        "fanout_execution_status": "ready_live",
+        "fanout_blockers": [],
+        "runtime_fanout_execution_status": "ready_no_live",
+        "runtime_fanout_worker_ref": (
+            "worker:m58-live-fanout-worker;"
+            "durable_worker:m58-live-fanout-durable-worker;"
+            "idempotency:m58-live-fanout-idempotency"
+        ),
+        "runtime_fanout_execution_blockers": [],
+        "runtime_fanout_price_freshness_status": "ready_no_live",
+        "runtime_fanout_price_freshness_ref": (
+            "price_freshness_binding:m58-price-freshness;"
+            "reference_bid_recheck:m58-reference-bid;"
+            "last_fill_distance_recheck:m58-last-fill-distance"
+        ),
+        "runtime_fanout_price_freshness_blockers": [],
+        "runtime_fanout_live_service_status": "ready_no_live",
+        "runtime_fanout_live_service_ref": (
+            "live_service_binding:m58-live-service;"
+            "enabled_decision_recheck:m58-enabled-decision;"
+            "live_service_scope_recheck:m58-live-service-scope"
+        ),
+        "runtime_fanout_live_service_blockers": [],
+        "runtime_fanout_admission_audit_status": "ready_no_live",
+        "runtime_fanout_admission_audit_ref": (
+            "admission_audit_binding:m58-admission;"
+            "admission_decision_recheck:m58-admission-decision;"
+            "operator_intent_audit_recheck:m58-operator-intent"
+        ),
+        "runtime_fanout_admission_audit_blockers": [],
+        "runtime_fanout_reconciliation_status": "ready_no_live",
+        "runtime_fanout_reconciliation_ref": (
+            "reconciliation_binding:m58-reconciliation;"
+            "reconciliation_plan_recheck:m58-reconciliation-plan;"
+            "exchange_readback_recheck:m58-exchange-readback"
+        ),
+        "runtime_fanout_reconciliation_blockers": [],
+        "runtime_fanout_cap_guard_status": "ready_no_live",
+        "runtime_fanout_cap_guard_ref": (
+            "cap_guard_binding:m58-cap-guard;"
+            "submitted_notional_guard:m58-submitted-notional;"
+            "wallet_available_guard:m58-wallet-available"
+        ),
+        "runtime_fanout_cap_guard_blockers": [],
+        "runtime_fanout_wallet_ledger_status": "ready_no_live",
+        "runtime_fanout_wallet_ledger_ref": (
+            "live_wallet_ledger:m58-live-wallet-ledger;"
+            "overcommit_binding:m58-overcommit;"
+            "debit_release_binding:m58-debit-release"
+        ),
+        "runtime_fanout_wallet_ledger_blockers": [],
+        "runtime_fanout_retry_recovery_status": "ready_no_live",
+        "runtime_fanout_retry_recovery_ref": (
+            "retry_budget_binding:m58-retry-budget;"
+            "recovery_replay_binding:m58-recovery-replay;"
+            "partial_failure_policy:m58-partial-failure"
+        ),
+        "runtime_fanout_retry_recovery_blockers": [],
+        "runtime_fanout_release_review_status": "ready_no_live",
+        "runtime_fanout_release_review_ref": (
+            "release_gate:m58-release-gate;"
+            "contextless_review:m58-contextless-review"
+        ),
+        "runtime_fanout_release_review_blockers": [],
+        "runtime_fanout_rate_limit_status": "ready_no_live",
+        "runtime_fanout_rate_limit_ref": (
+            "worker:m58-rate-limit-worker;"
+            "binding:m58-rate-limit-binding;"
+            "release_gate:m58-rate-limit-release-gate"
+        ),
+        "runtime_fanout_rate_limit_blockers": [],
+        "runtime_fanout_runtime_control_status": "ready_no_live",
+        "runtime_fanout_runtime_control_ref": (
+            "pause:m58-pause-control;"
+            "abort:m58-abort-control;"
+            "binding:m58-runtime-control"
+        ),
+        "runtime_fanout_runtime_control_blockers": [],
+        "scheduler_standing_cap_status": "ready_no_live",
+        "scheduler_standing_cap_ref": (
+            "policy:m58-standing-cap;"
+            "spot:m58-spot-cap;"
+            "perpetual:m58-perpetual-cap"
+        ),
+        "scheduler_standing_cap_blockers": [],
+        "scheduler_wallet_ledger_status": "ready_no_live",
+        "scheduler_wallet_ledger_ref": (
+            "live_wallet_ledger:m58-scheduler-wallet-ledger;"
+            "overcommit_prevention:m58-scheduler-overcommit;"
+            "debit_release:m58-scheduler-debit-release"
+        ),
+        "scheduler_wallet_ledger_blockers": [],
+        "scheduler_release_review_status": "ready_no_live",
+        "scheduler_release_review_ref": (
+            "release_gate:m58-scheduler-release-gate;"
+            "contextless_review:m58-scheduler-contextless-review"
+        ),
+        "scheduler_release_review_blockers": [],
+        "scheduler_worker_status": "ready_no_live",
+        "scheduler_worker_ref": (
+            "worker:m58-scheduler-worker;"
+            "durable_worker:m58-scheduler-durable-worker;"
+            "idempotency:m58-scheduler-idempotency"
+        ),
+        "scheduler_worker_blockers": [],
+        "scheduler_rate_limit_status": "ready_no_live",
+        "scheduler_rate_limit_ref": (
+            "worker:m58-scheduler-rate-limit-worker;"
+            "binding:m58-scheduler-rate-limit-binding;"
+            "release_gate:m58-scheduler-rate-limit-release-gate"
+        ),
+        "scheduler_rate_limit_blockers": [],
+        "scheduler_runtime_control_status": "ready_no_live",
+        "scheduler_runtime_control_ref": (
+            "pause:m58-scheduler-pause;"
+            "abort:m58-scheduler-abort;"
+            "binding:m58-scheduler-runtime-control"
+        ),
+        "scheduler_runtime_control_blockers": [],
+        "scheduler_retry_policy_status": "ready_no_live",
+        "scheduler_retry_policy_ref": (
+            "budget_policy:m58-scheduler-retry-budget;"
+            "backoff_binding:m58-scheduler-backoff;"
+            "release_gate:m58-scheduler-retry-release-gate"
+        ),
+        "scheduler_retry_policy_blockers": [],
+        "scheduler_cadence_status": "ready_no_live",
+        "scheduler_cadence_ref": (
+            "cadence_policy:m58-scheduler-cadence;"
+            "worker:m58-scheduler-cadence-worker;"
+            "release_gate:m58-scheduler-cadence-release-gate"
+        ),
+        "scheduler_cadence_blockers": [],
+        "scheduler_recovery_runbook_status": "ready_no_live",
+        "scheduler_recovery_runbook_ref": (
+            "runbook:m58-scheduler-recovery-runbook;"
+            "worker:m58-scheduler-recovery-worker;"
+            "reconciliation_replay:m58-scheduler-reconciliation"
+        ),
+        "scheduler_recovery_runbook_blockers": [],
+    }
+    run_state_store.append(source_run_state.model_copy(update=proof_ref_updates))
+
+    response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="final-executor-gap",
+        operator_notes="all route proofs clear before executor wiring",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    assert payload["submission"] is None
+    assert payload["audit_id"]
+    assert "live_fanout_executor_not_implemented" in payload["message"]
+    assert "fanout_execution_technically_blocked" not in payload["message"]
+    assert "scheduler_blocked" not in payload["message"]
+    assert "runtime_fanout_worker_missing" not in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
 
 
 @pytest.mark.regression
