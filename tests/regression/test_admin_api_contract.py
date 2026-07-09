@@ -44487,7 +44487,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rec
     assert submission["additional_orders_blocked"] is True
     assert submission["notional_usdc"] == "1.00"
     assert submission["executed_notional_usdc"] == "0"
-    live_calls = fake_order_executor.calls
+    live_calls = list(fake_order_executor.calls)
     assert [call["product_id"] for call in live_calls] == ["BTC-USDC"]
     assert [call["client_order_id"] for call in live_calls] == [
         ready["client_order_id"]
@@ -44498,6 +44498,18 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rec
     assert extra["extra_client_order_id"] not in [
         call["client_order_id"] for call in live_calls
     ]
+
+    replay = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="cancel-failure",
+        operator_notes="cancel failure must stop before second fanout order",
+    )
+
+    assert replay.status_code == 200
+    assert replay.headers["X-Idempotency-Replayed"] == "true"
+    assert replay.json() == payload
+    assert fake_order_executor.calls == live_calls
 
 
 @pytest.mark.regression
