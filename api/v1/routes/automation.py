@@ -7723,6 +7723,10 @@ def _usdc_pair_allowlist_run_state_live_fanout_allowlist_readiness_blockers(
         allowlist_readiness.product_ids
     ) != _normalized_usdc_pair_product_id_multiset(run_state.product_ids):
         blockers.append("run_state_allowlist_readiness_product_ids_mismatch")
+    if _normalized_usdc_pair_string_multiset(
+        allowlist_readiness.fanout_blockers
+    ) != _normalized_usdc_pair_string_multiset(run_state.fanout_blockers):
+        blockers.append("run_state_allowlist_readiness_fanout_blockers_mismatch")
 
     readiness_row_keys = sorted(
         (

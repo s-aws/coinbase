@@ -44266,6 +44266,59 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_stale_allowlist_readiness_fanout_blockers(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-parent-blockers",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-parent-blockers-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    allowlist_readiness_store = (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_allowlist_readiness_store
+    )
+    source_readiness = allowlist_readiness_store.find_by_readiness_id(
+        ready["allowlist_readiness_id"]
+    )
+    assert source_readiness is not None
+    allowlist_readiness_store.append(
+        source_readiness.model_copy(
+            update={"fanout_blockers": ["fanout_execution_not_approved"]}
+        )
+    )
+
+    response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="parent-fanout-blockers",
+        operator_notes="stale parent allowlist-readiness blockers block fan-out",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    assert (
+        "run_state_allowlist_readiness_fanout_blockers_mismatch"
+        in payload["message"]
+    )
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_live_service_record(
     monkeypatch,
 ):
