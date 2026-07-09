@@ -7712,6 +7712,42 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
     return _dedupe(blockers)
 
 
+def _usdc_pair_allowlist_run_state_live_fanout_allowlist_readiness_blockers(
+    *,
+    run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    allowlist_readiness: UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
+) -> list[str]:
+    blockers: list[str] = []
+    run_state_product_ids = [row.product_id for row in run_state.product_states]
+    if _normalized_usdc_pair_product_id_multiset(
+        allowlist_readiness.product_ids
+    ) != _normalized_usdc_pair_product_id_multiset(run_state.product_ids):
+        blockers.append("run_state_allowlist_readiness_product_ids_mismatch")
+
+    readiness_row_keys = sorted(
+        (
+            row.product_id.strip().upper(),
+            str(row.client_order_id or "").strip(),
+        )
+        for row in allowlist_readiness.product_readiness_rows
+    )
+    run_state_row_keys = sorted(
+        (
+            row.product_id.strip().upper(),
+            str(row.client_order_id or "").strip(),
+        )
+        for row in run_state.product_states
+    )
+    if _normalized_usdc_pair_product_id_multiset(
+        [row.product_id for row in allowlist_readiness.product_readiness_rows]
+    ) != _normalized_usdc_pair_product_id_multiset(run_state_product_ids):
+        blockers.append("run_state_allowlist_readiness_product_rows_mismatch")
+    elif readiness_row_keys != run_state_row_keys:
+        blockers.append("run_state_allowlist_readiness_product_rows_mismatch")
+
+    return blockers
+
+
 def _validate_usdc_pair_allowlist_run_state_live_fanout_submit(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
@@ -7739,6 +7775,12 @@ def _validate_usdc_pair_allowlist_run_state_live_fanout_submit(
             blockers.append("run_state_allowlist_readiness_plan_mismatch")
         if allowlist_readiness.snapshot_run_id != run_state.snapshot_run_id:
             blockers.append("run_state_allowlist_readiness_snapshot_mismatch")
+        blockers.extend(
+            _usdc_pair_allowlist_run_state_live_fanout_allowlist_readiness_blockers(
+                run_state=run_state,
+                allowlist_readiness=allowlist_readiness,
+            )
+        )
     if run_state.plan_id != plan.plan_id:
         blockers.append("run_state_plan_id_mismatch")
     if run_state.snapshot_run_id != plan.snapshot_run_id:
