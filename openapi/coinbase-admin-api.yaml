@@ -171223,6 +171223,24 @@ components:
             minLength: 1
           - type: 'null'
           title: Runtime Fanout Live Service Scope Recheck Ref
+        runtime_fanout_admission_audit_binding_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Admission Audit Binding Ref
+        runtime_fanout_admission_decision_recheck_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Admission Decision Recheck Ref
+        runtime_fanout_operator_intent_audit_recheck_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Operator Intent Audit Recheck Ref
         runtime_fanout_live_wallet_ledger_ref:
           anyOf:
           - type: string

@@ -35828,6 +35828,122 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_runtime_fanout
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_runtime_fanout_admission_audit_refs(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    client.admin_api_test_cap_guard_store.append(
+        CapGuardDecisionRecord(
+            decision_id="cap-m58-run-state-runtime-admission-audit-btc",
+            route=(
+                "/api/v1/automation/usdc-pair-snapshot-order-plan-"
+                "allowlist-readiness/{readiness_id}/run-state"
+            ),
+            method="POST",
+            module_id="automation",
+            identity_key="client_order_id",
+            identity_value="m58-usdc-run-state-negative-BTC-USDC",
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method="record_usdc_pair_snapshot_allowlist_run_state",
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+            idempotency_key=(
+                "idem-usdc-allowlist-run-state-runtime-admission-audit"
+            ),
+            payload_hash="c" * 64,
+            approval_snapshot_id=(
+                "approval-m58-run-state-runtime-admission-audit-btc"
+            ),
+            admission_audit_id=(
+                "admission-m58-run-state-runtime-admission-audit-btc"
+            ),
+            allowed=True,
+            status=AdminApiGateStatus.PASSED,
+            cap_policy_ref="m58_phase_f_submitted_notional_cap",
+            guard_policy_ref="m58_phase_f_wallet_allocation_guard",
+            product_scope="BTC-USDC",
+            max_submitted_notional_usdc="1.00",
+            max_executed_notional_usdc="0",
+            wallet_check_required=True,
+            wallet_check_status=AdminApiGateStatus.PASSED,
+            wallet_available_notional_usdc="1.00",
+            wallet_check_source="m58_usdc_pair_allowlist_run_state_fixture",
+            reason="No-live M58 runtime fan-out admission-audit source evidence.",
+        )
+    )
+    _append_usdc_pair_snapshot_allowlist_run_state_readiness(
+        client,
+        readiness_id="m58-usdc-allowlist-run-state-runtime-admission-readiness",
+        plan_id="m58-usdc-allowlist-run-state-runtime-admission-plan",
+        snapshot_run_id="m58-usdc-allowlist-run-state-runtime-admission-snapshot",
+        cap_guard_decision_id="cap-m58-run-state-runtime-admission-audit-btc",
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+            "m58-usdc-allowlist-run-state-runtime-admission-readiness/run-state"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-usdc-allowlist-run-state-runtime-admission-audit"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+        ),
+        json={
+            "run_state_id": "m58-usdc-allowlist-run-state-runtime-admission-audit",
+            "execution_mode": "no_live_rehearsal",
+            "max_fanout_notional_usdc": "100",
+            "run_lock_ref": "m58-run-lock-runtime-admission-audit",
+            "rate_limit_window_ref": "m58-rate-limit-window-runtime-admission-audit",
+            "runtime_fanout_admission_audit_binding_ref": (
+                "m58-runtime-admission-audit-binding-no-live-20260709"
+            ),
+            "runtime_fanout_admission_decision_recheck_ref": (
+                "m58-runtime-admission-decision-recheck-no-live-20260709"
+            ),
+            "runtime_fanout_operator_intent_audit_recheck_ref": (
+                "m58-runtime-operator-intent-audit-recheck-no-live-20260709"
+            ),
+            "pause_requested": False,
+            "abort_requested": False,
+            "operator_notes": "no-live runtime fan-out admission-audit evidence",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+
+    run_state = payload["run_state"]
+    assert run_state["runtime_fanout_admission_audit_status"] == "ready_no_live"
+    assert run_state["runtime_fanout_admission_audit_ref"] == (
+        "admission_audit_binding:"
+        "m58-runtime-admission-audit-binding-no-live-20260709;"
+        "admission_decision_recheck:"
+        "m58-runtime-admission-decision-recheck-no-live-20260709;"
+        "operator_intent_audit_recheck:"
+        "m58-runtime-operator-intent-audit-recheck-no-live-20260709"
+    )
+    assert run_state["runtime_fanout_admission_audit_blockers"] == []
+    assert run_state["runtime_fanout_execution_status"] == "blocked_no_live"
+    assert run_state["runtime_fanout_worker_ref"] is None
+    assert "runtime_fanout_worker_missing" in run_state[
+        "runtime_fanout_execution_blockers"
+    ]
+    assert run_state["runtime_fanout_reconciliation_status"] == "blocked_no_live"
+    assert run_state["runtime_fanout_cap_guard_status"] == "blocked_no_live"
+    assert run_state["fanout_execution_status"] == "blocked"
+    assert "fanout_execution_technically_blocked" in run_state["fanout_blockers"]
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_runtime_fanout_wallet_ledger_refs(
     monkeypatch,
 ):
@@ -66308,6 +66424,18 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert "runtime_fanout_admission_audit_ref absent" in runtime_fanout_detail
     assert "runtime_fanout_admission_audit_blockers" in runtime_fanout_detail
+    assert (
+        "runtime fan-out admission-audit, admission-decision, and "
+        "operator-intent-audit recheck refs can now record"
+    ) in runtime_fanout_detail
+    assert "runtime_fanout_admission_audit_status=ready_no_live" in (
+        runtime_fanout_detail
+    )
+    assert (
+        "This runtime fan-out admission-audit readback does not clear worker, "
+        "reconciliation, cap-guard, wallet, retry, scheduler, or Coinbase "
+        "execution blockers"
+    ) in runtime_fanout_detail
     assert "runtime_fanout_reconciliation_status=blocked_no_live" in (
         runtime_fanout_detail
     )

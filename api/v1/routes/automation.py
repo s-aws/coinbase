@@ -5059,6 +5059,52 @@ def _allowlist_run_state_live_service_readback(
     )
 
 
+def _allowlist_run_state_admission_audit_readback(
+    *,
+    admission_audit_binding_ref: str | None,
+    admission_decision_recheck_ref: str | None,
+    operator_intent_audit_recheck_ref: str | None,
+) -> tuple[str, str | None, list[str]]:
+    blockers: list[str] = []
+    normalized_admission_audit_binding_ref = (
+        admission_audit_binding_ref.strip()
+        if admission_audit_binding_ref
+        else None
+    )
+    normalized_admission_decision_recheck_ref = (
+        admission_decision_recheck_ref.strip()
+        if admission_decision_recheck_ref
+        else None
+    )
+    normalized_operator_intent_audit_recheck_ref = (
+        operator_intent_audit_recheck_ref.strip()
+        if operator_intent_audit_recheck_ref
+        else None
+    )
+    if not normalized_admission_audit_binding_ref:
+        blockers.append("runtime_fanout_admission_audit_binding_missing")
+    if not normalized_admission_decision_recheck_ref:
+        blockers.append("runtime_fanout_admission_decision_recheck_missing")
+    if not normalized_operator_intent_audit_recheck_ref:
+        blockers.append("runtime_fanout_operator_intent_audit_recheck_missing")
+    if blockers:
+        return (
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_ADMISSION_AUDIT_BLOCKED_STATUS,
+            None,
+            blockers,
+        )
+    return (
+        "ready_no_live",
+        (
+            f"admission_audit_binding:{normalized_admission_audit_binding_ref};"
+            f"admission_decision_recheck:{normalized_admission_decision_recheck_ref};"
+            "operator_intent_audit_recheck:"
+            f"{normalized_operator_intent_audit_recheck_ref}"
+        ),
+        [],
+    )
+
+
 def _allowlist_run_state_wallet_ledger_readback(
     *,
     live_wallet_ledger_ref: str | None,
@@ -5844,6 +5890,21 @@ def _record_usdc_pair_allowlist_run_state(
         ),
     )
     (
+        runtime_fanout_admission_audit_status,
+        runtime_fanout_admission_audit_ref,
+        runtime_fanout_admission_audit_blockers,
+    ) = _allowlist_run_state_admission_audit_readback(
+        admission_audit_binding_ref=(
+            body.runtime_fanout_admission_audit_binding_ref
+        ),
+        admission_decision_recheck_ref=(
+            body.runtime_fanout_admission_decision_recheck_ref
+        ),
+        operator_intent_audit_recheck_ref=(
+            body.runtime_fanout_operator_intent_audit_recheck_ref
+        ),
+    )
+    (
         runtime_fanout_rate_limit_status,
         runtime_fanout_rate_limit_ref,
         runtime_fanout_rate_limit_blockers,
@@ -6202,11 +6263,11 @@ def _record_usdc_pair_allowlist_run_state(
             runtime_fanout_live_service_blockers
         ),
         runtime_fanout_admission_audit_status=(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_ADMISSION_AUDIT_BLOCKED_STATUS
+            runtime_fanout_admission_audit_status
         ),
-        runtime_fanout_admission_audit_ref=None,
+        runtime_fanout_admission_audit_ref=runtime_fanout_admission_audit_ref,
         runtime_fanout_admission_audit_blockers=list(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_ADMISSION_AUDIT_BLOCKERS
+            runtime_fanout_admission_audit_blockers
         ),
         runtime_fanout_reconciliation_status=(
             USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RECONCILIATION_BLOCKED_STATUS
