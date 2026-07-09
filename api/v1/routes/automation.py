@@ -6889,6 +6889,13 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
     ):
         blockers.append("request_fanout_notional_cap_exceeds_run_state_cap")
     planned_fanout_notional = _decimal_value(run_state.planned_fanout_notional_usdc)
+    allocated_fanout_notional = _non_negative_decimal_value(
+        run_state.allocated_fanout_notional_usdc
+    )
+    if planned_fanout_notional is None:
+        blockers.append("run_state_planned_fanout_notional_invalid")
+    if allocated_fanout_notional is None:
+        blockers.append("run_state_allocated_fanout_notional_invalid")
     if (
         max_fanout_notional is not None
         and planned_fanout_notional is not None
@@ -6901,6 +6908,27 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
         and planned_fanout_notional > run_state_max_fanout_notional
     ):
         blockers.append("planned_fanout_notional_exceeds_run_state_cap")
+    if (
+        run_state_max_fanout_notional is not None
+        and allocated_fanout_notional is not None
+        and _usdc_pair_decimal_mismatch(
+            run_state.fanout_cap_remaining_usdc,
+            run_state_max_fanout_notional - allocated_fanout_notional,
+        )
+    ):
+        blockers.append("run_state_fanout_cap_remaining_mismatch")
+    if (
+        run_state_max_fanout_notional is not None
+        and planned_fanout_notional is not None
+        and _usdc_pair_decimal_mismatch(
+            run_state.fanout_cap_overage_usdc,
+            max(
+                planned_fanout_notional - run_state_max_fanout_notional,
+                Decimal("0"),
+            ),
+        )
+    ):
+        blockers.append("run_state_fanout_cap_overage_mismatch")
     if not body.confirm_live_fanout_submit:
         blockers.append("live_fanout_submit_confirmation_missing")
     if not body.confirm_backend_owned_execution:
