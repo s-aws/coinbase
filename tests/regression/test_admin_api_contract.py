@@ -42317,7 +42317,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_q
 
 
 @pytest.mark.regression
-def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_accepts_legacy_fanout_approval_blocker(
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_rejects_legacy_fanout_approval_blocker(
     monkeypatch,
 ):
     client = _client(monkeypatch)
@@ -42371,18 +42371,22 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_accepts_le
                 "submit one run-state selected order only",
                 "cancel that client_order_id before any additional order",
             ],
-            "operator_notes": "legacy fanout blocker compatibility",
+            "operator_notes": "legacy fanout approval blocker must stay rejected",
         },
     )
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
-    assert payload["live_exchange_submitted"] is True
-    assert payload["live_coinbase_orders_ran"] is True
-    assert payload["live_coinbase_execution"] == "submitted_cancelled"
-    assert payload["notional_usdc"] == "1.00"
-    assert len(client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls) == 1
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_submit"
+    )
+    assert "run_state_parent_fanout_blockers_present" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
 
 
 @pytest.mark.regression
