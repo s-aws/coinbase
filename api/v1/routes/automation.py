@@ -6851,6 +6851,20 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
     body: UsdcPairSnapshotAllowlistRunStateLiveFanoutSubmitRequest,
 ) -> list[str]:
     blockers: list[str] = ["live_fanout_executor_not_implemented"]
+
+    def extend_if_not_ready(
+        *,
+        status_value: str,
+        blocker_values: list[str],
+        fallback: str,
+    ) -> None:
+        if status_value == "ready_no_live":
+            return
+        if blocker_values:
+            blockers.extend(blocker_values)
+        else:
+            blockers.append(fallback)
+
     max_fanout_notional = _decimal_value(body.max_fanout_notional_usdc)
     if max_fanout_notional is None or max_fanout_notional <= 0:
         blockers.append("max_fanout_notional_invalid")
@@ -6876,6 +6890,61 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
     if run_state.fanout_execution_status != "ready_live":
         blockers.append(USDC_PAIR_SNAPSHOT_FANOUT_EXECUTION_TECHNICAL_BLOCKER)
     blockers.extend(run_state.fanout_blockers)
+    extend_if_not_ready(
+        status_value=run_state.runtime_fanout_execution_status,
+        blocker_values=list(run_state.runtime_fanout_execution_blockers),
+        fallback="runtime_fanout_execution_not_ready",
+    )
+    extend_if_not_ready(
+        status_value=run_state.runtime_fanout_price_freshness_status,
+        blocker_values=list(run_state.runtime_fanout_price_freshness_blockers),
+        fallback="runtime_fanout_price_freshness_not_ready",
+    )
+    extend_if_not_ready(
+        status_value=run_state.runtime_fanout_live_service_status,
+        blocker_values=list(run_state.runtime_fanout_live_service_blockers),
+        fallback="runtime_fanout_live_service_not_ready",
+    )
+    extend_if_not_ready(
+        status_value=run_state.runtime_fanout_admission_audit_status,
+        blocker_values=list(run_state.runtime_fanout_admission_audit_blockers),
+        fallback="runtime_fanout_admission_audit_not_ready",
+    )
+    extend_if_not_ready(
+        status_value=run_state.runtime_fanout_reconciliation_status,
+        blocker_values=list(run_state.runtime_fanout_reconciliation_blockers),
+        fallback="runtime_fanout_reconciliation_not_ready",
+    )
+    extend_if_not_ready(
+        status_value=run_state.runtime_fanout_cap_guard_status,
+        blocker_values=list(run_state.runtime_fanout_cap_guard_blockers),
+        fallback="runtime_fanout_cap_guard_not_ready",
+    )
+    extend_if_not_ready(
+        status_value=run_state.runtime_fanout_wallet_ledger_status,
+        blocker_values=list(run_state.runtime_fanout_wallet_ledger_blockers),
+        fallback="runtime_fanout_wallet_ledger_not_ready",
+    )
+    extend_if_not_ready(
+        status_value=run_state.runtime_fanout_retry_recovery_status,
+        blocker_values=list(run_state.runtime_fanout_retry_recovery_blockers),
+        fallback="runtime_fanout_retry_recovery_not_ready",
+    )
+    extend_if_not_ready(
+        status_value=run_state.runtime_fanout_release_review_status,
+        blocker_values=list(run_state.runtime_fanout_release_review_blockers),
+        fallback="runtime_fanout_release_review_not_ready",
+    )
+    extend_if_not_ready(
+        status_value=run_state.runtime_fanout_rate_limit_status,
+        blocker_values=list(run_state.runtime_fanout_rate_limit_blockers),
+        fallback="runtime_fanout_rate_limit_not_ready",
+    )
+    extend_if_not_ready(
+        status_value=run_state.runtime_fanout_runtime_control_status,
+        blocker_values=list(run_state.runtime_fanout_runtime_control_blockers),
+        fallback="runtime_fanout_runtime_control_not_ready",
+    )
     if run_state.scheduler_execution_status != "blocked_no_live":
         blockers.append("scheduler_execution_state_unexpected")
     if run_state.scheduler_unattended_execution != "not_run":
