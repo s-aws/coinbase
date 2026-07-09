@@ -171212,6 +171212,24 @@ components:
             minLength: 1
           - type: 'null'
           title: Scheduler Contextless Review Ref
+        scheduler_worker_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Worker Ref
+        scheduler_durable_worker_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Durable Worker Ref
+        scheduler_worker_idempotency_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Worker Idempotency Ref
         live_wallet_reservation_ids:
           items:
             type: string

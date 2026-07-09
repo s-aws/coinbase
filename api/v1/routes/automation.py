@@ -5040,6 +5040,43 @@ def _allowlist_run_state_scheduler_release_review_readback(
     )
 
 
+def _allowlist_run_state_scheduler_worker_readback(
+    *,
+    worker_ref: str | None,
+    durable_worker_ref: str | None,
+    idempotency_ref: str | None,
+) -> tuple[str, str | None, list[str]]:
+    blockers: list[str] = []
+    normalized_worker_ref = worker_ref.strip() if worker_ref else None
+    normalized_durable_worker_ref = (
+        durable_worker_ref.strip() if durable_worker_ref else None
+    )
+    normalized_idempotency_ref = (
+        idempotency_ref.strip() if idempotency_ref else None
+    )
+    if not normalized_worker_ref:
+        blockers.append("scheduler_worker_missing")
+    if not normalized_durable_worker_ref:
+        blockers.append("scheduler_durable_worker_missing")
+    if not normalized_idempotency_ref:
+        blockers.append("scheduler_worker_idempotency_missing")
+    if blockers:
+        return (
+            USDC_PAIR_SNAPSHOT_SCHEDULER_WORKER_BLOCKED_STATUS,
+            None,
+            blockers,
+        )
+    return (
+        "ready_no_live",
+        (
+            f"worker:{normalized_worker_ref};"
+            f"durable_worker:{normalized_durable_worker_ref};"
+            f"idempotency:{normalized_idempotency_ref}"
+        ),
+        [],
+    )
+
+
 def _allowlist_run_state_runtime_statuses(
     *,
     readiness: UsdcPairSnapshotOrderPlanAllowlistReadinessRecord,
@@ -5414,6 +5451,15 @@ def _record_usdc_pair_allowlist_run_state(
         release_gate_ref=body.scheduler_release_gate_ref,
         contextless_review_ref=body.scheduler_contextless_review_ref,
     )
+    (
+        scheduler_worker_status,
+        scheduler_worker_ref,
+        scheduler_worker_blockers,
+    ) = _allowlist_run_state_scheduler_worker_readback(
+        worker_ref=body.scheduler_worker_ref,
+        durable_worker_ref=body.scheduler_durable_worker_ref,
+        idempotency_ref=body.scheduler_worker_idempotency_ref,
+    )
     run_state_id = body.run_state_id or f"m58-usdc-allowlist-run-state-{uuid4()}"
     live_wallet_ledger = UsdcPairSnapshotLiveWalletLedgerRecord(
         ledger_id=f"{run_state_id}-live-wallet-ledger",
@@ -5714,9 +5760,9 @@ def _record_usdc_pair_allowlist_run_state(
         scheduler_release_review_status=scheduler_release_review_status,
         scheduler_release_review_ref=scheduler_release_review_ref,
         scheduler_release_review_blockers=list(scheduler_release_review_blockers),
-        scheduler_worker_status=USDC_PAIR_SNAPSHOT_SCHEDULER_WORKER_BLOCKED_STATUS,
-        scheduler_worker_ref=None,
-        scheduler_worker_blockers=list(USDC_PAIR_SNAPSHOT_SCHEDULER_WORKER_BLOCKERS),
+        scheduler_worker_status=scheduler_worker_status,
+        scheduler_worker_ref=scheduler_worker_ref,
+        scheduler_worker_blockers=list(scheduler_worker_blockers),
         scheduler_rate_limit_status=(
             USDC_PAIR_SNAPSHOT_SCHEDULER_RATE_LIMIT_BLOCKED_STATUS
         ),
