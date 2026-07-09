@@ -3146,6 +3146,18 @@ class UsdcPairSnapshotAllowlistRunStateRequest(BaseModel):
         default=None,
         min_length=1,
     )
+    runtime_fanout_retry_budget_binding_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    runtime_fanout_recovery_replay_binding_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    runtime_fanout_partial_failure_policy_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
     scheduler_standing_cap_policy_ref: str | None = Field(
         default=None,
         min_length=1,

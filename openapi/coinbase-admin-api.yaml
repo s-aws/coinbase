@@ -171205,6 +171205,24 @@ components:
             minLength: 1
           - type: 'null'
           title: Runtime Fanout Wallet Debit Release Binding Ref
+        runtime_fanout_retry_budget_binding_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Retry Budget Binding Ref
+        runtime_fanout_recovery_replay_binding_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Recovery Replay Binding Ref
+        runtime_fanout_partial_failure_policy_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Partial Failure Policy Ref
         scheduler_standing_cap_policy_ref:
           anyOf:
           - type: string

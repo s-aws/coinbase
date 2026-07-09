@@ -5011,6 +5011,47 @@ def _allowlist_run_state_wallet_ledger_readback(
     )
 
 
+def _allowlist_run_state_retry_recovery_readback(
+    *,
+    retry_budget_binding_ref: str | None,
+    recovery_replay_binding_ref: str | None,
+    partial_failure_policy_ref: str | None,
+) -> tuple[str, str | None, list[str]]:
+    blockers: list[str] = []
+    normalized_retry_budget_binding_ref = (
+        retry_budget_binding_ref.strip() if retry_budget_binding_ref else None
+    )
+    normalized_recovery_replay_binding_ref = (
+        recovery_replay_binding_ref.strip()
+        if recovery_replay_binding_ref
+        else None
+    )
+    normalized_partial_failure_policy_ref = (
+        partial_failure_policy_ref.strip() if partial_failure_policy_ref else None
+    )
+    if not normalized_retry_budget_binding_ref:
+        blockers.append("runtime_fanout_retry_budget_binding_missing")
+    if not normalized_recovery_replay_binding_ref:
+        blockers.append("runtime_fanout_recovery_replay_binding_missing")
+    if not normalized_partial_failure_policy_ref:
+        blockers.append("runtime_fanout_partial_failure_policy_missing")
+    if blockers:
+        return (
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RETRY_RECOVERY_BLOCKED_STATUS,
+            None,
+            blockers,
+        )
+    return (
+        "ready_no_live",
+        (
+            f"retry_budget_binding:{normalized_retry_budget_binding_ref};"
+            f"recovery_replay_binding:{normalized_recovery_replay_binding_ref};"
+            f"partial_failure_policy:{normalized_partial_failure_policy_ref}"
+        ),
+        [],
+    )
+
+
 def _allowlist_run_state_scheduler_standing_cap_readback(
     *,
     policy_ref: str | None,
@@ -5722,6 +5763,21 @@ def _record_usdc_pair_allowlist_run_state(
         ),
     )
     (
+        runtime_fanout_retry_recovery_status,
+        runtime_fanout_retry_recovery_ref,
+        runtime_fanout_retry_recovery_blockers,
+    ) = _allowlist_run_state_retry_recovery_readback(
+        retry_budget_binding_ref=(
+            body.runtime_fanout_retry_budget_binding_ref
+        ),
+        recovery_replay_binding_ref=(
+            body.runtime_fanout_recovery_replay_binding_ref
+        ),
+        partial_failure_policy_ref=(
+            body.runtime_fanout_partial_failure_policy_ref
+        ),
+    )
+    (
         scheduler_standing_cap_status,
         scheduler_standing_cap_ref,
         scheduler_standing_cap_blockers,
@@ -6059,11 +6115,11 @@ def _record_usdc_pair_allowlist_run_state(
             runtime_fanout_wallet_ledger_blockers
         ),
         runtime_fanout_retry_recovery_status=(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RETRY_RECOVERY_BLOCKED_STATUS
+            runtime_fanout_retry_recovery_status
         ),
-        runtime_fanout_retry_recovery_ref=None,
+        runtime_fanout_retry_recovery_ref=runtime_fanout_retry_recovery_ref,
         runtime_fanout_retry_recovery_blockers=list(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RETRY_RECOVERY_BLOCKERS
+            runtime_fanout_retry_recovery_blockers
         ),
         runtime_fanout_release_review_status=(
             runtime_fanout_release_review_status
