@@ -43563,6 +43563,136 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_stale_partial_success_readback(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-stale-partial-summary",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-stale-partial-summary-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(ready["run_state_id"])
+    assert source_run_state is not None
+    source_product_row = source_run_state.product_states[0]
+    blocked_product_row = source_product_row.model_copy(
+        update={
+            "product_id": "ETH-USDC",
+            "client_order_id": (
+                "m58-usdc-allowlist-live-fanout-submit-stale-partial-summary-"
+                "ETH-USDC"
+            ),
+            "cap_guard_decision_id": "cap-stale-fanout-partial-summary-eth_usdc",
+            "readiness_status": "candidate",
+            "execution_state": "blocked",
+            "retry_state": "blocked",
+            "rate_limit_state": "blocked",
+            "retry_backoff_status": "not_required",
+            "retry_backoff_ref": None,
+            "recovery_state": "not_required",
+            "retry_budget_per_product": 1,
+            "retry_prior_attempt_count": 0,
+            "retry_attempts_available": 0,
+            "planned_notional_usdc": "0.00",
+            "allocated_notional_usdc": "0.00",
+            "fanout_cap_allocation_status": "not_queued",
+            "wallet_allocation_status": "not_queued",
+            "wallet_available_notional_usdc": "0.00",
+            "wallet_allocated_notional_usdc": "0.00",
+            "wallet_remaining_after_usdc": "0.00",
+            "wallet_check_source": None,
+            "live_wallet_reservation_status": "not_queued",
+            "live_wallet_reservation_id": None,
+            "live_wallet_reserved_notional_usdc": "0",
+            "live_wallet_debit_id": None,
+            "live_wallet_debited_notional_usdc": "0",
+            "live_wallet_release_id": None,
+            "live_wallet_released_notional_usdc": "0",
+            "live_wallet_reservation_blockers": [],
+            "live_readiness_status": "ready_no_live",
+            "live_readiness_id": (
+                "m58-usdc-allowlist-live-fanout-submit-stale-partial-summary-"
+                "eth-live-readiness"
+            ),
+            "live_readiness_source": (
+                "admin_api_usdc_pair_snapshot_order_plan_live_readiness_log"
+            ),
+            "recovery_state_ref": None,
+            "blockers": ["proof_chain_not_accepted"],
+            "notional_usdc": "0",
+        }
+    )
+    run_state_store.append(
+        source_run_state.model_copy(
+            update={
+                "product_ids": ["BTC-USDC", "ETH-USDC"],
+                "blocked_product_ids": ["ETH-USDC"],
+                "blocked_product_count": 1,
+                "live_ready_product_ids": ["BTC-USDC", "ETH-USDC"],
+                "product_states": [
+                    source_product_row,
+                    blocked_product_row,
+                ],
+                "partial_success_status": "ready_no_live",
+                "run_state_status": "ready_no_live",
+            }
+        )
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-fanout-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-fanout-submit-stale-partial-summary"
+            ),
+            operator_intent=(
+                "m58_usdc_snapshot_allowlist_run_state_live_fanout_submit"
+            ),
+        ),
+        json={
+            "submission_id": (
+                "m58-usdc-allowlist-live-fanout-submit-stale-partial-summary"
+            ),
+            "max_fanout_notional_usdc": "100",
+            "confirm_live_fanout_submit": True,
+            "confirm_backend_owned_execution": True,
+            "confirm_cancel_rollback_before_completion": True,
+            "confirm_rate_limit_5_per_second": True,
+            "operator_stop_conditions": [
+                "submit only backend-selected queued products",
+                "cancel or roll back every submitted client_order_id before completion",
+            ],
+            "operator_notes": "stale fan-out partial-success aggregate readback",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    assert "run_state_partial_success_status_mismatch" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_aggregate_notional_mismatch(
     monkeypatch,
 ):

@@ -7134,6 +7134,12 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
         != recovery_required_product_state_count
     ):
         blockers.append("run_state_recovery_required_product_count_mismatch")
+    expected_partial_success_status = _allowlist_run_state_partial_success_status(
+        queued_product_count=queued_product_state_count,
+        blocked_product_count=blocked_product_state_count,
+    )
+    if run_state.partial_success_status != expected_partial_success_status:
+        blockers.append("run_state_partial_success_status_mismatch")
     if run_state.run_lock_status != "recorded_no_live":
         blockers.append("run_state_run_lock_not_recorded")
     if not run_state.run_lock_ref:
