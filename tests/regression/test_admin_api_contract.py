@@ -44752,6 +44752,46 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rep
         client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls
         == live_calls
     )
+
+    conflict = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-fanout-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-fanout-submit-accepted-replay"
+            ),
+            operator_intent=(
+                "m58_usdc_snapshot_allowlist_run_state_live_fanout_submit"
+            ),
+        ),
+        json={
+            "submission_id": (
+                "m58-usdc-allowlist-live-fanout-submit-accepted-replay"
+            ),
+            "max_fanout_notional_usdc": "99",
+            "confirm_live_fanout_submit": True,
+            "confirm_backend_owned_execution": True,
+            "confirm_cancel_rollback_before_completion": True,
+            "confirm_rate_limit_5_per_second": True,
+            "operator_stop_conditions": [
+                "submit only backend-selected queued products",
+                "cancel or roll back every submitted client_order_id before completion",
+            ],
+            "operator_notes": "changed body must conflict after accepted cache",
+        },
+    )
+
+    assert conflict.status_code == 409
+    conflict_payload = conflict.json()
+    assert conflict_payload["status"] == AdminApiCommandStatus.CONFLICT.value
+    assert conflict_payload["failure_stage"] == "idempotency"
+    assert conflict_payload["live_coinbase_execution"] == "not_run"
+    assert (
+        client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls
+        == live_calls
+    )
     assert (
         len(
             client.admin_api_test_usdc_pair_snapshot_order_plan_live_submit_store.read_recent(
