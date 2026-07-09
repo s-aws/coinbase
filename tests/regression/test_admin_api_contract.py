@@ -44319,6 +44319,80 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_recomputes_retry_budget_attempts(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-current-retry-budget",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-current-retry-budget-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    run_state_store = (
+        client.admin_api_test_usdc_pair_snapshot_allowlist_run_state_store
+    )
+    source_run_state = run_state_store.find_by_run_state_id(ready["run_state_id"])
+    assert source_run_state is not None
+    prior_attempt_product_states = [
+        item.model_copy(
+            update={
+                "recovery_state": "not_required",
+                "recovery_state_ref": None,
+            }
+        )
+        for item in source_run_state.product_states
+    ]
+    run_state_store.append(
+        source_run_state.model_copy(
+            update={
+                "run_state_id": (
+                    "m58-usdc-allowlist-live-fanout-submit-current-retry-budget-source"
+                ),
+                "idempotency_key": (
+                    "idem-m58-usdc-allowlist-live-fanout-current-retry-budget-source"
+                ),
+                "audit_id": (
+                    "audit-m58-usdc-allowlist-live-fanout-current-retry-budget-source"
+                ),
+                "run_lock_ref": (
+                    "run-lock-m58-usdc-allowlist-live-fanout-current-retry-budget-source"
+                ),
+                "rate_limit_window_ref": (
+                    "rate-limit-m58-usdc-allowlist-live-fanout-current-retry-budget-source"
+                ),
+                "product_states": prior_attempt_product_states,
+            }
+        )
+    )
+
+    response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="current-retry-budget",
+        operator_notes="current retry-budget drift in store",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    assert "run_state_product_retry_budget_exhausted" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_live_service_record(
     monkeypatch,
 ):

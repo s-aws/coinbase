@@ -6848,6 +6848,7 @@ def _usdc_pair_decimal_mismatch(value: str | None, expected: Decimal) -> bool:
 def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    run_state_store: FileUsdcPairSnapshotAllowlistRunStateStore,
     body: UsdcPairSnapshotAllowlistRunStateLiveFanoutSubmitRequest,
 ) -> list[str]:
     blockers: list[str] = ["live_fanout_executor_not_implemented"]
@@ -7155,6 +7156,24 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
             blockers.append("run_state_rate_limit_window_expired")
     if run_state.retry_budget_status != "ready_no_live":
         blockers.append("run_state_retry_budget_not_ready")
+    for item in run_state.product_states:
+        if item.execution_state != "queued_no_live":
+            continue
+        current_retry_prior_attempt_count = (
+            _allowlist_run_state_prior_retry_attempt_count(
+                run_state_store=run_state_store,
+                readiness_id=run_state.readiness_id,
+                run_state_id=run_state.run_state_id,
+                item=item,
+            )
+        )
+        if current_retry_prior_attempt_count != item.retry_prior_attempt_count:
+            blockers.append("run_state_product_retry_prior_attempt_count_stale")
+        if (
+            item.retry_budget_per_product >= 1
+            and current_retry_prior_attempt_count >= item.retry_budget_per_product
+        ):
+            blockers.append("run_state_product_retry_budget_exhausted")
     if run_state.retry_backoff_status not in {"not_required", "ready_no_live"}:
         blockers.append("run_state_retry_backoff_not_ready")
     if (
@@ -7785,6 +7804,7 @@ def _usdc_pair_allowlist_run_state_live_fanout_allowlist_readiness_blockers(
 def _validate_usdc_pair_allowlist_run_state_live_fanout_submit(
     *,
     run_state: UsdcPairSnapshotAllowlistRunStateRecord,
+    run_state_store: FileUsdcPairSnapshotAllowlistRunStateStore,
     body: UsdcPairSnapshotAllowlistRunStateLiveFanoutSubmitRequest,
     allowlist_readiness: (
         UsdcPairSnapshotOrderPlanAllowlistReadinessRecord | None
@@ -7798,6 +7818,7 @@ def _validate_usdc_pair_allowlist_run_state_live_fanout_submit(
 ) -> None:
     blockers = _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
         run_state=run_state,
+        run_state_store=run_state_store,
         body=body,
     )
     if allowlist_readiness is None:
@@ -11412,6 +11433,7 @@ def submit_usdc_pair_snapshot_allowlist_run_state_live_fanout(
             )
         _validate_usdc_pair_allowlist_run_state_live_fanout_submit(
             run_state=run_state,
+            run_state_store=run_state_store,
             body=body,
             allowlist_readiness=allowlist_readiness,
             plan=plan,
