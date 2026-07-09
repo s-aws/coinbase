@@ -339,6 +339,11 @@ def readback_checks(
     order = order_read.order or {}
     checks = [
         check("m58_submission_evidence_present", bool(submission)),
+        check(
+            "m58_submission_executed_notional_zero",
+            bool(submission)
+            and decimal_value(submission.get("executed_notional_usdc")) == 0,
+        ),
         check("m58_client_order_id_present", bool(client_order_id)),
         check("m58_product_id_present", bool(product_id)),
         check("m58_exchange_order_id_present", bool(exchange_order_id)),
