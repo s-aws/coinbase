@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from application.admin_api.usdc_pair_snapshot import (
     FileUsdcPairSnapshotOrderPlanLiveSubmitStore,
     UsdcPairSnapshotOrderPlanLiveSubmitRecord,
@@ -14,24 +16,26 @@ from tools.run_admin_api_usdc_pair_snapshot_live_submit import (
 
 
 class FakeM58ReadbackRestClient:
-    def __init__(self) -> None:
+    def __init__(self, *, missing_order_fields: set[str] | None = None) -> None:
         self.get_order_calls: list[str] = []
         self.list_orders_calls: list[dict] = []
+        self.missing_order_fields = missing_order_fields or set()
 
     def get_order(self, order_id):
         self.get_order_calls.append(order_id)
-        return {
-            "order": {
-                "order_id": order_id,
-                "client_order_id": "m58-live-plan-BTC-USDC",
-                "product_id": "BTC-USDC",
-                "status": "CANCELLED",
-                "filled_size": "0",
-                "filled_value": "0",
-                "total_fees": "0",
-                "outstanding_hold_amount": "0",
-            }
+        order = {
+            "order_id": order_id,
+            "client_order_id": "m58-live-plan-BTC-USDC",
+            "product_id": "BTC-USDC",
+            "status": "CANCELLED",
+            "filled_size": "0",
+            "filled_value": "0",
+            "total_fees": "0",
+            "outstanding_hold_amount": "0",
         }
+        for field in self.missing_order_fields:
+            order.pop(field, None)
+        return {"order": order}
 
     def list_orders(self, **kwargs):
         self.list_orders_calls.append(dict(kwargs))
@@ -272,4 +276,35 @@ def test_m58_live_readback_requires_prior_execution_evidence(tmp_path):
     }
     assert summary["status"] == "failed"
     assert "m58_submission_executed_notional_zero" in failed_checks
+    assert summary["recovery_record_appended"] is False
+
+
+@pytest.mark.parametrize(
+    ("missing_field", "failed_check"),
+    [
+        ("filled_value", "m58_filled_value_zero"),
+        ("filled_size", "m58_filled_size_zero"),
+        ("total_fees", "m58_total_fees_zero"),
+        ("outstanding_hold_amount", "m58_outstanding_hold_zero"),
+    ],
+)
+def test_m58_live_readback_requires_exchange_zero_evidence(
+    tmp_path, missing_field, failed_check
+):
+    artifact = m58_submission_artifact(tmp_path)
+    rest_client = FakeM58ReadbackRestClient(missing_order_fields={missing_field})
+
+    summary = readback.run_usdc_pair_snapshot_live_readback(
+        rest_client,
+        readback.UsdcPairSnapshotLiveReadbackConfig(
+            submission_artifact=artifact,
+            require_submission_artifact=True,
+        ),
+    )
+
+    failed_checks = {
+        check["name"] for check in summary["checks"] if not check["passed"]
+    }
+    assert summary["status"] == "failed"
+    assert failed_check in failed_checks
     assert summary["recovery_record_appended"] is False

@@ -364,12 +364,21 @@ def readback_checks(
             text_value(order.get("product_id")) == product_id,
         ),
         check("m58_order_cancelled", order_cancelled(order)),
-        check("m58_filled_value_zero", decimal_value(order.get("filled_value")) == 0),
-        check("m58_filled_size_zero", decimal_value(order.get("filled_size")) == 0),
-        check("m58_total_fees_zero", decimal_value(order.get("total_fees")) == 0),
+        check(
+            "m58_filled_value_zero",
+            zero_decimal_evidence(order.get("filled_value")),
+        ),
+        check(
+            "m58_filled_size_zero",
+            zero_decimal_evidence(order.get("filled_size")),
+        ),
+        check(
+            "m58_total_fees_zero",
+            zero_decimal_evidence(order.get("total_fees")),
+        ),
         check(
             "m58_outstanding_hold_zero",
-            decimal_value(order.get("outstanding_hold_amount")) == 0,
+            zero_decimal_evidence(order.get("outstanding_hold_amount")),
         ),
         check("m58_open_order_read_attempted", open_order_read.attempted),
         check("m58_open_order_read_succeeded", open_order_read.succeeded),
