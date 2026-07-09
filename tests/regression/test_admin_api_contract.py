@@ -36060,6 +36060,113 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_runtime_fanout
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_runtime_fanout_cap_guard_refs(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    client.admin_api_test_cap_guard_store.append(
+        CapGuardDecisionRecord(
+            decision_id="cap-m58-run-state-runtime-cap-guard-btc",
+            route=(
+                "/api/v1/automation/usdc-pair-snapshot-order-plan-"
+                "allowlist-readiness/{readiness_id}/run-state"
+            ),
+            method="POST",
+            module_id="automation",
+            identity_key="client_order_id",
+            identity_value="m58-usdc-run-state-negative-BTC-USDC",
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method="record_usdc_pair_snapshot_allowlist_run_state",
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+            idempotency_key="idem-usdc-allowlist-run-state-runtime-cap-guard",
+            payload_hash="e" * 64,
+            approval_snapshot_id="approval-m58-run-state-runtime-cap-guard-btc",
+            admission_audit_id="admission-m58-run-state-runtime-cap-guard-btc",
+            allowed=True,
+            status=AdminApiGateStatus.PASSED,
+            cap_policy_ref="m58_phase_f_submitted_notional_cap",
+            guard_policy_ref="m58_phase_f_wallet_allocation_guard",
+            product_scope="BTC-USDC",
+            max_submitted_notional_usdc="1.00",
+            max_executed_notional_usdc="0",
+            wallet_check_required=True,
+            wallet_check_status=AdminApiGateStatus.PASSED,
+            wallet_available_notional_usdc="1.00",
+            wallet_check_source="m58_usdc_pair_allowlist_run_state_fixture",
+            reason="No-live M58 runtime fan-out cap-guard source evidence.",
+        )
+    )
+    _append_usdc_pair_snapshot_allowlist_run_state_readiness(
+        client,
+        readiness_id="m58-usdc-allowlist-run-state-runtime-cap-readiness",
+        plan_id="m58-usdc-allowlist-run-state-runtime-cap-plan",
+        snapshot_run_id="m58-usdc-allowlist-run-state-runtime-cap-snapshot",
+        cap_guard_decision_id="cap-m58-run-state-runtime-cap-guard-btc",
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+            "m58-usdc-allowlist-run-state-runtime-cap-readiness/run-state"
+        ),
+        headers=_headers(
+            idempotency_key="idem-usdc-allowlist-run-state-runtime-cap-guard",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+        ),
+        json={
+            "run_state_id": "m58-usdc-allowlist-run-state-runtime-cap-guard",
+            "execution_mode": "no_live_rehearsal",
+            "max_fanout_notional_usdc": "100",
+            "run_lock_ref": "m58-run-lock-runtime-cap-guard",
+            "rate_limit_window_ref": "m58-rate-limit-window-runtime-cap-guard",
+            "runtime_fanout_cap_guard_binding_ref": (
+                "m58-runtime-cap-guard-binding-no-live-20260709"
+            ),
+            "runtime_fanout_submitted_notional_guard_ref": (
+                "m58-runtime-submitted-notional-guard-no-live-20260709"
+            ),
+            "runtime_fanout_wallet_available_guard_ref": (
+                "m58-runtime-wallet-available-guard-no-live-20260709"
+            ),
+            "pause_requested": False,
+            "abort_requested": False,
+            "operator_notes": "no-live runtime fan-out cap-guard evidence",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+
+    run_state = payload["run_state"]
+    assert run_state["runtime_fanout_cap_guard_status"] == "ready_no_live"
+    assert run_state["runtime_fanout_cap_guard_ref"] == (
+        "cap_guard_binding:m58-runtime-cap-guard-binding-no-live-20260709;"
+        "submitted_notional_guard:"
+        "m58-runtime-submitted-notional-guard-no-live-20260709;"
+        "wallet_available_guard:"
+        "m58-runtime-wallet-available-guard-no-live-20260709"
+    )
+    assert run_state["runtime_fanout_cap_guard_blockers"] == []
+    assert run_state["runtime_fanout_execution_status"] == "blocked_no_live"
+    assert run_state["runtime_fanout_worker_ref"] is None
+    assert "runtime_fanout_worker_missing" in run_state[
+        "runtime_fanout_execution_blockers"
+    ]
+    assert run_state["runtime_fanout_wallet_ledger_status"] == "blocked_no_live"
+    assert run_state["runtime_fanout_retry_recovery_status"] == "blocked_no_live"
+    assert run_state["fanout_execution_status"] == "blocked"
+    assert "fanout_execution_technically_blocked" in run_state["fanout_blockers"]
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_runtime_fanout_wallet_ledger_refs(
     monkeypatch,
 ):
@@ -66573,6 +66680,17 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert "runtime_fanout_cap_guard_ref absent" in runtime_fanout_detail
     assert "runtime_fanout_cap_guard_blockers" in runtime_fanout_detail
+    assert (
+        "runtime fan-out cap-guard, submitted-notional-guard, and "
+        "wallet-available-guard refs can now record"
+    ) in runtime_fanout_detail
+    assert "runtime_fanout_cap_guard_status=ready_no_live" in (
+        runtime_fanout_detail
+    )
+    assert (
+        "This runtime fan-out cap-guard readback does not clear worker, "
+        "wallet, retry, scheduler, or Coinbase execution blockers"
+    ) in runtime_fanout_detail
     assert "runtime_fanout_wallet_ledger_status=blocked_no_live" in (
         runtime_fanout_detail
     )

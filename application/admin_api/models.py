@@ -3182,6 +3182,18 @@ class UsdcPairSnapshotAllowlistRunStateRequest(BaseModel):
         default=None,
         min_length=1,
     )
+    runtime_fanout_cap_guard_binding_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    runtime_fanout_submitted_notional_guard_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
+    runtime_fanout_wallet_available_guard_ref: str | None = Field(
+        default=None,
+        min_length=1,
+    )
     runtime_fanout_live_wallet_ledger_ref: str | None = Field(
         default=None,
         min_length=1,

@@ -5151,6 +5151,47 @@ def _allowlist_run_state_reconciliation_readback(
     )
 
 
+def _allowlist_run_state_cap_guard_readback(
+    *,
+    cap_guard_binding_ref: str | None,
+    submitted_notional_guard_ref: str | None,
+    wallet_available_guard_ref: str | None,
+) -> tuple[str, str | None, list[str]]:
+    blockers: list[str] = []
+    normalized_cap_guard_binding_ref = (
+        cap_guard_binding_ref.strip() if cap_guard_binding_ref else None
+    )
+    normalized_submitted_notional_guard_ref = (
+        submitted_notional_guard_ref.strip()
+        if submitted_notional_guard_ref
+        else None
+    )
+    normalized_wallet_available_guard_ref = (
+        wallet_available_guard_ref.strip() if wallet_available_guard_ref else None
+    )
+    if not normalized_cap_guard_binding_ref:
+        blockers.append("runtime_fanout_cap_guard_binding_missing")
+    if not normalized_submitted_notional_guard_ref:
+        blockers.append("runtime_fanout_submitted_notional_guard_missing")
+    if not normalized_wallet_available_guard_ref:
+        blockers.append("runtime_fanout_wallet_available_guard_missing")
+    if blockers:
+        return (
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_CAP_GUARD_BLOCKED_STATUS,
+            None,
+            blockers,
+        )
+    return (
+        "ready_no_live",
+        (
+            f"cap_guard_binding:{normalized_cap_guard_binding_ref};"
+            f"submitted_notional_guard:{normalized_submitted_notional_guard_ref};"
+            f"wallet_available_guard:{normalized_wallet_available_guard_ref}"
+        ),
+        [],
+    )
+
+
 def _allowlist_run_state_wallet_ledger_readback(
     *,
     live_wallet_ledger_ref: str | None,
@@ -5966,6 +6007,19 @@ def _record_usdc_pair_allowlist_run_state(
         ),
     )
     (
+        runtime_fanout_cap_guard_status,
+        runtime_fanout_cap_guard_ref,
+        runtime_fanout_cap_guard_blockers,
+    ) = _allowlist_run_state_cap_guard_readback(
+        cap_guard_binding_ref=body.runtime_fanout_cap_guard_binding_ref,
+        submitted_notional_guard_ref=(
+            body.runtime_fanout_submitted_notional_guard_ref
+        ),
+        wallet_available_guard_ref=(
+            body.runtime_fanout_wallet_available_guard_ref
+        ),
+    )
+    (
         runtime_fanout_rate_limit_status,
         runtime_fanout_rate_limit_ref,
         runtime_fanout_rate_limit_blockers,
@@ -6337,13 +6391,9 @@ def _record_usdc_pair_allowlist_run_state(
         runtime_fanout_reconciliation_blockers=list(
             runtime_fanout_reconciliation_blockers
         ),
-        runtime_fanout_cap_guard_status=(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_CAP_GUARD_BLOCKED_STATUS
-        ),
-        runtime_fanout_cap_guard_ref=None,
-        runtime_fanout_cap_guard_blockers=list(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_CAP_GUARD_BLOCKERS
-        ),
+        runtime_fanout_cap_guard_status=runtime_fanout_cap_guard_status,
+        runtime_fanout_cap_guard_ref=runtime_fanout_cap_guard_ref,
+        runtime_fanout_cap_guard_blockers=list(runtime_fanout_cap_guard_blockers),
         runtime_fanout_wallet_ledger_status=(
             runtime_fanout_wallet_ledger_status
         ),
