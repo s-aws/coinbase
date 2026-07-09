@@ -342,7 +342,7 @@ def readback_checks(
         check(
             "m58_submission_executed_notional_zero",
             bool(submission)
-            and decimal_value(submission.get("executed_notional_usdc")) == 0,
+            and zero_decimal_evidence(submission.get("executed_notional_usdc")),
         ),
         check("m58_client_order_id_present", bool(client_order_id)),
         check("m58_product_id_present", bool(product_id)),
@@ -508,6 +508,19 @@ def decimal_value(value: Any) -> Decimal:
     except (InvalidOperation, ValueError):
         return Decimal("0")
     return number if number >= 0 else Decimal("0")
+
+
+def zero_decimal_evidence(value: Any) -> bool:
+    """Return whether an explicit decimal evidence value is exactly zero."""
+
+    text = text_value(value)
+    if not text:
+        return False
+    try:
+        number = Decimal(text)
+    except (InvalidOperation, ValueError):
+        return False
+    return number == 0
 
 
 def decimal_text(value: Any) -> str:

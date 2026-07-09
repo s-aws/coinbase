@@ -250,3 +250,26 @@ def test_m58_live_readback_refuses_recovery_for_prior_execution(tmp_path):
         store.find_by_submission_id("m58-live-submission-readback-recovery")
         is None
     )
+
+
+def test_m58_live_readback_requires_prior_execution_evidence(tmp_path):
+    artifact = m58_submission_artifact(tmp_path)
+    payload = json.loads(artifact.read_text(encoding="utf-8"))
+    payload.pop("executed_notional_usdc")
+    artifact.write_text(json.dumps(payload), encoding="utf-8")
+    rest_client = FakeM58ReadbackRestClient()
+
+    summary = readback.run_usdc_pair_snapshot_live_readback(
+        rest_client,
+        readback.UsdcPairSnapshotLiveReadbackConfig(
+            submission_artifact=artifact,
+            require_submission_artifact=True,
+        ),
+    )
+
+    failed_checks = {
+        check["name"] for check in summary["checks"] if not check["passed"]
+    }
+    assert summary["status"] == "failed"
+    assert "m58_submission_executed_notional_zero" in failed_checks
+    assert summary["recovery_record_appended"] is False
