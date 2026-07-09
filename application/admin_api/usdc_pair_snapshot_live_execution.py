@@ -199,6 +199,7 @@ class UsdcPairSnapshotLiveFanoutExecutor:
             execution = _object_to_dict(
                 self._order_executor.submit_and_cancel(**call)
             )
+            _ensure_fanout_execution_identity(execution, call)
             execution.setdefault("client_order_id", call["client_order_id"])
             execution.setdefault("product_id", call["product_id"])
             execution.setdefault("side", call["side"])
@@ -286,10 +287,69 @@ def _fanout_order_call(order: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _ensure_fanout_execution_identity(
+    execution: Mapping[str, Any],
+    call: Mapping[str, Any],
+) -> None:
+    mismatches: list[str] = []
+
+    def check_text(
+        field: str,
+        observed: Any,
+        expected: str,
+        *,
+        normalize_upper: bool = False,
+    ) -> None:
+        observed_text = _optional_text(observed)
+        if not observed_text:
+            return
+        expected_text = str(expected).strip()
+        left = observed_text.upper() if normalize_upper else observed_text
+        right = expected_text.upper() if normalize_upper else expected_text
+        if left != right:
+            mismatches.append(field)
+
+    check_text(
+        "client_order_id",
+        execution.get("client_order_id"),
+        str(call["client_order_id"]),
+    )
+    check_text(
+        "product_id",
+        execution.get("product_id"),
+        str(call["product_id"]),
+        normalize_upper=True,
+    )
+    check_text(
+        "side",
+        execution.get("side"),
+        str(call["side"]),
+        normalize_upper=True,
+    )
+    for result_field in ("submit_result", "cancel_result"):
+        result = execution.get(result_field)
+        if isinstance(result, Mapping):
+            check_text(
+                f"{result_field}.client_order_id",
+                result.get("client_order_id"),
+                str(call["client_order_id"]),
+            )
+
+    if mismatches:
+        raise UsdcPairSnapshotLiveExecutionError(
+            "M58 live fan-out submit received mismatched execution evidence: "
+            + ",".join(mismatches)
+        )
+
+
+def _optional_text(value: Any) -> str:
+    enum_value = getattr(value, "value", None)
+    return str(enum_value if enum_value is not None else value or "").strip()
+
+
 def _required_text(order: Mapping[str, Any], key: str) -> str:
     value = order.get(key)
-    enum_value = getattr(value, "value", None)
-    text = str(enum_value if enum_value is not None else value or "").strip()
+    text = _optional_text(value)
     if not text:
         raise UsdcPairSnapshotLiveExecutionError(
             f"M58 live fan-out submit requires {key}."
