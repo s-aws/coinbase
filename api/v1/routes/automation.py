@@ -1601,6 +1601,7 @@ def _live_submit_base_response(
         idempotency_key=idempotency_key,
         audit_id=audit_id,
         submission=submission,
+        submissions=[submission] if submission else [],
         live_exchange_submitted=(
             submission.live_exchange_submitted if submission else False
         ),

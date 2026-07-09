@@ -173639,6 +173639,11 @@ components:
           anyOf:
           - $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanLiveSubmitItem'
           - type: 'null'
+        submissions:
+          items:
+            $ref: '#/components/schemas/UsdcPairSnapshotOrderPlanLiveSubmitItem'
+          type: array
+          title: Submissions
         live_exchange_submitted:
           type: boolean
           title: Live Exchange Submitted

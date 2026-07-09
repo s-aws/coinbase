@@ -3866,6 +3866,9 @@ class UsdcPairSnapshotOrderPlanLiveSubmitResponse(BaseModel):
     idempotency_key: str | None = None
     audit_id: str | None = None
     submission: UsdcPairSnapshotOrderPlanLiveSubmitItem | None = None
+    submissions: list[UsdcPairSnapshotOrderPlanLiveSubmitItem] = Field(
+        default_factory=list
+    )
     live_exchange_submitted: bool = False
     live_coinbase_orders_ran: bool = False
     live_coinbase_execution: str = "not_run"

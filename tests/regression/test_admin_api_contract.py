@@ -42344,6 +42344,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_submit_requires_q
     assert ready_payload["live_coinbase_execution"] == "submitted_cancelled"
     assert ready_payload["notional_usdc"] == "1.00"
     submission = ready_payload["submission"]
+    assert ready_payload["submissions"] == [submission]
     assert submission["submission_id"] == ready_body["submission_id"]
     assert submission["live_submit_source"] == "allowlist_run_state"
     assert submission["run_state_id"] == ready["run_state_id"]
