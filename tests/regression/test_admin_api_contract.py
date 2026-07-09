@@ -43891,6 +43891,54 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_req
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_stale_order_plan_snapshot(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-order-plan-stale",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-order-plan-stale-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    order_plan_store = client.admin_api_test_usdc_pair_snapshot_order_plan_store
+    source_plan = order_plan_store.find_by_plan_id(ready["plan_id"])
+    assert source_plan is not None
+    order_plan_store.append(
+        source_plan.model_copy(
+            update={
+                "snapshot_run_id": "m58-usdc-allowlist-live-fanout-stale-snapshot",
+            }
+        )
+    )
+
+    response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="order-plan-stale-snapshot",
+        operator_notes="stale order-plan snapshot association blocks fan-out",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    assert "run_state_plan_snapshot_mismatch" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_live_service_record(
     monkeypatch,
 ):

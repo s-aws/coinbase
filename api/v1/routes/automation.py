@@ -7727,6 +7727,10 @@ def _validate_usdc_pair_allowlist_run_state_live_fanout_submit(
         run_state=run_state,
         body=body,
     )
+    if run_state.plan_id != plan.plan_id:
+        blockers.append("run_state_plan_id_mismatch")
+    if run_state.snapshot_run_id != plan.snapshot_run_id:
+        blockers.append("run_state_plan_snapshot_mismatch")
     blockers.extend(
         _usdc_pair_allowlist_run_state_live_submit_queued_live_readiness_blockers(
             run_state=run_state,
