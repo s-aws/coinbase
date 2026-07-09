@@ -34415,6 +34415,97 @@ def test_admin_api_usdc_pair_snapshot_allowlist_readiness_records_no_live_summar
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_readiness_replays_rejection_after_plan_appears(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    plan_id = "m58-usdc-allowlist-readiness-rejected-replay-plan"
+    readiness_id = "m58-usdc-allowlist-readiness-rejected-replay"
+    body = {
+        "readiness_id": readiness_id,
+        "product_ids": ["BTC-USDC"],
+        "max_products": 1,
+        "operator_notes": "initial missing-plan allowlist-readiness rejection",
+    }
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            f"{plan_id}/allowlist-readiness"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-allowlist-readiness-rejected-replay",
+            operator_intent="m58_usdc_snapshot_allowlist_readiness_rejected_replay",
+        ),
+        json=body,
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_order_plan_allowlist_readiness"
+    )
+    assert "order-plan not found" in payload["message"]
+    assert payload["readiness"] is None
+    assert payload["live_coinbase_execution"] == "not_run"
+
+    _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-readiness-rejected-replay-run",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-readiness-rejected-replay-source"
+        ),
+        plan_id=plan_id,
+        queued=True,
+        live_ready=True,
+        append_live_readiness=False,
+        append_allowlist_readiness=False,
+    )
+
+    replay = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            f"{plan_id}/allowlist-readiness"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-allowlist-readiness-rejected-replay",
+            operator_intent="m58_usdc_snapshot_allowlist_readiness_rejected_replay",
+        ),
+        json=body,
+    )
+
+    assert replay.status_code == 200
+    assert replay.headers["X-Idempotency-Replayed"] == "true"
+    assert replay.json() == payload
+    readiness_store = (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_allowlist_readiness_store
+    )
+    readiness_records = readiness_store.read_recent(limit=10)
+    assert all(record.readiness_id != readiness_id for record in readiness_records)
+
+    conflict = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            f"{plan_id}/allowlist-readiness"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-allowlist-readiness-rejected-replay",
+            operator_intent="m58_usdc_snapshot_allowlist_readiness_rejected_replay",
+        ),
+        json={**body, "operator_notes": "changed body must conflict"},
+    )
+
+    assert conflict.status_code == 409
+    conflict_payload = conflict.json()
+    assert conflict_payload["status"] == AdminApiCommandStatus.CONFLICT.value
+    assert conflict_payload["failure_stage"] == "idempotency"
+    assert conflict_payload["readiness"] is None
+    assert conflict_payload["live_coinbase_execution"] == "not_run"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_readiness_records_retry_recovery_contract(
     monkeypatch,
 ):
