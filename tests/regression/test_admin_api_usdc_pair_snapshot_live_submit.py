@@ -473,8 +473,6 @@ def test_usdc_pair_snapshot_live_fanout_executor_runs_sequential_submit_cancel()
                 "max_executed_notional_usdc": kwargs[
                     "max_executed_notional_usdc"
                 ],
-                "cancel_submitted": True,
-                "cancel_rollback_complete": True,
             }
 
     fake_order_executor = FakeOrderExecutor()

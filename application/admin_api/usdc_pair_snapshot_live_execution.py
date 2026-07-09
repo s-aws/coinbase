@@ -298,16 +298,16 @@ def _required_text(order: Mapping[str, Any], key: str) -> str:
 
 
 def _execution_cancel_submitted(execution: Mapping[str, Any]) -> bool:
-    return bool(execution.get("cancel_submitted"))
+    if "cancel_submitted" in execution:
+        return bool(execution.get("cancel_submitted"))
+    cancel_result = execution.get("cancel_result")
+    return _cancel_result_success(cancel_result) if cancel_result is not None else False
 
 
 def _execution_cancel_rollback_complete(execution: Mapping[str, Any]) -> bool:
-    return bool(
-        execution.get(
-            "cancel_rollback_complete",
-            execution.get("cancel_submitted"),
-        )
-    )
+    if "cancel_rollback_complete" in execution:
+        return bool(execution.get("cancel_rollback_complete"))
+    return _execution_cancel_submitted(execution)
 
 
 def _decimal_sum_string(values: Iterable[Any]) -> str:
