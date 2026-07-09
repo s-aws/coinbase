@@ -171230,6 +171230,24 @@ components:
             minLength: 1
           - type: 'null'
           title: Scheduler Worker Idempotency Ref
+        scheduler_rate_limit_worker_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Rate Limit Worker Ref
+        scheduler_rate_limit_binding_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Rate Limit Binding Ref
+        scheduler_rate_limit_release_gate_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Scheduler Rate Limit Release Gate Ref
         live_wallet_reservation_ids:
           items:
             type: string
