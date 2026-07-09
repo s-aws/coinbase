@@ -171241,6 +171241,24 @@ components:
             minLength: 1
           - type: 'null'
           title: Runtime Fanout Operator Intent Audit Recheck Ref
+        runtime_fanout_reconciliation_binding_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Reconciliation Binding Ref
+        runtime_fanout_reconciliation_plan_recheck_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Reconciliation Plan Recheck Ref
+        runtime_fanout_exchange_readback_recheck_ref:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Runtime Fanout Exchange Readback Recheck Ref
         runtime_fanout_live_wallet_ledger_ref:
           anyOf:
           - type: string

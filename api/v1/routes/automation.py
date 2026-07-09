@@ -5105,6 +5105,52 @@ def _allowlist_run_state_admission_audit_readback(
     )
 
 
+def _allowlist_run_state_reconciliation_readback(
+    *,
+    reconciliation_binding_ref: str | None,
+    reconciliation_plan_recheck_ref: str | None,
+    exchange_readback_recheck_ref: str | None,
+) -> tuple[str, str | None, list[str]]:
+    blockers: list[str] = []
+    normalized_reconciliation_binding_ref = (
+        reconciliation_binding_ref.strip()
+        if reconciliation_binding_ref
+        else None
+    )
+    normalized_reconciliation_plan_recheck_ref = (
+        reconciliation_plan_recheck_ref.strip()
+        if reconciliation_plan_recheck_ref
+        else None
+    )
+    normalized_exchange_readback_recheck_ref = (
+        exchange_readback_recheck_ref.strip()
+        if exchange_readback_recheck_ref
+        else None
+    )
+    if not normalized_reconciliation_binding_ref:
+        blockers.append("runtime_fanout_reconciliation_binding_missing")
+    if not normalized_reconciliation_plan_recheck_ref:
+        blockers.append("runtime_fanout_reconciliation_plan_recheck_missing")
+    if not normalized_exchange_readback_recheck_ref:
+        blockers.append("runtime_fanout_exchange_readback_recheck_missing")
+    if blockers:
+        return (
+            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RECONCILIATION_BLOCKED_STATUS,
+            None,
+            blockers,
+        )
+    return (
+        "ready_no_live",
+        (
+            f"reconciliation_binding:{normalized_reconciliation_binding_ref};"
+            "reconciliation_plan_recheck:"
+            f"{normalized_reconciliation_plan_recheck_ref};"
+            f"exchange_readback_recheck:{normalized_exchange_readback_recheck_ref}"
+        ),
+        [],
+    )
+
+
 def _allowlist_run_state_wallet_ledger_readback(
     *,
     live_wallet_ledger_ref: str | None,
@@ -5905,6 +5951,21 @@ def _record_usdc_pair_allowlist_run_state(
         ),
     )
     (
+        runtime_fanout_reconciliation_status,
+        runtime_fanout_reconciliation_ref,
+        runtime_fanout_reconciliation_blockers,
+    ) = _allowlist_run_state_reconciliation_readback(
+        reconciliation_binding_ref=(
+            body.runtime_fanout_reconciliation_binding_ref
+        ),
+        reconciliation_plan_recheck_ref=(
+            body.runtime_fanout_reconciliation_plan_recheck_ref
+        ),
+        exchange_readback_recheck_ref=(
+            body.runtime_fanout_exchange_readback_recheck_ref
+        ),
+    )
+    (
         runtime_fanout_rate_limit_status,
         runtime_fanout_rate_limit_ref,
         runtime_fanout_rate_limit_blockers,
@@ -6270,11 +6331,11 @@ def _record_usdc_pair_allowlist_run_state(
             runtime_fanout_admission_audit_blockers
         ),
         runtime_fanout_reconciliation_status=(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RECONCILIATION_BLOCKED_STATUS
+            runtime_fanout_reconciliation_status
         ),
-        runtime_fanout_reconciliation_ref=None,
+        runtime_fanout_reconciliation_ref=runtime_fanout_reconciliation_ref,
         runtime_fanout_reconciliation_blockers=list(
-            USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_RECONCILIATION_BLOCKERS
+            runtime_fanout_reconciliation_blockers
         ),
         runtime_fanout_cap_guard_status=(
             USDC_PAIR_SNAPSHOT_RUNTIME_FANOUT_CAP_GUARD_BLOCKED_STATUS
