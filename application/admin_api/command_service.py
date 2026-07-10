@@ -1987,6 +1987,7 @@ class AdminApiCommandService:
                             "idempotency_key": command.envelope.idempotency_key,
                             "correlation_id": command.envelope.correlation_id,
                             "operator_intent": command.envelope.operator_intent,
+                            "operator_notes": request.operator_notes,
                             "requested_refs": requested_refs,
                             "prerequisite_validation": prerequisite_validation,
                             "pre_trigger_chain": pre_trigger_chain.model_dump(

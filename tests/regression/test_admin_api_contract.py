@@ -76640,6 +76640,7 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
         "reconciliation_plan_id": "fill-follow-up-reconciliation-executor",
         "audit_correlation_id": "corr-root-follow-up",
         "confirm_duplicate_claim_protection": True,
+        "operator_notes": "accepted executor context must carry operator notes",
     }
     payload_hash = make_payload_hash(
         {
@@ -76906,6 +76907,9 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
     assert payload["live_coinbase_orders_ran"] is False
     data = payload["data"]
     assert data["trigger_accepted"] is True
+    assert data["operator_notes"] == (
+        "accepted executor context must carry operator notes"
+    )
     assert data["blockers"] == []
     assert data["pre_trigger_chain"]["follow_up_child_count"] == 0
     assert data["chain"]["follow_up_child_client_order_ids"] == [child_id]
@@ -76941,6 +76945,9 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
     assert executor_calls[0]["order"]["filled_size"] == "0.01"
     assert executor_calls[0]["context"]["audit_correlation_id"] == (
         "corr-root-follow-up"
+    )
+    assert executor_calls[0]["context"]["operator_notes"] == (
+        "accepted executor context must carry operator notes"
     )
     assert replay.json() == payload
 
