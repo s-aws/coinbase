@@ -79384,6 +79384,284 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_child_readback_anomalies
 
 
 @pytest.mark.regression
+def test_admin_api_order_fill_follow_up_trigger_preserves_ready_no_live_readiness_evidence(
+    monkeypatch,
+):
+    import application.admin_api.read_service as read_service
+    from application.admin_api.models import (
+        AdminOrderFillFollowUpChainResponse,
+        AdminOrderFillFollowUpDecisionAuditEvidence,
+        AdminOrderFillFollowUpLiveReadinessResponse,
+        AdminOrderFillFollowUpTriggerCommand,
+        AdminOrderFillFollowUpTriggerRequest,
+        AdminOrderReadItem,
+    )
+
+    root_id = "b8a08400-e29b-41d4-a716-446655440000"
+    child_id = "b8b08400-e29b-41d4-a716-446655440000"
+    idempotency_key = "idem-fill-follow-up-trigger-ready-no-live"
+    operator_intent = "trigger_fill_follow_up_ready_no_live"
+    approval_id = "fill-follow-up-approval-ready-no-live-trigger"
+    cap_guard_id = "fill-follow-up-cap-ready-no-live-trigger"
+    reconciliation_id = "fill-follow-up-reconciliation-ready-no-live-trigger"
+    wallet_ref = f"cap_guard_wallet:{cap_guard_id}"
+    audit_correlation_id = "corr-root-ready-no-live-trigger"
+    root_order = AdminOrderReadItem(
+        client_order_id=root_id,
+        product_id="BTC-USD",
+        side="BUY",
+        status="FILLED",
+        order_type="limit",
+        size="0.01",
+        price="100.00",
+        parent_client_order_id=None,
+        created_at="2026-07-10T01:00:00Z",
+        updated_at="2026-07-10T01:02:00Z",
+        exchange_order_id="exchange-evidence-root",
+        correlation_id=audit_correlation_id,
+        audit_id="audit-root-ready-no-live-trigger",
+    )
+    child_order = AdminOrderReadItem(
+        client_order_id=child_id,
+        product_id="BTC-USD",
+        side="SELL",
+        status="HIDDEN",
+        order_type="limit",
+        size="0.01",
+        price="101.00",
+        parent_client_order_id=root_id,
+        created_at="2026-07-10T01:03:00Z",
+        updated_at="2026-07-10T01:03:00Z",
+        exchange_order_id=None,
+        correlation_id="corr-child-ready-no-live-trigger",
+        audit_id="audit-child-ready-no-live-trigger",
+    )
+
+    def decision_audit(
+        *,
+        child_ids: list[str],
+        claim_state: str | None,
+    ) -> AdminOrderFillFollowUpDecisionAuditEvidence:
+        return AdminOrderFillFollowUpDecisionAuditEvidence(
+            client_order_id=root_id,
+            status=AdminApiGateStatus.PASSED,
+            source_order_status="FILLED",
+            filled_status_observed=True,
+            source_side="BUY",
+            derived_follow_up_side="SELL",
+            product_id="BTC-USD",
+            product_type="SPOT",
+            policy_evaluation_ran=True,
+            policy_allowed=True,
+            policy_intent="exit",
+            policy_reason="spot_follow_up_allowed",
+            follow_up_decision="eligible_no_live",
+            root_parent_client_order_id=root_id,
+            parent_client_order_id=root_id,
+            existing_follow_up_client_order_ids=child_ids,
+            existing_follow_up_count=len(child_ids),
+            chain_source="order_parent_and_stealth_orders",
+            claim_state=claim_state,
+            claim_state_source="orderbook.follow_up_claim_state",
+            claim_reader_ran=True,
+            read_evidence_routes=[
+                "/api/v1/orders/{client_order_id}/fill-follow-up/chain"
+            ],
+            required_contracts=[],
+            missing_contracts=[],
+            blockers=[],
+            detail="Test fill follow-up decision audit.",
+        )
+
+    pre_audit = decision_audit(child_ids=[], claim_state=None)
+    post_audit = decision_audit(child_ids=[child_id], claim_state="done")
+    readiness = AdminOrderFillFollowUpLiveReadinessResponse(
+        client_order_id=root_id,
+        found=True,
+        ready=True,
+        readiness_status="ready_no_live",
+        readiness_mode="no_live_preflight",
+        fill_follow_up_decision_audit=pre_audit,
+        duplicate_claim_protection_observed=True,
+        duplicate_claim_state=None,
+        duplicate_claim_source="orderbook.follow_up_claim_state",
+        audit_correlation_id=audit_correlation_id,
+        fill_testing_approval_present=True,
+        wallet_proof_ref=wallet_ref,
+        cap_guard_decision_ref=cap_guard_id,
+        reconciliation_plan_ref=reconciliation_id,
+        live_fill_readback_proof_ref=(
+            f"spot_fill_readback:{root_id}:audit-fill-readback-ready-trigger"
+        ),
+        rollback_readback_ref=(
+            "spot_recovery_rollback_journal:rollback-ready-no-live-trigger"
+        ),
+        operator_visible_audit_ref=(
+            "admin_order_audit:audit-root-ready-no-live-trigger"
+        ),
+        blockers=[],
+        detail="Ready no-live preflight evidence for trigger response.",
+    )
+    pre_chain = AdminOrderFillFollowUpChainResponse(
+        client_order_id=root_id,
+        found=True,
+        root_parent_client_order_id=root_id,
+        parent_client_order_id=root_id,
+        active_client_order_id=root_id,
+        root_order=root_order,
+        active_order=root_order,
+        follow_up_children=[],
+        follow_up_child_client_order_ids=[],
+        follow_up_child_count=0,
+        duplicate_child_client_order_ids=[],
+        order_parent_child_read_ran=True,
+        fill_follow_up_decision_audit=pre_audit,
+        read_evidence_routes=[
+            "/api/v1/orders/{client_order_id}/fill-follow-up/chain"
+        ],
+        blockers=[],
+        detail="Pre-trigger chain readback.",
+    )
+    post_chain = pre_chain.model_copy(
+        update={
+            "follow_up_children": [child_order],
+            "follow_up_child_client_order_ids": [child_id],
+            "follow_up_child_count": 1,
+            "fill_follow_up_decision_audit": post_audit,
+            "detail": "Post-trigger chain readback.",
+        }
+    )
+    chain_reads = {"count": 0}
+
+    def build_chain(self, *, client_order_id):
+        assert client_order_id == root_id
+        chain_reads["count"] += 1
+        return pre_chain if chain_reads["count"] == 1 else post_chain
+
+    monkeypatch.setattr(
+        read_service.AdminApiReadService,
+        "build_order_fill_follow_up_live_readiness",
+        lambda self, *, client_order_id: readiness,
+    )
+    monkeypatch.setattr(
+        read_service.AdminApiReadService,
+        "build_order_fill_follow_up_chain",
+        build_chain,
+    )
+
+    def trigger_child(*, order, context):
+        return {
+            "status": "executed",
+            "source": "fake_fill_follow_up_executor",
+            "order_engine_handle_filled_order_called": True,
+            "claim_acquired": True,
+            "follow_up_child_client_order_id": child_id,
+            "coinbase_order_submit_ran": False,
+            "coinbase_order_cancel_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "exchange_state_mutated": False,
+        }
+
+    service = AdminApiCommandService(
+        AdminApiCommandDependencies(
+            fill_follow_up_executor_getter=lambda: SimpleNamespace(
+                trigger_filled_follow_up=trigger_child
+            )
+        )
+    )
+    command = AdminOrderFillFollowUpTriggerCommand(
+        envelope=AdminApiCommandEnvelope(
+            idempotency_key=idempotency_key,
+            correlation_id="corr-trigger-ready-no-live",
+            operator_intent=operator_intent,
+            actor=AdminApiActor(
+                actor_id="operator-001",
+                roles=[AdminApiRole.TRADER],
+            ),
+        ),
+        client_order_id=root_id,
+        request=AdminOrderFillFollowUpTriggerRequest(
+            fill_testing_approval_id=approval_id,
+            wallet_proof_ref=wallet_ref,
+            cap_guard_decision_id=cap_guard_id,
+            reconciliation_plan_id=reconciliation_id,
+            audit_correlation_id=audit_correlation_id,
+            confirm_duplicate_claim_protection=True,
+        ),
+        admission_decision=AdminLiveAdmissionDecisionEvidence(
+            status=AdminApiGateStatus.PASSED,
+            allowed=True,
+            route="/api/v1/orders/{client_order_id}/fill-follow-up/trigger",
+            method="POST",
+            module_id="spot_operations",
+            identity_key="client_order_id",
+            identity_value=root_id,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            service_method="trigger_order_fill_follow_up",
+            actor_id="operator-001",
+            idempotency_key=idempotency_key,
+            operator_intent=operator_intent,
+            payload_hash="r" * 64,
+            approval_snapshot_present=True,
+            approval_snapshot_id=approval_id,
+            approval_snapshot_source="approval_store",
+            admission_audit_present=True,
+            admission_audit_id="fill-follow-up-admission-audit-ready-no-live",
+            admission_audit_source="audit_store",
+            cap_guard_present=True,
+            cap_guard_decision_id=cap_guard_id,
+            cap_guard_source="cap_guard_store",
+            reconciliation_plan_present=True,
+            reconciliation_plan_id=reconciliation_id,
+            reconciliation_plan_source="reconciliation_store",
+            blockers=[],
+            evidence=["exact fill follow-up route-bound proof"],
+            detail="Exact backend-owned fill follow-up proof.",
+        ),
+        cap_guard_wallet_proof_ref=wallet_ref,
+        cap_guard_wallet_check_status=AdminApiGateStatus.PASSED.value,
+        cap_guard_wallet_available_notional_usdc="10.00",
+        cap_guard_wallet_check_source="operator_supplied_fill_follow_up_wallet_evidence",
+    )
+
+    response = service.trigger_order_fill_follow_up(command)
+
+    assert chain_reads["count"] == 2
+    assert response.status == AdminApiCommandStatus.ACCEPTED
+    assert response.live_exchange_submitted is False
+    assert response.live_coinbase_orders_ran is False
+    data = response.data
+    assert data["trigger_accepted"] is True
+    assert data["blockers"] == []
+    assert data["accepted_follow_up_child_client_order_id"] == child_id
+    assert data["post_trigger_follow_up_child_count_delta"] == 1
+    assert data["claim_acquired"] is True
+    assert data["order_engine_handle_filled_order_called"] is True
+    assert data["follow_up_order_created"] is True
+    assert data["local_state_mutated"] is True
+    assert data["coinbase_order_submit_ran"] is False
+    assert data["exchange_state_mutated"] is False
+    readiness_payload = data["live_readiness"]
+    assert readiness_payload["ready"] is True
+    assert readiness_payload["readiness_status"] == "ready_no_live"
+    assert readiness_payload["readiness_mode"] == "no_live_preflight"
+    assert readiness_payload["blockers"] == []
+    assert readiness_payload["live_execution_allowed"] is False
+    assert readiness_payload["read_only"] is True
+    assert readiness_payload["order_engine_handle_filled_order_called"] is False
+    assert readiness_payload["stealth_create_follow_up_called"] is False
+    assert readiness_payload["follow_up_order_created"] is False
+    assert readiness_payload["coinbase_order_submit_ran"] is False
+    assert readiness_payload["local_state_mutated"] is False
+    assert readiness_payload["exchange_state_mutated"] is False
+    assert readiness_payload["live_coinbase_orders_ran"] is False
+    assert readiness_payload["wallet_proof_ref"] == wallet_ref
+    assert readiness_payload["cap_guard_decision_ref"] == cap_guard_id
+    assert readiness_payload["reconciliation_plan_ref"] == reconciliation_id
+
+
+@pytest.mark.regression
 @pytest.mark.parametrize(
     (
         "case_name",
