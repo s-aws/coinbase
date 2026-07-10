@@ -1218,6 +1218,74 @@ def test_usdc_pair_snapshot_live_fanout_executor_requires_notional_evidence():
             max_orders_per_second=5,
         )
 
+
+def test_usdc_pair_snapshot_live_fanout_executor_rejects_duplicate_order_identity():
+    from application.admin_api import usdc_pair_snapshot_live_execution as live_exec
+
+    class FakeOrderExecutor:
+        def submit_and_cancel(self, **_kwargs):
+            raise AssertionError("fan-out executor must fail before submission")
+
+    executor = live_exec.UsdcPairSnapshotLiveFanoutExecutor(
+        order_executor=FakeOrderExecutor()
+    )
+
+    with pytest.raises(
+        live_exec.UsdcPairSnapshotLiveExecutionError,
+        match="duplicate client_order_id",
+    ):
+        executor.submit_and_cancel_all(
+            orders=[
+                {
+                    "client_order_id": "client-order-duplicate",
+                    "product_id": "BTC-USDC",
+                    "side": "BUY",
+                    "order_configuration": _fanout_buy_order_configuration("1.00"),
+                    "submitted_notional_usdc": "1.00",
+                    "max_executed_notional_usdc": "0.01",
+                    "cancel_client_order_id": "client-order-duplicate",
+                },
+                {
+                    "client_order_id": "client-order-duplicate",
+                    "product_id": "ETH-USDC",
+                    "side": "BUY",
+                    "order_configuration": _fanout_buy_order_configuration("1.50"),
+                    "submitted_notional_usdc": "1.50",
+                    "max_executed_notional_usdc": "0.01",
+                    "cancel_client_order_id": "client-order-duplicate",
+                },
+            ],
+            max_orders_per_second=5,
+        )
+
+    with pytest.raises(
+        live_exec.UsdcPairSnapshotLiveExecutionError,
+        match="duplicate product_id",
+    ):
+        executor.submit_and_cancel_all(
+            orders=[
+                {
+                    "client_order_id": "client-order-1",
+                    "product_id": "BTC-USDC",
+                    "side": "BUY",
+                    "order_configuration": _fanout_buy_order_configuration("1.00"),
+                    "submitted_notional_usdc": "1.00",
+                    "max_executed_notional_usdc": "0.01",
+                    "cancel_client_order_id": "client-order-1",
+                },
+                {
+                    "client_order_id": "client-order-2",
+                    "product_id": "btc-usdc",
+                    "side": "BUY",
+                    "order_configuration": _fanout_buy_order_configuration("1.50"),
+                    "submitted_notional_usdc": "1.50",
+                    "max_executed_notional_usdc": "0.01",
+                    "cancel_client_order_id": "client-order-2",
+                },
+            ],
+            max_orders_per_second=5,
+        )
+
     with pytest.raises(
         live_exec.UsdcPairSnapshotLiveExecutionError,
         match="max executed fan-out notional cannot exceed submitted",

@@ -217,6 +217,7 @@ class UsdcPairSnapshotLiveFanoutExecutor:
                 "notional evidence."
             )
         calls = [_fanout_order_call(order) for order in order_items]
+        _ensure_unique_fanout_order_identity(calls)
         submitted_total = sum(
             (
                 _fanout_decimal_value(
@@ -381,6 +382,28 @@ def _fanout_order_call(order: Mapping[str, Any]) -> dict[str, Any]:
         "max_executed_notional_usdc": max_executed_notional_usdc,
         "cancel_client_order_id": cancel_client_order_id,
     }
+
+
+def _ensure_unique_fanout_order_identity(
+    calls: Sequence[Mapping[str, Any]],
+) -> None:
+    client_order_ids: set[str] = set()
+    product_ids: set[str] = set()
+    for call in calls:
+        client_order_id = str(call["client_order_id"]).strip()
+        if client_order_id in client_order_ids:
+            raise UsdcPairSnapshotLiveExecutionError(
+                "M58 live fan-out submit requires unique client_order_id; "
+                f"duplicate client_order_id {client_order_id!r}."
+            )
+        client_order_ids.add(client_order_id)
+        product_id = str(call["product_id"]).strip().upper()
+        if product_id in product_ids:
+            raise UsdcPairSnapshotLiveExecutionError(
+                "M58 live fan-out submit requires unique product_id; "
+                f"duplicate product_id {product_id!r}."
+            )
+        product_ids.add(product_id)
 
 
 def _ensure_fanout_limit_order_shape(
