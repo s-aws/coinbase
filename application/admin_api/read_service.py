@@ -13048,6 +13048,10 @@ class AdminApiReadService:
             if row
             else None
         )
+        row_audit_id = _string_or_none(row.get("audit_id")) if row else None
+        operator_visible_audit_ref = (
+            f"admin_order_audit:{row_audit_id}" if row_audit_id else None
+        )
         duplicate_claim_observed = bool(audit and audit.claim_reader_ran)
         blockers: list[str] = []
         if row is None:
@@ -13068,9 +13072,10 @@ class AdminApiReadService:
                 "fill_follow_up_reconciliation_proof_missing",
                 "fill_follow_up_live_fill_readback_proof_missing",
                 "fill_follow_up_rollback_readback_missing",
-                "fill_follow_up_operator_visible_audit_missing",
             ]
         )
+        if not operator_visible_audit_ref:
+            blockers.append("fill_follow_up_operator_visible_audit_missing")
         return AdminOrderFillFollowUpLiveReadinessResponse(
             client_order_id=client_order_id,
             found=row is not None,
@@ -13085,6 +13090,7 @@ class AdminApiReadService:
                 else "runtime_orderbook_unavailable"
             ),
             audit_correlation_id=audit_correlation_id,
+            operator_visible_audit_ref=operator_visible_audit_ref,
             blockers=blockers,
             detail=(
                 "Fill follow-up live readiness is fail-closed until separate "

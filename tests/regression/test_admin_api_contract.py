@@ -75976,6 +75976,7 @@ def test_admin_api_order_fill_follow_up_live_readiness_blocks_without_prereqs(
         "updated_at": "2026-07-10T01:02:00Z",
         "exchange_order_id": "exchange-evidence-root",
         "correlation_id": "corr-root-follow-up",
+        "audit_id": "audit-root-follow-up",
     }
     monkeypatch.setattr(
         order_module,
@@ -76023,7 +76024,9 @@ def test_admin_api_order_fill_follow_up_live_readiness_blocks_without_prereqs(
     assert payload["rollback_readback_required"] is True
     assert payload["rollback_readback_ref"] is None
     assert payload["operator_visible_audit_required"] is True
-    assert payload["operator_visible_audit_ref"] is None
+    assert payload["operator_visible_audit_ref"] == (
+        "admin_order_audit:audit-root-follow-up"
+    )
     assert payload["audit_correlation_id"] == "corr-root-follow-up"
     assert payload["order_engine_handle_filled_order_called"] is False
     assert payload["stealth_create_follow_up_called"] is False
@@ -76035,7 +76038,7 @@ def test_admin_api_order_fill_follow_up_live_readiness_blocks_without_prereqs(
     assert "fill_follow_up_reconciliation_proof_missing" in payload["blockers"]
     assert "fill_follow_up_live_fill_readback_proof_missing" in payload["blockers"]
     assert "fill_follow_up_rollback_readback_missing" in payload["blockers"]
-    assert "fill_follow_up_operator_visible_audit_missing" in payload["blockers"]
+    assert "fill_follow_up_operator_visible_audit_missing" not in payload["blockers"]
     assert "duplicate_claim_protection_unobserved" in payload["blockers"]
     assert payload["fill_follow_up_decision_audit"]["follow_up_decision"] == (
         "eligible_no_live"

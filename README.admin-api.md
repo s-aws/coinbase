@@ -30,7 +30,11 @@ fill-follow-up trigger is the no-live local-state compatibility exception:
 after exact route-bound approval, cap/guard wallet proof, reconciliation,
 duplicate-claim, and audit-correlation refs, it can return accepted
 parent/child readback evidence while Coinbase submit/cancel and live exchange
-mutation remain disallowed.
+mutation remain disallowed. Fill-follow-up live-readiness may surface
+`operator_visible_audit_ref=admin_order_audit:<audit_id>` when the selected
+order row has backend audit evidence, but live-fill readback, rollback,
+wallet, cap/guard, reconciliation, approval, and duplicate-claim blockers
+remain fail-closed until their own backend evidence exists.
 
 `POST /api/v1/orders` is the enterprise manual Spot order command contract, but
 today it is a dry-submit/review path only. The route requires backend auth,
