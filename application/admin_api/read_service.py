@@ -309,6 +309,7 @@ from .models import (
     AdminOidcJwtReadinessResponse,
     AdminOrderDetailResponse,
     AdminOrderFillFollowUpDecisionAuditEvidence,
+    AdminOrderFillFollowUpChainResponse,
     AdminOrderFillFollowUpLiveReadinessResponse,
     AdminOrderFillFollowUpReplayResponse,
     AdminOrderListResponse,
@@ -2812,7 +2813,9 @@ def _path_id(method: str, path: str) -> str:
 
 def _order_item_from_row(row: dict[str, Any]) -> AdminOrderReadItem:
     return AdminOrderReadItem(
-        client_order_id=str(row.get("client_order_id") or ""),
+        client_order_id=str(
+            row.get("client_order_id") or row.get("stealth_order_id") or ""
+        ),
         product_id=_string_or_none(row.get("product_id")),
         side=_string_or_none(row.get("side")),
         status=_string_or_none(row.get("status")),
@@ -2829,6 +2832,7 @@ def _order_item_from_row(row: dict[str, Any]) -> AdminOrderReadItem:
         ),
         correlation_id=_string_or_none(row.get("correlation_id")),
         audit_id=_string_or_none(row.get("audit_id")),
+        source=_string_or_none(row.get("source")) or "order_parent",
     )
 
 
@@ -3005,6 +3009,7 @@ def _order_fill_follow_up_decision_audit(
             "/api/v1/orders/{client_order_id}",
             "/api/v1/orders/{client_order_id}/fill-follow-up/replay",
             "/api/v1/orders/{client_order_id}/fill-follow-up/live-readiness",
+            "/api/v1/orders/{client_order_id}/fill-follow-up/chain",
             "/api/v1/stealth/orders/{stealth_order_id}",
             "/api/v1/admin/fill-ledger-health",
         ],
@@ -13059,6 +13064,151 @@ class AdminApiReadService:
                 "reconciliation proof, observed duplicate-claim protection, and "
                 "operator-visible audit correlation exist. No engine, stealth, "
                 "Coinbase, local-state, or exchange mutation ran."
+            ),
+        )
+
+    def build_order_fill_follow_up_chain(
+        self,
+        *,
+        client_order_id: str,
+    ) -> AdminOrderFillFollowUpChainResponse:
+        """Return read-only parent/child chain evidence for one order."""
+
+        blockers: list[str] = []
+        try:
+            from database import order as order_module
+
+            row = order_module.get_parent_order(client_order_id)
+        except Exception as exc:
+            row = None
+            order_module = None
+            blockers.append(f"active_order_read_error:{type(exc).__name__}")
+
+        parent_client_order_id = (
+            _string_or_none(row.get("parent_order_id")) if row else None
+        )
+        root_parent_client_order_id = (
+            parent_client_order_id or client_order_id if row else None
+        )
+        parent_rows_by_id: dict[str, dict[str, Any]] = {}
+        order_parent_child_read_ran = False
+        if order_module is not None:
+            try:
+                for parent_row in order_module.get_parent_orders() or []:
+                    parent_id = _string_or_none(parent_row.get("client_order_id"))
+                    if parent_id:
+                        parent_rows_by_id[parent_id] = parent_row
+                order_parent_child_read_ran = True
+            except Exception as exc:
+                blockers.append(f"order_parent_child_read_error:{type(exc).__name__}")
+        if row:
+            parent_rows_by_id.setdefault(client_order_id, row)
+
+        root_row: dict[str, Any] | None = None
+        if root_parent_client_order_id:
+            root_row = parent_rows_by_id.get(root_parent_client_order_id)
+            if root_row is None and order_module is not None:
+                try:
+                    root_row = order_module.get_parent_order(root_parent_client_order_id)
+                    if root_row:
+                        parent_rows_by_id[root_parent_client_order_id] = root_row
+                except Exception as exc:
+                    blockers.append(f"root_order_read_error:{type(exc).__name__}")
+
+        child_rows: list[dict[str, Any]] = []
+        duplicate_child_client_order_ids: list[str] = []
+        seen_child_ids: set[str] = set()
+
+        def add_child_row(child_row: dict[str, Any], *, source: str) -> None:
+            child_id = _string_or_none(
+                child_row.get("client_order_id") or child_row.get("stealth_order_id")
+            )
+            if not child_id or child_id == root_parent_client_order_id:
+                return
+            normalized_child = {
+                **child_row,
+                "client_order_id": child_id,
+                "parent_order_id": _string_or_none(
+                    child_row.get("parent_order_id")
+                )
+                or root_parent_client_order_id,
+                "source": source,
+            }
+            if child_id in seen_child_ids:
+                if child_id not in duplicate_child_client_order_ids:
+                    duplicate_child_client_order_ids.append(child_id)
+                return
+            seen_child_ids.add(child_id)
+            child_rows.append(normalized_child)
+
+        if root_parent_client_order_id:
+            for parent_row in parent_rows_by_id.values():
+                if (
+                    _string_or_none(parent_row.get("parent_order_id"))
+                    == root_parent_client_order_id
+                ):
+                    add_child_row(parent_row, source="order_parent")
+            if client_order_id != root_parent_client_order_id and row:
+                add_child_row(row, source="order_parent")
+
+        stealth_child_read_ran = False
+        if root_parent_client_order_id and order_module is not None:
+            try:
+                uuid.UUID(root_parent_client_order_id)
+                stealth_children = (
+                    order_module.get_stealth_children_for_parent(
+                        root_parent_client_order_id
+                    )
+                    or []
+                )
+                stealth_child_read_ran = True
+                for stealth_child in stealth_children:
+                    add_child_row(stealth_child, source="stealth_orders")
+            except ValueError:
+                blockers.append("root_parent_client_order_id_not_uuid")
+            except Exception as exc:
+                blockers.append(f"stealth_child_read_error:{type(exc).__name__}")
+
+        if row is None:
+            blockers.append("order_not_found")
+        if row is not None and root_parent_client_order_id and root_row is None:
+            blockers.append("root_parent_order_not_found")
+
+        audit = _order_fill_follow_up_decision_audit(
+            row,
+            client_order_id=client_order_id,
+        )
+        child_items = [_order_item_from_row(child_row) for child_row in child_rows]
+        child_ids = [item.client_order_id for item in child_items]
+        return AdminOrderFillFollowUpChainResponse(
+            client_order_id=client_order_id,
+            found=row is not None,
+            root_parent_client_order_id=root_parent_client_order_id,
+            parent_client_order_id=parent_client_order_id,
+            active_client_order_id=client_order_id,
+            root_order=_order_item_from_row(root_row) if root_row else None,
+            active_order=_order_item_from_row(row) if row else None,
+            follow_up_children=child_items,
+            follow_up_child_client_order_ids=child_ids,
+            follow_up_child_count=len(child_items),
+            duplicate_child_client_order_ids=duplicate_child_client_order_ids,
+            order_parent_child_read_ran=order_parent_child_read_ran,
+            stealth_child_read_ran=stealth_child_read_ran,
+            fill_follow_up_decision_audit=audit,
+            read_evidence_routes=[
+                "/api/v1/orders/{client_order_id}",
+                "/api/v1/orders/{client_order_id}/fill-follow-up/replay",
+                "/api/v1/orders/{client_order_id}/fill-follow-up/live-readiness",
+                "/api/v1/orders/{client_order_id}/fill-follow-up/chain",
+                "/api/v1/stealth/orders/{stealth_order_id}",
+            ],
+            blockers=blockers,
+            detail=(
+                "Read-only fill follow-up chain evidence expands the active "
+                "order, root parent, and existing follow-up children from "
+                "local order_parent and stealth_orders records. No engine, "
+                "claim acquisition, stealth creation, Coinbase call, local "
+                "mutation, or exchange mutation ran."
             ),
         )
 

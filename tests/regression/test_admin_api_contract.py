@@ -3554,6 +3554,24 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "audit_correlation_id" in readiness_schema["properties"]
     assert "fill_testing_approval_present" in readiness_schema["properties"]
     assert "wallet_proof_ref" in readiness_schema["properties"]
+    chain_path = written["paths"][
+        "/api/v1/orders/{client_order_id}/fill-follow-up/chain"
+    ]["get"]
+    assert chain_path["responses"]["200"]["content"]["application/json"][
+        "schema"
+    ]["$ref"] == "#/components/schemas/AdminOrderFillFollowUpChainResponse"
+    assert (
+        "AdminOrderFillFollowUpChainResponse"
+        in written["components"]["schemas"]
+    )
+    chain_schema = written["components"]["schemas"][
+        "AdminOrderFillFollowUpChainResponse"
+    ]
+    assert "root_parent_client_order_id" in chain_schema["properties"]
+    assert "active_order" in chain_schema["properties"]
+    assert "root_order" in chain_schema["properties"]
+    assert "follow_up_children" in chain_schema["properties"]
+    assert "duplicate_child_client_order_ids" in chain_schema["properties"]
     assert "AdminOrderFillFollowUpDecisionAuditEvidence" in written["components"][
         "schemas"
     ]
@@ -75940,6 +75958,112 @@ def test_admin_api_order_fill_follow_up_live_readiness_blocks_without_prereqs(
 
 
 @pytest.mark.regression
+def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
+    monkeypatch,
+):
+    import configuration
+    import database.order as order_module
+
+    root_id = "880e8400-e29b-41d4-a716-446655440000"
+    child_id = "990e8400-e29b-41d4-a716-446655440000"
+    root_order = {
+        "client_order_id": root_id,
+        "product_id": "BTC-USD",
+        "side": "BUY",
+        "status": "FILLED",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "100.00",
+        "parent_order_id": None,
+        "created_at": "2026-07-10T01:00:00Z",
+        "updated_at": "2026-07-10T01:02:00Z",
+        "exchange_order_id": "exchange-evidence-root",
+        "correlation_id": "corr-root-follow-up",
+    }
+    parent_table_child = {
+        "client_order_id": child_id,
+        "product_id": "BTC-USD",
+        "side": "SELL",
+        "status": "HIDDEN",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "101.00",
+        "parent_order_id": root_id,
+        "created_at": "2026-07-10T01:03:00Z",
+        "updated_at": "2026-07-10T01:03:00Z",
+        "exchange_order_id": None,
+        "audit_id": "audit-child-follow-up",
+    }
+    stealth_child = {
+        "client_order_id": child_id,
+        "product_id": "BTC-USD",
+        "side": "SELL",
+        "size": "0.01",
+        "price": "101.00",
+    }
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order",
+        lambda client_order_id: root_order if client_order_id == root_id else None,
+    )
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_orders",
+        lambda: [root_order, parent_table_child],
+    )
+    monkeypatch.setattr(
+        order_module,
+        "get_stealth_children_for_parent",
+        lambda parent_order_id: [stealth_child] if parent_order_id == root_id else [],
+    )
+    monkeypatch.setattr(
+        configuration,
+        "rest_get_products",
+        lambda: {
+            "BTC-USD": {
+                "product_id": "BTC-USD",
+                "product_type": "SPOT",
+                "future_product_details": {},
+            }
+        },
+    )
+
+    client = _client(monkeypatch)
+    response = client.get(
+        f"/api/v1/orders/{root_id}/fill-follow-up/chain",
+        headers=_headers(roles=AdminApiRole.AUDITOR.value),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["type"] == "admin_order_fill_follow_up_chain"
+    assert payload["client_order_id"] == root_id
+    assert payload["found"] is True
+    assert payload["chain_status"] == "read_only"
+    assert payload["root_parent_client_order_id"] == root_id
+    assert payload["active_client_order_id"] == root_id
+    assert payload["root_order"]["client_order_id"] == root_id
+    assert payload["active_order"]["client_order_id"] == root_id
+    assert payload["follow_up_child_client_order_ids"] == [child_id]
+    assert payload["follow_up_child_count"] == 1
+    assert payload["follow_up_children"][0]["client_order_id"] == child_id
+    assert payload["duplicate_child_client_order_ids"] == [child_id]
+    assert payload["order_parent_child_read_ran"] is True
+    assert payload["stealth_child_read_ran"] is True
+    assert payload["read_only"] is True
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["order_engine_handle_filled_order_called"] is False
+    assert payload["stealth_create_follow_up_called"] is False
+    assert payload["coinbase_order_submit_ran"] is False
+    assert payload["local_state_mutated"] is False
+    assert payload["exchange_state_mutated"] is False
+    assert payload["fill_follow_up_decision_audit"]["existing_follow_up_count"] == 1
+    assert payload["fill_follow_up_decision_audit"]["follow_up_decision"] == (
+        "eligible_no_live"
+    )
+
+
+@pytest.mark.regression
 def test_admin_api_stealth_read_routes_use_read_service_without_commands(monkeypatch):
     from api.v1.routes import stealth as stealth_routes
 
@@ -86184,6 +86308,12 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows[
         "GET /api/v1/orders/{client_order_id}/fill-follow-up/live-readiness"
     ].action_class == AdminApiActionClass.READ_ONLY
+    assert rows[
+        "GET /api/v1/orders/{client_order_id}/fill-follow-up/chain"
+    ].shared_method == "build_order_fill_follow_up_chain"
+    assert rows[
+        "GET /api/v1/orders/{client_order_id}/fill-follow-up/chain"
+    ].action_class == AdminApiActionClass.READ_ONLY
     assert rows["GET /api/v1/stealth/orders"].shared_method == (
         "build_stealth_order_list"
     )
@@ -86788,6 +86918,7 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "build_order_list" in doc
     assert "build_order_fill_follow_up_replay" in doc
     assert "build_order_fill_follow_up_live_readiness" in doc
+    assert "build_order_fill_follow_up_chain" in doc
     assert "build_stealth_order_list" in doc
     assert "build_stealth_order_detail" in doc
     assert "cancel_stealth_order_by_stealth_order_id" in doc

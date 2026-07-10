@@ -70,6 +70,7 @@ from application.admin_api.models import (
     AdminApiErrorResponse,
     AdminLiveAdmissionDecisionEvidence,
     AdminOrderDetailResponse,
+    AdminOrderFillFollowUpChainResponse,
     AdminOrderFillFollowUpLiveReadinessResponse,
     AdminOrderFillFollowUpReplayResponse,
     AdminOrderListResponse,
@@ -1027,6 +1028,25 @@ def get_order_fill_follow_up_live_readiness(
         service.build_order_fill_follow_up_live_readiness(
             client_order_id=client_order_id
         )
+    )
+
+
+@router.get(
+    "/orders/{client_order_id}/fill-follow-up/chain",
+    response_model=AdminOrderFillFollowUpChainResponse,
+    responses=READ_ROUTE_RESPONSES,
+    summary="Read fill follow-up parent/child chain evidence",
+)
+def get_order_fill_follow_up_chain(
+    client_order_id: Annotated[str, Path(min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+) -> JSONResponse:
+    """Read fill follow-up parent/child chain evidence without executing."""
+
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    return _read_response(
+        service.build_order_fill_follow_up_chain(client_order_id=client_order_id)
     )
 
 

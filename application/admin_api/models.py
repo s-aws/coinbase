@@ -4831,6 +4831,46 @@ class AdminOrderFillFollowUpLiveReadinessResponse(BaseModel):
     detail: str
 
 
+class AdminOrderFillFollowUpChainResponse(BaseModel):
+    """Read-only parent/child chain evidence for fill-triggered follow-up."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_order_fill_follow_up_chain"
+    client_order_id: str
+    found: bool
+    chain_status: str = "read_only"
+    root_parent_client_order_id: str | None = None
+    parent_client_order_id: str | None = None
+    active_client_order_id: str
+    root_order: AdminOrderReadItem | None = None
+    active_order: AdminOrderReadItem | None = None
+    follow_up_children: list[AdminOrderReadItem] = Field(default_factory=list)
+    follow_up_child_client_order_ids: list[str] = Field(default_factory=list)
+    follow_up_child_count: int = 0
+    duplicate_child_client_order_ids: list[str] = Field(default_factory=list)
+    chain_source: str = "order_parent_and_stealth_orders"
+    order_parent_child_read_ran: bool = False
+    stealth_child_read_ran: bool = False
+    flat_hierarchy_enforced: bool = True
+    fill_follow_up_decision_audit: (
+        AdminOrderFillFollowUpDecisionAuditEvidence | None
+    ) = None
+    read_evidence_routes: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    read_only: bool = True
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    order_engine_handle_filled_order_called: bool = False
+    stealth_create_follow_up_called: bool = False
+    follow_up_order_created: bool = False
+    coinbase_order_submit_ran: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    local_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    detail: str
+
+
 class AdminStealthOrderReadItem(BaseModel):
     """Read-only stealth order evidence from ``stealth_orders``."""
 
