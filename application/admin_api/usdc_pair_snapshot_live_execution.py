@@ -323,6 +323,17 @@ class UsdcPairSnapshotLiveFanoutExecutor:
 
 def _fanout_order_call(order: Mapping[str, Any]) -> dict[str, Any]:
     client_order_id = _required_text(order, "client_order_id")
+    product_id = _required_text(order, "product_id")
+    if not product_id.upper().endswith("-USDC"):
+        raise UsdcPairSnapshotLiveExecutionError(
+            "M58 live fan-out submit requires a USDC spot product_id."
+        )
+    side = _required_text(order, "side").upper()
+    if side != "BUY":
+        raise UsdcPairSnapshotLiveExecutionError(
+            "M58 live fan-out submit only supports BUY side until sell "
+            "fan-out base-size proof exists."
+        )
     cancel_client_order_id = str(
         order.get("cancel_client_order_id") or client_order_id
     ).strip()
@@ -339,14 +350,15 @@ def _fanout_order_call(order: Mapping[str, Any]) -> dict[str, Any]:
         order,
         "submitted_notional_usdc",
     )
+    _ensure_fanout_limit_order_shape(order_configuration=order_configuration)
     _ensure_fanout_quote_size_matches(
         order_configuration=order_configuration,
         submitted_notional_usdc=submitted_notional_usdc,
     )
     return {
         "client_order_id": client_order_id,
-        "product_id": _required_text(order, "product_id"),
-        "side": _required_text(order, "side"),
+        "product_id": product_id,
+        "side": side,
         "order_configuration": dict(order_configuration),
         "submitted_notional_usdc": submitted_notional_usdc,
         "max_executed_notional_usdc": _required_text(
@@ -355,6 +367,38 @@ def _fanout_order_call(order: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "cancel_client_order_id": cancel_client_order_id,
     }
+
+
+def _ensure_fanout_limit_order_shape(
+    *,
+    order_configuration: Mapping[str, Any],
+) -> None:
+    if set(order_configuration.keys()) != {"limit_limit_gtc"}:
+        raise UsdcPairSnapshotLiveExecutionError(
+            "M58 live fan-out submit requires a single limit_limit_gtc "
+            "order configuration."
+        )
+    limit_config = order_configuration.get("limit_limit_gtc")
+    if not isinstance(limit_config, Mapping):
+        raise UsdcPairSnapshotLiveExecutionError(
+            "M58 live fan-out submit requires limit_limit_gtc order evidence."
+        )
+    if "limit_price" not in limit_config:
+        raise UsdcPairSnapshotLiveExecutionError(
+            "M58 live fan-out submit requires limit_price evidence."
+        )
+    if limit_config.get("post_only") is not False:
+        raise UsdcPairSnapshotLiveExecutionError(
+            "M58 live fan-out submit requires explicit post_only false evidence."
+        )
+    limit_price = _fanout_decimal_value(
+        limit_config["limit_price"],
+        "limit_price",
+    )
+    if limit_price <= 0:
+        raise UsdcPairSnapshotLiveExecutionError(
+            "M58 live fan-out submit requires positive limit_price evidence."
+        )
 
 
 def _ensure_fanout_quote_size_matches(

@@ -60,6 +60,20 @@ class _FailingFanoutExecutor:
         )
 
 
+def _fanout_buy_order_configuration(
+    quote_size: str,
+    *,
+    limit_price: str = "31500.00",
+) -> dict:
+    return {
+        "limit_limit_gtc": {
+            "quote_size": quote_size,
+            "limit_price": limit_price,
+            "post_only": False,
+        }
+    }
+
+
 def _config(tmp_path: Path, **overrides) -> runner.UsdcPairSnapshotLiveSubmitConfig:
     values = {
         "confirm_live_submit": True,
@@ -701,7 +715,7 @@ def test_usdc_pair_snapshot_live_fanout_executor_stops_after_cancel_failure():
                 "client_order_id": "client-order-1",
                 "product_id": "BTC-USDC",
                 "side": "BUY",
-                "order_configuration": {"limit_limit_gtc": {"quote_size": "1.00"}},
+                "order_configuration": _fanout_buy_order_configuration("1.00"),
                 "submitted_notional_usdc": "1.00",
                 "max_executed_notional_usdc": "0.01",
                 "cancel_client_order_id": "client-order-1",
@@ -710,7 +724,7 @@ def test_usdc_pair_snapshot_live_fanout_executor_stops_after_cancel_failure():
                 "client_order_id": "client-order-2",
                 "product_id": "ETH-USDC",
                 "side": "BUY",
-                "order_configuration": {"limit_limit_gtc": {"quote_size": "1.50"}},
+                "order_configuration": _fanout_buy_order_configuration("1.50"),
                 "submitted_notional_usdc": "1.50",
                 "max_executed_notional_usdc": "0.01",
                 "cancel_client_order_id": "client-order-2",
@@ -774,7 +788,7 @@ def test_usdc_pair_snapshot_live_fanout_executor_stops_after_any_execution():
                 "client_order_id": "client-order-1",
                 "product_id": "BTC-USDC",
                 "side": "BUY",
-                "order_configuration": {"limit_limit_gtc": {"quote_size": "1.00"}},
+                "order_configuration": _fanout_buy_order_configuration("1.00"),
                 "submitted_notional_usdc": "1.00",
                 "max_executed_notional_usdc": "0.01",
                 "cancel_client_order_id": "client-order-1",
@@ -783,7 +797,7 @@ def test_usdc_pair_snapshot_live_fanout_executor_stops_after_any_execution():
                 "client_order_id": "client-order-2",
                 "product_id": "ETH-USDC",
                 "side": "BUY",
-                "order_configuration": {"limit_limit_gtc": {"quote_size": "1.50"}},
+                "order_configuration": _fanout_buy_order_configuration("1.50"),
                 "submitted_notional_usdc": "1.50",
                 "max_executed_notional_usdc": "0.01",
                 "cancel_client_order_id": "client-order-2",
@@ -843,7 +857,7 @@ def test_usdc_pair_snapshot_live_fanout_executor_stops_after_missing_execution_e
                 "client_order_id": "client-order-1",
                 "product_id": "BTC-USDC",
                 "side": "BUY",
-                "order_configuration": {"limit_limit_gtc": {"quote_size": "1.00"}},
+                "order_configuration": _fanout_buy_order_configuration("1.00"),
                 "submitted_notional_usdc": "1.00",
                 "max_executed_notional_usdc": "0.01",
                 "cancel_client_order_id": "client-order-1",
@@ -852,7 +866,7 @@ def test_usdc_pair_snapshot_live_fanout_executor_stops_after_missing_execution_e
                 "client_order_id": "client-order-2",
                 "product_id": "ETH-USDC",
                 "side": "BUY",
-                "order_configuration": {"limit_limit_gtc": {"quote_size": "1.50"}},
+                "order_configuration": _fanout_buy_order_configuration("1.50"),
                 "submitted_notional_usdc": "1.50",
                 "max_executed_notional_usdc": "0.01",
                 "cancel_client_order_id": "client-order-2",
@@ -925,9 +939,7 @@ def test_usdc_pair_snapshot_live_fanout_executor_rejects_mismatched_execution_ev
                     "client_order_id": "client-order-1",
                     "product_id": "BTC-USDC",
                     "side": "BUY",
-                    "order_configuration": {
-                        "limit_limit_gtc": {"quote_size": "1.00"}
-                    },
+                    "order_configuration": _fanout_buy_order_configuration("1.00"),
                     "submitted_notional_usdc": "1.00",
                     "max_executed_notional_usdc": "0.01",
                     "cancel_client_order_id": "client-order-1",
@@ -936,9 +948,7 @@ def test_usdc_pair_snapshot_live_fanout_executor_rejects_mismatched_execution_ev
                     "client_order_id": "client-order-2",
                     "product_id": "ETH-USDC",
                     "side": "BUY",
-                    "order_configuration": {
-                        "limit_limit_gtc": {"quote_size": "1.50"}
-                    },
+                    "order_configuration": _fanout_buy_order_configuration("1.50"),
                     "submitted_notional_usdc": "1.50",
                     "max_executed_notional_usdc": "0.01",
                     "cancel_client_order_id": "client-order-2",
@@ -967,7 +977,7 @@ def test_usdc_pair_snapshot_live_fanout_executor_enforces_order_rate_cap():
             "client_order_id": f"client-order-{index}",
             "product_id": "BTC-USDC",
             "side": "BUY",
-            "order_configuration": {"limit_limit_gtc": {"quote_size": "1.00"}},
+            "order_configuration": _fanout_buy_order_configuration("1.00"),
             "submitted_notional_usdc": "1.00",
             "max_executed_notional_usdc": "0.01",
             "cancel_client_order_id": f"client-order-{index}",
@@ -1003,9 +1013,7 @@ def test_usdc_pair_snapshot_live_fanout_executor_enforces_total_notional_cap():
                     "client_order_id": "client-order-1",
                     "product_id": "BTC-USDC",
                     "side": "BUY",
-                    "order_configuration": {
-                        "limit_limit_gtc": {"quote_size": "60.00"}
-                    },
+                    "order_configuration": _fanout_buy_order_configuration("60.00"),
                     "submitted_notional_usdc": "60.00",
                     "max_executed_notional_usdc": "0.01",
                     "cancel_client_order_id": "client-order-1",
@@ -1014,9 +1022,7 @@ def test_usdc_pair_snapshot_live_fanout_executor_enforces_total_notional_cap():
                     "client_order_id": "client-order-2",
                     "product_id": "ETH-USDC",
                     "side": "BUY",
-                    "order_configuration": {
-                        "limit_limit_gtc": {"quote_size": "40.01"}
-                    },
+                    "order_configuration": _fanout_buy_order_configuration("40.01"),
                     "submitted_notional_usdc": "40.01",
                     "max_executed_notional_usdc": "0.01",
                     "cancel_client_order_id": "client-order-2",
@@ -1047,12 +1053,135 @@ def test_usdc_pair_snapshot_live_fanout_executor_requires_quote_size_match():
                     "client_order_id": "client-order-mismatch",
                     "product_id": "BTC-USDC",
                     "side": "BUY",
-                    "order_configuration": {
-                        "limit_limit_gtc": {"quote_size": "1.01"}
-                    },
+                    "order_configuration": _fanout_buy_order_configuration("1.01"),
                     "submitted_notional_usdc": "1.00",
                     "max_executed_notional_usdc": "0.01",
                     "cancel_client_order_id": "client-order-mismatch",
+                },
+            ],
+            max_orders_per_second=5,
+        )
+
+
+def test_usdc_pair_snapshot_live_fanout_executor_requires_explicit_limit_shape():
+    from application.admin_api import usdc_pair_snapshot_live_execution as live_exec
+
+    class FakeOrderExecutor:
+        def submit_and_cancel(self, **_kwargs):
+            raise AssertionError("fan-out executor must fail before submission")
+
+    executor = live_exec.UsdcPairSnapshotLiveFanoutExecutor(
+        order_executor=FakeOrderExecutor()
+    )
+
+    with pytest.raises(
+        live_exec.UsdcPairSnapshotLiveExecutionError,
+        match="requires limit_price evidence",
+    ):
+        executor.submit_and_cancel_all(
+            orders=[
+                {
+                    "client_order_id": "client-order-missing-limit-price",
+                    "product_id": "BTC-USDC",
+                    "side": "BUY",
+                    "order_configuration": {
+                        "limit_limit_gtc": {
+                            "quote_size": "1.00",
+                            "post_only": False,
+                        }
+                    },
+                    "submitted_notional_usdc": "1.00",
+                    "max_executed_notional_usdc": "0.01",
+                    "cancel_client_order_id": (
+                        "client-order-missing-limit-price"
+                    ),
+                },
+            ],
+            max_orders_per_second=5,
+        )
+
+    with pytest.raises(
+        live_exec.UsdcPairSnapshotLiveExecutionError,
+        match="requires explicit post_only false evidence",
+    ):
+        executor.submit_and_cancel_all(
+            orders=[
+                {
+                    "client_order_id": "client-order-post-only",
+                    "product_id": "BTC-USDC",
+                    "side": "BUY",
+                    "order_configuration": {
+                        "limit_limit_gtc": {
+                            "quote_size": "1.00",
+                            "limit_price": "31500.00",
+                            "post_only": True,
+                        }
+                    },
+                    "submitted_notional_usdc": "1.00",
+                    "max_executed_notional_usdc": "0.01",
+                    "cancel_client_order_id": "client-order-post-only",
+                },
+            ],
+            max_orders_per_second=5,
+        )
+
+
+def test_usdc_pair_snapshot_live_fanout_executor_rejects_unproved_scope_shape():
+    from application.admin_api import usdc_pair_snapshot_live_execution as live_exec
+
+    class FakeOrderExecutor:
+        def submit_and_cancel(self, **_kwargs):
+            raise AssertionError("fan-out executor must fail before submission")
+
+    executor = live_exec.UsdcPairSnapshotLiveFanoutExecutor(
+        order_executor=FakeOrderExecutor()
+    )
+
+    with pytest.raises(
+        live_exec.UsdcPairSnapshotLiveExecutionError,
+        match="only supports BUY side",
+    ):
+        executor.submit_and_cancel_all(
+            orders=[
+                {
+                    "client_order_id": "client-order-sell",
+                    "product_id": "BTC-USDC",
+                    "side": "SELL",
+                    "order_configuration": {
+                        "limit_limit_gtc": {
+                            "base_size": "0.01",
+                            "limit_price": "94500.00",
+                            "post_only": False,
+                        }
+                    },
+                    "submitted_notional_usdc": "1.00",
+                    "max_executed_notional_usdc": "0.01",
+                    "cancel_client_order_id": "client-order-sell",
+                },
+            ],
+            max_orders_per_second=5,
+        )
+
+    with pytest.raises(
+        live_exec.UsdcPairSnapshotLiveExecutionError,
+        match="requires a USDC spot product_id",
+    ):
+        executor.submit_and_cancel_all(
+            orders=[
+                {
+                    "client_order_id": "client-order-usd-product",
+                    "product_id": "BTC-USD",
+                    "side": "BUY",
+                    "order_configuration": {
+                        "limit_limit_gtc": {
+                            "quote_size": "1.00",
+                            "limit_price": "31500.00",
+                            "post_only": False,
+                        }
+                    },
+                    "submitted_notional_usdc": "1.00",
+                    "max_executed_notional_usdc": "0.01",
+                    "cancel_client_order_id": "client-order-usd-product",
                 },
             ],
             max_orders_per_second=5,
