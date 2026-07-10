@@ -1815,6 +1815,7 @@ _FILL_FOLLOW_UP_TRIGGER_EXECUTION_BLOCKERS = frozenset(
         "fill_follow_up_execution_adapter_live_coinbase_disallowed",
         "fill_follow_up_child_not_observed_after_execution",
         "fill_follow_up_duplicate_claim_not_acquired_after_execution",
+        "fill_follow_up_child_id_mismatch_after_execution",
     }
 )
 
@@ -1859,6 +1860,11 @@ def _fill_follow_up_trigger_message(
             "Fill follow-up trigger rejected after executor invocation; "
             "duplicate-claim readback did not prove exclusive follow-up claim."
         )
+    if blockers and "fill_follow_up_child_id_mismatch_after_execution" in blockers:
+        return (
+            "Fill follow-up trigger rejected after executor invocation; "
+            "executor child id did not match post-trigger readback."
+        )
     if failure_stage == "fill_follow_up_trigger_execution":
         return (
             "Fill follow-up trigger rejected after executor invocation; "
@@ -1886,6 +1892,23 @@ def _fill_follow_up_chain_child_ids(chain: Any) -> list[str]:
     if not isinstance(child_ids, list):
         return []
     return [child_id for child_id in child_ids if isinstance(child_id, str) and child_id]
+
+
+def _fill_follow_up_execution_child_ids(
+    execution_result: dict[str, Any] | None,
+) -> list[str]:
+    if not execution_result:
+        return []
+    child_ids: list[str] = []
+    child_id = execution_result.get("follow_up_child_client_order_id")
+    if isinstance(child_id, str) and child_id:
+        child_ids.append(child_id)
+    child_id_list = execution_result.get("follow_up_child_client_order_ids")
+    if isinstance(child_id_list, list):
+        child_ids.extend(
+            item for item in child_id_list if isinstance(item, str) and item
+        )
+    return _ordered_unique_strings(child_ids)
 
 
 class AdminApiCommandService:
@@ -2068,6 +2091,22 @@ class AdminApiCommandService:
                             "fill_follow_up_child_not_observed_after_execution"
                         )
 
+        post_trigger_follow_up_child_client_order_ids = (
+            _fill_follow_up_child_id_delta(pre_trigger_chain, chain)
+        )
+        post_trigger_follow_up_child_count_delta = max(
+            0,
+            chain.follow_up_child_count - pre_trigger_chain.follow_up_child_count,
+        )
+        execution_child_ids = _fill_follow_up_execution_child_ids(execution_result)
+        if (
+            executor_invoked
+            and execution_child_ids
+            and set(execution_child_ids)
+            != set(post_trigger_follow_up_child_client_order_ids)
+        ):
+            blockers.append("fill_follow_up_child_id_mismatch_after_execution")
+
         normalized_blockers = _ordered_unique_strings(blockers)
         trigger_accepted = not normalized_blockers
         failure_stage = _fill_follow_up_trigger_failure_stage(
@@ -2077,13 +2116,6 @@ class AdminApiCommandService:
         follow_up_child_delta_observed = (
             executor_invoked
             and chain.follow_up_child_count > pre_trigger_chain.follow_up_child_count
-        )
-        post_trigger_follow_up_child_client_order_ids = (
-            _fill_follow_up_child_id_delta(pre_trigger_chain, chain)
-        )
-        post_trigger_follow_up_child_count_delta = max(
-            0,
-            chain.follow_up_child_count - pre_trigger_chain.follow_up_child_count,
         )
         response_audit = chain.fill_follow_up_decision_audit or audit
         post_trigger_duplicate_claim_state = (
