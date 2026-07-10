@@ -1917,6 +1917,28 @@ def _fill_follow_up_execution_child_ids(
     return _ordered_unique_strings(child_ids)
 
 
+def _fill_follow_up_chain_child_payload(
+    chain: Any,
+    child_id: str | None,
+) -> dict[str, Any] | None:
+    if not child_id:
+        return None
+    children = getattr(chain, "follow_up_children", [])
+    if not isinstance(children, list):
+        return None
+    for child in children:
+        candidate = getattr(child, "client_order_id", None)
+        if candidate is None and isinstance(child, dict):
+            candidate = child.get("client_order_id")
+        if candidate != child_id:
+            continue
+        if hasattr(child, "model_dump"):
+            return child.model_dump(mode="json")
+        if isinstance(child, dict):
+            return dict(child)
+    return None
+
+
 class AdminApiCommandService:
     """Shared command-service boundary for enterprise API work."""
 
@@ -2125,6 +2147,15 @@ class AdminApiCommandService:
             executor_invoked
             and chain.follow_up_child_count > pre_trigger_chain.follow_up_child_count
         )
+        accepted_follow_up_child_client_order_id = (
+            post_trigger_follow_up_child_client_order_ids[0]
+            if trigger_accepted and len(post_trigger_follow_up_child_client_order_ids) == 1
+            else None
+        )
+        accepted_follow_up_child = _fill_follow_up_chain_child_payload(
+            chain,
+            accepted_follow_up_child_client_order_id,
+        )
         response_audit = chain.fill_follow_up_decision_audit or audit
         post_trigger_duplicate_claim_state = (
             response_audit.claim_state if response_audit else None
@@ -2207,6 +2238,10 @@ class AdminApiCommandService:
             "post_trigger_follow_up_child_count_delta": (
                 post_trigger_follow_up_child_count_delta
             ),
+            "accepted_follow_up_child_client_order_id": (
+                accepted_follow_up_child_client_order_id
+            ),
+            "accepted_follow_up_child": accepted_follow_up_child,
             "post_trigger_duplicate_claim_state": post_trigger_duplicate_claim_state,
             "post_trigger_duplicate_claim_source": post_trigger_duplicate_claim_source,
             "post_trigger_duplicate_claim_observed": (

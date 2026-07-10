@@ -76917,6 +76917,24 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
     assert data["chain"]["follow_up_child_count"] == 1
     assert data["post_trigger_follow_up_child_client_order_ids"] == [child_id]
     assert data["post_trigger_follow_up_child_count_delta"] == 1
+    assert data["accepted_follow_up_child_client_order_id"] == child_id
+    assert data["accepted_follow_up_child"] == {
+        "client_order_id": child_id,
+        "product_id": "BTC-USD",
+        "side": "SELL",
+        "status": "HIDDEN",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "101.00",
+        "parent_client_order_id": root_id,
+        "created_at": "2026-07-10T01:03:00Z",
+        "updated_at": "2026-07-10T01:03:00Z",
+        "exchange_order_id": None,
+        "exchange_order_id_evidence_only": True,
+        "correlation_id": None,
+        "audit_id": "audit-child-follow-up-executor",
+        "source": "order_parent",
+    }
     assert data["post_trigger_duplicate_claim_state"] == "done"
     assert data["post_trigger_duplicate_claim_source"] == (
         "orderbook.follow_up_claim_state"
