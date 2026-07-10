@@ -1803,11 +1803,22 @@ def _fill_follow_up_execution_reports_live_exchange_activity(
     )
 
 
+def _fill_follow_up_execution_reports_duplicate_claim(
+    execution_result: dict[str, Any] | None,
+    claim_state: str | None,
+) -> bool:
+    return _fill_follow_up_execution_flag(
+        execution_result,
+        "claim_acquired",
+    ) or claim_state in {"processing", "done"}
+
+
 _FILL_FOLLOW_UP_TRIGGER_EXECUTION_BLOCKERS = frozenset(
     {
         "fill_follow_up_execution_adapter_failed",
         "fill_follow_up_execution_adapter_live_coinbase_disallowed",
         "fill_follow_up_child_not_observed_after_execution",
+        "fill_follow_up_duplicate_claim_not_acquired_after_execution",
     }
 )
 
@@ -1842,6 +1853,15 @@ def _fill_follow_up_trigger_message(
         return (
             "Fill follow-up trigger rejected after executor invocation; "
             "executor reported disallowed live exchange activity."
+        )
+    if (
+        blockers
+        and "fill_follow_up_duplicate_claim_not_acquired_after_execution"
+        in blockers
+    ):
+        return (
+            "Fill follow-up trigger rejected after executor invocation; "
+            "duplicate-claim readback did not prove exclusive follow-up claim."
         )
     if failure_stage == "fill_follow_up_trigger_execution":
         return (
@@ -2035,6 +2055,19 @@ class AdminApiCommandService:
                     chain = read_service.build_order_fill_follow_up_chain(
                         client_order_id=command.client_order_id
                     )
+                    post_execution_audit = chain.fill_follow_up_decision_audit
+                    post_execution_claim_state = (
+                        post_execution_audit.claim_state
+                        if post_execution_audit
+                        else None
+                    )
+                    if not _fill_follow_up_execution_reports_duplicate_claim(
+                        execution_result,
+                        post_execution_claim_state,
+                    ):
+                        blockers.append(
+                            "fill_follow_up_duplicate_claim_not_acquired_after_execution"
+                        )
                     if chain.follow_up_child_count <= pre_trigger_chain.follow_up_child_count:
                         blockers.append(
                             "fill_follow_up_child_not_observed_after_execution"
