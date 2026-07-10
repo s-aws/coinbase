@@ -1789,6 +1789,24 @@ def _fill_follow_up_execution_flag(
     return bool(value)
 
 
+def _fill_follow_up_child_id_delta(pre_chain: Any, post_chain: Any) -> list[str]:
+    pre_child_ids = set(_fill_follow_up_chain_child_ids(pre_chain))
+    return _ordered_unique_strings(
+        [
+            child_id
+            for child_id in _fill_follow_up_chain_child_ids(post_chain)
+            if child_id not in pre_child_ids
+        ]
+    )
+
+
+def _fill_follow_up_chain_child_ids(chain: Any) -> list[str]:
+    child_ids = getattr(chain, "follow_up_child_client_order_ids", [])
+    if not isinstance(child_ids, list):
+        return []
+    return [child_id for child_id in child_ids if isinstance(child_id, str) and child_id]
+
+
 class AdminApiCommandService:
     """Shared command-service boundary for enterprise API work."""
 
@@ -1966,6 +1984,13 @@ class AdminApiCommandService:
             executor_invoked
             and chain.follow_up_child_count > pre_trigger_chain.follow_up_child_count
         )
+        post_trigger_follow_up_child_client_order_ids = (
+            _fill_follow_up_child_id_delta(pre_trigger_chain, chain)
+        )
+        post_trigger_follow_up_child_count_delta = max(
+            0,
+            chain.follow_up_child_count - pre_trigger_chain.follow_up_child_count,
+        )
         execution_flags = {
             "claim_acquired": _fill_follow_up_execution_flag(
                 execution_result,
@@ -2029,6 +2054,12 @@ class AdminApiCommandService:
             "blockers": normalized_blockers,
             "execution_result": execution_result,
             "pre_trigger_chain": pre_trigger_chain.model_dump(mode="json"),
+            "post_trigger_follow_up_child_client_order_ids": (
+                post_trigger_follow_up_child_client_order_ids
+            ),
+            "post_trigger_follow_up_child_count_delta": (
+                post_trigger_follow_up_child_count_delta
+            ),
             "fill_follow_up_decision_audit": (
                 response_audit.model_dump(mode="json") if response_audit else None
             ),

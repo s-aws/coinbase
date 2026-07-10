@@ -76908,6 +76908,8 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
     assert data["pre_trigger_chain"]["follow_up_child_count"] == 0
     assert data["chain"]["follow_up_child_client_order_ids"] == [child_id]
     assert data["chain"]["follow_up_child_count"] == 1
+    assert data["post_trigger_follow_up_child_client_order_ids"] == [child_id]
+    assert data["post_trigger_follow_up_child_count_delta"] == 1
     assert data["execution_result"]["source"] == "fake_fill_follow_up_executor"
     assert data["execution_result"]["follow_up_child_client_order_id"] == child_id
     assert data["fill_follow_up_decision_audit"][
