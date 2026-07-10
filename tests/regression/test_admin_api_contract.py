@@ -76622,7 +76622,7 @@ def test_admin_api_order_fill_follow_up_live_readiness_ready_no_live_when_proofs
         SpotRecoveryExecutionRecord,
     )
 
-    client_order_id = "root-follow-up-ready-no-live"
+    client_order_id = "b90e8400-e29b-41d4-a716-446655440000"
     idempotency_key = "idem-fill-follow-up-ready-no-live"
     operator_intent = "trigger_fill_follow_up_ready_no_live"
     trigger_route = "/api/v1/orders/{client_order_id}/fill-follow-up/trigger"
@@ -76673,6 +76673,11 @@ def test_admin_api_order_fill_follow_up_live_readiness_ready_no_live_when_proofs
         lambda candidate: root_order if candidate == client_order_id else None,
     )
     monkeypatch.setattr(order_module, "get_parent_orders", lambda: [root_order])
+    monkeypatch.setattr(
+        order_module,
+        "get_stealth_children_for_parent",
+        lambda parent_order_id: [],
+    )
     monkeypatch.setattr(
         configuration,
         "rest_get_products",
@@ -76915,6 +76920,52 @@ def test_admin_api_order_fill_follow_up_live_readiness_ready_no_live_when_proofs
     assert payload["follow_up_order_created"] is False
     assert payload["coinbase_order_submit_ran"] is False
     assert payload["live_coinbase_orders_ran"] is False
+
+    preview = client.get(
+        f"/api/v1/orders/{client_order_id}/fill-follow-up/trigger-preview",
+        headers=_headers(roles=AdminApiRole.TRADER.value),
+        params={
+            "command_idempotency_key": idempotency_key,
+            "operator_intent": operator_intent,
+            **body,
+        },
+    )
+    assert preview.status_code == 200
+    preview_payload = preview.json()
+    assert preview_payload["type"] == "admin_admission_preview"
+    assert preview_payload["live_exchange_submitted"] is False
+    assert preview_payload["live_coinbase_orders_ran"] is False
+    preview_data = preview_payload["data"]
+    assert preview_data["type"] == (
+        "admin_order_fill_follow_up_trigger_preview_evidence"
+    )
+    assert preview_data["trigger_attempted"] is False
+    assert preview_data["executor_invoked"] is False
+    assert preview_data["pre_execution_status"] == "ready_no_live", (
+        preview_data["pre_execution_blockers"]
+    )
+    assert preview_data["pre_execution_ready"] is True
+    assert preview_data["executor_lookup_would_run"] is True
+    assert preview_data["preview_failure_stage"] is None
+    assert preview_data["trigger_scope"] == "no_live_local_follow_up"
+    assert preview_data["live_readiness_blocker_scope"] == "live_claim_only"
+    assert preview_data["live_readiness_blockers_block_no_live_trigger"] is False
+    assert preview_data["pre_execution_blockers"] == []
+    assert preview_data["blockers"] == []
+    assert preview_data["chain"]["follow_up_child_count"] == 0
+    assert preview_data["live_readiness"]["readiness_status"] == "ready_no_live"
+    assert preview_data["requested_refs"] == {
+        "fill_testing_approval_id": approval_id,
+        "wallet_proof_ref": wallet_ref,
+        "cap_guard_decision_id": cap_guard_id,
+        "reconciliation_plan_id": reconciliation_id,
+        "audit_correlation_id": "corr-root-follow-up-ready",
+        "confirm_duplicate_claim_protection": True,
+    }
+    assert preview_data["coinbase_order_submit_ran"] is False
+    assert preview_data["local_state_mutated"] is False
+    assert preview_data["exchange_state_mutated"] is False
+    assert client.admin_api_test_idempotency_store.get_record(idempotency_key) is None
 
 
 @pytest.mark.regression
