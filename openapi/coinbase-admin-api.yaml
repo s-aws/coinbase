@@ -137138,6 +137138,20 @@ components:
             type: string
           type: array
           title: Duplicate Child Client Order Ids
+        nested_child_client_order_ids:
+          items:
+            type: string
+          type: array
+          title: Nested Child Client Order Ids
+        nested_parent_client_order_ids:
+          items:
+            type: string
+          type: array
+          title: Nested Parent Client Order Ids
+        flat_hierarchy_violation_count:
+          type: integer
+          title: Flat Hierarchy Violation Count
+          default: 0
         chain_source:
           type: string
           title: Chain Source

@@ -13132,6 +13132,34 @@ class AdminApiReadService:
         if row:
             parent_rows_by_id.setdefault(client_order_id, row)
 
+        nested_child_client_order_ids: list[str] = []
+        nested_parent_client_order_ids: list[str] = []
+        if parent_client_order_id:
+            immediate_parent_row = parent_rows_by_id.get(parent_client_order_id)
+            if immediate_parent_row is None and order_module is not None:
+                try:
+                    immediate_parent_row = order_module.get_parent_order(
+                        parent_client_order_id
+                    )
+                    if immediate_parent_row:
+                        parent_rows_by_id[parent_client_order_id] = (
+                            immediate_parent_row
+                        )
+                except Exception as exc:
+                    blockers.append(
+                        f"immediate_parent_order_read_error:{type(exc).__name__}"
+                    )
+            nested_root_id = (
+                _string_or_none(immediate_parent_row.get("parent_order_id"))
+                if immediate_parent_row
+                else None
+            )
+            if nested_root_id:
+                nested_child_client_order_ids.append(client_order_id)
+                nested_parent_client_order_ids.append(parent_client_order_id)
+                root_parent_client_order_id = nested_root_id
+                blockers.append("follow_up_nested_child_parent_detected")
+
         root_row: dict[str, Any] | None = None
         if root_parent_client_order_id:
             root_row = parent_rows_by_id.get(root_parent_client_order_id)
@@ -13220,6 +13248,9 @@ class AdminApiReadService:
             follow_up_child_client_order_ids=child_ids,
             follow_up_child_count=len(child_items),
             duplicate_child_client_order_ids=duplicate_child_client_order_ids,
+            nested_child_client_order_ids=nested_child_client_order_ids,
+            nested_parent_client_order_ids=nested_parent_client_order_ids,
+            flat_hierarchy_violation_count=len(nested_child_client_order_ids),
             order_parent_child_read_ran=order_parent_child_read_ran,
             stealth_child_read_ran=stealth_child_read_ran,
             fill_follow_up_decision_audit=audit,

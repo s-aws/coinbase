@@ -4885,6 +4885,9 @@ class AdminOrderFillFollowUpChainResponse(BaseModel):
     follow_up_child_client_order_ids: list[str] = Field(default_factory=list)
     follow_up_child_count: int = 0
     duplicate_child_client_order_ids: list[str] = Field(default_factory=list)
+    nested_child_client_order_ids: list[str] = Field(default_factory=list)
+    nested_parent_client_order_ids: list[str] = Field(default_factory=list)
+    flat_hierarchy_violation_count: int = 0
     chain_source: str = "order_parent_and_stealth_orders"
     order_parent_child_read_ran: bool = False
     stealth_child_read_ran: bool = False

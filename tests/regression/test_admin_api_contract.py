@@ -3579,6 +3579,9 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "root_order" in chain_schema["properties"]
     assert "follow_up_children" in chain_schema["properties"]
     assert "duplicate_child_client_order_ids" in chain_schema["properties"]
+    assert "nested_child_client_order_ids" in chain_schema["properties"]
+    assert "nested_parent_client_order_ids" in chain_schema["properties"]
+    assert "flat_hierarchy_violation_count" in chain_schema["properties"]
     trigger_preview_path = written["paths"][
         "/api/v1/orders/{client_order_id}/fill-follow-up/trigger-preview"
     ]["get"]
@@ -76116,6 +76119,122 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
     assert payload["fill_follow_up_decision_audit"]["follow_up_decision"] == (
         "eligible_no_live"
     )
+
+
+@pytest.mark.regression
+def test_admin_api_order_fill_follow_up_chain_flags_nested_child_parent(
+    monkeypatch,
+):
+    import configuration
+    import database.order as order_module
+
+    root_id = "880e8400-e29b-41d4-a716-446655440000"
+    child_id = "990e8400-e29b-41d4-a716-446655440000"
+    nested_child_id = "aa0e8400-e29b-41d4-a716-446655440001"
+    root_order = {
+        "client_order_id": root_id,
+        "product_id": "BTC-USD",
+        "side": "BUY",
+        "status": "FILLED",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "100.00",
+        "parent_order_id": None,
+        "created_at": "2026-07-10T01:00:00Z",
+        "updated_at": "2026-07-10T01:02:00Z",
+        "exchange_order_id": "exchange-evidence-root",
+        "correlation_id": "corr-root-follow-up",
+    }
+    child_order = {
+        "client_order_id": child_id,
+        "product_id": "BTC-USD",
+        "side": "SELL",
+        "status": "HIDDEN",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "101.00",
+        "parent_order_id": root_id,
+        "created_at": "2026-07-10T01:03:00Z",
+        "updated_at": "2026-07-10T01:03:00Z",
+        "exchange_order_id": None,
+        "audit_id": "audit-child-follow-up",
+    }
+    nested_child_order = {
+        "client_order_id": nested_child_id,
+        "product_id": "BTC-USD",
+        "side": "BUY",
+        "status": "HIDDEN",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "99.00",
+        "parent_order_id": child_id,
+        "created_at": "2026-07-10T01:04:00Z",
+        "updated_at": "2026-07-10T01:04:00Z",
+        "exchange_order_id": None,
+        "audit_id": "audit-nested-child-follow-up",
+    }
+    rows_by_id = {
+        root_id: root_order,
+        child_id: child_order,
+        nested_child_id: nested_child_order,
+    }
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order",
+        lambda client_order_id: rows_by_id.get(client_order_id),
+    )
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_orders",
+        lambda: [root_order, child_order, nested_child_order],
+    )
+    monkeypatch.setattr(
+        order_module,
+        "get_stealth_children_for_parent",
+        lambda parent_order_id: [],
+    )
+    monkeypatch.setattr(
+        configuration,
+        "rest_get_products",
+        lambda: {
+            "BTC-USD": {
+                "product_id": "BTC-USD",
+                "product_type": "SPOT",
+                "future_product_details": {},
+            }
+        },
+    )
+
+    client = _client(monkeypatch)
+    response = client.get(
+        f"/api/v1/orders/{nested_child_id}/fill-follow-up/chain",
+        headers=_headers(roles=AdminApiRole.AUDITOR.value),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["type"] == "admin_order_fill_follow_up_chain"
+    assert payload["client_order_id"] == nested_child_id
+    assert payload["root_parent_client_order_id"] == root_id
+    assert payload["parent_client_order_id"] == child_id
+    assert payload["active_client_order_id"] == nested_child_id
+    assert payload["root_order"]["client_order_id"] == root_id
+    assert payload["active_order"]["client_order_id"] == nested_child_id
+    assert payload["follow_up_child_client_order_ids"] == [
+        child_id,
+        nested_child_id,
+    ]
+    assert payload["follow_up_children"][0]["parent_client_order_id"] == root_id
+    assert payload["follow_up_children"][1]["parent_client_order_id"] == child_id
+    assert payload["nested_child_client_order_ids"] == [nested_child_id]
+    assert payload["nested_parent_client_order_ids"] == [child_id]
+    assert payload["flat_hierarchy_violation_count"] == 1
+    assert "follow_up_nested_child_parent_detected" in payload["blockers"]
+    assert payload["order_engine_handle_filled_order_called"] is False
+    assert payload["stealth_create_follow_up_called"] is False
+    assert payload["coinbase_order_submit_ran"] is False
+    assert payload["local_state_mutated"] is False
+    assert payload["exchange_state_mutated"] is False
 
 
 @pytest.mark.regression
