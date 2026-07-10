@@ -2107,6 +2107,7 @@ class AdminApiCommandService:
             "trigger_accepted": trigger_accepted,
             "client_order_id": command.client_order_id,
             "requested_refs": requested_refs,
+            "operator_notes": request.operator_notes,
             "prerequisite_validation": prerequisite_validation,
             "blockers": normalized_blockers,
             "execution_result": execution_result,

@@ -77263,6 +77263,9 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_existing_child_to_avoid_
         "approval-fill-follow-up-1"
     )
     assert data["requested_refs"]["audit_correlation_id"] == "corr-root-follow-up"
+    assert data["operator_notes"] == (
+        "route should fail closed because child exists"
+    )
     assert data["order_engine_handle_filled_order_called"] is False
     assert data["stealth_create_follow_up_called"] is False
     assert data["follow_up_order_created"] is False
