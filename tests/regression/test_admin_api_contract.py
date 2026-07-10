@@ -76077,6 +76077,7 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
         "created_at": "2026-07-10T01:03:00Z",
         "updated_at": "2026-07-10T01:03:00Z",
         "exchange_order_id": None,
+        "correlation_id": "corr-child-follow-up",
         "audit_id": "audit-child-follow-up",
     }
     stealth_child = {
@@ -76132,6 +76133,10 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
     assert payload["follow_up_child_client_order_ids"] == [child_id]
     assert payload["follow_up_child_count"] == 1
     assert payload["follow_up_children"][0]["client_order_id"] == child_id
+    assert payload["follow_up_children"][0]["correlation_id"] == (
+        "corr-child-follow-up"
+    )
+    assert payload["follow_up_children"][0]["audit_id"] == "audit-child-follow-up"
     assert payload["duplicate_child_client_order_ids"] == [child_id]
     assert payload["order_parent_child_read_ran"] is True
     assert payload["stealth_child_read_ran"] is True
@@ -76989,6 +76994,7 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
         "created_at": "2026-07-10T01:03:00Z",
         "updated_at": "2026-07-10T01:03:00Z",
         "exchange_order_id": None,
+        "correlation_id": "corr-child-follow-up-executor",
         "audit_id": "audit-child-follow-up-executor",
     }
     executor_state = {"called": False}
@@ -77245,7 +77251,7 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
         "updated_at": "2026-07-10T01:03:00Z",
         "exchange_order_id": None,
         "exchange_order_id_evidence_only": True,
-        "correlation_id": None,
+        "correlation_id": "corr-child-follow-up-executor",
         "audit_id": "audit-child-follow-up-executor",
         "source": "order_parent",
     }
@@ -77317,7 +77323,7 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
             "updated_at": "2026-07-10T01:03:00Z",
             "exchange_order_id": None,
             "exchange_order_id_evidence_only": True,
-            "correlation_id": None,
+            "correlation_id": "corr-child-follow-up-executor",
             "audit_id": "audit-child-follow-up-executor",
             "source": "order_parent",
         }
