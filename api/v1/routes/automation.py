@@ -10666,6 +10666,18 @@ def _record_usdc_pair_live_fanout_submissions(
             "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
             "fanout_executor_partial_success_inconsistent"
         )
+    live_summary_blockers = (
+        _usdc_pair_live_fanout_executor_live_summary_blockers(
+            fanout_execution=fanout_execution,
+            execution_values=execution_values,
+            requested_order_count=len(contexts),
+        )
+    )
+    if live_summary_blockers:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
+            + ",".join(live_summary_blockers)
+        )
 
     submissions: list[UsdcPairSnapshotOrderPlanLiveSubmitItem] = []
     base_submission_id = str(body.submission_id or "").strip()
@@ -10824,6 +10836,73 @@ def _usdc_pair_live_fanout_executor_row_identity_blockers(
     if execution_side and execution_side.upper() != _enum_text(readiness.side).upper():
         blockers.append("fanout_executor_side_mismatch")
     return blockers
+
+
+def _usdc_pair_live_fanout_executor_live_summary_blockers(
+    *,
+    fanout_execution: Mapping[str, Any],
+    execution_values: list[Any],
+    requested_order_count: int,
+) -> list[str]:
+    returned_rows = [_mapping_value(value) for value in execution_values]
+    if not returned_rows:
+        return []
+    blockers: list[str] = []
+    expected_live_exchange_submitted = any(
+        bool(row.get("live_exchange_submitted")) for row in returned_rows
+    )
+    if (
+        bool(fanout_execution.get("live_exchange_submitted"))
+        != expected_live_exchange_submitted
+    ):
+        blockers.append("fanout_executor_live_exchange_submitted_mismatch")
+
+    expected_live_coinbase_orders_ran = any(
+        bool(row.get("live_coinbase_orders_ran")) for row in returned_rows
+    )
+    if (
+        bool(fanout_execution.get("live_coinbase_orders_ran"))
+        != expected_live_coinbase_orders_ran
+    ):
+        blockers.append("fanout_executor_live_coinbase_orders_ran_mismatch")
+
+    if not expected_live_exchange_submitted:
+        expected_live_execution = "not_run"
+    elif len(returned_rows) == requested_order_count and all(
+        _usdc_pair_live_fanout_executor_row_cancel_complete(row)
+        for row in returned_rows
+    ):
+        expected_live_execution = "submitted_cancelled"
+    else:
+        expected_live_execution = "submitted_cancel_failed"
+    observed_live_execution = _non_empty_text(
+        str(fanout_execution.get("live_coinbase_execution"))
+        if fanout_execution.get("live_coinbase_execution") is not None
+        else None
+    )
+    if observed_live_execution != expected_live_execution:
+        blockers.append("fanout_executor_live_execution_mismatch")
+    return blockers
+
+
+def _usdc_pair_live_fanout_executor_row_cancel_complete(
+    execution: Mapping[str, Any],
+) -> bool:
+    cancel_result = _mapping_value(execution.get("cancel_result"))
+    cancel_submitted = bool(
+        execution.get("cancel_submitted", _result_success(cancel_result))
+    )
+    _, executed_notional_positive, executed_notional_valid = (
+        _execution_executed_notional_evidence(
+            execution.get("executed_notional_usdc"),
+            evidence_status=execution.get("executed_notional_evidence_status"),
+        )
+    )
+    return (
+        bool(execution.get("cancel_rollback_complete", cancel_submitted))
+        and executed_notional_valid
+        and not executed_notional_positive
+    )
 
 
 def _usdc_pair_live_fanout_executor_control_summary_blockers(
