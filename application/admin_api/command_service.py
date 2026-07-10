@@ -1803,14 +1803,10 @@ def _fill_follow_up_execution_reports_live_exchange_activity(
     )
 
 
-def _fill_follow_up_execution_reports_duplicate_claim(
-    execution_result: dict[str, Any] | None,
+def _fill_follow_up_readback_reports_duplicate_claim(
     claim_state: str | None,
 ) -> bool:
-    return _fill_follow_up_execution_flag(
-        execution_result,
-        "claim_acquired",
-    ) or claim_state in {"processing", "done"}
+    return claim_state in {"processing", "done"}
 
 
 _FILL_FOLLOW_UP_TRIGGER_EXECUTION_BLOCKERS = frozenset(
@@ -2061,9 +2057,8 @@ class AdminApiCommandService:
                         if post_execution_audit
                         else None
                     )
-                    if not _fill_follow_up_execution_reports_duplicate_claim(
-                        execution_result,
-                        post_execution_claim_state,
+                    if not _fill_follow_up_readback_reports_duplicate_claim(
+                        post_execution_claim_state
                     ):
                         blockers.append(
                             "fill_follow_up_duplicate_claim_not_acquired_after_execution"

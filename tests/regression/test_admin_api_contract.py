@@ -77430,8 +77430,39 @@ def test_admin_api_order_fill_follow_up_trigger_classifies_missing_child_after_e
 
 
 @pytest.mark.regression
+@pytest.mark.parametrize(
+    (
+        "case_name",
+        "root_id",
+        "child_id",
+        "payload_hash_seed",
+        "executor_claim_acquired",
+    ),
+    [
+        (
+            "executor-claim-false",
+            "ae2e8400-e29b-41d4-a716-446655440000",
+            "ae3e8400-e29b-41d4-a716-446655440000",
+            "e",
+            False,
+        ),
+        (
+            "executor-claim-true",
+            "ae4e8400-e29b-41d4-a716-446655440000",
+            "ae5e8400-e29b-41d4-a716-446655440000",
+            "f",
+            True,
+        ),
+    ],
+    ids=["executor-claim-false", "executor-claim-true"],
+)
 def test_admin_api_order_fill_follow_up_trigger_rejects_child_without_claim(
     monkeypatch,
+    case_name,
+    root_id,
+    child_id,
+    payload_hash_seed,
+    executor_claim_acquired,
 ):
     import application.admin_api.read_service as read_service
     import configuration
@@ -77441,13 +77472,11 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_child_without_claim(
         AdminOrderFillFollowUpTriggerRequest,
     )
 
-    root_id = "ae2e8400-e29b-41d4-a716-446655440000"
-    child_id = "ae3e8400-e29b-41d4-a716-446655440000"
-    idempotency_key = "idem-fill-follow-up-trigger-child-no-claim"
+    idempotency_key = f"idem-fill-follow-up-trigger-child-no-claim-{case_name}"
     operator_intent = "trigger_fill_follow_up_test"
-    approval_id = "fill-follow-up-approval-child-no-claim"
-    cap_guard_id = "fill-follow-up-cap-guard-child-no-claim"
-    reconciliation_id = "fill-follow-up-reconciliation-child-no-claim"
+    approval_id = f"fill-follow-up-approval-child-no-claim-{case_name}"
+    cap_guard_id = f"fill-follow-up-cap-guard-child-no-claim-{case_name}"
+    reconciliation_id = f"fill-follow-up-reconciliation-child-no-claim-{case_name}"
     wallet_ref = f"cap_guard_wallet:{cap_guard_id}"
     root_order = {
         "client_order_id": root_id,
@@ -77485,7 +77514,7 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_child_without_claim(
             "status": "executed",
             "source": "fake_fill_follow_up_executor",
             "order_engine_handle_filled_order_called": True,
-            "claim_acquired": False,
+            "claim_acquired": executor_claim_acquired,
             "follow_up_child_client_order_id": child_id,
             "coinbase_order_submit_ran": False,
             "coinbase_order_cancel_submitted": False,
@@ -77575,7 +77604,7 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_child_without_claim(
             actor_id="operator-001",
             idempotency_key=idempotency_key,
             operator_intent=operator_intent,
-            payload_hash="e" * 64,
+            payload_hash=payload_hash_seed * 64,
             approval_snapshot_present=True,
             approval_snapshot_id=approval_id,
             approval_snapshot_source="approval_store",
@@ -77612,7 +77641,7 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_child_without_claim(
     assert data["blockers"] == [
         "fill_follow_up_duplicate_claim_not_acquired_after_execution"
     ]
-    assert data["claim_acquired"] is False
+    assert data["claim_acquired"] is executor_claim_acquired
     assert data["follow_up_order_created"] is True
     assert data["post_trigger_follow_up_child_count_delta"] == 1
     assert data["post_trigger_follow_up_child_client_order_ids"] == [child_id]
