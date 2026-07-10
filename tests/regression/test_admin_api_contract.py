@@ -77123,8 +77123,65 @@ def test_admin_api_order_fill_follow_up_trigger_classifies_missing_child_after_e
 
 
 @pytest.mark.regression
+@pytest.mark.parametrize(
+    (
+        "case_name",
+        "root_id",
+        "child_id",
+        "payload_hash_seed",
+        "executor_flags",
+    ),
+    [
+        (
+            "coinbase-submit",
+            "af0e8400-e29b-41d4-a716-446655440000",
+            "af1e8400-e29b-41d4-a716-446655440000",
+            "b",
+            {
+                "coinbase_order_submit_ran": True,
+                "live_coinbase_orders_ran": True,
+                "live_exchange_submitted": True,
+                "exchange_state_mutated": True,
+            },
+        ),
+        (
+            "live-exchange-submit",
+            "af2e8400-e29b-41d4-a716-446655440000",
+            "af3e8400-e29b-41d4-a716-446655440000",
+            "c",
+            {
+                "coinbase_order_submit_ran": False,
+                "live_coinbase_orders_ran": False,
+                "live_exchange_submitted": True,
+                "exchange_state_mutated": False,
+            },
+        ),
+        (
+            "exchange-state-mutation",
+            "af4e8400-e29b-41d4-a716-446655440000",
+            "af5e8400-e29b-41d4-a716-446655440000",
+            "d",
+            {
+                "coinbase_order_submit_ran": False,
+                "live_coinbase_orders_ran": False,
+                "live_exchange_submitted": False,
+                "exchange_state_mutated": True,
+            },
+        ),
+    ],
+    ids=[
+        "coinbase-submit-flag",
+        "live-exchange-submit-flag",
+        "exchange-state-mutation-flag",
+    ],
+)
 def test_admin_api_order_fill_follow_up_trigger_rejects_executor_live_submission_report(
     monkeypatch,
+    case_name,
+    root_id,
+    child_id,
+    payload_hash_seed,
+    executor_flags,
 ):
     import application.admin_api.read_service as read_service
     import configuration
@@ -77134,13 +77191,11 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_executor_live_submission
         AdminOrderFillFollowUpTriggerRequest,
     )
 
-    root_id = "af0e8400-e29b-41d4-a716-446655440000"
-    child_id = "af1e8400-e29b-41d4-a716-446655440000"
-    idempotency_key = "idem-fill-follow-up-trigger-live-report"
+    idempotency_key = f"idem-fill-follow-up-trigger-{case_name}"
     operator_intent = "trigger_fill_follow_up_test"
-    approval_id = "fill-follow-up-approval-live-report"
-    cap_guard_id = "fill-follow-up-cap-guard-live-report"
-    reconciliation_id = "fill-follow-up-reconciliation-live-report"
+    approval_id = f"fill-follow-up-approval-{case_name}"
+    cap_guard_id = f"fill-follow-up-cap-guard-{case_name}"
+    reconciliation_id = f"fill-follow-up-reconciliation-{case_name}"
     wallet_ref = f"cap_guard_wallet:{cap_guard_id}"
     root_order = {
         "client_order_id": root_id,
@@ -77180,12 +77235,9 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_executor_live_submission
             "order_engine_handle_filled_order_called": True,
             "claim_acquired": True,
             "follow_up_child_client_order_id": child_id,
-            "coinbase_order_submit_ran": True,
             "coinbase_order_cancel_submitted": False,
-            "live_coinbase_orders_ran": True,
-            "live_exchange_submitted": True,
             "local_state_mutated": True,
-            "exchange_state_mutated": True,
+            **executor_flags,
         }
 
     runtime_orderbook = SimpleNamespace(
@@ -77271,7 +77323,7 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_executor_live_submission
             actor_id="operator-001",
             idempotency_key=idempotency_key,
             operator_intent=operator_intent,
-            payload_hash="b" * 64,
+            payload_hash=payload_hash_seed * 64,
             approval_snapshot_present=True,
             approval_snapshot_id=approval_id,
             approval_snapshot_source="approval_store",
@@ -77301,10 +77353,14 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_executor_live_submission
     assert response.failure_stage == "fill_follow_up_trigger_execution"
     assert response.message == (
         "Fill follow-up trigger rejected after executor invocation; "
-        "executor reported disallowed live Coinbase submission."
+        "executor reported disallowed live exchange activity."
     )
-    assert response.live_exchange_submitted is True
-    assert response.live_coinbase_orders_ran is True
+    assert response.live_exchange_submitted is bool(
+        executor_flags["live_exchange_submitted"]
+    )
+    assert response.live_coinbase_orders_ran is bool(
+        executor_flags["live_coinbase_orders_ran"]
+    )
     data = response.data
     assert data["trigger_accepted"] is False
     assert data["blockers"] == [
@@ -77318,10 +77374,18 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_executor_live_submission
     assert data["claim_acquired"] is True
     assert data["follow_up_order_created"] is True
     assert data["local_state_mutated"] is True
-    assert data["coinbase_order_submit_ran"] is True
-    assert data["live_coinbase_orders_ran"] is True
-    assert data["live_exchange_submitted"] is True
-    assert data["exchange_state_mutated"] is True
+    assert data["coinbase_order_submit_ran"] is bool(
+        executor_flags["coinbase_order_submit_ran"]
+    )
+    assert data["live_coinbase_orders_ran"] is bool(
+        executor_flags["live_coinbase_orders_ran"]
+    )
+    assert data["live_exchange_submitted"] is bool(
+        executor_flags["live_exchange_submitted"]
+    )
+    assert data["exchange_state_mutated"] is bool(
+        executor_flags["exchange_state_mutated"]
+    )
     assert data["execution_result"]["source"] == (
         "fake_live_leaking_fill_follow_up_executor"
     )

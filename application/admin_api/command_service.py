@@ -1789,6 +1789,20 @@ def _fill_follow_up_execution_flag(
     return bool(value)
 
 
+def _fill_follow_up_execution_reports_live_exchange_activity(
+    execution_result: dict[str, Any] | None,
+) -> bool:
+    return any(
+        _fill_follow_up_execution_flag(execution_result, name)
+        for name in (
+            "coinbase_order_submit_ran",
+            "live_coinbase_orders_ran",
+            "live_exchange_submitted",
+            "exchange_state_mutated",
+        )
+    )
+
+
 _FILL_FOLLOW_UP_TRIGGER_EXECUTION_BLOCKERS = frozenset(
     {
         "fill_follow_up_execution_adapter_failed",
@@ -1827,7 +1841,7 @@ def _fill_follow_up_trigger_message(
     ):
         return (
             "Fill follow-up trigger rejected after executor invocation; "
-            "executor reported disallowed live Coinbase submission."
+            "executor reported disallowed live exchange activity."
         )
     if failure_stage == "fill_follow_up_trigger_execution":
         return (
@@ -2012,12 +2026,8 @@ class AdminApiCommandService:
                     }
                     blockers.append("fill_follow_up_execution_adapter_failed")
                 else:
-                    if _fill_follow_up_execution_flag(
-                        execution_result,
-                        "coinbase_order_submit_ran",
-                    ) or _fill_follow_up_execution_flag(
-                        execution_result,
-                        "live_coinbase_orders_ran",
+                    if _fill_follow_up_execution_reports_live_exchange_activity(
+                        execution_result
                     ):
                         blockers.append(
                             "fill_follow_up_execution_adapter_live_coinbase_disallowed"
