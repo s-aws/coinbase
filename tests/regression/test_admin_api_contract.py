@@ -76907,6 +76907,7 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
     assert payload["live_coinbase_orders_ran"] is False
     data = payload["data"]
     assert data["trigger_accepted"] is True
+    assert data["operator_intent"] == operator_intent
     assert data["operator_notes"] == (
         "accepted executor context must carry operator notes"
     )
