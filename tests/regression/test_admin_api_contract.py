@@ -33728,6 +33728,121 @@ def test_admin_api_usdc_pair_snapshot_dry_run_records_backend_snapshot_evidence(
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_order_plan_replays_rejection_after_snapshot_appears(
+    monkeypatch,
+):
+    from api.v1.routes import automation as automation_routes
+    from application.admin_api.usdc_pair_snapshot_service import (
+        AdminApiUsdcPairSnapshotService,
+    )
+
+    client = _client(monkeypatch)
+    run_id = "m58-usdc-order-plan-rejected-replay-run"
+    plan_id = "m58-usdc-order-plan-rejected-replay-plan"
+    plan_body = {
+        "plan_id": plan_id,
+        "max_total_notional_usdc": "1.00",
+        "time_in_force": "GOOD_UNTIL_CANCELLED",
+        "dry_run": True,
+        "operator_notes": "initial missing-snapshot order-plan rejection",
+    }
+    response = client.post(
+        f"/api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans",
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-order-plan-rejected-replay",
+            operator_intent="m58_usdc_snapshot_order_plan_rejected_replay",
+        ),
+        json=plan_body,
+    )
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == "usdc_pair_snapshot_order_plan"
+    assert "snapshot run was not found" in payload["message"]
+    assert payload["plan"] is None
+    assert payload["live_coinbase_execution"] == "not_run"
+
+    captured_at = datetime.now(timezone.utc).isoformat()
+    client.app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_service
+    ] = lambda: AdminApiUsdcPairSnapshotService(
+        product_provider=lambda: [
+            {
+                "product_id": "BTC-USDC",
+                "product_type": ProductType.SPOT.value,
+                "base_currency": "BTC",
+                "quote_currency": "USDC",
+                "status": "online",
+                "base_increment": "0.00000001",
+                "quote_increment": "0.01",
+                "price_increment": "0.01",
+                "base_min_size": "0.00000001",
+                "quote_min_size": "0.01",
+            }
+        ],
+        price_provider=lambda product: {
+            "price": "100.00",
+            "source": "test_backend_price_feed",
+            "captured_at": captured_at,
+        },
+    )
+    snapshot_response = client.post(
+        "/api/v1/automation/usdc-pair-snapshot-runs",
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-order-plan-rejected-replay-source",
+            operator_intent="m58_usdc_snapshot_order_plan_rejected_replay_source",
+        ),
+        json={
+            "run_id": run_id,
+            "side": "BUY",
+            "max_notional_per_product_usdc": "1.00",
+            "product_ids": ["BTC-USDC"],
+            "dry_run": True,
+        },
+    )
+    assert snapshot_response.status_code == 200
+
+    replay = client.post(
+        f"/api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans",
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-order-plan-rejected-replay",
+            operator_intent="m58_usdc_snapshot_order_plan_rejected_replay",
+        ),
+        json=plan_body,
+    )
+    assert replay.status_code == 400
+    assert replay.headers["X-Idempotency-Replayed"] == "true"
+    assert replay.json() == payload
+    assert (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_store.find_by_plan_id(
+            plan_id
+        )
+        is None
+    )
+
+    conflict = client.post(
+        f"/api/v1/automation/usdc-pair-snapshot-runs/{run_id}/order-plans",
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-order-plan-rejected-replay",
+            operator_intent="m58_usdc_snapshot_order_plan_rejected_replay",
+        ),
+        json={**plan_body, "operator_notes": "changed body must conflict"},
+    )
+    assert conflict.status_code == 409
+    conflict_payload = conflict.json()
+    assert conflict_payload["status"] == AdminApiCommandStatus.CONFLICT.value
+    assert conflict_payload["failure_stage"] == "idempotency"
+    assert conflict_payload["plan"] is None
+    assert conflict_payload["live_coinbase_execution"] == "not_run"
+    assert (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_store.find_by_plan_id(
+            plan_id
+        )
+        is None
+    )
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_order_plan_records_no_live_limit_plan(
     monkeypatch,
 ):
