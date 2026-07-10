@@ -10646,6 +10646,17 @@ def _record_usdc_pair_live_fanout_submissions(
             "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
             + ",".join(notional_blockers)
         )
+    control_summary_blockers = (
+        _usdc_pair_live_fanout_executor_control_summary_blockers(
+            fanout_execution=fanout_execution,
+            expected_max_orders_per_second=run_state.rate_limit_max_orders_per_window,
+        )
+    )
+    if control_summary_blockers:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
+            + ",".join(control_summary_blockers)
+        )
     if len(execution_values) < len(contexts) and (
         _usdc_pair_live_fanout_executor_summary_claims_complete(
             fanout_execution
@@ -10812,6 +10823,25 @@ def _usdc_pair_live_fanout_executor_row_identity_blockers(
     execution_side = _non_empty_text(execution.get("side"))
     if execution_side and execution_side.upper() != _enum_text(readiness.side).upper():
         blockers.append("fanout_executor_side_mismatch")
+    return blockers
+
+
+def _usdc_pair_live_fanout_executor_control_summary_blockers(
+    *,
+    fanout_execution: Mapping[str, Any],
+    expected_max_orders_per_second: int,
+) -> list[str]:
+    blockers: list[str] = []
+    try:
+        observed_max_orders_per_second = int(
+            fanout_execution.get("max_orders_per_second")
+        )
+    except (TypeError, ValueError):
+        observed_max_orders_per_second = None
+    if observed_max_orders_per_second != expected_max_orders_per_second:
+        blockers.append("fanout_executor_rate_limit_mismatch")
+    if fanout_execution.get("additional_orders_blocked") is not True:
+        blockers.append("fanout_executor_additional_orders_blocked_missing")
     return blockers
 
 
