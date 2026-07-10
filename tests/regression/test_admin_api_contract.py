@@ -77532,6 +77532,9 @@ def test_admin_api_order_fill_follow_up_trigger_accepts_public_route_proof_chain
     assert admission["reconciliation_plan_id"] == body["reconciliation_plan_id"]
     data = payload["data"]
     assert data["trigger_accepted"] is True
+    assert data["trigger_scope"] == "no_live_local_follow_up"
+    assert data["live_readiness_blocker_scope"] == "live_claim_only"
+    assert data["live_readiness_blockers_block_no_live_trigger"] is False
     assert data["requested_refs"] == {
         "fill_testing_approval_id": body["fill_testing_approval_id"],
         "wallet_proof_ref": body["wallet_proof_ref"],
