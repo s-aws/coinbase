@@ -7032,6 +7032,8 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
         blockers.append("pause_before_full_fill_confirmation_missing")
     if not body.confirm_rate_limit_5_per_second:
         blockers.append("rate_limit_5_per_second_confirmation_missing")
+    if not body.operator_stop_conditions:
+        blockers.append("operator_stop_conditions_required")
     if run_state.live_coinbase_execution != "not_run":
         blockers.append("run_state_not_no_live")
     if run_state.live_exchange_submitted or run_state.live_coinbase_orders_ran:
