@@ -3534,6 +3534,26 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "stealth_create_follow_up_called" in replay_schema["properties"]
     assert "coinbase_order_submit_ran" in replay_schema["properties"]
     assert "local_state_mutated" in replay_schema["properties"]
+    readiness_path = written["paths"][
+        "/api/v1/orders/{client_order_id}/fill-follow-up/live-readiness"
+    ]["get"]
+    assert readiness_path["responses"]["200"]["content"]["application/json"][
+        "schema"
+    ]["$ref"] == "#/components/schemas/AdminOrderFillFollowUpLiveReadinessResponse"
+    assert (
+        "AdminOrderFillFollowUpLiveReadinessResponse"
+        in written["components"]["schemas"]
+    )
+    readiness_schema = written["components"]["schemas"][
+        "AdminOrderFillFollowUpLiveReadinessResponse"
+    ]
+    assert "client_order_id" in readiness_schema["properties"]
+    assert "ready" in readiness_schema["properties"]
+    assert "blockers" in readiness_schema["properties"]
+    assert "duplicate_claim_protection_observed" in readiness_schema["properties"]
+    assert "audit_correlation_id" in readiness_schema["properties"]
+    assert "fill_testing_approval_present" in readiness_schema["properties"]
+    assert "wallet_proof_ref" in readiness_schema["properties"]
     assert "AdminOrderFillFollowUpDecisionAuditEvidence" in written["components"][
         "schemas"
     ]
@@ -75843,6 +75863,83 @@ def test_admin_api_order_fill_follow_up_replay_route_surfaces_no_live_decision(
 
 
 @pytest.mark.regression
+def test_admin_api_order_fill_follow_up_live_readiness_blocks_without_prereqs(
+    monkeypatch,
+):
+    import configuration
+    import database.order as order_module
+
+    root_order = {
+        "client_order_id": "root-follow-up-buy",
+        "product_id": "BTC-USD",
+        "side": "BUY",
+        "status": "FILLED",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "100.00",
+        "parent_order_id": None,
+        "created_at": "2026-07-10T01:00:00Z",
+        "updated_at": "2026-07-10T01:02:00Z",
+        "exchange_order_id": "exchange-evidence-root",
+        "correlation_id": "corr-root-follow-up",
+    }
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order",
+        lambda client_order_id: (
+            root_order if client_order_id == "root-follow-up-buy" else None
+        ),
+    )
+    monkeypatch.setattr(order_module, "get_parent_orders", lambda: [root_order])
+    monkeypatch.setattr(
+        configuration,
+        "rest_get_products",
+        lambda: {
+            "BTC-USD": {
+                "product_id": "BTC-USD",
+                "product_type": "SPOT",
+                "future_product_details": {},
+            }
+        },
+    )
+
+    client = _client(monkeypatch)
+    response = client.get(
+        "/api/v1/orders/root-follow-up-buy/fill-follow-up/live-readiness",
+        headers=_headers(roles=AdminApiRole.AUDITOR.value),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["type"] == "admin_order_fill_follow_up_live_readiness"
+    assert payload["client_order_id"] == "root-follow-up-buy"
+    assert payload["found"] is True
+    assert payload["ready"] is False
+    assert payload["readiness_status"] == "blocked"
+    assert payload["readiness_mode"] == "no_live_preflight"
+    assert payload["live_execution_allowed"] is False
+    assert payload["fill_testing_approval_required"] is True
+    assert payload["fill_testing_approval_present"] is False
+    assert payload["wallet_cap_reconciliation_proof_required"] is True
+    assert payload["wallet_proof_ref"] is None
+    assert payload["cap_guard_decision_ref"] is None
+    assert payload["reconciliation_plan_ref"] is None
+    assert payload["audit_correlation_id"] == "corr-root-follow-up"
+    assert payload["order_engine_handle_filled_order_called"] is False
+    assert payload["stealth_create_follow_up_called"] is False
+    assert payload["coinbase_order_submit_ran"] is False
+    assert payload["local_state_mutated"] is False
+    assert "fill_testing_approval_missing" in payload["blockers"]
+    assert "fill_follow_up_wallet_proof_missing" in payload["blockers"]
+    assert "fill_follow_up_cap_guard_proof_missing" in payload["blockers"]
+    assert "fill_follow_up_reconciliation_proof_missing" in payload["blockers"]
+    assert "duplicate_claim_protection_unobserved" in payload["blockers"]
+    assert payload["fill_follow_up_decision_audit"]["follow_up_decision"] == (
+        "eligible_no_live"
+    )
+
+
+@pytest.mark.regression
 def test_admin_api_stealth_read_routes_use_read_service_without_commands(monkeypatch):
     from api.v1.routes import stealth as stealth_routes
 
@@ -86081,6 +86178,12 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows[
         "GET /api/v1/orders/{client_order_id}/fill-follow-up/replay"
     ].action_class == AdminApiActionClass.READ_ONLY
+    assert rows[
+        "GET /api/v1/orders/{client_order_id}/fill-follow-up/live-readiness"
+    ].shared_method == "build_order_fill_follow_up_live_readiness"
+    assert rows[
+        "GET /api/v1/orders/{client_order_id}/fill-follow-up/live-readiness"
+    ].action_class == AdminApiActionClass.READ_ONLY
     assert rows["GET /api/v1/stealth/orders"].shared_method == (
         "build_stealth_order_list"
     )
@@ -86684,6 +86787,7 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "structured command-gap" in doc
     assert "build_order_list" in doc
     assert "build_order_fill_follow_up_replay" in doc
+    assert "build_order_fill_follow_up_live_readiness" in doc
     assert "build_stealth_order_list" in doc
     assert "build_stealth_order_detail" in doc
     assert "cancel_stealth_order_by_stealth_order_id" in doc

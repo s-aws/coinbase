@@ -67,6 +67,22 @@
       "command_contract": false
     },
     {
+      "module_id": "spot_operations",
+      "surface": "GET /api/v1/orders/{client_order_id}/fill-follow-up/live-readiness",
+      "method": "GET",
+      "path": "/api/v1/orders/{client_order_id}/fill-follow-up/live-readiness",
+      "action_class": "read_only",
+      "permission": "audit:read",
+      "idempotency": "not required",
+      "approval": "not required",
+      "caps": "not applicable",
+      "audit": "optional read audit",
+      "shared_method": "build_order_fill_follow_up_live_readiness",
+      "parity_test": "fail-closed fill follow-up live-readiness blockers for fill-testing approval, wallet/cap/reconciliation proof, duplicate-claim protection, and audit correlation; no claim acquisition, OrderEngine.handle_filled_order, stealth follow-up creation, Coinbase call, or local/exchange mutation",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
       "module_id": "stealth_orders",
       "surface": "GET /api/v1/stealth/orders",
       "method": "GET",

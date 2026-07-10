@@ -4790,6 +4790,47 @@ class AdminOrderFillFollowUpReplayResponse(BaseModel):
     detail: str
 
 
+class AdminOrderFillFollowUpLiveReadinessResponse(BaseModel):
+    """Read-only live-readiness blockers for fill-triggered follow-up."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_order_fill_follow_up_live_readiness"
+    client_order_id: str
+    found: bool
+    ready: bool = False
+    readiness_status: str = "blocked"
+    readiness_mode: str = "no_live_preflight"
+    fill_follow_up_decision_audit: (
+        AdminOrderFillFollowUpDecisionAuditEvidence | None
+    ) = None
+    duplicate_claim_protection_required: bool = True
+    duplicate_claim_protection_observed: bool = False
+    duplicate_claim_state: str | None = None
+    duplicate_claim_source: str = "runtime_orderbook_unavailable"
+    fill_testing_approval_required: bool = True
+    fill_testing_approval_present: bool = False
+    wallet_cap_reconciliation_proof_required: bool = True
+    wallet_proof_ref: str | None = None
+    cap_guard_decision_ref: str | None = None
+    reconciliation_plan_ref: str | None = None
+    audit_correlation_required: bool = True
+    audit_correlation_id: str | None = None
+    live_execution_allowed: bool = False
+    blockers: list[str] = Field(default_factory=list)
+    read_only: bool = True
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    order_engine_handle_filled_order_called: bool = False
+    stealth_create_follow_up_called: bool = False
+    follow_up_order_created: bool = False
+    coinbase_order_submit_ran: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    local_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    detail: str
+
+
 class AdminStealthOrderReadItem(BaseModel):
     """Read-only stealth order evidence from ``stealth_orders``."""
 

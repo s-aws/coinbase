@@ -309,6 +309,7 @@ from .models import (
     AdminOidcJwtReadinessResponse,
     AdminOrderDetailResponse,
     AdminOrderFillFollowUpDecisionAuditEvidence,
+    AdminOrderFillFollowUpLiveReadinessResponse,
     AdminOrderFillFollowUpReplayResponse,
     AdminOrderListResponse,
     AdminOrderReadItem,
@@ -3003,6 +3004,7 @@ def _order_fill_follow_up_decision_audit(
         read_evidence_routes=[
             "/api/v1/orders/{client_order_id}",
             "/api/v1/orders/{client_order_id}/fill-follow-up/replay",
+            "/api/v1/orders/{client_order_id}/fill-follow-up/live-readiness",
             "/api/v1/stealth/orders/{stealth_order_id}",
             "/api/v1/admin/fill-ledger-health",
         ],
@@ -12991,6 +12993,72 @@ class AdminApiReadService:
                 "acquiring follow-up claims, creating stealth follow-ups, "
                 "submitting/canceling Coinbase orders, or mutating local/"
                 "exchange state."
+            ),
+        )
+
+    def build_order_fill_follow_up_live_readiness(
+        self,
+        *,
+        client_order_id: str,
+    ) -> AdminOrderFillFollowUpLiveReadinessResponse:
+        """Return fail-closed live-readiness blockers for fill follow-up."""
+
+        try:
+            from database.order import get_parent_order
+
+            row = get_parent_order(client_order_id)
+        except Exception:
+            row = None
+        audit = _order_fill_follow_up_decision_audit(
+            row,
+            client_order_id=client_order_id,
+        )
+        audit_correlation_id = (
+            _string_or_none(row.get("correlation_id") or row.get("audit_id"))
+            if row
+            else None
+        )
+        duplicate_claim_observed = bool(audit and audit.claim_reader_ran)
+        blockers: list[str] = []
+        if row is None:
+            blockers.append("order_not_found")
+        if audit is None or audit.follow_up_decision != "eligible_no_live":
+            blockers.append("fill_follow_up_decision_not_eligible")
+        if not duplicate_claim_observed:
+            blockers.append("duplicate_claim_protection_unobserved")
+        elif audit and audit.claim_state in {"processing", "done"}:
+            blockers.append(f"duplicate_claim_{audit.claim_state}")
+        if not audit_correlation_id:
+            blockers.append("audit_correlation_id_missing")
+        blockers.extend(
+            [
+                "fill_testing_approval_missing",
+                "fill_follow_up_wallet_proof_missing",
+                "fill_follow_up_cap_guard_proof_missing",
+                "fill_follow_up_reconciliation_proof_missing",
+            ]
+        )
+        return AdminOrderFillFollowUpLiveReadinessResponse(
+            client_order_id=client_order_id,
+            found=row is not None,
+            ready=False,
+            readiness_status="blocked",
+            fill_follow_up_decision_audit=audit,
+            duplicate_claim_protection_observed=duplicate_claim_observed,
+            duplicate_claim_state=audit.claim_state if audit else None,
+            duplicate_claim_source=(
+                audit.claim_state_source
+                if audit
+                else "runtime_orderbook_unavailable"
+            ),
+            audit_correlation_id=audit_correlation_id,
+            blockers=blockers,
+            detail=(
+                "Fill follow-up live readiness is fail-closed until separate "
+                "fill-testing approval, wallet proof, cap-guard proof, "
+                "reconciliation proof, observed duplicate-claim protection, and "
+                "operator-visible audit correlation exist. No engine, stealth, "
+                "Coinbase, local-state, or exchange mutation ran."
             ),
         )
 

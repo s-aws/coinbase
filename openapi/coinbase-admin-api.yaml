@@ -6844,6 +6844,77 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/orders/{client_order_id}/fill-follow-up/live-readiness:
+    get:
+      tags:
+      - orders
+      summary: Read guarded fill follow-up live-readiness blockers
+      description: Read fill follow-up live-readiness without acquiring claims or
+        executing.
+      operationId: get_order_fill_follow_up_live_readiness_api_v1_orders__client_order_id__fill_follow_up_live_readiness_get
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Client Order Id
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderFillFollowUpLiveReadinessResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/orders/{client_order_id}/cancel:
     post:
       tags:
@@ -136857,6 +136928,147 @@ components:
       title: AdminOrderFillFollowUpDecisionAuditEvidence
       description: Read-only fill-triggered follow-up decision evidence for order
         detail.
+    AdminOrderFillFollowUpLiveReadinessResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_order_fill_follow_up_live_readiness
+        client_order_id:
+          type: string
+          title: Client Order Id
+        found:
+          type: boolean
+          title: Found
+        ready:
+          type: boolean
+          title: Ready
+          default: false
+        readiness_status:
+          type: string
+          title: Readiness Status
+          default: blocked
+        readiness_mode:
+          type: string
+          title: Readiness Mode
+          default: no_live_preflight
+        fill_follow_up_decision_audit:
+          anyOf:
+          - $ref: '#/components/schemas/AdminOrderFillFollowUpDecisionAuditEvidence'
+          - type: 'null'
+        duplicate_claim_protection_required:
+          type: boolean
+          title: Duplicate Claim Protection Required
+          default: true
+        duplicate_claim_protection_observed:
+          type: boolean
+          title: Duplicate Claim Protection Observed
+          default: false
+        duplicate_claim_state:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Duplicate Claim State
+        duplicate_claim_source:
+          type: string
+          title: Duplicate Claim Source
+          default: runtime_orderbook_unavailable
+        fill_testing_approval_required:
+          type: boolean
+          title: Fill Testing Approval Required
+          default: true
+        fill_testing_approval_present:
+          type: boolean
+          title: Fill Testing Approval Present
+          default: false
+        wallet_cap_reconciliation_proof_required:
+          type: boolean
+          title: Wallet Cap Reconciliation Proof Required
+          default: true
+        wallet_proof_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Wallet Proof Ref
+        cap_guard_decision_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Decision Ref
+        reconciliation_plan_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Plan Ref
+        audit_correlation_required:
+          type: boolean
+          title: Audit Correlation Required
+          default: true
+        audit_correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Correlation Id
+        live_execution_allowed:
+          type: boolean
+          title: Live Execution Allowed
+          default: false
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        order_engine_handle_filled_order_called:
+          type: boolean
+          title: Order Engine Handle Filled Order Called
+          default: false
+        stealth_create_follow_up_called:
+          type: boolean
+          title: Stealth Create Follow Up Called
+          default: false
+        follow_up_order_created:
+          type: boolean
+          title: Follow Up Order Created
+          default: false
+        coinbase_order_submit_ran:
+          type: boolean
+          title: Coinbase Order Submit Ran
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        local_state_mutated:
+          type: boolean
+          title: Local State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - client_order_id
+      - found
+      - detail
+      title: AdminOrderFillFollowUpLiveReadinessResponse
+      description: Read-only live-readiness blockers for fill-triggered follow-up.
     AdminOrderFillFollowUpReplayResponse:
       properties:
         type:
