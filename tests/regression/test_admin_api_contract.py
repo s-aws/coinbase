@@ -76701,7 +76701,9 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
         trigger_filled_follow_up=trigger_filled_follow_up
     )
     runtime_orderbook = SimpleNamespace(
-        follow_up_claim_state=lambda trigger, client_order_id: None
+        follow_up_claim_state=lambda trigger, client_order_id: (
+            "done" if executor_state["called"] else None
+        )
     )
     runtime_engine = SimpleNamespace(
         orderbook=runtime_orderbook,
@@ -76910,6 +76912,11 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
     assert data["chain"]["follow_up_child_count"] == 1
     assert data["post_trigger_follow_up_child_client_order_ids"] == [child_id]
     assert data["post_trigger_follow_up_child_count_delta"] == 1
+    assert data["post_trigger_duplicate_claim_state"] == "done"
+    assert data["post_trigger_duplicate_claim_source"] == (
+        "orderbook.follow_up_claim_state"
+    )
+    assert data["post_trigger_duplicate_claim_observed"] is True
     assert data["execution_result"]["source"] == "fake_fill_follow_up_executor"
     assert data["execution_result"]["follow_up_child_client_order_id"] == child_id
     assert data["fill_follow_up_decision_audit"][

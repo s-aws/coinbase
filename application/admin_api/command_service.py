@@ -1991,6 +1991,18 @@ class AdminApiCommandService:
             0,
             chain.follow_up_child_count - pre_trigger_chain.follow_up_child_count,
         )
+        response_audit = chain.fill_follow_up_decision_audit or audit
+        post_trigger_duplicate_claim_state = (
+            response_audit.claim_state if response_audit else None
+        )
+        post_trigger_duplicate_claim_source = (
+            response_audit.claim_state_source
+            if response_audit
+            else "runtime_orderbook_unavailable"
+        )
+        post_trigger_duplicate_claim_observed = bool(
+            response_audit and response_audit.claim_reader_ran
+        )
         execution_flags = {
             "claim_acquired": _fill_follow_up_execution_flag(
                 execution_result,
@@ -2043,7 +2055,6 @@ class AdminApiCommandService:
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
         }
-        response_audit = chain.fill_follow_up_decision_audit or audit
         data = {
             "type": "admin_order_fill_follow_up_trigger_result",
             "trigger_attempted": True,
@@ -2059,6 +2070,11 @@ class AdminApiCommandService:
             ),
             "post_trigger_follow_up_child_count_delta": (
                 post_trigger_follow_up_child_count_delta
+            ),
+            "post_trigger_duplicate_claim_state": post_trigger_duplicate_claim_state,
+            "post_trigger_duplicate_claim_source": post_trigger_duplicate_claim_source,
+            "post_trigger_duplicate_claim_observed": (
+                post_trigger_duplicate_claim_observed
             ),
             "fill_follow_up_decision_audit": (
                 response_audit.model_dump(mode="json") if response_audit else None
