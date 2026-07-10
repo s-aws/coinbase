@@ -857,6 +857,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[order_routes.get_mvp_service] = (
         lambda: admin_mvp_service
     )
+    app.dependency_overrides[order_routes.get_read_service] = lambda: (
+        order_routes.AdminApiReadService(mvp_service=admin_mvp_service)
+    )
     app.dependency_overrides[
         automation_routes.get_usdc_pair_snapshot_approval_store
     ] = lambda: approval_store
@@ -3536,6 +3539,11 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     )
     assert spot_fill_readback_schema["properties"]["route"]["default"] == (
         "/api/v1/orders/{client_order_id}/fill-readback"
+    )
+    assert "live_fill_readback_proof_ref" in spot_fill_readback_schema["properties"]
+    assert (
+        "live_fill_readback_proof_recorded"
+        in spot_fill_readback_schema["properties"]
     )
     replay_path = written["paths"][
         "/api/v1/orders/{client_order_id}/fill-follow-up/replay"
@@ -76043,6 +76051,93 @@ def test_admin_api_order_fill_follow_up_live_readiness_blocks_without_prereqs(
     assert payload["fill_follow_up_decision_audit"]["follow_up_decision"] == (
         "eligible_no_live"
     )
+
+
+@pytest.mark.regression
+def test_admin_api_order_fill_follow_up_live_readiness_uses_recorded_fill_readback_proof(
+    monkeypatch,
+):
+    import configuration
+    import database.order as order_module
+
+    client_order_id = "root-follow-up-buy"
+    proof_ref = f"spot_fill_readback:{client_order_id}:audit-fill-readback"
+    root_order = {
+        "client_order_id": client_order_id,
+        "product_id": "BTC-USD",
+        "side": "BUY",
+        "status": "FILLED",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "100.00",
+        "parent_order_id": None,
+        "created_at": "2026-07-10T01:00:00Z",
+        "updated_at": "2026-07-10T01:02:00Z",
+        "exchange_order_id": "exchange-evidence-root",
+        "correlation_id": "corr-root-follow-up",
+        "audit_id": "audit-root-follow-up",
+    }
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order",
+        lambda candidate: root_order if candidate == client_order_id else None,
+    )
+    monkeypatch.setattr(order_module, "get_parent_orders", lambda: [root_order])
+    monkeypatch.setattr(
+        configuration,
+        "rest_get_products",
+        lambda: {
+            "BTC-USD": {
+                "product_id": "BTC-USD",
+                "product_type": "SPOT",
+                "future_product_details": {},
+            }
+        },
+    )
+
+    client = _client(monkeypatch)
+    client.admin_api_test_mvp_service.store.spot_fill_readback_proofs[proof_ref] = {
+        "type": "admin_spot_order_fill_readback",
+        "module_id": "spot_operations",
+        "live_fill_readback_proof_ref": proof_ref,
+        "client_order_id": client_order_id,
+        "route": "/api/v1/orders/{client_order_id}/fill-readback",
+        "method": "GET",
+        "status": "passed",
+        "order_status": "FILLED",
+        "order_found": True,
+        "coinbase_read_succeeded": True,
+        "fill_count": 1,
+        "fill_read_status": "filled",
+        "fill_order_id_matches_exchange_order_id": True,
+        "fill_product_id_matches_order": True,
+        "exchange_order_id_evidence_only": True,
+        "live_coinbase_read_ran": True,
+        "live_coinbase_orders_ran": False,
+        "read_only": True,
+        "ended_at": "2026-07-10T01:02:30Z",
+    }
+
+    response = client.get(
+        f"/api/v1/orders/{client_order_id}/fill-follow-up/live-readiness",
+        headers=_headers(roles=AdminApiRole.AUDITOR.value),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ready"] is False
+    assert payload["live_fill_readback_proof_ref"] == proof_ref
+    assert (
+        "fill_follow_up_live_fill_readback_proof_missing"
+        not in payload["blockers"]
+    )
+    assert "fill_follow_up_rollback_readback_missing" in payload["blockers"]
+    assert "fill_follow_up_wallet_proof_missing" in payload["blockers"]
+    assert payload["operator_visible_audit_ref"] == (
+        "admin_order_audit:audit-root-follow-up"
+    )
+    assert payload["live_coinbase_read_ran"] is False
+    assert payload["live_coinbase_orders_ran"] is False
 
 
 @pytest.mark.regression

@@ -32,7 +32,11 @@ duplicate-claim, and audit-correlation refs, it can return accepted
 parent/child readback evidence while Coinbase submit/cancel and live exchange
 mutation remain disallowed. Fill-follow-up live-readiness may surface
 `operator_visible_audit_ref=admin_order_audit:<audit_id>` when the selected
-order row has backend audit evidence, but live-fill readback, rollback,
+order row has backend audit evidence. Spot fill-readback records
+`live_fill_readback_proof_ref=spot_fill_readback:<client_order_id>:<audit_id>`
+only after a passed backend read finds a live Coinbase fill for the
+`client_order_id` without submitting/canceling Coinbase orders. Live-readiness
+may surface that ref and remove only the live-fill readback blocker; rollback,
 wallet, cap/guard, reconciliation, approval, and duplicate-claim blockers
 remain fail-closed until their own backend evidence exists.
 

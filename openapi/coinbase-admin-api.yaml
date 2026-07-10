@@ -141762,6 +141762,15 @@ components:
           type: boolean
           title: Live Coinbase Orders Ran
           default: false
+        live_fill_readback_proof_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Fill Readback Proof Ref
+        live_fill_readback_proof_recorded:
+          type: boolean
+          title: Live Fill Readback Proof Recorded
+          default: false
       additionalProperties: true
       type: object
       required:

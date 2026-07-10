@@ -3063,6 +3063,33 @@ def _order_fill_follow_up_decision_audit(
     )
 
 
+def _order_fill_follow_up_live_readback_proof_ref(
+    *,
+    mvp_service: Any | None,
+    client_order_id: str,
+) -> str | None:
+    service = mvp_service
+    if service is None:
+        try:
+            from application.admin_api.mvp_service import get_admin_mvp_service
+
+            service = get_admin_mvp_service()
+        except Exception:
+            return None
+    latest_proof = getattr(service, "latest_spot_fill_readback_proof", None)
+    if not callable(latest_proof):
+        return None
+    try:
+        record = latest_proof(client_order_id)
+    except Exception:
+        return None
+    if not isinstance(record, dict):
+        return None
+    return _string_or_none(
+        record.get("live_fill_readback_proof_ref") or record.get("proof_ref")
+    )
+
+
 def _json_object_or_none(value: Any) -> dict[str, Any] | None:
     if value is None:
         return None
@@ -6237,7 +6264,9 @@ class AdminApiReadService:
         live_adapter_decision_store: (
             FileAdminApiLiveAdapterDecisionStore | None
         ) = None,
+        mvp_service: Any | None = None,
     ) -> None:
+        self.mvp_service = mvp_service
         self.spot_recovery_proof_store = (
             spot_recovery_proof_store or FileSpotRecoveryProofStore()
         )
@@ -13052,6 +13081,12 @@ class AdminApiReadService:
         operator_visible_audit_ref = (
             f"admin_order_audit:{row_audit_id}" if row_audit_id else None
         )
+        live_fill_readback_proof_ref = (
+            _order_fill_follow_up_live_readback_proof_ref(
+                mvp_service=self.mvp_service,
+                client_order_id=client_order_id,
+            )
+        )
         duplicate_claim_observed = bool(audit and audit.claim_reader_ran)
         blockers: list[str] = []
         if row is None:
@@ -13070,10 +13105,11 @@ class AdminApiReadService:
                 "fill_follow_up_wallet_proof_missing",
                 "fill_follow_up_cap_guard_proof_missing",
                 "fill_follow_up_reconciliation_proof_missing",
-                "fill_follow_up_live_fill_readback_proof_missing",
                 "fill_follow_up_rollback_readback_missing",
             ]
         )
+        if not live_fill_readback_proof_ref:
+            blockers.append("fill_follow_up_live_fill_readback_proof_missing")
         if not operator_visible_audit_ref:
             blockers.append("fill_follow_up_operator_visible_audit_missing")
         return AdminOrderFillFollowUpLiveReadinessResponse(
@@ -13090,6 +13126,7 @@ class AdminApiReadService:
                 else "runtime_orderbook_unavailable"
             ),
             audit_correlation_id=audit_correlation_id,
+            live_fill_readback_proof_ref=live_fill_readback_proof_ref,
             operator_visible_audit_ref=operator_visible_audit_ref,
             blockers=blockers,
             detail=(

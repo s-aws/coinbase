@@ -4347,6 +4347,8 @@ class SpotOrderFillReadbackResponse(AdminMvpEvidenceResponse):
     module_id: str = "spot_operations"
     route: str = "/api/v1/orders/{client_order_id}/fill-readback"
     method: str = "GET"
+    live_fill_readback_proof_ref: str | None = None
+    live_fill_readback_proof_recorded: bool = False
 
 
 class AdminProductsReadResponse(BaseModel):

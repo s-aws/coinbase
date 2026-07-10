@@ -3051,6 +3051,19 @@ def test_admin_spot_order_fill_readback_reads_order_and_fills_by_client_order_id
     assert body["executed_notional_usdc"] == "1.00000"
     assert body["submitted_notional_usdc"] == "0"
     assert body["notional_usdc"] == "0"
+    assert body["live_fill_readback_proof_ref"] == (
+        "spot_fill_readback:spot-live-submit-test:audit-command-dry-order"
+    )
+    assert body["live_fill_readback_proof_recorded"] is True
+    assert body["live_fill_readback_proof_ref"] in service.store.spot_fill_readback_proofs
+    proof = service.store.spot_fill_readback_proofs[
+        body["live_fill_readback_proof_ref"]
+    ]
+    assert proof["client_order_id"] == "spot-live-submit-test"
+    assert proof["fill_count"] == 1
+    assert proof["fill_read_status"] == "filled"
+    assert proof["live_coinbase_read_ran"] is True
+    assert proof["live_coinbase_orders_ran"] is False
     assert body["live_coinbase_read_ran"] is True
     assert body["live_coinbase_orders_ran"] is False
     assert body["read_only"] is True

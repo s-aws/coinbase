@@ -250,6 +250,7 @@ ADMIN_MVP_EVIDENCE_LOG_PATH_ENVS = {
     "command_identity_by_idempotency_key": IDEMPOTENCY_LOG_PATH_ENV,
     "admission_audits": AUDIT_LOG_PATH_ENV,
     "spot_command_decisions": AUDIT_LOG_PATH_ENV,
+    "spot_fill_readback_proofs": AUDIT_LOG_PATH_ENV,
     "futures_risk_proofs": AUDIT_LOG_PATH_ENV,
     "futures_command_decisions": AUDIT_LOG_PATH_ENV,
     "futures_executor_decisions": AUDIT_LOG_PATH_ENV,
@@ -309,6 +310,7 @@ class AdminMvpStore:
     reconciliation_plans: dict[str, dict[str, Any]] = field(default_factory=dict)
     live_adapter_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
     spot_command_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
+    spot_fill_readback_proofs: dict[str, dict[str, Any]] = field(default_factory=dict)
     futures_risk_proofs: dict[str, dict[str, Any]] = field(default_factory=dict)
     futures_command_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
     futures_executor_decisions: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -437,6 +439,8 @@ def _evidence_collection_store(
         return store.live_adapter_decisions
     if collection == "spot_command_decisions":
         return store.spot_command_decisions
+    if collection == "spot_fill_readback_proofs":
+        return store.spot_fill_readback_proofs
     if collection == "futures_risk_proofs":
         return store.futures_risk_proofs
     if collection == "futures_command_decisions":
@@ -475,6 +479,82 @@ def _refresh_store_live_submission_totals(store: AdminMvpStore) -> None:
     store.submitted_notional_usdc = submitted_notional
     store.executed_notional_usdc = executed_notional
     store.live_coinbase_orders_ran = live_orders_ran
+
+
+def _positive_int(value: Any) -> bool:
+    try:
+        return int(value) > 0
+    except (TypeError, ValueError):
+        return False
+
+
+def _spot_fill_readback_proof_ref(
+    *,
+    client_order_id: str,
+    audit_id: str,
+) -> str:
+    return f"spot_fill_readback:{client_order_id}:{audit_id}"
+
+
+def _spot_fill_readback_record_proves_live_fill(record: Mapping[str, Any]) -> bool:
+    """Return true only for read-only live Spot fill readback proof."""
+
+    return (
+        str(record.get("type") or "") == "admin_spot_order_fill_readback"
+        and str(record.get("status") or "") == "passed"
+        and bool(record.get("read_only")) is True
+        and bool(record.get("live_coinbase_read_ran")) is True
+        and bool(record.get("live_coinbase_orders_ran")) is False
+        and bool(record.get("coinbase_read_succeeded")) is True
+        and bool(record.get("order_found")) is True
+        and _positive_int(record.get("fill_count"))
+        and str(record.get("fill_read_status") or "").lower() == "filled"
+        and bool(record.get("fill_order_id_matches_exchange_order_id")) is True
+        and bool(record.get("fill_product_id_matches_order")) is True
+        and bool(record.get("exchange_order_id_evidence_only")) is True
+    )
+
+
+def _spot_fill_readback_proof_record(
+    record: Mapping[str, Any],
+    *,
+    proof_ref: str,
+) -> dict[str, Any]:
+    fields = (
+        "type",
+        "module_id",
+        "route",
+        "method",
+        "service_method",
+        "client_order_id",
+        "operator_identity_key",
+        "correlation_id",
+        "idempotency_key",
+        "actor_id",
+        "operator_intent",
+        "audit_id",
+        "product_id",
+        "order_status",
+        "order_found",
+        "exchange_order_id",
+        "exchange_order_id_evidence_only",
+        "fill_count",
+        "fill_read_status",
+        "fill_order_id_matches_exchange_order_id",
+        "fill_product_id_matches_order",
+        "executed_notional_usdc",
+        "live_coinbase_read_ran",
+        "live_coinbase_orders_ran",
+        "live_coinbase_execution",
+        "read_only",
+        "started_at",
+        "ended_at",
+        "backend_contract_ref",
+    )
+    proof = {field: record.get(field) for field in fields if field in record}
+    proof["live_fill_readback_proof_ref"] = proof_ref
+    proof["proof_recorded"] = True
+    return proof
 
 
 @dataclass(frozen=True)
@@ -532,6 +612,49 @@ class AdminMvpService:
 
     def _persist_record(self, collection: str, key: str, record: Any) -> None:
         self.evidence_log.append(collection, key, record)
+
+    def latest_spot_fill_readback_proof(
+        self,
+        client_order_id: str,
+    ) -> dict[str, Any] | None:
+        """Return the latest recorded Spot live-fill readback proof for an order."""
+
+        matches = [
+            record
+            for record in self.store.spot_fill_readback_proofs.values()
+            if str(record.get("client_order_id") or "") == client_order_id
+            and _spot_fill_readback_record_proves_live_fill(record)
+        ]
+        if not matches:
+            return None
+        return sorted(
+            matches,
+            key=lambda record: str(
+                record.get("ended_at")
+                or record.get("started_at")
+                or record.get("audit_id")
+                or ""
+            ),
+        )[-1]
+
+    def _record_spot_fill_readback_proof(
+        self,
+        record: Mapping[str, Any],
+    ) -> str | None:
+        if not _spot_fill_readback_record_proves_live_fill(record):
+            return None
+        client_order_id = str(record.get("client_order_id") or "")
+        audit_id = str(record.get("audit_id") or "")
+        if not client_order_id or not audit_id:
+            return None
+        proof_ref = _spot_fill_readback_proof_ref(
+            client_order_id=client_order_id,
+            audit_id=audit_id,
+        )
+        proof = _spot_fill_readback_proof_record(record, proof_ref=proof_ref)
+        self.store.spot_fill_readback_proofs[proof_ref] = proof
+        self._persist_record("spot_fill_readback_proofs", proof_ref, proof)
+        return proof_ref
 
     def control_runtime(
         self,
@@ -6578,7 +6701,7 @@ class AdminMvpService:
                 fill_limit=max(_query_int(query, "fill_limit", 100), 1),
             ),
         )
-        return {
+        response = {
             "type": "admin_spot_order_fill_readback",
             "module_id": "spot_operations",
             "route": "/api/v1/orders/{client_order_id}/fill-readback",
@@ -6611,6 +6734,14 @@ class AdminMvpService:
             "bff_authority": "forward_only_no_execution",
             **summary,
         }
+        live_fill_readback_proof_ref = self._record_spot_fill_readback_proof(
+            response
+        )
+        response["live_fill_readback_proof_ref"] = live_fill_readback_proof_ref
+        response["live_fill_readback_proof_recorded"] = (
+            live_fill_readback_proof_ref is not None
+        )
+        return response
 
     def _futures_position_detail(self, position_key: str) -> dict[str, Any]:
         snapshot = self._account_snapshot()
