@@ -1982,6 +1982,47 @@ def _fill_follow_up_chain_child_payload(
     return None
 
 
+def _fill_follow_up_trigger_requested_refs(request: Any) -> dict[str, Any]:
+    return {
+        "fill_testing_approval_id": request.fill_testing_approval_id,
+        "wallet_proof_ref": request.wallet_proof_ref,
+        "cap_guard_decision_id": request.cap_guard_decision_id,
+        "reconciliation_plan_id": request.reconciliation_plan_id,
+        "audit_correlation_id": request.audit_correlation_id,
+        "confirm_duplicate_claim_protection": (
+            request.confirm_duplicate_claim_protection
+        ),
+    }
+
+
+def _fill_follow_up_trigger_pre_execution_blockers(
+    *,
+    readiness: Any,
+    chain: Any,
+    audit: Any | None,
+    prerequisite_blockers: list[str | None],
+) -> list[str | None]:
+    blockers: list[str | None] = []
+    blockers.extend(
+        _fill_follow_up_readiness_blockers_for_request(readiness.blockers)
+    )
+    blockers.extend(chain.blockers)
+    if not readiness.found:
+        blockers.append("order_not_found")
+    if audit is None or audit.follow_up_decision != "eligible_no_live":
+        blockers.append("fill_follow_up_decision_not_eligible")
+    blockers.extend(prerequisite_blockers)
+    if not readiness.duplicate_claim_protection_observed:
+        blockers.append("duplicate_claim_protection_unobserved")
+    if readiness.duplicate_claim_state in {"processing", "done"}:
+        blockers.append(f"duplicate_claim_{readiness.duplicate_claim_state}")
+    if chain.follow_up_child_count > 0:
+        blockers.append("follow_up_child_already_exists")
+    if chain.duplicate_child_client_order_ids:
+        blockers.append("follow_up_child_duplicate_source_ids")
+    return blockers
+
+
 class AdminApiCommandService:
     """Shared command-service boundary for enterprise API work."""
 
@@ -2030,11 +2071,11 @@ class AdminApiCommandService:
             "live_command_runtime_source": deps.command_runtime_source,
         }
 
-    def trigger_order_fill_follow_up(
+    def preview_order_fill_follow_up_trigger(
         self,
         command: AdminOrderFillFollowUpTriggerCommand,
-    ) -> AdminApiCommandResponse:
-        """Attempt guarded no-live fill-follow-up execution after proof gates."""
+    ) -> dict[str, Any]:
+        """Return read-only trigger preview evidence without executor access."""
 
         read_service = self._read_service()
         readiness = read_service.build_order_fill_follow_up_live_readiness(
@@ -2044,16 +2085,7 @@ class AdminApiCommandService:
             client_order_id=command.client_order_id
         )
         request = command.request
-        requested_refs = {
-            "fill_testing_approval_id": request.fill_testing_approval_id,
-            "wallet_proof_ref": request.wallet_proof_ref,
-            "cap_guard_decision_id": request.cap_guard_decision_id,
-            "reconciliation_plan_id": request.reconciliation_plan_id,
-            "audit_correlation_id": request.audit_correlation_id,
-            "confirm_duplicate_claim_protection": (
-                request.confirm_duplicate_claim_protection
-            ),
-        }
+        requested_refs = _fill_follow_up_trigger_requested_refs(request)
         audit = readiness.fill_follow_up_decision_audit
         prerequisite_validation, prerequisite_blockers = (
             _fill_follow_up_prerequisite_validation(
@@ -2077,24 +2109,92 @@ class AdminApiCommandService:
                 duplicate_claim_source=readiness.duplicate_claim_source,
             )
         )
-        blockers: list[str | None] = []
-        blockers.extend(
-            _fill_follow_up_readiness_blockers_for_request(readiness.blockers)
+        blockers = _ordered_unique_strings(
+            _fill_follow_up_trigger_pre_execution_blockers(
+                readiness=readiness,
+                chain=chain,
+                audit=audit,
+                prerequisite_blockers=prerequisite_blockers,
+            )
         )
-        blockers.extend(chain.blockers)
-        if not readiness.found:
-            blockers.append("order_not_found")
-        if audit is None or audit.follow_up_decision != "eligible_no_live":
-            blockers.append("fill_follow_up_decision_not_eligible")
-        blockers.extend(prerequisite_blockers)
-        if not readiness.duplicate_claim_protection_observed:
-            blockers.append("duplicate_claim_protection_unobserved")
-        if readiness.duplicate_claim_state in {"processing", "done"}:
-            blockers.append(f"duplicate_claim_{readiness.duplicate_claim_state}")
-        if chain.follow_up_child_count > 0:
-            blockers.append("follow_up_child_already_exists")
-        if chain.duplicate_child_client_order_ids:
-            blockers.append("follow_up_child_duplicate_source_ids")
+        response_audit = chain.fill_follow_up_decision_audit or audit
+        return {
+            "type": "admin_order_fill_follow_up_trigger_preview_evidence",
+            "trigger_attempted": False,
+            "executor_invoked": False,
+            "trigger_scope": "no_live_local_follow_up",
+            "live_readiness_blocker_scope": "live_claim_only",
+            "live_readiness_blockers_block_no_live_trigger": False,
+            "client_order_id": command.client_order_id,
+            "operator_intent": command.envelope.operator_intent,
+            "requested_refs": requested_refs,
+            "operator_notes": request.operator_notes,
+            "prerequisite_validation": prerequisite_validation,
+            "pre_execution_blockers": blockers,
+            "blockers": blockers,
+            "live_readiness": readiness.model_dump(mode="json"),
+            "chain": chain.model_dump(mode="json"),
+            "fill_follow_up_decision_audit": (
+                response_audit.model_dump(mode="json") if response_audit else None
+            ),
+            "claim_acquired": False,
+            "order_engine_handle_filled_order_called": False,
+            "stealth_create_follow_up_called": False,
+            "follow_up_order_created": False,
+            "coinbase_order_submit_ran": False,
+            "coinbase_order_cancel_submitted": False,
+            "local_state_mutated": False,
+            "exchange_state_mutated": False,
+            "live_exchange_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "browser_authority": "display_only",
+            "bff_authority": "read_only_forward",
+        }
+
+    def trigger_order_fill_follow_up(
+        self,
+        command: AdminOrderFillFollowUpTriggerCommand,
+    ) -> AdminApiCommandResponse:
+        """Attempt guarded no-live fill-follow-up execution after proof gates."""
+
+        read_service = self._read_service()
+        readiness = read_service.build_order_fill_follow_up_live_readiness(
+            client_order_id=command.client_order_id
+        )
+        chain = read_service.build_order_fill_follow_up_chain(
+            client_order_id=command.client_order_id
+        )
+        request = command.request
+        requested_refs = _fill_follow_up_trigger_requested_refs(request)
+        audit = readiness.fill_follow_up_decision_audit
+        prerequisite_validation, prerequisite_blockers = (
+            _fill_follow_up_prerequisite_validation(
+                request=request,
+                audit_correlation_id=readiness.audit_correlation_id,
+                admission_decision=command.admission_decision,
+                cap_guard_wallet_proof_ref=command.cap_guard_wallet_proof_ref,
+                cap_guard_wallet_check_status=(
+                    command.cap_guard_wallet_check_status
+                ),
+                cap_guard_wallet_available_notional_usdc=(
+                    command.cap_guard_wallet_available_notional_usdc
+                ),
+                cap_guard_wallet_check_source=(
+                    command.cap_guard_wallet_check_source
+                ),
+                duplicate_claim_observed=(
+                    readiness.duplicate_claim_protection_observed
+                ),
+                duplicate_claim_state=readiness.duplicate_claim_state,
+                duplicate_claim_source=readiness.duplicate_claim_source,
+            )
+        )
+        blockers = _fill_follow_up_trigger_pre_execution_blockers(
+            readiness=readiness,
+            chain=chain,
+            audit=audit,
+            prerequisite_blockers=prerequisite_blockers,
+        )
         pre_trigger_chain = chain
         execution_result: dict[str, Any] | None = None
         executor_invoked = False

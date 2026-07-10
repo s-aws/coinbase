@@ -1205,6 +1205,7 @@ def preview_order_fill_follow_up_trigger_admission(
         AdminApiLiveExecutionService,
         Depends(get_live_execution_service),
     ],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
     fill_testing_approval_id: Annotated[str | None, Query(min_length=1)] = None,
     wallet_proof_ref: Annotated[str | None, Query(min_length=1)] = None,
     cap_guard_decision_id: Annotated[str | None, Query(min_length=1)] = None,
@@ -1258,6 +1259,23 @@ def preview_order_fill_follow_up_trigger_admission(
     payload = AdminAdmissionPreviewResponse(
         message="Fill follow-up trigger admission preview loaded.",
         admission_decision=decision,
+        data=service.preview_order_fill_follow_up_trigger(
+            AdminOrderFillFollowUpTriggerCommand(
+                envelope=AdminApiCommandEnvelope(
+                    idempotency_key=command_idempotency_key,
+                    correlation_id=command_idempotency_key,
+                    operator_intent=operator_intent,
+                    actor=actor,
+                ),
+                client_order_id=client_order_id,
+                request=body,
+                admission_decision=decision,
+                **_fill_follow_up_cap_guard_wallet_context(
+                    admission_decision=decision,
+                    cap_guard_store=cap_guard_store,
+                ),
+            )
+        ),
     )
     return JSONResponse(content=payload.model_dump(mode="json"))
 

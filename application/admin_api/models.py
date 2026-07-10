@@ -1898,6 +1898,7 @@ class AdminAdmissionPreviewResponse(BaseModel):
     service_method: str = "preview_live_admission"
     message: str
     admission_decision: AdminLiveAdmissionDecisionEvidence
+    data: dict[str, Any] = Field(default_factory=dict)
     browser_authority: str = "display_only"
     bff_authority: str = "read_only_forward"
     live_exchange_submitted: bool = False

@@ -3625,6 +3625,10 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert trigger_preview_path["responses"]["200"]["content"][
         "application/json"
     ]["schema"]["$ref"] == "#/components/schemas/AdminAdmissionPreviewResponse"
+    preview_schema = written["components"]["schemas"][
+        "AdminAdmissionPreviewResponse"
+    ]
+    assert "data" in preview_schema["properties"]
     trigger_preview_parameters = {
         parameter["name"] for parameter in trigger_preview_path["parameters"]
     }
@@ -77146,6 +77150,43 @@ def test_admin_api_order_fill_follow_up_chain_flags_nested_child_parent(
     assert payload["coinbase_order_submit_ran"] is False
     assert payload["local_state_mutated"] is False
     assert payload["exchange_state_mutated"] is False
+
+    preview = client.get(
+        f"/api/v1/orders/{nested_child_id}/fill-follow-up/trigger-preview",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+        params={
+            "command_idempotency_key": (
+                "idem-fill-follow-up-preview-nested-chain-blocker"
+            ),
+            "operator_intent": "trigger_fill_follow_up_test",
+            "audit_correlation_id": "corr-nested-follow-up",
+            "confirm_duplicate_claim_protection": True,
+        },
+    )
+    assert preview.status_code == 200
+    preview_payload = preview.json()
+    preview_data = preview_payload["data"]
+    assert preview_data["type"] == (
+        "admin_order_fill_follow_up_trigger_preview_evidence"
+    )
+    assert preview_data["trigger_attempted"] is False
+    assert preview_data["executor_invoked"] is False
+    assert preview_data["chain"]["nested_child_client_order_ids"] == [nested_child_id]
+    assert preview_data["chain"]["nested_parent_client_order_ids"] == [child_id]
+    assert preview_data["chain"]["flat_hierarchy_violation_count"] == 1
+    assert "follow_up_nested_child_parent_detected" in (
+        preview_data["pre_execution_blockers"]
+    )
+    assert preview_data["live_readiness"]["client_order_id"] == nested_child_id
+    assert preview_data["requested_refs"]["audit_correlation_id"] == (
+        "corr-nested-follow-up"
+    )
+    assert preview_data["requested_refs"][
+        "confirm_duplicate_claim_protection"
+    ] is True
+    assert preview_data["coinbase_order_submit_ran"] is False
+    assert preview_data["local_state_mutated"] is False
+    assert preview_data["exchange_state_mutated"] is False
 
 
 @pytest.mark.regression

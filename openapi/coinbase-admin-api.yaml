@@ -13971,6 +13971,10 @@ components:
           title: Message
         admission_decision:
           $ref: '#/components/schemas/AdminLiveAdmissionDecisionEvidence'
+        data:
+          additionalProperties: true
+          type: object
+          title: Data
         browser_authority:
           type: string
           title: Browser Authority
