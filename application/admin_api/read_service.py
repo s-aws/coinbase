@@ -106,6 +106,7 @@ from core.enums import (
     OrderSide,
     ProductCapability,
     ProductType,
+    SpotFollowUpTrigger,
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
     StealthOrderStatus,
@@ -135,6 +136,7 @@ from .live_execution import (
     build_live_execution_service_contract,
     get_decision_backed_live_execution_service,
 )
+from core.spot_follow_up_policy import evaluate_spot_follow_up_policy
 from .live_adapter_decision_service import (
     CONTROLLED_FUTURES_ACCOUNT_FAMILY,
     CONTROLLED_FUTURES_ADAPTER_TARGETS,
@@ -306,6 +308,7 @@ from .models import (
     AdminMutationClaimEvidence,
     AdminOidcJwtReadinessResponse,
     AdminOrderDetailResponse,
+    AdminOrderFillFollowUpDecisionAuditEvidence,
     AdminOrderListResponse,
     AdminOrderReadItem,
     AdminReplacementSlotEvidence,
@@ -2824,6 +2827,206 @@ def _order_item_from_row(row: dict[str, Any]) -> AdminOrderReadItem:
         ),
         correlation_id=_string_or_none(row.get("correlation_id")),
         audit_id=_string_or_none(row.get("audit_id")),
+    )
+
+
+def _opposite_follow_up_side(side: str | None) -> str | None:
+    try:
+        source_side = OrderSide(str(side or "").upper())
+    except ValueError:
+        return None
+    if source_side == OrderSide.BUY:
+        return OrderSide.SELL.value
+    if source_side == OrderSide.SELL:
+        return OrderSide.BUY.value
+    return None
+
+
+def _runtime_follow_up_claim_state(
+    client_order_id: str,
+) -> tuple[str | None, str, bool]:
+    try:
+        bridge = _runtime_bridge()
+        engine = getattr(bridge, "order_engine", None) if bridge else None
+        orderbook = getattr(engine, "orderbook", None) if engine else None
+        claim_state = getattr(orderbook, "follow_up_claim_state", None)
+        if not callable(claim_state):
+            return None, "runtime_orderbook_unavailable", False
+        lock = getattr(engine, "orderbook_lock", None)
+        if lock is None:
+            return (
+                _string_or_none(
+                    claim_state(SpotFollowUpTrigger.FILLED.value, client_order_id)
+                ),
+                "orderbook.follow_up_claim_state",
+                True,
+            )
+        with lock:
+            state = claim_state(SpotFollowUpTrigger.FILLED.value, client_order_id)
+        return _string_or_none(state), "orderbook.follow_up_claim_state", True
+    except Exception as exc:
+        return None, f"orderbook.follow_up_claim_state_error:{type(exc).__name__}", False
+
+
+def _order_follow_up_chain_ids(
+    *,
+    root_parent_client_order_id: str,
+    active_client_order_id: str,
+) -> list[str]:
+    try:
+        from database.order import get_parent_orders
+
+        rows = get_parent_orders() or []
+    except Exception:
+        return []
+    follow_up_ids: list[str] = []
+    for row in rows:
+        if _string_or_none(row.get("parent_order_id")) != root_parent_client_order_id:
+            continue
+        candidate_id = _string_or_none(row.get("client_order_id"))
+        if not candidate_id or candidate_id in follow_up_ids:
+            continue
+        if candidate_id == root_parent_client_order_id:
+            continue
+        follow_up_ids.append(candidate_id)
+    if (
+        active_client_order_id != root_parent_client_order_id
+        and active_client_order_id not in follow_up_ids
+    ):
+        follow_up_ids.append(active_client_order_id)
+    return follow_up_ids
+
+
+def _order_fill_follow_up_decision_audit(
+    row: dict[str, Any] | None,
+    *,
+    client_order_id: str,
+) -> AdminOrderFillFollowUpDecisionAuditEvidence | None:
+    if row is None:
+        return None
+
+    source_status = _string_or_none(row.get("status"))
+    source_side = _string_or_none(row.get("side"))
+    product_id = _string_or_none(row.get("product_id"))
+    parent_client_order_id = _string_or_none(row.get("parent_order_id"))
+    root_parent_client_order_id = parent_client_order_id or client_order_id
+    filled_status_observed = str(source_status or "").upper() == "FILLED"
+    derived_follow_up_side = _opposite_follow_up_side(source_side)
+    claim_state, claim_state_source, claim_reader_ran = (
+        _runtime_follow_up_claim_state(client_order_id)
+    )
+    follow_up_ids = _order_follow_up_chain_ids(
+        root_parent_client_order_id=root_parent_client_order_id,
+        active_client_order_id=client_order_id,
+    )
+
+    policy_allowed: bool | None = None
+    policy_intent: str | None = None
+    policy_reason: str | None = None
+    product_type: str | None = None
+    policy_evaluation_ran = False
+    blockers = [
+        "fill_follow_up_execution_adapter_missing",
+        "fill_follow_up_reconciliation_proof_missing",
+        "live_fill_follow_up_scope_not_approved",
+    ]
+    if not filled_status_observed:
+        blockers.insert(0, "source_order_not_filled")
+    if not product_id:
+        blockers.insert(0, "product_id_missing")
+    if not source_side:
+        blockers.insert(0, "source_side_missing")
+    if not derived_follow_up_side:
+        blockers.insert(0, "follow_up_side_unresolved")
+
+    if product_id and source_side and derived_follow_up_side:
+        policy_evaluation_ran = True
+        try:
+            decision = evaluate_spot_follow_up_policy(
+                product_id=product_id,
+                source_side=source_side,
+                follow_up_side=derived_follow_up_side,
+                trigger=SpotFollowUpTrigger.FILLED,
+            )
+            policy_allowed = decision.allowed
+            policy_intent = decision.intent
+            policy_reason = decision.reason
+            product_type = decision.product_type
+            if not decision.allowed:
+                blockers.insert(0, "spot_follow_up_policy_blocked")
+        except Exception as exc:
+            blockers.insert(
+                0,
+                f"spot_follow_up_policy_unavailable:{type(exc).__name__}",
+            )
+            policy_reason = str(exc)
+
+    eligible_no_live = filled_status_observed and policy_allowed is True
+    follow_up_decision = (
+        "eligible_no_live" if eligible_no_live else "blocked_no_live"
+    )
+    return AdminOrderFillFollowUpDecisionAuditEvidence(
+        client_order_id=client_order_id,
+        status=AdminApiGateStatus.BLOCKED,
+        source_order_status=source_status,
+        filled_status_observed=filled_status_observed,
+        trigger=SpotFollowUpTrigger.FILLED.value,
+        source_side=source_side,
+        derived_follow_up_side=derived_follow_up_side,
+        product_id=product_id,
+        product_type=product_type,
+        policy_evaluation_ran=policy_evaluation_ran,
+        policy_allowed=policy_allowed,
+        policy_intent=policy_intent,
+        policy_reason=policy_reason,
+        follow_up_decision=follow_up_decision,
+        root_parent_client_order_id=root_parent_client_order_id,
+        parent_client_order_id=parent_client_order_id,
+        existing_follow_up_client_order_ids=follow_up_ids,
+        existing_follow_up_count=len(follow_up_ids),
+        flat_hierarchy_enforced=True,
+        chain_source="order_parent",
+        duplicate_claim_protection_required=True,
+        claim_state=claim_state,
+        claim_state_source=claim_state_source,
+        claim_reader_ran=claim_reader_ran,
+        claim_acquired=False,
+        order_engine_handle_filled_order_called=False,
+        stealth_create_follow_up_called=False,
+        follow_up_order_created=False,
+        coinbase_order_submit_ran=False,
+        coinbase_order_cancel_submitted=False,
+        live_coinbase_read_ran=False,
+        local_state_mutated=False,
+        exchange_state_mutated=False,
+        read_evidence_routes=[
+            "/api/v1/orders/{client_order_id}",
+            "/api/v1/stealth/orders/{stealth_order_id}",
+            "/api/v1/admin/fill-ledger-health",
+        ],
+        required_contracts=[
+            "fill_follow_up_event_replay_contract",
+            "fill_follow_up_duplicate_claim_guard_readback",
+            "fill_follow_up_parent_child_chain_readback",
+            "fill_follow_up_execution_adapter",
+            "fill_follow_up_reconciliation_proof",
+            "fill_follow_up_live_scope_approval",
+        ],
+        missing_contracts=[
+            "fill_follow_up_execution_adapter",
+            "fill_follow_up_reconciliation_proof",
+            "fill_follow_up_live_scope_approval",
+        ],
+        blockers=blockers,
+        browser_authority="display_only",
+        bff_authority="forward_only_no_execution",
+        detail=(
+            "Order detail exposes fill-triggered follow-up decision evidence "
+            "only. It evaluates local policy and chain readback without "
+            "calling OrderEngine.handle_filled_order, acquiring follow-up "
+            "claims, creating stealth follow-ups, submitting Coinbase orders, "
+            "or mutating local/exchange state."
+        ),
     )
 
 
@@ -12753,6 +12956,10 @@ class AdminApiReadService:
             client_order_id=client_order_id,
             found=row is not None,
             order=_order_item_from_row(row) if row else None,
+            fill_follow_up_decision_audit=_order_fill_follow_up_decision_audit(
+                row,
+                client_order_id=client_order_id,
+            ),
         )
 
     def build_stealth_order_list(

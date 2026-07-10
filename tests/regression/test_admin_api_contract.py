@@ -3513,6 +3513,30 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "exchange_order_id" in order_item_schema["properties"]
     assert "correlation_id" in order_item_schema["properties"]
     assert "audit_id" in order_item_schema["properties"]
+    order_detail_schema = written["components"]["schemas"][
+        "AdminOrderDetailResponse"
+    ]
+    assert "fill_follow_up_decision_audit" in order_detail_schema["properties"]
+    assert "AdminOrderFillFollowUpDecisionAuditEvidence" in written["components"][
+        "schemas"
+    ]
+    follow_up_audit_schema = written["components"]["schemas"][
+        "AdminOrderFillFollowUpDecisionAuditEvidence"
+    ]
+    assert "client_order_id" in follow_up_audit_schema["properties"]
+    assert "derived_follow_up_side" in follow_up_audit_schema["properties"]
+    assert "policy_allowed" in follow_up_audit_schema["properties"]
+    assert "policy_intent" in follow_up_audit_schema["properties"]
+    assert "existing_follow_up_client_order_ids" in (
+        follow_up_audit_schema["properties"]
+    )
+    assert "claim_acquired" in follow_up_audit_schema["properties"]
+    assert "order_engine_handle_filled_order_called" in (
+        follow_up_audit_schema["properties"]
+    )
+    assert "stealth_create_follow_up_called" in follow_up_audit_schema["properties"]
+    assert "coinbase_order_submit_ran" in follow_up_audit_schema["properties"]
+    assert "local_state_mutated" in follow_up_audit_schema["properties"]
     order_list_schema = written["components"]["schemas"]["AdminOrderListResponse"]
     assert "pagination" in order_list_schema["properties"]
     stealth_item_schema = written["components"]["schemas"]["AdminStealthOrderReadItem"]
@@ -75617,6 +75641,102 @@ def test_admin_api_order_list_read_service_returns_pagination_metadata(monkeypat
     assert response.pagination.total_matching_count == 5
     assert response.pagination.next_offset == 3
     assert response.pagination.has_more is True
+
+
+@pytest.mark.regression
+def test_admin_api_order_detail_surfaces_no_live_fill_follow_up_decision(
+    monkeypatch,
+):
+    import configuration
+    import database.order as order_module
+
+    from application.admin_api.read_service import AdminApiReadService
+
+    root_order = {
+        "client_order_id": "root-follow-up-buy",
+        "product_id": "BTC-USD",
+        "side": "BUY",
+        "status": "FILLED",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "100.00",
+        "parent_order_id": None,
+        "created_at": "2026-07-10T01:00:00Z",
+        "updated_at": "2026-07-10T01:02:00Z",
+        "exchange_order_id": "exchange-evidence-root",
+    }
+    child_order = {
+        "client_order_id": "child-follow-up-sell",
+        "product_id": "BTC-USD",
+        "side": "SELL",
+        "status": "PENDING",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "101.00",
+        "parent_order_id": "root-follow-up-buy",
+        "created_at": "2026-07-10T01:03:00Z",
+        "updated_at": "2026-07-10T01:03:00Z",
+    }
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order",
+        lambda client_order_id: (
+            root_order if client_order_id == "root-follow-up-buy" else None
+        ),
+    )
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_orders",
+        lambda: [root_order, child_order],
+    )
+    monkeypatch.setattr(
+        configuration,
+        "rest_get_products",
+        lambda: {
+            "BTC-USD": {
+                "product_id": "BTC-USD",
+                "product_type": "SPOT",
+                "future_product_details": {},
+            }
+        },
+    )
+
+    response = AdminApiReadService().build_order_detail(
+        client_order_id="root-follow-up-buy"
+    )
+
+    payload = response.model_dump(mode="json")
+    assert payload["read_only"] is True
+    assert payload["live_coinbase_orders_ran"] is False
+    audit = payload["fill_follow_up_decision_audit"]
+    assert audit["client_order_id"] == "root-follow-up-buy"
+    assert audit["source_order_status"] == "FILLED"
+    assert audit["filled_status_observed"] is True
+    assert audit["trigger"] == "filled"
+    assert audit["source_side"] == "BUY"
+    assert audit["derived_follow_up_side"] == "SELL"
+    assert audit["policy_evaluation_ran"] is True
+    assert audit["policy_allowed"] is True
+    assert audit["policy_intent"] == "exit"
+    assert audit["follow_up_decision"] == "eligible_no_live"
+    assert audit["root_parent_client_order_id"] == "root-follow-up-buy"
+    assert audit["parent_client_order_id"] is None
+    assert audit["existing_follow_up_client_order_ids"] == ["child-follow-up-sell"]
+    assert audit["existing_follow_up_count"] == 1
+    assert audit["flat_hierarchy_enforced"] is True
+    assert audit["chain_source"] == "order_parent"
+    assert audit["duplicate_claim_protection_required"] is True
+    assert audit["claim_acquired"] is False
+    assert audit["claim_state_source"] == "runtime_orderbook_unavailable"
+    assert audit["order_engine_handle_filled_order_called"] is False
+    assert audit["stealth_create_follow_up_called"] is False
+    assert audit["follow_up_order_created"] is False
+    assert audit["coinbase_order_submit_ran"] is False
+    assert audit["local_state_mutated"] is False
+    assert audit["browser_authority"] == "display_only"
+    assert audit["bff_authority"] == "forward_only_no_execution"
+    assert "fill_follow_up_execution_adapter_missing" in audit["blockers"]
+    assert "live_fill_follow_up_scope_not_approved" in audit["blockers"]
 
 
 @pytest.mark.regression

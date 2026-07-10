@@ -4699,6 +4699,53 @@ class AdminOrderListResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminOrderFillFollowUpDecisionAuditEvidence(BaseModel):
+    """Read-only fill-triggered follow-up decision evidence for order detail."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    client_order_id: str
+    status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
+    source_order_status: str | None = None
+    filled_status_observed: bool = False
+    trigger: str = "filled"
+    source_side: str | None = None
+    derived_follow_up_side: str | None = None
+    product_id: str | None = None
+    product_type: str | None = None
+    policy_evaluation_ran: bool = False
+    policy_allowed: bool | None = None
+    policy_intent: str | None = None
+    policy_reason: str | None = None
+    follow_up_decision: str = "blocked_no_live"
+    root_parent_client_order_id: str | None = None
+    parent_client_order_id: str | None = None
+    existing_follow_up_client_order_ids: list[str] = Field(default_factory=list)
+    existing_follow_up_count: int = 0
+    flat_hierarchy_enforced: bool = True
+    chain_source: str = "order_parent"
+    duplicate_claim_protection_required: bool = True
+    claim_state: str | None = None
+    claim_state_source: str = "runtime_orderbook_unavailable"
+    claim_reader_ran: bool = False
+    claim_acquired: bool = False
+    order_engine_handle_filled_order_called: bool = False
+    stealth_create_follow_up_called: bool = False
+    follow_up_order_created: bool = False
+    coinbase_order_submit_ran: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    live_coinbase_read_ran: bool = False
+    local_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    read_evidence_routes: list[str] = Field(default_factory=list)
+    required_contracts: list[str] = Field(default_factory=list)
+    missing_contracts: list[str] = Field(default_factory=list)
+    blockers: list[str] = Field(default_factory=list)
+    browser_authority: str = "display_only"
+    bff_authority: str = "forward_only_no_execution"
+    detail: str
+
+
 class AdminOrderDetailResponse(BaseModel):
     """Read-only order detail response keyed by ``client_order_id``."""
 
@@ -4708,6 +4755,9 @@ class AdminOrderDetailResponse(BaseModel):
     client_order_id: str
     found: bool
     order: AdminOrderReadItem | None = None
+    fill_follow_up_decision_audit: (
+        AdminOrderFillFollowUpDecisionAuditEvidence | None
+    ) = None
     read_only: bool = True
     live_coinbase_orders_ran: bool = False
 

@@ -136585,6 +136585,10 @@ components:
           anyOf:
           - $ref: '#/components/schemas/AdminOrderReadItem'
           - type: 'null'
+        fill_follow_up_decision_audit:
+          anyOf:
+          - $ref: '#/components/schemas/AdminOrderFillFollowUpDecisionAuditEvidence'
+          - type: 'null'
         read_only:
           type: boolean
           title: Read Only
@@ -136600,6 +136604,189 @@ components:
       - found
       title: AdminOrderDetailResponse
       description: Read-only order detail response keyed by ``client_order_id``.
+    AdminOrderFillFollowUpDecisionAuditEvidence:
+      properties:
+        client_order_id:
+          type: string
+          title: Client Order Id
+        status:
+          $ref: '#/components/schemas/AdminApiGateStatus'
+          default: blocked
+        source_order_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Order Status
+        filled_status_observed:
+          type: boolean
+          title: Filled Status Observed
+          default: false
+        trigger:
+          type: string
+          title: Trigger
+          default: filled
+        source_side:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Source Side
+        derived_follow_up_side:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Derived Follow Up Side
+        product_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+        product_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Type
+        policy_evaluation_ran:
+          type: boolean
+          title: Policy Evaluation Ran
+          default: false
+        policy_allowed:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Policy Allowed
+        policy_intent:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Policy Intent
+        policy_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Policy Reason
+        follow_up_decision:
+          type: string
+          title: Follow Up Decision
+          default: blocked_no_live
+        root_parent_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Root Parent Client Order Id
+        parent_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Parent Client Order Id
+        existing_follow_up_client_order_ids:
+          items:
+            type: string
+          type: array
+          title: Existing Follow Up Client Order Ids
+        existing_follow_up_count:
+          type: integer
+          title: Existing Follow Up Count
+          default: 0
+        flat_hierarchy_enforced:
+          type: boolean
+          title: Flat Hierarchy Enforced
+          default: true
+        chain_source:
+          type: string
+          title: Chain Source
+          default: order_parent
+        duplicate_claim_protection_required:
+          type: boolean
+          title: Duplicate Claim Protection Required
+          default: true
+        claim_state:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Claim State
+        claim_state_source:
+          type: string
+          title: Claim State Source
+          default: runtime_orderbook_unavailable
+        claim_reader_ran:
+          type: boolean
+          title: Claim Reader Ran
+          default: false
+        claim_acquired:
+          type: boolean
+          title: Claim Acquired
+          default: false
+        order_engine_handle_filled_order_called:
+          type: boolean
+          title: Order Engine Handle Filled Order Called
+          default: false
+        stealth_create_follow_up_called:
+          type: boolean
+          title: Stealth Create Follow Up Called
+          default: false
+        follow_up_order_created:
+          type: boolean
+          title: Follow Up Order Created
+          default: false
+        coinbase_order_submit_ran:
+          type: boolean
+          title: Coinbase Order Submit Ran
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        local_state_mutated:
+          type: boolean
+          title: Local State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        read_evidence_routes:
+          items:
+            type: string
+          type: array
+          title: Read Evidence Routes
+        required_contracts:
+          items:
+            type: string
+          type: array
+          title: Required Contracts
+        missing_contracts:
+          items:
+            type: string
+          type: array
+          title: Missing Contracts
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_only
+        bff_authority:
+          type: string
+          title: Bff Authority
+          default: forward_only_no_execution
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - client_order_id
+      - detail
+      title: AdminOrderFillFollowUpDecisionAuditEvidence
+      description: Read-only fill-triggered follow-up decision evidence for order
+        detail.
     AdminOrderListResponse:
       properties:
         type:
