@@ -39,8 +39,12 @@ only after a passed backend read finds a live Coinbase fill for the
 may surface that ref and remove only the live-fill readback blocker. It may
 also surface `rollback_readback_ref=spot_recovery_rollback_journal:<journal_id>`
 from an accepted route-bound no-live Spot recovery rollback journal and remove
-only the rollback blocker. Wallet, cap/guard, reconciliation, approval, and
-duplicate-claim blockers remain fail-closed until their own backend evidence
+only the rollback blocker. It may also surface the fill-testing approval id,
+`wallet_proof_ref=cap_guard_wallet:<cap_guard_decision_id>`,
+`cap_guard_decision_ref`, and `reconciliation_plan_ref` from one matching
+route-bound trigger proof chain with approval, admission audit, cap/guard
+wallet, and reconciliation rows, clearing only those proof blockers.
+Duplicate-claim blockers remain fail-closed until their own backend evidence
 exists.
 
 `POST /api/v1/orders` is the enterprise manual Spot order command contract, but

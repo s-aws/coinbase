@@ -117,14 +117,21 @@ from core.enums import (
 
 from .approval import (
     BACKEND_LIVE_ADMISSION_SERVICE_STATUSES,
+    AdminApiApprovalRecord,
+    FileAdminApiApprovalStore,
     evaluate_live_execution_gate,
 )
-from .audit import AdminApiAuditEvent, FileAdminApiAuditStore
+from .audit import (
+    AdmissionAuditTrailRequest,
+    AdminApiAuditEvent,
+    FileAdminApiAuditStore,
+)
 from .auth import (
     build_oidc_jwt_readiness,
     check_oidc_jwks_reachability,
     configured_auth_mode,
 )
+from .cap_guard import CapGuardDecisionRecord, FileAdminApiCapGuardStore
 from .command_runtime import build_admin_api_command_runtime_readiness
 from .live_execution import (
     DISABLED_LIVE_EXECUTION_SERVICE_SOURCE,
@@ -144,6 +151,10 @@ from .live_adapter_decision_service import (
     CONTROLLED_FUTURES_MAX_NOTIONAL_USDC,
     CONTROLLED_FUTURES_MODULE_ID,
     CONTROLLED_FUTURES_PRODUCT_SCOPE,
+)
+from .reconciliation import (
+    FileAdminApiReconciliationStore,
+    ReconciliationPlanRecord,
 )
 from .models import (
     AdminAccountReadinessEvidence,
@@ -762,6 +773,12 @@ LIVE_ENABLEMENT_MAX_SUBMITTED_NOTIONAL_USDC = "3.10"
 LIVE_ENABLEMENT_MAX_EXECUTED_NOTIONAL_USDC = "1.00"
 LIVE_ENABLEMENT_CAP_POSTURE = "approved_ceiling_only_not_execution"
 LIVE_ENABLEMENT_NOTIONAL_POSTURE = "actual_submitted_and_executed_notional_remain_zero"
+FILL_FOLLOW_UP_TRIGGER_ROUTE = (
+    "/api/v1/orders/{client_order_id}/fill-follow-up/trigger"
+)
+FILL_FOLLOW_UP_TRIGGER_METHOD = "POST"
+FILL_FOLLOW_UP_TRIGGER_MODULE_ID = "spot_operations"
+FILL_FOLLOW_UP_TRIGGER_SERVICE_METHOD = "trigger_order_fill_follow_up"
 
 
 def _string_or_none(value: Any) -> str | None:
@@ -3134,6 +3151,233 @@ def _order_fill_follow_up_rollback_readback_ref(
         if journal_id:
             return f"spot_recovery_rollback_journal:{journal_id}"
     return None
+
+
+def _fill_follow_up_trigger_approval_matches(
+    record: AdminApiApprovalRecord,
+    *,
+    approval_store: FileAdminApiApprovalStore,
+    client_order_id: str,
+) -> bool:
+    try:
+        expired = record.is_expired()
+    except Exception:
+        return False
+    if expired:
+        return False
+    try:
+        revoked = approval_store.approval_is_revoked(record.approval_id)
+    except Exception:
+        return False
+    return (
+        not revoked
+        and record.route == FILL_FOLLOW_UP_TRIGGER_ROUTE
+        and record.method.upper() == FILL_FOLLOW_UP_TRIGGER_METHOD
+        and record.module_id == FILL_FOLLOW_UP_TRIGGER_MODULE_ID
+        and record.identity_key == "client_order_id"
+        and record.identity_value == client_order_id
+        and _record_text(record.action_class)
+        == AdminApiActionClass.LOCAL_STATE_MUTATION.value
+        and _record_text(record.required_permission)
+        == AdminApiPermission.ORDER_CREATE.value
+        and bool(_string_or_none(record.operator_intent))
+        and bool(_string_or_none(record.idempotency_key))
+        and bool(_string_or_none(record.payload_hash))
+        and bool(_string_or_none(record.cap_guard_decision_ref))
+        and bool(_string_or_none(record.reconciliation_plan_ref))
+    )
+
+
+def _fill_follow_up_trigger_audit_matches(
+    audit: AdminApiAuditEvent | None,
+) -> bool:
+    if audit is None:
+        return False
+    decision = audit.admission_decision
+    return (
+        decision is not None
+        and audit.endpoint == FILL_FOLLOW_UP_TRIGGER_ROUTE
+        and audit.client_order_id == decision.identity_value
+        and audit.live_exchange_submitted is False
+        and audit.live_coinbase_orders_ran is False
+        and decision.live_exchange_submitted is False
+        and decision.route == FILL_FOLLOW_UP_TRIGGER_ROUTE
+        and decision.method.upper() == FILL_FOLLOW_UP_TRIGGER_METHOD
+        and decision.module_id == FILL_FOLLOW_UP_TRIGGER_MODULE_ID
+        and decision.identity_key == "client_order_id"
+        and _record_text(decision.action_class)
+        == AdminApiActionClass.LOCAL_STATE_MUTATION.value
+        and _record_text(decision.required_permission)
+        == AdminApiPermission.ORDER_CREATE.value
+        and decision.service_method == FILL_FOLLOW_UP_TRIGGER_SERVICE_METHOD
+    )
+
+
+def _fill_follow_up_trigger_cap_guard_matches(
+    record: CapGuardDecisionRecord | None,
+    *,
+    approval: AdminApiApprovalRecord,
+    audit: AdminApiAuditEvent,
+    client_order_id: str,
+) -> bool:
+    if record is None:
+        return False
+    return (
+        record.decision_id == approval.cap_guard_decision_ref
+        and record.route == FILL_FOLLOW_UP_TRIGGER_ROUTE
+        and record.method.upper() == FILL_FOLLOW_UP_TRIGGER_METHOD
+        and record.module_id == FILL_FOLLOW_UP_TRIGGER_MODULE_ID
+        and record.identity_key == "client_order_id"
+        and record.identity_value == client_order_id
+        and _record_text(record.action_class)
+        == AdminApiActionClass.LOCAL_STATE_MUTATION.value
+        and _record_text(record.required_permission)
+        == AdminApiPermission.ORDER_CREATE.value
+        and record.service_method == FILL_FOLLOW_UP_TRIGGER_SERVICE_METHOD
+        and record.actor_id == approval.requested_by_actor_id
+        and record.operator_intent == approval.operator_intent
+        and record.idempotency_key == approval.idempotency_key
+        and record.payload_hash == approval.payload_hash
+        and record.approval_snapshot_id == approval.approval_id
+        and record.admission_audit_id == audit.audit_id
+        and record.allowed is True
+        and record.status == AdminApiGateStatus.PASSED
+    )
+
+
+def _fill_follow_up_trigger_wallet_ref(
+    record: CapGuardDecisionRecord | None,
+) -> str | None:
+    if record is None:
+        return None
+    if record.wallet_check_required is not True:
+        return None
+    if record.wallet_check_status != AdminApiGateStatus.PASSED:
+        return None
+    if _record_decimal(record.wallet_available_notional_usdc) <= Decimal("0"):
+        return None
+    if _record_text(record.wallet_check_source) in {"", "missing"}:
+        return None
+    return f"cap_guard_wallet:{record.decision_id}"
+
+
+def _fill_follow_up_trigger_reconciliation_matches(
+    record: ReconciliationPlanRecord | None,
+    *,
+    approval: AdminApiApprovalRecord,
+    audit: AdminApiAuditEvent,
+    cap_guard: CapGuardDecisionRecord,
+    client_order_id: str,
+) -> bool:
+    if record is None:
+        return False
+    return (
+        record.plan_id == approval.reconciliation_plan_ref
+        and record.route == FILL_FOLLOW_UP_TRIGGER_ROUTE
+        and record.method.upper() == FILL_FOLLOW_UP_TRIGGER_METHOD
+        and record.module_id == FILL_FOLLOW_UP_TRIGGER_MODULE_ID
+        and record.identity_key == "client_order_id"
+        and record.identity_value == client_order_id
+        and _record_text(record.action_class)
+        == AdminApiActionClass.LOCAL_STATE_MUTATION.value
+        and _record_text(record.required_permission)
+        == AdminApiPermission.ORDER_CREATE.value
+        and record.service_method == FILL_FOLLOW_UP_TRIGGER_SERVICE_METHOD
+        and record.actor_id == approval.requested_by_actor_id
+        and record.operator_intent == approval.operator_intent
+        and record.idempotency_key == approval.idempotency_key
+        and record.payload_hash == approval.payload_hash
+        and record.approval_snapshot_id == approval.approval_id
+        and record.admission_audit_id == audit.audit_id
+        and record.cap_guard_decision_id == cap_guard.decision_id
+        and record.allowed is True
+        and record.status == AdminApiGateStatus.PASSED
+        and record.exchange_submission_required is False
+    )
+
+
+def _order_fill_follow_up_trigger_proof_refs(
+    *,
+    approval_store: FileAdminApiApprovalStore,
+    audit_store: FileAdminApiAuditStore,
+    cap_guard_store: FileAdminApiCapGuardStore,
+    reconciliation_store: FileAdminApiReconciliationStore,
+    client_order_id: str,
+) -> dict[str, str | bool | None]:
+    refs: dict[str, str | bool | None] = {
+        "fill_testing_approval_present": False,
+        "wallet_proof_ref": None,
+        "cap_guard_decision_ref": None,
+        "reconciliation_plan_ref": None,
+    }
+    try:
+        approvals = approval_store.read_recent(limit=500)
+    except Exception:
+        return refs
+
+    for approval in approvals:
+        if not _fill_follow_up_trigger_approval_matches(
+            approval,
+            approval_store=approval_store,
+            client_order_id=client_order_id,
+        ):
+            continue
+        refs["fill_testing_approval_present"] = True
+        try:
+            audit = audit_store.find_matching_admission_audit(
+                request=AdmissionAuditTrailRequest(
+                    route=FILL_FOLLOW_UP_TRIGGER_ROUTE,
+                    method=FILL_FOLLOW_UP_TRIGGER_METHOD,
+                    module_id=FILL_FOLLOW_UP_TRIGGER_MODULE_ID,
+                    identity_key="client_order_id",
+                    identity_value=client_order_id,
+                    action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+                    required_permission=AdminApiPermission.ORDER_CREATE,
+                    service_method=FILL_FOLLOW_UP_TRIGGER_SERVICE_METHOD,
+                    actor_id=approval.requested_by_actor_id,
+                    operator_intent=approval.operator_intent,
+                    idempotency_key=approval.idempotency_key,
+                    payload_hash=approval.payload_hash,
+                    approval_snapshot_id=approval.approval_id,
+                )
+            )
+        except Exception:
+            return refs
+        if not _fill_follow_up_trigger_audit_matches(audit):
+            return refs
+        try:
+            cap_guard = cap_guard_store.find_by_decision_id(
+                approval.cap_guard_decision_ref
+            )
+        except Exception:
+            return refs
+        if not _fill_follow_up_trigger_cap_guard_matches(
+            cap_guard,
+            approval=approval,
+            audit=audit,
+            client_order_id=client_order_id,
+        ):
+            return refs
+        refs["cap_guard_decision_ref"] = cap_guard.decision_id
+        wallet_ref = _fill_follow_up_trigger_wallet_ref(cap_guard)
+        if wallet_ref:
+            refs["wallet_proof_ref"] = wallet_ref
+        try:
+            reconciliation = reconciliation_store.find_by_plan_id(
+                approval.reconciliation_plan_ref
+            )
+        except Exception:
+            return refs
+        if _fill_follow_up_trigger_reconciliation_matches(
+            reconciliation,
+            approval=approval,
+            audit=audit,
+            cap_guard=cap_guard,
+            client_order_id=client_order_id,
+        ):
+            refs["reconciliation_plan_ref"] = reconciliation.plan_id
+        return refs
+    return refs
 
 
 def _json_object_or_none(value: Any) -> dict[str, Any] | None:
@@ -6304,6 +6548,10 @@ class AdminApiReadService:
             FileStealthPostWriteReconciliationVerificationStore | None
         ) = None,
         futures_risk_proof_store: FileFuturesRiskProofStore | None = None,
+        approval_store: FileAdminApiApprovalStore | None = None,
+        audit_store: FileAdminApiAuditStore | None = None,
+        cap_guard_store: FileAdminApiCapGuardStore | None = None,
+        reconciliation_store: FileAdminApiReconciliationStore | None = None,
         live_service_decision_store: (
             FileAdminApiLiveServiceDecisionStore | None
         ) = None,
@@ -6391,6 +6639,12 @@ class AdminApiReadService:
         )
         self.futures_risk_proof_store = (
             futures_risk_proof_store or FileFuturesRiskProofStore()
+        )
+        self.approval_store = approval_store or FileAdminApiApprovalStore()
+        self.audit_store = audit_store or FileAdminApiAuditStore()
+        self.cap_guard_store = cap_guard_store or FileAdminApiCapGuardStore()
+        self.reconciliation_store = (
+            reconciliation_store or FileAdminApiReconciliationStore()
         )
         self.live_service_decision_store = (
             live_service_decision_store or FileAdminApiLiveServiceDecisionStore()
@@ -13137,6 +13391,23 @@ class AdminApiReadService:
             spot_recovery_execution_store=self.spot_recovery_execution_store,
             client_order_id=client_order_id,
         )
+        trigger_proof_refs = _order_fill_follow_up_trigger_proof_refs(
+            approval_store=self.approval_store,
+            audit_store=self.audit_store,
+            cap_guard_store=self.cap_guard_store,
+            reconciliation_store=self.reconciliation_store,
+            client_order_id=client_order_id,
+        )
+        fill_testing_approval_present = bool(
+            trigger_proof_refs["fill_testing_approval_present"]
+        )
+        wallet_proof_ref = _string_or_none(trigger_proof_refs["wallet_proof_ref"])
+        cap_guard_decision_ref = _string_or_none(
+            trigger_proof_refs["cap_guard_decision_ref"]
+        )
+        reconciliation_plan_ref = _string_or_none(
+            trigger_proof_refs["reconciliation_plan_ref"]
+        )
         duplicate_claim_observed = bool(audit and audit.claim_reader_ran)
         blockers: list[str] = []
         if row is None:
@@ -13149,14 +13420,14 @@ class AdminApiReadService:
             blockers.append(f"duplicate_claim_{audit.claim_state}")
         if not audit_correlation_id:
             blockers.append("audit_correlation_id_missing")
-        blockers.extend(
-            [
-                "fill_testing_approval_missing",
-                "fill_follow_up_wallet_proof_missing",
-                "fill_follow_up_cap_guard_proof_missing",
-                "fill_follow_up_reconciliation_proof_missing",
-            ]
-        )
+        if not fill_testing_approval_present:
+            blockers.append("fill_testing_approval_missing")
+        if not wallet_proof_ref:
+            blockers.append("fill_follow_up_wallet_proof_missing")
+        if not cap_guard_decision_ref:
+            blockers.append("fill_follow_up_cap_guard_proof_missing")
+        if not reconciliation_plan_ref:
+            blockers.append("fill_follow_up_reconciliation_proof_missing")
         if not rollback_readback_ref:
             blockers.append("fill_follow_up_rollback_readback_missing")
         if not live_fill_readback_proof_ref:
@@ -13177,6 +13448,10 @@ class AdminApiReadService:
                 else "runtime_orderbook_unavailable"
             ),
             audit_correlation_id=audit_correlation_id,
+            fill_testing_approval_present=fill_testing_approval_present,
+            wallet_proof_ref=wallet_proof_ref,
+            cap_guard_decision_ref=cap_guard_decision_ref,
+            reconciliation_plan_ref=reconciliation_plan_ref,
             live_fill_readback_proof_ref=live_fill_readback_proof_ref,
             operator_visible_audit_ref=operator_visible_audit_ref,
             rollback_readback_ref=rollback_readback_ref,
