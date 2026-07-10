@@ -1816,6 +1816,7 @@ _FILL_FOLLOW_UP_TRIGGER_EXECUTION_BLOCKERS = frozenset(
         "fill_follow_up_child_not_observed_after_execution",
         "fill_follow_up_duplicate_claim_not_acquired_after_execution",
         "fill_follow_up_child_id_mismatch_after_execution",
+        "fill_follow_up_multiple_children_after_execution",
     }
 )
 
@@ -1864,6 +1865,11 @@ def _fill_follow_up_trigger_message(
         return (
             "Fill follow-up trigger rejected after executor invocation; "
             "executor child id did not match post-trigger readback."
+        )
+    if blockers and "fill_follow_up_multiple_children_after_execution" in blockers:
+        return (
+            "Fill follow-up trigger rejected after executor invocation; "
+            "post-trigger readback observed multiple follow-up children."
         )
     if failure_stage == "fill_follow_up_trigger_execution":
         return (
@@ -2099,6 +2105,8 @@ class AdminApiCommandService:
             chain.follow_up_child_count - pre_trigger_chain.follow_up_child_count,
         )
         execution_child_ids = _fill_follow_up_execution_child_ids(execution_result)
+        if executor_invoked and post_trigger_follow_up_child_count_delta > 1:
+            blockers.append("fill_follow_up_multiple_children_after_execution")
         if (
             executor_invoked
             and execution_child_ids

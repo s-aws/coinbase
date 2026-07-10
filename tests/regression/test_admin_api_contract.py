@@ -77430,8 +77430,45 @@ def test_admin_api_order_fill_follow_up_trigger_classifies_missing_child_after_e
 
 
 @pytest.mark.regression
-def test_admin_api_order_fill_follow_up_trigger_rejects_child_id_mismatch(
+@pytest.mark.parametrize(
+    (
+        "case_name",
+        "root_id",
+        "executor_child_ids",
+        "readback_child_ids",
+        "expected_blocker",
+    ),
+    [
+        (
+            "child-id-mismatch",
+            "ae6e8400-e29b-41d4-a716-446655440000",
+            ["ae7e8400-e29b-41d4-a716-446655440000"],
+            ["ae8e8400-e29b-41d4-a716-446655440000"],
+            "fill_follow_up_child_id_mismatch_after_execution",
+        ),
+        (
+            "multiple-children",
+            "ae9e8400-e29b-41d4-a716-446655440000",
+            [
+                "aea08400-e29b-41d4-a716-446655440000",
+                "aeb08400-e29b-41d4-a716-446655440000",
+            ],
+            [
+                "aea08400-e29b-41d4-a716-446655440000",
+                "aeb08400-e29b-41d4-a716-446655440000",
+            ],
+            "fill_follow_up_multiple_children_after_execution",
+        ),
+    ],
+    ids=["child-id-mismatch", "multiple-children"],
+)
+def test_admin_api_order_fill_follow_up_trigger_rejects_child_readback_anomalies(
     monkeypatch,
+    case_name,
+    root_id,
+    executor_child_ids,
+    readback_child_ids,
+    expected_blocker,
 ):
     import application.admin_api.read_service as read_service
     from application.admin_api.models import (
@@ -77443,14 +77480,11 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_child_id_mismatch(
         AdminOrderReadItem,
     )
 
-    root_id = "ae6e8400-e29b-41d4-a716-446655440000"
-    executor_child_id = "ae7e8400-e29b-41d4-a716-446655440000"
-    readback_child_id = "ae8e8400-e29b-41d4-a716-446655440000"
-    idempotency_key = "idem-fill-follow-up-trigger-child-id-mismatch"
+    idempotency_key = f"idem-fill-follow-up-trigger-{case_name}"
     operator_intent = "trigger_fill_follow_up_test"
-    approval_id = "fill-follow-up-approval-child-id-mismatch"
-    cap_guard_id = "fill-follow-up-cap-guard-child-id-mismatch"
-    reconciliation_id = "fill-follow-up-reconciliation-child-id-mismatch"
+    approval_id = f"fill-follow-up-approval-{case_name}"
+    cap_guard_id = f"fill-follow-up-cap-guard-{case_name}"
+    reconciliation_id = f"fill-follow-up-reconciliation-{case_name}"
     wallet_ref = f"cap_guard_wallet:{cap_guard_id}"
     root_order = AdminOrderReadItem(
         client_order_id=root_id,
@@ -77466,20 +77500,23 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_child_id_mismatch(
         exchange_order_id="exchange-evidence-root",
         correlation_id="corr-root-follow-up",
     )
-    readback_child = AdminOrderReadItem(
-        client_order_id=readback_child_id,
-        product_id="BTC-USD",
-        side="SELL",
-        status="HIDDEN",
-        order_type="limit",
-        size="0.01",
-        price="101.00",
-        parent_client_order_id=root_id,
-        created_at="2026-07-10T01:03:00Z",
-        updated_at="2026-07-10T01:03:00Z",
-        exchange_order_id=None,
-        audit_id="audit-child-follow-up-readback",
-    )
+    readback_children = [
+        AdminOrderReadItem(
+            client_order_id=child_id,
+            product_id="BTC-USD",
+            side="SELL",
+            status="HIDDEN",
+            order_type="limit",
+            size="0.01",
+            price="101.00",
+            parent_client_order_id=root_id,
+            created_at=f"2026-07-10T01:0{index + 3}:00Z",
+            updated_at=f"2026-07-10T01:0{index + 3}:00Z",
+            exchange_order_id=None,
+            audit_id=f"audit-child-follow-up-readback-{index + 1}",
+        )
+        for index, child_id in enumerate(readback_child_ids)
+    ]
 
     def decision_audit(
         *,
@@ -77518,7 +77555,7 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_child_id_mismatch(
         )
 
     pre_audit = decision_audit(child_ids=[], claim_state=None)
-    post_audit = decision_audit(child_ids=[readback_child_id], claim_state="done")
+    post_audit = decision_audit(child_ids=readback_child_ids, claim_state="done")
     readiness = AdminOrderFillFollowUpLiveReadinessResponse(
         client_order_id=root_id,
         found=True,
@@ -77555,9 +77592,9 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_child_id_mismatch(
     )
     post_chain = pre_chain.model_copy(
         update={
-            "follow_up_children": [readback_child],
-            "follow_up_child_client_order_ids": [readback_child_id],
-            "follow_up_child_count": 1,
+            "follow_up_children": readback_children,
+            "follow_up_child_client_order_ids": readback_child_ids,
+            "follow_up_child_count": len(readback_child_ids),
             "fill_follow_up_decision_audit": post_audit,
             "detail": "Post-trigger chain readback.",
         }
@@ -77586,7 +77623,8 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_child_id_mismatch(
             "source": "fake_fill_follow_up_executor",
             "order_engine_handle_filled_order_called": True,
             "claim_acquired": True,
-            "follow_up_child_client_order_id": executor_child_id,
+            "follow_up_child_client_order_id": executor_child_ids[0],
+            "follow_up_child_client_order_ids": executor_child_ids,
             "coinbase_order_submit_ran": False,
             "coinbase_order_cancel_submitted": False,
             "live_coinbase_orders_ran": False,
@@ -77603,7 +77641,7 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_child_id_mismatch(
     command = AdminOrderFillFollowUpTriggerCommand(
         envelope=AdminApiCommandEnvelope(
             idempotency_key=idempotency_key,
-            correlation_id="corr-trigger-child-id-mismatch",
+            correlation_id=f"corr-trigger-{case_name}",
             operator_intent=operator_intent,
             actor=AdminApiActor(
                 actor_id="operator-001",
@@ -77638,7 +77676,7 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_child_id_mismatch(
             approval_snapshot_id=approval_id,
             approval_snapshot_source="approval_store",
             admission_audit_present=True,
-            admission_audit_id="fill-follow-up-admission-audit-child-id-mismatch",
+            admission_audit_id=f"fill-follow-up-admission-audit-{case_name}",
             admission_audit_source="audit_store",
             cap_guard_present=True,
             cap_guard_decision_id=cap_guard_id,
@@ -77663,16 +77701,18 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_child_id_mismatch(
     assert response.failure_stage == "fill_follow_up_trigger_execution"
     data = response.data
     assert data["trigger_accepted"] is False
-    assert data["blockers"] == [
-        "fill_follow_up_child_id_mismatch_after_execution"
-    ]
+    assert data["blockers"] == [expected_blocker]
     assert data["execution_result"]["follow_up_child_client_order_id"] == (
-        executor_child_id
+        executor_child_ids[0]
     )
-    assert data["post_trigger_follow_up_child_client_order_ids"] == [
-        readback_child_id
-    ]
-    assert data["chain"]["follow_up_child_client_order_ids"] == [readback_child_id]
+    assert data["execution_result"]["follow_up_child_client_order_ids"] == (
+        executor_child_ids
+    )
+    assert data["post_trigger_follow_up_child_client_order_ids"] == readback_child_ids
+    assert data["post_trigger_follow_up_child_count_delta"] == len(
+        readback_child_ids
+    )
+    assert data["chain"]["follow_up_child_client_order_ids"] == readback_child_ids
     assert data["post_trigger_duplicate_claim_state"] == "done"
     assert data["claim_acquired"] is True
     assert data["follow_up_order_created"] is True
