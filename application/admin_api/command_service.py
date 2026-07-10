@@ -1789,6 +1789,48 @@ def _fill_follow_up_execution_flag(
     return bool(value)
 
 
+_FILL_FOLLOW_UP_TRIGGER_EXECUTION_BLOCKERS = frozenset(
+    {
+        "fill_follow_up_execution_adapter_failed",
+        "fill_follow_up_execution_adapter_live_coinbase_disallowed",
+        "fill_follow_up_child_not_observed_after_execution",
+    }
+)
+
+
+def _fill_follow_up_trigger_failure_stage(
+    *,
+    trigger_accepted: bool,
+    blockers: list[str],
+) -> str | None:
+    if trigger_accepted:
+        return None
+    if any(
+        blocker in _FILL_FOLLOW_UP_TRIGGER_EXECUTION_BLOCKERS
+        for blocker in blockers
+    ):
+        return "fill_follow_up_trigger_execution"
+    return "fill_follow_up_trigger_prerequisite"
+
+
+def _fill_follow_up_trigger_message(
+    *,
+    trigger_accepted: bool,
+    failure_stage: str | None,
+) -> str:
+    if trigger_accepted:
+        return "Fill follow-up trigger accepted by the backend executor."
+    if failure_stage == "fill_follow_up_trigger_execution":
+        return (
+            "Fill follow-up trigger rejected after executor invocation; "
+            "post-trigger readback did not prove follow-up creation."
+        )
+    return (
+        "Fill follow-up trigger rejected before execution; "
+        "prerequisites are incomplete."
+    )
+
+
 def _fill_follow_up_child_id_delta(pre_chain: Any, post_chain: Any) -> list[str]:
     pre_child_ids = set(_fill_follow_up_chain_child_ids(pre_chain))
     return _ordered_unique_strings(
@@ -1980,6 +2022,10 @@ class AdminApiCommandService:
 
         normalized_blockers = _ordered_unique_strings(blockers)
         trigger_accepted = not normalized_blockers
+        failure_stage = _fill_follow_up_trigger_failure_stage(
+            trigger_accepted=trigger_accepted,
+            blockers=normalized_blockers,
+        )
         follow_up_child_delta_observed = (
             executor_invoked
             and chain.follow_up_child_count > pre_trigger_chain.follow_up_child_count
@@ -2092,13 +2138,9 @@ class AdminApiCommandService:
             action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
             required_permission=AdminApiPermission.ORDER_CREATE,
             service_method="trigger_order_fill_follow_up",
-            message=(
-                "Fill follow-up trigger accepted by the backend executor."
-                if trigger_accepted
-                else (
-                    "Fill follow-up trigger rejected before execution; "
-                    "prerequisites are incomplete."
-                )
+            message=_fill_follow_up_trigger_message(
+                trigger_accepted=trigger_accepted,
+                failure_stage=failure_stage,
             ),
             client_order_id=command.client_order_id,
             correlation_id=command.envelope.correlation_id,
@@ -2106,9 +2148,7 @@ class AdminApiCommandService:
             live_exchange_submitted=execution_flags["live_exchange_submitted"],
             live_coinbase_orders_ran=execution_flags["live_coinbase_orders_ran"],
             data=data,
-            failure_stage=(
-                None if trigger_accepted else "fill_follow_up_trigger_prerequisite"
-            ),
+            failure_stage=failure_stage,
             **self._command_runtime_evidence(),
         )
 

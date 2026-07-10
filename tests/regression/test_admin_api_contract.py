@@ -76946,6 +76946,175 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
 
 
 @pytest.mark.regression
+def test_admin_api_order_fill_follow_up_trigger_classifies_missing_child_after_executor(
+    monkeypatch,
+):
+    import application.admin_api.read_service as read_service
+    import configuration
+    import database.order as order_module
+    from application.admin_api.models import (
+        AdminOrderFillFollowUpTriggerCommand,
+        AdminOrderFillFollowUpTriggerRequest,
+    )
+
+    root_id = "ae0e8400-e29b-41d4-a716-446655440000"
+    idempotency_key = "idem-fill-follow-up-trigger-no-child"
+    operator_intent = "trigger_fill_follow_up_test"
+    approval_id = "fill-follow-up-approval-no-child"
+    cap_guard_id = "fill-follow-up-cap-guard-no-child"
+    reconciliation_id = "fill-follow-up-reconciliation-no-child"
+    wallet_ref = f"cap_guard_wallet:{cap_guard_id}"
+    root_order = {
+        "client_order_id": root_id,
+        "product_id": "BTC-USD",
+        "side": "BUY",
+        "status": "FILLED",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "100.00",
+        "parent_order_id": None,
+        "created_at": "2026-07-10T01:00:00Z",
+        "updated_at": "2026-07-10T01:02:00Z",
+        "exchange_order_id": "exchange-evidence-root",
+        "correlation_id": "corr-root-follow-up",
+    }
+    executor_state = {"called": False}
+
+    def trigger_without_child(*, order, context):
+        executor_state["called"] = True
+        return {
+            "status": "executed",
+            "source": "fake_fill_follow_up_executor",
+            "order_engine_handle_filled_order_called": True,
+            "claim_acquired": True,
+            "coinbase_order_submit_ran": False,
+            "coinbase_order_cancel_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "exchange_state_mutated": False,
+        }
+
+    runtime_orderbook = SimpleNamespace(
+        follow_up_claim_state=lambda trigger, client_order_id: (
+            "done" if executor_state["called"] else None
+        )
+    )
+    runtime_engine = SimpleNamespace(
+        orderbook=runtime_orderbook,
+        orderbook_lock=None,
+        handle_filled_order=lambda order: None,
+    )
+    monkeypatch.setattr(
+        read_service,
+        "_runtime_bridge",
+        lambda: SimpleNamespace(order_engine=runtime_engine),
+    )
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order",
+        lambda client_order_id: root_order if client_order_id == root_id else None,
+    )
+    monkeypatch.setattr(order_module, "get_parent_orders", lambda: [root_order])
+    monkeypatch.setattr(
+        order_module,
+        "get_stealth_children_for_parent",
+        lambda parent_order_id: [],
+    )
+    monkeypatch.setattr(
+        configuration,
+        "rest_get_products",
+        lambda: {
+            "BTC-USD": {
+                "product_id": "BTC-USD",
+                "product_type": "SPOT",
+                "future_product_details": {},
+            }
+        },
+    )
+    service = AdminApiCommandService(
+        AdminApiCommandDependencies(
+            fill_follow_up_executor_getter=lambda: SimpleNamespace(
+                trigger_filled_follow_up=trigger_without_child
+            )
+        )
+    )
+    command = AdminOrderFillFollowUpTriggerCommand(
+        envelope=AdminApiCommandEnvelope(
+            idempotency_key=idempotency_key,
+            correlation_id="corr-trigger-no-child",
+            operator_intent=operator_intent,
+            actor=AdminApiActor(
+                actor_id="operator-001",
+                roles=[AdminApiRole.TRADER],
+            ),
+        ),
+        client_order_id=root_id,
+        request=AdminOrderFillFollowUpTriggerRequest(
+            fill_testing_approval_id=approval_id,
+            wallet_proof_ref=wallet_ref,
+            cap_guard_decision_id=cap_guard_id,
+            reconciliation_plan_id=reconciliation_id,
+            audit_correlation_id="corr-root-follow-up",
+            confirm_duplicate_claim_protection=True,
+        ),
+        admission_decision=AdminLiveAdmissionDecisionEvidence(
+            status=AdminApiGateStatus.PASSED,
+            allowed=True,
+            route="/api/v1/orders/{client_order_id}/fill-follow-up/trigger",
+            method="POST",
+            module_id="spot_operations",
+            identity_key="client_order_id",
+            identity_value=root_id,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            service_method="trigger_order_fill_follow_up",
+            actor_id="operator-001",
+            idempotency_key=idempotency_key,
+            operator_intent=operator_intent,
+            payload_hash="a" * 64,
+            approval_snapshot_present=True,
+            approval_snapshot_id=approval_id,
+            approval_snapshot_source="approval_store",
+            admission_audit_present=True,
+            admission_audit_id="fill-follow-up-admission-audit-no-child",
+            admission_audit_source="audit_store",
+            cap_guard_present=True,
+            cap_guard_decision_id=cap_guard_id,
+            cap_guard_source="cap_guard_store",
+            reconciliation_plan_present=True,
+            reconciliation_plan_id=reconciliation_id,
+            reconciliation_plan_source="reconciliation_store",
+            blockers=[],
+            evidence=["exact fill follow-up route-bound proof"],
+            detail="Exact backend-owned fill follow-up proof.",
+        ),
+        cap_guard_wallet_proof_ref=wallet_ref,
+        cap_guard_wallet_check_status=AdminApiGateStatus.PASSED.value,
+        cap_guard_wallet_available_notional_usdc="10.00",
+        cap_guard_wallet_check_source="operator_supplied_fill_follow_up_wallet_evidence",
+    )
+
+    response = service.trigger_order_fill_follow_up(command)
+
+    assert executor_state["called"] is True
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "fill_follow_up_trigger_execution"
+    assert response.message == (
+        "Fill follow-up trigger rejected after executor invocation; "
+        "post-trigger readback did not prove follow-up creation."
+    )
+    data = response.data
+    assert data["trigger_accepted"] is False
+    assert data["blockers"] == ["fill_follow_up_child_not_observed_after_execution"]
+    assert data["order_engine_handle_filled_order_called"] is True
+    assert data["follow_up_order_created"] is False
+    assert data["post_trigger_follow_up_child_count_delta"] == 0
+    assert data["post_trigger_follow_up_child_client_order_ids"] == []
+    assert data["post_trigger_duplicate_claim_state"] == "done"
+    assert data["post_trigger_duplicate_claim_observed"] is True
+    assert data["live_coinbase_orders_ran"] is False
+
+
+@pytest.mark.regression
 def test_admin_api_command_runtime_builds_fill_follow_up_executor(monkeypatch):
     import sys
 
