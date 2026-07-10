@@ -359,10 +359,19 @@ def _fanout_order_call(order: Mapping[str, Any]) -> dict[str, Any]:
         order,
         "max_executed_notional_usdc",
     )
-    _fanout_decimal_value(
+    max_executed_notional = _fanout_decimal_value(
         max_executed_notional_usdc,
         "max executed fan-out notional",
     )
+    submitted_notional = _fanout_decimal_value(
+        submitted_notional_usdc,
+        "submitted fan-out notional",
+    )
+    if max_executed_notional > submitted_notional:
+        raise UsdcPairSnapshotLiveExecutionError(
+            "M58 live fan-out submit max executed fan-out notional cannot "
+            "exceed submitted notional."
+        )
     return {
         "client_order_id": client_order_id,
         "product_id": product_id,

@@ -1220,6 +1220,27 @@ def test_usdc_pair_snapshot_live_fanout_executor_requires_notional_evidence():
 
     with pytest.raises(
         live_exec.UsdcPairSnapshotLiveExecutionError,
+        match="max executed fan-out notional cannot exceed submitted",
+    ):
+        executor.submit_and_cancel_all(
+            orders=[
+                {
+                    "client_order_id": "client-order-max-exceeds-submitted",
+                    "product_id": "BTC-USDC",
+                    "side": "BUY",
+                    "order_configuration": _fanout_buy_order_configuration("1.00"),
+                    "submitted_notional_usdc": "1.00",
+                    "max_executed_notional_usdc": "1.01",
+                    "cancel_client_order_id": (
+                        "client-order-max-exceeds-submitted"
+                    ),
+                },
+            ],
+            max_orders_per_second=5,
+        )
+
+    with pytest.raises(
+        live_exec.UsdcPairSnapshotLiveExecutionError,
         match="requires valid max executed fan-out notional evidence",
     ):
         executor.submit_and_cancel_all(
