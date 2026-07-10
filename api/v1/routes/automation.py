@@ -10837,6 +10837,13 @@ def _usdc_pair_live_fanout_executor_row_identity_blockers(
     execution_side = _non_empty_text(execution.get("side"))
     if execution_side and execution_side.upper() != _enum_text(readiness.side).upper():
         blockers.append("fanout_executor_side_mismatch")
+    for result_field in ("submit_result", "cancel_result"):
+        result = _mapping_value(execution.get(result_field))
+        result_client_order_id = _non_empty_text(result.get("client_order_id"))
+        if result_client_order_id and result_client_order_id != readiness.client_order_id:
+            blockers.append(
+                f"fanout_executor_{result_field}_client_order_id_mismatch"
+            )
     execution_order_configuration = execution.get("order_configuration")
     if isinstance(execution_order_configuration, Mapping) and (
         dict(execution_order_configuration) != dict(order_configuration)
