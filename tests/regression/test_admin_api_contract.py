@@ -76202,6 +76202,163 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_missing_prereqs_without_
 
 
 @pytest.mark.regression
+def test_admin_api_order_fill_follow_up_trigger_validates_supplied_refs_without_assuming_proof(
+    monkeypatch,
+):
+    import configuration
+    import database.order as order_module
+
+    root_id = "ab0e8400-e29b-41d4-a716-446655440000"
+    root_order = {
+        "client_order_id": root_id,
+        "product_id": "BTC-USD",
+        "side": "BUY",
+        "status": "FILLED",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "100.00",
+        "parent_order_id": None,
+        "created_at": "2026-07-10T01:00:00Z",
+        "updated_at": "2026-07-10T01:02:00Z",
+        "exchange_order_id": "exchange-evidence-root",
+        "correlation_id": "corr-root-follow-up",
+    }
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order",
+        lambda client_order_id: root_order if client_order_id == root_id else None,
+    )
+    monkeypatch.setattr(order_module, "get_parent_orders", lambda: [root_order])
+    monkeypatch.setattr(
+        order_module,
+        "get_stealth_children_for_parent",
+        lambda parent_order_id: [],
+    )
+    monkeypatch.setattr(
+        configuration,
+        "rest_get_products",
+        lambda: {
+            "BTC-USD": {
+                "product_id": "BTC-USD",
+                "product_type": "SPOT",
+                "future_product_details": {},
+            }
+        },
+    )
+
+    client = _client(monkeypatch)
+    response = client.post(
+        f"/api/v1/orders/{root_id}/fill-follow-up/trigger",
+        headers=_headers(
+            idempotency_key="idem-fill-follow-up-trigger-supplied-refs",
+            operator_intent="trigger_fill_follow_up_test",
+            roles=AdminApiRole.TRADER.value,
+        ),
+        json={
+            "fill_testing_approval_id": "fake-fill-approval",
+            "wallet_proof_ref": "fake-wallet-proof",
+            "cap_guard_decision_id": "fake-cap-guard",
+            "reconciliation_plan_id": "fake-reconciliation-plan",
+            "audit_correlation_id": "corr-root-follow-up",
+            "confirm_duplicate_claim_protection": True,
+            "operator_notes": "fake refs must remain fail closed",
+        },
+    )
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["service_method"] == "trigger_order_fill_follow_up"
+    assert payload["client_order_id"] == root_id
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    data = payload["data"]
+    assert data["trigger_accepted"] is False
+    assert data["requested_refs"] == {
+        "fill_testing_approval_id": "fake-fill-approval",
+        "wallet_proof_ref": "fake-wallet-proof",
+        "cap_guard_decision_id": "fake-cap-guard",
+        "reconciliation_plan_id": "fake-reconciliation-plan",
+        "audit_correlation_id": "corr-root-follow-up",
+        "confirm_duplicate_claim_protection": True,
+    }
+    blockers = set(data["blockers"])
+    missing_ref_blockers = {
+        "fill_testing_approval_missing",
+        "fill_follow_up_wallet_proof_missing",
+        "fill_follow_up_cap_guard_proof_missing",
+        "fill_follow_up_reconciliation_proof_missing",
+        "audit_correlation_id_missing",
+        "duplicate_claim_protection_ack_missing",
+    }
+    assert blockers.isdisjoint(missing_ref_blockers)
+    expected_unverified_blockers = {
+        "fill_testing_approval_unverified",
+        "fill_follow_up_wallet_proof_unverified",
+        "fill_follow_up_cap_guard_proof_unverified",
+        "fill_follow_up_reconciliation_proof_unverified",
+        "duplicate_claim_protection_unobserved",
+        "fill_follow_up_execution_adapter_missing",
+    }
+    assert expected_unverified_blockers.issubset(blockers)
+    validation = data["prerequisite_validation"]
+    assert validation["fill_testing_approval"] == {
+        "required": True,
+        "requested_ref": "fake-fill-approval",
+        "status": "unverified",
+        "verified": False,
+        "blocker": "fill_testing_approval_unverified",
+        "source": "admin_live_admission_decision",
+        "missing_reason": "no_matching_unexpired_snapshot",
+    }
+    assert validation["wallet_proof"] == {
+        "required": True,
+        "requested_ref": "fake-wallet-proof",
+        "status": "unverified",
+        "verified": False,
+        "blocker": "fill_follow_up_wallet_proof_unverified",
+        "source": "fill_follow_up_wallet_proof_store_missing",
+        "missing_reason": "no_fill_follow_up_wallet_proof_store",
+    }
+    assert validation["cap_guard_decision"]["requested_ref"] == "fake-cap-guard"
+    assert validation["cap_guard_decision"]["status"] == "unverified"
+    assert validation["cap_guard_decision"]["verified"] is False
+    assert validation["cap_guard_decision"]["blocker"] == (
+        "fill_follow_up_cap_guard_proof_unverified"
+    )
+    assert validation["reconciliation_plan"]["requested_ref"] == (
+        "fake-reconciliation-plan"
+    )
+    assert validation["reconciliation_plan"]["status"] == "unverified"
+    assert validation["reconciliation_plan"]["verified"] is False
+    assert validation["reconciliation_plan"]["blocker"] == (
+        "fill_follow_up_reconciliation_proof_unverified"
+    )
+    assert validation["audit_correlation"] == {
+        "required": True,
+        "requested_ref": "corr-root-follow-up",
+        "expected_ref": "corr-root-follow-up",
+        "status": "matched",
+        "verified": True,
+        "blocker": None,
+    }
+    assert validation["duplicate_claim_ack"] == {
+        "required": True,
+        "acknowledged": True,
+        "status": "acknowledged",
+        "verified": True,
+        "blocker": None,
+    }
+    assert data["claim_acquired"] is False
+    assert data["order_engine_handle_filled_order_called"] is False
+    assert data["stealth_create_follow_up_called"] is False
+    assert data["follow_up_order_created"] is False
+    assert data["coinbase_order_submit_ran"] is False
+    assert data["local_state_mutated"] is False
+    assert data["exchange_state_mutated"] is False
+
+
+@pytest.mark.regression
 def test_admin_api_order_fill_follow_up_trigger_rejects_existing_child_to_avoid_duplicate(
     monkeypatch,
 ):

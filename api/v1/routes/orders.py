@@ -1118,11 +1118,14 @@ def trigger_order_fill_follow_up(
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
         client_order_id=client_order_id,
-        command_runner=lambda: service.trigger_order_fill_follow_up(
-            AdminOrderFillFollowUpTriggerCommand(
-                envelope=envelope,
-                client_order_id=client_order_id,
-                request=body,
+        command_runner_with_admission=lambda admission_decision: (
+            service.trigger_order_fill_follow_up(
+                AdminOrderFillFollowUpTriggerCommand(
+                    envelope=envelope,
+                    client_order_id=client_order_id,
+                    request=body,
+                    admission_decision=admission_decision,
+                )
             )
         ),
     )

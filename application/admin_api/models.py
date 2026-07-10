@@ -1249,6 +1249,7 @@ class AdminOrderFillFollowUpTriggerCommand(BaseModel):
     envelope: AdminApiCommandEnvelope
     client_order_id: str = Field(min_length=1)
     request: AdminOrderFillFollowUpTriggerRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
 
 
 class CancelOrderCommand(BaseModel):

@@ -1267,6 +1267,305 @@ def _ordered_unique_strings(values: list[str | None]) -> list[str]:
     return result
 
 
+_FILL_FOLLOW_UP_REQUEST_SCOPED_READINESS_BLOCKERS = frozenset(
+    {
+        "fill_testing_approval_missing",
+        "fill_follow_up_wallet_proof_missing",
+        "fill_follow_up_cap_guard_proof_missing",
+        "fill_follow_up_reconciliation_proof_missing",
+        "audit_correlation_id_missing",
+    }
+)
+
+
+def _fill_follow_up_readiness_blockers_for_request(
+    blockers: list[str],
+) -> list[str]:
+    """Drop generic readiness blockers that the trigger request reclassifies."""
+
+    return [
+        blocker
+        for blocker in blockers
+        if blocker not in _FILL_FOLLOW_UP_REQUEST_SCOPED_READINESS_BLOCKERS
+    ]
+
+
+def _fill_follow_up_ref_validation(
+    *,
+    requested_ref: str | None,
+    present_attr: str,
+    resolved_attr: str,
+    missing_reason_attr: str,
+    missing_blocker: str,
+    unverified_blocker: str,
+    mismatch_blocker: str,
+    admission_decision: Any | None,
+) -> tuple[dict[str, Any], str | None]:
+    """Validate a route-bound prerequisite ref against admission evidence."""
+
+    if not requested_ref:
+        return (
+            {
+                "required": True,
+                "requested_ref": None,
+                "status": "missing",
+                "verified": False,
+                "blocker": missing_blocker,
+                "source": "request_body",
+                "missing_reason": "request_ref_missing",
+            },
+            missing_blocker,
+        )
+    if admission_decision is None:
+        return (
+            {
+                "required": True,
+                "requested_ref": requested_ref,
+                "status": "unverified",
+                "verified": False,
+                "blocker": unverified_blocker,
+                "source": "admin_live_admission_decision",
+                "missing_reason": "admission_decision_missing",
+            },
+            unverified_blocker,
+        )
+
+    resolved_ref = getattr(admission_decision, resolved_attr, None)
+    if bool(getattr(admission_decision, present_attr, False)):
+        if resolved_ref == requested_ref:
+            return (
+                {
+                    "required": True,
+                    "requested_ref": requested_ref,
+                    "status": "verified",
+                    "verified": True,
+                    "blocker": None,
+                    "source": "admin_live_admission_decision",
+                    "missing_reason": None,
+                },
+                None,
+            )
+        return (
+            {
+                "required": True,
+                "requested_ref": requested_ref,
+                "status": "mismatch",
+                "verified": False,
+                "blocker": mismatch_blocker,
+                "source": "admin_live_admission_decision",
+                "missing_reason": (
+                    "requested_ref_does_not_match_admission_decision"
+                ),
+                "resolved_ref": resolved_ref,
+            },
+            mismatch_blocker,
+        )
+
+    return (
+        {
+            "required": True,
+            "requested_ref": requested_ref,
+            "status": "unverified",
+            "verified": False,
+            "blocker": unverified_blocker,
+            "source": "admin_live_admission_decision",
+            "missing_reason": getattr(
+                admission_decision,
+                missing_reason_attr,
+                "admission_proof_missing",
+            ),
+        },
+        unverified_blocker,
+    )
+
+
+def _fill_follow_up_wallet_validation(
+    wallet_proof_ref: str | None,
+) -> tuple[dict[str, Any], str | None]:
+    """Classify wallet proof without accepting a bare string as authority."""
+
+    if not wallet_proof_ref:
+        return (
+            {
+                "required": True,
+                "requested_ref": None,
+                "status": "missing",
+                "verified": False,
+                "blocker": "fill_follow_up_wallet_proof_missing",
+                "source": "request_body",
+                "missing_reason": "request_ref_missing",
+            },
+            "fill_follow_up_wallet_proof_missing",
+        )
+    return (
+        {
+            "required": True,
+            "requested_ref": wallet_proof_ref,
+            "status": "unverified",
+            "verified": False,
+            "blocker": "fill_follow_up_wallet_proof_unverified",
+            "source": "fill_follow_up_wallet_proof_store_missing",
+            "missing_reason": "no_fill_follow_up_wallet_proof_store",
+        },
+        "fill_follow_up_wallet_proof_unverified",
+    )
+
+
+def _fill_follow_up_audit_correlation_validation(
+    *,
+    requested_ref: str | None,
+    expected_ref: str | None,
+) -> tuple[dict[str, Any], str | None]:
+    """Validate the operator-supplied audit correlation id."""
+
+    if not requested_ref:
+        return (
+            {
+                "required": True,
+                "requested_ref": None,
+                "expected_ref": expected_ref,
+                "status": "missing",
+                "verified": False,
+                "blocker": "audit_correlation_id_missing",
+            },
+            "audit_correlation_id_missing",
+        )
+    if not expected_ref:
+        return (
+            {
+                "required": True,
+                "requested_ref": requested_ref,
+                "expected_ref": None,
+                "status": "unverified",
+                "verified": False,
+                "blocker": "audit_correlation_id_unverified",
+            },
+            "audit_correlation_id_unverified",
+        )
+    if requested_ref != expected_ref:
+        return (
+            {
+                "required": True,
+                "requested_ref": requested_ref,
+                "expected_ref": expected_ref,
+                "status": "mismatch",
+                "verified": False,
+                "blocker": "audit_correlation_id_mismatch",
+            },
+            "audit_correlation_id_mismatch",
+        )
+    return (
+        {
+            "required": True,
+            "requested_ref": requested_ref,
+            "expected_ref": expected_ref,
+            "status": "matched",
+            "verified": True,
+            "blocker": None,
+        },
+        None,
+    )
+
+
+def _fill_follow_up_duplicate_claim_ack_validation(
+    acknowledged: bool,
+) -> tuple[dict[str, Any], str | None]:
+    """Validate the explicit operator duplicate-claim acknowledgement."""
+
+    if acknowledged:
+        return (
+            {
+                "required": True,
+                "acknowledged": True,
+                "status": "acknowledged",
+                "verified": True,
+                "blocker": None,
+            },
+            None,
+        )
+    return (
+        {
+            "required": True,
+            "acknowledged": False,
+            "status": "missing",
+            "verified": False,
+            "blocker": "duplicate_claim_protection_ack_missing",
+        },
+        "duplicate_claim_protection_ack_missing",
+    )
+
+
+def _fill_follow_up_prerequisite_validation(
+    *,
+    request: Any,
+    audit_correlation_id: str | None,
+    admission_decision: Any | None,
+) -> tuple[dict[str, Any], list[str | None]]:
+    """Build request-scoped fill-follow-up prerequisite validation evidence."""
+
+    approval_validation, approval_blocker = _fill_follow_up_ref_validation(
+        requested_ref=request.fill_testing_approval_id,
+        present_attr="approval_snapshot_present",
+        resolved_attr="approval_snapshot_id",
+        missing_reason_attr="approval_snapshot_missing_reason",
+        missing_blocker="fill_testing_approval_missing",
+        unverified_blocker="fill_testing_approval_unverified",
+        mismatch_blocker="fill_testing_approval_ref_mismatch",
+        admission_decision=admission_decision,
+    )
+    wallet_validation, wallet_blocker = _fill_follow_up_wallet_validation(
+        request.wallet_proof_ref
+    )
+    cap_guard_validation, cap_guard_blocker = _fill_follow_up_ref_validation(
+        requested_ref=request.cap_guard_decision_id,
+        present_attr="cap_guard_present",
+        resolved_attr="cap_guard_decision_id",
+        missing_reason_attr="cap_guard_missing_reason",
+        missing_blocker="fill_follow_up_cap_guard_proof_missing",
+        unverified_blocker="fill_follow_up_cap_guard_proof_unverified",
+        mismatch_blocker="fill_follow_up_cap_guard_proof_ref_mismatch",
+        admission_decision=admission_decision,
+    )
+    reconciliation_validation, reconciliation_blocker = (
+        _fill_follow_up_ref_validation(
+            requested_ref=request.reconciliation_plan_id,
+            present_attr="reconciliation_plan_present",
+            resolved_attr="reconciliation_plan_id",
+            missing_reason_attr="reconciliation_plan_missing_reason",
+            missing_blocker="fill_follow_up_reconciliation_proof_missing",
+            unverified_blocker="fill_follow_up_reconciliation_proof_unverified",
+            mismatch_blocker="fill_follow_up_reconciliation_proof_ref_mismatch",
+            admission_decision=admission_decision,
+        )
+    )
+    audit_validation, audit_blocker = _fill_follow_up_audit_correlation_validation(
+        requested_ref=request.audit_correlation_id,
+        expected_ref=audit_correlation_id,
+    )
+    duplicate_ack_validation, duplicate_ack_blocker = (
+        _fill_follow_up_duplicate_claim_ack_validation(
+            request.confirm_duplicate_claim_protection
+        )
+    )
+    validation = {
+        "fill_testing_approval": approval_validation,
+        "wallet_proof": wallet_validation,
+        "cap_guard_decision": cap_guard_validation,
+        "reconciliation_plan": reconciliation_validation,
+        "audit_correlation": audit_validation,
+        "duplicate_claim_ack": duplicate_ack_validation,
+    }
+    blockers = [
+        approval_blocker,
+        wallet_blocker,
+        cap_guard_blocker,
+        reconciliation_blocker,
+        audit_blocker,
+        duplicate_ack_blocker,
+    ]
+    return validation, blockers
+
+
 class AdminApiCommandService:
     """Shared command-service boundary for enterprise API work."""
 
@@ -1332,34 +1631,27 @@ class AdminApiCommandService:
             ),
         }
         audit = readiness.fill_follow_up_decision_audit
+        prerequisite_validation, prerequisite_blockers = (
+            _fill_follow_up_prerequisite_validation(
+                request=request,
+                audit_correlation_id=readiness.audit_correlation_id,
+                admission_decision=command.admission_decision,
+            )
+        )
         blockers: list[str | None] = []
-        blockers.extend(readiness.blockers)
+        blockers.extend(
+            _fill_follow_up_readiness_blockers_for_request(readiness.blockers)
+        )
         blockers.extend(chain.blockers)
         if not readiness.found:
             blockers.append("order_not_found")
         if audit is None or audit.follow_up_decision != "eligible_no_live":
             blockers.append("fill_follow_up_decision_not_eligible")
-        if not request.fill_testing_approval_id:
-            blockers.append("fill_testing_approval_missing")
-        if not request.wallet_proof_ref:
-            blockers.append("fill_follow_up_wallet_proof_missing")
-        if not request.cap_guard_decision_id:
-            blockers.append("fill_follow_up_cap_guard_proof_missing")
-        if not request.reconciliation_plan_id:
-            blockers.append("fill_follow_up_reconciliation_proof_missing")
-        if not request.confirm_duplicate_claim_protection:
-            blockers.append("duplicate_claim_protection_ack_missing")
+        blockers.extend(prerequisite_blockers)
         if not readiness.duplicate_claim_protection_observed:
             blockers.append("duplicate_claim_protection_unobserved")
         if readiness.duplicate_claim_state in {"processing", "done"}:
             blockers.append(f"duplicate_claim_{readiness.duplicate_claim_state}")
-        if not request.audit_correlation_id:
-            blockers.append("audit_correlation_id_missing")
-        elif (
-            readiness.audit_correlation_id
-            and request.audit_correlation_id != readiness.audit_correlation_id
-        ):
-            blockers.append("audit_correlation_id_mismatch")
         if chain.follow_up_child_count > 0:
             blockers.append("follow_up_child_already_exists")
         if chain.duplicate_child_client_order_ids:
@@ -1386,6 +1678,7 @@ class AdminApiCommandService:
             "trigger_accepted": False,
             "client_order_id": command.client_order_id,
             "requested_refs": requested_refs,
+            "prerequisite_validation": prerequisite_validation,
             "blockers": normalized_blockers,
             "fill_follow_up_decision_audit": (
                 audit.model_dump(mode="json") if audit else None
