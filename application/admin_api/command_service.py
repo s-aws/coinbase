@@ -269,6 +269,7 @@ class AdminApiCommandDependencies:
     runtime_controller_factory: Callable[[], Any] = get_runtime_controller
     add_log_entry: Callable[[str, str], None] = _noop_log
     order_event_publisher_getter: Callable[[], Any | None] = lambda: None
+    fill_follow_up_executor_getter: Callable[[], Any | None] = lambda: None
     planned_budget_fetcher: Callable[[], dict[str, float]] = _empty_budget
     lot_authority_evaluator_getter: Callable[[], Any | None] = lambda: None
     uuid_factory: Callable[[], str] = field(default_factory=lambda: lambda: str(uuid.uuid4()))
@@ -1731,6 +1732,63 @@ def _fill_follow_up_prerequisite_validation(
     return validation, blockers
 
 
+def _fill_follow_up_order_payload(active_order: Any | None) -> dict[str, Any]:
+    """Build the filled-order payload expected by the existing order engine."""
+
+    if active_order is None:
+        return {}
+    if hasattr(active_order, "model_dump"):
+        payload = active_order.model_dump(mode="json")
+    elif isinstance(active_order, dict):
+        payload = dict(active_order)
+    else:
+        return {}
+    parent_client_order_id = payload.get("parent_client_order_id")
+    if parent_client_order_id is not None:
+        payload.setdefault("parent_order_id", parent_client_order_id)
+    if payload.get("size") is not None:
+        payload.setdefault("filled_size", payload.get("size"))
+    if payload.get("price") is not None:
+        payload.setdefault("avg_price", payload.get("price"))
+    return payload
+
+
+def _invoke_fill_follow_up_executor(
+    executor: Any,
+    *,
+    order: dict[str, Any],
+    context: dict[str, Any],
+) -> dict[str, Any]:
+    """Invoke the backend fill-follow-up executor boundary."""
+
+    trigger = getattr(executor, "trigger_filled_follow_up", None)
+    if callable(trigger):
+        result = trigger(order=order, context=context)
+    elif callable(executor):
+        result = executor(order=order, context=context)
+    else:
+        raise TypeError("fill_follow_up_executor_not_callable")
+    if result is None:
+        return {}
+    if isinstance(result, dict):
+        return dict(result)
+    if hasattr(result, "model_dump"):
+        return result.model_dump(mode="json")
+    return {"result": str(result)}
+
+
+def _fill_follow_up_execution_flag(
+    execution_result: dict[str, Any] | None,
+    name: str,
+    *,
+    default: bool = False,
+) -> bool:
+    if not execution_result:
+        return default
+    value = execution_result.get(name, default)
+    return bool(value)
+
+
 class AdminApiCommandService:
     """Shared command-service boundary for enterprise API work."""
 
@@ -1836,53 +1894,168 @@ class AdminApiCommandService:
             blockers.append("follow_up_child_already_exists")
         if chain.duplicate_child_client_order_ids:
             blockers.append("follow_up_child_duplicate_source_ids")
-        blockers.append("fill_follow_up_execution_adapter_missing")
+        pre_trigger_chain = chain
+        execution_result: dict[str, Any] | None = None
+        executor_invoked = False
+        executor = None
+        try:
+            executor = self.dependencies.fill_follow_up_executor_getter()
+        except Exception as exc:
+            execution_result = {
+                "status": "unavailable",
+                "source": "fill_follow_up_executor_getter",
+                "error_type": type(exc).__name__,
+            }
+            blockers.append("fill_follow_up_execution_adapter_unavailable")
+
+        if executor is None and execution_result is None:
+            blockers.append("fill_follow_up_execution_adapter_missing")
+
+        if executor is not None and not _ordered_unique_strings(blockers):
+            active_order_payload = _fill_follow_up_order_payload(chain.active_order)
+            if not active_order_payload:
+                blockers.append("fill_follow_up_active_order_missing")
+            else:
+                executor_invoked = True
+                try:
+                    execution_result = _invoke_fill_follow_up_executor(
+                        executor,
+                        order=active_order_payload,
+                        context={
+                            "client_order_id": command.client_order_id,
+                            "audit_correlation_id": readiness.audit_correlation_id,
+                            "idempotency_key": command.envelope.idempotency_key,
+                            "correlation_id": command.envelope.correlation_id,
+                            "operator_intent": command.envelope.operator_intent,
+                            "requested_refs": requested_refs,
+                            "prerequisite_validation": prerequisite_validation,
+                            "pre_trigger_chain": pre_trigger_chain.model_dump(
+                                mode="json"
+                            ),
+                        },
+                    )
+                except Exception as exc:
+                    execution_result = {
+                        "status": "failed",
+                        "source": "fill_follow_up_executor",
+                        "error_type": type(exc).__name__,
+                    }
+                    blockers.append("fill_follow_up_execution_adapter_failed")
+                else:
+                    if _fill_follow_up_execution_flag(
+                        execution_result,
+                        "coinbase_order_submit_ran",
+                    ) or _fill_follow_up_execution_flag(
+                        execution_result,
+                        "live_coinbase_orders_ran",
+                    ):
+                        blockers.append(
+                            "fill_follow_up_execution_adapter_live_coinbase_disallowed"
+                        )
+                    chain = read_service.build_order_fill_follow_up_chain(
+                        client_order_id=command.client_order_id
+                    )
+                    if chain.follow_up_child_count <= pre_trigger_chain.follow_up_child_count:
+                        blockers.append(
+                            "fill_follow_up_child_not_observed_after_execution"
+                        )
+
         normalized_blockers = _ordered_unique_strings(blockers)
-        no_live_flags = {
-            "claim_acquired": False,
-            "order_engine_handle_filled_order_called": False,
-            "stealth_create_follow_up_called": False,
-            "follow_up_order_created": False,
-            "coinbase_order_submit_ran": False,
-            "coinbase_order_cancel_submitted": False,
-            "local_state_mutated": False,
-            "exchange_state_mutated": False,
-            "live_exchange_submitted": False,
-            "live_coinbase_orders_ran": False,
+        trigger_accepted = not normalized_blockers
+        execution_flags = {
+            "claim_acquired": _fill_follow_up_execution_flag(
+                execution_result,
+                "claim_acquired",
+            ),
+            "order_engine_handle_filled_order_called": executor_invoked
+            and _fill_follow_up_execution_flag(
+                execution_result,
+                "order_engine_handle_filled_order_called",
+                default=bool(
+                    execution_result
+                    and execution_result.get("status") not in {"failed", "unavailable"}
+                ),
+            ),
+            "stealth_create_follow_up_called": _fill_follow_up_execution_flag(
+                execution_result,
+                "stealth_create_follow_up_called",
+            ),
+            "follow_up_order_created": _fill_follow_up_execution_flag(
+                execution_result,
+                "follow_up_order_created",
+                default=chain.follow_up_child_count > pre_trigger_chain.follow_up_child_count,
+            ),
+            "coinbase_order_submit_ran": _fill_follow_up_execution_flag(
+                execution_result,
+                "coinbase_order_submit_ran",
+            ),
+            "coinbase_order_cancel_submitted": _fill_follow_up_execution_flag(
+                execution_result,
+                "coinbase_order_cancel_submitted",
+            ),
+            "local_state_mutated": _fill_follow_up_execution_flag(
+                execution_result,
+                "local_state_mutated",
+                default=chain.follow_up_child_count > pre_trigger_chain.follow_up_child_count,
+            ),
+            "exchange_state_mutated": _fill_follow_up_execution_flag(
+                execution_result,
+                "exchange_state_mutated",
+            ),
+            "live_exchange_submitted": _fill_follow_up_execution_flag(
+                execution_result,
+                "live_exchange_submitted",
+            ),
+            "live_coinbase_orders_ran": _fill_follow_up_execution_flag(
+                execution_result,
+                "live_coinbase_orders_ran",
+            ),
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
         }
         data = {
             "type": "admin_order_fill_follow_up_trigger_result",
             "trigger_attempted": True,
-            "trigger_accepted": False,
+            "trigger_accepted": trigger_accepted,
             "client_order_id": command.client_order_id,
             "requested_refs": requested_refs,
             "prerequisite_validation": prerequisite_validation,
             "blockers": normalized_blockers,
+            "execution_result": execution_result,
+            "pre_trigger_chain": pre_trigger_chain.model_dump(mode="json"),
             "fill_follow_up_decision_audit": (
                 audit.model_dump(mode="json") if audit else None
             ),
             "live_readiness": readiness.model_dump(mode="json"),
             "chain": chain.model_dump(mode="json"),
-            **no_live_flags,
+            **execution_flags,
         }
         return AdminApiCommandResponse(
-            status=AdminApiCommandStatus.REJECTED,
+            status=(
+                AdminApiCommandStatus.ACCEPTED
+                if trigger_accepted
+                else AdminApiCommandStatus.REJECTED
+            ),
             action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
             required_permission=AdminApiPermission.ORDER_CREATE,
             service_method="trigger_order_fill_follow_up",
             message=(
-                "Fill follow-up trigger rejected before execution; "
-                "prerequisites are incomplete."
+                "Fill follow-up trigger accepted by the backend executor."
+                if trigger_accepted
+                else (
+                    "Fill follow-up trigger rejected before execution; "
+                    "prerequisites are incomplete."
+                )
             ),
             client_order_id=command.client_order_id,
             correlation_id=command.envelope.correlation_id,
             idempotency_key=command.envelope.idempotency_key,
-            live_exchange_submitted=False,
-            live_coinbase_orders_ran=False,
+            live_exchange_submitted=execution_flags["live_exchange_submitted"],
+            live_coinbase_orders_ran=execution_flags["live_coinbase_orders_ran"],
             data=data,
-            failure_stage="fill_follow_up_trigger_prerequisite",
+            failure_stage=(
+                None if trigger_accepted else "fill_follow_up_trigger_prerequisite"
+            ),
             **self._command_runtime_evidence(),
         )
 

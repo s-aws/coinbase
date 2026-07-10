@@ -148,6 +148,63 @@ def log_admin_api_command(level: str, message: str) -> None:
     log_method(message)
 
 
+class AdminApiFillFollowUpRuntimeExecutor:
+    """Backend adapter for the existing filled-order follow-up engine path."""
+
+    source = "dashboard_server.stealth_order_bridge.order_engine.handle_filled_order"
+
+    def __init__(self, order_engine: Any) -> None:
+        self.order_engine = order_engine
+
+    def trigger_filled_follow_up(
+        self,
+        *,
+        order: dict[str, Any],
+        context: dict[str, Any],
+    ) -> dict[str, Any]:
+        handle_filled_order = getattr(self.order_engine, "handle_filled_order", None)
+        if not callable(handle_filled_order):
+            raise RuntimeError("order_engine_handle_filled_order_unavailable")
+        handle_filled_order(dict(order))
+        client_order_id = str(order.get("client_order_id") or "")
+        claim_state_after = None
+        orderbook = getattr(self.order_engine, "orderbook", None)
+        claim_state = getattr(orderbook, "follow_up_claim_state", None)
+        if callable(claim_state) and client_order_id:
+            claim_state_after = claim_state("filled", client_order_id)
+        return {
+            "status": "executed",
+            "source": self.source,
+            "client_order_id": client_order_id or None,
+            "audit_correlation_id": context.get("audit_correlation_id"),
+            "order_engine_handle_filled_order_called": True,
+            "claim_acquired": claim_state_after in {"processing", "done"},
+            "claim_state_after": claim_state_after,
+            "coinbase_order_submit_ran": False,
+            "coinbase_order_cancel_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "live_exchange_submitted": False,
+            "exchange_state_mutated": False,
+        }
+
+
+def get_admin_api_fill_follow_up_executor() -> Any | None:
+    """Return the runtime fill-follow-up executor when the bridge is available."""
+
+    try:
+        import dashboard_server
+
+        bridge = getattr(dashboard_server, "stealth_order_bridge", None)
+        order_engine = getattr(bridge, "order_engine", None) if bridge else None
+        handle_filled_order = getattr(order_engine, "handle_filled_order", None)
+        if order_engine is None or not callable(handle_filled_order):
+            return None
+        return AdminApiFillFollowUpRuntimeExecutor(order_engine)
+    except Exception as exc:
+        logger.warning("Admin API fill follow-up executor unavailable: %s", exc)
+        return None
+
+
 def build_admin_api_command_dependencies() -> AdminApiCommandDependencies:
     """Compose backend-owned dependencies for the shared Admin API command service."""
 
@@ -175,6 +232,7 @@ def build_admin_api_command_dependencies() -> AdminApiCommandDependencies:
         runtime_controller_factory=get_runtime_controller,
         add_log_entry=log_admin_api_command,
         order_event_publisher_getter=get_admin_api_order_event_stream_publisher,
+        fill_follow_up_executor_getter=get_admin_api_fill_follow_up_executor,
         uuid_factory=lambda: str(uuid.uuid4()),
     )
 
