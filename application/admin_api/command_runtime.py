@@ -177,6 +177,8 @@ class AdminApiFillFollowUpRuntimeExecutor:
             "source": self.source,
             "client_order_id": client_order_id or None,
             "audit_correlation_id": context.get("audit_correlation_id"),
+            "execution_scope": "local_stealth_follow_up",
+            "exchange_submission_mode": "hidden_stealth_order_no_exchange_submit",
             "order_engine_handle_filled_order_called": True,
             "claim_acquired": claim_state_after in {"processing", "done"},
             "claim_state_after": claim_state_after,

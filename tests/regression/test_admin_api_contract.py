@@ -77174,6 +77174,10 @@ def test_admin_api_command_runtime_builds_fill_follow_up_executor(monkeypatch):
     assert result["claim_acquired"] is True
     assert result["claim_state_after"] == "done"
     assert result["audit_correlation_id"] == "corr-runtime-fill-follow-up"
+    assert result["execution_scope"] == "local_stealth_follow_up"
+    assert result["exchange_submission_mode"] == (
+        "hidden_stealth_order_no_exchange_submit"
+    )
     assert result["live_coinbase_orders_ran"] is False
 
 
