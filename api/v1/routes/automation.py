@@ -10627,6 +10627,16 @@ def _record_usdc_pair_live_fanout_submissions(
             "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
             "fanout_executor_order_count_invalid"
         )
+    count_blockers = _usdc_pair_live_fanout_executor_count_blockers(
+        fanout_execution=fanout_execution,
+        requested_order_count=len(contexts),
+        returned_order_count=len(execution_values),
+    )
+    if count_blockers:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
+            + ",".join(count_blockers)
+        )
     if len(execution_values) < len(contexts) and (
         _usdc_pair_live_fanout_executor_summary_claims_complete(
             fanout_execution
@@ -10759,6 +10769,30 @@ def _record_usdc_pair_live_fanout_submissions(
             "fanout_executor_returned_no_submissions"
         )
     return submissions
+
+
+def _usdc_pair_live_fanout_executor_count_blockers(
+    *,
+    fanout_execution: Mapping[str, Any],
+    requested_order_count: int,
+    returned_order_count: int,
+) -> list[str]:
+    blockers: list[str] = []
+    try:
+        observed_requested_order_count = int(
+            fanout_execution.get("requested_order_count")
+        )
+    except (TypeError, ValueError):
+        observed_requested_order_count = None
+    if observed_requested_order_count != requested_order_count:
+        blockers.append("fanout_executor_requested_order_count_mismatch")
+    try:
+        observed_order_count = int(fanout_execution.get("order_count"))
+    except (TypeError, ValueError):
+        observed_order_count = None
+    if observed_order_count != returned_order_count:
+        blockers.append("fanout_executor_order_count_mismatch")
+    return blockers
 
 
 def _usdc_pair_live_fanout_executor_summary_claims_complete(
