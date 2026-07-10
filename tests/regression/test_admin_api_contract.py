@@ -76691,7 +76691,6 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
             "source": "fake_fill_follow_up_executor",
             "order_engine_handle_filled_order_called": True,
             "claim_acquired": True,
-            "follow_up_child_client_order_id": child_id,
             "coinbase_order_submit_ran": False,
             "coinbase_order_cancel_submitted": False,
             "live_coinbase_orders_ran": False,
@@ -76941,7 +76940,7 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
     )
     assert data["post_trigger_duplicate_claim_observed"] is True
     assert data["execution_result"]["source"] == "fake_fill_follow_up_executor"
-    assert data["execution_result"]["follow_up_child_client_order_id"] == child_id
+    assert "follow_up_child_client_order_id" not in data["execution_result"]
     assert data["fill_follow_up_decision_audit"][
         "existing_follow_up_client_order_ids"
     ] == [child_id]
