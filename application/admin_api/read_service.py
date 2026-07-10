@@ -13065,6 +13065,9 @@ class AdminApiReadService:
                 "fill_follow_up_wallet_proof_missing",
                 "fill_follow_up_cap_guard_proof_missing",
                 "fill_follow_up_reconciliation_proof_missing",
+                "fill_follow_up_live_fill_readback_proof_missing",
+                "fill_follow_up_rollback_readback_missing",
+                "fill_follow_up_operator_visible_audit_missing",
             ]
         )
         return AdminOrderFillFollowUpLiveReadinessResponse(
@@ -13084,10 +13087,11 @@ class AdminApiReadService:
             blockers=blockers,
             detail=(
                 "Fill follow-up live readiness is fail-closed until separate "
-                "fill-testing approval, wallet proof, cap-guard proof, "
-                "reconciliation proof, observed duplicate-claim protection, and "
-                "operator-visible audit correlation exist. No engine, stealth, "
-                "Coinbase, local-state, or exchange mutation ran."
+                "fill-testing approval, live-fill readback proof, wallet proof, "
+                "cap-guard proof, reconciliation proof, rollback readback, "
+                "observed duplicate-claim protection, and operator-visible audit "
+                "evidence exist. No engine, stealth, Coinbase, local-state, or "
+                "exchange mutation ran."
             ),
         )
 

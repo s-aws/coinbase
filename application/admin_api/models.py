@@ -4844,6 +4844,12 @@ class AdminOrderFillFollowUpLiveReadinessResponse(BaseModel):
     wallet_proof_ref: str | None = None
     cap_guard_decision_ref: str | None = None
     reconciliation_plan_ref: str | None = None
+    live_fill_readback_proof_required: bool = True
+    live_fill_readback_proof_ref: str | None = None
+    rollback_readback_required: bool = True
+    rollback_readback_ref: str | None = None
+    operator_visible_audit_required: bool = True
+    operator_visible_audit_ref: str | None = None
     audit_correlation_required: bool = True
     audit_correlation_id: str | None = None
     live_execution_allowed: bool = False

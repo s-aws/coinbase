@@ -137475,6 +137475,33 @@ components:
           - type: string
           - type: 'null'
           title: Reconciliation Plan Ref
+        live_fill_readback_proof_required:
+          type: boolean
+          title: Live Fill Readback Proof Required
+          default: true
+        live_fill_readback_proof_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Live Fill Readback Proof Ref
+        rollback_readback_required:
+          type: boolean
+          title: Rollback Readback Required
+          default: true
+        rollback_readback_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rollback Readback Ref
+        operator_visible_audit_required:
+          type: boolean
+          title: Operator Visible Audit Required
+          default: true
+        operator_visible_audit_ref:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Operator Visible Audit Ref
         audit_correlation_required:
           type: boolean
           title: Audit Correlation Required

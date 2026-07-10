@@ -3555,6 +3555,12 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "audit_correlation_id" in readiness_schema["properties"]
     assert "fill_testing_approval_present" in readiness_schema["properties"]
     assert "wallet_proof_ref" in readiness_schema["properties"]
+    assert "live_fill_readback_proof_required" in readiness_schema["properties"]
+    assert "live_fill_readback_proof_ref" in readiness_schema["properties"]
+    assert "rollback_readback_required" in readiness_schema["properties"]
+    assert "rollback_readback_ref" in readiness_schema["properties"]
+    assert "operator_visible_audit_required" in readiness_schema["properties"]
+    assert "operator_visible_audit_ref" in readiness_schema["properties"]
     chain_path = written["paths"][
         "/api/v1/orders/{client_order_id}/fill-follow-up/chain"
     ]["get"]
@@ -75982,6 +75988,12 @@ def test_admin_api_order_fill_follow_up_live_readiness_blocks_without_prereqs(
     assert payload["wallet_proof_ref"] is None
     assert payload["cap_guard_decision_ref"] is None
     assert payload["reconciliation_plan_ref"] is None
+    assert payload["live_fill_readback_proof_required"] is True
+    assert payload["live_fill_readback_proof_ref"] is None
+    assert payload["rollback_readback_required"] is True
+    assert payload["rollback_readback_ref"] is None
+    assert payload["operator_visible_audit_required"] is True
+    assert payload["operator_visible_audit_ref"] is None
     assert payload["audit_correlation_id"] == "corr-root-follow-up"
     assert payload["order_engine_handle_filled_order_called"] is False
     assert payload["stealth_create_follow_up_called"] is False
@@ -75991,6 +76003,9 @@ def test_admin_api_order_fill_follow_up_live_readiness_blocks_without_prereqs(
     assert "fill_follow_up_wallet_proof_missing" in payload["blockers"]
     assert "fill_follow_up_cap_guard_proof_missing" in payload["blockers"]
     assert "fill_follow_up_reconciliation_proof_missing" in payload["blockers"]
+    assert "fill_follow_up_live_fill_readback_proof_missing" in payload["blockers"]
+    assert "fill_follow_up_rollback_readback_missing" in payload["blockers"]
+    assert "fill_follow_up_operator_visible_audit_missing" in payload["blockers"]
     assert "duplicate_claim_protection_unobserved" in payload["blockers"]
     assert payload["fill_follow_up_decision_audit"]["follow_up_decision"] == (
         "eligible_no_live"
