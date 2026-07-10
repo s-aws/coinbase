@@ -1817,9 +1817,18 @@ def _fill_follow_up_trigger_message(
     *,
     trigger_accepted: bool,
     failure_stage: str | None,
+    blockers: list[str] | None = None,
 ) -> str:
     if trigger_accepted:
         return "Fill follow-up trigger accepted by the backend executor."
+    if (
+        blockers
+        and "fill_follow_up_execution_adapter_live_coinbase_disallowed" in blockers
+    ):
+        return (
+            "Fill follow-up trigger rejected after executor invocation; "
+            "executor reported disallowed live Coinbase submission."
+        )
     if failure_stage == "fill_follow_up_trigger_execution":
         return (
             "Fill follow-up trigger rejected after executor invocation; "
@@ -2144,6 +2153,7 @@ class AdminApiCommandService:
             message=_fill_follow_up_trigger_message(
                 trigger_accepted=trigger_accepted,
                 failure_stage=failure_stage,
+                blockers=normalized_blockers,
             ),
             client_order_id=command.client_order_id,
             correlation_id=command.envelope.correlation_id,
