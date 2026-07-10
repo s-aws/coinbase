@@ -10866,12 +10866,29 @@ def _usdc_pair_live_fanout_executor_live_summary_blockers(
     ):
         blockers.append("fanout_executor_live_coinbase_orders_ran_mismatch")
 
+    expected_cancel_submitted = len(returned_rows) == requested_order_count and all(
+        _usdc_pair_live_fanout_executor_row_cancel_submitted(row)
+        for row in returned_rows
+    )
+    if bool(fanout_execution.get("cancel_submitted")) != expected_cancel_submitted:
+        blockers.append("fanout_executor_cancel_submitted_mismatch")
+
+    expected_cancel_rollback_complete = (
+        len(returned_rows) == requested_order_count
+        and all(
+            _usdc_pair_live_fanout_executor_row_cancel_complete(row)
+            for row in returned_rows
+        )
+    )
+    if (
+        bool(fanout_execution.get("cancel_rollback_complete"))
+        != expected_cancel_rollback_complete
+    ):
+        blockers.append("fanout_executor_cancel_rollback_complete_mismatch")
+
     if not expected_live_exchange_submitted:
         expected_live_execution = "not_run"
-    elif len(returned_rows) == requested_order_count and all(
-        _usdc_pair_live_fanout_executor_row_cancel_complete(row)
-        for row in returned_rows
-    ):
+    elif expected_cancel_rollback_complete:
         expected_live_execution = "submitted_cancelled"
     else:
         expected_live_execution = "submitted_cancel_failed"
@@ -10885,12 +10902,18 @@ def _usdc_pair_live_fanout_executor_live_summary_blockers(
     return blockers
 
 
-def _usdc_pair_live_fanout_executor_row_cancel_complete(
+def _usdc_pair_live_fanout_executor_row_cancel_submitted(
     execution: Mapping[str, Any],
 ) -> bool:
     cancel_result = _mapping_value(execution.get("cancel_result"))
-    cancel_submitted = bool(
-        execution.get("cancel_submitted", _result_success(cancel_result))
+    return bool(execution.get("cancel_submitted", _result_success(cancel_result)))
+
+
+def _usdc_pair_live_fanout_executor_row_cancel_complete(
+    execution: Mapping[str, Any],
+) -> bool:
+    cancel_submitted = _usdc_pair_live_fanout_executor_row_cancel_submitted(
+        execution
     )
     _, executed_notional_positive, executed_notional_valid = (
         _execution_executed_notional_evidence(
