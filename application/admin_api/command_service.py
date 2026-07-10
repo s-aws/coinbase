@@ -1570,6 +1570,74 @@ def _fill_follow_up_duplicate_claim_ack_validation(
     )
 
 
+def _fill_follow_up_duplicate_claim_guard_validation(
+    *,
+    observed: bool,
+    claim_state: str | None,
+    claim_source: str | None,
+) -> tuple[dict[str, Any], str | None]:
+    """Validate read-only duplicate-claim guard state before execution exists."""
+
+    source = claim_source or "runtime_orderbook_unavailable"
+    normalized_state = str(claim_state).strip().lower() if claim_state else None
+    if not observed:
+        return (
+            {
+                "required": True,
+                "observed": False,
+                "claim_state": normalized_state,
+                "status": "unobserved",
+                "verified": False,
+                "blocker": "duplicate_claim_protection_unobserved",
+                "source": source,
+                "claim_acquired": False,
+            },
+            "duplicate_claim_protection_unobserved",
+        )
+    if normalized_state in {"processing", "done"}:
+        blocker = f"duplicate_claim_{normalized_state}"
+        return (
+            {
+                "required": True,
+                "observed": True,
+                "claim_state": normalized_state,
+                "status": normalized_state,
+                "verified": False,
+                "blocker": blocker,
+                "source": source,
+                "claim_acquired": False,
+            },
+            blocker,
+        )
+    if normalized_state:
+        return (
+            {
+                "required": True,
+                "observed": True,
+                "claim_state": normalized_state,
+                "status": "unrecognized",
+                "verified": False,
+                "blocker": "duplicate_claim_state_unrecognized",
+                "source": source,
+                "claim_acquired": False,
+            },
+            "duplicate_claim_state_unrecognized",
+        )
+    return (
+        {
+            "required": True,
+            "observed": True,
+            "claim_state": None,
+            "status": "available",
+            "verified": True,
+            "blocker": None,
+            "source": source,
+            "claim_acquired": False,
+        },
+        None,
+    )
+
+
 def _fill_follow_up_prerequisite_validation(
     *,
     request: Any,
@@ -1579,6 +1647,9 @@ def _fill_follow_up_prerequisite_validation(
     cap_guard_wallet_check_status: str | None,
     cap_guard_wallet_available_notional_usdc: str | None,
     cap_guard_wallet_check_source: str | None,
+    duplicate_claim_observed: bool,
+    duplicate_claim_state: str | None,
+    duplicate_claim_source: str | None,
 ) -> tuple[dict[str, Any], list[str | None]]:
     """Build request-scoped fill-follow-up prerequisite validation evidence."""
 
@@ -1632,6 +1703,13 @@ def _fill_follow_up_prerequisite_validation(
             request.confirm_duplicate_claim_protection
         )
     )
+    duplicate_guard_validation, duplicate_guard_blocker = (
+        _fill_follow_up_duplicate_claim_guard_validation(
+            observed=duplicate_claim_observed,
+            claim_state=duplicate_claim_state,
+            claim_source=duplicate_claim_source,
+        )
+    )
     validation = {
         "fill_testing_approval": approval_validation,
         "wallet_proof": wallet_validation,
@@ -1639,6 +1717,7 @@ def _fill_follow_up_prerequisite_validation(
         "reconciliation_plan": reconciliation_validation,
         "audit_correlation": audit_validation,
         "duplicate_claim_ack": duplicate_ack_validation,
+        "duplicate_claim_guard": duplicate_guard_validation,
     }
     blockers = [
         approval_blocker,
@@ -1647,6 +1726,7 @@ def _fill_follow_up_prerequisite_validation(
         reconciliation_blocker,
         audit_blocker,
         duplicate_ack_blocker,
+        duplicate_guard_blocker,
     ]
     return validation, blockers
 
@@ -1731,6 +1811,11 @@ class AdminApiCommandService:
                 cap_guard_wallet_check_source=(
                     command.cap_guard_wallet_check_source
                 ),
+                duplicate_claim_observed=(
+                    readiness.duplicate_claim_protection_observed
+                ),
+                duplicate_claim_state=readiness.duplicate_claim_state,
+                duplicate_claim_source=readiness.duplicate_claim_source,
             )
         )
         blockers: list[str | None] = []

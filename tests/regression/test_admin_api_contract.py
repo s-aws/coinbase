@@ -76362,6 +76362,7 @@ def test_admin_api_order_fill_follow_up_trigger_validates_supplied_refs_without_
 def test_admin_api_order_fill_follow_up_trigger_verifies_exact_admission_refs(
     monkeypatch,
 ):
+    import application.admin_api.read_service as read_service
     import configuration
     import database.order as order_module
 
@@ -76421,6 +76422,19 @@ def test_admin_api_order_fill_follow_up_trigger_verifies_exact_admission_refs(
                 "future_product_details": {},
             }
         },
+    )
+    runtime_orderbook = SimpleNamespace(
+        follow_up_claim_state=lambda trigger, client_order_id: None
+    )
+    monkeypatch.setattr(
+        read_service,
+        "_runtime_bridge",
+        lambda: SimpleNamespace(
+            order_engine=SimpleNamespace(
+                orderbook=runtime_orderbook,
+                orderbook_lock=None,
+            )
+        ),
     )
 
     client = _client(monkeypatch)
@@ -76574,7 +76588,7 @@ def test_admin_api_order_fill_follow_up_trigger_verifies_exact_admission_refs(
     assert "fill_follow_up_cap_guard_proof_unverified" not in blockers
     assert "fill_follow_up_reconciliation_proof_unverified" not in blockers
     assert "fill_follow_up_wallet_proof_unverified" not in blockers
-    assert "duplicate_claim_protection_unobserved" in blockers
+    assert "duplicate_claim_protection_unobserved" not in blockers
     assert "fill_follow_up_execution_adapter_missing" in blockers
     validation = data["prerequisite_validation"]
     assert validation["fill_testing_approval"]["status"] == "verified"
@@ -76587,6 +76601,16 @@ def test_admin_api_order_fill_follow_up_trigger_verifies_exact_admission_refs(
     assert validation["wallet_proof"]["verified"] is True
     assert validation["wallet_proof"]["source"] == "cap_guard_decision_wallet_check"
     assert validation["wallet_proof"]["wallet_available_notional_usdc"] == "10.00"
+    assert validation["duplicate_claim_guard"] == {
+        "required": True,
+        "observed": True,
+        "claim_state": None,
+        "status": "available",
+        "verified": True,
+        "blocker": None,
+        "source": "orderbook.follow_up_claim_state",
+        "claim_acquired": False,
+    }
     assert data["claim_acquired"] is False
     assert data["order_engine_handle_filled_order_called"] is False
     assert data["stealth_create_follow_up_called"] is False
