@@ -9791,9 +9791,10 @@ class AdminApiReadService:
                 exposure_status=AdminApiFunctionalityExposureStatus.ADMIN_DRAFT_LIVE_DISABLED,
                 support_status=AdminApiModuleSupportStatus.COMMAND_DRAFT_LIVE_DISABLED,
                 summary=(
-                    "Spot cancel is keyed by client_order_id and must call the "
-                    "project cancel_order(client_order_id) wrapper because Coinbase "
-                    "accepts the client id for cancellation."
+                    "Spot cancel is keyed by client_order_id and first calls the "
+                    "project cancel_order(client_order_id) wrapper. Controlled-live "
+                    "backend cancel may use exchange_order_id only as a recorded "
+                    "fallback after client-id cancellation is rejected."
                 ),
                 identity_keys=["client_order_id"],
                 owning_backend_service="application/admin_api/command_service.py",
@@ -52340,10 +52341,12 @@ class AdminApiReadService:
                     "docs/COMMAND_WORKFLOWS.md",
                 ],
                 "detail": (
-                    "Spot cancel is keyed by client_order_id. Coinbase accepts "
-                    "that id through the project cancel_order(client_order_id) "
-                    "wrapper, but Admin API live cancel remains disabled until "
-                    "approval, audit, cap/guard, and reconciliation evidence pass."
+                    "Spot cancel is keyed by client_order_id. Backend cancel first "
+                    "uses the project cancel_order(client_order_id) wrapper; "
+                    "controlled-live backend cancel evidence may use exchange_order_id "
+                    "only as a recorded fallback after client-id cancellation is "
+                    "rejected. Admin API live cancel remains disabled until approval, "
+                    "audit, cap/guard, and reconciliation evidence pass."
                 ),
             },
             AdminApiMutationFamilyType.SPOT_CAMPAIGN_EXECUTION: {

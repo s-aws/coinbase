@@ -322,13 +322,16 @@ class CoinbaseRestClient:
 
     def cancel_order(self, client_order_id: str) -> bool:
         """Cancel a single order by client order ID.
-        
-        Coinbase accepts either order_id (exchange-assigned) or client_order_id (ours).
-        We use client_order_id because:
+
+        The wrapper is intentionally called with client_order_id first because:
         - We always have it (we generate it for every order)
-        - It works for both revealed and unrevealed orders
-        - More robust than relying on exchange-assigned order_id
-        
+        - It is the operator-facing identity
+        - Exchange-assigned order_id remains evidence, not the local identity
+
+        Controlled-live backend cancel evidence may fall back to exchange_order_id
+        after Coinbase rejects client_order_id cancellation and readback evidence
+        proves the exchange id.
+
         Args:
             client_order_id: The client order ID we generated for this order
         

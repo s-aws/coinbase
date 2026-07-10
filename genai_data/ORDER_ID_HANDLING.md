@@ -4,9 +4,14 @@
 
 Use `client_order_id` for internal tracking.
 Use `order_id` only when interacting with exchange APIs or exchange-origin identifiers.
-Exception: use the project Coinbase wrapper `cancel_order(client_order_id)` for
-cancellation. Coinbase accepts our `client_order_id` for that operation; raw
-batch `cancel_orders(order_ids=[...])` remains exchange-id oriented.
+Cancellation remains operator- and local-state keyed by `client_order_id`.
+Backend cancel paths first use the project Coinbase wrapper
+`cancel_order(client_order_id)`. If Coinbase rejects that identity, a
+controlled-live backend path may read exchange evidence and use
+`exchange_order_id` only as a recorded fallback exchange API parameter while
+preserving `operator_identity_key=client_order_id` and
+`exchange_order_id_evidence_only=true`. Raw batch
+`cancel_orders(order_ids=[...])` remains exchange-id oriented.
 
 If you mix them, you get phantom parents, failed lookups, missed-fill noise, and bad reconciliation.
 
@@ -62,9 +67,11 @@ Reason:
 - Cancel/re-entry keeps the same stealth root, cancels the active placement, stores the cancelled placement identifiers in `cancel_reentry_state_json`, and later re-enters with a new placement identifier through the normal reveal path.
 - Stealth move/reprice/cancel-reentry paths that call raw batch
   `cancel_orders(order_ids=[...])` use the tracked exchange identifier, usually
-  `active_exchange_order_id`. Dashboard/manual single-order cancellation uses
-  `CoinbaseClient.cancel_order(client_order_id)` because Coinbase accepts the
-  project-generated client id there. Local linkage, parent rows, dashboard
+  `active_exchange_order_id`. Dashboard/manual single-order cancellation is
+  still requested by `client_order_id` and first uses
+  `CoinbaseClient.cancel_order(client_order_id)`. Controlled-live backend
+  cancel evidence may fall back to a readback exchange id only after the
+  client-id cancel is not accepted. Local linkage, parent rows, dashboard
   references, and follow-up ownership still use `client_order_id`.
 
 Related code:

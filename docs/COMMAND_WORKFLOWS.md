@@ -203,10 +203,12 @@ the backend RBAC role named `operator` can read checkpoint evidence but cannot
 record it. Recording requires `spot_pnl:record`, currently granted to `trader`
 and `admin`.
 
-Spot cancel identity is `client_order_id`. Coinbase cancellation is the
-project-specific exception where the backend wrapper calls
-`cancel_order(client_order_id)` because the exchange accepts the client id for
-that operation. Do not replace this with an exchange-native `order_id` flow.
+Spot cancel identity is `client_order_id`. Backend cancellation first calls the
+project wrapper `cancel_order(client_order_id)`. Controlled-live backend cancel
+evidence may use `exchange_order_id` only as a recorded fallback exchange API
+parameter after client-id cancellation is rejected and exchange readback
+evidence exists. Do not make exchange-native `order_id` the operator identity,
+browser-supplied cancel key, or first cancel identity.
 
 ## Stealth Command Suite
 

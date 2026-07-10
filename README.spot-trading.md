@@ -83,10 +83,12 @@ increments and quote-notional minimums from `products.json`.
   sides, order policies, automation cadence, live approval rule, notional caps,
   inventory retention policy, and required audit evidence.
 - Internal order tracking still uses `client_order_id`; Coinbase `order_id`
-  remains exchange-facing only. Dashboard `cancel_order` is the explicit
-  cancellation exception: callers must pass `client_order_id`, and the server
-  calls this repo's `REST_CLIENT.cancel_order(client_order_id)` wrapper because
-  Coinbase accepts the client id for that operation.
+  remains exchange-facing only. Dashboard `cancel_order` remains requested by
+  `client_order_id`, and the server first calls this repo's
+  `REST_CLIENT.cancel_order(client_order_id)` wrapper. Controlled-live backend
+  cancel evidence may use `exchange_order_id` only as a recorded fallback
+  exchange API parameter after client-id cancellation is rejected and exchange
+  readback evidence exists.
 - The current boundary between legacy live WebSocket commands, read-only HTTP
   routes, and sweep/campaign execution is maintained in
   [Live Order Surfaces](docs/LIVE_ORDER_SURFACES.md).

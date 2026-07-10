@@ -13,7 +13,14 @@ This project runs on **Windows 11 + VS Code**. Linux/bash commands may not work 
 
 ## Hard Constraints (non-negotiable)
 
-- Use `client_order_id` for all internal tracking; use `order_id` only for exchange-native evidence and endpoints that require it. Coinbase cancellation is the explicit exception: use the project wrapper `cancel_order(client_order_id)` because Coinbase accepts our client id for that operation.
+- Use `client_order_id` for all internal and operator-facing tracking; use
+  `order_id` only for exchange-native evidence and exchange API calls that
+  require it. Coinbase cancellation starts with the project wrapper
+  `cancel_order(client_order_id)`. If Coinbase rejects that identity, a
+  backend-owned controlled-live cancel path may read exchange evidence and use
+  `exchange_order_id` only as a recorded fallback API parameter; it must keep
+  `operator_identity_key=client_order_id` and
+  `exchange_order_id_evidence_only=true`.
   Public rules: `docs/agents/INVARIANTS.md`. Expanded local rules: `genai_data/ORDER_ID_HANDLING.md` when present.
 - Single code path per behavior; do not introduce parallel implementations.
 - Use enums (`core/enums.py`), not magic strings.

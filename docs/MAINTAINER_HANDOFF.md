@@ -42,8 +42,11 @@ phase-end or milestone-closeout sweep result before advancing.
 
 - Use one code path per behavior.
 - Use `client_order_id` for internal order identity.
-- Coinbase cancellation is the explicit exception: call the project wrapper
-  `cancel_order(client_order_id)` because Coinbase accepts the client id.
+- Cancellation remains operator- and local-state keyed by `client_order_id`.
+  Backend paths first call the project wrapper `cancel_order(client_order_id)`;
+  controlled-live backend cancel evidence may use `exchange_order_id` only as a
+  recorded fallback exchange API parameter after client-id cancellation is
+  rejected and exchange readback evidence exists.
 - Do not put trading decisions in browser code or generated frontend clients.
 - Do not import spot no-shorting or wallet-inventory rules into futures or
   perpetual workflows.

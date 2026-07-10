@@ -303,10 +303,13 @@ Current scope is intentionally narrow and fail-soft:
 
 - `client_order_id` is the internal primary key across memory, DB, hooks, and logs.
 - `order_id` is exchange-assigned and used for exchange-side lookup/reporting
-  and raw endpoints that require it. The project Coinbase wrapper
-  `cancel_order(client_order_id)` is the single-order cancellation exception
-  because Coinbase accepts our client id there. That wrapper accepts only
-  explicit `success: true` cancel evidence as success.
+  and raw endpoints that require it. Single-order cancellation remains
+  operator-keyed by `client_order_id` and first uses the project Coinbase
+  wrapper `cancel_order(client_order_id)`. If Coinbase rejects that identity,
+  backend controlled-live cancel may use a readback `exchange_order_id` only as
+  a recorded fallback exchange API parameter, with
+  `operator_identity_key=client_order_id` and
+  `exchange_order_id_evidence_only=true`.
 - Parent-child hierarchy is flat.
 - Stealth state must not lie about live exchange placement.
 - Cancel/re-entry, move, and repricing must share the same active-placement truth (`anchor_repricing_state_json`) instead of inventing a second exchange pointer.

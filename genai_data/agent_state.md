@@ -517,9 +517,11 @@ work. Historical milestone detail belongs in
 ## Durable Decisions
 
 - Use `client_order_id` for internal tracking. Use `order_id` only for
-  exchange-native evidence and endpoints that require it. Coinbase
-  cancellation is the explicit exception: use project wrapper
-  `cancel_order(client_order_id)` because Coinbase accepts the client id.
+  exchange-native evidence and endpoints that require it. Cancellation remains
+  operator-keyed by `client_order_id`; backend paths first use
+  `cancel_order(client_order_id)` and may use `exchange_order_id` only as a
+  recorded fallback exchange API parameter after client-id cancel rejection and
+  exchange readback evidence.
 - Preserve a single code path per behavior.
 - Use enums from `core/enums.py`; do not add magic strings where an enum
   belongs.

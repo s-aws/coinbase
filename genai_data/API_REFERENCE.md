@@ -1473,9 +1473,13 @@ frontend request
 -> typed response
 ```
 
-Cancel remains `client_order_id` keyed. The future implementation must call the
-project Coinbase wrapper `cancel_order(client_order_id)` rather than resolving
-to exchange `order_id` first.
+Cancel remains `client_order_id` keyed for operators and local state. Backend
+controlled-live cancel first calls the project Coinbase wrapper
+`cancel_order(client_order_id)` rather than resolving to exchange `order_id`
+first. If Coinbase rejects that identity, the backend may read exchange
+evidence and use `exchange_order_id` only as a recorded fallback exchange API
+parameter while preserving `operator_identity_key=client_order_id` and
+`exchange_order_id_evidence_only=true`.
 
 HTTP auth bootstrap mode:
 - set `COINBASE_ADMIN_API_BEARER_TOKEN`
@@ -1558,7 +1562,10 @@ building the currency-to-wallet map. Do not replace it with a single
 - `cancel_order(client_order_id)` calls the Coinbase cancel wrapper with the
   project `client_order_id` and treats only explicit `success: true` cancel
   evidence as success. Non-empty failure payloads such as `success: false` are
-  rejected.
+  rejected. Controlled-live cancel evidence may fall back to a readback
+  `exchange_order_id` only after the client-id cancel is not accepted, and must
+  record the initial identity, fallback reason, fallback identity, and
+  exchange-id-evidence-only fields.
 
 ## Spot Sweep And Campaign CLI Outputs
 

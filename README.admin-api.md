@@ -2039,11 +2039,26 @@ The platform/module split is documented in
 - Manual order create may omit `client_order_id`; the backend route derives it
   before approval/admission evidence. Frontend and BFF code must display the
   returned id but must not generate or override it.
-- Preserve Coinbase cancellation through the project wrapper
-  `cancel_order(client_order_id)`, which accepts only explicit Coinbase
-  `success: true` cancel evidence as success.
+- Preserve operator-facing cancellation through `client_order_id`. Backend
+  cancel paths first call the project wrapper `cancel_order(client_order_id)`
+  and accept only explicit Coinbase `success: true` cancel evidence as success.
+  If Coinbase rejects that identity, controlled-live backend cancel evidence may
+  read the order and use `exchange_order_id` only as a recorded fallback
+  exchange API parameter.
 - Treat exchange-native `order_id` as exchange evidence only. The order read
-  model exposes it as `exchange_order_id`; it is not an identity or cancel key.
+  model exposes it as `exchange_order_id`; it is not an operator identity or
+  browser-supplied cancel key.
+- 2026-07-10 controlled-live Spot evidence:
+  `artifacts/coinbase-backend-spot-live-cancel-usdt-usdc-20260710-1707.json`
+  and
+  `artifacts/coinbase-backend-spot-live-order-readback-usdt-usdc-20260710-1707.json`
+  show a `USDT-USDC` buy seed order at `0.49`, submitted notional `1.47`
+  USDC, backend cancel accepted, final order status `CANCELLED`, zero fills,
+  and executed notional `0`. The cancel first tried `client_order_id`; Coinbase
+  did not accept that identity, so backend read exchange evidence and used an
+  `exchange_order_id` fallback while preserving
+  `operator_identity_key=client_order_id` and
+  `exchange_order_id_evidence_only=true`.
 - Order list/detail read rows may include `correlation_id` and `audit_id`
   when the backend row source has durable evidence for them. These fields are
   audit navigation evidence, not order identity.
