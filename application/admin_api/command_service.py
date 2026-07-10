@@ -2117,11 +2117,21 @@ class AdminApiCommandService:
                 prerequisite_blockers=prerequisite_blockers,
             )
         )
+        pre_execution_ready = not blockers
+        preview_failure_stage = (
+            None if pre_execution_ready else "fill_follow_up_trigger_prerequisite"
+        )
         response_audit = chain.fill_follow_up_decision_audit or audit
         return {
             "type": "admin_order_fill_follow_up_trigger_preview_evidence",
             "trigger_attempted": False,
             "executor_invoked": False,
+            "pre_execution_status": (
+                "ready_no_live" if pre_execution_ready else "blocked"
+            ),
+            "pre_execution_ready": pre_execution_ready,
+            "executor_lookup_would_run": pre_execution_ready,
+            "preview_failure_stage": preview_failure_stage,
             "trigger_scope": "no_live_local_follow_up",
             "live_readiness_blocker_scope": "live_claim_only",
             "live_readiness_blockers_block_no_live_trigger": False,

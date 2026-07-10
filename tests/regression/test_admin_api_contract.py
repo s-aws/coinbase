@@ -77171,6 +77171,12 @@ def test_admin_api_order_fill_follow_up_chain_flags_nested_child_parent(
     )
     assert preview_data["trigger_attempted"] is False
     assert preview_data["executor_invoked"] is False
+    assert preview_data["pre_execution_status"] == "blocked"
+    assert preview_data["pre_execution_ready"] is False
+    assert preview_data["executor_lookup_would_run"] is False
+    assert preview_data["preview_failure_stage"] == (
+        "fill_follow_up_trigger_prerequisite"
+    )
     assert preview_data["chain"]["nested_child_client_order_ids"] == [nested_child_id]
     assert preview_data["chain"]["nested_parent_client_order_ids"] == [child_id]
     assert preview_data["chain"]["flat_hierarchy_violation_count"] == 1
