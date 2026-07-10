@@ -21,6 +21,11 @@ from .reconciliation import (
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 
 
+_FILL_FOLLOW_UP_TRIGGER_SURFACE = (
+    "POST /api/v1/orders/{client_order_id}/fill-follow-up/trigger"
+)
+
+
 class ReconciliationPlanError(ValueError):
     """Raised when a reconciliation plan record is invalid."""
 
@@ -135,15 +140,12 @@ class AdminApiReconciliationPlanService:
             )
         if (
             route.action_class == AdminApiActionClass.LOCAL_STATE_MUTATION
-            and route.permission
-            not in {
-                AdminApiPermission.SPOT_RECOVERY_RECORD,
-                AdminApiPermission.SPOT_RECOVERY_EXECUTE,
-            }
+            and not _local_state_route_allows_reconciliation_plan(route)
         ):
             raise ReconciliationPlanError(
                 "Local-state reconciliation plans are only valid for spot "
-                "recovery proof record and execution routes."
+                "recovery proof record/execution routes and fill follow-up "
+                "trigger routes."
             )
 
     @staticmethod
@@ -221,3 +223,16 @@ def _enum_value(value: AdminApiActionClass | AdminApiPermission | str) -> str:
     if hasattr(value, "value"):
         return str(value.value)
     return value
+
+
+def _local_state_route_allows_reconciliation_plan(route: object) -> bool:
+    if getattr(route, "permission", None) in {
+        AdminApiPermission.SPOT_RECOVERY_RECORD,
+        AdminApiPermission.SPOT_RECOVERY_EXECUTE,
+    }:
+        return True
+    return (
+        getattr(route, "surface", None) == _FILL_FOLLOW_UP_TRIGGER_SURFACE
+        and getattr(route, "shared_method", None) == "trigger_order_fill_follow_up"
+        and getattr(route, "permission", None) == AdminApiPermission.ORDER_CREATE
+    )

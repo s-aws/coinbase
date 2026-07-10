@@ -359,6 +359,7 @@ from application.admin_api.models import (
     AdminApiCommandResponse,
     AdminApprovalRequestCreateRequest,
     AdminLiveAdmissionDecisionEvidence,
+    AdminOrderFillFollowUpTriggerRequest,
     ManualOrderCommand,
     ManualOrderRequest,
     MovementRepriceRequest,
@@ -77157,6 +77158,390 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
     assert chain_payload["local_state_mutated"] is False
     assert chain_payload["exchange_state_mutated"] is False
     assert chain_payload["live_coinbase_orders_ran"] is False
+
+
+@pytest.mark.regression
+def test_admin_api_order_fill_follow_up_trigger_accepts_public_route_proof_chain(
+    monkeypatch,
+):
+    import application.admin_api.read_service as read_service
+    import configuration
+    import database.order as order_module
+    from api.v1.routes import orders as order_routes
+
+    root_id = "ad4e8400-e29b-41d4-a716-446655440000"
+    child_id = "ad5e8400-e29b-41d4-a716-446655440000"
+    idempotency_key = "idem-fill-follow-up-trigger-public-proof-chain"
+    operator_intent = "trigger_fill_follow_up_public_route_test"
+    command_route = (
+        "/api/v1/orders/{client_order_id}/fill-follow-up/trigger"
+    )
+    body = {
+        "fill_testing_approval_id": (
+            "fill-follow-up-approval-public-proof-chain"
+        ),
+        "wallet_proof_ref": (
+            "cap_guard_wallet:fill-follow-up-cap-guard-public-proof-chain"
+        ),
+        "cap_guard_decision_id": (
+            "fill-follow-up-cap-guard-public-proof-chain"
+        ),
+        "reconciliation_plan_id": (
+            "fill-follow-up-reconciliation-public-proof-chain"
+        ),
+        "audit_correlation_id": "corr-root-public-proof-chain",
+        "confirm_duplicate_claim_protection": True,
+        "operator_notes": "public proof routes must bind trigger refs",
+    }
+    trigger_body = (
+        AdminOrderFillFollowUpTriggerRequest.model_validate(body).model_dump(
+            mode="json",
+            exclude_none=True,
+        )
+    )
+    payload_hash = make_payload_hash(
+        {
+            "endpoint": f"POST /api/v1/orders/{root_id}/fill-follow-up/trigger",
+            "actor_id": "operator-001",
+            "roles": [AdminApiRole.TRADER.value],
+            "operator_intent": operator_intent,
+            "body": trigger_body,
+            "path_params": {"client_order_id": root_id},
+        }
+    )
+    root_order = {
+        "client_order_id": root_id,
+        "product_id": "BTC-USD",
+        "side": "BUY",
+        "status": "FILLED",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "100.00",
+        "parent_order_id": None,
+        "created_at": "2026-07-10T01:00:00Z",
+        "updated_at": "2026-07-10T01:02:00Z",
+        "exchange_order_id": "exchange-evidence-root",
+        "correlation_id": "corr-root-public-proof-chain",
+    }
+    child_order = {
+        "client_order_id": child_id,
+        "product_id": "BTC-USD",
+        "side": "SELL",
+        "status": "HIDDEN",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "101.00",
+        "parent_order_id": root_id,
+        "created_at": "2026-07-10T01:03:00Z",
+        "updated_at": "2026-07-10T01:03:00Z",
+        "exchange_order_id": None,
+        "audit_id": "audit-child-public-proof-chain",
+    }
+    executor_state = {"called": False}
+    executor_calls: list[dict[str, object]] = []
+
+    def trigger_filled_follow_up(*, order, context):
+        executor_state["called"] = True
+        executor_calls.append({"order": order, "context": context})
+        return {
+            "status": "executed",
+            "source": "fake_fill_follow_up_executor",
+            "order_engine_handle_filled_order_called": True,
+            "claim_acquired": True,
+            "coinbase_order_submit_ran": False,
+            "coinbase_order_cancel_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "exchange_state_mutated": False,
+        }
+
+    fake_executor = SimpleNamespace(
+        trigger_filled_follow_up=trigger_filled_follow_up
+    )
+    runtime_orderbook = SimpleNamespace(
+        follow_up_claim_state=lambda trigger, client_order_id: (
+            "done" if executor_state["called"] else None
+        )
+    )
+    runtime_engine = SimpleNamespace(
+        orderbook=runtime_orderbook,
+        orderbook_lock=None,
+        handle_filled_order=lambda order: None,
+    )
+    monkeypatch.setattr(
+        read_service,
+        "_runtime_bridge",
+        lambda: SimpleNamespace(order_engine=runtime_engine),
+    )
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order",
+        lambda client_order_id: root_order if client_order_id == root_id else None,
+    )
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_orders",
+        lambda: [root_order, child_order]
+        if executor_state["called"]
+        else [root_order],
+    )
+    monkeypatch.setattr(
+        order_module,
+        "get_stealth_children_for_parent",
+        lambda parent_order_id: [],
+    )
+    monkeypatch.setattr(
+        configuration,
+        "rest_get_products",
+        lambda: {
+            "BTC-USD": {
+                "product_id": "BTC-USD",
+                "product_type": "SPOT",
+                "future_product_details": {},
+            }
+        },
+    )
+
+    client = _client(monkeypatch)
+    client.app.dependency_overrides[order_routes.get_command_service] = lambda: (
+        AdminApiCommandService(
+            AdminApiCommandDependencies(
+                fill_follow_up_executor_getter=lambda: fake_executor,
+            )
+        )
+    )
+
+    approval_request = client.post(
+        "/api/v1/admin/approvals/requests",
+        headers=_headers(
+            idempotency_key="idem-fill-follow-up-public-approval-request",
+            operator_intent="request_fill_follow_up_public_route_approval",
+            roles=AdminApiRole.TRADER.value,
+        ),
+        json={
+            "route": command_route,
+            "method": "POST",
+            "module_id": "spot_operations",
+            "identity_key": "client_order_id",
+            "identity_value": root_id,
+            "action_class": AdminApiActionClass.LOCAL_STATE_MUTATION.value,
+            "required_permission": AdminApiPermission.ORDER_CREATE.value,
+            "operator_intent": operator_intent,
+            "command_idempotency_key": idempotency_key,
+            "payload_hash": payload_hash,
+            "request_reason": "prove fill follow-up public proof refs",
+        },
+    )
+    assert approval_request.status_code == 200
+    approval_request_id = approval_request.json()["approval"][
+        "approval_request_id"
+    ]
+
+    expires_at = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+    approval_decision = client.post(
+        f"/api/v1/admin/approvals/requests/{approval_request_id}/decisions",
+        headers=_headers(
+            idempotency_key="idem-fill-follow-up-public-approval-decision",
+            operator_intent="approve_fill_follow_up_public_route_snapshot",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json={
+            "decision": AdminApiApprovalLifecycleStatus.APPROVED.value,
+            "decision_reason": "public route proof chain test approval",
+            "expires_at": expires_at,
+            "approval_id": body["fill_testing_approval_id"],
+            "cap_guard_decision_ref": body["cap_guard_decision_id"],
+            "reconciliation_plan_ref": body["reconciliation_plan_id"],
+        },
+    )
+    assert approval_decision.status_code == 200
+    approval = approval_decision.json()["approval"]
+    assert approval["approval_id"] == body["fill_testing_approval_id"]
+    assert approval["cap_guard_decision_ref"] == body["cap_guard_decision_id"]
+    assert approval["reconciliation_plan_ref"] == body["reconciliation_plan_id"]
+
+    admission_response = client.post(
+        "/api/v1/admin/admission-audits",
+        headers=_headers(
+            idempotency_key="idem-fill-follow-up-public-admission-audit",
+            operator_intent="record_fill_follow_up_public_admission",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json={
+            "route": command_route,
+            "method": "POST",
+            "module_id": "spot_operations",
+            "identity_key": "client_order_id",
+            "identity_value": root_id,
+            "action_class": AdminApiActionClass.LOCAL_STATE_MUTATION.value,
+            "required_permission": AdminApiPermission.ORDER_CREATE.value,
+            "service_method": "trigger_order_fill_follow_up",
+            "actor_id": "operator-001",
+            "operator_intent": operator_intent,
+            "command_idempotency_key": idempotency_key,
+            "payload_hash": payload_hash,
+            "approval_snapshot_id": body["fill_testing_approval_id"],
+            "approval_snapshot_approved_by_actor_id": "operator-001",
+            "approval_snapshot_requested_by_actor_id": "operator-001",
+            "approval_snapshot_expires_at": expires_at,
+            "approval_cap_guard_decision_ref": body["cap_guard_decision_id"],
+            "approval_reconciliation_plan_ref": body["reconciliation_plan_id"],
+            "allowed": False,
+            "status": AdminApiGateStatus.BLOCKED.value,
+            "reason": "public admission proof for fill follow-up trigger",
+        },
+    )
+    assert admission_response.status_code == 200
+    admission_audit = admission_response.json()["admission_audit"]
+    admission_audit_id = admission_audit["admission_audit_id"]
+    assert admission_audit["route"] == command_route
+    assert admission_audit["approval_snapshot_id"] == (
+        body["fill_testing_approval_id"]
+    )
+    assert admission_audit["approval_cap_guard_decision_ref"] == (
+        body["cap_guard_decision_id"]
+    )
+    assert admission_audit["approval_reconciliation_plan_ref"] == (
+        body["reconciliation_plan_id"]
+    )
+
+    cap_guard_response = client.post(
+        "/api/v1/admin/cap-guard/decisions",
+        headers=_headers(
+            idempotency_key="idem-fill-follow-up-public-cap-guard",
+            operator_intent="record_fill_follow_up_public_cap_guard",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json={
+            "route": command_route,
+            "method": "POST",
+            "module_id": "spot_operations",
+            "identity_key": "client_order_id",
+            "identity_value": root_id,
+            "action_class": AdminApiActionClass.LOCAL_STATE_MUTATION.value,
+            "required_permission": AdminApiPermission.ORDER_CREATE.value,
+            "service_method": "trigger_order_fill_follow_up",
+            "actor_id": "operator-001",
+            "operator_intent": operator_intent,
+            "command_idempotency_key": idempotency_key,
+            "payload_hash": payload_hash,
+            "approval_snapshot_id": body["fill_testing_approval_id"],
+            "approval_cap_guard_decision_ref": body["cap_guard_decision_id"],
+            "admission_audit_id": admission_audit_id,
+            "allowed": True,
+            "status": AdminApiGateStatus.PASSED.value,
+            "cap_policy_ref": "fill_follow_up_cap:local_state_only",
+            "guard_policy_ref": "fill_follow_up_duplicate_and_scope_guard",
+            "product_scope": "BTC-USD spot fill follow-up scope",
+            "max_submitted_notional_usdc": "10.00",
+            "max_executed_notional_usdc": "0",
+            "wallet_check_required": True,
+            "wallet_check_status": AdminApiGateStatus.PASSED.value,
+            "wallet_available_notional_usdc": "10.00",
+            "wallet_check_source": (
+                "operator_supplied_fill_follow_up_wallet_evidence"
+            ),
+            "reason": "public cap/guard proof for fill follow-up trigger",
+        },
+    )
+    assert cap_guard_response.status_code == 200
+    cap_guard = cap_guard_response.json()["decision"]
+    assert cap_guard["decision_id"] == body["cap_guard_decision_id"]
+    assert cap_guard["admission_audit_id"] == admission_audit_id
+
+    reconciliation_response = client.post(
+        "/api/v1/admin/reconciliation/plans",
+        headers=_headers(
+            idempotency_key="idem-fill-follow-up-public-reconciliation",
+            operator_intent="record_fill_follow_up_public_reconciliation",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json={
+            "route": command_route,
+            "method": "POST",
+            "module_id": "spot_operations",
+            "identity_key": "client_order_id",
+            "identity_value": root_id,
+            "action_class": AdminApiActionClass.LOCAL_STATE_MUTATION.value,
+            "required_permission": AdminApiPermission.ORDER_CREATE.value,
+            "service_method": "trigger_order_fill_follow_up",
+            "actor_id": "operator-001",
+            "operator_intent": operator_intent,
+            "command_idempotency_key": idempotency_key,
+            "payload_hash": payload_hash,
+            "approval_snapshot_id": body["fill_testing_approval_id"],
+            "approval_reconciliation_plan_ref": (
+                body["reconciliation_plan_id"]
+            ),
+            "admission_audit_id": admission_audit_id,
+            "cap_guard_decision_id": body["cap_guard_decision_id"],
+            "allowed": True,
+            "status": AdminApiGateStatus.PASSED.value,
+            "reconciliation_policy_ref": (
+                "fill_follow_up_parent_child_chain_readback"
+            ),
+            "product_scope": "BTC-USD spot fill follow-up scope",
+            "exchange_submission_required": False,
+            "post_submit_reconciliation_required": True,
+            "retained_inventory_required": True,
+            "max_submitted_notional_usdc": "10.00",
+            "max_executed_notional_usdc": "0",
+            "reason": "public reconciliation proof for fill follow-up trigger",
+        },
+    )
+    assert reconciliation_response.status_code == 200
+    reconciliation = reconciliation_response.json()["plan"]
+    assert reconciliation["plan_id"] == body["reconciliation_plan_id"]
+    assert reconciliation["cap_guard_decision_id"] == (
+        body["cap_guard_decision_id"]
+    )
+
+    response = client.post(
+        f"/api/v1/orders/{root_id}/fill-follow-up/trigger",
+        headers=_headers(
+            idempotency_key=idempotency_key,
+            operator_intent=operator_intent,
+            roles=AdminApiRole.TRADER.value,
+        ),
+        json=body,
+    )
+
+    assert response.status_code == 200
+    assert len(executor_calls) == 1
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    admission = payload["admission_decision"]
+    assert admission["approval_snapshot_id"] == body["fill_testing_approval_id"]
+    assert admission["cap_guard_decision_id"] == body["cap_guard_decision_id"]
+    assert admission["reconciliation_plan_id"] == body["reconciliation_plan_id"]
+    data = payload["data"]
+    assert data["trigger_accepted"] is True
+    assert data["requested_refs"] == {
+        "fill_testing_approval_id": body["fill_testing_approval_id"],
+        "wallet_proof_ref": body["wallet_proof_ref"],
+        "cap_guard_decision_id": body["cap_guard_decision_id"],
+        "reconciliation_plan_id": body["reconciliation_plan_id"],
+        "audit_correlation_id": body["audit_correlation_id"],
+        "confirm_duplicate_claim_protection": True,
+    }
+    assert data["blockers"] == []
+    validation = data["prerequisite_validation"]
+    assert validation["fill_testing_approval"]["status"] == "verified"
+    assert validation["wallet_proof"]["status"] == "verified"
+    assert validation["cap_guard_decision"]["status"] == "verified"
+    assert validation["reconciliation_plan"]["status"] == "verified"
+    assert validation["audit_correlation"]["status"] == "matched"
+    assert validation["duplicate_claim_ack"]["status"] == "acknowledged"
+    assert validation["duplicate_claim_guard"]["status"] == "available"
+    assert data["chain"]["follow_up_child_client_order_ids"] == [child_id]
+    assert data["accepted_follow_up_child_client_order_id"] == child_id
+    assert data["coinbase_order_submit_ran"] is False
+    assert data["coinbase_order_cancel_submitted"] is False
+    assert data["local_state_mutated"] is True
+    assert data["exchange_state_mutated"] is False
+    assert executor_calls[0]["context"]["requested_refs"] == data["requested_refs"]
+    assert executor_calls[0]["context"]["prerequisite_validation"] == validation
 
 
 @pytest.mark.regression

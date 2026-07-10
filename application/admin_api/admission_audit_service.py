@@ -25,6 +25,11 @@ from .models import (
 from .route_inventory import ADMIN_API_ROUTE_INVENTORY
 
 
+_FILL_FOLLOW_UP_TRIGGER_SURFACE = (
+    "POST /api/v1/orders/{client_order_id}/fill-follow-up/trigger"
+)
+
+
 class AdmissionAuditError(ValueError):
     """Raised when an admission audit record is invalid."""
 
@@ -118,15 +123,11 @@ class AdminApiAdmissionAuditService:
             )
         if (
             route.action_class == AdminApiActionClass.LOCAL_STATE_MUTATION
-            and route.permission
-            not in {
-                AdminApiPermission.SPOT_RECOVERY_RECORD,
-                AdminApiPermission.SPOT_RECOVERY_EXECUTE,
-            }
+            and not _local_state_route_allows_admission_audit(route)
         ):
             raise AdmissionAuditError(
                 "Local-state admission audits are only valid for spot recovery "
-                "proof record and execution routes."
+                "proof record/execution routes and fill follow-up trigger routes."
             )
 
     @staticmethod
@@ -327,3 +328,16 @@ def _enum_value(value: AdminApiActionClass | AdminApiPermission | str) -> str:
     if hasattr(value, "value"):
         return str(value.value)
     return value
+
+
+def _local_state_route_allows_admission_audit(route: object) -> bool:
+    if getattr(route, "permission", None) in {
+        AdminApiPermission.SPOT_RECOVERY_RECORD,
+        AdminApiPermission.SPOT_RECOVERY_EXECUTE,
+    }:
+        return True
+    return (
+        getattr(route, "surface", None) == _FILL_FOLLOW_UP_TRIGGER_SURFACE
+        and getattr(route, "shared_method", None) == "trigger_order_fill_follow_up"
+        and getattr(route, "permission", None) == AdminApiPermission.ORDER_CREATE
+    )
