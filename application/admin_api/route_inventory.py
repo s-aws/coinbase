@@ -133,10 +133,14 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
             "fail-closed fill follow-up trigger boundary; rejects incomplete "
             "fill-testing approval, wallet/cap/reconciliation proof, "
             "duplicate-claim acknowledgement/readback, audit correlation, "
-            "existing child, duplicate chain, or missing execution adapter "
-            "before claim acquisition, OrderEngine.handle_filled_order, "
-            "stealth follow-up creation, Coinbase call, or local/exchange "
-            "mutation"
+            "existing child, duplicate chain, or missing execution adapter; "
+            "after exact route-bound approval, wallet proof "
+            "cap_guard_wallet:<cap_guard_decision_id>, cap/guard, "
+            "reconciliation, duplicate-claim, audit-correlation, and "
+            "parent/child checks clear, it may invoke the no-live "
+            "fill-follow-up executor, require accepted child readback, and "
+            "still reports Coinbase submit/cancel and live exchange mutation "
+            "remain disallowed"
         ),
     ),
     AdminApiRouteInventoryItem(

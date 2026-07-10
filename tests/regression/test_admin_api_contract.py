@@ -89228,6 +89228,20 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows[
         "POST /api/v1/orders/{client_order_id}/fill-follow-up/trigger"
     ].action_class == AdminApiActionClass.LOCAL_STATE_MUTATION
+    trigger_route = rows[
+        "POST /api/v1/orders/{client_order_id}/fill-follow-up/trigger"
+    ]
+    assert "exact route-bound approval" in trigger_route.parity_test
+    assert "may invoke the no-live fill-follow-up executor" in (
+        trigger_route.parity_test
+    )
+    assert "accepted child readback" in trigger_route.parity_test
+    assert "Coinbase submit/cancel and live exchange mutation remain disallowed" in (
+        trigger_route.parity_test
+    )
+    assert "missing execution adapter before claim acquisition" not in (
+        trigger_route.parity_test
+    )
     assert rows["GET /api/v1/stealth/orders"].shared_method == (
         "build_stealth_order_list"
     )
@@ -89655,6 +89669,12 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
         if len(columns) < 9:
             continue
         markdown_inventory_rows[columns[0].strip("`")] = columns
+    trigger_doc_row = markdown_inventory_rows[trigger_route.surface]
+    assert trigger_doc_row[1].strip("`") == trigger_route.action_class.value
+    assert trigger_doc_row[2].strip("`") == trigger_route.permission.value
+    assert trigger_doc_row[5] == trigger_route.caps
+    assert trigger_doc_row[7].strip("`") == trigger_route.shared_method
+    assert trigger_doc_row[8] == trigger_route.parity_test
     spot_recovery_preview_doc_row = markdown_inventory_rows[
         "GET /api/v1/spot/recovery/preview"
     ]
