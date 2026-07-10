@@ -10653,6 +10653,17 @@ def _record_usdc_pair_live_fanout_submissions(
         zip(contexts, execution_values, strict=False)
     ):
         execution = _mapping_value(execution_value)
+        row_identity_blockers = (
+            _usdc_pair_live_fanout_executor_row_identity_blockers(
+                execution=execution,
+                readiness=readiness,
+            )
+        )
+        if row_identity_blockers:
+            raise UsdcPairSnapshotError(
+                "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
+                + ",".join(row_identity_blockers)
+            )
         submit_result = _mapping_value(execution.get("submit_result"))
         cancel_result = _mapping_value(execution.get("cancel_result"))
         cancel_submitted = bool(
@@ -10769,6 +10780,30 @@ def _record_usdc_pair_live_fanout_submissions(
             "fanout_executor_returned_no_submissions"
         )
     return submissions
+
+
+def _usdc_pair_live_fanout_executor_row_identity_blockers(
+    *,
+    execution: Mapping[str, Any],
+    readiness: UsdcPairSnapshotOrderPlanLiveReadinessRecord,
+) -> list[str]:
+    blockers: list[str] = []
+    execution_client_order_id = _non_empty_text(execution.get("client_order_id"))
+    if (
+        execution_client_order_id
+        and execution_client_order_id != readiness.client_order_id
+    ):
+        blockers.append("fanout_executor_client_order_id_mismatch")
+    execution_product_id = _non_empty_text(execution.get("product_id"))
+    if (
+        execution_product_id
+        and execution_product_id.upper() != readiness.product_id.upper()
+    ):
+        blockers.append("fanout_executor_product_id_mismatch")
+    execution_side = _non_empty_text(execution.get("side"))
+    if execution_side and execution_side.upper() != _enum_text(readiness.side).upper():
+        blockers.append("fanout_executor_side_mismatch")
+    return blockers
 
 
 def _usdc_pair_live_fanout_executor_count_blockers(

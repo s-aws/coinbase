@@ -45836,6 +45836,127 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_execution_row_identity_mismatch(
+    monkeypatch,
+):
+    from api.v1.routes import automation as automation_routes
+
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-row-identity-drift",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-row-identity-drift-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    _append_usdc_pair_snapshot_multi_product_live_fanout_ready_fixture(
+        client,
+        ready,
+    )
+
+    class RowIdentityMismatchFanoutExecutor:
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        def submit_and_cancel_all(self, **kwargs):
+            self.calls.append(dict(kwargs))
+            order_rows = []
+            for index, order in enumerate(kwargs["orders"]):
+                mismatch = index == 0
+                order_rows.append(
+                    {
+                        "client_order_id": (
+                            "wrong-client-order-id"
+                            if mismatch
+                            else order["client_order_id"]
+                        ),
+                        "product_id": (
+                            "ETH-USDC" if mismatch else order["product_id"]
+                        ),
+                        "side": "SELL" if mismatch else order["side"],
+                        "coinbase_order_id": (
+                            f"exchange-{order['client_order_id']}"
+                        ),
+                        "submit_result": {
+                            "success": True,
+                            "client_order_id": order["client_order_id"],
+                        },
+                        "cancel_result": {
+                            "success": True,
+                            "client_order_id": order["client_order_id"],
+                        },
+                        "submitted_at": "2026-07-10T12:00:00+00:00",
+                        "cancelled_at": "2026-07-10T12:00:01+00:00",
+                        "order_configuration": order["order_configuration"],
+                        "live_exchange_submitted": True,
+                        "live_coinbase_orders_ran": True,
+                        "live_coinbase_execution": "submitted_cancelled",
+                        "submitted_notional_usdc": (
+                            order["submitted_notional_usdc"]
+                        ),
+                        "executed_notional_usdc": "0",
+                        "max_executed_notional_usdc": (
+                            order["max_executed_notional_usdc"]
+                        ),
+                        "cancel_submitted": True,
+                        "cancel_rollback_complete": True,
+                    }
+                )
+            return {
+                "requested_order_count": len(kwargs["orders"]),
+                "order_count": len(order_rows),
+                "orders": order_rows,
+                "submitted_notional_usdc": "2.00",
+                "executed_notional_usdc": "0",
+                "max_executed_notional_usdc": "0.02",
+                "max_orders_per_second": kwargs["max_orders_per_second"],
+                "cancel_submitted": True,
+                "cancel_rollback_complete": True,
+                "additional_orders_blocked": True,
+                "live_exchange_submitted": True,
+                "live_coinbase_orders_ran": True,
+                "live_coinbase_execution": "submitted_cancelled",
+            }
+
+    fake_fanout_executor = RowIdentityMismatchFanoutExecutor()
+    client.app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_live_fanout_executor
+    ] = lambda: fake_fanout_executor
+
+    response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="row-identity-drift",
+        operator_notes="executor row identity must match selected readiness",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    assert "fanout_executor_client_order_id_mismatch" in payload["message"]
+    assert "fanout_executor_product_id_mismatch" in payload["message"]
+    assert "fanout_executor_side_mismatch" in payload["message"]
+    assert payload["submission"] is None
+    assert payload["submissions"] == []
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert len(fake_fanout_executor.calls) == 1
+    assert (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_live_submit_store.read_recent(
+            limit=10
+        )
+        == []
+    )
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_records_cancel_failure_without_second_order(
     monkeypatch,
 ):
