@@ -5690,11 +5690,14 @@ def _allowlist_run_state_scheduler_retry_policy_readback(
 
 def _allowlist_run_state_scheduler_cadence_readback(
     *,
+    run_lock_ref: str | None,
+    run_lock_conflict_blocker: str | None,
     cadence_policy_ref: str | None,
     worker_ref: str | None,
     release_gate_ref: str | None,
 ) -> tuple[str, str | None, list[str]]:
     blockers: list[str] = []
+    normalized_run_lock_ref = run_lock_ref.strip() if run_lock_ref else None
     normalized_cadence_policy_ref = (
         cadence_policy_ref.strip() if cadence_policy_ref else None
     )
@@ -5702,6 +5705,10 @@ def _allowlist_run_state_scheduler_cadence_readback(
     normalized_release_gate_ref = (
         release_gate_ref.strip() if release_gate_ref else None
     )
+    if not normalized_run_lock_ref:
+        blockers.append(USDC_PAIR_SNAPSHOT_RUN_LOCK_MISSING_BLOCKER)
+    if run_lock_conflict_blocker:
+        blockers.append(run_lock_conflict_blocker)
     if not normalized_worker_ref:
         blockers.append("scheduler_worker_missing")
     if not normalized_cadence_policy_ref:
@@ -5717,6 +5724,7 @@ def _allowlist_run_state_scheduler_cadence_readback(
     return (
         "ready_no_live",
         (
+            f"run_lock:{normalized_run_lock_ref};"
             f"cadence_policy:{normalized_cadence_policy_ref};"
             f"worker:{normalized_worker_ref};"
             f"release_gate:{normalized_release_gate_ref}"
@@ -5727,16 +5735,23 @@ def _allowlist_run_state_scheduler_cadence_readback(
 
 def _allowlist_run_state_scheduler_recovery_runbook_readback(
     *,
+    run_lock_ref: str | None,
+    run_lock_conflict_blocker: str | None,
     runbook_ref: str | None,
     worker_ref: str | None,
     reconciliation_replay_ref: str | None,
 ) -> tuple[str, str | None, list[str]]:
     blockers: list[str] = []
+    normalized_run_lock_ref = run_lock_ref.strip() if run_lock_ref else None
     normalized_runbook_ref = runbook_ref.strip() if runbook_ref else None
     normalized_worker_ref = worker_ref.strip() if worker_ref else None
     normalized_reconciliation_replay_ref = (
         reconciliation_replay_ref.strip() if reconciliation_replay_ref else None
     )
+    if not normalized_run_lock_ref:
+        blockers.append(USDC_PAIR_SNAPSHOT_RUN_LOCK_MISSING_BLOCKER)
+    if run_lock_conflict_blocker:
+        blockers.append(run_lock_conflict_blocker)
     if not normalized_runbook_ref:
         blockers.append("scheduler_recovery_runbook_missing")
     if not normalized_worker_ref:
@@ -5752,6 +5767,7 @@ def _allowlist_run_state_scheduler_recovery_runbook_readback(
     return (
         "ready_no_live",
         (
+            f"run_lock:{normalized_run_lock_ref};"
             f"runbook:{normalized_runbook_ref};"
             f"worker:{normalized_worker_ref};"
             f"reconciliation_replay:{normalized_reconciliation_replay_ref}"
@@ -6299,6 +6315,8 @@ def _record_usdc_pair_allowlist_run_state(
         scheduler_cadence_ref,
         scheduler_cadence_blockers,
     ) = _allowlist_run_state_scheduler_cadence_readback(
+        run_lock_ref=body.run_lock_ref,
+        run_lock_conflict_blocker=run_lock_conflict_blocker,
         cadence_policy_ref=body.scheduler_cadence_policy_ref,
         worker_ref=body.scheduler_cadence_worker_ref,
         release_gate_ref=body.scheduler_cadence_release_gate_ref,
@@ -6308,6 +6326,8 @@ def _record_usdc_pair_allowlist_run_state(
         scheduler_recovery_runbook_ref,
         scheduler_recovery_runbook_blockers,
     ) = _allowlist_run_state_scheduler_recovery_runbook_readback(
+        run_lock_ref=body.run_lock_ref,
+        run_lock_conflict_blocker=run_lock_conflict_blocker,
         runbook_ref=body.scheduler_recovery_runbook_ref,
         worker_ref=body.scheduler_recovery_worker_ref,
         reconciliation_replay_ref=body.scheduler_reconciliation_replay_ref,

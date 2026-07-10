@@ -69,6 +69,28 @@ This project runs on **Windows 11 + VS Code**. Linux/bash commands may not work 
   the requested work or wait for the user to start it. Do not perform repo
   work in local checkouts as a substitute for the EC2 workspace.
 
+## Codex Desktop Terminal Bridge Guard
+
+- Do not use `codex_app.read_thread_terminal` for routine status, cleanup,
+  process hygiene, or final verification in this EC2 workspace. It has
+  previously blocked indefinitely while waiting on the Codex Desktop/app-server
+  terminal bridge, leaving the turn active with low CPU usage and no repo
+  command still running.
+- Treat low CPU during that wait as evidence of an app/tool-layer await, not as
+  evidence that a repo command is making progress. The bridge read has no
+  repo-side timeout or shell PID to inspect from the workspace.
+- Use shell-side checks instead: `ps`, `pgrep`, `pstree`, `lsof`,
+  `python3.13 tools/check_stale_test_processes.py --include-sibling-frontend`,
+  `git status --short`, and targeted log reads under `/home/ec2-user/.codex/`
+  when investigating Codex runtime state. Long-running validation should run
+  through explicit shell commands with `timeout_ms`, or a controlled background
+  process with a PID and log file that can be checked from the workspace.
+- If `codex_app.read_thread_terminal` is explicitly required for a
+  user-requested Codex app diagnostic, announce the risk first and treat no
+  response within 30 seconds as a stuck terminal-bridge await. Ask the user to
+  interrupt the turn, then continue diagnosis from shell-side process and log
+  evidence rather than retrying the same tool.
+
 ## Legacy Source Material
 
 - The branch `origin/prod` may contain useful information about the legacy

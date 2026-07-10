@@ -37544,6 +37544,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_scheduler_reco
     run_state = payload["run_state"]
     assert run_state["scheduler_recovery_runbook_status"] == "ready_no_live"
     assert run_state["scheduler_recovery_runbook_ref"] == (
+        "run_lock:m58-run-lock-scheduler-recovery-runbook;"
         "runbook:m58-scheduler-recovery-runbook-no-live-20260709;"
         "worker:m58-scheduler-recovery-worker-no-live-20260709;"
         "reconciliation_replay:"
@@ -37768,6 +37769,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_scheduler_cade
     run_state = payload["run_state"]
     assert run_state["scheduler_cadence_status"] == "ready_no_live"
     assert run_state["scheduler_cadence_ref"] == (
+        "run_lock:m58-run-lock-scheduler-cadence;"
         "cadence_policy:m58-scheduler-cadence-policy-no-live-20260709;"
         "worker:m58-scheduler-cadence-worker-no-live-20260709;"
         "release_gate:m58-scheduler-cadence-release-gate-no-live-20260709"
@@ -37779,6 +37781,119 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_scheduler_cade
     assert run_state["fanout_execution_status"] == "blocked"
     assert "fanout_execution_technically_blocked" in run_state["fanout_blockers"]
     assert "scheduler_blocked" in run_state["fanout_blockers"]
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_scheduler_readbacks_require_run_lock(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    client.admin_api_test_cap_guard_store.append(
+        CapGuardDecisionRecord(
+            decision_id="cap-m58-run-state-scheduler-missing-run-lock-btc",
+            route=(
+                "/api/v1/automation/usdc-pair-snapshot-order-plan-"
+                "allowlist-readiness/{readiness_id}/run-state"
+            ),
+            method="POST",
+            module_id="automation",
+            identity_key="client_order_id",
+            identity_value="m58-usdc-run-state-negative-BTC-USDC",
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.CAMPAIGN_EXECUTE,
+            service_method="record_usdc_pair_snapshot_allowlist_run_state",
+            actor_id="contract-test",
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+            idempotency_key=(
+                "idem-usdc-allowlist-run-state-scheduler-missing-run-lock"
+            ),
+            payload_hash="8" * 64,
+            approval_snapshot_id="approval-m58-scheduler-missing-run-lock",
+            admission_audit_id="admission-m58-scheduler-missing-run-lock",
+            allowed=True,
+            status=AdminApiGateStatus.PASSED,
+            cap_policy_ref="m58_phase_f_submitted_notional_cap",
+            guard_policy_ref="m58_phase_f_wallet_allocation_guard",
+            product_scope="BTC-USDC",
+            max_submitted_notional_usdc="1.00",
+            max_executed_notional_usdc="0",
+            wallet_check_required=True,
+            wallet_check_status=AdminApiGateStatus.PASSED,
+            wallet_available_notional_usdc="1.00",
+            wallet_check_source="m58_usdc_pair_allowlist_run_state_fixture",
+            reason="No-live scheduler evidence without a current run lock.",
+        )
+    )
+    _append_usdc_pair_snapshot_allowlist_run_state_readiness(
+        client,
+        readiness_id="m58-usdc-allowlist-run-state-scheduler-missing-lock-readiness",
+        plan_id="m58-usdc-allowlist-run-state-scheduler-missing-lock-plan",
+        snapshot_run_id="m58-usdc-allowlist-run-state-scheduler-missing-lock-snapshot",
+        cap_guard_decision_id="cap-m58-run-state-scheduler-missing-run-lock-btc",
+        fanout_blockers=[
+            "fanout_execution_technically_blocked",
+            "scheduler_blocked",
+        ],
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plan-allowlist-readiness/"
+            "m58-usdc-allowlist-run-state-scheduler-missing-lock-readiness/"
+            "run-state"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-usdc-allowlist-run-state-scheduler-missing-run-lock"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state",
+        ),
+        json={
+            "run_state_id": "m58-usdc-allowlist-run-state-scheduler-missing-lock",
+            "execution_mode": "no_live_rehearsal",
+            "max_fanout_notional_usdc": "100",
+            "rate_limit_window_ref": "m58-rate-limit-window-scheduler-missing-lock",
+            "scheduler_cadence_policy_ref": "m58-scheduler-cadence-policy-no-live",
+            "scheduler_cadence_worker_ref": "m58-scheduler-cadence-worker-no-live",
+            "scheduler_cadence_release_gate_ref": (
+                "m58-scheduler-cadence-release-gate-no-live"
+            ),
+            "scheduler_recovery_runbook_ref": (
+                "m58-scheduler-recovery-runbook-no-live"
+            ),
+            "scheduler_recovery_worker_ref": (
+                "m58-scheduler-recovery-worker-no-live"
+            ),
+            "scheduler_reconciliation_replay_ref": (
+                "m58-scheduler-reconciliation-replay-no-live"
+            ),
+            "pause_requested": False,
+            "abort_requested": False,
+            "operator_notes": "scheduler evidence must bind to current run lock",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+
+    run_state = payload["run_state"]
+    assert run_state["run_lock_status"] == "missing_run_lock_ref"
+    assert run_state["run_lock_ref"] is None
+    assert run_state["scheduler_cadence_status"] == "disabled_no_live"
+    assert run_state["scheduler_cadence_ref"] is None
+    assert run_state["scheduler_cadence_blockers"] == ["run_lock_ref_missing"]
+    assert run_state["scheduler_recovery_runbook_status"] == "blocked_no_live"
+    assert run_state["scheduler_recovery_runbook_ref"] is None
+    assert run_state["scheduler_recovery_runbook_blockers"] == [
+        "run_lock_ref_missing"
+    ]
+    assert "run_lock_ref_missing" in run_state["fanout_blockers"]
     assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
 
 
@@ -43383,7 +43498,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rep
     )
     run_state_store.append(
         source_run_state.model_copy(
-            update=_usdc_pair_snapshot_live_fanout_ready_updates()
+            update=_usdc_pair_snapshot_live_fanout_ready_updates(
+                run_lock_ref=source_run_state.run_lock_ref
+            )
         )
     )
 
@@ -44866,7 +44983,9 @@ def _post_usdc_pair_snapshot_live_fanout_submit_fixture(
     )
 
 
-def _usdc_pair_snapshot_live_fanout_ready_updates() -> dict[str, Any]:
+def _usdc_pair_snapshot_live_fanout_ready_updates(
+    *, run_lock_ref: str | None
+) -> dict[str, Any]:
     return {
         "fanout_execution_status": "ready_live",
         "fanout_blockers": [],
@@ -44996,6 +45115,7 @@ def _usdc_pair_snapshot_live_fanout_ready_updates() -> dict[str, Any]:
         "scheduler_retry_policy_blockers": [],
         "scheduler_cadence_status": "ready_no_live",
         "scheduler_cadence_ref": (
+            f"run_lock:{run_lock_ref};"
             "cadence_policy:m58-scheduler-cadence;"
             "worker:m58-scheduler-cadence-worker;"
             "release_gate:m58-scheduler-cadence-release-gate"
@@ -45003,6 +45123,7 @@ def _usdc_pair_snapshot_live_fanout_ready_updates() -> dict[str, Any]:
         "scheduler_cadence_blockers": [],
         "scheduler_recovery_runbook_status": "ready_no_live",
         "scheduler_recovery_runbook_ref": (
+            f"run_lock:{run_lock_ref};"
             "runbook:m58-scheduler-recovery-runbook;"
             "worker:m58-scheduler-recovery-worker;"
             "reconciliation_replay:m58-scheduler-reconciliation"
@@ -45247,7 +45368,9 @@ def _append_usdc_pair_snapshot_multi_product_live_fanout_ready_fixture(
             "recovery_state_ref": f"m58-cancel-recovery:{extra_product_id}",
         }
     )
-    run_state_updates = _usdc_pair_snapshot_live_fanout_ready_updates()
+    run_state_updates = _usdc_pair_snapshot_live_fanout_ready_updates(
+        run_lock_ref=source_run_state.run_lock_ref
+    )
     run_state_updates.update(
         {
             "product_ids": [ready["product_id"], extra_product_id],
@@ -45349,7 +45472,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_acc
     allowlist_readiness_store.append(
         source_allowlist_readiness.model_copy(update={"fanout_blockers": []})
     )
-    proof_ref_updates = _usdc_pair_snapshot_live_fanout_ready_updates()
+    proof_ref_updates = _usdc_pair_snapshot_live_fanout_ready_updates(
+        run_lock_ref=source_run_state.run_lock_ref
+    )
     run_state_store.append(source_run_state.model_copy(update=proof_ref_updates))
 
     response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
@@ -45441,7 +45566,9 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rep
     )
     run_state_store.append(
         source_run_state.model_copy(
-            update=_usdc_pair_snapshot_live_fanout_ready_updates()
+            update=_usdc_pair_snapshot_live_fanout_ready_updates(
+                run_lock_ref=source_run_state.run_lock_ref
+            )
         )
     )
 
