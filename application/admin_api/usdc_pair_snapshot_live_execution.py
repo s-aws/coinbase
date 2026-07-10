@@ -558,6 +558,11 @@ def _ensure_fanout_execution_identity(
         execution.get("max_executed_notional_usdc"),
         str(call["max_executed_notional_usdc"]),
     )
+    observed_order_configuration = execution.get("order_configuration")
+    if isinstance(observed_order_configuration, Mapping) and (
+        dict(observed_order_configuration) != dict(call["order_configuration"])
+    ):
+        mismatches.append("order_configuration")
 
     if mismatches:
         raise UsdcPairSnapshotLiveExecutionError(
