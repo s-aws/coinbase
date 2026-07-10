@@ -5031,7 +5031,8 @@ def _allowlist_run_state_rate_limit_readback(
         (
             f"worker:{normalized_worker_ref};"
             f"binding:{normalized_binding_ref};"
-            f"release_gate:{normalized_release_gate_ref}"
+            f"release_gate:{normalized_release_gate_ref};"
+            f"rate_limit_window:{normalized_rate_limit_window_ref}"
         ),
         [],
     )
@@ -5604,7 +5605,8 @@ def _allowlist_run_state_scheduler_rate_limit_readback(
         (
             f"worker:{normalized_worker_ref};"
             f"binding:{normalized_binding_ref};"
-            f"release_gate:{normalized_release_gate_ref}"
+            f"release_gate:{normalized_release_gate_ref};"
+            f"rate_limit_window:{normalized_rate_limit_window_ref}"
         ),
         [],
     )

@@ -35728,7 +35728,8 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_rate_limit_ref
     assert run_state["runtime_fanout_rate_limit_ref"] == (
         "worker:m58-rate-limit-worker-no-live-20260708;"
         "binding:m58-rate-limit-binding-no-live-20260708;"
-        "release_gate:m58-rate-limit-release-gate-no-live-20260708"
+        "release_gate:m58-rate-limit-release-gate-no-live-20260708;"
+        "rate_limit_window:m58-rate-limit-window-rate-limit"
     )
     assert run_state["runtime_fanout_rate_limit_blockers"] == []
     assert run_state["rate_limit_status"] == "ready_no_live"
@@ -37198,7 +37199,8 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_records_scheduler_rate
     assert run_state["scheduler_rate_limit_ref"] == (
         "worker:m58-scheduler-rate-limit-worker-no-live-20260709;"
         "binding:m58-scheduler-rate-limit-binding-no-live-20260709;"
-        "release_gate:m58-scheduler-rate-limit-release-gate-no-live-20260709"
+        "release_gate:m58-scheduler-rate-limit-release-gate-no-live-20260709;"
+        "rate_limit_window:m58-rate-limit-window-scheduler-rate-limit"
     )
     assert run_state["scheduler_rate_limit_blockers"] == []
     assert run_state["rate_limit_status"] == "ready_no_live"
