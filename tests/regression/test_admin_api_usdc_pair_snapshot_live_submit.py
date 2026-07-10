@@ -1186,3 +1186,55 @@ def test_usdc_pair_snapshot_live_fanout_executor_rejects_unproved_scope_shape():
             ],
             max_orders_per_second=5,
         )
+
+
+def test_usdc_pair_snapshot_live_fanout_executor_requires_notional_evidence():
+    from application.admin_api import usdc_pair_snapshot_live_execution as live_exec
+
+    class FakeOrderExecutor:
+        def submit_and_cancel(self, **_kwargs):
+            raise AssertionError("fan-out executor must fail before submission")
+
+    executor = live_exec.UsdcPairSnapshotLiveFanoutExecutor(
+        order_executor=FakeOrderExecutor()
+    )
+
+    with pytest.raises(
+        live_exec.UsdcPairSnapshotLiveExecutionError,
+        match="requires positive submitted fan-out notional evidence",
+    ):
+        executor.submit_and_cancel_all(
+            orders=[
+                {
+                    "client_order_id": "client-order-zero-notional",
+                    "product_id": "BTC-USDC",
+                    "side": "BUY",
+                    "order_configuration": _fanout_buy_order_configuration("0"),
+                    "submitted_notional_usdc": "0",
+                    "max_executed_notional_usdc": "0.01",
+                    "cancel_client_order_id": "client-order-zero-notional",
+                },
+            ],
+            max_orders_per_second=5,
+        )
+
+    with pytest.raises(
+        live_exec.UsdcPairSnapshotLiveExecutionError,
+        match="requires valid max executed fan-out notional evidence",
+    ):
+        executor.submit_and_cancel_all(
+            orders=[
+                {
+                    "client_order_id": "client-order-invalid-max-executed",
+                    "product_id": "BTC-USDC",
+                    "side": "BUY",
+                    "order_configuration": _fanout_buy_order_configuration("1.00"),
+                    "submitted_notional_usdc": "1.00",
+                    "max_executed_notional_usdc": "not-a-decimal",
+                    "cancel_client_order_id": (
+                        "client-order-invalid-max-executed"
+                    ),
+                },
+            ],
+            max_orders_per_second=5,
+        )

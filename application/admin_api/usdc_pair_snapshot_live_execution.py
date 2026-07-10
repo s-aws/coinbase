@@ -355,16 +355,21 @@ def _fanout_order_call(order: Mapping[str, Any]) -> dict[str, Any]:
         order_configuration=order_configuration,
         submitted_notional_usdc=submitted_notional_usdc,
     )
+    max_executed_notional_usdc = _required_text(
+        order,
+        "max_executed_notional_usdc",
+    )
+    _fanout_decimal_value(
+        max_executed_notional_usdc,
+        "max executed fan-out notional",
+    )
     return {
         "client_order_id": client_order_id,
         "product_id": product_id,
         "side": side,
         "order_configuration": dict(order_configuration),
         "submitted_notional_usdc": submitted_notional_usdc,
-        "max_executed_notional_usdc": _required_text(
-            order,
-            "max_executed_notional_usdc",
-        ),
+        "max_executed_notional_usdc": max_executed_notional_usdc,
         "cancel_client_order_id": cancel_client_order_id,
     }
 
@@ -424,6 +429,11 @@ def _ensure_fanout_quote_size_matches(
         submitted_notional_usdc,
         "submitted fan-out notional",
     )
+    if submitted_value <= 0:
+        raise UsdcPairSnapshotLiveExecutionError(
+            "M58 live fan-out submit requires positive submitted fan-out "
+            "notional evidence."
+        )
     if quote_size_value != submitted_value:
         raise UsdcPairSnapshotLiveExecutionError(
             "M58 live fan-out submit quote_size must match submitted notional."
