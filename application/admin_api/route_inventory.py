@@ -101,6 +101,26 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="spot_operations",
+        surface=(
+            "GET /api/v1/orders/{client_order_id}/fill-follow-up/"
+            "trigger-preview"
+        ),
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required",
+        approval="not applicable",
+        caps="not applicable",
+        audit="read-only command admission preview evidence",
+        shared_method="preview_fill_follow_up_trigger_admission",
+        parity_test=(
+            "read-only exact fill follow-up trigger admission preview; computes "
+            "the backend POST trigger payload hash for supplied refs without "
+            "command execution, idempotency write, audit append, Coinbase call, "
+            "claim acquisition, or local/exchange mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="spot_operations",
         surface="POST /api/v1/orders/{client_order_id}/fill-follow-up/trigger",
         action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
         permission=AdminApiPermission.ORDER_CREATE,

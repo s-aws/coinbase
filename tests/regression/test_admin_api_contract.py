@@ -3572,6 +3572,20 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "root_order" in chain_schema["properties"]
     assert "follow_up_children" in chain_schema["properties"]
     assert "duplicate_child_client_order_ids" in chain_schema["properties"]
+    trigger_preview_path = written["paths"][
+        "/api/v1/orders/{client_order_id}/fill-follow-up/trigger-preview"
+    ]["get"]
+    assert trigger_preview_path["responses"]["200"]["content"][
+        "application/json"
+    ]["schema"]["$ref"] == "#/components/schemas/AdminAdmissionPreviewResponse"
+    trigger_preview_parameters = {
+        parameter["name"] for parameter in trigger_preview_path["parameters"]
+    }
+    assert "command_idempotency_key" in trigger_preview_parameters
+    assert "operator_intent" in trigger_preview_parameters
+    assert "fill_testing_approval_id" in trigger_preview_parameters
+    assert "cap_guard_decision_id" in trigger_preview_parameters
+    assert "confirm_duplicate_claim_protection" in trigger_preview_parameters
     trigger_path = written["paths"][
         "/api/v1/orders/{client_order_id}/fill-follow-up/trigger"
     ]["post"]
@@ -76088,6 +76102,132 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
 
 
 @pytest.mark.regression
+def test_admin_api_order_fill_follow_up_trigger_preview_reads_exact_context(
+    monkeypatch,
+):
+    import configuration
+    import database.order as order_module
+
+    root_id = "a90e8400-e29b-41d4-a716-446655440000"
+    idempotency_key = "idem-fill-follow-up-trigger-preview"
+    operator_intent = "trigger_fill_follow_up_test"
+    body = {
+        "fill_testing_approval_id": "fill-follow-up-approval-preview",
+        "wallet_proof_ref": "cap_guard_wallet:fill-follow-up-cap-guard-preview",
+        "cap_guard_decision_id": "fill-follow-up-cap-guard-preview",
+        "reconciliation_plan_id": "fill-follow-up-reconciliation-preview",
+        "audit_correlation_id": "corr-root-follow-up",
+        "confirm_duplicate_claim_protection": True,
+        "operator_notes": "preview exact fill follow-up trigger context",
+    }
+    payload_hash = make_payload_hash(
+        {
+            "endpoint": f"POST /api/v1/orders/{root_id}/fill-follow-up/trigger",
+            "actor_id": "operator-001",
+            "roles": [AdminApiRole.VIEWER.value],
+            "operator_intent": operator_intent,
+            "body": body,
+            "path_params": {"client_order_id": root_id},
+        }
+    )
+    root_order = {
+        "client_order_id": root_id,
+        "product_id": "BTC-USD",
+        "side": "BUY",
+        "status": "FILLED",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "100.00",
+        "parent_order_id": None,
+        "created_at": "2026-07-10T01:00:00Z",
+        "updated_at": "2026-07-10T01:02:00Z",
+        "exchange_order_id": "exchange-evidence-root",
+        "correlation_id": "corr-root-follow-up",
+    }
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order",
+        lambda client_order_id: root_order if client_order_id == root_id else None,
+    )
+    monkeypatch.setattr(order_module, "get_parent_orders", lambda: [root_order])
+    monkeypatch.setattr(
+        order_module,
+        "get_stealth_children_for_parent",
+        lambda parent_order_id: [],
+    )
+    monkeypatch.setattr(
+        configuration,
+        "rest_get_products",
+        lambda: {
+            "BTC-USD": {
+                "product_id": "BTC-USD",
+                "product_type": "SPOT",
+                "future_product_details": {},
+            }
+        },
+    )
+
+    client = _client(monkeypatch)
+    params = {
+        "command_idempotency_key": idempotency_key,
+        "operator_intent": operator_intent,
+        **body,
+    }
+
+    denied = client.get(
+        f"/api/v1/orders/{root_id}/fill-follow-up/trigger-preview",
+        params=params,
+    )
+    assert denied.status_code == 401
+
+    audit_count_before_preview = len(client.admin_api_test_audit_store.read_recent())
+    missing = client.get(
+        f"/api/v1/orders/{root_id}/fill-follow-up/trigger-preview",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+        params=params,
+    )
+    audit_count_after_preview = len(client.admin_api_test_audit_store.read_recent())
+
+    assert missing.status_code == 200
+    payload = missing.json()
+    assert payload["type"] == "admin_admission_preview"
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["action_class"] == AdminApiActionClass.READ_ONLY.value
+    assert payload["required_permission"] == AdminApiPermission.ANALYTICS_READ.value
+    assert payload["service_method"] == "preview_live_admission"
+    assert payload["browser_authority"] == "display_only"
+    assert payload["bff_authority"] == "read_only_forward"
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    decision = payload["admission_decision"]
+    assert decision["route"] == (
+        "/api/v1/orders/{client_order_id}/fill-follow-up/trigger"
+    )
+    assert decision["method"] == "POST"
+    assert decision["module_id"] == "spot_operations"
+    assert decision["identity_key"] == "client_order_id"
+    assert decision["identity_value"] == root_id
+    assert decision["action_class"] == (
+        AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    )
+    assert decision["required_permission"] == AdminApiPermission.ORDER_CREATE.value
+    assert decision["service_method"] == "trigger_order_fill_follow_up"
+    assert decision["actor_id"] == "operator-001"
+    assert decision["idempotency_key"] == idempotency_key
+    assert decision["operator_intent"] == operator_intent
+    assert decision["payload_hash"] == payload_hash
+    assert decision["status"] == AdminApiGateStatus.BLOCKED.value
+    assert decision["allowed"] is False
+    assert "approval_snapshot_missing" in decision["blockers"]
+    assert "admission_audit_missing" in decision["blockers"]
+    assert "cap_guard_missing" in decision["blockers"]
+    assert "reconciliation_plan_missing" in decision["blockers"]
+    assert decision["live_exchange_submitted"] is False
+    assert audit_count_after_preview == audit_count_before_preview
+    assert client.admin_api_test_idempotency_store.get_record(idempotency_key) is None
+
+
+@pytest.mark.regression
 def test_admin_api_order_fill_follow_up_trigger_rejects_missing_prereqs_without_execution(
     monkeypatch,
 ):
@@ -88689,6 +88829,12 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     ].shared_method == "build_order_fill_follow_up_chain"
     assert rows[
         "GET /api/v1/orders/{client_order_id}/fill-follow-up/chain"
+    ].action_class == AdminApiActionClass.READ_ONLY
+    assert rows[
+        "GET /api/v1/orders/{client_order_id}/fill-follow-up/trigger-preview"
+    ].shared_method == "preview_fill_follow_up_trigger_admission"
+    assert rows[
+        "GET /api/v1/orders/{client_order_id}/fill-follow-up/trigger-preview"
     ].action_class == AdminApiActionClass.READ_ONLY
     assert rows[
         "POST /api/v1/orders/{client_order_id}/fill-follow-up/trigger"

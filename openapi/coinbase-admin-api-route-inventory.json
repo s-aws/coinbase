@@ -100,6 +100,22 @@
     },
     {
       "module_id": "spot_operations",
+      "surface": "GET /api/v1/orders/{client_order_id}/fill-follow-up/trigger-preview",
+      "method": "GET",
+      "path": "/api/v1/orders/{client_order_id}/fill-follow-up/trigger-preview",
+      "action_class": "read_only",
+      "permission": "analytics:read",
+      "idempotency": "not required",
+      "approval": "not applicable",
+      "caps": "not applicable",
+      "audit": "read-only command admission preview evidence",
+      "shared_method": "preview_fill_follow_up_trigger_admission",
+      "parity_test": "read-only exact fill follow-up trigger admission preview; computes the backend POST trigger payload hash for supplied refs without command execution, idempotency write, audit append, Coinbase call, claim acquisition, or local/exchange mutation",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
+      "module_id": "spot_operations",
       "surface": "POST /api/v1/orders/{client_order_id}/fill-follow-up/trigger",
       "method": "POST",
       "path": "/api/v1/orders/{client_order_id}/fill-follow-up/trigger",

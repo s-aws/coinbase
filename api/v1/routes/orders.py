@@ -64,6 +64,7 @@ from application.admin_api.stealth_post_write_reconciliation import (
     FileStealthPostWriteReconciliationVerificationStore,
 )
 from application.admin_api.models import (
+    AdminAdmissionPreviewResponse,
     AdminApiActor,
     AdminApiCommandEnvelope,
     AdminApiCommandResponse,
@@ -1104,6 +1105,86 @@ def get_order_fill_follow_up_chain(
     return _read_response(
         service.build_order_fill_follow_up_chain(client_order_id=client_order_id)
     )
+
+
+@router.get(
+    "/orders/{client_order_id}/fill-follow-up/trigger-preview",
+    response_model=AdminAdmissionPreviewResponse,
+    responses=READ_ROUTE_RESPONSES,
+    summary="Preview the exact fill follow-up trigger admission context",
+)
+def preview_order_fill_follow_up_trigger_admission(
+    request: Request,
+    client_order_id: Annotated[str, Path(min_length=1)],
+    command_idempotency_key: Annotated[str, Query(min_length=1)],
+    operator_intent: Annotated[str, Query(min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
+    reconciliation_store: Annotated[
+        FileAdminApiReconciliationStore,
+        Depends(get_reconciliation_store),
+    ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
+    ],
+    fill_testing_approval_id: Annotated[str | None, Query(min_length=1)] = None,
+    wallet_proof_ref: Annotated[str | None, Query(min_length=1)] = None,
+    cap_guard_decision_id: Annotated[str | None, Query(min_length=1)] = None,
+    reconciliation_plan_id: Annotated[str | None, Query(min_length=1)] = None,
+    audit_correlation_id: Annotated[str | None, Query(min_length=1)] = None,
+    confirm_duplicate_claim_protection: bool = False,
+    operator_notes: Annotated[str | None, Query(min_length=1)] = None,
+) -> JSONResponse:
+    """Return fill follow-up trigger admission evidence without executing."""
+
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    body = AdminOrderFillFollowUpTriggerRequest(
+        fill_testing_approval_id=fill_testing_approval_id,
+        wallet_proof_ref=wallet_proof_ref,
+        cap_guard_decision_id=cap_guard_decision_id,
+        reconciliation_plan_id=reconciliation_plan_id,
+        audit_correlation_id=audit_correlation_id,
+        confirm_duplicate_claim_protection=confirm_duplicate_claim_protection,
+        operator_notes=operator_notes,
+    )
+    trigger_path = request.url.path.replace(
+        "/fill-follow-up/trigger-preview",
+        "/fill-follow-up/trigger",
+    )
+    payload_hash = _idempotency_payload_hash(
+        endpoint=f"POST {trigger_path}",
+        actor=actor,
+        operator_intent=operator_intent,
+        body=body.model_dump(mode="json", exclude_none=True),
+        path_params={"client_order_id": client_order_id},
+    )
+    decision = evaluate_command_live_admission(
+        route="/api/v1/orders/{client_order_id}/fill-follow-up/trigger",
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value=client_order_id,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        service_method="trigger_order_fill_follow_up",
+        actor_id=actor.actor_id,
+        idempotency_key=command_idempotency_key,
+        operator_intent=operator_intent,
+        payload_hash=payload_hash,
+        approval_store=approval_store,
+        audit_store=audit_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
+    )
+    payload = AdminAdmissionPreviewResponse(
+        message="Fill follow-up trigger admission preview loaded.",
+        admission_decision=decision,
+    )
+    return JSONResponse(content=payload.model_dump(mode="json"))
 
 
 @router.post(

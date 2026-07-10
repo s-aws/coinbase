@@ -6985,6 +6985,151 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/orders/{client_order_id}/fill-follow-up/trigger-preview:
+    get:
+      tags:
+      - orders
+      summary: Preview the exact fill follow-up trigger admission context
+      description: Return fill follow-up trigger admission evidence without executing.
+      operationId: preview_order_fill_follow_up_trigger_admission_api_v1_orders__client_order_id__fill_follow_up_trigger_preview_get
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Client Order Id
+      - name: command_idempotency_key
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Command Idempotency Key
+      - name: operator_intent
+        in: query
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Operator Intent
+      - name: fill_testing_approval_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Fill Testing Approval Id
+      - name: wallet_proof_ref
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Wallet Proof Ref
+      - name: cap_guard_decision_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Cap Guard Decision Id
+      - name: reconciliation_plan_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Reconciliation Plan Id
+      - name: audit_correlation_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Audit Correlation Id
+      - name: confirm_duplicate_claim_protection
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Confirm Duplicate Claim Protection
+      - name: operator_notes
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Operator Notes
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminAdmissionPreviewResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/orders/{client_order_id}/fill-follow-up/trigger:
     post:
       tags:
