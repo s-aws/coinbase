@@ -77225,6 +77225,10 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
     assert data["pre_trigger_chain"]["follow_up_child_count"] == 0
     assert data["chain"]["follow_up_child_client_order_ids"] == [child_id]
     assert data["chain"]["follow_up_child_count"] == 1
+    assert (
+        "/api/v1/orders/{client_order_id}/fill-readback"
+        in data["chain"]["read_evidence_routes"]
+    )
     assert data["post_trigger_follow_up_child_client_order_ids"] == [child_id]
     assert data["post_trigger_follow_up_child_count_delta"] == 1
     assert data["accepted_follow_up_child_client_order_id"] == child_id
@@ -77256,6 +77260,10 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
         "existing_follow_up_client_order_ids"
     ] == [child_id]
     assert data["fill_follow_up_decision_audit"]["existing_follow_up_count"] == 1
+    assert (
+        "/api/v1/orders/{client_order_id}/fill-readback"
+        in data["fill_follow_up_decision_audit"]["read_evidence_routes"]
+    )
     assert "fill_follow_up_execution_adapter" not in (
         data["fill_follow_up_decision_audit"]["missing_contracts"]
     )
@@ -77713,6 +77721,14 @@ def test_admin_api_order_fill_follow_up_trigger_accepts_public_route_proof_chain
     assert validation["duplicate_claim_ack"]["status"] == "acknowledged"
     assert validation["duplicate_claim_guard"]["status"] == "available"
     assert data["chain"]["follow_up_child_client_order_ids"] == [child_id]
+    assert (
+        "/api/v1/orders/{client_order_id}/fill-readback"
+        in data["chain"]["read_evidence_routes"]
+    )
+    assert (
+        "/api/v1/orders/{client_order_id}/fill-readback"
+        in data["fill_follow_up_decision_audit"]["read_evidence_routes"]
+    )
     assert data["accepted_follow_up_child_client_order_id"] == child_id
     assert data["coinbase_order_submit_ran"] is False
     assert data["coinbase_order_cancel_submitted"] is False
