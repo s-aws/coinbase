@@ -76969,6 +76969,54 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
     )
     assert replay.json() == payload
 
+    chain_response = client.get(
+        f"/api/v1/orders/{root_id}/fill-follow-up/chain",
+        headers=_headers(
+            idempotency_key="idem-fill-follow-up-chain-after-accepted-trigger",
+            operator_intent="read_fill_follow_up_chain_after_trigger",
+            roles=AdminApiRole.TRADER.value,
+        ),
+    )
+    assert chain_response.status_code == 200
+    chain_payload = chain_response.json()
+    assert chain_payload["client_order_id"] == root_id
+    assert chain_payload["found"] is True
+    assert chain_payload["active_client_order_id"] == root_id
+    assert chain_payload["follow_up_child_client_order_ids"] == [child_id]
+    assert chain_payload["follow_up_child_count"] == 1
+    assert chain_payload["follow_up_children"] == [
+        {
+            "client_order_id": child_id,
+            "product_id": "BTC-USD",
+            "side": "SELL",
+            "status": "HIDDEN",
+            "order_type": "limit",
+            "size": "0.01",
+            "price": "101.00",
+            "parent_client_order_id": root_id,
+            "created_at": "2026-07-10T01:03:00Z",
+            "updated_at": "2026-07-10T01:03:00Z",
+            "exchange_order_id": None,
+            "exchange_order_id_evidence_only": True,
+            "correlation_id": None,
+            "audit_id": "audit-child-follow-up-executor",
+            "source": "order_parent",
+        }
+    ]
+    assert chain_payload["fill_follow_up_decision_audit"][
+        "existing_follow_up_client_order_ids"
+    ] == [child_id]
+    assert chain_payload["fill_follow_up_decision_audit"][
+        "existing_follow_up_count"
+    ] == 1
+    assert chain_payload["order_engine_handle_filled_order_called"] is False
+    assert chain_payload["stealth_create_follow_up_called"] is False
+    assert chain_payload["follow_up_order_created"] is False
+    assert chain_payload["coinbase_order_submit_ran"] is False
+    assert chain_payload["local_state_mutated"] is False
+    assert chain_payload["exchange_state_mutated"] is False
+    assert chain_payload["live_coinbase_orders_ran"] is False
+
 
 @pytest.mark.regression
 def test_admin_api_order_fill_follow_up_trigger_replays_live_activity_rejection_without_executor(
