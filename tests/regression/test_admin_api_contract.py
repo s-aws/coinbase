@@ -3670,6 +3670,20 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "existing_follow_up_client_order_ids" in (
         follow_up_audit_schema["properties"]
     )
+    assert "automation_mode" in follow_up_audit_schema["properties"]
+    assert "manual_trigger_route" in follow_up_audit_schema["properties"]
+    assert (
+        "automatic_fill_event_processing_enabled"
+        in follow_up_audit_schema["properties"]
+    )
+    assert (
+        "automatic_fill_event_processing_status"
+        in follow_up_audit_schema["properties"]
+    )
+    assert (
+        "automatic_fill_event_processing_blockers"
+        in follow_up_audit_schema["properties"]
+    )
     assert "claim_acquired" in follow_up_audit_schema["properties"]
     assert "order_engine_handle_filled_order_called" in (
         follow_up_audit_schema["properties"]
@@ -75866,6 +75880,15 @@ def test_admin_api_order_detail_surfaces_no_live_fill_follow_up_decision(
     assert audit["existing_follow_up_count"] == 1
     assert audit["flat_hierarchy_enforced"] is True
     assert audit["chain_source"] == "order_parent"
+    assert audit["automation_mode"] == "manual_no_live_trigger_only"
+    assert audit["manual_trigger_route"] == (
+        "/api/v1/orders/{client_order_id}/fill-follow-up/trigger"
+    )
+    assert audit["automatic_fill_event_processing_enabled"] is False
+    assert audit["automatic_fill_event_processing_status"] == "blocked"
+    assert "automatic_fill_event_processing_not_enabled" in (
+        audit["automatic_fill_event_processing_blockers"]
+    )
     assert audit["duplicate_claim_protection_required"] is True
     assert audit["claim_acquired"] is False
     assert audit["claim_state_source"] == "runtime_orderbook_unavailable"

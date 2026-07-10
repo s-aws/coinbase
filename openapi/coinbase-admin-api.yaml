@@ -137444,6 +137444,27 @@ components:
           type: string
           title: Chain Source
           default: order_parent
+        automation_mode:
+          type: string
+          title: Automation Mode
+          default: manual_no_live_trigger_only
+        manual_trigger_route:
+          type: string
+          title: Manual Trigger Route
+          default: /api/v1/orders/{client_order_id}/fill-follow-up/trigger
+        automatic_fill_event_processing_enabled:
+          type: boolean
+          title: Automatic Fill Event Processing Enabled
+          default: false
+        automatic_fill_event_processing_status:
+          type: string
+          title: Automatic Fill Event Processing Status
+          default: blocked
+        automatic_fill_event_processing_blockers:
+          items:
+            type: string
+          type: array
+          title: Automatic Fill Event Processing Blockers
         duplicate_claim_protection_required:
           type: boolean
           title: Duplicate Claim Protection Required

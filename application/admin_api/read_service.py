@@ -3031,6 +3031,14 @@ def _order_fill_follow_up_decision_audit(
         existing_follow_up_count=len(follow_up_ids),
         flat_hierarchy_enforced=True,
         chain_source="order_parent",
+        automation_mode="manual_no_live_trigger_only",
+        manual_trigger_route=FILL_FOLLOW_UP_TRIGGER_ROUTE,
+        automatic_fill_event_processing_enabled=False,
+        automatic_fill_event_processing_status="blocked",
+        automatic_fill_event_processing_blockers=[
+            "automatic_fill_event_processing_not_enabled",
+            "live_fill_follow_up_scope_not_approved",
+        ],
         duplicate_claim_protection_required=True,
         claim_state=claim_state,
         claim_state_source=claim_state_source,
@@ -3075,10 +3083,12 @@ def _order_fill_follow_up_decision_audit(
         bff_authority="forward_only_no_execution",
         detail=(
             "Order detail exposes fill-triggered follow-up decision evidence "
-            "only. It evaluates local policy and chain readback without "
-            "calling OrderEngine.handle_filled_order, acquiring follow-up "
-            "claims, creating stealth follow-ups, submitting Coinbase orders, "
-            "or mutating local/exchange state."
+            "only. The current Admin path is manual no-live trigger only; "
+            "unattended automatic fill-event processing remains blocked. It "
+            "evaluates local policy and chain readback without calling "
+            "OrderEngine.handle_filled_order, acquiring follow-up claims, "
+            "creating stealth follow-ups, submitting Coinbase orders, or "
+            "mutating local/exchange state."
         ),
     )
 

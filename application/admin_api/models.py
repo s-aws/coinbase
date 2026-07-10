@@ -4766,6 +4766,15 @@ class AdminOrderFillFollowUpDecisionAuditEvidence(BaseModel):
     existing_follow_up_count: int = 0
     flat_hierarchy_enforced: bool = True
     chain_source: str = "order_parent"
+    automation_mode: str = "manual_no_live_trigger_only"
+    manual_trigger_route: str = (
+        "/api/v1/orders/{client_order_id}/fill-follow-up/trigger"
+    )
+    automatic_fill_event_processing_enabled: bool = False
+    automatic_fill_event_processing_status: str = "blocked"
+    automatic_fill_event_processing_blockers: list[str] = Field(
+        default_factory=list
+    )
     duplicate_claim_protection_required: bool = True
     claim_state: str | None = None
     claim_state_source: str = "runtime_orderbook_unavailable"
