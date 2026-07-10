@@ -25,7 +25,12 @@ admission audit, reconciliation plan, and live-service decision evidence
 routes, and read-only spot
 operator routes. Live-shaped trading command HTTP routes still return
 `not_implemented` after auth, permission, idempotency, and audit handling;
-they do not submit orders, cancel orders, or call Coinbase.
+they do not submit orders, cancel orders, or call Coinbase. The guarded
+fill-follow-up trigger is the no-live local-state compatibility exception:
+after exact route-bound approval, cap/guard wallet proof, reconciliation,
+duplicate-claim, and audit-correlation refs, it can return accepted
+parent/child readback evidence while Coinbase submit/cancel and live exchange
+mutation remain disallowed.
 
 `POST /api/v1/orders` is the enterprise manual Spot order command contract, but
 today it is a dry-submit/review path only. The route requires backend auth,
@@ -44,7 +49,9 @@ The current runtime still returns `501` for create, order cancel, stealth
 create, stealth reveal, stealth move, stealth cancel, stealth recovery,
 stealth reconciliation, movement reprice,
 campaign execution, and spot sweep automation
-commands because HTTP live execution is not approved. Read routes document
+commands because HTTP live execution is not approved. The fill-follow-up
+trigger's `200` path is no-live local compatibility evidence, not HTTP live
+execution approval. Read routes document
 typed `200` payloads plus structured `401` and `403` errors.
 Enterprise-readiness evidence also includes structured per-module
 `command_gaps` and a top-level `command_gap_count` so unsupported, not

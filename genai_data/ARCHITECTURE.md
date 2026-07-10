@@ -220,8 +220,13 @@ Current modules:
 - `openapi/coinbase-admin-api.yaml`: generated backend-owned OpenAPI artifact.
 
 Current behavior:
-- Admin API mutating routes authenticate, authorize, evaluate idempotency, write
-  audit records, then return HTTP `501` with `status: "not_implemented"`.
+- Admin API live-shaped mutating routes authenticate, authorize, evaluate
+  idempotency, write audit records, then return HTTP `501` with `status:
+  "not_implemented"`.
+- The guarded fill-follow-up trigger is a no-live local-state compatibility
+  exception: after exact route-bound proof refs it may return accepted
+  parent/child readback evidence while Coinbase submit/cancel and live exchange
+  mutation remain disallowed.
 - Admin API OpenAPI includes typed `200` accepted/replayed command response
   schemas for the future live-enabled state, but runtime HTTP create/cancel and
   campaign execution still return `501` until live execution is explicitly

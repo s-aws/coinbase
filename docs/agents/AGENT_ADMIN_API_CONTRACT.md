@@ -22,10 +22,14 @@ frontend request
 ```
 
 Current HTTP command routes are authenticated, authorized, idempotent, audited,
-and live-disabled. They return typed `501` `not_implemented` responses until
-live HTTP approval, guard, cap, and audit gates are complete. The generated
-OpenAPI schema also includes typed `200` accepted/replayed response contracts
-for the future live-enabled state.
+and live-disabled. Live-shaped routes return typed `501` `not_implemented`
+responses until live HTTP approval, guard, cap, and audit gates are complete.
+The guarded fill-follow-up trigger is a no-live local-state compatibility
+exception that can return accepted parent/child readback evidence after exact
+proof refs while Coinbase submit/cancel and live exchange mutation remain
+disallowed. The generated OpenAPI schema also includes typed `200`
+accepted/replayed response contracts for live-enabled or no-live local
+compatibility outcomes.
 `X-Operator-Intent` is required command evidence. It must be recorded in the
 durable command audit event and included in the idempotency payload hash.
 

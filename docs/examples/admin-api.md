@@ -1,8 +1,11 @@
 # Admin API Examples
 
-These examples describe the current enterprise Admin API contract. Mutating
-HTTP endpoints are authenticated, permission-checked, idempotent, and audited,
-then return `not_implemented`; they do not call Coinbase. Read-only spot
+These examples describe the current enterprise Admin API contract. Live-shaped
+mutating HTTP endpoints are authenticated, permission-checked, idempotent, and
+audited, then return `not_implemented`; they do not call Coinbase. The guarded
+fill-follow-up trigger is the no-live local-state compatibility exception and
+can return accepted parent/child readback evidence after exact proof refs while
+Coinbase submit/cancel and live exchange mutation remain disallowed. Read-only spot
 operator endpoints are available behind the same fail-closed auth dependency.
 
 The Admin API is the backend contract layer for the enterprise admin platform.

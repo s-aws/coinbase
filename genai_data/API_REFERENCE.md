@@ -781,9 +781,13 @@ Current route adapters:
 - `GET /api/v1/spot/direct-orders/{client_order_id}/audit`
 
 Current behavior:
-- mutating HTTP routes authenticate, authorize, evaluate idempotency, write
-  command audit records, then return HTTP `501` with `status:
+- live-shaped mutating HTTP routes authenticate, authorize, evaluate
+  idempotency, write command audit records, then return HTTP `501` with `status:
   "not_implemented"`
+- the guarded fill-follow-up trigger is a no-live local-state compatibility
+  exception that can return accepted parent/child readback evidence after exact
+  proof refs; Coinbase submit/cancel and live exchange mutation remain
+  disallowed
 - mutating HTTP routes do not submit orders, cancel orders, call Coinbase, or
   mutate live exchange state
 - the generated OpenAPI contract includes eventual `200` accepted/replayed
