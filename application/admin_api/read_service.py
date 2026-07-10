@@ -3026,6 +3026,7 @@ def _order_fill_follow_up_decision_audit(
         exchange_state_mutated=False,
         read_evidence_routes=[
             "/api/v1/orders/{client_order_id}",
+            "/api/v1/orders/{client_order_id}/fill-readback",
             "/api/v1/orders/{client_order_id}/fill-follow-up/replay",
             "/api/v1/orders/{client_order_id}/fill-follow-up/live-readiness",
             "/api/v1/orders/{client_order_id}/fill-follow-up/chain",
@@ -13256,6 +13257,7 @@ class AdminApiReadService:
             fill_follow_up_decision_audit=audit,
             read_evidence_routes=[
                 "/api/v1/orders/{client_order_id}",
+                "/api/v1/orders/{client_order_id}/fill-readback",
                 "/api/v1/orders/{client_order_id}/fill-follow-up/replay",
                 "/api/v1/orders/{client_order_id}/fill-follow-up/live-readiness",
                 "/api/v1/orders/{client_order_id}/fill-follow-up/chain",

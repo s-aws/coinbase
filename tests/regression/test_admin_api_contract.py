@@ -75858,6 +75858,10 @@ def test_admin_api_order_detail_surfaces_no_live_fill_follow_up_decision(
     assert audit["local_state_mutated"] is False
     assert audit["browser_authority"] == "display_only"
     assert audit["bff_authority"] == "forward_only_no_execution"
+    assert (
+        "/api/v1/orders/{client_order_id}/fill-readback"
+        in audit["read_evidence_routes"]
+    )
     assert "fill_follow_up_execution_adapter_missing" in audit["blockers"]
     assert "live_fill_follow_up_scope_not_approved" in audit["blockers"]
 
@@ -75944,6 +75948,10 @@ def test_admin_api_order_fill_follow_up_replay_route_surfaces_no_live_decision(
     assert audit["follow_up_decision"] == "eligible_no_live"
     assert audit["existing_follow_up_client_order_ids"] == ["child-follow-up-sell"]
     assert audit["claim_acquired"] is False
+    assert (
+        "/api/v1/orders/{client_order_id}/fill-readback"
+        in audit["read_evidence_routes"]
+    )
     assert "fill_follow_up_execution_adapter_missing" in audit["blockers"]
     assert "live_fill_follow_up_scope_not_approved" in audit["blockers"]
 
@@ -76137,6 +76145,14 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
     assert payload["fill_follow_up_decision_audit"]["existing_follow_up_count"] == 1
     assert payload["fill_follow_up_decision_audit"]["follow_up_decision"] == (
         "eligible_no_live"
+    )
+    assert (
+        "/api/v1/orders/{client_order_id}/fill-readback"
+        in payload["read_evidence_routes"]
+    )
+    assert (
+        "/api/v1/orders/{client_order_id}/fill-readback"
+        in payload["fill_follow_up_decision_audit"]["read_evidence_routes"]
     )
 
 
