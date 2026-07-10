@@ -76585,6 +76585,312 @@ def test_admin_api_order_fill_follow_up_live_readiness_uses_trigger_proof_chain(
 
 
 @pytest.mark.regression
+def test_admin_api_order_fill_follow_up_live_readiness_ready_no_live_when_proofs_clear(
+    monkeypatch,
+):
+    import application.admin_api.read_service as read_service
+    import configuration
+    import database.order as order_module
+    from application.admin_api.spot_recovery_execution import (
+        SpotRecoveryExecutionRecord,
+    )
+
+    client_order_id = "root-follow-up-ready-no-live"
+    idempotency_key = "idem-fill-follow-up-ready-no-live"
+    operator_intent = "trigger_fill_follow_up_ready_no_live"
+    trigger_route = "/api/v1/orders/{client_order_id}/fill-follow-up/trigger"
+    approval_id = "fill-follow-up-approval-ready-no-live"
+    cap_guard_id = "fill-follow-up-cap-ready-no-live"
+    reconciliation_id = "fill-follow-up-reconciliation-ready-no-live"
+    wallet_ref = f"cap_guard_wallet:{cap_guard_id}"
+    fill_readback_ref = (
+        f"spot_fill_readback:{client_order_id}:audit-fill-readback-ready"
+    )
+    rollback_ref = "spot_recovery_rollback_journal:rollback-journal-ready-no-live"
+    body = {
+        "fill_testing_approval_id": approval_id,
+        "wallet_proof_ref": wallet_ref,
+        "cap_guard_decision_id": cap_guard_id,
+        "reconciliation_plan_id": reconciliation_id,
+        "audit_correlation_id": "corr-root-follow-up-ready",
+        "confirm_duplicate_claim_protection": True,
+    }
+    payload_hash = make_payload_hash(
+        {
+            "endpoint": f"POST /api/v1/orders/{client_order_id}/fill-follow-up/trigger",
+            "actor_id": "operator-001",
+            "roles": [AdminApiRole.TRADER.value],
+            "operator_intent": operator_intent,
+            "body": body,
+            "path_params": {"client_order_id": client_order_id},
+        }
+    )
+    root_order = {
+        "client_order_id": client_order_id,
+        "product_id": "BTC-USD",
+        "side": "BUY",
+        "status": "FILLED",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "100.00",
+        "parent_order_id": None,
+        "created_at": "2026-07-10T01:00:00Z",
+        "updated_at": "2026-07-10T01:02:00Z",
+        "exchange_order_id": "exchange-evidence-root",
+        "correlation_id": "corr-root-follow-up-ready",
+        "audit_id": "audit-root-follow-up-ready",
+    }
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order",
+        lambda candidate: root_order if candidate == client_order_id else None,
+    )
+    monkeypatch.setattr(order_module, "get_parent_orders", lambda: [root_order])
+    monkeypatch.setattr(
+        configuration,
+        "rest_get_products",
+        lambda: {
+            "BTC-USD": {
+                "product_id": "BTC-USD",
+                "product_type": "SPOT",
+                "future_product_details": {},
+            }
+        },
+    )
+    runtime_orderbook = SimpleNamespace(
+        follow_up_claim_state=lambda trigger, candidate: None
+    )
+    monkeypatch.setattr(
+        read_service,
+        "_runtime_bridge",
+        lambda: SimpleNamespace(
+            order_engine=SimpleNamespace(
+                orderbook=runtime_orderbook,
+                orderbook_lock=None,
+                handle_filled_order=lambda order: None,
+            )
+        ),
+    )
+
+    client = _client(monkeypatch)
+    client.admin_api_test_mvp_service.store.spot_fill_readback_proofs[
+        fill_readback_ref
+    ] = {
+        "type": "admin_spot_order_fill_readback",
+        "module_id": "spot_operations",
+        "live_fill_readback_proof_ref": fill_readback_ref,
+        "client_order_id": client_order_id,
+        "route": "/api/v1/orders/{client_order_id}/fill-readback",
+        "method": "GET",
+        "status": "passed",
+        "order_status": "FILLED",
+        "order_found": True,
+        "coinbase_read_succeeded": True,
+        "fill_count": 1,
+        "fill_read_status": "filled",
+        "fill_order_id_matches_exchange_order_id": True,
+        "fill_product_id_matches_order": True,
+        "exchange_order_id_evidence_only": True,
+        "live_coinbase_read_ran": True,
+        "live_coinbase_orders_ran": False,
+        "read_only": True,
+        "ended_at": "2026-07-10T01:02:30Z",
+    }
+    client.admin_api_test_spot_recovery_execution_store.append(
+        SpotRecoveryExecutionRecord(
+            journal_id="rollback-journal-ready-no-live",
+            recorded_at="2026-07-10T01:03:00Z",
+            mutation_family=(
+                AdminApiMutationFamilyType.SPOT_RECOVERY_ROLLBACK_EXECUTION
+            ),
+            client_order_id=client_order_id,
+            rollback_plan_id="rollback-plan-ready-no-live",
+            recovery_apply_audit_id="audit-apply-ready-no-live",
+            recovery_apply_journal_id="apply-journal-ready-no-live",
+            reconciliation_plan_id="reconciliation-plan-ready-no-live",
+            approval_snapshot_id="approval-ready-no-live",
+            admission_audit_id="admission-ready-no-live",
+            cap_guard_decision_id="cap-guard-ready-no-live",
+            route="/api/v1/spot/recovery/rollback-executions",
+            method="POST",
+            service_method="execute_spot_recovery_rollback",
+            actor_id="operator-001",
+            operator_intent="record_follow_up_ready_no_live_rollback",
+            idempotency_key="idem-follow-up-ready-no-live-rollback",
+            correlation_id="corr-follow-up-ready-no-live-rollback",
+            payload_hash="c" * 64,
+            audit_id="audit-rollback-ready-no-live",
+            dry_run=True,
+            repair_journal_persisted=True,
+            execution_journal_accepted=True,
+            rollback_journal_accepted=True,
+            rollback_executed=True,
+            recovery_apply_journal_accepted=False,
+            recovery_apply_executed=False,
+            state_repair_executed=False,
+            order_state_mutated=False,
+            exchange_state_mutated=False,
+            reconciliation_executed=False,
+            coinbase_order_submitted=False,
+            coinbase_rest_read_ran=False,
+            live_exchange_submitted=False,
+            live_coinbase_orders_ran=False,
+        )
+    )
+    approval = AdminApiApprovalRecord(
+        approval_id=approval_id,
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+        approved_by_actor_id="approver-001",
+        requested_by_actor_id="operator-001",
+        route=trigger_route,
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value=client_order_id,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        cap_guard_decision_ref=cap_guard_id,
+        reconciliation_plan_ref=reconciliation_id,
+    )
+    client.admin_api_test_approval_store.append(approval)
+    admission_audit = AdminApiAuditEvent(
+        audit_id="fill-follow-up-admission-audit-ready-no-live",
+        actor_id="operator-001",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ORDER_CREATE,
+        endpoint=f"POST {trigger_route}",
+        request_id="corr-fill-follow-up-admission-ready-no-live",
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        approval_id=approval.approval_id,
+        client_order_id=client_order_id,
+        status=AdminApiCommandStatus.REJECTED,
+        failure_stage="fill_follow_up_trigger_prerequisite",
+        message="Prior fill follow-up admission audit.",
+        admission_decision=AdminLiveAdmissionDecisionEvidence(
+            status=AdminApiGateStatus.BLOCKED,
+            allowed=False,
+            route=trigger_route,
+            method="POST",
+            module_id="spot_operations",
+            identity_key="client_order_id",
+            identity_value=client_order_id,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            service_method="trigger_order_fill_follow_up",
+            actor_id="operator-001",
+            idempotency_key=idempotency_key,
+            operator_intent=operator_intent,
+            payload_hash=payload_hash,
+            approval_snapshot_present=True,
+            approval_snapshot_id=approval.approval_id,
+            approval_snapshot_source="approval_store",
+            approval_snapshot_approved_by_actor_id=approval.approved_by_actor_id,
+            approval_snapshot_requested_by_actor_id=approval.requested_by_actor_id,
+            approval_snapshot_expires_at=approval.expires_at.isoformat(),
+            browser_authority="rejected",
+            live_exchange_submitted=False,
+            blockers=[AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED],
+            evidence=["prior fill follow-up admission audit"],
+            detail="Prior backend-owned fill follow-up admission audit proof.",
+        ),
+    )
+    client.admin_api_test_audit_store.append(admission_audit)
+    cap_guard = CapGuardDecisionRecord(
+        decision_id=cap_guard_id,
+        route=trigger_route,
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value=client_order_id,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        service_method="trigger_order_fill_follow_up",
+        actor_id="operator-001",
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        approval_snapshot_id=approval.approval_id,
+        admission_audit_id=admission_audit.audit_id,
+        allowed=True,
+        status=AdminApiGateStatus.PASSED,
+        cap_policy_ref="fill_follow_up_cap:local_state_only",
+        guard_policy_ref="fill_follow_up_duplicate_and_scope_guard",
+        product_scope="BTC-USD spot fill follow-up scope",
+        max_submitted_notional_usdc="10.00",
+        max_executed_notional_usdc="0",
+        wallet_check_required=True,
+        wallet_check_status=AdminApiGateStatus.PASSED,
+        wallet_available_notional_usdc="10.00",
+        wallet_check_source="operator_supplied_fill_follow_up_wallet_evidence",
+        reason="Exact backend-owned fill follow-up cap/guard proof.",
+    )
+    client.admin_api_test_cap_guard_store.append(cap_guard)
+    client.admin_api_test_reconciliation_store.append(
+        ReconciliationPlanRecord(
+            plan_id=reconciliation_id,
+            route=trigger_route,
+            method="POST",
+            module_id="spot_operations",
+            identity_key="client_order_id",
+            identity_value=client_order_id,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            service_method="trigger_order_fill_follow_up",
+            actor_id="operator-001",
+            operator_intent=operator_intent,
+            idempotency_key=idempotency_key,
+            payload_hash=payload_hash,
+            approval_snapshot_id=approval.approval_id,
+            admission_audit_id=admission_audit.audit_id,
+            cap_guard_decision_id=cap_guard.decision_id,
+            allowed=True,
+            status=AdminApiGateStatus.PASSED,
+            reconciliation_policy_ref="fill_follow_up_parent_child_chain_readback",
+            product_scope="BTC-USD spot fill follow-up scope",
+            exchange_submission_required=False,
+            post_submit_reconciliation_required=True,
+            retained_inventory_required=True,
+            max_submitted_notional_usdc="10.00",
+            max_executed_notional_usdc="0",
+            reason="Exact backend-owned fill follow-up reconciliation proof.",
+        )
+    )
+
+    response = client.get(
+        f"/api/v1/orders/{client_order_id}/fill-follow-up/live-readiness",
+        headers=_headers(roles=AdminApiRole.AUDITOR.value),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ready"] is True
+    assert payload["readiness_status"] == "ready_no_live"
+    assert payload["readiness_mode"] == "no_live_preflight"
+    assert payload["live_execution_allowed"] is False
+    assert payload["blockers"] == []
+    assert payload["fill_testing_approval_present"] is True
+    assert payload["wallet_proof_ref"] == wallet_ref
+    assert payload["cap_guard_decision_ref"] == cap_guard_id
+    assert payload["reconciliation_plan_ref"] == reconciliation_id
+    assert payload["live_fill_readback_proof_ref"] == fill_readback_ref
+    assert payload["rollback_readback_ref"] == rollback_ref
+    assert payload["operator_visible_audit_ref"] == (
+        "admin_order_audit:audit-root-follow-up-ready"
+    )
+    assert payload["duplicate_claim_protection_observed"] is True
+    assert payload["duplicate_claim_state"] is None
+    assert payload["read_only"] is True
+    assert payload["order_engine_handle_filled_order_called"] is False
+    assert payload["follow_up_order_created"] is False
+    assert payload["coinbase_order_submit_ran"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+
+
+@pytest.mark.regression
 def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
     monkeypatch,
 ):

@@ -13441,11 +13441,26 @@ class AdminApiReadService:
             blockers.append("fill_follow_up_live_fill_readback_proof_missing")
         if not operator_visible_audit_ref:
             blockers.append("fill_follow_up_operator_visible_audit_missing")
+        ready_no_live = not blockers
+        detail = (
+            "Fill follow-up live-readiness proof blockers are clear for "
+            "no-live preflight evidence. Live execution remains disabled; no "
+            "engine, stealth, Coinbase, local-state, or exchange mutation ran."
+            if ready_no_live
+            else (
+                "Fill follow-up live readiness is fail-closed until separate "
+                "fill-testing approval, live-fill readback proof, wallet proof, "
+                "cap-guard proof, reconciliation proof, rollback readback, "
+                "observed duplicate-claim protection, and operator-visible audit "
+                "evidence exist. No engine, stealth, Coinbase, local-state, or "
+                "exchange mutation ran."
+            )
+        )
         return AdminOrderFillFollowUpLiveReadinessResponse(
             client_order_id=client_order_id,
             found=row is not None,
-            ready=False,
-            readiness_status="blocked",
+            ready=ready_no_live,
+            readiness_status="ready_no_live" if ready_no_live else "blocked",
             fill_follow_up_decision_audit=audit,
             duplicate_claim_protection_observed=duplicate_claim_observed,
             duplicate_claim_state=audit.claim_state if audit else None,
@@ -13463,14 +13478,7 @@ class AdminApiReadService:
             operator_visible_audit_ref=operator_visible_audit_ref,
             rollback_readback_ref=rollback_readback_ref,
             blockers=blockers,
-            detail=(
-                "Fill follow-up live readiness is fail-closed until separate "
-                "fill-testing approval, live-fill readback proof, wallet proof, "
-                "cap-guard proof, reconciliation proof, rollback readback, "
-                "observed duplicate-claim protection, and operator-visible audit "
-                "evidence exist. No engine, stealth, Coinbase, local-state, or "
-                "exchange mutation ran."
-            ),
+            detail=detail,
         )
 
     def build_order_fill_follow_up_chain(
