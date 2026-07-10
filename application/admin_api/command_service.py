@@ -1274,6 +1274,9 @@ _FILL_FOLLOW_UP_REQUEST_SCOPED_READINESS_BLOCKERS = frozenset(
         "fill_follow_up_wallet_proof_missing",
         "fill_follow_up_cap_guard_proof_missing",
         "fill_follow_up_reconciliation_proof_missing",
+        "fill_follow_up_live_fill_readback_proof_missing",
+        "fill_follow_up_rollback_readback_missing",
+        "fill_follow_up_operator_visible_audit_missing",
         "audit_correlation_id_missing",
     }
 )
@@ -1282,7 +1285,7 @@ _FILL_FOLLOW_UP_REQUEST_SCOPED_READINESS_BLOCKERS = frozenset(
 def _fill_follow_up_readiness_blockers_for_request(
     blockers: list[str],
 ) -> list[str]:
-    """Drop generic readiness blockers that the trigger request reclassifies."""
+    """Drop live/readiness blockers not meant to block the no-live trigger path."""
 
     return [
         blocker

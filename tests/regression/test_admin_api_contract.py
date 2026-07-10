@@ -77541,6 +77541,12 @@ def test_admin_api_order_fill_follow_up_trigger_accepts_public_route_proof_chain
         "confirm_duplicate_claim_protection": True,
     }
     assert data["blockers"] == []
+    live_readiness_blockers = set(data["live_readiness"]["blockers"])
+    assert {
+        "fill_follow_up_live_fill_readback_proof_missing",
+        "fill_follow_up_rollback_readback_missing",
+        "fill_follow_up_operator_visible_audit_missing",
+    }.issubset(live_readiness_blockers)
     validation = data["prerequisite_validation"]
     assert validation["fill_testing_approval"]["status"] == "verified"
     assert validation["wallet_proof"]["status"] == "verified"
