@@ -6774,6 +6774,125 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/orders/{client_order_id}/fill-readback:
+    get:
+      tags:
+      - orders
+      summary: Read Spot order fill evidence by client_order_id
+      description: Read backend-owned Spot order/fill evidence without mutation.
+      operationId: get_spot_order_fill_readback_api_v1_orders__client_order_id__fill_readback_get
+      parameters:
+      - name: client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Client Order Id
+      - name: product_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+      - name: backend_contract_ref
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Backend Contract Ref
+      - name: fill_limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 100
+          title: Fill Limit
+      - name: Idempotency-Key
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpotOrderFillReadbackResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/orders/{client_order_id}/fill-follow-up/replay:
     get:
       tags:
@@ -141590,6 +141709,65 @@ components:
       type: object
       title: SpotDirectOrderAuditResponse
       description: Direct spot order audit response keyed by ``client_order_id``.
+    SpotOrderFillReadbackResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_spot_order_fill_readback
+        status:
+          type: string
+          title: Status
+        module_id:
+          type: string
+          title: Module Id
+          default: spot_operations
+        route:
+          type: string
+          title: Route
+          default: /api/v1/orders/{client_order_id}/fill-readback
+        method:
+          type: string
+          title: Method
+          default: GET
+        action_class:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Action Class
+        required_permission:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Required Permission
+        service_method:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Service Method
+        live_coinbase_execution:
+          type: string
+          title: Live Coinbase Execution
+          default: not_run
+        notional_usdc:
+          type: string
+          pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+          title: Notional Usdc
+          description: Decimal value serialized as a string; floats are not part of
+            the API contract.
+          default: '0'
+          examples:
+          - '1.00'
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+      additionalProperties: true
+      type: object
+      required:
+      - status
+      title: SpotOrderFillReadbackResponse
+      description: Read-only Spot order fill readback evidence.
     SpotPnlCheckpointCreateRequest:
       properties:
         checkpoint_id:

@@ -701,6 +701,21 @@ class AdminMvpService:
             return self._ok(self._audit_workbench(query), context)
         if normalized_path == "/api/v1/orders":
             return self._ok(self._order_list(query), context)
+        if normalized_path.startswith("/api/v1/orders/") and normalized_path.endswith(
+            "/fill-readback"
+        ):
+            client_order_id = normalized_path.split("/api/v1/orders/", 1)[1].rsplit(
+                "/fill-readback",
+                1,
+            )[0]
+            return self._ok(
+                self._spot_order_fill_readback(
+                    unquote(client_order_id),
+                    query,
+                    context,
+                ),
+                context,
+            )
         if normalized_path.startswith("/api/v1/orders/"):
             return self._ok(self._order_detail(_last_path_part(normalized_path)), context)
         if normalized_path == "/api/v1/spot/command-suite":
@@ -6530,6 +6545,68 @@ class AdminMvpService:
             "live_exchange_submitted": False,
             "command_routes_mode": "backend_admin_api_confirmed_live_readback",
             "spot_rule_authority": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+            **summary,
+        }
+
+    def _spot_order_fill_readback(
+        self,
+        client_order_id: str,
+        query: Mapping[str, Any],
+        context: AdminMvpRequestContext,
+    ) -> dict[str, Any]:
+        """Read Spot order and fill evidence by client_order_id without mutation."""
+
+        from tools.run_admin_api_spot_live_order_readback import (
+            SpotLiveOrderReadbackConfig,
+            run_spot_live_order_readback,
+        )
+
+        rest_client = (
+            self.dependencies.rest_client
+            if self.dependencies.rest_client_available
+            else None
+        )
+        summary = run_spot_live_order_readback(
+            rest_client,
+            SpotLiveOrderReadbackConfig(
+                client_order_id=client_order_id,
+                product_id=_query_text(query, "product_id") or None,
+                backend_contract_ref=_query_text(query, "backend_contract_ref")
+                or None,
+                fill_limit=max(_query_int(query, "fill_limit", 100), 1),
+            ),
+        )
+        return {
+            "type": "admin_spot_order_fill_readback",
+            "module_id": "spot_operations",
+            "route": "/api/v1/orders/{client_order_id}/fill-readback",
+            "method": "GET",
+            "action_class": "read_only",
+            "required_permission": "audit:read",
+            "service_method": "read_spot_order_fill_readback",
+            "identity_key": "client_order_id",
+            "identity_value": client_order_id,
+            "client_order_id": client_order_id,
+            "operator_identity_key": "client_order_id",
+            "correlation_id": context.correlation_id,
+            "idempotency_key": context.idempotency_key,
+            "actor_id": context.actor_id,
+            "operator_intent": context.operator_intent,
+            "audit_id": f"audit-{context.idempotency_key}",
+            "exchange_order_id_evidence_only": True,
+            "coinbase_read_attempted": bool(summary.get("live_coinbase_read_ran")),
+            "coinbase_read_succeeded": bool(
+                summary.get("order_read_succeeded")
+                and summary.get("fill_read_succeeded")
+            ),
+            "coinbase_order_submitted": False,
+            "coinbase_order_cancel_submitted": False,
+            "local_state_mutated": False,
+            "exchange_state_mutated": False,
+            "live_exchange_submitted": False,
+            "command_routes_mode": "backend_admin_api_confirmed_live_readback",
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
             **summary,

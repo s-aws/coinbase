@@ -854,6 +854,9 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[
         automation_routes.get_usdc_pair_snapshot_proof_chain_service
     ] = lambda: admin_mvp_service
+    app.dependency_overrides[order_routes.get_mvp_service] = (
+        lambda: admin_mvp_service
+    )
     app.dependency_overrides[
         automation_routes.get_usdc_pair_snapshot_approval_store
     ] = lambda: approval_store
@@ -3518,6 +3521,22 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         "AdminOrderDetailResponse"
     ]
     assert "fill_follow_up_decision_audit" in order_detail_schema["properties"]
+    spot_fill_readback_path = written["paths"][
+        "/api/v1/orders/{client_order_id}/fill-readback"
+    ]["get"]
+    assert spot_fill_readback_path["responses"]["200"]["content"][
+        "application/json"
+    ]["schema"]["$ref"] == "#/components/schemas/SpotOrderFillReadbackResponse"
+    assert "SpotOrderFillReadbackResponse" in written["components"]["schemas"]
+    spot_fill_readback_schema = written["components"]["schemas"][
+        "SpotOrderFillReadbackResponse"
+    ]
+    assert spot_fill_readback_schema["properties"]["type"]["default"] == (
+        "admin_spot_order_fill_readback"
+    )
+    assert spot_fill_readback_schema["properties"]["route"]["default"] == (
+        "/api/v1/orders/{client_order_id}/fill-readback"
+    )
     replay_path = written["paths"][
         "/api/v1/orders/{client_order_id}/fill-follow-up/replay"
     ]["get"]

@@ -2991,6 +2991,80 @@ def test_admin_futures_order_fill_readback_reads_filled_order_by_client_order_id
     assert rest_client.cancel_order_calls == []
 
 
+def test_admin_spot_order_fill_readback_reads_order_and_fills_by_client_order_id():
+    rest_client = FakeRestClient(
+        list_orders_response={
+            "orders": [
+                {
+                    "client_order_id": "spot-live-submit-test",
+                    "order_id": "exchange-order-live-spot-1",
+                    "product_id": "BTC-USDC",
+                    "status": "FILLED",
+                    "filled_size": "0.00001",
+                    "average_filled_price": "100000",
+                }
+            ]
+        },
+        list_fills_response={
+            "fills": [
+                {
+                    "entry_id": "entry-spot-1",
+                    "trade_id": "trade-spot-1",
+                    "order_id": "exchange-order-live-spot-1",
+                    "product_id": "BTC-USDC",
+                    "size": "1.00000",
+                    "size_in_quote": True,
+                    "price": "100000",
+                    "commission": "0.01",
+                }
+            ],
+            "has_next": False,
+        },
+    )
+    service = AdminMvpService(
+        AdminMvpDependencies(rest_client=rest_client, rest_client_available=True)
+    )
+
+    result = service.get_read_response(
+        "/api/v1/orders/spot-live-submit-test/fill-readback",
+        {"product_id": "BTC-USDC", "fill_limit": "25"},
+        context(),
+    )
+
+    assert result.status_code == 200
+    body = result.body
+    assert body["type"] == "admin_spot_order_fill_readback"
+    assert body["module_id"] == "spot_operations"
+    assert body["route"] == "/api/v1/orders/{client_order_id}/fill-readback"
+    assert body["method"] == "GET"
+    assert body["action_class"] == "read_only"
+    assert body["client_order_id"] == "spot-live-submit-test"
+    assert body["operator_identity_key"] == "client_order_id"
+    assert body["status"] == "passed"
+    assert body["order_status"] == "FILLED"
+    assert body["order_found"] is True
+    assert body["exchange_order_id_evidence_only"] is True
+    assert body["fill_count"] == 1
+    assert body["fill_read_status"] == "filled"
+    assert body["fill_order_id_matches_exchange_order_id"] is True
+    assert body["fill_product_id_matches_order"] is True
+    assert body["executed_notional_usdc"] == "1.00000"
+    assert body["submitted_notional_usdc"] == "0"
+    assert body["notional_usdc"] == "0"
+    assert body["live_coinbase_read_ran"] is True
+    assert body["live_coinbase_orders_ran"] is False
+    assert body["read_only"] is True
+    assert body["browser_authority"] == "display_only"
+    assert body["bff_authority"] == "forward_only_no_execution"
+    assert all(check["passed"] for check in body["checks"])
+    assert rest_client.list_orders_calls == [{"order_status": ["FILLED"]}]
+    assert rest_client.list_fills_calls == [
+        {"order_id": "exchange-order-live-spot-1", "limit": 25}
+    ]
+    assert rest_client.create_order_calls == []
+    assert rest_client.cancel_order_calls == []
+
+
 def test_admin_futures_place_live_execution_uses_backend_rest_adapter_when_confirmed():
     rest_client = FakeAccountRestClient()
     service = AdminMvpService(

@@ -2339,6 +2339,22 @@
       "command_contract": true
     },
     {
+      "module_id": "spot_operations",
+      "surface": "GET /api/v1/orders/{client_order_id}/fill-readback",
+      "method": "GET",
+      "path": "/api/v1/orders/{client_order_id}/fill-readback",
+      "action_class": "read_only",
+      "permission": "audit:read",
+      "idempotency": "not required",
+      "approval": "not required",
+      "caps": "not applicable",
+      "audit": "optional read audit",
+      "shared_method": "read_spot_order_fill_readback",
+      "parity_test": "client_order_id spot order/fill readback only; exchange order id remains evidence and no Coinbase submission or cancellation occurs",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
       "module_id": "futures_perpetuals",
       "surface": "GET /api/v1/futures/orders/{client_order_id}/fill-readback",
       "method": "GET",

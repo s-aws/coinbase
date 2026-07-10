@@ -97,6 +97,7 @@ from application.admin_api.models import (
     SpotRecoveryRollbackExecutionRequest,
     SpotSweepAutomationRunCommand,
     SpotSweepAutomationRunRequest,
+    SpotOrderFillReadbackResponse,
     StealthCommandAdmissionContextEvidence,
     StealthCommandSuiteAdmissionContextItem,
 )
@@ -104,6 +105,11 @@ from application.admin_api.stealth_command_execution import (
     build_stealth_command_execution_contract,
 )
 from application.admin_api.read_service import AdminApiReadService
+from application.admin_api.mvp_service import (
+    AdminMvpRequestContext,
+    AdminMvpService,
+    get_admin_mvp_service,
+)
 from core.enums import (
     AdminApiActionClass,
     AdminApiCommandStatus,
@@ -255,8 +261,33 @@ def get_read_service() -> AdminApiReadService:
     return AdminApiReadService()
 
 
+def get_mvp_service() -> AdminMvpService:
+    """Return the backend-owned MVP read service boundary."""
+
+    return get_admin_mvp_service()
+
+
 def _read_response(payload: object) -> JSONResponse:
     return JSONResponse(content=jsonable_encoder(payload))
+
+
+def _admin_mvp_read_context(
+    actor: AdminApiActor,
+    *,
+    idempotency_key: str | None,
+    correlation_id: str | None,
+    operator_intent: str | None,
+) -> AdminMvpRequestContext:
+    return AdminMvpRequestContext(
+        idempotency_key=(idempotency_key or "admin-api-read").strip()
+        or "admin-api-read",
+        correlation_id=(correlation_id or "admin-api-correlation").strip()
+        or "admin-api-correlation",
+        operator_intent=(operator_intent or "read_spot_order_fill_readback").strip()
+        or "read_spot_order_fill_readback",
+        actor_id=actor.actor_id,
+        roles=tuple(role.value for role in actor.roles),
+    )
 
 
 def _build_envelope(
@@ -1046,6 +1077,48 @@ def get_order_by_client_order_id(
 
     require_permission(actor, AdminApiPermission.AUDIT_READ)
     return _read_response(service.build_order_detail(client_order_id=client_order_id))
+
+
+@router.get(
+    "/orders/{client_order_id}/fill-readback",
+    response_model=SpotOrderFillReadbackResponse,
+    responses=READ_ROUTE_RESPONSES,
+    summary="Read Spot order fill evidence by client_order_id",
+)
+def get_spot_order_fill_readback(
+    client_order_id: Annotated[str, Path(min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminMvpService, Depends(get_mvp_service)],
+    product_id: str | None = None,
+    backend_contract_ref: str | None = None,
+    fill_limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None,
+    correlation_id: Annotated[str | None, Header(alias="X-Correlation-Id")] = None,
+    operator_intent: Annotated[str | None, Header(alias="X-Operator-Intent")] = None,
+) -> JSONResponse:
+    """Read backend-owned Spot order/fill evidence without mutation."""
+
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    query: dict[str, str] = {"fill_limit": str(fill_limit)}
+    if product_id is not None:
+        query["product_id"] = product_id
+    if backend_contract_ref is not None:
+        query["backend_contract_ref"] = backend_contract_ref
+    result = service.get_read_response(
+        f"/api/v1/orders/{client_order_id}/fill-readback",
+        query,
+        _admin_mvp_read_context(
+            actor,
+            idempotency_key=idempotency_key,
+            correlation_id=correlation_id,
+            operator_intent=operator_intent,
+        ),
+    )
+    return JSONResponse(
+        status_code=result.status_code,
+        content=jsonable_encoder(result.body),
+        headers=result.headers,
+    )
 
 
 @router.get(

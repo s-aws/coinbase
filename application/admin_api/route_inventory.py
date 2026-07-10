@@ -2269,6 +2269,21 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="refreshes local product metadata cache only; no order execution",
     ),
     AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="GET /api/v1/orders/{client_order_id}/fill-readback",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="read_spot_order_fill_readback",
+        parity_test=(
+            "client_order_id spot order/fill readback only; exchange order id "
+            "remains evidence and no Coinbase submission or cancellation occurs"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
         module_id="futures_perpetuals",
         surface="GET /api/v1/futures/orders/{client_order_id}/fill-readback",
         action_class=AdminApiActionClass.READ_ONLY,

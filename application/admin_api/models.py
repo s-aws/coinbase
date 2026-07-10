@@ -4339,6 +4339,16 @@ class FuturesFillReadbackResponse(AdminMvpEvidenceResponse):
     route: str = "/api/v1/futures/orders/{client_order_id}/fill-readback"
     method: str = "GET"
 
+
+class SpotOrderFillReadbackResponse(AdminMvpEvidenceResponse):
+    """Read-only Spot order fill readback evidence."""
+
+    type: str = "admin_spot_order_fill_readback"
+    module_id: str = "spot_operations"
+    route: str = "/api/v1/orders/{client_order_id}/fill-readback"
+    method: str = "GET"
+
+
 class AdminProductsReadResponse(BaseModel):
     """Backend-owned Coinbase product metadata read evidence."""
 
