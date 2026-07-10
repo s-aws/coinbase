@@ -4762,6 +4762,34 @@ class AdminOrderDetailResponse(BaseModel):
     live_coinbase_orders_ran: bool = False
 
 
+class AdminOrderFillFollowUpReplayResponse(BaseModel):
+    """No-live fill-event replay evidence keyed by ``client_order_id``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_order_fill_follow_up_replay"
+    client_order_id: str
+    found: bool
+    replay_ran: bool = False
+    replay_mode: str = "no_live_read_only"
+    replay_trigger: str = "filled"
+    replay_source: str = "order_parent"
+    fill_follow_up_decision_audit: (
+        AdminOrderFillFollowUpDecisionAuditEvidence | None
+    ) = None
+    read_only: bool = True
+    live_coinbase_orders_ran: bool = False
+    live_coinbase_read_ran: bool = False
+    order_engine_handle_filled_order_called: bool = False
+    stealth_create_follow_up_called: bool = False
+    follow_up_order_created: bool = False
+    coinbase_order_submit_ran: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    local_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    detail: str
+
+
 class AdminStealthOrderReadItem(BaseModel):
     """Read-only stealth order evidence from ``stealth_orders``."""
 

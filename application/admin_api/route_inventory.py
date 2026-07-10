@@ -49,6 +49,22 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test="client_order_id identity only",
     ),
     AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="GET /api/v1/orders/{client_order_id}/fill-follow-up/replay",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.AUDIT_READ,
+        idempotency="not required",
+        approval="not required",
+        caps="not applicable",
+        audit="optional read audit",
+        shared_method="build_order_fill_follow_up_replay",
+        parity_test=(
+            "read-only fill-event replay and follow-up decision evidence; no "
+            "OrderEngine.handle_filled_order, claim acquisition, stealth "
+            "follow-up creation, Coinbase call, or local/exchange mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
         module_id="stealth_orders",
         surface="GET /api/v1/stealth/orders",
         action_class=AdminApiActionClass.READ_ONLY,

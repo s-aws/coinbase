@@ -70,6 +70,7 @@ from application.admin_api.models import (
     AdminApiErrorResponse,
     AdminLiveAdmissionDecisionEvidence,
     AdminOrderDetailResponse,
+    AdminOrderFillFollowUpReplayResponse,
     AdminOrderListResponse,
     CampaignExecutionCommand,
     CampaignExecutionRequest,
@@ -986,6 +987,25 @@ def get_order_by_client_order_id(
 
     require_permission(actor, AdminApiPermission.AUDIT_READ)
     return _read_response(service.build_order_detail(client_order_id=client_order_id))
+
+
+@router.get(
+    "/orders/{client_order_id}/fill-follow-up/replay",
+    response_model=AdminOrderFillFollowUpReplayResponse,
+    responses=READ_ROUTE_RESPONSES,
+    summary="Replay local fill follow-up decision evidence without live execution",
+)
+def get_order_fill_follow_up_replay(
+    client_order_id: Annotated[str, Path(min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiReadService, Depends(get_read_service)],
+) -> JSONResponse:
+    """Replay local fill follow-up evidence without mutating order state."""
+
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    return _read_response(
+        service.build_order_fill_follow_up_replay(client_order_id=client_order_id)
+    )
 
 
 @router.post(

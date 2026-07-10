@@ -309,6 +309,7 @@ from .models import (
     AdminOidcJwtReadinessResponse,
     AdminOrderDetailResponse,
     AdminOrderFillFollowUpDecisionAuditEvidence,
+    AdminOrderFillFollowUpReplayResponse,
     AdminOrderListResponse,
     AdminOrderReadItem,
     AdminReplacementSlotEvidence,
@@ -3001,6 +3002,7 @@ def _order_fill_follow_up_decision_audit(
         exchange_state_mutated=False,
         read_evidence_routes=[
             "/api/v1/orders/{client_order_id}",
+            "/api/v1/orders/{client_order_id}/fill-follow-up/replay",
             "/api/v1/stealth/orders/{stealth_order_id}",
             "/api/v1/admin/fill-ledger-health",
         ],
@@ -12959,6 +12961,36 @@ class AdminApiReadService:
             fill_follow_up_decision_audit=_order_fill_follow_up_decision_audit(
                 row,
                 client_order_id=client_order_id,
+            ),
+        )
+
+    def build_order_fill_follow_up_replay(
+        self,
+        *,
+        client_order_id: str,
+    ) -> AdminOrderFillFollowUpReplayResponse:
+        """Return no-live fill-event replay evidence for one order."""
+
+        try:
+            from database.order import get_parent_order
+
+            row = get_parent_order(client_order_id)
+        except Exception:
+            row = None
+        return AdminOrderFillFollowUpReplayResponse(
+            client_order_id=client_order_id,
+            found=row is not None,
+            replay_ran=row is not None,
+            fill_follow_up_decision_audit=_order_fill_follow_up_decision_audit(
+                row,
+                client_order_id=client_order_id,
+            ),
+            detail=(
+                "Read-only fill-event replay evaluates local follow-up decision "
+                "evidence without calling OrderEngine.handle_filled_order, "
+                "acquiring follow-up claims, creating stealth follow-ups, "
+                "submitting/canceling Coinbase orders, or mutating local/"
+                "exchange state."
             ),
         )
 

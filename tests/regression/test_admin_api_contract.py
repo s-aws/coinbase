@@ -3517,6 +3517,23 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
         "AdminOrderDetailResponse"
     ]
     assert "fill_follow_up_decision_audit" in order_detail_schema["properties"]
+    replay_path = written["paths"][
+        "/api/v1/orders/{client_order_id}/fill-follow-up/replay"
+    ]["get"]
+    assert replay_path["responses"]["200"]["content"]["application/json"]["schema"][
+        "$ref"
+    ] == "#/components/schemas/AdminOrderFillFollowUpReplayResponse"
+    assert "AdminOrderFillFollowUpReplayResponse" in written["components"]["schemas"]
+    replay_schema = written["components"]["schemas"][
+        "AdminOrderFillFollowUpReplayResponse"
+    ]
+    assert "client_order_id" in replay_schema["properties"]
+    assert "fill_follow_up_decision_audit" in replay_schema["properties"]
+    assert "replay_mode" in replay_schema["properties"]
+    assert "order_engine_handle_filled_order_called" in replay_schema["properties"]
+    assert "stealth_create_follow_up_called" in replay_schema["properties"]
+    assert "coinbase_order_submit_ran" in replay_schema["properties"]
+    assert "local_state_mutated" in replay_schema["properties"]
     assert "AdminOrderFillFollowUpDecisionAuditEvidence" in written["components"][
         "schemas"
     ]
@@ -75740,6 +75757,92 @@ def test_admin_api_order_detail_surfaces_no_live_fill_follow_up_decision(
 
 
 @pytest.mark.regression
+def test_admin_api_order_fill_follow_up_replay_route_surfaces_no_live_decision(
+    monkeypatch,
+):
+    import configuration
+    import database.order as order_module
+
+    root_order = {
+        "client_order_id": "root-follow-up-buy",
+        "product_id": "BTC-USD",
+        "side": "BUY",
+        "status": "FILLED",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "100.00",
+        "parent_order_id": None,
+        "created_at": "2026-07-10T01:00:00Z",
+        "updated_at": "2026-07-10T01:02:00Z",
+        "exchange_order_id": "exchange-evidence-root",
+    }
+    child_order = {
+        "client_order_id": "child-follow-up-sell",
+        "product_id": "BTC-USD",
+        "side": "SELL",
+        "status": "PENDING",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "101.00",
+        "parent_order_id": "root-follow-up-buy",
+        "created_at": "2026-07-10T01:03:00Z",
+        "updated_at": "2026-07-10T01:03:00Z",
+    }
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order",
+        lambda client_order_id: (
+            root_order if client_order_id == "root-follow-up-buy" else None
+        ),
+    )
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_orders",
+        lambda: [root_order, child_order],
+    )
+    monkeypatch.setattr(
+        configuration,
+        "rest_get_products",
+        lambda: {
+            "BTC-USD": {
+                "product_id": "BTC-USD",
+                "product_type": "SPOT",
+                "future_product_details": {},
+            }
+        },
+    )
+
+    client = _client(monkeypatch)
+    response = client.get(
+        "/api/v1/orders/root-follow-up-buy/fill-follow-up/replay",
+        headers=_headers(roles=AdminApiRole.AUDITOR.value),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["type"] == "admin_order_fill_follow_up_replay"
+    assert payload["client_order_id"] == "root-follow-up-buy"
+    assert payload["found"] is True
+    assert payload["replay_ran"] is True
+    assert payload["replay_mode"] == "no_live_read_only"
+    assert payload["replay_trigger"] == "filled"
+    assert payload["read_only"] is True
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["order_engine_handle_filled_order_called"] is False
+    assert payload["stealth_create_follow_up_called"] is False
+    assert payload["follow_up_order_created"] is False
+    assert payload["coinbase_order_submit_ran"] is False
+    assert payload["local_state_mutated"] is False
+    assert payload["exchange_state_mutated"] is False
+    audit = payload["fill_follow_up_decision_audit"]
+    assert audit["follow_up_decision"] == "eligible_no_live"
+    assert audit["existing_follow_up_client_order_ids"] == ["child-follow-up-sell"]
+    assert audit["claim_acquired"] is False
+    assert "fill_follow_up_execution_adapter_missing" in audit["blockers"]
+    assert "live_fill_follow_up_scope_not_approved" in audit["blockers"]
+
+
+@pytest.mark.regression
 def test_admin_api_stealth_read_routes_use_read_service_without_commands(monkeypatch):
     from api.v1.routes import stealth as stealth_routes
 
@@ -85972,6 +86075,12 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows["GET /api/v1/orders/{client_order_id}"].shared_method == (
         "build_order_detail"
     )
+    assert rows[
+        "GET /api/v1/orders/{client_order_id}/fill-follow-up/replay"
+    ].shared_method == "build_order_fill_follow_up_replay"
+    assert rows[
+        "GET /api/v1/orders/{client_order_id}/fill-follow-up/replay"
+    ].action_class == AdminApiActionClass.READ_ONLY
     assert rows["GET /api/v1/stealth/orders"].shared_method == (
         "build_stealth_order_list"
     )
@@ -86574,6 +86683,7 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "record_live_adapter_decision" in doc
     assert "structured command-gap" in doc
     assert "build_order_list" in doc
+    assert "build_order_fill_follow_up_replay" in doc
     assert "build_stealth_order_list" in doc
     assert "build_stealth_order_detail" in doc
     assert "cancel_stealth_order_by_stealth_order_id" in doc
