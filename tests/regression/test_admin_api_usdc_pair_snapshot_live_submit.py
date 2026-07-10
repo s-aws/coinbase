@@ -1024,3 +1024,36 @@ def test_usdc_pair_snapshot_live_fanout_executor_enforces_total_notional_cap():
             ],
             max_orders_per_second=5,
         )
+
+
+def test_usdc_pair_snapshot_live_fanout_executor_requires_quote_size_match():
+    from application.admin_api import usdc_pair_snapshot_live_execution as live_exec
+
+    class FakeOrderExecutor:
+        def submit_and_cancel(self, **_kwargs):
+            raise AssertionError("fan-out executor must fail before submission")
+
+    executor = live_exec.UsdcPairSnapshotLiveFanoutExecutor(
+        order_executor=FakeOrderExecutor()
+    )
+
+    with pytest.raises(
+        live_exec.UsdcPairSnapshotLiveExecutionError,
+        match="quote_size must match submitted notional",
+    ):
+        executor.submit_and_cancel_all(
+            orders=[
+                {
+                    "client_order_id": "client-order-mismatch",
+                    "product_id": "BTC-USDC",
+                    "side": "BUY",
+                    "order_configuration": {
+                        "limit_limit_gtc": {"quote_size": "1.01"}
+                    },
+                    "submitted_notional_usdc": "1.00",
+                    "max_executed_notional_usdc": "0.01",
+                    "cancel_client_order_id": "client-order-mismatch",
+                },
+            ],
+            max_orders_per_second=5,
+        )

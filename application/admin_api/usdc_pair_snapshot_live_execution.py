@@ -335,21 +335,55 @@ def _fanout_order_call(order: Mapping[str, Any]) -> dict[str, Any]:
         raise UsdcPairSnapshotLiveExecutionError(
             "M58 live fan-out submit requires order_configuration evidence."
         )
+    submitted_notional_usdc = _required_text(
+        order,
+        "submitted_notional_usdc",
+    )
+    _ensure_fanout_quote_size_matches(
+        order_configuration=order_configuration,
+        submitted_notional_usdc=submitted_notional_usdc,
+    )
     return {
         "client_order_id": client_order_id,
         "product_id": _required_text(order, "product_id"),
         "side": _required_text(order, "side"),
         "order_configuration": dict(order_configuration),
-        "submitted_notional_usdc": _required_text(
-            order,
-            "submitted_notional_usdc",
-        ),
+        "submitted_notional_usdc": submitted_notional_usdc,
         "max_executed_notional_usdc": _required_text(
             order,
             "max_executed_notional_usdc",
         ),
         "cancel_client_order_id": cancel_client_order_id,
     }
+
+
+def _ensure_fanout_quote_size_matches(
+    *,
+    order_configuration: Mapping[str, Any],
+    submitted_notional_usdc: str,
+) -> None:
+    limit_config = order_configuration.get("limit_limit_gtc")
+    if not isinstance(limit_config, Mapping):
+        raise UsdcPairSnapshotLiveExecutionError(
+            "M58 live fan-out submit requires limit_limit_gtc quote_size evidence."
+        )
+    quote_size = limit_config.get("quote_size")
+    if quote_size is None:
+        raise UsdcPairSnapshotLiveExecutionError(
+            "M58 live fan-out submit requires limit_limit_gtc quote_size evidence."
+        )
+    quote_size_value = _fanout_decimal_value(
+        quote_size,
+        "limit quote_size",
+    )
+    submitted_value = _fanout_decimal_value(
+        submitted_notional_usdc,
+        "submitted fan-out notional",
+    )
+    if quote_size_value != submitted_value:
+        raise UsdcPairSnapshotLiveExecutionError(
+            "M58 live fan-out submit quote_size must match submitted notional."
+        )
 
 
 def _fanout_decimal_value(value: Any, label: str) -> Decimal:
