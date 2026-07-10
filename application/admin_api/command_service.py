@@ -1962,6 +1962,10 @@ class AdminApiCommandService:
 
         normalized_blockers = _ordered_unique_strings(blockers)
         trigger_accepted = not normalized_blockers
+        follow_up_child_delta_observed = (
+            executor_invoked
+            and chain.follow_up_child_count > pre_trigger_chain.follow_up_child_count
+        )
         execution_flags = {
             "claim_acquired": _fill_follow_up_execution_flag(
                 execution_result,
@@ -1979,11 +1983,12 @@ class AdminApiCommandService:
             "stealth_create_follow_up_called": _fill_follow_up_execution_flag(
                 execution_result,
                 "stealth_create_follow_up_called",
+                default=follow_up_child_delta_observed,
             ),
             "follow_up_order_created": _fill_follow_up_execution_flag(
                 execution_result,
                 "follow_up_order_created",
-                default=chain.follow_up_child_count > pre_trigger_chain.follow_up_child_count,
+                default=follow_up_child_delta_observed,
             ),
             "coinbase_order_submit_ran": _fill_follow_up_execution_flag(
                 execution_result,
@@ -1996,7 +2001,7 @@ class AdminApiCommandService:
             "local_state_mutated": _fill_follow_up_execution_flag(
                 execution_result,
                 "local_state_mutated",
-                default=chain.follow_up_child_count > pre_trigger_chain.follow_up_child_count,
+                default=follow_up_child_delta_observed,
             ),
             "exchange_state_mutated": _fill_follow_up_execution_flag(
                 execution_result,

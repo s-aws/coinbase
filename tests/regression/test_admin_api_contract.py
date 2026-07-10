@@ -76690,13 +76690,10 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
             "source": "fake_fill_follow_up_executor",
             "order_engine_handle_filled_order_called": True,
             "claim_acquired": True,
-            "stealth_create_follow_up_called": True,
-            "follow_up_order_created": True,
             "follow_up_child_client_order_id": child_id,
             "coinbase_order_submit_ran": False,
             "coinbase_order_cancel_submitted": False,
             "live_coinbase_orders_ran": False,
-            "local_state_mutated": True,
             "exchange_state_mutated": False,
         }
 
