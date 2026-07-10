@@ -1230,7 +1230,7 @@
       "caps": "required maximum fan-out notional <= 100 USDC, cancel/rollback before phase completion, and default 5 orders per second rate limit evidence",
       "audit": "required",
       "shared_method": "submit_usdc_pair_snapshot_allowlist_run_state_live_fanout",
-      "parity_test": "M58 backend-owned live fan-out boundary accepts only explicit run-state fan-out submit attempts and rejects before Coinbase execution until the backend multi-product executor proof chain exists; no scheduler and no browser execution authority",
+      "parity_test": "M58 backend-owned live fan-out boundary accepts only explicit run-state fan-out submit attempts and rejects before Coinbase execution unless all backend route proof gates clear; no scheduler and no browser execution authority",
       "compatibility_mode": null,
       "command_contract": true
     },

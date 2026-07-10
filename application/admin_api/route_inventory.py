@@ -1317,8 +1317,8 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         parity_test=(
             "M58 backend-owned live fan-out boundary accepts only explicit "
             "run-state fan-out submit attempts and rejects before Coinbase "
-            "execution until the backend multi-product executor proof chain "
-            "exists; no scheduler and no browser execution authority"
+            "execution unless all backend route proof gates clear; no scheduler "
+            "and no browser execution authority"
         ),
     ),
     AdminApiRouteInventoryItem(
