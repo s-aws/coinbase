@@ -672,6 +672,60 @@ def _manual_order_admin_cap_guard_context(
     return record.decision_id, record.max_submitted_notional_usdc
 
 
+def _fill_follow_up_cap_guard_wallet_context(
+    *,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+    cap_guard_store: FileAdminApiCapGuardStore,
+) -> dict[str, str | None]:
+    """Return wallet proof evidence from the exact fill-follow-up cap/guard row."""
+
+    if (
+        not admission_decision.cap_guard_present
+        or not admission_decision.cap_guard_decision_id
+    ):
+        return {}
+
+    record = cap_guard_store.find_by_decision_id(
+        admission_decision.cap_guard_decision_id
+    )
+    if (
+        record is None
+        or not record.allowed
+        or record.status != AdminApiGateStatus.PASSED
+    ):
+        return {}
+
+    same_command = (
+        record.route == admission_decision.route
+        and record.method == admission_decision.method
+        and record.module_id == admission_decision.module_id
+        and record.identity_key == admission_decision.identity_key
+        and record.identity_value == admission_decision.identity_value
+        and _enum_text(record.action_class)
+        == _enum_text(admission_decision.action_class)
+        and _enum_text(record.required_permission)
+        == _enum_text(admission_decision.required_permission)
+        and record.service_method == admission_decision.service_method
+        and record.actor_id == admission_decision.actor_id
+        and record.operator_intent == admission_decision.operator_intent
+        and record.idempotency_key == admission_decision.idempotency_key
+        and record.payload_hash == admission_decision.payload_hash
+        and record.approval_snapshot_id == admission_decision.approval_snapshot_id
+        and record.admission_audit_id == admission_decision.admission_audit_id
+    )
+    if not same_command:
+        return {}
+
+    return {
+        "cap_guard_wallet_proof_ref": f"cap_guard_wallet:{record.decision_id}",
+        "cap_guard_wallet_check_status": _enum_text(record.wallet_check_status),
+        "cap_guard_wallet_available_notional_usdc": (
+            record.wallet_available_notional_usdc
+        ),
+        "cap_guard_wallet_check_source": record.wallet_check_source,
+    }
+
+
 def _enum_text(value: object) -> str:
     enum_value = getattr(value, "value", value)
     return str(enum_value)
@@ -1125,6 +1179,10 @@ def trigger_order_fill_follow_up(
                     client_order_id=client_order_id,
                     request=body,
                     admission_decision=admission_decision,
+                    **_fill_follow_up_cap_guard_wallet_context(
+                        admission_decision=admission_decision,
+                        cap_guard_store=cap_guard_store,
+                    ),
                 )
             )
         ),

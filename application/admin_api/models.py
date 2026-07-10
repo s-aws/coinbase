@@ -1250,6 +1250,10 @@ class AdminOrderFillFollowUpTriggerCommand(BaseModel):
     client_order_id: str = Field(min_length=1)
     request: AdminOrderFillFollowUpTriggerRequest
     admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
+    cap_guard_wallet_proof_ref: str | None = None
+    cap_guard_wallet_check_status: str | None = None
+    cap_guard_wallet_available_notional_usdc: str | None = None
+    cap_guard_wallet_check_source: str | None = None
 
 
 class CancelOrderCommand(BaseModel):

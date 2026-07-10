@@ -76359,6 +76359,244 @@ def test_admin_api_order_fill_follow_up_trigger_validates_supplied_refs_without_
 
 
 @pytest.mark.regression
+def test_admin_api_order_fill_follow_up_trigger_verifies_exact_admission_refs(
+    monkeypatch,
+):
+    import configuration
+    import database.order as order_module
+
+    root_id = "ac0e8400-e29b-41d4-a716-446655440000"
+    idempotency_key = "idem-fill-follow-up-trigger-verified-refs"
+    operator_intent = "trigger_fill_follow_up_test"
+    body = {
+        "fill_testing_approval_id": "fill-follow-up-approval-verified",
+        "wallet_proof_ref": "cap_guard_wallet:fill-follow-up-cap-guard-verified",
+        "cap_guard_decision_id": "fill-follow-up-cap-guard-verified",
+        "reconciliation_plan_id": "fill-follow-up-reconciliation-verified",
+        "audit_correlation_id": "corr-root-follow-up",
+        "confirm_duplicate_claim_protection": True,
+    }
+    payload_hash = make_payload_hash(
+        {
+            "endpoint": f"POST /api/v1/orders/{root_id}/fill-follow-up/trigger",
+            "actor_id": "operator-001",
+            "roles": [AdminApiRole.TRADER.value],
+            "operator_intent": operator_intent,
+            "body": body,
+            "path_params": {"client_order_id": root_id},
+        }
+    )
+    root_order = {
+        "client_order_id": root_id,
+        "product_id": "BTC-USD",
+        "side": "BUY",
+        "status": "FILLED",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "100.00",
+        "parent_order_id": None,
+        "created_at": "2026-07-10T01:00:00Z",
+        "updated_at": "2026-07-10T01:02:00Z",
+        "exchange_order_id": "exchange-evidence-root",
+        "correlation_id": "corr-root-follow-up",
+    }
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order",
+        lambda client_order_id: root_order if client_order_id == root_id else None,
+    )
+    monkeypatch.setattr(order_module, "get_parent_orders", lambda: [root_order])
+    monkeypatch.setattr(
+        order_module,
+        "get_stealth_children_for_parent",
+        lambda parent_order_id: [],
+    )
+    monkeypatch.setattr(
+        configuration,
+        "rest_get_products",
+        lambda: {
+            "BTC-USD": {
+                "product_id": "BTC-USD",
+                "product_type": "SPOT",
+                "future_product_details": {},
+            }
+        },
+    )
+
+    client = _client(monkeypatch)
+    approval = AdminApiApprovalRecord(
+        approval_id=body["fill_testing_approval_id"],
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+        approved_by_actor_id="approver-001",
+        requested_by_actor_id="operator-001",
+        route="/api/v1/orders/{client_order_id}/fill-follow-up/trigger",
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value=root_id,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        cap_guard_decision_ref=body["cap_guard_decision_id"],
+        reconciliation_plan_ref=body["reconciliation_plan_id"],
+    )
+    client.admin_api_test_approval_store.append(approval)
+    admission_audit = AdminApiAuditEvent(
+        audit_id="fill-follow-up-admission-audit-verified",
+        actor_id="operator-001",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ORDER_CREATE,
+        endpoint=(
+            "/api/v1/orders/{client_order_id}/fill-follow-up/trigger"
+        ),
+        request_id="corr-fill-follow-up-admission",
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        approval_id=approval.approval_id,
+        client_order_id=root_id,
+        status=AdminApiCommandStatus.REJECTED,
+        failure_stage="fill_follow_up_trigger_prerequisite",
+        message="Prior fill follow-up admission audit.",
+        admission_decision=AdminLiveAdmissionDecisionEvidence(
+            status=AdminApiGateStatus.BLOCKED,
+            allowed=False,
+            route="/api/v1/orders/{client_order_id}/fill-follow-up/trigger",
+            method="POST",
+            module_id="spot_operations",
+            identity_key="client_order_id",
+            identity_value=root_id,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            service_method="trigger_order_fill_follow_up",
+            actor_id="operator-001",
+            idempotency_key=idempotency_key,
+            operator_intent=operator_intent,
+            payload_hash=payload_hash,
+            approval_snapshot_present=True,
+            approval_snapshot_id=approval.approval_id,
+            approval_snapshot_source="approval_store",
+            approval_snapshot_approved_by_actor_id=approval.approved_by_actor_id,
+            approval_snapshot_requested_by_actor_id=approval.requested_by_actor_id,
+            approval_snapshot_expires_at=approval.expires_at.isoformat(),
+            browser_authority="rejected",
+            live_exchange_submitted=False,
+            blockers=[AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED],
+            evidence=["prior fill follow-up admission audit"],
+            detail="Prior backend-owned fill follow-up admission audit proof.",
+        ),
+    )
+    client.admin_api_test_audit_store.append(admission_audit)
+    cap_guard = CapGuardDecisionRecord(
+        decision_id=body["cap_guard_decision_id"],
+        route="/api/v1/orders/{client_order_id}/fill-follow-up/trigger",
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value=root_id,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        service_method="trigger_order_fill_follow_up",
+        actor_id="operator-001",
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        approval_snapshot_id=approval.approval_id,
+        admission_audit_id=admission_audit.audit_id,
+        allowed=True,
+        status=AdminApiGateStatus.PASSED,
+        cap_policy_ref="fill_follow_up_cap:local_state_only",
+        guard_policy_ref="fill_follow_up_duplicate_and_scope_guard",
+        product_scope="BTC-USD spot fill follow-up scope",
+        max_submitted_notional_usdc="10.00",
+        max_executed_notional_usdc="0",
+        wallet_check_required=True,
+        wallet_check_status=AdminApiGateStatus.PASSED,
+        wallet_available_notional_usdc="10.00",
+        wallet_check_source="operator_supplied_fill_follow_up_wallet_evidence",
+        reason="Exact backend-owned fill follow-up cap/guard proof.",
+    )
+    client.admin_api_test_cap_guard_store.append(cap_guard)
+    reconciliation = ReconciliationPlanRecord(
+        plan_id=body["reconciliation_plan_id"],
+        route="/api/v1/orders/{client_order_id}/fill-follow-up/trigger",
+        method="POST",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value=root_id,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        service_method="trigger_order_fill_follow_up",
+        actor_id="operator-001",
+        operator_intent=operator_intent,
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        approval_snapshot_id=approval.approval_id,
+        admission_audit_id=admission_audit.audit_id,
+        cap_guard_decision_id=cap_guard.decision_id,
+        allowed=True,
+        status=AdminApiGateStatus.PASSED,
+        reconciliation_policy_ref="fill_follow_up_parent_child_chain_readback",
+        product_scope="BTC-USD spot fill follow-up scope",
+        exchange_submission_required=False,
+        post_submit_reconciliation_required=True,
+        retained_inventory_required=True,
+        max_submitted_notional_usdc="10.00",
+        max_executed_notional_usdc="0",
+        reason="Exact backend-owned fill follow-up reconciliation proof.",
+    )
+    client.admin_api_test_reconciliation_store.append(reconciliation)
+
+    response = client.post(
+        f"/api/v1/orders/{root_id}/fill-follow-up/trigger",
+        headers=_headers(
+            idempotency_key=idempotency_key,
+            operator_intent=operator_intent,
+            roles=AdminApiRole.TRADER.value,
+        ),
+        json=body,
+    )
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    admission = payload["admission_decision"]
+    assert admission["approval_snapshot_present"] is True
+    assert admission["approval_snapshot_id"] == body["fill_testing_approval_id"]
+    assert admission["cap_guard_present"] is True
+    assert admission["cap_guard_decision_id"] == body["cap_guard_decision_id"]
+    assert admission["reconciliation_plan_present"] is True
+    assert admission["reconciliation_plan_id"] == body["reconciliation_plan_id"]
+    data = payload["data"]
+    blockers = set(data["blockers"])
+    assert "fill_testing_approval_unverified" not in blockers
+    assert "fill_follow_up_cap_guard_proof_unverified" not in blockers
+    assert "fill_follow_up_reconciliation_proof_unverified" not in blockers
+    assert "fill_follow_up_wallet_proof_unverified" not in blockers
+    assert "duplicate_claim_protection_unobserved" in blockers
+    assert "fill_follow_up_execution_adapter_missing" in blockers
+    validation = data["prerequisite_validation"]
+    assert validation["fill_testing_approval"]["status"] == "verified"
+    assert validation["fill_testing_approval"]["verified"] is True
+    assert validation["cap_guard_decision"]["status"] == "verified"
+    assert validation["cap_guard_decision"]["verified"] is True
+    assert validation["reconciliation_plan"]["status"] == "verified"
+    assert validation["reconciliation_plan"]["verified"] is True
+    assert validation["wallet_proof"]["status"] == "verified"
+    assert validation["wallet_proof"]["verified"] is True
+    assert validation["wallet_proof"]["source"] == "cap_guard_decision_wallet_check"
+    assert validation["wallet_proof"]["wallet_available_notional_usdc"] == "10.00"
+    assert data["claim_acquired"] is False
+    assert data["order_engine_handle_filled_order_called"] is False
+    assert data["stealth_create_follow_up_called"] is False
+    assert data["follow_up_order_created"] is False
+    assert data["coinbase_order_submit_ran"] is False
+    assert data["local_state_mutated"] is False
+    assert data["exchange_state_mutated"] is False
+
+
+@pytest.mark.regression
 def test_admin_api_order_fill_follow_up_trigger_rejects_existing_child_to_avoid_duplicate(
     monkeypatch,
 ):

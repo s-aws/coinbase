@@ -1381,6 +1381,11 @@ def _fill_follow_up_ref_validation(
 
 def _fill_follow_up_wallet_validation(
     wallet_proof_ref: str | None,
+    *,
+    cap_guard_wallet_proof_ref: str | None,
+    cap_guard_wallet_check_status: str | None,
+    cap_guard_wallet_available_notional_usdc: str | None,
+    cap_guard_wallet_check_source: str | None,
 ) -> tuple[dict[str, Any], str | None]:
     """Classify wallet proof without accepting a bare string as authority."""
 
@@ -1396,6 +1401,76 @@ def _fill_follow_up_wallet_validation(
                 "missing_reason": "request_ref_missing",
             },
             "fill_follow_up_wallet_proof_missing",
+        )
+    if cap_guard_wallet_proof_ref:
+        if wallet_proof_ref != cap_guard_wallet_proof_ref:
+            return (
+                {
+                    "required": True,
+                    "requested_ref": wallet_proof_ref,
+                    "expected_ref": cap_guard_wallet_proof_ref,
+                    "status": "mismatch",
+                    "verified": False,
+                    "blocker": "fill_follow_up_wallet_proof_ref_mismatch",
+                    "source": "cap_guard_decision_wallet_check",
+                    "missing_reason": (
+                        "requested_ref_does_not_match_cap_guard_wallet_proof"
+                    ),
+                },
+                "fill_follow_up_wallet_proof_ref_mismatch",
+            )
+        if cap_guard_wallet_check_status != AdminApiGateStatus.PASSED.value:
+            return (
+                {
+                    "required": True,
+                    "requested_ref": wallet_proof_ref,
+                    "expected_ref": cap_guard_wallet_proof_ref,
+                    "status": "unverified",
+                    "verified": False,
+                    "blocker": "fill_follow_up_wallet_proof_unverified",
+                    "source": "cap_guard_decision_wallet_check",
+                    "missing_reason": "cap_guard_wallet_check_not_passed",
+                    "wallet_check_status": cap_guard_wallet_check_status,
+                },
+                "fill_follow_up_wallet_proof_unverified",
+            )
+        if safe_float(cap_guard_wallet_available_notional_usdc, default=0.0) <= 0.0:
+            return (
+                {
+                    "required": True,
+                    "requested_ref": wallet_proof_ref,
+                    "expected_ref": cap_guard_wallet_proof_ref,
+                    "status": "unverified",
+                    "verified": False,
+                    "blocker": "fill_follow_up_wallet_proof_unverified",
+                    "source": "cap_guard_decision_wallet_check",
+                    "missing_reason": (
+                        "cap_guard_wallet_available_notional_not_positive"
+                    ),
+                    "wallet_check_status": cap_guard_wallet_check_status,
+                    "wallet_available_notional_usdc": (
+                        cap_guard_wallet_available_notional_usdc
+                    ),
+                },
+                "fill_follow_up_wallet_proof_unverified",
+            )
+        return (
+            {
+                "required": True,
+                "requested_ref": wallet_proof_ref,
+                "expected_ref": cap_guard_wallet_proof_ref,
+                "status": "verified",
+                "verified": True,
+                "blocker": None,
+                "source": "cap_guard_decision_wallet_check",
+                "missing_reason": None,
+                "wallet_check_status": cap_guard_wallet_check_status,
+                "wallet_available_notional_usdc": (
+                    cap_guard_wallet_available_notional_usdc
+                ),
+                "wallet_check_source": cap_guard_wallet_check_source,
+            },
+            None,
         )
     return (
         {
@@ -1500,6 +1575,10 @@ def _fill_follow_up_prerequisite_validation(
     request: Any,
     audit_correlation_id: str | None,
     admission_decision: Any | None,
+    cap_guard_wallet_proof_ref: str | None,
+    cap_guard_wallet_check_status: str | None,
+    cap_guard_wallet_available_notional_usdc: str | None,
+    cap_guard_wallet_check_source: str | None,
 ) -> tuple[dict[str, Any], list[str | None]]:
     """Build request-scoped fill-follow-up prerequisite validation evidence."""
 
@@ -1514,7 +1593,13 @@ def _fill_follow_up_prerequisite_validation(
         admission_decision=admission_decision,
     )
     wallet_validation, wallet_blocker = _fill_follow_up_wallet_validation(
-        request.wallet_proof_ref
+        request.wallet_proof_ref,
+        cap_guard_wallet_proof_ref=cap_guard_wallet_proof_ref,
+        cap_guard_wallet_check_status=cap_guard_wallet_check_status,
+        cap_guard_wallet_available_notional_usdc=(
+            cap_guard_wallet_available_notional_usdc
+        ),
+        cap_guard_wallet_check_source=cap_guard_wallet_check_source,
     )
     cap_guard_validation, cap_guard_blocker = _fill_follow_up_ref_validation(
         requested_ref=request.cap_guard_decision_id,
@@ -1636,6 +1721,16 @@ class AdminApiCommandService:
                 request=request,
                 audit_correlation_id=readiness.audit_correlation_id,
                 admission_decision=command.admission_decision,
+                cap_guard_wallet_proof_ref=command.cap_guard_wallet_proof_ref,
+                cap_guard_wallet_check_status=(
+                    command.cap_guard_wallet_check_status
+                ),
+                cap_guard_wallet_available_notional_usdc=(
+                    command.cap_guard_wallet_available_notional_usdc
+                ),
+                cap_guard_wallet_check_source=(
+                    command.cap_guard_wallet_check_source
+                ),
             )
         )
         blockers: list[str | None] = []
