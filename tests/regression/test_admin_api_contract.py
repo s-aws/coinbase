@@ -77720,6 +77720,7 @@ def test_admin_api_order_fill_follow_up_trigger_accepts_public_route_proof_chain
     assert validation["audit_correlation"]["status"] == "matched"
     assert validation["duplicate_claim_ack"]["status"] == "acknowledged"
     assert validation["duplicate_claim_guard"]["status"] == "available"
+    assert data["claim_acquired"] is True
     assert data["chain"]["follow_up_child_client_order_ids"] == [child_id]
     assert (
         "/api/v1/orders/{client_order_id}/fill-readback"
