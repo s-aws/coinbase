@@ -1981,7 +1981,7 @@ class AdminApiCommandService:
         self,
         command: AdminOrderFillFollowUpTriggerCommand,
     ) -> AdminApiCommandResponse:
-        """Reject fill-follow-up trigger attempts until execution gates exist."""
+        """Attempt guarded no-live fill-follow-up execution after proof gates."""
 
         from .read_service import AdminApiReadService
 

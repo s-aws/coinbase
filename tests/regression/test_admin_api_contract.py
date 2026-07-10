@@ -89231,6 +89231,8 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     trigger_route = rows[
         "POST /api/v1/orders/{client_order_id}/fill-follow-up/trigger"
     ]
+    assert trigger_route.approval == "required before accepted no-live trigger execution"
+    assert trigger_route.caps == "required before accepted no-live trigger execution"
     assert "exact route-bound approval" in trigger_route.parity_test
     assert "may invoke the no-live fill-follow-up executor" in (
         trigger_route.parity_test
