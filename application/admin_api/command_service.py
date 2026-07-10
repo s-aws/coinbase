@@ -46,6 +46,7 @@ from .approval import evaluate_live_execution_gate
 from .audit import FileAdminApiAuditStore
 from .models import (
     AdminApiCommandResponse,
+    AdminOrderFillFollowUpTriggerCommand,
     CampaignExecutionCommand,
     CancelOrderCommand,
     FuturesCancelOrderCommand,
@@ -1253,6 +1254,19 @@ def hotpoint_test_order_response_to_dashboard_payload(
     return payload
 
 
+def _ordered_unique_strings(values: list[str | None]) -> list[str]:
+    """Return non-empty strings once, preserving first observation order."""
+
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result
+
+
 class AdminApiCommandService:
     """Shared command-service boundary for enterprise API work."""
 
@@ -1290,6 +1304,114 @@ class AdminApiCommandService:
             "live_command_runtime_missing_reason": missing_reason,
             "live_command_runtime_source": deps.command_runtime_source,
         }
+
+    def trigger_order_fill_follow_up(
+        self,
+        command: AdminOrderFillFollowUpTriggerCommand,
+    ) -> AdminApiCommandResponse:
+        """Reject fill-follow-up trigger attempts until execution gates exist."""
+
+        from .read_service import AdminApiReadService
+
+        read_service = AdminApiReadService()
+        readiness = read_service.build_order_fill_follow_up_live_readiness(
+            client_order_id=command.client_order_id
+        )
+        chain = read_service.build_order_fill_follow_up_chain(
+            client_order_id=command.client_order_id
+        )
+        request = command.request
+        requested_refs = {
+            "fill_testing_approval_id": request.fill_testing_approval_id,
+            "wallet_proof_ref": request.wallet_proof_ref,
+            "cap_guard_decision_id": request.cap_guard_decision_id,
+            "reconciliation_plan_id": request.reconciliation_plan_id,
+            "audit_correlation_id": request.audit_correlation_id,
+            "confirm_duplicate_claim_protection": (
+                request.confirm_duplicate_claim_protection
+            ),
+        }
+        audit = readiness.fill_follow_up_decision_audit
+        blockers: list[str | None] = []
+        blockers.extend(readiness.blockers)
+        blockers.extend(chain.blockers)
+        if not readiness.found:
+            blockers.append("order_not_found")
+        if audit is None or audit.follow_up_decision != "eligible_no_live":
+            blockers.append("fill_follow_up_decision_not_eligible")
+        if not request.fill_testing_approval_id:
+            blockers.append("fill_testing_approval_missing")
+        if not request.wallet_proof_ref:
+            blockers.append("fill_follow_up_wallet_proof_missing")
+        if not request.cap_guard_decision_id:
+            blockers.append("fill_follow_up_cap_guard_proof_missing")
+        if not request.reconciliation_plan_id:
+            blockers.append("fill_follow_up_reconciliation_proof_missing")
+        if not request.confirm_duplicate_claim_protection:
+            blockers.append("duplicate_claim_protection_ack_missing")
+        if not readiness.duplicate_claim_protection_observed:
+            blockers.append("duplicate_claim_protection_unobserved")
+        if readiness.duplicate_claim_state in {"processing", "done"}:
+            blockers.append(f"duplicate_claim_{readiness.duplicate_claim_state}")
+        if not request.audit_correlation_id:
+            blockers.append("audit_correlation_id_missing")
+        elif (
+            readiness.audit_correlation_id
+            and request.audit_correlation_id != readiness.audit_correlation_id
+        ):
+            blockers.append("audit_correlation_id_mismatch")
+        if chain.follow_up_child_count > 0:
+            blockers.append("follow_up_child_already_exists")
+        if chain.duplicate_child_client_order_ids:
+            blockers.append("follow_up_child_duplicate_source_ids")
+        blockers.append("fill_follow_up_execution_adapter_missing")
+        normalized_blockers = _ordered_unique_strings(blockers)
+        no_live_flags = {
+            "claim_acquired": False,
+            "order_engine_handle_filled_order_called": False,
+            "stealth_create_follow_up_called": False,
+            "follow_up_order_created": False,
+            "coinbase_order_submit_ran": False,
+            "coinbase_order_cancel_submitted": False,
+            "local_state_mutated": False,
+            "exchange_state_mutated": False,
+            "live_exchange_submitted": False,
+            "live_coinbase_orders_ran": False,
+            "browser_authority": "display_only",
+            "bff_authority": "forward_only_no_execution",
+        }
+        data = {
+            "type": "admin_order_fill_follow_up_trigger_result",
+            "trigger_attempted": True,
+            "trigger_accepted": False,
+            "client_order_id": command.client_order_id,
+            "requested_refs": requested_refs,
+            "blockers": normalized_blockers,
+            "fill_follow_up_decision_audit": (
+                audit.model_dump(mode="json") if audit else None
+            ),
+            "live_readiness": readiness.model_dump(mode="json"),
+            "chain": chain.model_dump(mode="json"),
+            **no_live_flags,
+        }
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.REJECTED,
+            action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            service_method="trigger_order_fill_follow_up",
+            message=(
+                "Fill follow-up trigger rejected before execution; "
+                "prerequisites are incomplete."
+            ),
+            client_order_id=command.client_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            live_coinbase_orders_ran=False,
+            data=data,
+            failure_stage="fill_follow_up_trigger_prerequisite",
+            **self._command_runtime_evidence(),
+        )
 
     def place_manual_order(self, command: ManualOrderCommand) -> AdminApiCommandResponse:
         """Place a manual order through the existing guarded REST path."""

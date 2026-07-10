@@ -1227,6 +1227,30 @@ class ManualOrderCommand(BaseModel):
     allow_live_execution: bool = False
 
 
+class AdminOrderFillFollowUpTriggerRequest(BaseModel):
+    """Prerequisite refs for a fill-follow-up trigger attempt."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    fill_testing_approval_id: str | None = Field(default=None, min_length=1)
+    wallet_proof_ref: str | None = Field(default=None, min_length=1)
+    cap_guard_decision_id: str | None = Field(default=None, min_length=1)
+    reconciliation_plan_id: str | None = Field(default=None, min_length=1)
+    audit_correlation_id: str | None = Field(default=None, min_length=1)
+    confirm_duplicate_claim_protection: bool = False
+    operator_notes: str | None = None
+
+
+class AdminOrderFillFollowUpTriggerCommand(BaseModel):
+    """Shared service command for a fail-closed fill-follow-up trigger."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    client_order_id: str = Field(min_length=1)
+    request: AdminOrderFillFollowUpTriggerRequest
+
+
 class CancelOrderCommand(BaseModel):
     """Shared service command for cancel-by-client-order-id."""
 

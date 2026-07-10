@@ -100,6 +100,26 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         ),
     ),
     AdminApiRouteInventoryItem(
+        module_id="spot_operations",
+        surface="POST /api/v1/orders/{client_order_id}/fill-follow-up/trigger",
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        permission=AdminApiPermission.ORDER_CREATE,
+        idempotency="required",
+        approval="required before future accepted trigger execution",
+        caps="required before future accepted trigger execution",
+        audit="required",
+        shared_method="trigger_order_fill_follow_up",
+        parity_test=(
+            "fail-closed fill follow-up trigger boundary; rejects incomplete "
+            "fill-testing approval, wallet/cap/reconciliation proof, "
+            "duplicate-claim acknowledgement/readback, audit correlation, "
+            "existing child, duplicate chain, or missing execution adapter "
+            "before claim acquisition, OrderEngine.handle_filled_order, "
+            "stealth follow-up creation, Coinbase call, or local/exchange "
+            "mutation"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
         module_id="stealth_orders",
         surface="GET /api/v1/stealth/orders",
         action_class=AdminApiActionClass.READ_ONLY,

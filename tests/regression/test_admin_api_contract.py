@@ -3572,6 +3572,30 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "root_order" in chain_schema["properties"]
     assert "follow_up_children" in chain_schema["properties"]
     assert "duplicate_child_client_order_ids" in chain_schema["properties"]
+    trigger_path = written["paths"][
+        "/api/v1/orders/{client_order_id}/fill-follow-up/trigger"
+    ]["post"]
+    assert trigger_path["responses"]["200"]["content"]["application/json"][
+        "schema"
+    ]["$ref"] == "#/components/schemas/AdminApiCommandResponse"
+    assert trigger_path["requestBody"]["content"]["application/json"]["schema"][
+        "$ref"
+    ] == "#/components/schemas/AdminOrderFillFollowUpTriggerRequest"
+    assert (
+        "AdminOrderFillFollowUpTriggerRequest" in written["components"]["schemas"]
+    )
+    trigger_request_schema = written["components"]["schemas"][
+        "AdminOrderFillFollowUpTriggerRequest"
+    ]
+    assert "fill_testing_approval_id" in trigger_request_schema["properties"]
+    assert "wallet_proof_ref" in trigger_request_schema["properties"]
+    assert "cap_guard_decision_id" in trigger_request_schema["properties"]
+    assert "reconciliation_plan_id" in trigger_request_schema["properties"]
+    assert "audit_correlation_id" in trigger_request_schema["properties"]
+    assert (
+        "confirm_duplicate_claim_protection"
+        in trigger_request_schema["properties"]
+    )
     assert "AdminOrderFillFollowUpDecisionAuditEvidence" in written["components"][
         "schemas"
     ]
@@ -76064,6 +76088,222 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
 
 
 @pytest.mark.regression
+def test_admin_api_order_fill_follow_up_trigger_rejects_missing_prereqs_without_execution(
+    monkeypatch,
+):
+    import configuration
+    import database.order as order_module
+
+    root_id = "aa0e8400-e29b-41d4-a716-446655440000"
+    root_order = {
+        "client_order_id": root_id,
+        "product_id": "BTC-USD",
+        "side": "BUY",
+        "status": "FILLED",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "100.00",
+        "parent_order_id": None,
+        "created_at": "2026-07-10T01:00:00Z",
+        "updated_at": "2026-07-10T01:02:00Z",
+        "exchange_order_id": "exchange-evidence-root",
+        "correlation_id": "corr-root-follow-up",
+    }
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order",
+        lambda client_order_id: root_order if client_order_id == root_id else None,
+    )
+    monkeypatch.setattr(order_module, "get_parent_orders", lambda: [root_order])
+    monkeypatch.setattr(
+        order_module,
+        "get_stealth_children_for_parent",
+        lambda parent_order_id: [],
+    )
+    monkeypatch.setattr(
+        configuration,
+        "rest_get_products",
+        lambda: {
+            "BTC-USD": {
+                "product_id": "BTC-USD",
+                "product_type": "SPOT",
+                "future_product_details": {},
+            }
+        },
+    )
+
+    client = _client(monkeypatch)
+    response = client.post(
+        f"/api/v1/orders/{root_id}/fill-follow-up/trigger",
+        headers=_headers(
+            idempotency_key="idem-fill-follow-up-trigger-missing",
+            operator_intent="trigger_fill_follow_up_test",
+            roles=AdminApiRole.TRADER.value,
+        ),
+        json={},
+    )
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["action_class"] == AdminApiActionClass.LOCAL_STATE_MUTATION.value
+    assert payload["required_permission"] == AdminApiPermission.ORDER_CREATE.value
+    assert payload["service_method"] == "trigger_order_fill_follow_up"
+    assert payload["client_order_id"] == root_id
+    assert payload["correlation_id"] == "corr-001"
+    assert payload["idempotency_key"] == "idem-fill-follow-up-trigger-missing"
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["failure_stage"] == "fill_follow_up_trigger_prerequisite"
+    admission = payload["admission_decision"]
+    assert admission["route"] == (
+        "/api/v1/orders/{client_order_id}/fill-follow-up/trigger"
+    )
+    assert admission["service_method"] == "trigger_order_fill_follow_up"
+    assert admission["identity_key"] == "client_order_id"
+    assert admission["identity_value"] == root_id
+    data = payload["data"]
+    assert data["type"] == "admin_order_fill_follow_up_trigger_result"
+    assert data["trigger_attempted"] is True
+    assert data["trigger_accepted"] is False
+    assert data["requested_refs"] == {
+        "fill_testing_approval_id": None,
+        "wallet_proof_ref": None,
+        "cap_guard_decision_id": None,
+        "reconciliation_plan_id": None,
+        "audit_correlation_id": None,
+        "confirm_duplicate_claim_protection": False,
+    }
+    assert data["live_readiness"]["client_order_id"] == root_id
+    assert data["live_readiness"]["audit_correlation_id"] == "corr-root-follow-up"
+    assert data["chain"]["follow_up_child_count"] == 0
+    assert data["fill_follow_up_decision_audit"]["follow_up_decision"] == (
+        "eligible_no_live"
+    )
+    expected_blockers = {
+        "fill_testing_approval_missing",
+        "fill_follow_up_wallet_proof_missing",
+        "fill_follow_up_cap_guard_proof_missing",
+        "fill_follow_up_reconciliation_proof_missing",
+        "duplicate_claim_protection_ack_missing",
+        "duplicate_claim_protection_unobserved",
+        "audit_correlation_id_missing",
+        "fill_follow_up_execution_adapter_missing",
+    }
+    assert expected_blockers.issubset(set(data["blockers"]))
+    assert data["claim_acquired"] is False
+    assert data["order_engine_handle_filled_order_called"] is False
+    assert data["stealth_create_follow_up_called"] is False
+    assert data["follow_up_order_created"] is False
+    assert data["coinbase_order_submit_ran"] is False
+    assert data["coinbase_order_cancel_submitted"] is False
+    assert data["local_state_mutated"] is False
+    assert data["exchange_state_mutated"] is False
+
+
+@pytest.mark.regression
+def test_admin_api_order_fill_follow_up_trigger_rejects_existing_child_to_avoid_duplicate(
+    monkeypatch,
+):
+    import configuration
+    import database.order as order_module
+
+    root_id = "bb0e8400-e29b-41d4-a716-446655440000"
+    child_id = "cc0e8400-e29b-41d4-a716-446655440000"
+    root_order = {
+        "client_order_id": root_id,
+        "product_id": "BTC-USD",
+        "side": "BUY",
+        "status": "FILLED",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "100.00",
+        "parent_order_id": None,
+        "created_at": "2026-07-10T01:00:00Z",
+        "updated_at": "2026-07-10T01:02:00Z",
+        "exchange_order_id": "exchange-evidence-root",
+        "correlation_id": "corr-root-follow-up",
+    }
+    child_order = {
+        "client_order_id": child_id,
+        "product_id": "BTC-USD",
+        "side": "SELL",
+        "status": "HIDDEN",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "101.00",
+        "parent_order_id": root_id,
+        "created_at": "2026-07-10T01:03:00Z",
+        "updated_at": "2026-07-10T01:03:00Z",
+    }
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order",
+        lambda client_order_id: root_order if client_order_id == root_id else None,
+    )
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_orders",
+        lambda: [root_order, child_order],
+    )
+    monkeypatch.setattr(
+        order_module,
+        "get_stealth_children_for_parent",
+        lambda parent_order_id: [],
+    )
+    monkeypatch.setattr(
+        configuration,
+        "rest_get_products",
+        lambda: {
+            "BTC-USD": {
+                "product_id": "BTC-USD",
+                "product_type": "SPOT",
+                "future_product_details": {},
+            }
+        },
+    )
+
+    client = _client(monkeypatch)
+    response = client.post(
+        f"/api/v1/orders/{root_id}/fill-follow-up/trigger",
+        headers=_headers(
+            idempotency_key="idem-fill-follow-up-trigger-existing-child",
+            operator_intent="trigger_fill_follow_up_test",
+            roles=AdminApiRole.TRADER.value,
+        ),
+        json={
+            "fill_testing_approval_id": "approval-fill-follow-up-1",
+            "wallet_proof_ref": "wallet-proof-1",
+            "cap_guard_decision_id": "cap-guard-1",
+            "reconciliation_plan_id": "reconciliation-plan-1",
+            "audit_correlation_id": "corr-root-follow-up",
+            "confirm_duplicate_claim_protection": True,
+            "operator_notes": "route should fail closed because child exists",
+        },
+    )
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["service_method"] == "trigger_order_fill_follow_up"
+    data = payload["data"]
+    assert data["trigger_accepted"] is False
+    assert "follow_up_child_already_exists" in data["blockers"]
+    assert data["chain"]["follow_up_child_client_order_ids"] == [child_id]
+    assert data["chain"]["follow_up_child_count"] == 1
+    assert data["requested_refs"]["fill_testing_approval_id"] == (
+        "approval-fill-follow-up-1"
+    )
+    assert data["requested_refs"]["audit_correlation_id"] == "corr-root-follow-up"
+    assert data["order_engine_handle_filled_order_called"] is False
+    assert data["stealth_create_follow_up_called"] is False
+    assert data["follow_up_order_created"] is False
+    assert data["coinbase_order_submit_ran"] is False
+    assert data["local_state_mutated"] is False
+    assert data["exchange_state_mutated"] is False
+
+
+@pytest.mark.regression
 def test_admin_api_stealth_read_routes_use_read_service_without_commands(monkeypatch):
     from api.v1.routes import stealth as stealth_routes
 
@@ -86314,6 +86554,12 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows[
         "GET /api/v1/orders/{client_order_id}/fill-follow-up/chain"
     ].action_class == AdminApiActionClass.READ_ONLY
+    assert rows[
+        "POST /api/v1/orders/{client_order_id}/fill-follow-up/trigger"
+    ].shared_method == "trigger_order_fill_follow_up"
+    assert rows[
+        "POST /api/v1/orders/{client_order_id}/fill-follow-up/trigger"
+    ].action_class == AdminApiActionClass.LOCAL_STATE_MUTATION
     assert rows["GET /api/v1/stealth/orders"].shared_method == (
         "build_stealth_order_list"
     )
@@ -86919,6 +87165,7 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "build_order_fill_follow_up_replay" in doc
     assert "build_order_fill_follow_up_live_readiness" in doc
     assert "build_order_fill_follow_up_chain" in doc
+    assert "trigger_order_fill_follow_up" in doc
     assert "build_stealth_order_list" in doc
     assert "build_stealth_order_detail" in doc
     assert "cancel_stealth_order_by_stealth_order_id" in doc

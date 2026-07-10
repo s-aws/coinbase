@@ -73,6 +73,8 @@ from application.admin_api.models import (
     AdminOrderFillFollowUpChainResponse,
     AdminOrderFillFollowUpLiveReadinessResponse,
     AdminOrderFillFollowUpReplayResponse,
+    AdminOrderFillFollowUpTriggerCommand,
+    AdminOrderFillFollowUpTriggerRequest,
     AdminOrderListResponse,
     CampaignExecutionCommand,
     CampaignExecutionRequest,
@@ -1047,6 +1049,82 @@ def get_order_fill_follow_up_chain(
     require_permission(actor, AdminApiPermission.AUDIT_READ)
     return _read_response(
         service.build_order_fill_follow_up_chain(client_order_id=client_order_id)
+    )
+
+
+@router.post(
+    "/orders/{client_order_id}/fill-follow-up/trigger",
+    response_model=AdminApiCommandResponse,
+    status_code=status.HTTP_200_OK,
+    responses=COMMAND_ROUTE_RESPONSES,
+    summary="Attempt a guarded fill follow-up trigger through the shared command service",
+)
+def trigger_order_fill_follow_up(
+    request: Request,
+    body: AdminOrderFillFollowUpTriggerRequest,
+    client_order_id: Annotated[str, Path(min_length=1)],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
+    reconciliation_store: Annotated[
+        FileAdminApiReconciliationStore,
+        Depends(get_reconciliation_store),
+    ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
+    ],
+) -> JSONResponse:
+    """Route adapter for fail-closed fill-triggered follow-up attempts."""
+
+    endpoint = f"{request.method} {request.url.path}"
+    envelope = _build_envelope(
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
+    )
+    payload_hash = _idempotency_payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        operator_intent=operator_intent,
+        body=body.model_dump(mode="json", exclude_none=True),
+        path_params={"client_order_id": client_order_id},
+    )
+    return _execute_idempotent_command(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        endpoint=endpoint,
+        request_id=correlation_id,
+        operator_intent=operator_intent,
+        permission=AdminApiPermission.ORDER_CREATE,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        service_method="trigger_order_fill_follow_up",
+        route_template="/api/v1/orders/{client_order_id}/fill-follow-up/trigger",
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value=client_order_id,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        approval_store=approval_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
+        client_order_id=client_order_id,
+        command_runner=lambda: service.trigger_order_fill_follow_up(
+            AdminOrderFillFollowUpTriggerCommand(
+                envelope=envelope,
+                client_order_id=client_order_id,
+                request=body,
+            )
+        ),
     )
 
 
