@@ -36,9 +36,12 @@ order row has backend audit evidence. Spot fill-readback records
 `live_fill_readback_proof_ref=spot_fill_readback:<client_order_id>:<audit_id>`
 only after a passed backend read finds a live Coinbase fill for the
 `client_order_id` without submitting/canceling Coinbase orders. Live-readiness
-may surface that ref and remove only the live-fill readback blocker; rollback,
-wallet, cap/guard, reconciliation, approval, and duplicate-claim blockers
-remain fail-closed until their own backend evidence exists.
+may surface that ref and remove only the live-fill readback blocker. It may
+also surface `rollback_readback_ref=spot_recovery_rollback_journal:<journal_id>`
+from an accepted route-bound no-live Spot recovery rollback journal and remove
+only the rollback blocker. Wallet, cap/guard, reconciliation, approval, and
+duplicate-claim blockers remain fail-closed until their own backend evidence
+exists.
 
 `POST /api/v1/orders` is the enterprise manual Spot order command contract, but
 today it is a dry-submit/review path only. The route requires backend auth,

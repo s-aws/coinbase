@@ -858,7 +858,10 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
         lambda: admin_mvp_service
     )
     app.dependency_overrides[order_routes.get_read_service] = lambda: (
-        order_routes.AdminApiReadService(mvp_service=admin_mvp_service)
+        order_routes.AdminApiReadService(
+            mvp_service=admin_mvp_service,
+            spot_recovery_execution_store=spot_recovery_execution_store,
+        )
     )
     app.dependency_overrides[
         automation_routes.get_usdc_pair_snapshot_approval_store
@@ -76136,6 +76139,213 @@ def test_admin_api_order_fill_follow_up_live_readiness_uses_recorded_fill_readba
     assert payload["operator_visible_audit_ref"] == (
         "admin_order_audit:audit-root-follow-up"
     )
+    assert payload["live_coinbase_read_ran"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+
+
+@pytest.mark.regression
+def test_admin_api_order_fill_follow_up_live_readiness_uses_recovery_rollback_readback(
+    monkeypatch,
+):
+    import configuration
+    import database.order as order_module
+    from application.admin_api.spot_recovery_execution import (
+        SpotRecoveryExecutionRecord,
+    )
+
+    client_order_id = "root-follow-up-buy"
+    rollback_ref = "spot_recovery_rollback_journal:rollback-journal-follow-up"
+    root_order = {
+        "client_order_id": client_order_id,
+        "product_id": "BTC-USD",
+        "side": "BUY",
+        "status": "FILLED",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "100.00",
+        "parent_order_id": None,
+        "created_at": "2026-07-10T01:00:00Z",
+        "updated_at": "2026-07-10T01:02:00Z",
+        "exchange_order_id": "exchange-evidence-root",
+        "correlation_id": "corr-root-follow-up",
+        "audit_id": "audit-root-follow-up",
+    }
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order",
+        lambda candidate: root_order if candidate == client_order_id else None,
+    )
+    monkeypatch.setattr(order_module, "get_parent_orders", lambda: [root_order])
+    monkeypatch.setattr(
+        configuration,
+        "rest_get_products",
+        lambda: {
+            "BTC-USD": {
+                "product_id": "BTC-USD",
+                "product_type": "SPOT",
+                "future_product_details": {},
+            }
+        },
+    )
+
+    client = _client(monkeypatch)
+    client.admin_api_test_spot_recovery_execution_store.append(
+        SpotRecoveryExecutionRecord(
+            journal_id="rollback-journal-follow-up",
+            recorded_at="2026-07-10T01:03:00Z",
+            mutation_family=(
+                AdminApiMutationFamilyType.SPOT_RECOVERY_ROLLBACK_EXECUTION
+            ),
+            client_order_id=client_order_id,
+            rollback_plan_id="rollback-plan-follow-up",
+            recovery_apply_audit_id="audit-apply-follow-up",
+            recovery_apply_journal_id="apply-journal-follow-up",
+            reconciliation_plan_id="reconciliation-plan-follow-up",
+            approval_snapshot_id="approval-follow-up",
+            admission_audit_id="admission-follow-up",
+            cap_guard_decision_id="cap-guard-follow-up",
+            route="/api/v1/spot/recovery/rollback-executions",
+            method="POST",
+            service_method="execute_spot_recovery_rollback",
+            actor_id="operator-001",
+            operator_intent="record_follow_up_rollback_readback",
+            idempotency_key="idem-follow-up-rollback",
+            correlation_id="corr-follow-up-rollback",
+            payload_hash="a" * 64,
+            audit_id="audit-rollback-follow-up",
+            dry_run=True,
+            repair_journal_persisted=True,
+            execution_journal_accepted=True,
+            rollback_journal_accepted=True,
+            rollback_executed=True,
+            recovery_apply_journal_accepted=False,
+            recovery_apply_executed=False,
+            state_repair_executed=False,
+            order_state_mutated=False,
+            exchange_state_mutated=False,
+            reconciliation_executed=False,
+            coinbase_order_submitted=False,
+            coinbase_rest_read_ran=False,
+            live_exchange_submitted=False,
+            live_coinbase_orders_ran=False,
+        )
+    )
+
+    response = client.get(
+        f"/api/v1/orders/{client_order_id}/fill-follow-up/live-readiness",
+        headers=_headers(roles=AdminApiRole.AUDITOR.value),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ready"] is False
+    assert payload["rollback_readback_ref"] == rollback_ref
+    assert "fill_follow_up_rollback_readback_missing" not in payload["blockers"]
+    assert "fill_follow_up_wallet_proof_missing" in payload["blockers"]
+    assert payload["operator_visible_audit_ref"] == (
+        "admin_order_audit:audit-root-follow-up"
+    )
+    assert payload["live_coinbase_read_ran"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+
+
+@pytest.mark.regression
+def test_admin_api_order_fill_follow_up_live_readiness_rejects_live_rollback_readback(
+    monkeypatch,
+):
+    import configuration
+    import database.order as order_module
+    from application.admin_api.spot_recovery_execution import (
+        SpotRecoveryExecutionRecord,
+    )
+
+    client_order_id = "root-follow-up-buy"
+    root_order = {
+        "client_order_id": client_order_id,
+        "product_id": "BTC-USD",
+        "side": "BUY",
+        "status": "FILLED",
+        "order_type": "limit",
+        "size": "0.01",
+        "price": "100.00",
+        "parent_order_id": None,
+        "created_at": "2026-07-10T01:00:00Z",
+        "updated_at": "2026-07-10T01:02:00Z",
+        "exchange_order_id": "exchange-evidence-root",
+        "correlation_id": "corr-root-follow-up",
+        "audit_id": "audit-root-follow-up",
+    }
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_order",
+        lambda candidate: root_order if candidate == client_order_id else None,
+    )
+    monkeypatch.setattr(order_module, "get_parent_orders", lambda: [root_order])
+    monkeypatch.setattr(
+        configuration,
+        "rest_get_products",
+        lambda: {
+            "BTC-USD": {
+                "product_id": "BTC-USD",
+                "product_type": "SPOT",
+                "future_product_details": {},
+            }
+        },
+    )
+
+    client = _client(monkeypatch)
+    client.admin_api_test_spot_recovery_execution_store.append(
+        SpotRecoveryExecutionRecord(
+            journal_id="rollback-journal-live-follow-up",
+            recorded_at="2026-07-10T01:03:00Z",
+            mutation_family=(
+                AdminApiMutationFamilyType.SPOT_RECOVERY_ROLLBACK_EXECUTION
+            ),
+            client_order_id=client_order_id,
+            rollback_plan_id="rollback-plan-follow-up",
+            recovery_apply_audit_id="audit-apply-follow-up",
+            recovery_apply_journal_id="apply-journal-follow-up",
+            reconciliation_plan_id="reconciliation-plan-follow-up",
+            approval_snapshot_id="approval-follow-up",
+            admission_audit_id="admission-follow-up",
+            cap_guard_decision_id="cap-guard-follow-up",
+            route="/api/v1/spot/recovery/rollback-executions",
+            method="POST",
+            service_method="execute_spot_recovery_rollback",
+            actor_id="operator-001",
+            operator_intent="record_follow_up_rollback_readback",
+            idempotency_key="idem-follow-up-rollback-live",
+            correlation_id="corr-follow-up-rollback",
+            payload_hash="b" * 64,
+            audit_id="audit-rollback-follow-up",
+            dry_run=True,
+            repair_journal_persisted=True,
+            execution_journal_accepted=True,
+            rollback_journal_accepted=True,
+            rollback_executed=True,
+            recovery_apply_journal_accepted=False,
+            recovery_apply_executed=False,
+            state_repair_executed=False,
+            order_state_mutated=False,
+            exchange_state_mutated=False,
+            reconciliation_executed=False,
+            coinbase_order_submitted=True,
+            coinbase_rest_read_ran=False,
+            live_exchange_submitted=False,
+            live_coinbase_orders_ran=False,
+        )
+    )
+
+    response = client.get(
+        f"/api/v1/orders/{client_order_id}/fill-follow-up/live-readiness",
+        headers=_headers(roles=AdminApiRole.AUDITOR.value),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ready"] is False
+    assert payload["rollback_readback_ref"] is None
+    assert "fill_follow_up_rollback_readback_missing" in payload["blockers"]
     assert payload["live_coinbase_read_ran"] is False
     assert payload["live_coinbase_orders_ran"] is False
 

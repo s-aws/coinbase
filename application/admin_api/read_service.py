@@ -3090,6 +3090,52 @@ def _order_fill_follow_up_live_readback_proof_ref(
     )
 
 
+def _order_fill_follow_up_rollback_readback_ref(
+    *,
+    spot_recovery_execution_store: FileSpotRecoveryExecutionJournalStore,
+    client_order_id: str,
+) -> str | None:
+    try:
+        records = spot_recovery_execution_store.read_for_client_order_id(
+            client_order_id,
+            limit=50,
+        )
+    except Exception:
+        return None
+    for record in records:
+        if (
+            record.mutation_family
+            != AdminApiMutationFamilyType.SPOT_RECOVERY_ROLLBACK_EXECUTION
+        ):
+            continue
+        if (
+            _string_or_none(record.route)
+            != "/api/v1/spot/recovery/rollback-executions"
+        ):
+            continue
+        if _string_or_none(record.service_method) != "execute_spot_recovery_rollback":
+            continue
+        if not record.execution_journal_accepted or not record.rollback_journal_accepted:
+            continue
+        if (
+            record.coinbase_order_submitted
+            or record.coinbase_rest_read_ran
+            or record.live_exchange_submitted
+            or record.live_coinbase_orders_ran
+        ):
+            continue
+        if (
+            record.order_state_mutated
+            or record.exchange_state_mutated
+            or record.reconciliation_executed
+        ):
+            continue
+        journal_id = _string_or_none(record.journal_id)
+        if journal_id:
+            return f"spot_recovery_rollback_journal:{journal_id}"
+    return None
+
+
 def _json_object_or_none(value: Any) -> dict[str, Any] | None:
     if value is None:
         return None
@@ -13087,6 +13133,10 @@ class AdminApiReadService:
                 client_order_id=client_order_id,
             )
         )
+        rollback_readback_ref = _order_fill_follow_up_rollback_readback_ref(
+            spot_recovery_execution_store=self.spot_recovery_execution_store,
+            client_order_id=client_order_id,
+        )
         duplicate_claim_observed = bool(audit and audit.claim_reader_ran)
         blockers: list[str] = []
         if row is None:
@@ -13105,9 +13155,10 @@ class AdminApiReadService:
                 "fill_follow_up_wallet_proof_missing",
                 "fill_follow_up_cap_guard_proof_missing",
                 "fill_follow_up_reconciliation_proof_missing",
-                "fill_follow_up_rollback_readback_missing",
             ]
         )
+        if not rollback_readback_ref:
+            blockers.append("fill_follow_up_rollback_readback_missing")
         if not live_fill_readback_proof_ref:
             blockers.append("fill_follow_up_live_fill_readback_proof_missing")
         if not operator_visible_audit_ref:
@@ -13128,6 +13179,7 @@ class AdminApiReadService:
             audit_correlation_id=audit_correlation_id,
             live_fill_readback_proof_ref=live_fill_readback_proof_ref,
             operator_visible_audit_ref=operator_visible_audit_ref,
+            rollback_readback_ref=rollback_readback_ref,
             blockers=blockers,
             detail=(
                 "Fill follow-up live readiness is fail-closed until separate "
