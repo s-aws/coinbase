@@ -7028,6 +7028,8 @@ def _usdc_pair_allowlist_run_state_live_fanout_submit_blockers(
         blockers.append("backend_owned_execution_confirmation_missing")
     if not body.confirm_cancel_rollback_before_completion:
         blockers.append("cancel_rollback_confirmation_missing")
+    if not body.confirm_pause_before_full_fill:
+        blockers.append("pause_before_full_fill_confirmation_missing")
     if not body.confirm_rate_limit_5_per_second:
         blockers.append("rate_limit_5_per_second_confirmation_missing")
     if run_state.live_coinbase_execution != "not_run":

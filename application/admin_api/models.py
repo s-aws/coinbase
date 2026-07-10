@@ -3347,6 +3347,7 @@ class UsdcPairSnapshotAllowlistRunStateLiveFanoutSubmitRequest(BaseModel):
     confirm_live_fanout_submit: bool = False
     confirm_backend_owned_execution: bool = False
     confirm_cancel_rollback_before_completion: bool = False
+    confirm_pause_before_full_fill: bool = False
     confirm_rate_limit_5_per_second: bool = False
     operator_stop_conditions: list[str] = Field(default_factory=list)
     operator_notes: str | None = None

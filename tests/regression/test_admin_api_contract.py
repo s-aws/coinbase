@@ -43170,6 +43170,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_is_
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -43195,6 +43196,66 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_is_
     assert payload["live_coinbase_orders_ran"] is False
     assert payload["live_coinbase_execution"] == "not_run"
     assert payload["notional_usdc"] == "0"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_requires_pause_before_full_fill_confirmation(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-pause-before-fill",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-pause-before-fill-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-allowlist-run-states/"
+            f"{ready['run_state_id']}/live-fanout-submit"
+        ),
+        headers=_headers(
+            idempotency_key=(
+                "idem-m58-usdc-allowlist-live-fanout-submit-pause-before-fill"
+            ),
+            operator_intent="m58_usdc_snapshot_allowlist_run_state_live_fanout_submit",
+        ),
+        json={
+            "submission_id": (
+                "m58-usdc-allowlist-live-fanout-submit-pause-before-fill"
+            ),
+            "max_fanout_notional_usdc": "100",
+            "confirm_live_fanout_submit": True,
+            "confirm_backend_owned_execution": True,
+            "confirm_cancel_rollback_before_completion": True,
+            "confirm_rate_limit_5_per_second": True,
+            "operator_stop_conditions": [
+                "submit only backend-selected queued products",
+                "cancel or roll back every submitted client_order_id before completion",
+            ],
+            "operator_notes": (
+                "fan-out must explicitly confirm pause before full fill"
+            ),
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    assert "pause_before_full_fill_confirmation_missing" in payload["message"]
+    assert payload["live_exchange_submitted"] is False
+    assert payload["live_coinbase_orders_ran"] is False
+    assert payload["live_coinbase_execution"] == "not_run"
     assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
 
 
@@ -43302,6 +43363,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rep
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -43357,6 +43419,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rep
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -43454,6 +43517,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -43519,6 +43583,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rep
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -43604,6 +43669,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -43678,6 +43744,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -43755,6 +43822,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -43835,6 +43903,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -43923,6 +43992,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -44005,6 +44075,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -44145,6 +44216,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -44225,6 +44297,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -44326,6 +44399,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -44448,6 +44522,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -44559,6 +44634,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -44664,6 +44740,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -44721,6 +44798,7 @@ def _post_usdc_pair_snapshot_live_fanout_submit_fixture(
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -45380,6 +45458,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rep
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -46673,6 +46752,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_req
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -46757,6 +46837,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -46840,6 +46921,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_req
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",
@@ -46916,6 +46998,7 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rej
             "confirm_live_fanout_submit": True,
             "confirm_backend_owned_execution": True,
             "confirm_cancel_rollback_before_completion": True,
+            "confirm_pause_before_full_fill": True,
             "confirm_rate_limit_5_per_second": True,
             "operator_stop_conditions": [
                 "submit only backend-selected queued products",

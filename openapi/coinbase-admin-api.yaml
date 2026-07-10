@@ -170950,6 +170950,10 @@ components:
           type: boolean
           title: Confirm Cancel Rollback Before Completion
           default: false
+        confirm_pause_before_full_fill:
+          type: boolean
+          title: Confirm Pause Before Full Fill
+          default: false
         confirm_rate_limit_5_per_second:
           type: boolean
           title: Confirm Rate Limit 5 Per Second
