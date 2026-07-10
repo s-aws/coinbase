@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 from threading import Lock
-from typing import Any
+from typing import Any, Callable
 import uuid
 
 from core.action_condition_guard import rest_credentials_configured
@@ -207,7 +207,10 @@ def get_admin_api_fill_follow_up_executor() -> Any | None:
         return None
 
 
-def build_admin_api_command_dependencies() -> AdminApiCommandDependencies:
+def build_admin_api_command_dependencies(
+    *,
+    read_service_getter: Callable[[], Any | None] | None = None,
+) -> AdminApiCommandDependencies:
     """Compose backend-owned dependencies for the shared Admin API command service."""
 
     live_runtime_enabled = admin_api_live_runtime_enabled()
@@ -235,11 +238,19 @@ def build_admin_api_command_dependencies() -> AdminApiCommandDependencies:
         add_log_entry=log_admin_api_command,
         order_event_publisher_getter=get_admin_api_order_event_stream_publisher,
         fill_follow_up_executor_getter=get_admin_api_fill_follow_up_executor,
+        read_service_getter=read_service_getter,
         uuid_factory=lambda: str(uuid.uuid4()),
     )
 
 
-def build_admin_api_command_service() -> AdminApiCommandService:
+def build_admin_api_command_service(
+    *,
+    read_service_getter: Callable[[], Any | None] | None = None,
+) -> AdminApiCommandService:
     """Build the route-facing Admin API command-service boundary."""
 
-    return AdminApiCommandService(build_admin_api_command_dependencies())
+    return AdminApiCommandService(
+        build_admin_api_command_dependencies(
+            read_service_getter=read_service_getter
+        )
+    )

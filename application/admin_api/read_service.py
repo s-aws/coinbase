@@ -777,6 +777,9 @@ FILL_FOLLOW_UP_TRIGGER_ROUTE = (
     "/api/v1/orders/{client_order_id}/fill-follow-up/trigger"
 )
 FILL_FOLLOW_UP_TRIGGER_METHOD = "POST"
+FILL_FOLLOW_UP_TRIGGER_ENDPOINT = (
+    f"{FILL_FOLLOW_UP_TRIGGER_METHOD} {FILL_FOLLOW_UP_TRIGGER_ROUTE}"
+)
 FILL_FOLLOW_UP_TRIGGER_MODULE_ID = "spot_operations"
 FILL_FOLLOW_UP_TRIGGER_SERVICE_METHOD = "trigger_order_fill_follow_up"
 
@@ -3196,7 +3199,11 @@ def _fill_follow_up_trigger_audit_matches(
     decision = audit.admission_decision
     return (
         decision is not None
-        and audit.endpoint == FILL_FOLLOW_UP_TRIGGER_ROUTE
+        and audit.endpoint
+        in {
+            FILL_FOLLOW_UP_TRIGGER_ROUTE,
+            FILL_FOLLOW_UP_TRIGGER_ENDPOINT,
+        }
         and audit.client_order_id == decision.identity_value
         and audit.live_exchange_submitted is False
         and audit.live_coinbase_orders_ran is False
@@ -3241,7 +3248,7 @@ def _fill_follow_up_trigger_cap_guard_matches(
         and record.approval_snapshot_id == approval.approval_id
         and record.admission_audit_id == audit.audit_id
         and record.allowed is True
-        and record.status == AdminApiGateStatus.PASSED
+        and _record_text(record.status) == AdminApiGateStatus.PASSED.value
     )
 
 
@@ -3252,7 +3259,7 @@ def _fill_follow_up_trigger_wallet_ref(
         return None
     if record.wallet_check_required is not True:
         return None
-    if record.wallet_check_status != AdminApiGateStatus.PASSED:
+    if _record_text(record.wallet_check_status) != AdminApiGateStatus.PASSED.value:
         return None
     if _record_decimal(record.wallet_available_notional_usdc) <= Decimal("0"):
         return None
@@ -3291,7 +3298,7 @@ def _fill_follow_up_trigger_reconciliation_matches(
         and record.admission_audit_id == audit.audit_id
         and record.cap_guard_decision_id == cap_guard.decision_id
         and record.allowed is True
-        and record.status == AdminApiGateStatus.PASSED
+        and _record_text(record.status) == AdminApiGateStatus.PASSED.value
         and record.exchange_submission_required is False
     )
 

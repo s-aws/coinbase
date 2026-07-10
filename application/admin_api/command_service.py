@@ -270,6 +270,7 @@ class AdminApiCommandDependencies:
     add_log_entry: Callable[[str, str], None] = _noop_log
     order_event_publisher_getter: Callable[[], Any | None] = lambda: None
     fill_follow_up_executor_getter: Callable[[], Any | None] = lambda: None
+    read_service_getter: Callable[[], Any | None] | None = None
     planned_budget_fetcher: Callable[[], dict[str, float]] = _empty_budget
     lot_authority_evaluator_getter: Callable[[], Any | None] = lambda: None
     uuid_factory: Callable[[], str] = field(default_factory=lambda: lambda: str(uuid.uuid4()))
@@ -1948,6 +1949,16 @@ class AdminApiCommandService:
     def __init__(self, dependencies: AdminApiCommandDependencies | None = None) -> None:
         self.dependencies = dependencies or AdminApiCommandDependencies()
 
+    def _read_service(self) -> Any:
+        getter = self.dependencies.read_service_getter
+        if getter is not None:
+            service = getter()
+            if service is not None:
+                return service
+        from .read_service import AdminApiReadService
+
+        return AdminApiReadService()
+
     def _command_runtime_evidence(self) -> dict[str, Any]:
         """Return backend command-runtime evidence for command responses."""
 
@@ -1986,9 +1997,7 @@ class AdminApiCommandService:
     ) -> AdminApiCommandResponse:
         """Attempt guarded no-live fill-follow-up execution after proof gates."""
 
-        from .read_service import AdminApiReadService
-
-        read_service = AdminApiReadService()
+        read_service = self._read_service()
         readiness = read_service.build_order_fill_follow_up_live_readiness(
             client_order_id=command.client_order_id
         )

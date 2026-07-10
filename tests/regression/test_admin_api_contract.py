@@ -742,8 +742,20 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
             store_dir / "stealth_post_write_reconciliation_verifications.jsonl"
         )
     )
+
+    def order_read_service() -> order_routes.AdminApiReadService:
+        return order_routes.AdminApiReadService(
+            mvp_service=admin_mvp_service,
+            spot_recovery_execution_store=spot_recovery_execution_store,
+            approval_store=approval_store,
+            audit_store=audit_store,
+            cap_guard_store=cap_guard_store,
+            reconciliation_store=reconciliation_store,
+        )
+
     order_command_service = AdminApiCommandService(
         AdminApiCommandDependencies(
+            read_service_getter=order_read_service,
             spot_recovery_proof_store_getter=lambda: spot_recovery_proof_store,
             spot_recovery_snapshot_store_getter=lambda: spot_recovery_snapshot_store,
             spot_recovery_execution_store_getter=lambda: (
@@ -857,16 +869,7 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
     app.dependency_overrides[order_routes.get_mvp_service] = (
         lambda: admin_mvp_service
     )
-    app.dependency_overrides[order_routes.get_read_service] = lambda: (
-        order_routes.AdminApiReadService(
-            mvp_service=admin_mvp_service,
-            spot_recovery_execution_store=spot_recovery_execution_store,
-            approval_store=approval_store,
-            audit_store=audit_store,
-            cap_guard_store=cap_guard_store,
-            reconciliation_store=reconciliation_store,
-        )
-    )
+    app.dependency_overrides[order_routes.get_read_service] = order_read_service
     app.dependency_overrides[
         automation_routes.get_usdc_pair_snapshot_approval_store
     ] = lambda: approval_store
@@ -77605,6 +77608,9 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
         AdminApiCommandService(
             AdminApiCommandDependencies(
                 fill_follow_up_executor_getter=lambda: fake_executor,
+                read_service_getter=client.app.dependency_overrides[
+                    order_routes.get_read_service
+                ],
             )
         )
     )
@@ -78028,6 +78034,9 @@ def test_admin_api_order_fill_follow_up_trigger_accepts_public_route_proof_chain
         AdminApiCommandService(
             AdminApiCommandDependencies(
                 fill_follow_up_executor_getter=lambda: fake_executor,
+                read_service_getter=client.app.dependency_overrides[
+                    order_routes.get_read_service
+                ],
             )
         )
     )
@@ -78257,6 +78266,21 @@ def test_admin_api_order_fill_follow_up_trigger_accepts_public_route_proof_chain
         "fill_follow_up_rollback_readback_missing",
         "fill_follow_up_operator_visible_audit_missing",
     }.issubset(live_readiness_blockers)
+    assert data["live_readiness"]["fill_testing_approval_present"] is True
+    assert data["live_readiness"]["wallet_proof_ref"] == body["wallet_proof_ref"]
+    assert data["live_readiness"]["cap_guard_decision_ref"] == (
+        body["cap_guard_decision_id"]
+    )
+    assert data["live_readiness"]["reconciliation_plan_ref"] == (
+        body["reconciliation_plan_id"]
+    )
+    assert "fill_testing_approval_missing" not in live_readiness_blockers
+    assert "fill_follow_up_wallet_proof_missing" not in live_readiness_blockers
+    assert "fill_follow_up_cap_guard_proof_missing" not in live_readiness_blockers
+    assert (
+        "fill_follow_up_reconciliation_proof_missing"
+        not in live_readiness_blockers
+    )
     validation = data["prerequisite_validation"]
     assert validation["fill_testing_approval"]["status"] == "verified"
     assert validation["wallet_proof"]["status"] == "verified"
@@ -78419,6 +78443,9 @@ def test_admin_api_order_fill_follow_up_trigger_replays_live_activity_rejection_
                 fill_follow_up_executor_getter=lambda: SimpleNamespace(
                     trigger_filled_follow_up=trigger_live_activity_rejection
                 ),
+                read_service_getter=client.app.dependency_overrides[
+                    order_routes.get_read_service
+                ],
             )
         )
     )

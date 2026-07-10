@@ -213,10 +213,18 @@ READ_ROUTE_RESPONSES = {
 }
 
 
-def get_command_service() -> AdminApiCommandService:
+def get_read_service() -> AdminApiReadService:
+    """Return the read-only Admin API status service."""
+
+    return AdminApiReadService()
+
+
+def get_command_service(
+    read_service: Annotated[AdminApiReadService, Depends(get_read_service)],
+) -> AdminApiCommandService:
     """Return the shared command service boundary."""
 
-    return build_admin_api_command_service()
+    return build_admin_api_command_service(read_service_getter=lambda: read_service)
 
 
 def get_idempotency_store() -> FileIdempotencyStore:
@@ -253,12 +261,6 @@ def get_live_execution_service() -> AdminApiLiveExecutionService:
     """Return the backend-owned live execution service boundary."""
 
     return get_decision_backed_live_execution_service()
-
-
-def get_read_service() -> AdminApiReadService:
-    """Return the read-only Admin API status service."""
-
-    return AdminApiReadService()
 
 
 def get_mvp_service() -> AdminMvpService:
