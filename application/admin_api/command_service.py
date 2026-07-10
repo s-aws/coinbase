@@ -2013,6 +2013,7 @@ class AdminApiCommandService:
             "browser_authority": "display_only",
             "bff_authority": "forward_only_no_execution",
         }
+        response_audit = chain.fill_follow_up_decision_audit or audit
         data = {
             "type": "admin_order_fill_follow_up_trigger_result",
             "trigger_attempted": True,
@@ -2024,7 +2025,7 @@ class AdminApiCommandService:
             "execution_result": execution_result,
             "pre_trigger_chain": pre_trigger_chain.model_dump(mode="json"),
             "fill_follow_up_decision_audit": (
-                audit.model_dump(mode="json") if audit else None
+                response_audit.model_dump(mode="json") if response_audit else None
             ),
             "live_readiness": readiness.model_dump(mode="json"),
             "chain": chain.model_dump(mode="json"),

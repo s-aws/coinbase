@@ -76913,6 +76913,10 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
     assert data["chain"]["follow_up_child_count"] == 1
     assert data["execution_result"]["source"] == "fake_fill_follow_up_executor"
     assert data["execution_result"]["follow_up_child_client_order_id"] == child_id
+    assert data["fill_follow_up_decision_audit"][
+        "existing_follow_up_client_order_ids"
+    ] == [child_id]
+    assert data["fill_follow_up_decision_audit"]["existing_follow_up_count"] == 1
     assert "fill_follow_up_execution_adapter" not in (
         data["fill_follow_up_decision_audit"]["missing_contracts"]
     )
