@@ -10689,6 +10689,7 @@ def _record_usdc_pair_live_fanout_submissions(
             _usdc_pair_live_fanout_executor_row_identity_blockers(
                 execution=execution,
                 readiness=readiness,
+                order_configuration=order_configuration,
             )
         )
         if row_identity_blockers:
@@ -10818,6 +10819,7 @@ def _usdc_pair_live_fanout_executor_row_identity_blockers(
     *,
     execution: Mapping[str, Any],
     readiness: UsdcPairSnapshotOrderPlanLiveReadinessRecord,
+    order_configuration: Mapping[str, Any],
 ) -> list[str]:
     blockers: list[str] = []
     execution_client_order_id = _non_empty_text(execution.get("client_order_id"))
@@ -10835,6 +10837,11 @@ def _usdc_pair_live_fanout_executor_row_identity_blockers(
     execution_side = _non_empty_text(execution.get("side"))
     if execution_side and execution_side.upper() != _enum_text(readiness.side).upper():
         blockers.append("fanout_executor_side_mismatch")
+    execution_order_configuration = execution.get("order_configuration")
+    if isinstance(execution_order_configuration, Mapping) and (
+        dict(execution_order_configuration) != dict(order_configuration)
+    ):
+        blockers.append("fanout_executor_order_configuration_mismatch")
     return blockers
 
 
