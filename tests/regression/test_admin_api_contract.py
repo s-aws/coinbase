@@ -33624,6 +33624,46 @@ def test_admin_api_usdc_pair_snapshot_dry_run_records_backend_snapshot_evidence(
     assert manual_live_payload["notional_usdc"] == "0"
     assert store.find_by_run_id("m58-usdc-snapshot-manual-ack") is None
 
+    manual_live_replay = client.post(
+        "/api/v1/automation/usdc-pair-snapshot-runs",
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-snapshot-manual-ack",
+            operator_intent="m58_usdc_snapshot_manual_ack_rejected",
+        ),
+        json={
+            **request_body,
+            "run_id": "m58-usdc-snapshot-manual-ack",
+            "manual_live_acknowledgement": True,
+        },
+    )
+    assert manual_live_replay.status_code == 400
+    assert manual_live_replay.headers["X-Idempotency-Replayed"] == "true"
+    assert manual_live_replay.json() == manual_live_payload
+
+    manual_live_conflict = client.post(
+        "/api/v1/automation/usdc-pair-snapshot-runs",
+        headers=_headers(
+            idempotency_key="idem-usdc-pair-snapshot-manual-ack",
+            operator_intent="m58_usdc_snapshot_manual_ack_rejected",
+        ),
+        json={
+            **request_body,
+            "run_id": "m58-usdc-snapshot-manual-ack",
+            "manual_live_acknowledgement": False,
+            "operator_notes": "changed rejected-key payload must conflict",
+        },
+    )
+    assert manual_live_conflict.status_code == 409
+    manual_live_conflict_payload = manual_live_conflict.json()
+    assert (
+        manual_live_conflict_payload["status"]
+        == AdminApiCommandStatus.CONFLICT.value
+    )
+    assert manual_live_conflict_payload["failure_stage"] == "idempotency"
+    assert manual_live_conflict_payload["run"] is None
+    assert manual_live_conflict_payload["live_coinbase_execution"] == "not_run"
+    assert store.find_by_run_id("m58-usdc-snapshot-manual-ack") is None
+
     readback = client.get(
         "/api/v1/automation/usdc-pair-snapshot-runs?limit=5",
         headers=_headers(
