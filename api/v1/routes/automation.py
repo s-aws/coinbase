@@ -10627,6 +10627,15 @@ def _record_usdc_pair_live_fanout_submissions(
             "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
             "fanout_executor_order_count_invalid"
         )
+    if len(execution_values) < len(contexts) and (
+        _usdc_pair_live_fanout_executor_summary_claims_complete(
+            fanout_execution
+        )
+    ):
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
+            "fanout_executor_partial_success_inconsistent"
+        )
 
     submissions: list[UsdcPairSnapshotOrderPlanLiveSubmitItem] = []
     base_submission_id = str(body.submission_id or "").strip()
@@ -10750,6 +10759,15 @@ def _record_usdc_pair_live_fanout_submissions(
             "fanout_executor_returned_no_submissions"
         )
     return submissions
+
+
+def _usdc_pair_live_fanout_executor_summary_claims_complete(
+    fanout_execution: Mapping[str, Any],
+) -> bool:
+    return bool(fanout_execution.get("cancel_rollback_complete")) or (
+        str(fanout_execution.get("live_coinbase_execution") or "").strip()
+        == "submitted_cancelled"
+    )
 
 
 def _usdc_pair_order_plan_proof_chain_refresher(

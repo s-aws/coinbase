@@ -45611,6 +45611,118 @@ def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_acc
 
 
 @pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_rejects_inconsistent_partial_success(
+    monkeypatch,
+):
+    from api.v1.routes import automation as automation_routes
+
+    client = _client(monkeypatch)
+    ready = _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-allowlist-live-fanout-submit-partial-success-drift",
+        allowlist_readiness_id=(
+            "m58-usdc-allowlist-live-fanout-submit-partial-success-drift-readiness"
+        ),
+        queued=True,
+        live_ready=True,
+        wallet_ready=True,
+        append_live_readiness=True,
+    )
+    _append_usdc_pair_snapshot_multi_product_live_fanout_ready_fixture(
+        client,
+        ready,
+    )
+
+    class PartialSuccessFanoutExecutor:
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        def submit_and_cancel_all(self, **kwargs):
+            self.calls.append(dict(kwargs))
+            first_order = kwargs["orders"][0]
+            return {
+                "requested_order_count": len(kwargs["orders"]),
+                "order_count": 1,
+                "orders": [
+                    {
+                        "client_order_id": first_order["client_order_id"],
+                        "product_id": first_order["product_id"],
+                        "side": first_order["side"],
+                        "coinbase_order_id": (
+                            f"exchange-{first_order['client_order_id']}"
+                        ),
+                        "submit_result": {
+                            "success": True,
+                            "client_order_id": first_order["client_order_id"],
+                        },
+                        "cancel_result": {
+                            "success": True,
+                            "client_order_id": first_order["client_order_id"],
+                        },
+                        "submitted_at": "2026-07-10T12:00:00+00:00",
+                        "cancelled_at": "2026-07-10T12:00:01+00:00",
+                        "order_configuration": first_order["order_configuration"],
+                        "live_exchange_submitted": True,
+                        "live_coinbase_orders_ran": True,
+                        "live_coinbase_execution": "submitted_cancelled",
+                        "submitted_notional_usdc": (
+                            first_order["submitted_notional_usdc"]
+                        ),
+                        "executed_notional_usdc": "0",
+                        "max_executed_notional_usdc": (
+                            first_order["max_executed_notional_usdc"]
+                        ),
+                        "cancel_submitted": True,
+                        "cancel_rollback_complete": True,
+                    }
+                ],
+                "submitted_notional_usdc": first_order["submitted_notional_usdc"],
+                "executed_notional_usdc": "0",
+                "max_executed_notional_usdc": (
+                    first_order["max_executed_notional_usdc"]
+                ),
+                "max_orders_per_second": kwargs["max_orders_per_second"],
+                "cancel_submitted": True,
+                "cancel_rollback_complete": True,
+                "additional_orders_blocked": True,
+                "live_exchange_submitted": True,
+                "live_coinbase_orders_ran": True,
+                "live_coinbase_execution": "submitted_cancelled",
+            }
+
+    fake_fanout_executor = PartialSuccessFanoutExecutor()
+    client.app.dependency_overrides[
+        automation_routes.get_usdc_pair_snapshot_live_fanout_executor
+    ] = lambda: fake_fanout_executor
+
+    response = _post_usdc_pair_snapshot_live_fanout_submit_fixture(
+        client,
+        ready,
+        suffix="partial-success-drift",
+        operator_notes="executor summary must not claim full success for partial orders",
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == (
+        "usdc_pair_snapshot_allowlist_run_state_live_fanout_submit"
+    )
+    assert "fanout_executor_partial_success_inconsistent" in payload["message"]
+    assert payload["submission"] is None
+    assert payload["submissions"] == []
+    assert payload["live_coinbase_execution"] == "not_run"
+    assert payload["notional_usdc"] == "0"
+    assert len(fake_fanout_executor.calls) == 1
+    assert (
+        client.admin_api_test_usdc_pair_snapshot_order_plan_live_submit_store.read_recent(
+            limit=10
+        )
+        == []
+    )
+
+
+@pytest.mark.regression
 def test_admin_api_usdc_pair_snapshot_allowlist_run_state_live_fanout_submit_records_cancel_failure_without_second_order(
     monkeypatch,
 ):
