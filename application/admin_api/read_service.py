@@ -2874,6 +2874,21 @@ def _runtime_follow_up_claim_state(
         return None, f"orderbook.follow_up_claim_state_error:{type(exc).__name__}", False
 
 
+def _runtime_fill_follow_up_execution_adapter_state() -> tuple[bool, str]:
+    try:
+        bridge = _runtime_bridge()
+        engine = getattr(bridge, "order_engine", None) if bridge else None
+        handle_filled_order = getattr(engine, "handle_filled_order", None)
+        if not callable(handle_filled_order):
+            return False, "runtime_order_engine_handle_filled_order_unavailable"
+        return (
+            True,
+            "dashboard_server.stealth_order_bridge.order_engine.handle_filled_order",
+        )
+    except Exception as exc:
+        return False, f"order_engine.handle_filled_order_error:{type(exc).__name__}"
+
+
 def _order_follow_up_chain_ids(
     *,
     root_parent_client_order_id: str,
@@ -2925,6 +2940,9 @@ def _order_fill_follow_up_decision_audit(
         root_parent_client_order_id=root_parent_client_order_id,
         active_client_order_id=client_order_id,
     )
+    execution_adapter_observed, _execution_adapter_source = (
+        _runtime_fill_follow_up_execution_adapter_state()
+    )
 
     policy_allowed: bool | None = None
     policy_intent: str | None = None
@@ -2932,10 +2950,11 @@ def _order_fill_follow_up_decision_audit(
     product_type: str | None = None
     policy_evaluation_ran = False
     blockers = [
-        "fill_follow_up_execution_adapter_missing",
         "fill_follow_up_reconciliation_proof_missing",
         "live_fill_follow_up_scope_not_approved",
     ]
+    if not execution_adapter_observed:
+        blockers.insert(0, "fill_follow_up_execution_adapter_missing")
     if not filled_status_observed:
         blockers.insert(0, "source_order_not_filled")
     if not product_id:
@@ -3022,7 +3041,11 @@ def _order_fill_follow_up_decision_audit(
             "fill_follow_up_live_scope_approval",
         ],
         missing_contracts=[
-            "fill_follow_up_execution_adapter",
+            *(
+                []
+                if execution_adapter_observed
+                else ["fill_follow_up_execution_adapter"]
+            ),
             "fill_follow_up_reconciliation_proof",
             "fill_follow_up_live_scope_approval",
         ],

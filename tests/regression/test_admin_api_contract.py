@@ -76706,15 +76706,15 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
     runtime_orderbook = SimpleNamespace(
         follow_up_claim_state=lambda trigger, client_order_id: None
     )
+    runtime_engine = SimpleNamespace(
+        orderbook=runtime_orderbook,
+        orderbook_lock=None,
+        handle_filled_order=lambda order: None,
+    )
     monkeypatch.setattr(
         read_service,
         "_runtime_bridge",
-        lambda: SimpleNamespace(
-            order_engine=SimpleNamespace(
-                orderbook=runtime_orderbook,
-                orderbook_lock=None,
-            )
-        ),
+        lambda: SimpleNamespace(order_engine=runtime_engine),
     )
     monkeypatch.setattr(
         order_module,
@@ -76913,6 +76913,12 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
     assert data["chain"]["follow_up_child_count"] == 1
     assert data["execution_result"]["source"] == "fake_fill_follow_up_executor"
     assert data["execution_result"]["follow_up_child_client_order_id"] == child_id
+    assert "fill_follow_up_execution_adapter" not in (
+        data["fill_follow_up_decision_audit"]["missing_contracts"]
+    )
+    assert "fill_follow_up_execution_adapter_missing" not in (
+        data["fill_follow_up_decision_audit"]["blockers"]
+    )
     assert data["claim_acquired"] is True
     assert data["order_engine_handle_filled_order_called"] is True
     assert data["stealth_create_follow_up_called"] is True
