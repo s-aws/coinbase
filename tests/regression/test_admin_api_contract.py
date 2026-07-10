@@ -56599,13 +56599,13 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
         "readiness_id": "m58-usdc-live-readiness-test",
         "product_id": enabled_live_row["product_id"],
         "client_order_id": enabled_live_row["client_order_id"],
-        "reference_bid_price": "100.00",
+        "reference_bid_price": "200.00",
         "reference_bid_price_source": "coinbase_advanced_trade.best_bid",
         "reference_bid_price_captured_at": fresh_market_reference_at,
-        "last_filled_price": "100.00",
+        "last_filled_price": "200.00",
         "last_filled_price_source": "coinbase_advanced_trade.last_trade",
         "last_filled_price_captured_at": fresh_market_reference_at,
-        "intended_limit_price": "50.00",
+        "intended_limit_price": enabled_live_row["limit_price"],
         "submitted_notional_usdc": enabled_live_row["planned_notional_usdc"],
         "max_executed_notional_usdc": "0.01",
         "minimum_order_size_preferred": True,
@@ -56615,8 +56615,21 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
         "full_snapshot_fill_test": False,
         "operator_notes": "single minimum-size far-from-market readiness only",
     }
+    live_readiness_cap_guard = durable_cap_guard.model_copy(
+        update={
+            "route": (
+                "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+                "{plan_id}/live-readiness"
+            ),
+            "service_method": (
+                "record_usdc_pair_snapshot_order_plan_live_readiness"
+            ),
+            "product_scope": enabled_live_row["product_id"],
+            "max_executed_notional_usdc": "0.01",
+        }
+    )
     client.admin_api_test_cap_guard_store.append(
-        durable_cap_guard.model_copy(
+        live_readiness_cap_guard.model_copy(
             update={
                 "wallet_available_notional_usdc": "0.50",
                 "wallet_check_source": "m58_usdc_pair_order_plan_low_wallet_fixture",
@@ -56652,7 +56665,7 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert insufficient_wallet_payload["live_coinbase_execution"] == "not_run"
 
     client.admin_api_test_cap_guard_store.append(
-        durable_cap_guard.model_copy(
+        live_readiness_cap_guard.model_copy(
             update={
                 "reason": (
                     "Latest M58 cap/guard proof restores sufficient live "
@@ -56699,14 +56712,14 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert readiness["submitted_notional_usdc"] == "1.00"
     assert readiness["max_submitted_notional_usdc"] == "1.00"
     assert readiness["max_executed_notional_usdc"] == "0.01"
-    assert readiness["intended_limit_price"] == "50.00"
-    assert readiness["reference_bid_price"] == "100.00"
+    assert readiness["intended_limit_price"] == enabled_live_row["limit_price"]
+    assert readiness["reference_bid_price"] == "200.00"
     assert readiness["reference_bid_price_source"] == (
         "coinbase_advanced_trade.best_bid"
     )
     assert readiness["reference_bid_price_captured_at"] == fresh_market_reference_at
     assert readiness["reference_bid_price_freshness_status"] == "fresh"
-    assert readiness["last_filled_price"] == "100.00"
+    assert readiness["last_filled_price"] == "200.00"
     assert readiness["last_filled_price_source"] == (
         "coinbase_advanced_trade.last_trade"
     )
@@ -56878,7 +56891,7 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
     assert submission["order_configuration"] == {
         "limit_limit_gtc": {
             "quote_size": "1.00",
-            "limit_price": "50.00",
+            "limit_price": enabled_live_row["limit_price"],
             "post_only": False,
         }
     }
@@ -57137,6 +57150,85 @@ def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_links_approval_sn
         json={"dry_run": True},
     )
     assert missing_role.status_code == 403
+
+
+@pytest.mark.regression
+def test_admin_api_usdc_pair_snapshot_order_plan_proof_refresh_replays_rejection_after_plan_appears(
+    monkeypatch,
+):
+    client = _client(monkeypatch)
+    plan_id = "m58-usdc-proof-refresh-rejected-replay-plan"
+    body = {
+        "dry_run": True,
+        "operator_notes": "initial missing-plan proof refresh rejection",
+    }
+
+    response = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            f"{plan_id}/proof-chain-refresh"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-proof-refresh-rejected-replay",
+            operator_intent="m58_usdc_snapshot_proof_refresh_rejected_replay",
+        ),
+        json=body,
+    )
+
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["status"] == AdminApiCommandStatus.REJECTED.value
+    assert payload["failure_stage"] == "usdc_pair_snapshot_order_plan_proof_refresh"
+    assert "order plan was not found" in payload["message"]
+    assert payload["plan"] is None
+    assert payload["live_coinbase_execution"] == "not_run"
+
+    _append_usdc_pair_snapshot_run_state_live_submit_fixtures(
+        client,
+        run_state_id="m58-usdc-proof-refresh-rejected-replay-run",
+        allowlist_readiness_id="m58-usdc-proof-refresh-rejected-replay-source",
+        plan_id=plan_id,
+        queued=True,
+        live_ready=True,
+        append_live_readiness=False,
+        append_allowlist_readiness=False,
+    )
+
+    replay = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            f"{plan_id}/proof-chain-refresh"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-proof-refresh-rejected-replay",
+            operator_intent="m58_usdc_snapshot_proof_refresh_rejected_replay",
+        ),
+        json=body,
+    )
+
+    assert replay.status_code == 400
+    assert replay.headers["X-Idempotency-Replayed"] == "true"
+    assert replay.json() == payload
+
+    conflict = client.post(
+        (
+            "/api/v1/automation/usdc-pair-snapshot-order-plans/"
+            f"{plan_id}/proof-chain-refresh"
+        ),
+        headers=_headers(
+            idempotency_key="idem-m58-usdc-proof-refresh-rejected-replay",
+            operator_intent="m58_usdc_snapshot_proof_refresh_rejected_replay",
+        ),
+        json={**body, "operator_notes": "changed body must conflict"},
+    )
+
+    assert conflict.status_code == 409
+    conflict_payload = conflict.json()
+    assert conflict_payload["status"] == AdminApiCommandStatus.CONFLICT.value
+    assert conflict_payload["failure_stage"] == "idempotency"
+    assert conflict_payload["plan"] is None
+    assert conflict_payload["live_coinbase_execution"] == "not_run"
+    assert client.admin_api_test_usdc_pair_snapshot_live_order_executor.calls == []
 
 
 @pytest.mark.regression

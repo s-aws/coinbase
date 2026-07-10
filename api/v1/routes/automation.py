@@ -1980,7 +1980,10 @@ def _execute_idempotent_order_plan(
         response=response,
         audit_id=response.audit_id,
     )
-    if response.status == AdminApiCommandStatus.ACCEPTED:
+    if response.status in {
+        AdminApiCommandStatus.ACCEPTED,
+        AdminApiCommandStatus.REJECTED,
+    }:
         idempotency_store.put_record(
             IdempotencyRecord(
                 idempotency_key=idempotency_key,
