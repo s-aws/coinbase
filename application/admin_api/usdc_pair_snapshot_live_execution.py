@@ -508,6 +508,21 @@ def _ensure_fanout_execution_identity(
         if left != right:
             mismatches.append(field)
 
+    def check_decimal(field: str, observed: Any, expected: str) -> None:
+        observed_text = _optional_text(observed)
+        if not observed_text:
+            return
+        observed_value = _fanout_decimal_value(
+            observed_text,
+            f"execution {field}",
+        )
+        expected_value = _fanout_decimal_value(
+            expected,
+            f"expected execution {field}",
+        )
+        if observed_value != expected_value:
+            mismatches.append(field)
+
     check_text(
         "client_order_id",
         execution.get("client_order_id"),
@@ -533,6 +548,16 @@ def _ensure_fanout_execution_identity(
                 result.get("client_order_id"),
                 str(call["client_order_id"]),
             )
+    check_decimal(
+        "submitted_notional_usdc",
+        execution.get("submitted_notional_usdc"),
+        str(call["submitted_notional_usdc"]),
+    )
+    check_decimal(
+        "max_executed_notional_usdc",
+        execution.get("max_executed_notional_usdc"),
+        str(call["max_executed_notional_usdc"]),
+    )
 
     if mismatches:
         raise UsdcPairSnapshotLiveExecutionError(
