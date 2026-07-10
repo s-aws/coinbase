@@ -10604,6 +10604,7 @@ def _record_usdc_pair_live_fanout_submissions(
         fanout_execution = executor.submit_and_cancel_all(
             orders=orders,
             max_orders_per_second=run_state.rate_limit_max_orders_per_window,
+            max_total_notional_usdc=body.max_fanout_notional_usdc,
         )
     except UsdcPairSnapshotLiveExecutionError as exc:
         raise UsdcPairSnapshotError(

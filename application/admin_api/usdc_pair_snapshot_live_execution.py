@@ -191,6 +191,7 @@ class UsdcPairSnapshotLiveFanoutExecutor:
         *,
         orders: Sequence[Mapping[str, Any]],
         max_orders_per_second: int = 5,
+        max_total_notional_usdc: str | Decimal = "100",
     ) -> dict[str, Any]:
         order_items = list(orders)
         if not order_items:
@@ -206,10 +207,34 @@ class UsdcPairSnapshotLiveFanoutExecutor:
                 "M58 live fan-out submit exceeds "
                 f"{max_orders_per_second} orders per second."
             )
+        max_total_notional = _fanout_decimal_value(
+            max_total_notional_usdc,
+            "maximum fan-out notional",
+        )
+        if max_total_notional <= 0:
+            raise UsdcPairSnapshotLiveExecutionError(
+                "M58 live fan-out submit requires positive maximum fan-out "
+                "notional evidence."
+            )
+        calls = [_fanout_order_call(order) for order in order_items]
+        submitted_total = sum(
+            (
+                _fanout_decimal_value(
+                    call["submitted_notional_usdc"],
+                    "submitted fan-out notional",
+                )
+                for call in calls
+            ),
+            Decimal("0"),
+        )
+        if submitted_total > max_total_notional:
+            raise UsdcPairSnapshotLiveExecutionError(
+                "M58 live fan-out submit exceeds maximum fan-out notional "
+                f"{max_total_notional} USDC."
+            )
 
         results: list[dict[str, Any]] = []
-        for order in order_items:
-            call = _fanout_order_call(order)
+        for call in calls:
             execution = _object_to_dict(
                 self._order_executor.submit_and_cancel(**call)
             )
@@ -325,6 +350,20 @@ def _fanout_order_call(order: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "cancel_client_order_id": cancel_client_order_id,
     }
+
+
+def _fanout_decimal_value(value: Any, label: str) -> Decimal:
+    try:
+        decimal_value = Decimal(str(value))
+    except (InvalidOperation, ValueError) as exc:
+        raise UsdcPairSnapshotLiveExecutionError(
+            f"M58 live fan-out submit requires valid {label} evidence."
+        ) from exc
+    if decimal_value < 0:
+        raise UsdcPairSnapshotLiveExecutionError(
+            f"M58 live fan-out submit requires non-negative {label} evidence."
+        )
+    return decimal_value
 
 
 def _ensure_fanout_execution_identity(
