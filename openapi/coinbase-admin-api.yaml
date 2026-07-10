@@ -14693,6 +14693,12 @@ components:
           - type: string
           - type: 'null'
           title: Expires At
+        approval_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Approval Id
         cap_guard_decision_ref:
           anyOf:
           - type: string

@@ -114,6 +114,7 @@ class AdminApiApprovalLifecycleService:
                     "Approved decisions require reconciliation_plan_ref."
                 )
             approval_record = AdminApiApprovalRecord(
+                approval_id=body.approval_id or str(uuid4()),
                 created_at=recorded_at,
                 expires_at=expires_at,
                 approved_by_actor_id=actor_id,

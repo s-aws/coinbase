@@ -60154,6 +60154,7 @@ def test_admin_api_approval_lifecycle_routes_create_approve_replay_and_conflict(
         "decision": AdminApiApprovalLifecycleStatus.APPROVED.value,
         "decision_reason": "bounded canary approval",
         "expires_at": expires_at,
+        "approval_id": "approval-snapshot-planned",
         "cap_guard_decision_ref": "cap-guard-approval-001",
         "reconciliation_plan_ref": "reconciliation-approval-001",
     }
@@ -60169,7 +60170,7 @@ def test_admin_api_approval_lifecycle_routes_create_approve_replay_and_conflict(
     assert decision_payload["required_permission"] == "approval:manage"
     approved = decision_payload["approval"]
     assert approved["status"] == "approved"
-    assert approved["approval_id"]
+    assert approved["approval_id"] == "approval-snapshot-planned"
     assert approved["decision_actor_id"] == "operator-001"
     assert approved["snapshot_linked"] is True
     assert approved["live_execution_authority"] is False

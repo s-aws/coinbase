@@ -1694,6 +1694,7 @@ class AdminApprovalDecisionRequest(BaseModel):
     decision: AdminApiApprovalLifecycleStatus
     decision_reason: str | None = None
     expires_at: str | None = None
+    approval_id: str | None = Field(default=None, min_length=1)
     cap_guard_decision_ref: str | None = None
     reconciliation_plan_ref: str | None = None
 
