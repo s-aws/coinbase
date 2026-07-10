@@ -10637,6 +10637,15 @@ def _record_usdc_pair_live_fanout_submissions(
             "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
             + ",".join(count_blockers)
         )
+    notional_blockers = _usdc_pair_live_fanout_executor_notional_blockers(
+        fanout_execution=fanout_execution,
+        execution_values=execution_values,
+    )
+    if notional_blockers:
+        raise UsdcPairSnapshotError(
+            "USDC pair snapshot allowlist run-state live fan-out submit blocked: "
+            + ",".join(notional_blockers)
+        )
     if len(execution_values) < len(contexts) and (
         _usdc_pair_live_fanout_executor_summary_claims_complete(
             fanout_execution
@@ -10804,6 +10813,77 @@ def _usdc_pair_live_fanout_executor_row_identity_blockers(
     if execution_side and execution_side.upper() != _enum_text(readiness.side).upper():
         blockers.append("fanout_executor_side_mismatch")
     return blockers
+
+
+def _usdc_pair_live_fanout_executor_notional_blockers(
+    *,
+    fanout_execution: Mapping[str, Any],
+    execution_values: list[Any],
+) -> list[str]:
+    blockers: list[str] = []
+    submitted_total = _usdc_pair_live_fanout_executor_decimal_sum(
+        execution_values=execution_values,
+        field_name="submitted_notional_usdc",
+    )
+    submitted_summary = _usdc_pair_live_fanout_executor_decimal_value(
+        fanout_execution.get("submitted_notional_usdc")
+    )
+    if submitted_total is None or submitted_summary != submitted_total:
+        blockers.append("fanout_executor_submitted_notional_mismatch")
+
+    executed_total = _usdc_pair_live_fanout_executor_decimal_sum(
+        execution_values=execution_values,
+        field_name="executed_notional_usdc",
+        normalize_execution_evidence=True,
+    )
+    executed_summary = _usdc_pair_live_fanout_executor_decimal_value(
+        fanout_execution.get("executed_notional_usdc")
+    )
+    if executed_total is None or executed_summary != executed_total:
+        blockers.append("fanout_executor_executed_notional_mismatch")
+
+    max_executed_total = _usdc_pair_live_fanout_executor_decimal_sum(
+        execution_values=execution_values,
+        field_name="max_executed_notional_usdc",
+    )
+    max_executed_summary = _usdc_pair_live_fanout_executor_decimal_value(
+        fanout_execution.get("max_executed_notional_usdc")
+    )
+    if max_executed_total is None or max_executed_summary != max_executed_total:
+        blockers.append("fanout_executor_max_executed_notional_mismatch")
+    return blockers
+
+
+def _usdc_pair_live_fanout_executor_decimal_sum(
+    *,
+    execution_values: list[Any],
+    field_name: str,
+    normalize_execution_evidence: bool = False,
+) -> Decimal | None:
+    total = Decimal("0")
+    for execution_value in execution_values:
+        execution = _mapping_value(execution_value)
+        if normalize_execution_evidence:
+            value, _, _ = _execution_executed_notional_evidence(
+                execution.get(field_name),
+                evidence_status=execution.get("executed_notional_evidence_status"),
+            )
+            decimal_value = _usdc_pair_live_fanout_executor_decimal_value(value)
+        else:
+            decimal_value = _usdc_pair_live_fanout_executor_decimal_value(
+                execution.get(field_name)
+            )
+        if decimal_value is None:
+            return None
+        total += decimal_value
+    return total
+
+
+def _usdc_pair_live_fanout_executor_decimal_value(value: Any) -> Decimal | None:
+    text = _non_empty_text(str(value) if value is not None else None)
+    if not text:
+        return None
+    return _non_negative_decimal_value(text)
 
 
 def _usdc_pair_live_fanout_executor_count_blockers(
