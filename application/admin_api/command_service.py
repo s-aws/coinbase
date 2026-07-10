@@ -1813,6 +1813,39 @@ def _fill_follow_up_readback_reports_duplicate_claim(
     return claim_state in {"processing", "done"}
 
 
+def _fill_follow_up_post_trigger_chain_blockers(chain: Any) -> list[str]:
+    blockers: list[str] = []
+    chain_blockers = getattr(chain, "blockers", [])
+    if isinstance(chain_blockers, list):
+        blockers.extend(
+            blocker
+            for blocker in chain_blockers
+            if isinstance(blocker, str) and blocker
+        )
+    duplicate_child_ids = getattr(chain, "duplicate_child_client_order_ids", [])
+    if isinstance(duplicate_child_ids, list) and duplicate_child_ids:
+        blockers.append("follow_up_child_duplicate_source_ids")
+    nested_child_ids = getattr(chain, "nested_child_client_order_ids", [])
+    nested_parent_ids = getattr(chain, "nested_parent_client_order_ids", [])
+    flat_violation_count = getattr(chain, "flat_hierarchy_violation_count", 0)
+    try:
+        flat_violation_count_int = int(flat_violation_count or 0)
+    except (TypeError, ValueError):
+        flat_violation_count_int = 0
+    if (
+        (isinstance(nested_child_ids, list) and nested_child_ids)
+        or (isinstance(nested_parent_ids, list) and nested_parent_ids)
+        or flat_violation_count_int > 0
+    ):
+        blockers.append("follow_up_nested_child_parent_detected")
+    normalized = _ordered_unique_strings(blockers)
+    if not normalized:
+        return []
+    return _ordered_unique_strings(
+        ["fill_follow_up_post_trigger_chain_blocked", *normalized]
+    )
+
+
 _FILL_FOLLOW_UP_TRIGGER_EXECUTION_BLOCKERS = frozenset(
     {
         "fill_follow_up_execution_adapter_failed",
@@ -1821,6 +1854,7 @@ _FILL_FOLLOW_UP_TRIGGER_EXECUTION_BLOCKERS = frozenset(
         "fill_follow_up_duplicate_claim_not_acquired_after_execution",
         "fill_follow_up_child_id_mismatch_after_execution",
         "fill_follow_up_multiple_children_after_execution",
+        "fill_follow_up_post_trigger_chain_blocked",
     }
 )
 
@@ -1855,6 +1889,11 @@ def _fill_follow_up_trigger_message(
         return (
             "Fill follow-up trigger rejected after executor invocation; "
             "executor reported disallowed live exchange activity."
+        )
+    if blockers and "fill_follow_up_post_trigger_chain_blocked" in blockers:
+        return (
+            "Fill follow-up trigger rejected after executor invocation; "
+            "post-trigger parent/child chain readback reported blockers."
         )
     if (
         blockers
@@ -2114,6 +2153,7 @@ class AdminApiCommandService:
                     chain = read_service.build_order_fill_follow_up_chain(
                         client_order_id=command.client_order_id
                     )
+                    blockers.extend(_fill_follow_up_post_trigger_chain_blockers(chain))
                     post_execution_audit = chain.fill_follow_up_decision_audit
                     post_execution_claim_state = (
                         post_execution_audit.claim_state
