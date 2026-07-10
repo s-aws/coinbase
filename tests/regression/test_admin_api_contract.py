@@ -84898,6 +84898,10 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "maximum fan-out notional <= 100 USDC" in (
         run_state_live_fanout_submit_evidence
     )
+    assert "pause-before-full-fill confirmation" in (
+        run_state_live_fanout_submit_evidence
+    )
+    assert "operator stop conditions" in run_state_live_fanout_submit_evidence
     assert "5 orders per second" in run_state_live_fanout_submit_evidence
     assert "fail-closed" in run_state_live_fanout_submit_evidence
     assert "no browser execution authority" in (

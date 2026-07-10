@@ -1303,8 +1303,9 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         idempotency="required",
         approval=(
             "required exact allowlist run-state fan-out evidence and explicit "
-            "backend-owned live fan-out operator confirmations; current "
-            "implementation is fail-closed"
+            "backend-owned live fan-out operator confirmations, including "
+            "pause-before-full-fill confirmation and operator stop conditions; "
+            "current implementation is fail-closed"
         ),
         caps=(
             "required maximum fan-out notional <= 100 USDC, cancel/rollback "

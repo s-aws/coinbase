@@ -1226,7 +1226,7 @@
       "action_class": "live_exchange_place",
       "permission": "campaign:execute",
       "idempotency": "required",
-      "approval": "required exact allowlist run-state fan-out evidence and explicit backend-owned live fan-out operator confirmations; current implementation is fail-closed",
+      "approval": "required exact allowlist run-state fan-out evidence and explicit backend-owned live fan-out operator confirmations, including pause-before-full-fill confirmation and operator stop conditions; current implementation is fail-closed",
       "caps": "required maximum fan-out notional <= 100 USDC, cancel/rollback before phase completion, and default 5 orders per second rate limit evidence",
       "audit": "required",
       "shared_method": "submit_usdc_pair_snapshot_allowlist_run_state_live_fanout",
