@@ -492,6 +492,76 @@ def test_command_dependencies_report_test_profile_mismatch_as_not_ready(
     )
 
 
+def test_command_dependencies_share_loaded_rest_client_with_controlled_child_reference(
+    monkeypatch,
+) -> None:
+    from application.admin_api import command_runtime
+
+    monkeypatch.setenv(command_runtime.LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv(command_runtime.SPOT_PORTFOLIO_ID_ENV, TEST_PORTFOLIO_ID)
+    monkeypatch.setenv(command_runtime.SPOT_PORTFOLIO_LABEL_ENV, "Test")
+    monkeypatch.setattr(command_runtime, "rest_credentials_configured", lambda: True)
+    client = _PermissionsClient(
+        {
+            "portfolio_uuid": TEST_PORTFOLIO_ID,
+            "portfolio_type": "CONSUMER",
+            "can_view": True,
+            "can_trade": True,
+        }
+    )
+    load_calls: list[bool] = []
+
+    def load_rest_client():
+        load_calls.append(True)
+        return command_runtime.AdminApiRestClientBinding(
+            client=client,
+            available=True,
+        )
+
+    monkeypatch.setattr(
+        command_runtime,
+        "load_admin_api_rest_client",
+        load_rest_client,
+    )
+    reference = {
+        "product_id": "BTC-USDC",
+        "best_bid": "64197.77",
+        "best_ask": "64197.78",
+        "source": "coinbase_rest_best_bid",
+        "observed_at": "2026-07-11T08:53:40.658107Z",
+    }
+    reference_calls: list[tuple[str, object]] = []
+
+    def canonical_reference(product_id: str, *, rest_client=None):
+        reference_calls.append((product_id, rest_client))
+        return dict(reference)
+
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_spot_market_reference",
+        canonical_reference,
+    )
+    manager = SimpleNamespace()
+    monkeypatch.setitem(
+        sys.modules,
+        "dashboard_server",
+        SimpleNamespace(
+            stealth_order_bridge=SimpleNamespace(stealth_manager=manager),
+        ),
+    )
+
+    dependencies = command_runtime.build_admin_api_command_dependencies()
+    runtime = dependencies.stealth_order_runtime_getter()
+
+    assert dependencies.spot_market_reference_getter("BTC-USDC") == reference
+    assert runtime.market_reference_getter("BTC-USDC") == reference
+    assert load_calls == [True]
+    assert reference_calls == [
+        ("BTC-USDC", client),
+        ("BTC-USDC", client),
+    ]
+
+
 def test_manual_spot_root_is_registered_with_test_scope_before_rest_submit(
     monkeypatch,
 ) -> None:

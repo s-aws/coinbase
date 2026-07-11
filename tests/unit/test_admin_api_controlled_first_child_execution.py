@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock
+import sys
 import uuid
 
 import pytest
@@ -161,6 +163,48 @@ def _deps(runtime: MagicMock, rest_client: MagicMock | None = None):
         order_root_registrar_getter=lambda: SimpleNamespace(
             mark_submission_status=MagicMock(return_value=1),
         ),
+    )
+
+
+def _runtime_adapter_success_evidence():
+    authority = SimpleNamespace(
+        prepared_limit_price=102400.0,
+        total_size=0.00001718,
+        reference_notional_usdc=1.759232,
+    )
+    order = {
+        "stealth_order_id": CHILD_ID,
+        "parent_order_id": ROOT_ID,
+        "product_id": "BTC-USDC",
+        "side": "SELL",
+        "total_size": 0.00001718,
+        "status": "REVEALED",
+        "revealed_orders": [
+            {
+                "placed_order_id": CHILD_ID,
+                "exchange_order_id": EXCHANGE_ID,
+                "placement_success": True,
+                "placement_status": "placed",
+                "submitted_limit_price": 102400.0,
+            }
+        ],
+    }
+    return authority, order
+
+
+def _submit_runtime_adapter(adapter):
+    return adapter.submit_controlled_first_child(
+        stealth_order_id=CHILD_ID,
+        expected_root_client_order_id=ROOT_ID,
+        expected_portfolio_id=TEST_PORTFOLIO_ID,
+        submitted_limit_price="102400.00",
+        max_notional_usdc="2.00",
+        approval_snapshot_id="approval-child-1",
+        admission_audit_id="audit-child-1",
+        cap_guard_decision_id="cap-child-1",
+        reconciliation_plan_id="recon-child-1",
+        controlled_batch_id=BATCH_ID,
+        controlled_batch_slot=1,
     )
 
 
@@ -785,56 +829,123 @@ def test_controlled_child_partial_fill_cancelled_reconciles_then_stops(monkeypat
     runtime.reconcile_controlled_first_child_terminal.assert_called_once()
 
 
-def test_runtime_adapter_prepares_then_submits_exact_child(monkeypatch):
-    now = __import__("datetime").datetime.now(__import__("datetime").timezone.utc)
-    authority = SimpleNamespace(
-        prepared_limit_price=102400.0,
-        total_size=0.00001718,
-        reference_notional_usdc=1.759232,
+def test_runtime_adapter_uses_canonical_rest_reference_when_cache_is_placeholder(
+    monkeypatch,
+):
+    from application.admin_api import command_runtime
+
+    now = datetime.now(timezone.utc)
+    authority, order = _runtime_adapter_success_evidence()
+    canonical_reference = MagicMock(
+        return_value={
+            "product_id": "BTC-USDC",
+            "best_bid": "64000.00",
+            "best_ask": "64000.01",
+            "source": "coinbase_rest_best_bid",
+            "observed_at": now,
+        }
     )
-    order = {
-        "stealth_order_id": CHILD_ID,
-        "parent_order_id": ROOT_ID,
-        "product_id": "BTC-USDC",
-        "side": "SELL",
-        "total_size": 0.00001718,
-        "status": "REVEALED",
-        "revealed_orders": [
-            {
-                "placed_order_id": CHILD_ID,
-                "exchange_order_id": EXCHANGE_ID,
-                "placement_success": True,
-                "placement_status": "placed",
-                "submitted_limit_price": 102400.0,
-            }
-        ],
-    }
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_spot_market_reference",
+        canonical_reference,
+    )
     manager = MagicMock()
-    manager._get_current_market_data.return_value = {
-        "bid": 64000.0,
-        "ask": 64001.0,
-        "time": now,
-        "source": "ticker",
-    }
+    manager._get_current_market_data.return_value = {"source": "placeholder"}
     manager.prepare_controlled_admin_first_child_reveal.return_value = authority
     manager.reveal_order_slice.return_value = CHILD_ID
     manager._get_stealth_order.return_value = order
     adapter = AdminApiControlledFirstChildRuntimeAdapter(manager)
 
-    result = adapter.submit_controlled_first_child(
-        stealth_order_id=CHILD_ID,
-        expected_root_client_order_id=ROOT_ID,
-        expected_portfolio_id=TEST_PORTFOLIO_ID,
-        submitted_limit_price="102400.00",
-        max_notional_usdc="2.00",
-        approval_snapshot_id="approval-child-1",
-        admission_audit_id="audit-child-1",
-        cap_guard_decision_id="cap-child-1",
-        reconciliation_plan_id="recon-child-1",
-        controlled_batch_id=BATCH_ID,
-        controlled_batch_slot=1,
-    )
+    result = _submit_runtime_adapter(adapter)
 
+    canonical_reference.assert_called_once_with("BTC-USDC")
+    manager.prepare_controlled_admin_first_child_reveal.assert_called_once()
+    manager.reveal_order_slice.assert_called_once_with(
+        CHILD_ID,
+        controlled_admin_authority=authority,
+    )
+    assert result["placement_succeeded"] is True
+
+
+@pytest.mark.parametrize(
+    ("reference", "expected_error"),
+    [
+        (None, "controlled_child_fresh_bid_missing"),
+        (
+            {
+                "best_bid": "NaN",
+                "observed_at": datetime.now(timezone.utc),
+            },
+            "controlled_child_fresh_bid_missing",
+        ),
+        (
+            {"best_bid": "64000.00", "observed_at": None},
+            "controlled_child_market_timestamp_missing",
+        ),
+        (
+            {
+                "best_bid": "64000.00",
+                "observed_at": datetime.now().replace(tzinfo=None),
+            },
+            "controlled_child_market_timestamp_not_aware",
+        ),
+    ],
+)
+def test_runtime_adapter_rejects_invalid_canonical_reference_before_preparation(
+    monkeypatch,
+    reference,
+    expected_error,
+):
+    from application.admin_api import command_runtime
+
+    canonical_reference = MagicMock(return_value=reference)
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_spot_market_reference",
+        canonical_reference,
+    )
+    manager = MagicMock()
+    manager._get_current_market_data.return_value = {"source": "placeholder"}
+    adapter = AdminApiControlledFirstChildRuntimeAdapter(manager)
+
+    with pytest.raises(RuntimeError, match=expected_error):
+        _submit_runtime_adapter(adapter)
+
+    canonical_reference.assert_called_once_with("BTC-USDC")
+    manager.prepare_controlled_admin_first_child_reveal.assert_not_called()
+    manager.reveal_order_slice.assert_not_called()
+
+
+def test_runtime_adapter_prepares_then_submits_exact_child_from_cached_ticker(
+    monkeypatch,
+):
+    now = datetime.now(timezone.utc)
+    authority, order = _runtime_adapter_success_evidence()
+    manager = MagicMock()
+    manager._market_cache = {
+        "BTC-USDC": {
+            "bid": 64000.0,
+            "ask": 64001.0,
+            "time": now,
+            "source": "ticker",
+        }
+    }
+    manager.prepare_controlled_admin_first_child_reveal.return_value = authority
+    manager.reveal_order_slice.return_value = CHILD_ID
+    manager._get_stealth_order.return_value = order
+    monkeypatch.setitem(
+        sys.modules,
+        "dashboard_server",
+        SimpleNamespace(
+            stealth_order_bridge=SimpleNamespace(stealth_manager=manager),
+        ),
+    )
+    adapter = AdminApiControlledFirstChildRuntimeAdapter(manager)
+
+    result = _submit_runtime_adapter(adapter)
+
+    manager._get_current_market_data.assert_not_called()
     manager.prepare_controlled_admin_first_child_reveal.assert_called_once()
     manager.reveal_order_slice.assert_called_once_with(
         CHILD_ID,

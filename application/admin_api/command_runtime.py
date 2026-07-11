@@ -695,8 +695,18 @@ class AdminApiControlledFirstChildRuntimeAdapter:
 
     source = "dashboard_server.stealth_order_bridge.stealth_manager"
 
-    def __init__(self, stealth_manager: Any) -> None:
+    def __init__(
+        self,
+        stealth_manager: Any,
+        *,
+        market_reference_getter: (
+            Callable[[str], dict[str, Any] | None] | None
+        ) = None,
+    ) -> None:
         self.stealth_manager = stealth_manager
+        self.market_reference_getter = (
+            market_reference_getter or get_admin_api_spot_market_reference
+        )
 
     @staticmethod
     def _decimal_text(value: Any) -> str:
@@ -733,11 +743,16 @@ class AdminApiControlledFirstChildRuntimeAdapter:
         controlled_batch_slot: int,
     ) -> dict[str, Any]:
         manager = self.stealth_manager
-        market = manager._get_current_market_data("BTC-USDC") or {}
-        market_bid = Decimal(str(market.get("bid") or "0"))
+        market = self.market_reference_getter("BTC-USDC")
+        if not isinstance(market, Mapping):
+            raise RuntimeError("controlled_child_fresh_bid_missing")
+        try:
+            market_bid = Decimal(str(market.get("best_bid") or "0"))
+        except (ArithmeticError, TypeError, ValueError) as exc:
+            raise RuntimeError("controlled_child_fresh_bid_missing") from exc
         if not market_bid.is_finite() or market_bid <= 0:
             raise RuntimeError("controlled_child_fresh_bid_missing")
-        market_observed_at = self._observed_at(market.get("time"))
+        market_observed_at = self._observed_at(market.get("observed_at"))
 
         authority = manager.prepare_controlled_admin_first_child_reveal(
             stealth_order_id=stealth_order_id,
@@ -964,7 +979,10 @@ class AdminApiControlledFirstChildRuntimeAdapter:
         }
 
 
-def get_admin_api_controlled_first_child_runtime() -> Any | None:
+def get_admin_api_controlled_first_child_runtime(
+    *,
+    market_reference_getter: Callable[[str], dict[str, Any] | None] | None = None,
+) -> Any | None:
     """Return the canonical embedded manager adapter when it is available."""
 
     try:
@@ -974,7 +992,10 @@ def get_admin_api_controlled_first_child_runtime() -> Any | None:
         manager = getattr(bridge, "stealth_manager", None) if bridge else None
         if manager is None:
             return None
-        return AdminApiControlledFirstChildRuntimeAdapter(manager)
+        return AdminApiControlledFirstChildRuntimeAdapter(
+            manager,
+            market_reference_getter=market_reference_getter,
+        )
     except Exception as exc:
         logger.warning("Admin API controlled first-child runtime unavailable: %s", exc)
         return None
@@ -1011,6 +1032,13 @@ def build_admin_api_command_dependencies(
         )
     else:
         missing_reason = None
+
+    def spot_market_reference(product_id: str) -> dict[str, Any] | None:
+        return get_admin_api_spot_market_reference(
+            product_id,
+            rest_client=rest_client.client,
+        )
+
     return AdminApiCommandDependencies(
         rest_client=rest_client.client,
         rest_client_available=rest_client.available,
@@ -1022,18 +1050,17 @@ def build_admin_api_command_dependencies(
             os.environ.get(SPOT_PORTFOLIO_LABEL_ENV, "").strip()
             or DEFAULT_SPOT_PORTFOLIO_LABEL
         ),
-        spot_market_reference_getter=lambda product_id: (
-            get_admin_api_spot_market_reference(
-                product_id,
-                rest_client=rest_client.client,
-            )
-        ),
+        spot_market_reference_getter=spot_market_reference,
         order_root_registrar_getter=get_admin_api_order_root_registrar,
         runtime_controller_factory=get_runtime_controller,
         add_log_entry=log_admin_api_command,
         order_event_publisher_getter=get_admin_api_order_event_stream_publisher,
         fill_follow_up_executor_getter=get_admin_api_fill_follow_up_executor,
-        stealth_order_runtime_getter=get_admin_api_controlled_first_child_runtime,
+        stealth_order_runtime_getter=lambda: (
+            get_admin_api_controlled_first_child_runtime(
+                market_reference_getter=spot_market_reference,
+            )
+        ),
         read_service_getter=read_service_getter,
         uuid_factory=lambda: str(uuid.uuid4()),
     )
