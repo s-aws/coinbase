@@ -107,6 +107,10 @@ if __name__ == "__main__":
         try:
             set_stealth_order_bridge(stealth_bridge)
             if embedded_admin_api_requested:
+                # The legacy hotpoint placer is a parallel order-origination
+                # path and is outside the single fill/follow-up slice. Disable
+                # it before hydration or any live producer can observe fills.
+                engine.set_hotpoint_auto_place_enabled(False)
                 hydrate_canonical_order_runtime(runtime)
             else:
                 stealth_bridge.start()
@@ -258,16 +262,24 @@ if __name__ == "__main__":
         )
     else:
         try:
-            run_startup_reconciliation(
-                fail_on_drift=False,
+            startup_reconciliation_report = run_startup_reconciliation(
+                fail_on_drift=embedded_admin_api_requested,
                 auto_heal=True,
                 audit_fills=True,
             )
+            if (
+                embedded_admin_api_requested
+                and startup_reconciliation_report is None
+            ):
+                raise RuntimeError(
+                    "Embedded Admin API requires successful startup reconciliation"
+                )
         except Exception:
-            logger.exception("Startup reconciliation raised; continuing")
+            logger.exception("Startup reconciliation raised")
             if embedded_admin_api_requested:
                 controller.drain_and_stop(timeout_seconds=30.0)
                 raise
+            logger.warning("Continuing without successful startup reconciliation")
 
     # Periodic deep-audit against exchange truth. Mirrors the startup
     # configuration so drift that develops at runtime is healed on the
@@ -296,9 +308,12 @@ if __name__ == "__main__":
                         "Embedded Admin API cannot prove Coinbase event "
                         "monitoring readiness"
                     )
+                # Start the final order-producing bridge only after the user
+                # channel is authenticated. Keep HTTP mutations closed until
+                # the bridge has also started successfully.
+                stealth_bridge.start()
                 embedded_admin_api_server.mark_runtime_ready()
 
-            stealth_bridge.start()
             engine.run_forever(on_started=mark_embedded_admin_api_runtime_ready)
         else:
             engine.run_forever()

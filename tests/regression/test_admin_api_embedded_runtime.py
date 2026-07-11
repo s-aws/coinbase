@@ -959,6 +959,7 @@ def test_main_binds_embedded_api_before_starting_live_producers():
     )
     bridge_stop = source.index('"stealth_bridge", stealth_bridge.stop')
     engine_stop = source.index('controller.register_stop_hook("order_engine", engine.stop)')
+    hotpoint_disable = source.index("engine.set_hotpoint_auto_place_enabled(False)")
     monitoring = source.index("engine.wait_for_event_monitoring_ready(", api_start)
     mark_ready = source.index("embedded_admin_api_server.mark_runtime_ready()", monitoring)
     monitoring_loss_callback = source.index(
@@ -977,8 +978,8 @@ def test_main_binds_embedded_api_before_starting_live_producers():
         api_start,
     )
 
-    assert association < hydration < preparation < reconciliation < api_start
-    assert api_start < monitoring < mark_ready < bridge_start < run_forever
+    assert association < hotpoint_disable < hydration < preparation < reconciliation < api_start
+    assert api_start < monitoring < bridge_start < mark_ready < run_forever
     assert (
         monitoring_loss_callback
         < monitoring_loss_shutdown
@@ -988,6 +989,16 @@ def test_main_binds_embedded_api_before_starting_live_producers():
     assert "periodic_reconciler.start()" in source[:run_forever]
     assert "controller.drain_and_stop" in source
     assert "embedded_admin_api_server.stop()" in source[run_forever:]
+
+
+@pytest.mark.regression
+def test_main_embedded_runtime_fails_closed_without_clean_startup_reconciliation():
+    source = Path("main.py").read_text(encoding="utf-8-sig")
+
+    assert "startup_reconciliation_report = run_startup_reconciliation(" in source
+    assert "fail_on_drift=embedded_admin_api_requested" in source
+    assert "and startup_reconciliation_report is None" in source
+    assert "Embedded Admin API requires successful startup reconciliation" in source
 
 
 @pytest.mark.regression
