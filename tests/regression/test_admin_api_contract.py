@@ -77982,7 +77982,7 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
         "client_order_id": child_id,
         "product_id": "BTC-USD",
         "side": "SELL",
-        "status": "HIDDEN",
+        "status": "PENDING",
         "order_type": "limit",
         "size": "0.01",
         "price": "101.00",
@@ -78001,6 +78001,7 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
         "side": "SELL",
         "size": "0.01",
         "price": "101.00",
+        "stealth_status": "HIDDEN",
         "last_lifecycle_event": "PLACEMENT_BLOCKED",
         "failure_reason": "standing_price_limit_exceeded",
     }
@@ -78062,6 +78063,7 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
     assert payload["follow_up_children"][0]["ownership_provenance"] == (
         "ADMIN_FILL_FOLLOW_UP"
     )
+    assert payload["follow_up_children"][0]["status"] == "HIDDEN"
     assert payload["follow_up_children"][0]["last_lifecycle_event"] == (
         "PLACEMENT_BLOCKED"
     )

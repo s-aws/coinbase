@@ -13732,6 +13732,18 @@ class AdminApiReadService:
                     source not in existing_sources
                     and not child_rows_conflict(existing_child, normalized_child)
                 ):
+                    stealth_status = _string_or_none(
+                        normalized_child.get("stealth_status")
+                    )
+                    existing_status = _string_or_none(
+                        existing_child.get("status")
+                    )
+                    if (
+                        source == "stealth_orders"
+                        and stealth_status is not None
+                        and existing_status in {None, "PENDING"}
+                    ):
+                        existing_child["status"] = stealth_status
                     for evidence_field in (
                         "stealth_status",
                         "last_lifecycle_event",
