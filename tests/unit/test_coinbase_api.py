@@ -88,6 +88,7 @@ class TestCoinbaseRESTAPIClient:
             limit=100,
             cursor="next-page",
             product_type="SPOT",
+            retail_portfolio_id="test-portfolio-id",
         )
 
         assert response == {"orders": [], "has_next": False}
@@ -99,6 +100,7 @@ class TestCoinbaseRESTAPIClient:
                 "limit": 100,
                 "cursor": "next-page",
                 "product_type": "SPOT",
+                "retail_portfolio_id": "test-portfolio-id",
             }
         ]
 

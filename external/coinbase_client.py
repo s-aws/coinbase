@@ -689,6 +689,7 @@ class CoinbaseRestClient:
         limit: Optional[int] = None,
         cursor: Optional[str] = None,
         product_type: Optional[str] = None,
+        retail_portfolio_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """List orders with exact identity, scope, and pagination filters.
         
@@ -699,6 +700,7 @@ class CoinbaseRestClient:
             limit: Optional Coinbase page size.
             cursor: Optional Coinbase pagination cursor.
             product_type: Optional Coinbase product-type scope.
+            retail_portfolio_id: Optional exact Coinbase profile scope.
         
         Returns:
             Raw SDK response object (call .to_dict() to get dict)
@@ -713,6 +715,7 @@ class CoinbaseRestClient:
             limit=limit,
             cursor=cursor,
             product_type=product_type,
+            retail_portfolio_id=retail_portfolio_id,
         )
 
     def get_order(self, order_id: str) -> Dict[str, Any]:

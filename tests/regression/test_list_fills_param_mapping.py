@@ -43,6 +43,35 @@ import pytest
 
 
 @pytest.mark.regression
+def test_list_orders_forwards_exact_retail_portfolio_scope():
+    """The backend wrapper must preserve Coinbase's profile filter."""
+
+    from external.coinbase_client import CoinbaseRestClient
+
+    client = CoinbaseRestClient.__new__(CoinbaseRestClient)
+    client._client = MagicMock()
+    client._client.list_orders.return_value = {"orders": [], "has_next": False}
+
+    response = client.list_orders(
+        order_status=["OPEN"],
+        product_type="SPOT",
+        retail_portfolio_id="test-portfolio-id",
+        limit=100,
+    )
+
+    assert response == {"orders": [], "has_next": False}
+    client._client.list_orders.assert_called_once_with(
+        order_status=["OPEN"],
+        order_ids=None,
+        product_ids=None,
+        limit=100,
+        cursor=None,
+        product_type="SPOT",
+        retail_portfolio_id="test-portfolio-id",
+    )
+
+
+@pytest.mark.regression
 def test_cancel_order_accepts_explicit_success_true_payload():
     from external.coinbase_client import CoinbaseRestClient
 
