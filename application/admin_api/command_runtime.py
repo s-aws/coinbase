@@ -396,6 +396,21 @@ class AdminApiOrderRootRuntimeRegistrar:
         engine = self.order_engine
         fee_manager = getattr(engine, "fee_manager", None)
         profit_validator = getattr(engine, "profit_validator", None)
+        orderbook = getattr(engine, "orderbook", None)
+        try:
+            replacement_policy = getattr(orderbook, "should_replace", None)
+            filled_replacement_enabled = bool(
+                isinstance(replacement_policy, Mapping)
+                and replacement_policy.get("FILLED") is True
+            )
+        except Exception:
+            filled_replacement_enabled = False
+        if not filled_replacement_enabled:
+            return {
+                "ready": False,
+                "blocker": "intentional_fill_filled_replacement_disabled",
+                "filled_follow_up_replacement_enabled": False,
+            }
         if fee_manager is None or profit_validator is None:
             return {
                 "ready": False,
@@ -531,6 +546,7 @@ class AdminApiOrderRootRuntimeRegistrar:
             "fee_rate": str(fee_rate),
             "fee_freshness": freshness,
             "profitability_preflight_passed": True,
+            "filled_follow_up_replacement_enabled": True,
             "profitability": profitability,
         }
 

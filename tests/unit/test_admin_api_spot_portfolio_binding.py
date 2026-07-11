@@ -770,6 +770,9 @@ def test_runtime_root_registrar_builds_fresh_fee_safe_intentional_fill_target() 
         SimpleNamespace(
             fee_manager=fee_manager,
             profit_validator=SimpleNamespace(is_profitable=profitability),
+            orderbook=SimpleNamespace(
+                should_replace={"FILLED": True, "CANCELLED": False}
+            ),
         )
     )
 
@@ -800,6 +803,9 @@ def test_runtime_root_registrar_rejects_stale_intentional_fill_fee_data() -> Non
 
     registrar = AdminApiOrderRootRuntimeRegistrar(
         SimpleNamespace(
+            orderbook=SimpleNamespace(
+                should_replace={"FILLED": True, "CANCELLED": False}
+            ),
             fee_manager=SimpleNamespace(
                 validate_fee_freshness=lambda **_kwargs: {
                     "is_fresh": False,
@@ -820,6 +826,36 @@ def test_runtime_root_registrar_rejects_stale_intentional_fill_fee_data() -> Non
 
     assert evidence["ready"] is False
     assert evidence["blocker"] == "intentional_fill_fee_data_stale"
+
+
+def test_runtime_root_registrar_requires_filled_replacement_before_root() -> None:
+    from application.admin_api.command_runtime import (
+        AdminApiOrderRootRuntimeRegistrar,
+    )
+
+    registrar = AdminApiOrderRootRuntimeRegistrar(
+        SimpleNamespace(
+            orderbook=SimpleNamespace(
+                should_replace={"FILLED": False, "CANCELLED": False}
+            ),
+            fee_manager=SimpleNamespace(
+                validate_fee_freshness=Mock(),
+                get_profit_validation_fee_rate=Mock(),
+            ),
+            profit_validator=SimpleNamespace(is_profitable=Mock()),
+        )
+    )
+
+    evidence = registrar.build_intentional_fill_target_movement(
+        product_id="BTC-USDC",
+        side="BUY",
+        base_size="0.00002",
+        entry_limit_price="65000.00",
+    )
+
+    assert evidence["ready"] is False
+    assert evidence["blocker"] == "intentional_fill_filled_replacement_disabled"
+    registrar.order_engine.fee_manager.validate_fee_freshness.assert_not_called()
 
 
 def test_manual_spot_buy_above_half_bid_is_rejected_before_root_or_rest(
