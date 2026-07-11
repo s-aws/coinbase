@@ -310,3 +310,24 @@ def test_configuration_rest_get_account_wallets_uses_every_account_page(monkeypa
 
     assert set(wallets) == {"USD", "BTC"}
     assert wallets["BTC"]["available_balance"]["value"] == "0.5"
+
+
+@pytest.mark.regression
+def test_configuration_wallet_read_rejects_cross_profile_accounts(monkeypatch):
+    import configuration
+
+    test_portfolio_id = "11111111-2222-4333-8444-555555555555"
+    default_portfolio_id = "f4dfdb77-aa88-53d0-9c37-da3a0762ce54"
+    sdk = _PagedAccountsSDK()
+    sdk.pages[None]["accounts"][0]["retail_portfolio_id"] = test_portfolio_id
+    sdk.pages["cursor-2"]["accounts"][0][
+        "retail_portfolio_id"
+    ] = default_portfolio_id
+    monkeypatch.setattr(configuration, "get_rest_client", lambda: sdk)
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID",
+        test_portfolio_id,
+    )
+
+    with pytest.raises(RuntimeError, match="wallet portfolio scope mismatch"):
+        configuration.rest_get_account_wallets()

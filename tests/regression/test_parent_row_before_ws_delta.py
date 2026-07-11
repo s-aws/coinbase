@@ -34,7 +34,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from configuration import OrderBook
-from core.enums import OrderStatus
+from core.enums import OrderOwnershipProvenance, OrderStatus
 from core.order_engine import OrderEngine
 
 
@@ -66,6 +66,7 @@ def _build_engine():
 
     subscription = Mock()
     subscription.channels = ["user"]
+    subscription.retail_portfolio_id = None
 
     engine = OrderEngine(
         orderbook=orderbook,
@@ -186,6 +187,7 @@ def test_ensure_hydrates_from_db_without_inserting_when_row_exists():
         "max_order_replacement": 11,
         "current_order_replacement": 0,
         "allow_partial_fills": False,
+        "retail_portfolio_id": "11111111-2222-4333-8444-555555555555",
     })
 
     engine._ensure_order_parent_row_exists({
@@ -200,6 +202,9 @@ def test_ensure_hydrates_from_db_without_inserting_when_row_exists():
     engine.db_module.get_parent_order.assert_called_once_with(coid)
     engine.db_module.insert_order_parent.assert_not_called()
     assert coid in engine.orderbook.parent_order_ids
+    assert engine.orderbook.parent_order_ids[coid]["retail_portfolio_id"] == (
+        "11111111-2222-4333-8444-555555555555"
+    )
 
 
 @pytest.mark.regression
@@ -232,6 +237,9 @@ def test_externally_created_orders_still_route_to_external_tracking():
         "external orders inserted by the hoist must be tagged so "
         "_is_external_order keeps returning True"
     )
+    assert cached.get("ownership_provenance") == (
+        OrderOwnershipProvenance.EXTERNAL_WS_OBSERVED.value
+    )
     assert engine._is_external_order(coid) is True
 
     # Internally-placed orders (no flag) are NOT external.
@@ -241,5 +249,8 @@ def test_externally_created_orders_still_route_to_external_tracking():
         "target_movement": {"movement": 0.0, "type": "P"},
         "max_order_replacement": 11,
         "current_order_replacement": 0,
+        "ownership_provenance": (
+            OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+        ),
     }
     assert engine._is_external_order(internal_coid) is False

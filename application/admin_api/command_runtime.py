@@ -9,6 +9,7 @@ from typing import Any, Callable
 import uuid
 
 from core.action_condition_guard import rest_credentials_configured
+from core.enums import OrderOwnershipProvenance
 from core.runtime_controller import (
     INFLIGHT_FILL_PROCESSING,
     get_runtime_controller,
@@ -17,6 +18,12 @@ from logging_service import get_logger
 
 from .command_service import AdminApiCommandDependencies, AdminApiCommandService
 from .live_execution import LIVE_EXECUTION_RUNTIME_ENABLED_ENV
+from .spot_portfolio_binding import (
+    DEFAULT_SPOT_PORTFOLIO_LABEL,
+    SPOT_PORTFOLIO_ID_ENV,
+    SPOT_PORTFOLIO_LABEL_ENV,
+    evaluate_spot_test_portfolio_binding,
+)
 
 
 ORDER_EVENT_STREAM_DISABLED_ENV = "COINBASE_ADMIN_API_ORDER_EVENT_STREAM_DISABLED"
@@ -43,7 +50,19 @@ class AdminApiCommandRuntimeReadiness:
     rest_client_available: bool
     runtime_ready: bool
     missing_reason: str | None
+    spot_portfolio_scope: dict[str, Any]
     source: str = "application/admin_api/command_runtime.py"
+
+
+def _spot_portfolio_scope(rest_client: Any | None) -> dict[str, Any]:
+    return evaluate_spot_test_portfolio_binding(
+        rest_client=rest_client,
+        expected_portfolio_id=os.environ.get(SPOT_PORTFOLIO_ID_ENV),
+        expected_portfolio_label=(
+            os.environ.get(SPOT_PORTFOLIO_LABEL_ENV, "").strip()
+            or DEFAULT_SPOT_PORTFOLIO_LABEL
+        ),
+    ).to_dict()
 
 
 def admin_api_live_runtime_enabled() -> bool:
@@ -95,6 +114,7 @@ def build_admin_api_command_runtime_readiness() -> AdminApiCommandRuntimeReadine
             rest_client_available=False,
             runtime_ready=False,
             missing_reason="live_runtime_disabled",
+            spot_portfolio_scope=_spot_portfolio_scope(None),
         )
     if not rest_credentials_configured():
         return AdminApiCommandRuntimeReadiness(
@@ -102,6 +122,7 @@ def build_admin_api_command_runtime_readiness() -> AdminApiCommandRuntimeReadine
             rest_client_available=False,
             runtime_ready=False,
             missing_reason="coinbase_rest_credentials_missing",
+            spot_portfolio_scope=_spot_portfolio_scope(None),
         )
 
     rest_client = load_admin_api_rest_client()
@@ -111,12 +132,24 @@ def build_admin_api_command_runtime_readiness() -> AdminApiCommandRuntimeReadine
             rest_client_available=False,
             runtime_ready=False,
             missing_reason="coinbase_rest_client_unavailable",
+            spot_portfolio_scope=_spot_portfolio_scope(None),
+        )
+    portfolio_scope = _spot_portfolio_scope(rest_client.client)
+    if portfolio_scope["status"] != "matched":
+        return AdminApiCommandRuntimeReadiness(
+            live_runtime_enabled=True,
+            rest_client_available=True,
+            runtime_ready=False,
+            missing_reason=portfolio_scope.get("blocker")
+            or "spot_test_portfolio_blocked",
+            spot_portfolio_scope=portfolio_scope,
         )
     return AdminApiCommandRuntimeReadiness(
         live_runtime_enabled=True,
         rest_client_available=True,
         runtime_ready=True,
         missing_reason=None,
+        spot_portfolio_scope=portfolio_scope,
     )
 
 
@@ -149,6 +182,184 @@ def log_admin_api_command(level: str, message: str) -> None:
 
     log_method = getattr(logger, str(level).strip().lower(), logger.info)
     log_method(message)
+
+
+def get_admin_api_spot_market_reference(
+    product_id: str,
+) -> dict[str, Any] | None:
+    """Return the latest ticker bid from the canonical embedded runtime."""
+
+    try:
+        import dashboard_server
+
+        bridge = getattr(dashboard_server, "stealth_order_bridge", None)
+        manager = getattr(bridge, "stealth_manager", None) if bridge else None
+        market_cache = getattr(manager, "_market_cache", None)
+        if not isinstance(market_cache, dict):
+            return None
+        market = market_cache.get(product_id)
+        if not isinstance(market, dict):
+            return None
+        source = str(market.get("source") or "").lower()
+        best_bid = market.get("best_bid") or market.get("bid")
+        if source != "ticker" or best_bid is None:
+            return None
+        return {
+            "product_id": product_id,
+            "best_bid": str(best_bid),
+            "source": source,
+            "observed_at": market.get("time"),
+        }
+    except Exception as exc:
+        logger.warning("Admin API Spot market reference unavailable: %s", exc)
+        return None
+
+
+class AdminApiOrderRootRuntimeRegistrar:
+    """Persist one owned Admin Spot root before its Coinbase REST submit."""
+
+    source = "canonical_order_engine.order_parent"
+
+    def __init__(self, order_engine: Any) -> None:
+        self.order_engine = order_engine
+
+    def register_manual_spot_root(
+        self,
+        *,
+        client_order_id: str,
+        product_id: str,
+        side: str,
+        base_size: str,
+        limit_price: str,
+        retail_portfolio_id: str,
+        correlation_id: str | None = None,
+        audit_id: str | None = None,
+    ) -> dict[str, Any]:
+        engine = self.order_engine
+        db_module = getattr(engine, "db_module", None)
+        insert_order_parent = getattr(db_module, "insert_order_parent", None)
+        if not callable(insert_order_parent):
+            raise RuntimeError("order_parent_insert_unavailable")
+
+        order = {
+            "client_order_id": client_order_id,
+            "product_id": product_id,
+            "order_side": side,
+            "base_size": base_size,
+            "limit_price": limit_price,
+            "status": "PENDING",
+            "retail_portfolio_id": retail_portfolio_id,
+        }
+        resolve_profit_target = getattr(engine, "resolve_profit_target", None)
+        if not callable(resolve_profit_target):
+            raise RuntimeError("order_root_profit_target_unavailable")
+        target_movement = resolve_profit_target(order)
+        max_order_replacement = int(
+            getattr(
+                getattr(engine, "orderbook", None),
+                "default_max_order_replacement",
+                0,
+            )
+        )
+        parent_row_id = insert_order_parent(
+            client_order_id=client_order_id,
+            product_id=product_id,
+            side=side,
+            size=float(base_size),
+            price=float(limit_price),
+            target_movement=float(target_movement),
+            target_movement_type="P",
+            max_order_replacement=max_order_replacement,
+            current_order_replacement=0,
+            status="PENDING",
+            retail_portfolio_id=retail_portfolio_id,
+            correlation_id=correlation_id,
+            audit_id=audit_id,
+            ownership_provenance=(
+                OrderOwnershipProvenance.ADMIN_MANUAL_ROOT
+            ),
+        )
+        if parent_row_id is None:
+            raise RuntimeError("order_parent_insert_returned_no_id")
+
+        seed_parent_cache = getattr(engine, "_seed_parent_order_cache_from_db", None)
+        if not callable(seed_parent_cache) or not seed_parent_cache(client_order_id):
+            raise RuntimeError("order_parent_cache_hydration_failed")
+        return {
+            "registered": True,
+            "source": self.source,
+            "parent_row_id": parent_row_id,
+            "client_order_id": client_order_id,
+            "retail_portfolio_id": retail_portfolio_id,
+            "target_movement": str(target_movement),
+            "target_movement_type": "P",
+            "max_order_replacement": max_order_replacement,
+            "ownership_provenance": (
+                OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+            ),
+        }
+
+    def mark_submission_status(
+        self,
+        *,
+        client_order_id: str,
+        status: str,
+    ) -> None:
+        updater = getattr(
+            getattr(self.order_engine, "db_module", None),
+            "update_order_parent_status",
+            None,
+        )
+        if not callable(updater):
+            raise RuntimeError("order_parent_status_update_unavailable")
+        updater(client_order_id, status)
+
+    def read_registered_order(self, client_order_id: str) -> dict[str, Any] | None:
+        getter = getattr(
+            getattr(self.order_engine, "db_module", None),
+            "get_parent_order",
+            None,
+        )
+        if not callable(getter):
+            raise RuntimeError("order_parent_read_unavailable")
+        row = getter(client_order_id)
+        return dict(row) if isinstance(row, dict) else None
+
+    def get_unresolved_admin_manual_root_submissions(
+        self,
+        retail_portfolio_id: str,
+    ) -> list[dict[str, Any]]:
+        """Return durable nonterminal Admin roots for restart-safe admission."""
+
+        getter = getattr(
+            getattr(self.order_engine, "db_module", None),
+            "get_unresolved_admin_manual_root_submissions",
+            None,
+        )
+        if not callable(getter):
+            raise RuntimeError("unresolved_admin_root_read_unavailable")
+        rows = getter(retail_portfolio_id)
+        if not isinstance(rows, list) or any(
+            not isinstance(row, dict) for row in rows
+        ):
+            raise RuntimeError("unresolved_admin_root_read_invalid")
+        return [dict(row) for row in rows]
+
+
+def get_admin_api_order_root_registrar() -> Any | None:
+    """Return the canonical embedded engine's root registrar when available."""
+
+    try:
+        import dashboard_server
+
+        bridge = getattr(dashboard_server, "stealth_order_bridge", None)
+        order_engine = getattr(bridge, "order_engine", None) if bridge else None
+        if order_engine is None:
+            return None
+        return AdminApiOrderRootRuntimeRegistrar(order_engine)
+    except Exception as exc:
+        logger.warning("Admin API order root registrar unavailable: %s", exc)
+        return None
 
 
 class AdminApiFillFollowUpRuntimeExecutor:
@@ -225,20 +436,37 @@ def build_admin_api_command_dependencies(
         if live_runtime_enabled and credentials_configured
         else AdminApiRestClientBinding(client=None, available=False)
     )
+    portfolio_scope = (
+        _spot_portfolio_scope(rest_client.client)
+        if rest_client.available
+        else None
+    )
     if not live_runtime_enabled:
         missing_reason = "live_runtime_disabled"
     elif not credentials_configured:
         missing_reason = "coinbase_rest_credentials_missing"
     elif not rest_client.available:
         missing_reason = "coinbase_rest_client_unavailable"
+    elif portfolio_scope is None or portfolio_scope["status"] != "matched":
+        missing_reason = (
+            (portfolio_scope or {}).get("blocker")
+            or "spot_test_portfolio_blocked"
+        )
     else:
         missing_reason = None
     return AdminApiCommandDependencies(
         rest_client=rest_client.client,
         rest_client_available=rest_client.available,
         live_runtime_enabled=live_runtime_enabled,
-        command_runtime_ready=live_runtime_enabled and rest_client.available,
+        command_runtime_ready=missing_reason is None,
         command_runtime_missing_reason=missing_reason,
+        spot_portfolio_id=os.environ.get(SPOT_PORTFOLIO_ID_ENV),
+        spot_portfolio_label=(
+            os.environ.get(SPOT_PORTFOLIO_LABEL_ENV, "").strip()
+            or DEFAULT_SPOT_PORTFOLIO_LABEL
+        ),
+        spot_market_reference_getter=get_admin_api_spot_market_reference,
+        order_root_registrar_getter=get_admin_api_order_root_registrar,
         runtime_controller_factory=get_runtime_controller,
         add_log_entry=log_admin_api_command,
         order_event_publisher_getter=get_admin_api_order_event_stream_publisher,

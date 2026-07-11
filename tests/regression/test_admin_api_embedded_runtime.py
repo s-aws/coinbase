@@ -95,7 +95,10 @@ def test_canonical_runtime_composer_builds_one_wired_identity_after_schema():
     runtime = build_canonical_order_runtime(
         orderbook=orderbook,
         db_module=db_module,
-        subscription=SimpleNamespace(channels=[]),
+        subscription=SimpleNamespace(
+            channels=[],
+            retail_portfolio_id="11111111-2222-4333-8444-555555555555",
+        ),
         api_key="test-key",
         api_secret="test-secret",
         order_post_only={"BUY": True, "SELL": True},
@@ -111,6 +114,9 @@ def test_canonical_runtime_composer_builds_one_wired_identity_after_schema():
     assert runtime.stealth_order_bridge.stealth_manager is manager
     assert manager.profit_validator is runtime.order_engine.profit_validator
     assert manager.fill_ledger_repo is runtime.order_engine.fill_repo
+    assert manager.expected_retail_portfolio_id == (
+        "11111111-2222-4333-8444-555555555555"
+    )
 
 
 @pytest.mark.regression
@@ -999,6 +1005,23 @@ def test_main_embedded_runtime_fails_closed_without_clean_startup_reconciliation
     assert "fail_on_drift=embedded_admin_api_requested" in source
     assert "and startup_reconciliation_report is None" in source
     assert "Embedded Admin API requires successful startup reconciliation" in source
+
+
+@pytest.mark.regression
+def test_main_embedded_spot_runtime_requires_test_profile_before_composition():
+    source = Path("main.py").read_text(encoding="utf-8-sig")
+
+    portfolio_binding = source.index("require_spot_test_portfolio_binding(")
+    runtime_composition = source.index("runtime = build_canonical_order_runtime(")
+    reconciliation = source.index("run_startup_reconciliation(")
+
+    assert portfolio_binding < runtime_composition < reconciliation
+    assert "expected_portfolio_id=os.environ.get(SPOT_PORTFOLIO_ID_ENV)" in source
+    assert "rest_client=get_rest_client()" in source
+    assert "subscription=embedded_runtime_subscription" in source
+    assert "product_ids = spot_product_ids" in source
+    assert "derivatives_product_ids = []" in source
+    assert '"futures_balance_summary"' in source
 
 
 @pytest.mark.regression

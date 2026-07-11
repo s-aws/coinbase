@@ -5,6 +5,7 @@ import gzip
 import hashlib
 import inspect
 import json
+import os
 import shutil
 import tempfile
 import time
@@ -32,6 +33,7 @@ from application.admin_api import command_service
 from application.admin_api.command_service import (
     AdminApiCommandDependencies,
     AdminApiCommandService,
+    SpotProfileOrderAdmissionCoordinator,
 )
 from application.admin_api.approval import (
     AdminApiApprovalLifecycleEvent,
@@ -463,6 +465,8 @@ from core.enums import (
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
 )
+
+
 from tools.generate_admin_api_openapi import generate_openapi_schema
 from tools.export_admin_api_route_inventory import (
     ROUTE_INVENTORY_EXPORT_PATH,
@@ -506,6 +510,27 @@ def _close_admin_api_test_clients_after_each_test():
     gc.collect()
     while _ACTIVE_TEST_STORE_DIRS:
         shutil.rmtree(_ACTIVE_TEST_STORE_DIRS.pop(), ignore_errors=True)
+
+
+def test_admin_api_command_response_keeps_portfolio_scope_route_neutral():
+    """The shared command envelope must not impose Spot-only scope fields."""
+
+    portfolio_scope = {
+        "scope_id": "portfolio-route-specific",
+        "account_family": "route_specific",
+        "selection_source": "backend_command_adapter",
+    }
+
+    response = AdminApiCommandResponse(
+        status=AdminApiCommandStatus.REJECTED,
+        action_class=AdminApiActionClass.LOCAL_STATE_MUTATION,
+        required_permission=AdminApiPermission.ORDER_CREATE,
+        service_method="route_specific_command",
+        message="Route-specific scope evidence remains backend-owned.",
+        portfolio_scope=portfolio_scope,
+    )
+
+    assert response.model_dump(mode="json")["portfolio_scope"] == portfolio_scope
 
 
 def _headers(
@@ -1091,15 +1116,19 @@ def _client(monkeypatch: pytest.MonkeyPatch) -> TestClient:
 def _manual_order_payload(
     quote_size: str = "1.00",
     client_order_id: str | None = None,
+    base_size: str | None = None,
 ) -> dict:
     payload = {
         "product_id": "BTC-USDC",
         "side": "BUY",
         "order_type": "LIMIT",
-        "quote_size": quote_size,
         "limit_price": "65000.00",
         "manual_live_acknowledgement": True,
     }
+    if base_size is not None:
+        payload["base_size"] = base_size
+    else:
+        payload["quote_size"] = quote_size
     if client_order_id is not None:
         payload["client_order_id"] = client_order_id
     return payload
@@ -1165,6 +1194,7 @@ def _manual_order_approval_payload(
     operator_intent: str = "manual_one_off",
     client_order_id: str = "client-approved",
     idempotency_key: str = "idem-approved",
+    base_size: str | None = None,
 ) -> dict:
     return {
         "endpoint": "POST /api/v1/orders",
@@ -1172,9 +1202,24 @@ def _manual_order_approval_payload(
         "roles": roles or [AdminApiRole.TRADER.value],
         "operator_intent": operator_intent,
         "body": ManualOrderRequest.model_validate(
-            _manual_order_payload(client_order_id=client_order_id)
+            _manual_order_payload(
+                client_order_id=client_order_id,
+                base_size=base_size,
+            )
         ).model_dump(mode="json"),
         "path_params": {},
+        "backend_execution_scope": {
+            "product_family": "SPOT",
+            "portfolio_id": os.environ.get(
+                "COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID"
+            ),
+            "profile_alias": (
+                os.environ.get("COINBASE_ADMIN_API_SPOT_PORTFOLIO_LABEL", "").strip()
+                or "Test"
+            ),
+            "selection_authority": "cdp_api_key_permissioned_portfolio",
+            "request_portfolio_override_allowed": False,
+        },
     }
 
 
@@ -61459,12 +61504,32 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
         str(decision_log),
     )
     monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID",
+        "11111111-2222-4333-8444-555555555555",
+    )
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_LABEL", "Test")
     monkeypatch.setattr(configuration, "API_KEY", "test-key", raising=False)
     monkeypatch.setattr(configuration, "API_SECRET", "test-secret", raising=False)
     monkeypatch.setattr(
         configuration,
         "get_rest_client",
-        lambda: SimpleNamespace(name="fake-rest-client"),
+        lambda: SimpleNamespace(
+            name="fake-rest-client",
+            get_api_key_permissions=lambda: {
+                "portfolio_uuid": "11111111-2222-4333-8444-555555555555",
+                "portfolio_type": "CONSUMER",
+                "can_view": True,
+                "can_trade": True,
+            },
+            list_portfolios=lambda: [
+                {
+                    "uuid": "11111111-2222-4333-8444-555555555555",
+                    "name": "Test",
+                    "type": "CONSUMER",
+                }
+            ],
+        ),
     )
 
     service = AdminApiReadService()
@@ -61506,6 +61571,11 @@ def test_read_surfaces_expose_controlled_live_manual_order_from_backend_decision
     assert manual_live_route["live_eligible"] is True
     assert manual_live_route["live_command_runtime_ready"] is True
     assert manual_live_route["live_command_runtime_missing_reason"] is None
+    assert manual_live_route["portfolio_scope"]["status"] == "matched"
+    assert manual_live_route["portfolio_scope"]["profile_alias"] == "Test"
+    assert manual_live_route["portfolio_scope"]["portfolio_id"] == (
+        "11111111-2222-4333-8444-555555555555"
+    )
     assert not any(
         precondition["precondition"] == "live_execution_service"
         and precondition["blocking"]
@@ -63189,12 +63259,609 @@ def test_admin_api_manual_order_route_passes_backend_admission_to_command_servic
 
 
 @pytest.mark.regression
+def test_admin_api_cancel_route_passes_backend_admission_to_command_service(
+    monkeypatch,
+):
+    from api.v1.routes import orders as order_routes
+
+    class RecordingCommandService:
+        def __init__(self) -> None:
+            self.commands = []
+
+        def cancel_order_by_client_order_id(self, command):
+            self.commands.append(command)
+            status = (
+                AdminApiCommandStatus.ACCEPTED
+                if command.allow_live_execution
+                else AdminApiCommandStatus.NOT_IMPLEMENTED
+            )
+            return AdminApiCommandResponse(
+                status=status,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method="cancel_order_by_client_order_id",
+                message="Cancel handled by fake backend command service.",
+                client_order_id=command.client_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=False,
+                live_coinbase_orders_ran=False,
+                data={"allow_live_execution_seen": command.allow_live_execution},
+                failure_stage=None if command.allow_live_execution else "approval",
+            )
+
+    admission_call_count = 0
+
+    def admit_cancel(**kwargs):
+        nonlocal admission_call_count
+        admission_call_count += 1
+        allowed = admission_call_count > 1
+        return AdminLiveAdmissionDecisionEvidence(
+            status=(
+                AdminApiGateStatus.PASSED
+                if allowed
+                else AdminApiGateStatus.BLOCKED
+            ),
+            allowed=allowed,
+            route=kwargs["route"],
+            method=kwargs["method"],
+            module_id=kwargs["module_id"],
+            identity_key=kwargs["identity_key"],
+            identity_value=kwargs["identity_value"],
+            action_class=kwargs["action_class"],
+            required_permission=kwargs["required_permission"],
+            service_method=kwargs["service_method"],
+            actor_id=kwargs["actor_id"],
+            idempotency_key=kwargs["idempotency_key"],
+            operator_intent=kwargs["operator_intent"],
+            payload_hash=kwargs["payload_hash"],
+            approval_snapshot_present=allowed,
+            admission_audit_present=allowed,
+            cap_guard_present=allowed,
+            reconciliation_plan_present=allowed,
+            live_execution_service_present=True,
+            live_execution_service_status=(
+                AdminApiLiveExecutionStatus.APPROVAL_REQUIRED
+            ),
+            live_execution_service_missing_reason=None,
+            browser_authority=("backend_admin_api" if allowed else "rejected"),
+            blockers=(
+                []
+                if allowed
+                else [AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED]
+            ),
+            detail="Backend admission decision for cancel route wiring test.",
+        )
+
+    test_portfolio_id = "11111111-2222-4333-8444-555555555555"
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID",
+        test_portfolio_id,
+    )
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_LABEL", "Test")
+    client = _client(monkeypatch)
+    command_service = RecordingCommandService()
+    client.app.dependency_overrides[order_routes.get_command_service] = (
+        lambda: command_service
+    )
+    monkeypatch.setattr(
+        order_routes,
+        "evaluate_command_live_admission",
+        admit_cancel,
+    )
+
+    first_response = client.post(
+        "/api/v1/orders/client-cancel-admission-ready/cancel",
+        headers=_headers(idempotency_key="idem-cancel-admission-ready"),
+        json={
+            "reason": "cancel_before_another_order",
+            "manual_live_acknowledgement": True,
+        },
+    )
+
+    assert first_response.status_code == 501
+    assert first_response.json()["admission_decision"]["allowed"] is False
+    assert len(command_service.commands) == 1
+    assert command_service.commands[0].allow_live_execution is False
+
+    response = client.post(
+        "/api/v1/orders/client-cancel-admission-ready/cancel",
+        headers=_headers(idempotency_key="idem-cancel-admission-ready"),
+        json={
+            "reason": "cancel_before_another_order",
+            "manual_live_acknowledgement": True,
+        },
+    )
+
+    payload = response.json()
+    assert response.status_code == 200
+    assert payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert payload["admission_decision"]["allowed"] is True
+    assert payload["data"]["allow_live_execution_seen"] is True
+    assert payload["portfolio_scope"]["portfolio_id"] == test_portfolio_id
+    assert len(command_service.commands) == 2
+    assert command_service.commands[1].allow_live_execution is True
+
+    replay = client.post(
+        "/api/v1/orders/client-cancel-admission-ready/cancel",
+        headers=_headers(idempotency_key="idem-cancel-admission-ready"),
+        json={
+            "reason": "cancel_before_another_order",
+            "manual_live_acknowledgement": True,
+        },
+    )
+
+    assert replay.status_code == 200
+    assert replay.headers["X-Idempotency-Replayed"] == "true"
+    assert replay.json()["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert len(command_service.commands) == 2
+
+
+@pytest.mark.regression
+def test_admin_api_cancel_public_proof_chain_admits_same_key_once_without_coinbase(
+    monkeypatch,
+):
+    from api.v1.routes import admission_audit as admission_audit_routes
+    from api.v1.routes import approvals as approval_routes
+    from api.v1.routes import cap_guard as cap_guard_routes
+    from api.v1.routes import live_execution as live_execution_routes
+    from api.v1.routes import orders as order_routes
+    from api.v1.routes import reconciliation as reconciliation_routes
+
+    class RecordingCommandService:
+        def __init__(self) -> None:
+            self.commands = []
+            self.coinbase_mutations = 0
+
+        def cancel_order_by_client_order_id(self, command):
+            self.commands.append(command)
+            status = (
+                AdminApiCommandStatus.ACCEPTED
+                if command.allow_live_execution
+                else AdminApiCommandStatus.NOT_IMPLEMENTED
+            )
+            return AdminApiCommandResponse(
+                status=status,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method="cancel_order_by_client_order_id",
+                message="Cancel handled by fake backend command service.",
+                client_order_id=command.client_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=False,
+                live_coinbase_orders_ran=False,
+                data={"allow_live_execution_seen": command.allow_live_execution},
+                failure_stage=None if command.allow_live_execution else "approval",
+            )
+
+    test_portfolio_id = "11111111-2222-4333-8444-555555555555"
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", test_portfolio_id)
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_LABEL", "Test")
+    client = _client(monkeypatch)
+    command_service = RecordingCommandService()
+    client.app.dependency_overrides[order_routes.get_command_service] = (
+        lambda: command_service
+    )
+
+    shared_idempotency_path = client.admin_api_test_idempotency_store.path
+
+    def fresh_idempotency_store() -> FileIdempotencyStore:
+        return FileIdempotencyStore(shared_idempotency_path)
+
+    for dependency in (
+        order_routes.get_idempotency_store,
+        approval_routes.get_idempotency_store,
+        admission_audit_routes.get_idempotency_store,
+        cap_guard_routes.get_idempotency_store,
+        reconciliation_routes.get_idempotency_store,
+        live_execution_routes.get_idempotency_store,
+    ):
+        client.app.dependency_overrides[dependency] = fresh_idempotency_store
+
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_LIVE_SERVICE_DECISION_LOG_PATH",
+        str(client.admin_api_test_live_service_decision_store.path),
+    )
+    monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+
+    client_order_id = "client-cancel-public-proof-chain"
+    command_idempotency_key = "idem-cancel-public-proof-chain"
+    command_operator_intent = "cancel_before_another_order"
+    route = f"/api/v1/orders/{client_order_id}/cancel"
+    command_headers = _headers(
+        idempotency_key=command_idempotency_key,
+        operator_intent=command_operator_intent,
+    )
+    command_body = {
+        "reason": "cancel_before_another_order",
+        "manual_live_acknowledgement": True,
+    }
+
+    initial = client.post(route, headers=command_headers, json=command_body)
+
+    assert initial.status_code == 501
+    initial_payload = initial.json()
+    initial_admission = initial_payload["admission_decision"]
+    assert initial_payload["status"] == AdminApiCommandStatus.NOT_IMPLEMENTED.value
+    assert initial_payload["live_exchange_submitted"] is False
+    assert initial_payload["live_coinbase_orders_ran"] is False
+    assert initial_admission["allowed"] is False
+    assert initial_admission["route"] == (
+        "/api/v1/orders/{client_order_id}/cancel"
+    )
+    assert initial_admission["identity_value"] == client_order_id
+    assert len(initial_admission["payload_hash"]) == 64
+    assert command_service.coinbase_mutations == 0
+    assert len(command_service.commands) == 1
+    assert command_service.commands[0].allow_live_execution is False
+
+    exact_context = {
+        "route": initial_admission["route"],
+        "method": initial_admission["method"],
+        "module_id": initial_admission["module_id"],
+        "identity_key": initial_admission["identity_key"],
+        "identity_value": initial_admission["identity_value"],
+        "action_class": initial_admission["action_class"],
+        "required_permission": initial_admission["required_permission"],
+        "service_method": initial_admission["service_method"],
+        "actor_id": initial_admission["actor_id"],
+        "operator_intent": initial_admission["operator_intent"],
+        "command_idempotency_key": initial_admission["idempotency_key"],
+        "payload_hash": initial_admission["payload_hash"],
+    }
+    cap_guard_ref = "cap-guard-cancel-public-proof-chain"
+    reconciliation_ref = "reconciliation-cancel-public-proof-chain"
+
+    approval_request = client.post(
+        "/api/v1/admin/approvals/requests",
+        headers=_headers(
+            idempotency_key="idem-cancel-public-approval-request",
+            operator_intent="request_cancel_public_proof_approval",
+            roles=AdminApiRole.TRADER.value,
+        ),
+        json={
+            key: value
+            for key, value in exact_context.items()
+            if key not in {"service_method", "actor_id"}
+        }
+        | {"request_reason": "Bounded cancel public proof-chain regression."},
+    )
+    assert approval_request.status_code == 200
+    approval_request_id = approval_request.json()["approval"][
+        "approval_request_id"
+    ]
+
+    approval_decision = client.post(
+        f"/api/v1/admin/approvals/requests/{approval_request_id}/decisions",
+        headers=_headers(
+            idempotency_key="idem-cancel-public-approval-decision",
+            operator_intent="approve_cancel_public_proof_snapshot",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json={
+            "decision": AdminApiApprovalLifecycleStatus.APPROVED.value,
+            "decision_reason": "Approve the bounded fake-backed cancel proof.",
+            "expires_at": (
+                datetime.now(timezone.utc) + timedelta(minutes=5)
+            ).isoformat(),
+            "approval_id": "approval-cancel-public-proof-chain",
+            "cap_guard_decision_ref": cap_guard_ref,
+            "reconciliation_plan_ref": reconciliation_ref,
+        },
+    )
+    assert approval_decision.status_code == 200
+    approval = approval_decision.json()["approval"]
+    assert approval["snapshot_linked"] is True
+
+    admission_audit = client.post(
+        "/api/v1/admin/admission-audits",
+        headers=_headers(
+            idempotency_key="idem-cancel-public-admission-audit",
+            operator_intent="record_cancel_public_admission_audit",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=exact_context
+        | {
+            "approval_snapshot_id": approval["approval_id"],
+            "approval_snapshot_approved_by_actor_id": approval[
+                "decision_actor_id"
+            ],
+            "approval_snapshot_requested_by_actor_id": approval[
+                "requested_by_actor_id"
+            ],
+            "approval_snapshot_expires_at": approval["expires_at"],
+            "approval_cap_guard_decision_ref": cap_guard_ref,
+            "approval_reconciliation_plan_ref": reconciliation_ref,
+            "allowed": False,
+            "status": AdminApiGateStatus.BLOCKED.value,
+            "reason": "Exact blocked cancel admission audit before cap proof.",
+        },
+    )
+    assert admission_audit.status_code == 200
+    admission_audit_item = admission_audit.json()["admission_audit"]
+    assert admission_audit_item["resolver_eligible"] is True
+    assert admission_audit_item["allowed"] is False
+    admission_audit_id = admission_audit_item["admission_audit_id"]
+
+    cap_guard = client.post(
+        "/api/v1/admin/cap-guard/decisions",
+        headers=_headers(
+            idempotency_key="idem-cancel-public-cap-guard",
+            operator_intent="record_cancel_public_cap_guard",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=exact_context
+        | {
+            "approval_snapshot_id": approval["approval_id"],
+            "approval_cap_guard_decision_ref": cap_guard_ref,
+            "admission_audit_id": admission_audit_id,
+            "allowed": True,
+            "status": AdminApiGateStatus.PASSED.value,
+            "cap_policy_ref": "no_new_notional:cancel_order",
+            "guard_policy_ref": "cancel_by_client_order_id",
+            "product_scope": "Test profile Spot root order",
+            "max_submitted_notional_usdc": "0",
+            "max_executed_notional_usdc": "0",
+            "wallet_check_required": False,
+            "wallet_check_status": AdminApiGateStatus.PASSED.value,
+            "wallet_available_notional_usdc": "0",
+            "wallet_check_source": "not_applicable:cancel_order",
+            "reason": "Cancellation adds no order notional and is cap-safe.",
+        },
+    )
+    assert cap_guard.status_code == 200
+    cap_guard_item = cap_guard.json()["decision"]
+    assert cap_guard_item["decision_id"] == cap_guard_ref
+    assert cap_guard_item["resolver_eligible"] is True
+
+    reconciliation = client.post(
+        "/api/v1/admin/reconciliation/plans",
+        headers=_headers(
+            idempotency_key="idem-cancel-public-reconciliation",
+            operator_intent="record_cancel_public_reconciliation",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json=exact_context
+        | {
+            "approval_snapshot_id": approval["approval_id"],
+            "approval_reconciliation_plan_ref": reconciliation_ref,
+            "admission_audit_id": admission_audit_id,
+            "cap_guard_decision_id": cap_guard_item["decision_id"],
+            "allowed": True,
+            "status": AdminApiGateStatus.PASSED.value,
+            "reconciliation_policy_ref": "post_cancel_exact_terminal_readback",
+            "product_scope": "Test profile Spot root order",
+            "exchange_submission_required": True,
+            "post_submit_reconciliation_required": True,
+            "retained_inventory_required": True,
+            "max_submitted_notional_usdc": "0",
+            "max_executed_notional_usdc": "0",
+            "reason": "Require exact terminal readback after cancellation.",
+        },
+    )
+    assert reconciliation.status_code == 200
+    reconciliation_item = reconciliation.json()["plan"]
+    assert reconciliation_item["plan_id"] == reconciliation_ref
+    assert reconciliation_item["resolver_eligible"] is True
+
+    live_service_decision = client.post(
+        "/api/v1/admin/live-execution/service-decisions",
+        headers=_headers(
+            idempotency_key="idem-cancel-public-live-service",
+            operator_intent="record_cancel_public_live_service_decision",
+            roles=AdminApiRole.ADMIN.value,
+        ),
+        json={
+            "decision_id": "live-service-cancel-public-proof-chain",
+            "status": AdminApiGateStatus.PASSED.value,
+            "requested_service_status": (
+                AdminApiLiveExecutionStatus.APPROVAL_REQUIRED.value
+            ),
+            "service_enabled": True,
+            "deployment_ref": "fake-backend-public-cancel-proof-chain",
+            "runtime_configuration_ref": "test-runtime-public-cancel-proof-chain",
+            "decision_reason": "Enable only the bounded fake-backed cancel proof.",
+            "live_coinbase_execution_approved": True,
+            "max_submitted_notional_usdc": "3.10",
+            "max_executed_notional_usdc": "1.00",
+        },
+    )
+    assert live_service_decision.status_code == 200
+    assert live_service_decision.json()["decision"]["resolver_eligible"] is True
+    assert command_service.coinbase_mutations == 0
+
+    preview = client.get(
+        "/api/v1/admin/live-execution/admission-preview",
+        headers=_headers(roles=AdminApiRole.VIEWER.value),
+        params=exact_context,
+    )
+    assert preview.status_code == 200
+    preview_decision = preview.json()["admission_decision"]
+    assert preview_decision["allowed"] is True
+    assert preview_decision["status"] == AdminApiGateStatus.PASSED.value
+    assert preview_decision["payload_hash"] == initial_admission["payload_hash"]
+    assert preview_decision["approval_snapshot_id"] == approval["approval_id"]
+    assert preview_decision["admission_audit_id"] == admission_audit_id
+    assert preview_decision["cap_guard_decision_id"] == cap_guard_ref
+    assert preview_decision["reconciliation_plan_id"] == reconciliation_ref
+
+    admitted = client.post(route, headers=command_headers, json=command_body)
+
+    assert admitted.status_code == 200
+    admitted_payload = admitted.json()
+    assert admitted.headers.get("X-Idempotency-Replayed") is None
+    assert admitted_payload["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert admitted_payload["admission_decision"]["allowed"] is True
+    assert admitted_payload["data"]["allow_live_execution_seen"] is True
+    assert admitted_payload["live_exchange_submitted"] is False
+    assert admitted_payload["live_coinbase_orders_ran"] is False
+    assert command_service.coinbase_mutations == 0
+    assert len(command_service.commands) == 2
+    assert sum(
+        command.allow_live_execution for command in command_service.commands
+    ) == 1
+
+    replay = client.post(route, headers=command_headers, json=command_body)
+
+    assert replay.status_code == 200
+    assert replay.headers["X-Idempotency-Replayed"] == "true"
+    assert replay.json()["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert command_service.coinbase_mutations == 0
+    assert len(command_service.commands) == 2
+
+
+@pytest.mark.regression
+def test_admin_api_cancel_same_key_concurrent_admitted_retries_execute_once_across_store_instances(
+    monkeypatch,
+):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event, Lock
+
+    from api.v1.routes import orders as order_routes
+
+    class BlockingCommandService:
+        def __init__(self) -> None:
+            self.commands = []
+            self._lock = Lock()
+            self.live_execution_started = Event()
+            self.duplicate_live_execution_started = Event()
+            self.release_live_execution = Event()
+
+        def cancel_order_by_client_order_id(self, command):
+            with self._lock:
+                self.commands.append(command)
+                live_execution_count = sum(
+                    item.allow_live_execution for item in self.commands
+                )
+                if live_execution_count == 1:
+                    self.live_execution_started.set()
+                elif live_execution_count > 1:
+                    self.duplicate_live_execution_started.set()
+
+            if command.allow_live_execution:
+                assert self.release_live_execution.wait(timeout=5)
+            return AdminApiCommandResponse(
+                status=(
+                    AdminApiCommandStatus.ACCEPTED
+                    if command.allow_live_execution
+                    else AdminApiCommandStatus.NOT_IMPLEMENTED
+                ),
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method="cancel_order_by_client_order_id",
+                message="Cancel handled by blocking fake backend command service.",
+                client_order_id=command.client_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=False,
+                live_coinbase_orders_ran=False,
+                data={"allow_live_execution_seen": command.allow_live_execution},
+                failure_stage=None if command.allow_live_execution else "approval",
+            )
+
+    admission_enabled = Event()
+
+    def admit_cancel(**kwargs):
+        allowed = admission_enabled.is_set()
+        return AdminLiveAdmissionDecisionEvidence(
+            status=(
+                AdminApiGateStatus.PASSED
+                if allowed
+                else AdminApiGateStatus.BLOCKED
+            ),
+            allowed=allowed,
+            route=kwargs["route"],
+            method=kwargs["method"],
+            module_id=kwargs["module_id"],
+            identity_key=kwargs["identity_key"],
+            identity_value=kwargs["identity_value"],
+            action_class=kwargs["action_class"],
+            required_permission=kwargs["required_permission"],
+            service_method=kwargs["service_method"],
+            actor_id=kwargs["actor_id"],
+            idempotency_key=kwargs["idempotency_key"],
+            operator_intent=kwargs["operator_intent"],
+            payload_hash=kwargs["payload_hash"],
+            approval_snapshot_present=allowed,
+            admission_audit_present=allowed,
+            cap_guard_present=allowed,
+            reconciliation_plan_present=allowed,
+            live_execution_service_present=True,
+            live_execution_service_status=(
+                AdminApiLiveExecutionStatus.APPROVAL_REQUIRED
+            ),
+            live_execution_service_missing_reason=None,
+            browser_authority=("backend_admin_api" if allowed else "rejected"),
+            blockers=(
+                []
+                if allowed
+                else [AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED]
+            ),
+            detail="Backend admission decision for concurrent cancel retry test.",
+        )
+
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID",
+        "11111111-2222-4333-8444-555555555555",
+    )
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_LABEL", "Test")
+    client = _client(monkeypatch)
+    command_service = BlockingCommandService()
+    shared_idempotency_path = client.admin_api_test_idempotency_store.path
+    client.app.dependency_overrides[order_routes.get_idempotency_store] = (
+        lambda: FileIdempotencyStore(shared_idempotency_path)
+    )
+    client.app.dependency_overrides[order_routes.get_command_service] = (
+        lambda: command_service
+    )
+    monkeypatch.setattr(
+        order_routes,
+        "evaluate_command_live_admission",
+        admit_cancel,
+    )
+    route = "/api/v1/orders/client-cancel-concurrent-retry/cancel"
+    headers = _headers(idempotency_key="idem-cancel-concurrent-retry")
+    body = {
+        "reason": "cancel_before_another_order",
+        "manual_live_acknowledgement": True,
+    }
+
+    initial_response = client.post(route, headers=headers, json=body)
+
+    assert initial_response.status_code == 501
+    assert len(command_service.commands) == 1
+    assert command_service.commands[0].allow_live_execution is False
+
+    admission_enabled.set()
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        first_retry = executor.submit(client.post, route, headers=headers, json=body)
+        assert command_service.live_execution_started.wait(timeout=5)
+        second_retry = executor.submit(client.post, route, headers=headers, json=body)
+        duplicate_started = command_service.duplicate_live_execution_started.wait(
+            timeout=1
+        )
+        command_service.release_live_execution.set()
+        responses = [first_retry.result(timeout=5), second_retry.result(timeout=5)]
+
+    assert duplicate_started is False
+    assert [response.status_code for response in responses] == [200, 200]
+    assert sorted(
+        response.headers.get("X-Idempotency-Replayed", "")
+        for response in responses
+    ) == ["", "true"]
+    assert sum(command.allow_live_execution for command in command_service.commands) == 1
+    assert len(command_service.commands) == 2
+
+
+@pytest.mark.regression
 def test_admin_api_manual_order_route_executes_through_backend_runtime_dependencies(
     monkeypatch,
 ):
     import configuration
     from api.v1.routes import orders as order_routes
     from application.admin_api import command_runtime
+    call_order = []
 
     class FakeRuntimeController:
         def track_inflight(self, _name):
@@ -63209,10 +63876,69 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
     class FakeRestClient:
         def __init__(self) -> None:
             self.create_order_calls = []
+            self.submitted_order = None
+
+        def get_api_key_permissions(self):
+            return {
+                "portfolio_uuid": "11111111-2222-4333-8444-555555555555",
+                "portfolio_type": "CONSUMER",
+                "can_view": True,
+                "can_trade": True,
+            }
+
+        def list_portfolios(self):
+            return [
+                {
+                    "uuid": "11111111-2222-4333-8444-555555555555",
+                    "name": "Test",
+                    "type": "CONSUMER",
+                }
+            ]
 
         def create_order(self, **kwargs):
+            call_order.append("rest_submit")
             self.create_order_calls.append(kwargs)
+            self.submitted_order = {
+                "client_order_id": kwargs["client_order_id"],
+                "order_id": "exchange-admin-route-1",
+                "status": "OPEN",
+            }
             return SimpleNamespace(success=True, order_id="exchange-admin-route-1")
+
+        def list_orders(self, **kwargs):
+            if kwargs.get("order_status") is not None:
+                return {"orders": [], "has_next": False}
+            return {
+                "orders": [self.submitted_order] if self.submitted_order else [],
+                "has_next": False,
+            }
+
+    class FakeRootRegistrar:
+        def __init__(self) -> None:
+            self.registrations = []
+            self.status_updates = []
+
+        def register_manual_spot_root(self, **kwargs):
+            call_order.append("root_register")
+            self.registrations.append(kwargs)
+            return {
+                "registered": True,
+                "source": "test_root_registrar",
+                "parent_row_id": 42,
+                "client_order_id": kwargs["client_order_id"],
+                "retail_portfolio_id": kwargs["retail_portfolio_id"],
+                "ownership_provenance": "ADMIN_MANUAL_ROOT",
+            }
+
+        def mark_submission_status(self, **kwargs):
+            call_order.append("root_status")
+            self.status_updates.append(kwargs)
+
+        def get_unresolved_admin_manual_root_submissions(
+            self,
+            _retail_portfolio_id,
+        ):
+            return []
 
     class FakeOrderEventPublisher:
         enabled = True
@@ -63228,11 +63954,17 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
     client.app.dependency_overrides.pop(order_routes.get_command_service, None)
     fake_rest_client = FakeRestClient()
     fake_event_publisher = FakeOrderEventPublisher()
+    fake_root_registrar = FakeRootRegistrar()
     monkeypatch.setenv(
         "COINBASE_ADMIN_API_LIVE_SERVICE_DECISION_LOG_PATH",
         str(client.admin_api_test_live_service_decision_store.path),
     )
     monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID",
+        "11111111-2222-4333-8444-555555555555",
+    )
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_LABEL", "Test")
     monkeypatch.setattr(configuration, "API_KEY", "test-key", raising=False)
     monkeypatch.setattr(configuration, "API_SECRET", "test-secret", raising=False)
     monkeypatch.setattr(
@@ -63256,6 +63988,20 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
         "get_admin_api_order_event_stream_publisher",
         lambda: fake_event_publisher,
     )
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_order_root_registrar",
+        lambda: fake_root_registrar,
+    )
+    monkeypatch.setattr(
+        command_runtime,
+        "get_admin_api_spot_market_reference",
+        lambda _product_id: {
+            "best_bid": "130000.00",
+            "source": "ticker",
+            "observed_at": datetime.now(timezone.utc),
+        },
+    )
 
     client_order_id = "client-route-runtime-ready"
     idempotency_key = "idem-route-runtime-ready"
@@ -63265,6 +64011,7 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
             operator_intent=operator_intent,
             client_order_id=client_order_id,
             idempotency_key=idempotency_key,
+            base_size="0.00002",
         )
     )
     approval = _append_manual_order_approval(
@@ -63320,7 +64067,10 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
     response = client.post(
         "/api/v1/orders",
         headers=_headers(idempotency_key=idempotency_key),
-        json=_manual_order_payload(client_order_id=client_order_id),
+        json=_manual_order_payload(
+            client_order_id=client_order_id,
+            base_size="0.00002",
+        ),
     )
 
     payload = response.json()
@@ -63330,6 +64080,12 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
     assert payload["coinbase_order_id"] == "exchange-admin-route-1"
     assert payload["admission_decision"]["allowed"] is True
     assert payload["admission_decision"]["browser_authority"] == "backend_admin_api"
+    assert payload["admission_decision"]["execution_scope"]["portfolio_id"] == (
+        "11111111-2222-4333-8444-555555555555"
+    )
+    assert payload["admission_decision"]["execution_scope"]["profile_alias"] == (
+        "Test"
+    )
     assert payload["live_exchange_submitted"] is True
     assert payload["live_coinbase_orders_ran"] is True
     assert payload["live_command_runtime_enabled"] is True
@@ -63337,6 +64093,26 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
     assert payload["live_command_runtime_ready"] is True
     assert payload["live_command_runtime_missing_reason"] is None
     assert payload["submission_event_recorded"] is True
+    assert payload["data"]["portfolio_scope"]["status"] == "matched"
+    assert payload["data"]["portfolio_scope"]["profile_alias"] == "Test"
+    assert payload["data"]["portfolio_scope"]["portfolio_id"] == (
+        "11111111-2222-4333-8444-555555555555"
+    )
+    assert payload["data"]["root_registration"]["parent_row_id"] == 42
+    assert payload["data"]["root_status_update_error"] is None
+    assert payload["portfolio_scope"]["scope_consistent"] is True
+    assert payload["portfolio_scope"]["portfolio_id"] == (
+        "11111111-2222-4333-8444-555555555555"
+    )
+    assert payload["portfolio_scope"]["proof_bindings"] == {
+        "payload_hash": payload_hash,
+        "approval_snapshot_id": approval.approval_id,
+        "admission_audit_id": audit_event.audit_id,
+        "cap_guard_decision_id": cap_guard.decision_id,
+        "reconciliation_plan_id": payload["admission_decision"][
+            "reconciliation_plan_id"
+        ],
+    }
     assert payload["audit_command"] == (
         "python tools\\run_spot_direct_order_audit.py "
         f"--client-order-id {client_order_id}"
@@ -63348,12 +64124,21 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
             "side": "BUY",
             "order_configuration": {
                 "limit_limit_gtc": {
-                    "quote_size": "1.0",
+                    "base_size": "2e-05",
                     "limit_price": "65000.00",
                     "post_only": False,
                 }
             },
         }
+    ]
+    assert call_order == ["root_register", "rest_submit", "root_status"]
+    assert fake_root_registrar.registrations[0]["retail_portfolio_id"] == (
+        "11111111-2222-4333-8444-555555555555"
+    )
+    assert fake_root_registrar.registrations[0]["correlation_id"] == "corr-001"
+    assert fake_root_registrar.registrations[0]["audit_id"] == audit_event.audit_id
+    assert fake_root_registrar.status_updates == [
+        {"client_order_id": client_order_id, "status": "OPEN"}
     ]
     assert len(fake_event_publisher.events) == 1
     submission_event = fake_event_publisher.events[0]
@@ -63362,7 +64147,10 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
     assert submission_event["status_to"] == "PENDING"
     assert submission_event["payload"]["client_order_id"] == client_order_id
     assert submission_event["payload"]["order_id"] == "exchange-admin-route-1"
-    assert submission_event["payload"]["quote_size"] == "1.0"
+    assert submission_event["payload"]["base_size"] == "2e-05"
+    assert submission_event["payload"]["retail_portfolio_id"] == (
+        "11111111-2222-4333-8444-555555555555"
+    )
 
 
 @pytest.mark.regression
@@ -63387,6 +64175,23 @@ def test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap(
         def __init__(self) -> None:
             self.create_order_calls = []
 
+        def get_api_key_permissions(self):
+            return {
+                "portfolio_uuid": "11111111-2222-4333-8444-555555555555",
+                "portfolio_type": "CONSUMER",
+                "can_view": True,
+                "can_trade": True,
+            }
+
+        def list_portfolios(self):
+            return [
+                {
+                    "uuid": "11111111-2222-4333-8444-555555555555",
+                    "name": "Test",
+                    "type": "CONSUMER",
+                }
+            ]
+
         def create_order(self, **kwargs):
             self.create_order_calls.append(kwargs)
             return SimpleNamespace(success=True, order_id="exchange-admin-route-1")
@@ -63410,6 +64215,11 @@ def test_admin_api_manual_order_route_blocks_admitted_quote_above_backend_cap(
         str(client.admin_api_test_live_service_decision_store.path),
     )
     monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID",
+        "11111111-2222-4333-8444-555555555555",
+    )
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_LABEL", "Test")
     monkeypatch.setattr(configuration, "API_KEY", "test-key", raising=False)
     monkeypatch.setattr(configuration, "API_SECRET", "test-secret", raising=False)
     monkeypatch.setattr(
@@ -63667,12 +64477,32 @@ def test_admin_api_command_service_uses_backend_runtime_dependencies_when_enable
     from api.v1.routes import orders as order_routes
     from application.admin_api import command_runtime
 
-    rest_client = SimpleNamespace(name="fake-rest-client")
+    rest_client = SimpleNamespace(
+        name="fake-rest-client",
+        get_api_key_permissions=lambda: {
+            "portfolio_uuid": "11111111-2222-4333-8444-555555555555",
+            "portfolio_type": "CONSUMER",
+            "can_view": True,
+            "can_trade": True,
+        },
+        list_portfolios=lambda: [
+            {
+                "uuid": "11111111-2222-4333-8444-555555555555",
+                "name": "Test",
+                "type": "CONSUMER",
+            }
+        ],
+    )
     event_publisher = SimpleNamespace(
         enabled=True,
         publish_event=lambda **_kwargs: True,
     )
     monkeypatch.setenv(LIVE_EXECUTION_RUNTIME_ENABLED_ENV, "true")
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID",
+        "11111111-2222-4333-8444-555555555555",
+    )
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_LABEL", "Test")
     monkeypatch.setattr(configuration, "API_KEY", "test-key", raising=False)
     monkeypatch.setattr(configuration, "API_SECRET", "test-secret", raising=False)
     monkeypatch.setattr(configuration, "get_rest_client", lambda: rest_client)
@@ -63682,7 +64512,7 @@ def test_admin_api_command_service_uses_backend_runtime_dependencies_when_enable
         lambda: event_publisher,
     )
 
-    service = order_routes.get_command_service()
+    service = order_routes.get_command_service(order_routes.get_read_service())
 
     assert isinstance(service, AdminApiCommandService)
     assert service.dependencies.rest_client is rest_client
@@ -63725,13 +64555,57 @@ def test_admin_api_manual_order_command_fails_closed_on_rest_exception(
             return False
 
     class RaisingRestClient:
+        def get_api_key_permissions(self):
+            return {
+                "portfolio_uuid": "11111111-2222-4333-8444-555555555555",
+                "portfolio_type": "CONSUMER",
+                "can_view": True,
+                "can_trade": True,
+            }
+
+        def list_portfolios(self):
+            return [
+                {
+                    "uuid": "11111111-2222-4333-8444-555555555555",
+                    "name": "Test",
+                    "type": "CONSUMER",
+                }
+            ]
+
         def create_order(self, **_kwargs):
             raise RuntimeError("placeholder credentials rejected")
+
+        def list_orders(self, **_kwargs):
+            return {"orders": [], "has_next": False}
+
+    class FakeRootRegistrar:
+        def __init__(self) -> None:
+            self.status_updates = []
+
+        def register_manual_spot_root(self, **kwargs):
+            return {
+                "registered": True,
+                "source": "test_root_registrar",
+                "parent_row_id": 43,
+                "client_order_id": kwargs["client_order_id"],
+                "retail_portfolio_id": kwargs["retail_portfolio_id"],
+                "ownership_provenance": "ADMIN_MANUAL_ROOT",
+            }
+
+        def mark_submission_status(self, **kwargs):
+            self.status_updates.append(kwargs)
+
+        def get_unresolved_admin_manual_root_submissions(
+            self,
+            _retail_portfolio_id,
+        ):
+            return []
 
     event_publisher = SimpleNamespace(
         enabled=True,
         publish_event=lambda **_kwargs: True,
     )
+    root_registrar = FakeRootRegistrar()
     monkeypatch.setattr(
         configuration,
         "ACTION_CONDITION_GUARDS",
@@ -63745,8 +64619,19 @@ def test_admin_api_manual_order_command_fails_closed_on_rest_exception(
             live_runtime_enabled=True,
             command_runtime_ready=True,
             command_runtime_missing_reason=None,
+            spot_portfolio_id="11111111-2222-4333-8444-555555555555",
+            spot_portfolio_label="Test",
+            spot_market_reference_getter=lambda _product_id: {
+                "best_bid": "130000.00",
+                "source": "ticker",
+                "observed_at": datetime.now(timezone.utc),
+            },
             runtime_controller_factory=lambda: FakeRuntimeController(),
             order_event_publisher_getter=lambda: event_publisher,
+            order_root_registrar_getter=lambda: root_registrar,
+            spot_order_admission_coordinator=(
+                SpotProfileOrderAdmissionCoordinator()
+            ),
         )
     )
     command = ManualOrderCommand(
@@ -63760,7 +64645,10 @@ def test_admin_api_manual_order_command_fails_closed_on_rest_exception(
             ),
         ),
         request=ManualOrderRequest.model_validate(
-            _manual_order_payload(client_order_id="client-rest-exception")
+            _manual_order_payload(
+                client_order_id="client-rest-exception",
+                base_size="0.00002",
+            )
         ),
         admin_cap_guard_decision_id="cap-rest-exception",
         admin_max_submitted_notional_usdc="3.10",
@@ -63770,13 +64658,22 @@ def test_admin_api_manual_order_command_fails_closed_on_rest_exception(
     response = service.place_manual_order(command)
 
     assert response.status == AdminApiCommandStatus.REJECTED
-    assert response.failure_stage == "coinbase_rest"
+    assert response.failure_stage == "coinbase_submission_unknown"
     assert "placeholder credentials rejected" in response.message
     assert response.live_exchange_submitted is False
-    assert response.live_coinbase_orders_ran is False
+    assert response.live_coinbase_orders_ran is True
     assert response.live_command_runtime_enabled is True
     assert response.live_command_rest_client_available is True
     assert response.live_command_runtime_ready is True
+    assert response.data["root_registration"]["parent_row_id"] == 43
+    assert response.data["submission_attempt"]["rest_invocation_attempted"] is True
+    assert response.data["submission_attempt"]["outcome"] == "unknown"
+    assert root_registrar.status_updates == [
+        {
+            "client_order_id": "client-rest-exception",
+            "status": "SUBMISSION_UNKNOWN",
+        }
+    ]
 
 
 @pytest.mark.regression
@@ -63794,7 +64691,7 @@ def test_admin_api_command_service_fails_closed_when_rest_client_unavailable(
     monkeypatch.setattr(configuration, "API_SECRET", "test-secret", raising=False)
     monkeypatch.setattr(configuration, "get_rest_client", fail_rest_client)
 
-    service = order_routes.get_command_service()
+    service = order_routes.get_command_service(order_routes.get_read_service())
 
     assert isinstance(service, AdminApiCommandService)
     assert service.dependencies.rest_client is None
@@ -63826,7 +64723,7 @@ def test_admin_api_command_service_does_not_load_rest_client_without_credentials
     monkeypatch.setattr(configuration, "API_SECRET", None, raising=False)
     monkeypatch.setattr(configuration, "get_rest_client", unexpected_rest_client_load)
 
-    service = order_routes.get_command_service()
+    service = order_routes.get_command_service(order_routes.get_read_service())
 
     assert called is False
     assert isinstance(service, AdminApiCommandService)
@@ -75915,6 +76812,74 @@ def test_admin_api_order_detail_surfaces_no_live_fill_follow_up_decision(
 
 
 @pytest.mark.regression
+def test_admin_api_order_detail_reports_automatic_owned_root_processing(
+    monkeypatch,
+):
+    import application.admin_api.read_service as read_service
+    import database.order as order_module
+
+    from application.admin_api.read_service import AdminApiReadService
+
+    root_id = "880e8400-e29b-41d4-a716-446655440000"
+    child_id = "990e8400-e29b-41d4-a716-446655440000"
+    test_portfolio_id = "11111111-2222-4333-8444-555555555555"
+    root_order = {
+        "client_order_id": root_id,
+        "product_id": "BTC-USDC",
+        "side": "BUY",
+        "status": "FILLED",
+        "size": "0.01",
+        "price": "100.00",
+        "parent_order_id": None,
+        "retail_portfolio_id": test_portfolio_id,
+        "ownership_provenance": "ADMIN_MANUAL_ROOT",
+    }
+    child_order = {
+        "client_order_id": child_id,
+        "product_id": "BTC-USDC",
+        "side": "SELL",
+        "status": "HIDDEN",
+        "size": "0.01",
+        "price": "101.00",
+        "parent_order_id": root_id,
+        "retail_portfolio_id": test_portfolio_id,
+        "ownership_provenance": "ADMIN_FILL_FOLLOW_UP",
+    }
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", test_portfolio_id)
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_LABEL", "Test")
+    monkeypatch.setattr(order_module, "get_parent_order", lambda _coid: root_order)
+    monkeypatch.setattr(
+        order_module,
+        "get_parent_orders",
+        lambda: [root_order, child_order],
+    )
+    fake_engine = SimpleNamespace(
+        handle_filled_order=lambda _order: None,
+        orderbook=SimpleNamespace(
+            follow_up_claim_state=lambda _kind, _coid: "done",
+        ),
+        orderbook_lock=None,
+    )
+    monkeypatch.setattr(
+        read_service,
+        "_runtime_bridge",
+        lambda: SimpleNamespace(order_engine=fake_engine),
+    )
+
+    response = AdminApiReadService().build_order_detail(client_order_id=root_id)
+
+    audit = response.model_dump(mode="json")["fill_follow_up_decision_audit"]
+    assert audit["ownership_provenance"] == "ADMIN_MANUAL_ROOT"
+    assert audit["automatic_fill_event_processing_enabled"] is True
+    assert audit["automatic_fill_event_processing_status"] == "enabled"
+    assert audit["automatic_fill_event_processing_blockers"] == []
+    assert audit["automation_mode"] == "automatic_owned_root_fill_event"
+    assert audit["claim_state"] == "done"
+    assert audit["existing_follow_up_client_order_ids"] == [child_id]
+    assert audit["follow_up_decision"] == "automatic_child_created"
+
+
+@pytest.mark.regression
 def test_admin_api_order_fill_follow_up_replay_route_surfaces_no_live_decision(
     monkeypatch,
 ):
@@ -76986,6 +77951,9 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
 
     root_id = "880e8400-e29b-41d4-a716-446655440000"
     child_id = "990e8400-e29b-41d4-a716-446655440000"
+    test_portfolio_id = "11111111-2222-4333-8444-555555555555"
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", test_portfolio_id)
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_LABEL", "Test")
     root_order = {
         "client_order_id": root_id,
         "product_id": "BTC-USD",
@@ -76999,6 +77967,8 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
         "updated_at": "2026-07-10T01:02:00Z",
         "exchange_order_id": "exchange-evidence-root",
         "correlation_id": "corr-root-follow-up",
+        "retail_portfolio_id": test_portfolio_id,
+        "ownership_provenance": "ADMIN_MANUAL_ROOT",
     }
     parent_table_child = {
         "client_order_id": child_id,
@@ -77014,6 +77984,8 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
         "exchange_order_id": None,
         "correlation_id": "corr-child-follow-up",
         "audit_id": "audit-child-follow-up",
+        "retail_portfolio_id": test_portfolio_id,
+        "ownership_provenance": "ADMIN_FILL_FOLLOW_UP",
     }
     stealth_child = {
         "client_order_id": child_id,
@@ -77021,6 +77993,8 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
         "side": "SELL",
         "size": "0.01",
         "price": "101.00",
+        "last_lifecycle_event": "PLACEMENT_BLOCKED",
+        "failure_reason": "standing_price_limit_exceeded",
     }
     monkeypatch.setattr(
         order_module,
@@ -77064,6 +78038,8 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
     assert payload["root_parent_client_order_id"] == root_id
     assert payload["active_client_order_id"] == root_id
     assert payload["root_order"]["client_order_id"] == root_id
+    assert payload["root_order"]["retail_portfolio_id"] == test_portfolio_id
+    assert payload["root_order"]["ownership_provenance"] == "ADMIN_MANUAL_ROOT"
     assert payload["active_order"]["client_order_id"] == root_id
     assert payload["follow_up_child_client_order_ids"] == [child_id]
     assert payload["follow_up_child_count"] == 1
@@ -77072,6 +78048,30 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
         "corr-child-follow-up"
     )
     assert payload["follow_up_children"][0]["audit_id"] == "audit-child-follow-up"
+    assert payload["follow_up_children"][0]["retail_portfolio_id"] == (
+        test_portfolio_id
+    )
+    assert payload["follow_up_children"][0]["ownership_provenance"] == (
+        "ADMIN_FILL_FOLLOW_UP"
+    )
+    assert payload["follow_up_children"][0]["last_lifecycle_event"] == (
+        "PLACEMENT_BLOCKED"
+    )
+    assert payload["follow_up_children"][0]["failure_reason"] == (
+        "standing_price_limit_exceeded"
+    )
+    assert (
+        f"follow_up_child_placement_blocked:{child_id}" in payload["blockers"]
+    )
+    assert payload["portfolio_scope"] == {
+        "product_family": "SPOT",
+        "profile_alias": "Test",
+        "expected_portfolio_id": test_portfolio_id,
+        "root_portfolio_id": test_portfolio_id,
+        "child_portfolio_ids": {child_id: test_portfolio_id},
+        "scope_consistent": True,
+        "status": "matched",
+    }
     assert payload["duplicate_child_client_order_ids"] == []
     assert not any(
         blocker.startswith("follow_up_child_missing_")
@@ -77112,6 +78112,21 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
     assert (
         f"follow_up_child_missing_stealth_persistence:{child_id}"
         in missing_stealth_response.json()["blockers"]
+    )
+
+    parent_table_child["retail_portfolio_id"] = (
+        "f4dfdb77-aa88-53d0-9c37-da3a0762ce54"
+    )
+    mismatched_scope_response = client.get(
+        f"/api/v1/orders/{root_id}/fill-follow-up/chain",
+        headers=_headers(roles=AdminApiRole.AUDITOR.value),
+    )
+    mismatch_payload = mismatched_scope_response.json()
+    assert mismatch_payload["portfolio_scope"]["scope_consistent"] is False
+    assert mismatch_payload["portfolio_scope"]["status"] == "blocked"
+    assert (
+        f"follow_up_child_portfolio_scope_mismatch:{child_id}"
+        in mismatch_payload["blockers"]
     )
 
 

@@ -50,12 +50,18 @@ from configuration import (
     API_KEY,
     API_SECRET,
     ORDER_POST_ONLY,
+    get_rest_client,
 )
 
 import database.order as DB_MODULE
 from application.admin_api.embedded_server import (
     build_embedded_admin_api_config,
     prepare_embedded_admin_api_server,
+)
+from application.admin_api.spot_portfolio_binding import (
+    SPOT_PORTFOLIO_ID_ENV,
+    SPOT_PORTFOLIO_LABEL_ENV,
+    require_spot_test_portfolio_binding,
 )
 from core.periodic_reconciler import PeriodicReconciler
 from core.runtime_composition import (
@@ -70,18 +76,56 @@ from dashboard_server import start_dashboard_server, set_stealth_order_bridge, u
 set_backend(add_log_entry)
 
 if __name__ == "__main__":
+    import os
     import sys
 
     embedded_admin_api_requested = (
         build_embedded_admin_api_config() is not None
     )
 
+    embedded_runtime_subscription = Subscription
+    if embedded_admin_api_requested:
+        spot_portfolio_binding = require_spot_test_portfolio_binding(
+            rest_client=get_rest_client(),
+            expected_portfolio_id=os.environ.get(SPOT_PORTFOLIO_ID_ENV),
+            expected_portfolio_label=os.environ.get(
+                SPOT_PORTFOLIO_LABEL_ENV,
+                "Test",
+            ),
+        )
+        spot_product_ids = [
+            product_id
+            for product_id in Subscription.product_ids
+            if product_id not in Subscription.derivatives_product_ids
+        ]
+        if not spot_product_ids:
+            raise RuntimeError(
+                "Embedded Admin API Spot runtime requires configured Spot products"
+            )
+
+        class EmbeddedSpotSubscription:
+            product_ids = spot_product_ids
+            derivatives_product_ids = []
+            retail_portfolio_id = spot_portfolio_binding.observed_portfolio_id
+            channels = [
+                channel
+                for channel in Subscription.channels
+                if channel != "futures_balance_summary"
+            ]
+
+        embedded_runtime_subscription = EmbeddedSpotSubscription
+        logger.info(
+            "Embedded Admin API bound to Spot profile %s (%s)",
+            spot_portfolio_binding.expected_portfolio_label,
+            spot_portfolio_binding.observed_portfolio_id,
+        )
+
     # Construct the one engine/bridge authority used by the live runtime and
     # its opt-in embedded Admin API.
     runtime = build_canonical_order_runtime(
         orderbook=ORDERBOOK,
         db_module=DB_MODULE,
-        subscription=Subscription,
+        subscription=embedded_runtime_subscription,
         api_key=API_KEY,
         api_secret=API_SECRET,
         order_post_only=ORDER_POST_ONLY,

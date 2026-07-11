@@ -241,8 +241,21 @@ def test_calculation_resolver_uses_catalog_type_alias():
     assert normalize_product_type({"product_id": "BIP-20DEC30-CDE"}, products) == ProductType.FUTURE.value
 
 
-def test_btc_spot_ticker_does_not_remap_to_delisted_usdc_pair():
-    """BTC-USD market data must place BTC-USD orders unless the catalog says otherwise."""
-    from configuration import get_trading_product_id
+def test_test_profile_spot_catalog_uses_direct_usdc_product_with_minimums():
+    """The funded Test runtime must subscribe to the same USDC product it trades."""
+    from configuration import (
+        PRODUCT_METADATA,
+        SPOT_PRODUCT_IDS,
+        get_trading_product_id,
+    )
 
-    assert get_trading_product_id("BTC-USD") == "BTC-USD"
+    assert SPOT_PRODUCT_IDS == ["BTC-USDC"]
+    assert get_trading_product_id("BTC-USDC") == "BTC-USDC"
+    metadata = PRODUCT_METADATA["BTC-USDC"]
+    assert metadata["base_currency"] == "BTC"
+    assert metadata["quote_currency"] == "USDC"
+    assert metadata["base_increment"] == "0.00000001"
+    assert metadata["quote_increment"] == "0.01"
+    assert metadata["price_increment"] == "0.01"
+    assert metadata["base_min_size"] == "0.00000001"
+    assert metadata["quote_min_size"] == "1"

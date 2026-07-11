@@ -6,6 +6,9 @@ Tests REST API client and WebSocket connection.
 
 import pytest
 from datetime import datetime, timezone
+from types import SimpleNamespace
+
+from external.coinbase_client import CoinbaseRestClient
 
 
 class TestCoinbaseRESTAPIClient:
@@ -24,6 +27,29 @@ class TestCoinbaseRESTAPIClient:
         
         assert response["id"] == "account_123"
         assert float(response["balance"]) == 10000.0
+
+    def test_get_api_key_permissions_preserves_portfolio_scope(self):
+        class FakeSDKClient:
+            def get_api_key_permissions(self):
+                return SimpleNamespace(
+                    to_dict=lambda: {
+                        "can_view": True,
+                        "can_trade": True,
+                        "can_transfer": False,
+                        "portfolio_uuid": "test-portfolio-uuid",
+                        "portfolio_type": "CONSUMER",
+                    }
+                )
+
+        client = CoinbaseRestClient(FakeSDKClient())
+
+        assert client.get_api_key_permissions() == {
+            "can_view": True,
+            "can_trade": True,
+            "can_transfer": False,
+            "portfolio_uuid": "test-portfolio-uuid",
+            "portfolio_type": "CONSUMER",
+        }
     
     def test_list_orders_request(self):
         """GET /api/v1/orders should list orders."""
@@ -42,6 +68,39 @@ class TestCoinbaseRESTAPIClient:
         if response:
             assert "id" in response[0]
             assert "product_id" in response[0]
+
+    def test_list_orders_passes_exact_filters_and_pagination_to_sdk(self):
+        class FakeSDKClient:
+            def __init__(self):
+                self.calls = []
+
+            def list_orders(self, **kwargs):
+                self.calls.append(dict(kwargs))
+                return {"orders": [], "has_next": False}
+
+        sdk_client = FakeSDKClient()
+        client = CoinbaseRestClient(sdk_client)
+
+        response = client.list_orders(
+            order_status=["OPEN"],
+            order_ids=["exchange-order-1"],
+            product_ids=["BTC-USDC"],
+            limit=100,
+            cursor="next-page",
+            product_type="SPOT",
+        )
+
+        assert response == {"orders": [], "has_next": False}
+        assert sdk_client.calls == [
+            {
+                "order_status": ["OPEN"],
+                "order_ids": ["exchange-order-1"],
+                "product_ids": ["BTC-USDC"],
+                "limit": 100,
+                "cursor": "next-page",
+                "product_type": "SPOT",
+            }
+        ]
     
     def test_create_order_request(self):
         """POST /api/v1/orders should create order."""

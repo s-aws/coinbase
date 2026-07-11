@@ -7,6 +7,8 @@ shape and phase; the evaluator returns ``(True, None)`` or ``(False, details)``.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from typing import Any, Callable, Dict, Optional, Tuple
 
 from calculation.formatter import safe_float
@@ -29,6 +31,121 @@ SPOT_PLANNED_BUDGET_STATUSES = frozenset({
     StealthOrderStatus.PENDING.value,
     StealthOrderStatus.TRIGGERED.value,
 })
+
+SPOT_STANDING_BUY_LIMIT_RATIO = Decimal("0.5")
+SPOT_STANDING_SELL_LIMIT_RATIO = Decimal("1.5")
+SPOT_STANDING_MARKET_MAX_AGE_SECONDS = 30
+SPOT_STANDING_MARKET_FUTURE_TOLERANCE_SECONDS = 0
+
+
+def _coerce_utc_datetime(value: Any) -> datetime | None:
+    """Return an aware UTC timestamp or ``None`` for invalid evidence."""
+
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, (int, float)):
+        try:
+            parsed = datetime.fromtimestamp(float(value), tz=timezone.utc)
+        except (OverflowError, OSError, TypeError, ValueError):
+            return None
+    else:
+        text = str(value or "").strip()
+        if not text:
+            return None
+        try:
+            parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def evaluate_spot_standing_price_limit(
+    *,
+    side: Any,
+    limit_price: Any,
+    best_bid: Any,
+    market_source: Any,
+    market_observed_at: Any = None,
+    evaluated_at: Any = None,
+) -> Dict[str, Any]:
+    """Evaluate the operator's standing Spot price authority.
+
+    The same fail-closed evaluator is used at manual admission and at the
+    automatic direct-root child reveal boundary. A fresh ticker-sourced positive
+    bid is mandatory; BUY prices must be at or below 50% of bid and SELL prices
+    at or above 150% of bid.
+    """
+
+    try:
+        bid = Decimal(str(best_bid or ""))
+    except (InvalidOperation, TypeError, ValueError):
+        bid = Decimal("0")
+    try:
+        requested = Decimal(str(limit_price or ""))
+    except (InvalidOperation, TypeError, ValueError):
+        requested = Decimal("0")
+
+    source = str(market_source or "").lower()
+    normalized_side = str(side or "").upper()
+    observed_at = _coerce_utc_datetime(market_observed_at)
+    decision_at = _coerce_utc_datetime(evaluated_at) or datetime.now(timezone.utc)
+    market_age_seconds = (
+        (decision_at - observed_at).total_seconds()
+        if observed_at is not None
+        else None
+    )
+    valid_bid = bid.is_finite() and bid > 0
+    valid_requested_price = requested.is_finite() and requested > 0
+    maximum_buy_price = (
+        bid * SPOT_STANDING_BUY_LIMIT_RATIO if valid_bid else Decimal("0")
+    )
+    minimum_sell_price = (
+        bid * SPOT_STANDING_SELL_LIMIT_RATIO if valid_bid else Decimal("0")
+    )
+
+    blocker = None
+    if source != "ticker" or not valid_bid:
+        blocker = "live_ticker_bid_unavailable"
+    elif observed_at is None or market_age_seconds is None:
+        blocker = "live_ticker_timestamp_unavailable"
+    elif market_age_seconds < -SPOT_STANDING_MARKET_FUTURE_TOLERANCE_SECONDS:
+        blocker = "live_ticker_timestamp_future"
+    elif market_age_seconds > SPOT_STANDING_MARKET_MAX_AGE_SECONDS:
+        blocker = "live_ticker_bid_stale"
+    elif not valid_requested_price or normalized_side not in {
+        OrderSide.BUY.value,
+        OrderSide.SELL.value,
+    }:
+        blocker = "standing_price_limit_invalid_order"
+    elif normalized_side == OrderSide.BUY.value:
+        if requested > maximum_buy_price:
+            blocker = "standing_price_limit_not_authorized"
+    elif requested < minimum_sell_price:
+        blocker = "standing_price_limit_not_authorized"
+
+    return {
+        "allowed": blocker is None,
+        "source": source or None,
+        "best_bid": str(bid) if valid_bid else None,
+        "requested_limit_price": (
+            str(requested) if valid_requested_price else None
+        ),
+        "maximum_limit_price": str(maximum_buy_price),
+        "minimum_limit_price": str(minimum_sell_price),
+        "buy_limit_ratio": str(SPOT_STANDING_BUY_LIMIT_RATIO),
+        "sell_limit_ratio": str(SPOT_STANDING_SELL_LIMIT_RATIO),
+        "market_observed_at": (
+            observed_at.isoformat() if observed_at is not None else None
+        ),
+        "evaluated_at": decision_at.isoformat(),
+        "market_age_seconds": (
+            str(market_age_seconds) if market_age_seconds is not None else None
+        ),
+        "max_market_age_seconds": str(SPOT_STANDING_MARKET_MAX_AGE_SECONDS),
+        "blocker": blocker,
+    }
 
 
 def get_action_condition_guard_policy(override: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

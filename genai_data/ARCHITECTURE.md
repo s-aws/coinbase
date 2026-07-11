@@ -21,8 +21,11 @@ The runtime is centered on a single `OrderEngine` instance (`core/order_engine.p
 - Coinbase user/ticker websocket events flow into `OrderEngine.on_message`.
 - Dashboard websocket commands flow into `dashboard_server.handle_client_message`.
 - Enterprise Admin API routes flow through `api/v1/routes/*` into
-  `application.admin_api.command_service.AdminApiCommandService`. Current
-  HTTP mutating routes return `not_implemented` and do not call Coinbase.
+  `application.admin_api.command_service.AdminApiCommandService`. Mutation
+  posture is route-specific: manual Spot place/cancel may reach the guarded
+  shared live service after exact backend admission, while the fill-follow-up
+  trigger is local-state only and the remaining unsupported command routes
+  fail closed without calling Coinbase.
 
 2. **Domain Layer**
 - `OrderEngine` handles parent/child lifecycle, follow-up creation, partial-fill state, and ownership classification.
@@ -99,6 +102,46 @@ Inflight critical sections (`track_inflight`) allow graceful drain before stop h
 - partial-fill follow-up evaluation
 7. Terminal statuses trigger filled/cancelled handling and follow-up logic.
 8. Dashboard state/log broadcast updates.
+
+### Admin Manual-Root Fill Follow-Up
+
+The automatic Admin path is rooted in durable authority, not in the presence
+of a Coinbase user-channel event alone:
+
+1. An admitted manual Spot submission registers a root `order_parent` row with
+   `ownership_provenance=ADMIN_MANUAL_ROOT`, the exact Test
+   `retail_portfolio_id`, and its `correlation_id` / `audit_id` trace before
+   that root may participate in automatic fill handling.
+2. The user-channel consumer rejects an order event whose
+   `retail_portfolio_id` does not equal the embedded runtime's expected Test
+   profile. An unknown order that is persisted for observation is marked
+   `EXTERNAL_WS_OBSERVED`; missing, legacy, or external provenance is not
+   upgraded into Admin ownership after restart. Canonical bulk parent-cache
+   hydration carries `ownership_provenance` and `retail_portfolio_id` forward
+   when it atomically replaces in-memory state, so an Admin root does not lose
+   automatic-follow-up authority during reconciliation.
+3. On a FILLED event, `OrderEngine` atomically claims the `(filled,
+   source_client_order_id)` follow-up decision. Duplicate events cannot acquire
+   a claim already in `processing` or `done` state.
+4. The automatic child id is deterministic for the root and filled source.
+   Its flat-linked `order_parent` row and logical `stealth_orders` row commit
+   together before in-memory publication. The child carries
+   `ADMIN_FILL_FOLLOW_UP` provenance and inherits the root's exact Test
+   portfolio and correlation/audit trace.
+5. Confirmed child creation completes the claim. An explicit retryable
+   no-child outcome releases it; an ambiguous creation or persistence failure
+   keeps it `processing` so a replay cannot blindly create a second child.
+
+Child creation and Coinbase placement are separate facts. In an embedded Test
+runtime, every stealth reveal attempt must resolve the durable Admin root/child
+authority above. A legacy or unscoped child, a provenance/profile/trace/link
+mismatch, or a missing named standing-price policy is recorded as
+`PLACEMENT_BLOCKED` with `failure_reason`; the child remains pre-exchange and
+the REST placement call does not run. Wallet/cap/action and standing-price
+guards are rechecked immediately before an authorized child placement.
+The shared standing-price guard requires a ticker timestamp at or before the
+decision time and no older than 30 seconds; missing, future, or stale evidence
+leaves both manual roots and automatic children pre-exchange.
 
 ### 2. Stealth Lifecycle Flow
 
@@ -229,13 +272,24 @@ Current behavior:
   decision to the shared live command service. The service still fails closed
   on runtime, product, size, wallet, inventory/no-short, notional, audit,
   event-stream, and Coinbase response checks.
-- HTTP Spot cancel, Futures commands, Stealth commands, movement/reprice,
-  campaign, and sweep routes remain no-live or local-evidence boundaries.
-  Separate backend-only controlled-live tools do not change that HTTP posture.
+- HTTP Spot cancellation can pass route admission only for a durable
+  `ADMIN_MANUAL_ROOT` on the exact Test profile and remains keyed by
+  `client_order_id`. Futures, Stealth, movement/reprice, campaign, and sweep
+  routes remain no-live or local-evidence boundaries.
 - The guarded fill-follow-up trigger is a no-live local-state compatibility
   exception: after exact route-bound proof refs it may return accepted
   parent/child readback evidence while Coinbase submit/cancel and live exchange
   mutation remain disallowed.
+- Automatic fill-event processing is a separate engine path. It applies only
+  to durable `ADMIN_MANUAL_ROOT` rows in the exact embedded Test profile, uses
+  the filled follow-up claim and atomic child-persistence kernel, and creates
+  an `ADMIN_FILL_FOLLOW_UP` child before any reveal decision. The manual trigger
+  does not grant or substitute for that automatic authority.
+- `GET /api/v1/orders/{client_order_id}/fill-follow-up/chain` reports the
+  durable root/child provenance and portfolio scope plus child
+  `last_lifecycle_event` / `failure_reason`. A child reported as created is not
+  evidence that Coinbase placement ran; `PLACEMENT_BLOCKED` is surfaced as a
+  chain blocker while the child remains pre-exchange.
 - Admin API OpenAPI includes typed accepted/replayed and fail-closed command
   responses. Consumers must use the route response and backend decision rather
   than assuming one global status.
@@ -334,4 +388,4 @@ When adding a feature:
 
 ---
 
-Last updated: 2026-07-10
+Last updated: 2026-07-11

@@ -55,7 +55,8 @@ Serialized into `stealth_orders.post_fill_retreat_policy_json`.
 ## Canonical Enums (`core/enums.py`)
 
 High-impact enums:
-- `OrderSide`, `OrderStatus`, `StealthOrderStatus`, `OrderOwnershipScope`
+- `OrderSide`, `OrderStatus`, `StealthOrderStatus`, `OrderOwnershipScope`,
+  `OrderOwnershipProvenance`
 - `ProductType`, `TargetMovementType`
 - `RevealPricingPolicy`, `RevealPriceSource`, `RevealConditionType`
 - `RepricingReferenceSource`, `RepricingDistanceType`, `RepricingUpdateMode`
@@ -67,6 +68,18 @@ High-impact enums:
 - `EngineState`
 
 Use enums instead of string literals in new behavior.
+
+`OrderOwnershipProvenance` is durable automation authority on
+`order_parent`, with these current values:
+
+- `ADMIN_MANUAL_ROOT`: a root registered by the admitted Admin manual-order
+  path; this is the only direct root eligible for automatic Admin fill
+  follow-up processing.
+- `ADMIN_FILL_FOLLOW_UP`: an automatic child of an Admin manual root.
+- `EXTERNAL_WS_OBSERVED`: an order learned from Coinbase user-channel evidence,
+  which may be tracked but cannot originate an Admin automatic child.
+
+Missing or legacy provenance is not equivalent to Admin ownership.
 
 ### Stealth Status Semantics
 
@@ -89,7 +102,13 @@ Primary mutable structures:
 - parent map (`root_client_order_id -> parent entry`)
 - child-to-parent map
 - position map
-- follow-up claim ledger
+- follow-up claim ledger (`None`, `processing`, or terminal `done` per
+  follow-up kind and source `client_order_id`)
+
+For FILLED handling, the claim is acquired before child creation. Confirmed
+creation completes it, an explicit retryable no-child result releases it, and
+an ambiguous persistence outcome remains `processing` to prevent a duplicate
+automatic child.
 
 ### `OrderProgressTracker` (`business/order_progress.py`)
 Per-`client_order_id` watermark records for:
@@ -119,6 +138,16 @@ Key columns:
 - `target_movement`, `target_movement_type`
 - `max_order_replacement`, `current_order_replacement`
 - `ownership_scope`, `allow_partial_fills`
+- `ownership_provenance`
+- `retail_portfolio_id`
+- `correlation_id`, `audit_id`
+
+For the Admin fill-follow-up slice, those fields are immutable identity
+evidence. A root uses `ADMIN_MANUAL_ROOT`. Its automatic child points directly
+to the original root in `parent_order_id`, uses
+`ADMIN_FILL_FOLLOW_UP`, and inherits the root's exact Test
+`retail_portfolio_id`, `correlation_id`, and `audit_id`. Conflicting reuse of
+an existing row fails rather than rewriting its authority or trace.
 
 ### `stealth_orders`
 Primary stealth order state table.
@@ -130,6 +159,13 @@ Key columns:
 - condition fields (`reveal_condition_type`, `reveal_condition_json`, hold timestamps)
 - policy/state JSONB (`anchor_repricing_policy_json`, `anchor_repricing_state_json`, `sizing_strategy_json`, `cancel_reentry_policy_json`, `cancel_reentry_state_json`, `post_fill_retreat_policy_json`)
 - lifecycle fields (`last_lifecycle_event`, `failure_reason`)
+
+An automatic Admin child is operator-visible only after the child exists in
+both `order_parent` and `stealth_orders`; the two rows are committed atomically
+before in-memory publication. `last_lifecycle_event=PLACEMENT_BLOCKED` with a
+`failure_reason` records a pre-exchange reveal decision that failed authority,
+portfolio, trace, standing-price, wallet/cap, or action guards. It does not mean
+the child was placed, filled, or cancelled on Coinbase.
 
 `anchor_repricing_state_json` is also the active-placement pointer for revealed stealth orders. Important keys include:
 - `active_placement_client_order_id`
@@ -255,4 +291,4 @@ See `ORDER_ID_HANDLING.md` for strict usage rules.
 
 ---
 
-Last updated: 2026-05-16
+Last updated: 2026-07-11

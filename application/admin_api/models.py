@@ -155,6 +155,7 @@ from core.enums import (
     ActionConditionType,
     ActionGuardPhase,
     EngineState,
+    OrderOwnershipProvenance,
     OrderSide,
     OrderType,
     ProductCapability,
@@ -163,6 +164,7 @@ from core.enums import (
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
     StealthExchangeTruthEvidenceSource,
+    StealthLifecycleEvent,
     StealthCommandExecutionBlocker,
     StealthCommandExecutionPrerequisite,
     StealthCommandExecutionPrerequisiteLookupStatus,
@@ -291,6 +293,7 @@ class AdminLiveAdmissionDecisionEvidence(BaseModel):
     idempotency_key: str
     operator_intent: str
     payload_hash: str
+    execution_scope: FlexibleDict | None = None
     approval_snapshot_required: bool = True
     approval_store_required: bool = True
     admission_audit_required: bool = True
@@ -1224,6 +1227,7 @@ class ManualOrderCommand(BaseModel):
     order_configuration_override: dict[str, Any] | None = None
     admin_cap_guard_decision_id: str | None = Field(default=None, min_length=1)
     admin_max_submitted_notional_usdc: DecimalString | None = None
+    admission_audit_id: str | None = Field(default=None, min_length=1)
     allow_live_execution: bool = False
 
 
@@ -2485,6 +2489,7 @@ class AdminApiCommandResponse(BaseModel):
     live_command_runtime_source: str = "application/admin_api/command_runtime.py"
     submission_event_recorded: bool | None = None
     audit_command: str | None = None
+    portfolio_scope: FlexibleDict | None = None
     admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
     cap_guard_present: bool | None = None
     cap_guard_decision_id: str | None = None
@@ -4706,12 +4711,16 @@ class AdminOrderReadItem(BaseModel):
     size: str | None = None
     price: str | None = None
     parent_client_order_id: str | None = None
+    ownership_provenance: OrderOwnershipProvenance | None = None
+    retail_portfolio_id: str | None = None
     created_at: str | None = None
     updated_at: str | None = None
     exchange_order_id: str | None = None
     exchange_order_id_evidence_only: bool = True
     correlation_id: str | None = None
     audit_id: str | None = None
+    last_lifecycle_event: StealthLifecycleEvent | None = None
+    failure_reason: str | None = None
     source: str = "order_parent"
 
 
@@ -4748,6 +4757,7 @@ class AdminOrderFillFollowUpDecisionAuditEvidence(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     client_order_id: str
+    ownership_provenance: OrderOwnershipProvenance | None = None
     status: AdminApiGateStatus = AdminApiGateStatus.BLOCKED
     source_order_status: str | None = None
     filled_status_observed: bool = False
@@ -4914,6 +4924,7 @@ class AdminOrderFillFollowUpChainResponse(BaseModel):
     order_parent_child_read_ran: bool = False
     stealth_child_read_ran: bool = False
     flat_hierarchy_enforced: bool = True
+    portfolio_scope: AdminOrderPortfolioScopeEvidence | None = None
     fill_follow_up_decision_audit: (
         AdminOrderFillFollowUpDecisionAuditEvidence | None
     ) = None
@@ -26933,6 +26944,44 @@ class AdminLiveReadinessPreconditionItem(BaseModel):
     detail: str
 
 
+class AdminSpotPortfolioBindingEvidence(BaseModel):
+    """Typed backend decision for the immutable Test-profile Spot scope."""
+
+    model_config = ConfigDict(extra="allow")
+
+    ready: bool
+    blocker: str | None = None
+    status: str
+    product_family: str
+    portfolio_id: str | None = None
+    profile_alias: str
+    expected_portfolio_id: str | None = None
+    expected_portfolio_label: str
+    expected_portfolio_type: str
+    observed_portfolio_id: str | None = None
+    observed_portfolio_label: str | None = None
+    observed_portfolio_type: str | None = None
+    can_view: bool | None = None
+    can_trade: bool | None = None
+    selection_authority: str
+    request_portfolio_override_allowed: bool
+    source: str
+
+
+class AdminOrderPortfolioScopeEvidence(BaseModel):
+    """Typed immutable portfolio inheritance across a root/child chain."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    product_family: str
+    profile_alias: str
+    expected_portfolio_id: str | None = None
+    root_portfolio_id: str | None = None
+    child_portfolio_ids: dict[str, str | None] = Field(default_factory=dict)
+    scope_consistent: bool = False
+    status: str
+
+
 class AdminLiveEnablementPathItem(BaseModel):
     """One live-eligible path and the gates required before enablement."""
 
@@ -26968,6 +27017,7 @@ class AdminLiveEnablementPathItem(BaseModel):
     reconciliation_blockers: list[str] = Field(default_factory=list)
     spot_rule_boundary: str
     product_scope: str = "not_selected"
+    portfolio_scope: AdminSpotPortfolioBindingEvidence | None = None
     max_submitted_notional_usdc: DecimalString | None = None
     max_executed_notional_usdc: DecimalString | None = None
     live_command_runtime_ready: bool = False
@@ -27003,6 +27053,7 @@ class AdminLiveEnablementReadResponse(BaseModel):
     executed_notional_usdc: DecimalString = "0"
     quote_currency: str = "USDC"
     product_scope: str
+    spot_portfolio_scope: AdminSpotPortfolioBindingEvidence | None = None
     max_submitted_notional_usdc: DecimalString
     max_executed_notional_usdc: DecimalString
     cap_posture: str = "approved_ceiling_only_not_execution"
@@ -34885,3 +34936,8 @@ class AdminApiRouteInventoryItem(BaseModel):
     shared_method: str
     parity_test: str
     compatibility_mode: str | None = None
+
+
+# This early read model references portfolio evidence declared alongside the
+# live-enablement models later in this module.
+AdminOrderFillFollowUpChainResponse.model_rebuild()

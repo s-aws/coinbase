@@ -106,6 +106,7 @@ owners:
       - genai_data/CONFIGURATION.md
       - genai_data/COMPREHENSIVE_TEST_SUITE.md
       - genai_data/DEBUGGING_STRATEGY.md
+      - genai_data/DATA_MODELS.md
       - genai_data/TESTING_STRATEGY.md
       - genai_data/ORDER_ID_HANDLING.md
       - genai_data/agent_state.md
@@ -175,8 +176,10 @@ owners:
       - tests/regression/test_spot_follow_up_policy.py
       - tests/regression/test_spot_planned_budget_guard.py
       - tests/regression/test_spot_paper_mode_replay.py
+      - tests/regression/test_seed_child_placement_from_db.py
       - tests/unit/test_orderbook_v2.py
       - tests/unit/test_order_id_and_followup_rules.py
+      - tests/unit/test_order_engine_portfolio_scope.py
       - tests/unit/test_filled_followup_*.py
       - tests/unit/test_order_progress_tracker.py
       - tests/unit/test_order_moves.py

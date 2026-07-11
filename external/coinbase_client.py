@@ -170,6 +170,19 @@ class CoinbaseRestClient:
         """
         response = self._client.get_transaction_summary()
         return coinbase_sdk_response_to_dict(response)
+
+    def get_api_key_permissions(self) -> Dict[str, Any]:
+        """Return the current credential's authoritative portfolio scope.
+
+        Coinbase CDP keys select their portfolio through key permissions; the
+        order-level ``retail_portfolio_id`` field is deprecated for those keys.
+        Keep this read on the canonical REST wrapper so runtime admission does
+        not create a second SDK client or infer scope from order payloads.
+        """
+
+        response = self._client.get_api_key_permissions()
+        data = coinbase_sdk_response_to_dict(response)
+        return data if isinstance(data, dict) else {}
     
     # ========================================================================
     # Product Methods
@@ -586,11 +599,25 @@ class CoinbaseRestClient:
         response = self._client.get_accounts(**kwargs)
         return coinbase_sdk_response_to_dict(response)
     
-    def list_orders(self, order_status: Optional[List[str]] = None) -> Dict[str, Any]:
-        """List orders with optional status filter.
+    def list_orders(
+        self,
+        order_status: Optional[List[str]] = None,
+        *,
+        order_ids: Optional[List[str]] = None,
+        product_ids: Optional[List[str]] = None,
+        limit: Optional[int] = None,
+        cursor: Optional[str] = None,
+        product_type: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """List orders with exact identity, scope, and pagination filters.
         
         Args:
-            order_status: List of order statuses to filter (e.g., ['OPEN', 'FILLED'])
+            order_status: List of order statuses to filter (e.g., ['OPEN', 'FILLED']).
+            order_ids: Optional exchange-assigned order ids for exact readback.
+            product_ids: Optional product scope.
+            limit: Optional Coinbase page size.
+            cursor: Optional Coinbase pagination cursor.
+            product_type: Optional Coinbase product-type scope.
         
         Returns:
             Raw SDK response object (call .to_dict() to get dict)
@@ -598,7 +625,14 @@ class CoinbaseRestClient:
         Raises:
             Exception: If API call fails
         """
-        return self._client.list_orders(order_status=order_status)
+        return self._client.list_orders(
+            order_status=order_status,
+            order_ids=order_ids,
+            product_ids=product_ids,
+            limit=limit,
+            cursor=cursor,
+            product_type=product_type,
+        )
 
     def list_fills(
         self,

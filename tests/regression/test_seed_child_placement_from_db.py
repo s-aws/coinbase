@@ -72,6 +72,7 @@ def _build_engine():
 
     subscription = Mock()
     subscription.channels = ["user"]
+    subscription.retail_portfolio_id = None
 
     engine = OrderEngine(
         orderbook=orderbook,

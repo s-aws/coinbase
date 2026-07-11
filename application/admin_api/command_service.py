@@ -6,14 +6,18 @@ instead of implementing placement or cancellation separately.
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable, Mapping
+from decimal import Decimal
+from threading import RLock
+from typing import Any, Callable, Iterator, Mapping
 import uuid
 
 from calculation.formatter import safe_float
 from core.action_condition_guard import (
     ActionConditionGuard,
+    evaluate_spot_standing_price_limit,
     get_action_condition_guard_policy,
 )
 from core.enums import (
@@ -26,6 +30,7 @@ from core.enums import (
     AdminApiPermission,
     EventSourceChannel,
     EventStreamType,
+    OrderOwnershipProvenance,
     OrderSide,
     OrderStatus,
     OrderType,
@@ -84,6 +89,10 @@ from .models import (
     StealthRecoveryCommand,
     StealthReconciliationCommand,
     StealthRevealCommand,
+)
+from .spot_portfolio_binding import (
+    DEFAULT_SPOT_PORTFOLIO_LABEL,
+    evaluate_spot_test_portfolio_binding,
 )
 from .spot_recovery_execution import (
     FileSpotRecoveryExecutionJournalStore,
@@ -256,6 +265,77 @@ def _update_order_parent_status(client_order_id: str, status: str) -> Any:
     return update_order_parent_status(client_order_id, status)
 
 
+class SpotProfileOrderAdmissionCoordinator:
+    """Serialize Spot submit/cancel decisions and retain runtime uncertainty.
+
+    The lock is keyed by the credential-bound portfolio UUID.  Callers hold it
+    from the authoritative open-order read through the REST outcome and final
+    local/audit evidence so two request-scoped command-service instances cannot
+    both admit an order from the same zero-open snapshot.
+    """
+
+    def __init__(self) -> None:
+        self._registry_lock = RLock()
+        self._profile_locks: dict[str, RLock] = {}
+        self._uncertain_submissions: dict[str, dict[str, str]] = {}
+
+    def _profile_lock(self, retail_portfolio_id: str) -> RLock:
+        with self._registry_lock:
+            return self._profile_locks.setdefault(retail_portfolio_id, RLock())
+
+    @contextmanager
+    def claim(self, retail_portfolio_id: str) -> Iterator[None]:
+        portfolio_id = str(retail_portfolio_id or "").strip()
+        if not portfolio_id:
+            raise ValueError("spot_portfolio_id_missing_for_admission_claim")
+        lock = self._profile_lock(portfolio_id)
+        with lock:
+            yield
+
+    def record_uncertainty(
+        self,
+        *,
+        retail_portfolio_id: str,
+        client_order_id: str,
+        reason: str,
+    ) -> None:
+        with self._registry_lock:
+            self._uncertain_submissions.setdefault(
+                str(retail_portfolio_id),
+                {},
+            )[str(client_order_id)] = str(reason)
+
+    def resolve_uncertainty(
+        self,
+        *,
+        retail_portfolio_id: str,
+        client_order_id: str,
+    ) -> None:
+        with self._registry_lock:
+            profile = self._uncertain_submissions.get(str(retail_portfolio_id))
+            if profile is None:
+                return
+            profile.pop(str(client_order_id), None)
+            if not profile:
+                self._uncertain_submissions.pop(str(retail_portfolio_id), None)
+
+    def uncertainty_snapshot(
+        self,
+        retail_portfolio_id: str,
+    ) -> list[dict[str, str]]:
+        with self._registry_lock:
+            profile = dict(
+                self._uncertain_submissions.get(str(retail_portfolio_id), {})
+            )
+        return [
+            {"client_order_id": client_order_id, "reason": reason}
+            for client_order_id, reason in sorted(profile.items())
+        ]
+
+
+_SPOT_PROFILE_ORDER_ADMISSION_COORDINATOR = SpotProfileOrderAdmissionCoordinator()
+
+
 @dataclass(slots=True)
 class AdminApiCommandDependencies:
     """Runtime dependencies required by live command execution."""
@@ -266,6 +346,15 @@ class AdminApiCommandDependencies:
     command_runtime_ready: bool | None = None
     command_runtime_missing_reason: str | None = None
     command_runtime_source: str = "application/admin_api/command_runtime.py"
+    spot_portfolio_id: str | None = None
+    spot_portfolio_label: str = DEFAULT_SPOT_PORTFOLIO_LABEL
+    spot_market_reference_getter: Callable[[str], Mapping[str, Any] | None] = (
+        lambda _product_id: None
+    )
+    order_root_registrar_getter: Callable[[], Any | None] = lambda: None
+    spot_order_admission_coordinator: SpotProfileOrderAdmissionCoordinator = field(
+        default_factory=lambda: _SPOT_PROFILE_ORDER_ADMISSION_COORDINATOR
+    )
     runtime_controller_factory: Callable[[], Any] = get_runtime_controller
     add_log_entry: Callable[[str, str], None] = _noop_log
     order_event_publisher_getter: Callable[[], Any | None] = lambda: None
@@ -432,6 +521,50 @@ def direct_spot_live_acknowledged(order_params: Mapping[str, Any]) -> bool:
     return bool(direct_ack)
 
 
+def _evaluate_configured_price_increment(
+    *,
+    product_id: str,
+    limit_price: Any,
+) -> dict[str, Any]:
+    """Return fail-closed evidence for an operator-supplied limit price.
+
+    Manual order prices are operator intent.  The command boundary therefore
+    validates exact alignment with the configured product tick and never
+    quantizes the value to a different price.
+    """
+
+    configured_increment: Any = None
+    try:
+        from configuration import PRODUCT_METADATA, get_trading_product_id
+
+        canonical_product_id = get_trading_product_id(str(product_id or ""))
+        metadata = PRODUCT_METADATA.get(canonical_product_id) or {}
+        configured_increment = metadata.get("price_increment")
+        price_decimal = Decimal(str(limit_price))
+        increment_decimal = Decimal(str(configured_increment))
+        tick_aligned = bool(
+            price_decimal.is_finite()
+            and price_decimal > 0
+            and increment_decimal.is_finite()
+            and increment_decimal > 0
+            and price_decimal % increment_decimal == 0
+        )
+    except (ArithmeticError, AttributeError, TypeError, ValueError):
+        canonical_product_id = str(product_id or "")
+        tick_aligned = False
+
+    return {
+        "product_id": canonical_product_id,
+        "limit_price": str(limit_price),
+        "configured_price_increment": (
+            str(configured_increment)
+            if configured_increment is not None and configured_increment != ""
+            else None
+        ),
+        "tick_aligned": tick_aligned,
+    }
+
+
 def manual_order_action_guard_policy(command: ManualOrderCommand) -> dict[str, Any]:
     """Return action-condition policy scoped to this Admin manual-order command."""
 
@@ -479,6 +612,164 @@ def coinbase_order_response_to_dict(result: Any) -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+class CoinbaseOrderReadbackError(RuntimeError):
+    """Fail-closed classification for malformed/incomplete order readback."""
+
+    def __init__(self, blocker: str, detail: str) -> None:
+        super().__init__(detail)
+        self.blocker = blocker
+        self.detail = detail
+
+
+def read_authoritative_coinbase_orders(
+    rest_client: Any,
+    *,
+    order_status: list[str] | None = None,
+    order_ids: list[str] | None = None,
+    product_ids: list[str] | None = None,
+    product_type: str | None = None,
+    maximum_pages: int = 100,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Read and validate every Coinbase order page for an exact decision.
+
+    Absence is returned as evidence but is never interpreted here as a
+    terminal status.  Missing ``has_next``, an unusable cursor, malformed order
+    rows, or a repeated cursor makes the read non-authoritative.
+    """
+
+    list_orders = getattr(rest_client, "list_orders", None)
+    if not callable(list_orders):
+        raise CoinbaseOrderReadbackError(
+            "order_read_unavailable",
+            "Coinbase list_orders is unavailable",
+        )
+
+    cursor: str | None = None
+    seen_cursors: set[str] = set()
+    rows: list[dict[str, Any]] = []
+    page_count = 0
+    while True:
+        page_count += 1
+        if page_count > maximum_pages:
+            raise CoinbaseOrderReadbackError(
+                "order_read_pagination_limit",
+                "Coinbase order read exceeded the bounded pagination limit",
+            )
+        kwargs: dict[str, Any] = {"limit": 100}
+        if order_status is not None:
+            kwargs["order_status"] = list(order_status)
+        if order_ids is not None:
+            kwargs["order_ids"] = list(order_ids)
+        if product_ids is not None:
+            kwargs["product_ids"] = list(product_ids)
+        if product_type is not None:
+            kwargs["product_type"] = product_type
+        if cursor is not None:
+            kwargs["cursor"] = cursor
+
+        try:
+            response = list_orders(**kwargs)
+        except CoinbaseOrderReadbackError:
+            raise
+        except Exception as exc:
+            raise CoinbaseOrderReadbackError(
+                "order_read_failed",
+                f"Coinbase order read failed: {type(exc).__name__}: {exc}",
+            ) from exc
+
+        data = coinbase_order_response_to_dict(response)
+        raw_orders = data.get("orders")
+        has_next = data.get("has_next")
+        if not isinstance(raw_orders, list) or not isinstance(has_next, bool):
+            raise CoinbaseOrderReadbackError(
+                "order_read_malformed",
+                "Coinbase order page requires orders:list and has_next:bool",
+            )
+        for raw_order in raw_orders:
+            if not isinstance(raw_order, Mapping):
+                raise CoinbaseOrderReadbackError(
+                    "order_read_malformed",
+                    "Coinbase order page contains a non-object order row",
+                )
+            row = dict(raw_order)
+            if not all(
+                str(row.get(field) or "").strip()
+                for field in ("client_order_id", "order_id", "status")
+            ):
+                raise CoinbaseOrderReadbackError(
+                    "order_read_malformed",
+                    "Coinbase order row lacks client_order_id, order_id, or status",
+                )
+            rows.append(row)
+
+        if not has_next:
+            return rows, {
+                "authoritative": True,
+                "page_count": page_count,
+                "order_count": len(rows),
+                "pagination_complete": True,
+            }
+
+        next_cursor = data.get("cursor")
+        if not isinstance(next_cursor, str) or not next_cursor.strip():
+            raise CoinbaseOrderReadbackError(
+                "order_read_malformed_pagination",
+                "Coinbase has_next page lacks a usable cursor",
+            )
+        next_cursor = next_cursor.strip()
+        if next_cursor in seen_cursors:
+            raise CoinbaseOrderReadbackError(
+                "order_read_malformed_pagination",
+                "Coinbase order pagination repeated a cursor",
+            )
+        seen_cursors.add(next_cursor)
+        cursor = next_cursor
+
+
+def exact_coinbase_order_readback(
+    rest_client: Any,
+    *,
+    client_order_id: str,
+    exchange_order_id: str | None = None,
+    product_id: str | None = None,
+) -> dict[str, Any]:
+    """Return exact identity/status proof without treating absence as terminal."""
+
+    order_ids = [exchange_order_id] if exchange_order_id else None
+    rows, pagination = read_authoritative_coinbase_orders(
+        rest_client,
+        order_ids=order_ids,
+        product_ids=[product_id] if product_id else None,
+        product_type=ProductType.SPOT.value,
+    )
+    matches = [
+        row
+        for row in rows
+        if str(row.get("client_order_id") or "") == str(client_order_id)
+        and (
+            exchange_order_id is None
+            or str(row.get("order_id") or "") == str(exchange_order_id)
+        )
+    ]
+    exact = len(matches) == 1 and (
+        exchange_order_id is None or len(rows) == 1
+    )
+    matched = matches[0] if exact else None
+    return {
+        **pagination,
+        "client_order_id": client_order_id,
+        "exchange_order_id": (
+            str(matched.get("order_id")) if matched is not None else exchange_order_id
+        ),
+        "exact_identity_match": exact,
+        "confirmed_absent": len(matches) == 0,
+        "authoritative_status": (
+            str(matched.get("status") or "").upper() if matched is not None else None
+        ),
+        "matched_order": matched,
+    }
+
+
 def coinbase_order_response_success(
     result: Any,
     data: Mapping[str, Any],
@@ -491,8 +782,6 @@ def coinbase_order_response_success(
     success = data.get("success")
     if isinstance(success, bool):
         return success
-    if data.get("success_response"):
-        return True
     if data.get("error_response") or data.get("failure_reason"):
         return False
     return None
@@ -570,6 +859,8 @@ def publish_direct_order_submission_event(
         "quote_size": inner.get("quote_size"),
         "limit_price": inner.get("limit_price"),
         "post_only": inner.get("post_only"),
+        "retail_portfolio_id": order_params.get("retail_portfolio_id"),
+        "portfolio_profile_alias": order_params.get("portfolio_profile_alias"),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     key = f"dashboard_submit:{client_order_id}:{order_id or ''}"
@@ -2468,6 +2759,19 @@ class AdminApiCommandService:
         deps = self.dependencies
         client_order_id = command.request.client_order_id or deps.uuid_factory()
         order_params, order_configuration = self._manual_order_payload(command)
+        root_registrar = None
+        root_registration: dict[str, Any] | None = None
+        standing_price_limit_evidence: dict[str, Any] | None = None
+        active_order_limit_evidence: dict[str, Any] | None = None
+        profile_admission_claim: Any | None = None
+        submission_attempt: dict[str, Any] = {
+            "rest_invocation_attempted": False,
+            "outcome": "not_attempted",
+            "exchange_order_id": None,
+            "exchange_order_id_confirmed": False,
+            "authoritative_readback_confirmed": False,
+            "authoritative_status": None,
+        }
 
         if not deps.rest_client_available:
             return self._place_rejected(
@@ -2501,6 +2805,92 @@ class AdminApiCommandService:
                     message=message,
                     data={"capability": capability.to_dict()},
                     failure_stage="product_capability",
+                )
+
+            if (
+                capability.product_type == ProductType.SPOT.value
+                and raw_price is not None
+            ):
+                price_increment_evidence = _evaluate_configured_price_increment(
+                    product_id=capability.product_id,
+                    limit_price=raw_price,
+                )
+                if not price_increment_evidence["tick_aligned"]:
+                    reason = (
+                        "Direct Spot limit_price must be positive and exactly "
+                        "aligned to the configured product price_increment; "
+                        "operator price intent is not quantized."
+                    )
+                    deps.add_log_entry("WARNING", reason)
+                    return self._place_rejected(
+                        command=command,
+                        client_order_id=client_order_id,
+                        message=reason,
+                        data={"price_increment": price_increment_evidence},
+                        failure_stage="price_increment",
+                    )
+
+            spot_portfolio_scope = None
+            if (
+                deps.spot_portfolio_id
+                and capability.product_type != ProductType.SPOT.value
+            ):
+                portfolio_binding = evaluate_spot_test_portfolio_binding(
+                    rest_client=deps.rest_client,
+                    expected_portfolio_id=deps.spot_portfolio_id,
+                    expected_portfolio_label=deps.spot_portfolio_label,
+                )
+                spot_portfolio_scope = portfolio_binding.to_dict()
+                spot_portfolio_scope.update(
+                    {
+                        "status": "blocked",
+                        "ready": False,
+                        "blocker": "spot_test_runtime_product_type_mismatch",
+                        "requested_product_id": product_id,
+                        "requested_product_type": capability.product_type,
+                    }
+                )
+                reason = (
+                    "The Test-profile runtime is Spot-only; derivatives remain "
+                    "bound to the separate Default-profile runtime."
+                )
+                deps.add_log_entry("WARNING", reason)
+                return self._place_rejected(
+                    command=command,
+                    client_order_id=client_order_id,
+                    message=reason,
+                    data={"portfolio_scope": spot_portfolio_scope},
+                    failure_stage="portfolio_scope",
+                )
+            if capability.product_type == ProductType.SPOT.value:
+                portfolio_binding = evaluate_spot_test_portfolio_binding(
+                    rest_client=deps.rest_client,
+                    expected_portfolio_id=deps.spot_portfolio_id,
+                    expected_portfolio_label=deps.spot_portfolio_label,
+                )
+                spot_portfolio_scope = portfolio_binding.to_dict()
+                if not portfolio_binding.ready:
+                    reason = (
+                        "Direct spot place_order requires the Coinbase CDP key "
+                        "to be permissioned to the approved Test portfolio: "
+                        f"{portfolio_binding.blocker}"
+                    )
+                    deps.add_log_entry("WARNING", reason)
+                    return self._place_rejected(
+                        command=command,
+                        client_order_id=client_order_id,
+                        message=reason,
+                        data={"portfolio_scope": spot_portfolio_scope},
+                        failure_stage="portfolio_scope",
+                    )
+                # Internal/audit evidence only. Coinbase selects CDP-key scope
+                # from key permissions; do not send the deprecated request
+                # ``retail_portfolio_id`` override to Create Order.
+                order_params["retail_portfolio_id"] = (
+                    portfolio_binding.observed_portfolio_id
+                )
+                order_params["portfolio_profile_alias"] = (
+                    portfolio_binding.expected_portfolio_label
                 )
 
             if (
@@ -2673,6 +3063,176 @@ class AdminApiCommandService:
 
             submission_event_publisher = None
             if capability.product_type == ProductType.SPOT.value:
+                market_reference = deps.spot_market_reference_getter(product_id)
+                standing_price_limit_evidence = (
+                    evaluate_spot_standing_price_limit(
+                        side=order_params.get("side"),
+                        limit_price=raw_price,
+                        best_bid=(market_reference or {}).get("best_bid"),
+                        market_source=(market_reference or {}).get("source"),
+                        market_observed_at=(market_reference or {}).get(
+                            "observed_at"
+                        ),
+                    )
+                )
+                if not standing_price_limit_evidence["allowed"]:
+                    reason = (
+                        "Direct Spot order violates the standing price limit "
+                        "or lacks a live ticker bid: BUY must be at or below "
+                        "50% of bid; SELL must be at or above 150% of bid."
+                    )
+                    return self._place_rejected(
+                        command=command,
+                        client_order_id=client_order_id,
+                        message=reason,
+                        data={
+                            "portfolio_scope": spot_portfolio_scope,
+                            "standing_price_limit": (
+                                standing_price_limit_evidence
+                            ),
+                        },
+                        failure_stage="standing_price_limit",
+                    )
+
+                root_registrar = deps.order_root_registrar_getter()
+                register_root = getattr(
+                    root_registrar,
+                    "register_manual_spot_root",
+                    None,
+                )
+                read_unresolved_roots = getattr(
+                    root_registrar,
+                    "get_unresolved_admin_manual_root_submissions",
+                    None,
+                )
+                if not callable(register_root) or not callable(read_unresolved_roots):
+                    reason = (
+                        "Direct Spot place_order requires canonical root "
+                        "registration and durable unresolved-root admission reads."
+                    )
+                    return self._place_rejected(
+                        command=command,
+                        client_order_id=client_order_id,
+                        message=reason,
+                        data={"portfolio_scope": spot_portfolio_scope},
+                        failure_stage="order_root_registration",
+                    )
+
+                profile_id = str(
+                    portfolio_binding.observed_portfolio_id or ""
+                )
+                profile_admission_claim = (
+                    deps.spot_order_admission_coordinator.claim(profile_id)
+                )
+                profile_admission_claim.__enter__()
+                runtime_uncertainties = (
+                    deps.spot_order_admission_coordinator.uncertainty_snapshot(
+                        profile_id
+                    )
+                )
+                try:
+                    durable_unresolved_roots = read_unresolved_roots(profile_id)
+                except Exception as exc:
+                    return self._place_rejected(
+                        command=command,
+                        client_order_id=client_order_id,
+                        message=(
+                            "Durable Admin root admission read failed: "
+                            f"{type(exc).__name__}: {exc}"
+                        ),
+                        data={
+                            "portfolio_scope": spot_portfolio_scope,
+                            "runtime_submission_uncertainties": runtime_uncertainties,
+                        },
+                        failure_stage="submission_uncertainty",
+                    )
+                if not isinstance(durable_unresolved_roots, list) or any(
+                    not isinstance(row, Mapping)
+                    for row in durable_unresolved_roots
+                ):
+                    return self._place_rejected(
+                        command=command,
+                        client_order_id=client_order_id,
+                        message="Durable Admin root admission read was malformed.",
+                        data={
+                            "portfolio_scope": spot_portfolio_scope,
+                            "runtime_submission_uncertainties": runtime_uncertainties,
+                        },
+                        failure_stage="submission_uncertainty",
+                    )
+                if runtime_uncertainties or durable_unresolved_roots:
+                    return self._place_rejected(
+                        command=command,
+                        client_order_id=client_order_id,
+                        message=(
+                            "A prior Admin Spot root remains open or uncertain; "
+                            "authoritative terminal reconciliation is required "
+                            "before another placement."
+                        ),
+                        data={
+                            "portfolio_scope": spot_portfolio_scope,
+                            "runtime_submission_uncertainties": runtime_uncertainties,
+                            "durable_unresolved_roots": [
+                                dict(row) for row in durable_unresolved_roots
+                            ],
+                        },
+                        failure_stage="submission_uncertainty",
+                    )
+
+                try:
+                    open_orders, pagination = read_authoritative_coinbase_orders(
+                        deps.rest_client,
+                        order_status=[OrderStatus.OPEN.value],
+                        product_type=ProductType.SPOT.value,
+                    )
+                    active_order_limit_evidence = {
+                        "allowed": len(open_orders) == 0,
+                        "open_order_count": len(open_orders),
+                        "open_client_order_ids": [
+                            str(item["client_order_id"]) for item in open_orders
+                        ],
+                        "cancel_before_next": True,
+                        "blocker": (
+                            None
+                            if not open_orders
+                            else "existing_open_order_requires_cancel"
+                        ),
+                        **pagination,
+                    }
+                except CoinbaseOrderReadbackError as exc:
+                    active_order_limit_evidence = {
+                        "allowed": False,
+                        "open_order_count": None,
+                        "cancel_before_next": True,
+                        "blocker": (
+                            "open_order_read_malformed"
+                            if exc.blocker.startswith("order_read_malformed")
+                            else exc.blocker.replace("order_", "open_order_", 1)
+                        ),
+                        "detail": exc.detail,
+                        "authoritative": False,
+                        "pagination_complete": False,
+                    }
+                if not active_order_limit_evidence["allowed"]:
+                    reason = (
+                        "Direct Spot order requires zero existing open orders "
+                        "on the Test profile; cancel and confirm readback before "
+                        "submitting another order."
+                    )
+                    return self._place_rejected(
+                        command=command,
+                        client_order_id=client_order_id,
+                        message=reason,
+                        data={
+                            "portfolio_scope": spot_portfolio_scope,
+                            "standing_price_limit": (
+                                standing_price_limit_evidence
+                            ),
+                            "active_order_limit": active_order_limit_evidence,
+                        },
+                        failure_stage="active_order_limit",
+                    )
+
                 submission_event_publisher = deps.order_event_publisher_getter()
                 if submission_event_publisher is None or not getattr(
                     submission_event_publisher,
@@ -2709,46 +3269,392 @@ class AdminApiCommandService:
                         failure_stage="durable_audit_required",
                     )
 
+                if (
+                    not inner_key
+                    or not str(inner_key).startswith("limit_")
+                    or approved_base_size is None
+                    or raw_price is None
+                ):
+                    reason = (
+                        "Direct Spot root registration requires a LIMIT order "
+                        "with base_size and limit_price before REST submission."
+                    )
+                    return self._place_rejected(
+                        command=command,
+                        client_order_id=client_order_id,
+                        message=reason,
+                        data={"portfolio_scope": spot_portfolio_scope},
+                        failure_stage="order_root_registration",
+                    )
+
+                try:
+                    root_registration = register_root(
+                        client_order_id=client_order_id,
+                        product_id=product_id,
+                        side=order_params.get("side"),
+                        base_size=inner.get("base_size"),
+                        limit_price=inner.get("limit_price"),
+                        retail_portfolio_id=(
+                            portfolio_binding.observed_portfolio_id
+                        ),
+                        correlation_id=command.envelope.correlation_id,
+                        audit_id=command.admission_audit_id,
+                    )
+                except Exception as exc:
+                    reason = f"Canonical Spot root registration failed: {exc}"
+                    deps.add_log_entry("ERROR", reason)
+                    return self._place_rejected(
+                        command=command,
+                        client_order_id=client_order_id,
+                        message=reason,
+                        data={"portfolio_scope": spot_portfolio_scope},
+                        failure_stage="order_root_registration",
+                    )
+                if not (
+                    isinstance(root_registration, Mapping)
+                    and root_registration.get("registered") is True
+                    and str(root_registration.get("client_order_id") or "")
+                    == client_order_id
+                    and str(root_registration.get("retail_portfolio_id") or "")
+                    == str(portfolio_binding.observed_portfolio_id or "")
+                    and str(root_registration.get("ownership_provenance") or "")
+                    == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+                ):
+                    return self._place_rejected(
+                        command=command,
+                        client_order_id=client_order_id,
+                        message=(
+                            "Canonical Spot root registration returned "
+                            "incomplete or mismatched durable evidence."
+                        ),
+                        data={
+                            "portfolio_scope": spot_portfolio_scope,
+                            "root_registration": (
+                                dict(root_registration)
+                                if isinstance(root_registration, Mapping)
+                                else None
+                            ),
+                        },
+                        failure_stage="order_root_registration",
+                    )
+
             controller = deps.runtime_controller_factory()
             try:
                 with controller.track_inflight(INFLIGHT_REST_PLACE):
+                    submission_attempt["rest_invocation_attempted"] = True
                     result = deps.rest_client.create_order(
                         client_order_id=client_order_id,
                         product_id=product_id,
                         side=order_params.get("side"),
                         order_configuration=order_configuration,
                     )
-            except CoinbaseAPIError:
-                raise
             except Exception as exc:
+                submission_attempt["outcome"] = "unknown"
+                profile_id = str(
+                    (spot_portfolio_scope or {}).get("observed_portfolio_id")
+                    or (spot_portfolio_scope or {}).get("portfolio_id")
+                    or ""
+                )
+                if profile_id:
+                    deps.spot_order_admission_coordinator.record_uncertainty(
+                        retail_portfolio_id=profile_id,
+                        client_order_id=client_order_id,
+                        reason=f"coinbase_create_exception:{type(exc).__name__}",
+                    )
+                mark_submission_status = getattr(
+                    root_registrar,
+                    "mark_submission_status",
+                    None,
+                )
+                if callable(mark_submission_status):
+                    try:
+                        mark_submission_status(
+                            client_order_id=client_order_id,
+                            status=OrderStatus.SUBMISSION_UNKNOWN.value,
+                        )
+                    except Exception as status_exc:
+                        deps.add_log_entry(
+                            "ERROR",
+                            "Failed to mark uncertain Spot submission status: "
+                            f"{status_exc}",
+                        )
                 deps.add_log_entry("ERROR", f"REST submission failed: {exc}")
                 return self._place_rejected(
                     command=command,
                     client_order_id=client_order_id,
                     message=f"Coinbase REST submission failed: {exc}",
-                    failure_stage="coinbase_rest",
+                    data={
+                        "portfolio_scope": spot_portfolio_scope,
+                        "root_registration": root_registration,
+                        "submission_attempt": submission_attempt,
+                    },
+                    live_coinbase_orders_ran=True,
+                    failure_stage="coinbase_submission_unknown",
                 )
 
             result_dict = coinbase_order_response_to_dict(result)
             response_success = coinbase_order_response_success(result, result_dict)
             if response_success is False:
+                submission_attempt["outcome"] = "explicitly_rejected"
                 error_msg = coinbase_order_response_error_message(result, result_dict)
-                raise CoinbaseAPIError(
-                    f"Order creation failed: {error_msg}",
-                    api_error_code="order_creation_failed",
+                mark_submission_status = getattr(
+                    root_registrar,
+                    "mark_submission_status",
+                    None,
+                )
+                if callable(mark_submission_status):
+                    mark_submission_status(
+                        client_order_id=client_order_id,
+                        status=OrderStatus.FAILED.value,
+                    )
+                return self._place_rejected(
+                    command=command,
+                    client_order_id=client_order_id,
+                    message=f"Order creation failed: {error_msg}",
+                    data={
+                        "portfolio_scope": spot_portfolio_scope,
+                        "root_registration": root_registration,
+                        "submission_attempt": submission_attempt,
+                    },
+                    live_coinbase_orders_ran=True,
+                    failure_stage="coinbase_rest",
                 )
 
             order_id = coinbase_order_response_order_id(result, result_dict)
-            submission_event_recorded = publish_direct_order_submission_event(
-                publisher_getter=lambda: (
-                    submission_event_publisher
-                    or deps.order_event_publisher_getter()
-                ),
-                client_order_id=client_order_id,
-                order_id=order_id,
-                order_params=order_params,
-                order_configuration=order_configuration,
+            submission_attempt["exchange_order_id"] = order_id
+            if response_success is not True or not order_id:
+                submission_attempt["outcome"] = "unknown"
+                profile_id = str(
+                    (spot_portfolio_scope or {}).get("observed_portfolio_id")
+                    or (spot_portfolio_scope or {}).get("portfolio_id")
+                    or ""
+                )
+                if profile_id:
+                    deps.spot_order_admission_coordinator.record_uncertainty(
+                        retail_portfolio_id=profile_id,
+                        client_order_id=client_order_id,
+                        reason="coinbase_create_response_incomplete",
+                    )
+                mark_submission_status = getattr(
+                    root_registrar,
+                    "mark_submission_status",
+                    None,
+                )
+                if callable(mark_submission_status):
+                    try:
+                        mark_submission_status(
+                            client_order_id=client_order_id,
+                            status=OrderStatus.SUBMISSION_UNKNOWN.value,
+                        )
+                    except Exception as status_exc:
+                        deps.add_log_entry(
+                            "ERROR",
+                            "Failed to persist incomplete Spot submission "
+                            f"response: {status_exc}",
+                        )
+                return self._place_rejected(
+                    command=command,
+                    client_order_id=client_order_id,
+                    message=(
+                        "Coinbase create response lacked explicit success or "
+                        "exchange order identity."
+                    ),
+                    data={
+                        "portfolio_scope": spot_portfolio_scope,
+                        "root_registration": root_registration,
+                        "submission_attempt": submission_attempt,
+                    },
+                    live_coinbase_orders_ran=True,
+                    failure_stage="coinbase_submission_unknown",
+                )
+
+            submission_attempt["outcome"] = "accepted_pending_readback"
+            submission_attempt["exchange_order_id_confirmed"] = True
+            try:
+                submission_readback = exact_coinbase_order_readback(
+                    deps.rest_client,
+                    client_order_id=client_order_id,
+                    exchange_order_id=order_id,
+                    product_id=product_id,
+                )
+            except CoinbaseOrderReadbackError as exc:
+                submission_readback = {
+                    "authoritative": False,
+                    "exact_identity_match": False,
+                    "confirmed_absent": False,
+                    "authoritative_status": None,
+                    "blocker": exc.blocker,
+                    "detail": exc.detail,
+                }
+            authoritative_status = str(
+                submission_readback.get("authoritative_status") or ""
+            ).upper()
+            valid_exchange_statuses = {
+                OrderStatus.PENDING.value,
+                OrderStatus.OPEN.value,
+                OrderStatus.FILLED.value,
+                OrderStatus.CANCELLED.value,
+                OrderStatus.EXPIRED.value,
+                OrderStatus.FAILED.value,
+            }
+            readback_confirmed = bool(
+                submission_readback.get("authoritative")
+                and submission_readback.get("exact_identity_match")
+                and authoritative_status in valid_exchange_statuses
             )
+            submission_attempt.update(
+                {
+                    "authoritative_readback_confirmed": readback_confirmed,
+                    "authoritative_status": authoritative_status or None,
+                    "readback": submission_readback,
+                }
+            )
+            if not readback_confirmed:
+                submission_attempt["outcome"] = "unknown"
+                profile_id = str(
+                    (spot_portfolio_scope or {}).get("observed_portfolio_id")
+                    or (spot_portfolio_scope or {}).get("portfolio_id")
+                    or ""
+                )
+                if profile_id:
+                    deps.spot_order_admission_coordinator.record_uncertainty(
+                        retail_portfolio_id=profile_id,
+                        client_order_id=client_order_id,
+                        reason="coinbase_create_readback_unconfirmed",
+                    )
+                mark_submission_status = getattr(
+                    root_registrar,
+                    "mark_submission_status",
+                    None,
+                )
+                if callable(mark_submission_status):
+                    try:
+                        mark_submission_status(
+                            client_order_id=client_order_id,
+                            status=OrderStatus.SUBMISSION_UNKNOWN.value,
+                        )
+                    except Exception as status_exc:
+                        deps.add_log_entry(
+                            "ERROR",
+                            "Failed to persist unconfirmed Spot readback: "
+                            f"{status_exc}",
+                        )
+                return self._place_rejected(
+                    command=command,
+                    client_order_id=client_order_id,
+                    message=(
+                        "Coinbase create succeeded but exact authoritative "
+                        "identity/status readback was not proven."
+                    ),
+                    data={
+                        "portfolio_scope": spot_portfolio_scope,
+                        "root_registration": root_registration,
+                        "submission_attempt": submission_attempt,
+                    },
+                    coinbase_order_id=order_id,
+                    live_coinbase_orders_ran=True,
+                    failure_stage="coinbase_submission_unknown",
+                )
+
+            submission_attempt["outcome"] = "accepted"
+            mark_submission_status = getattr(
+                root_registrar,
+                "mark_submission_status",
+                None,
+            )
+            root_status_update_error = None
+            if callable(mark_submission_status):
+                try:
+                    mark_submission_status(
+                        client_order_id=client_order_id,
+                        status=authoritative_status,
+                    )
+                except Exception as exc:
+                    root_status_update_error = f"{type(exc).__name__}: {exc}"
+                    deps.add_log_entry(
+                        "ERROR",
+                        "Order submitted but root status update failed: "
+                        f"{root_status_update_error}",
+                    )
+            if root_status_update_error:
+                profile_id = str(
+                    (spot_portfolio_scope or {}).get("observed_portfolio_id")
+                    or (spot_portfolio_scope or {}).get("portfolio_id")
+                    or ""
+                )
+                if profile_id:
+                    deps.spot_order_admission_coordinator.record_uncertainty(
+                        retail_portfolio_id=profile_id,
+                        client_order_id=client_order_id,
+                        reason="root_status_persistence_failed",
+                    )
+                return self._place_rejected(
+                    command=command,
+                    client_order_id=client_order_id,
+                    message=(
+                        "Coinbase order is proven but local root status "
+                        "persistence failed."
+                    ),
+                    data={
+                        "portfolio_scope": spot_portfolio_scope,
+                        "root_registration": root_registration,
+                        "root_status_update_error": root_status_update_error,
+                        "submission_attempt": submission_attempt,
+                    },
+                    coinbase_order_id=order_id,
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                    failure_stage="order_root_status_persistence",
+                )
+
+            try:
+                submission_event_recorded = publish_direct_order_submission_event(
+                    publisher_getter=lambda: (
+                        submission_event_publisher
+                        or deps.order_event_publisher_getter()
+                    ),
+                    client_order_id=client_order_id,
+                    order_id=order_id,
+                    order_params=order_params,
+                    order_configuration=order_configuration,
+                )
+            except Exception as exc:
+                submission_event_recorded = False
+                submission_attempt["audit_persistence_error"] = (
+                    f"{type(exc).__name__}: {exc}"
+                )
+            if not submission_event_recorded:
+                profile_id = str(
+                    (spot_portfolio_scope or {}).get("observed_portfolio_id")
+                    or (spot_portfolio_scope or {}).get("portfolio_id")
+                    or ""
+                )
+                if profile_id:
+                    deps.spot_order_admission_coordinator.record_uncertainty(
+                        retail_portfolio_id=profile_id,
+                        client_order_id=client_order_id,
+                        reason="submission_audit_persistence_failed",
+                    )
+                return self._place_rejected(
+                    command=command,
+                    client_order_id=client_order_id,
+                    message=(
+                        "Coinbase order is proven but durable owned-submission "
+                        "audit persistence failed."
+                    ),
+                    data={
+                        "portfolio_scope": spot_portfolio_scope,
+                        "root_registration": root_registration,
+                        "standing_price_limit": standing_price_limit_evidence,
+                        "active_order_limit": active_order_limit_evidence,
+                        "submission_attempt": submission_attempt,
+                    },
+                    coinbase_order_id=order_id,
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                    submission_event_recorded=False,
+                    failure_stage="submission_audit_persistence",
+                )
             deps.add_log_entry(
                 "INFO",
                 f"Order created: {order_params.get('product_id')} {order_params.get('side')}",
@@ -2766,6 +3672,18 @@ class AdminApiCommandService:
                 live_exchange_submitted=True,
                 live_coinbase_orders_ran=True,
                 submission_event_recorded=submission_event_recorded,
+                data=(
+                    {
+                        "portfolio_scope": spot_portfolio_scope,
+                        "root_registration": root_registration,
+                        "root_status_update_error": root_status_update_error,
+                        "standing_price_limit": standing_price_limit_evidence,
+                        "active_order_limit": active_order_limit_evidence,
+                        "submission_attempt": submission_attempt,
+                    }
+                    if spot_portfolio_scope is not None
+                    else None
+                ),
                 audit_command=(
                     "python tools\\run_spot_direct_order_audit.py "
                     f"--client-order-id {client_order_id}"
@@ -2785,6 +3703,9 @@ class AdminApiCommandService:
                 f"Failed to place order: {exc}",
                 client_order_id=client_order_id,
             ) from exc
+        finally:
+            if profile_admission_claim is not None:
+                profile_admission_claim.__exit__(None, None, None)
 
     def cancel_order_by_client_order_id(
         self,
@@ -2829,31 +3750,485 @@ class AdminApiCommandService:
                 failure_stage="validation",
             )
 
+        portfolio_binding = evaluate_spot_test_portfolio_binding(
+            rest_client=deps.rest_client,
+            expected_portfolio_id=deps.spot_portfolio_id,
+            expected_portfolio_label=deps.spot_portfolio_label,
+        )
+        portfolio_scope = portfolio_binding.to_dict()
+        if not portfolio_binding.ready:
+            return self._cancel_rejected(
+                command=command,
+                message=(
+                    "Direct Spot cancellation requires the Coinbase key to "
+                    "remain bound to the approved Test portfolio."
+                ),
+                data={"portfolio_scope": portfolio_scope},
+                failure_stage="portfolio_scope",
+            )
+
+        root_registrar = deps.order_root_registrar_getter()
+        read_registered_order = getattr(
+            root_registrar,
+            "read_registered_order",
+            None,
+        )
+        if not callable(read_registered_order):
+            return self._cancel_rejected(
+                command=command,
+                message="Canonical order_parent ownership read is unavailable.",
+                data={"portfolio_scope": portfolio_scope},
+                failure_stage="order_ownership",
+            )
+        try:
+            local_order = read_registered_order(client_order_id)
+        except Exception as exc:
+            return self._cancel_rejected(
+                command=command,
+                message=f"Canonical order ownership read failed: {exc}",
+                data={"portfolio_scope": portfolio_scope},
+                failure_stage="order_ownership",
+            )
+        local_order_is_admin_direct_root = bool(
+            isinstance(local_order, Mapping)
+            and str(local_order.get("client_order_id") or "") == client_order_id
+            and str(local_order.get("retail_portfolio_id") or "")
+            == str(portfolio_binding.observed_portfolio_id or "")
+            and str(local_order.get("ownership_provenance") or "")
+            == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+            and local_order.get("parent_order_id") is None
+        )
+        if not local_order_is_admin_direct_root:
+            return self._cancel_rejected(
+                command=command,
+                message=(
+                    "Generic cancellation is limited to a durable Admin "
+                    "manual direct root on the approved Test portfolio."
+                ),
+                data={
+                    "portfolio_scope": portfolio_scope,
+                    "required_ownership_provenance": (
+                        OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+                    ),
+                    "root_only": True,
+                },
+                failure_stage="order_ownership",
+            )
+
+        canonical_cancel = getattr(deps.rest_client, "cancel_order", None)
+        cancel_by_exchange_id = getattr(
+            deps.rest_client,
+            "cancel_order_by_exchange_order_id",
+            None,
+        )
+        mark_submission_status = getattr(
+            root_registrar,
+            "mark_submission_status",
+            None,
+        )
+        if (
+            not callable(canonical_cancel)
+            or not callable(cancel_by_exchange_id)
+            or not callable(mark_submission_status)
+        ):
+            return self._cancel_rejected(
+                command=command,
+                message=(
+                    "Canonical client-id cancel, controlled exchange-id "
+                    "fallback, and terminal status persistence are required."
+                ),
+                data={"portfolio_scope": portfolio_scope},
+                failure_stage="cancellation_readback",
+            )
+
+        profile_id = str(portfolio_binding.observed_portfolio_id or "")
+        product_id = str(local_order.get("product_id") or "")
+        cancellation_readback: dict[str, Any] = {
+            "operator_identity_key": "client_order_id",
+            "client_order_id": client_order_id,
+            "canonical_cancel_attempted": False,
+            "canonical_cancel_accepted": False,
+            "canonical_cancel_explicitly_rejected": False,
+            "fallback_attempted": False,
+            "fallback_exchange_order_id": None,
+            "exchange_order_id_evidence_only": True,
+            "authoritative_readback": None,
+            "authoritative_status": None,
+            "terminal_status_proven": False,
+            "confirmed_absent": False,
+        }
+        profile_claim = deps.spot_order_admission_coordinator.claim(profile_id)
+        profile_claim.__enter__()
         try:
             controller = deps.runtime_controller_factory()
-            with controller.track_inflight(INFLIGHT_REST_CANCEL):
-                result = deps.rest_client.cancel_order(client_order_id)
-
-            if result is False:
-                message = "Order cancellation was not accepted by Coinbase"
-                deps.add_log_entry(
-                    "WARNING",
-                    f"{message}: client_order_id={client_order_id}",
+            cancellation_readback["canonical_cancel_attempted"] = True
+            try:
+                with controller.track_inflight(INFLIGHT_REST_CANCEL):
+                    canonical_result = canonical_cancel(client_order_id)
+            except Exception as exc:
+                cancellation_readback["canonical_cancel_error"] = (
+                    f"{type(exc).__name__}: {exc}"
                 )
+                deps.spot_order_admission_coordinator.record_uncertainty(
+                    retail_portfolio_id=profile_id,
+                    client_order_id=client_order_id,
+                    reason=f"canonical_cancel_exception:{type(exc).__name__}",
+                )
+                return self._cancel_rejected(
+                    command=command,
+                    message=(
+                        "Canonical client_order_id cancellation outcome is "
+                        "unknown; exchange-id fallback is forbidden."
+                    ),
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": cancellation_readback,
+                    },
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                    failure_stage="cancellation_unknown",
+                )
+            if not isinstance(canonical_result, bool):
+                cancellation_readback["canonical_cancel_result_type"] = type(
+                    canonical_result
+                ).__name__
+                deps.spot_order_admission_coordinator.record_uncertainty(
+                    retail_portfolio_id=profile_id,
+                    client_order_id=client_order_id,
+                    reason="canonical_cancel_result_unknown",
+                )
+                return self._cancel_rejected(
+                    command=command,
+                    message=(
+                        "Canonical client_order_id cancellation returned no "
+                        "explicit outcome; exchange-id fallback is forbidden."
+                    ),
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": cancellation_readback,
+                    },
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                    failure_stage="cancellation_unknown",
+                )
+            cancellation_readback["canonical_cancel_accepted"] = canonical_result
+            cancellation_readback[
+                "canonical_cancel_explicitly_rejected"
+            ] = not canonical_result
+
+            try:
+                readback = exact_coinbase_order_readback(
+                    deps.rest_client,
+                    client_order_id=client_order_id,
+                    product_id=product_id or None,
+                )
+            except CoinbaseOrderReadbackError as exc:
+                cancellation_readback["authoritative_readback"] = {
+                    "authoritative": False,
+                    "blocker": exc.blocker,
+                    "detail": exc.detail,
+                }
+                if canonical_result:
+                    deps.spot_order_admission_coordinator.record_uncertainty(
+                        retail_portfolio_id=profile_id,
+                        client_order_id=client_order_id,
+                        reason="canonical_cancel_readback_unconfirmed",
+                    )
+                return self._cancel_rejected(
+                    command=command,
+                    message="Authoritative cancellation readback failed closed.",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": cancellation_readback,
+                    },
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                    failure_stage="cancellation_readback",
+                )
+
+            cancellation_readback["authoritative_readback"] = readback
+            cancellation_readback["confirmed_absent"] = bool(
+                readback.get("confirmed_absent")
+            )
+            authoritative_status = str(
+                readback.get("authoritative_status") or ""
+            ).upper()
+            cancellation_readback["authoritative_status"] = (
+                authoritative_status or None
+            )
+            terminal_statuses = {
+                OrderStatus.CANCELLED.value,
+                OrderStatus.FILLED.value,
+                OrderStatus.EXPIRED.value,
+                OrderStatus.FAILED.value,
+            }
+            terminal_status_proven = bool(
+                readback.get("authoritative")
+                and readback.get("exact_identity_match")
+                and authoritative_status in terminal_statuses
+            )
+            cancellation_readback[
+                "terminal_status_proven"
+            ] = terminal_status_proven
+
+            if terminal_status_proven:
+                try:
+                    mark_submission_status(
+                        client_order_id=client_order_id,
+                        status=authoritative_status,
+                    )
+                except Exception as exc:
+                    deps.spot_order_admission_coordinator.record_uncertainty(
+                        retail_portfolio_id=profile_id,
+                        client_order_id=client_order_id,
+                        reason="cancel_terminal_status_persistence_failed",
+                    )
+                    cancellation_readback["terminal_status_persistence_error"] = (
+                        f"{type(exc).__name__}: {exc}"
+                    )
+                    return self._cancel_rejected(
+                        command=command,
+                        message=(
+                            "Coinbase terminal status is proven but local "
+                            "status persistence failed."
+                        ),
+                        data={
+                            "portfolio_scope": portfolio_scope,
+                            "cancellation_readback": cancellation_readback,
+                        },
+                        live_exchange_submitted=True,
+                        live_coinbase_orders_ran=True,
+                        failure_stage="cancellation_status_persistence",
+                    )
+                deps.spot_order_admission_coordinator.resolve_uncertainty(
+                    retail_portfolio_id=profile_id,
+                    client_order_id=client_order_id,
+                )
+                if authoritative_status != OrderStatus.CANCELLED.value:
+                    return self._cancel_rejected(
+                        command=command,
+                        message=(
+                            "The order reached a non-cancel terminal status "
+                            f"({authoritative_status}) before cancellation."
+                        ),
+                        data={
+                            "portfolio_scope": portfolio_scope,
+                            "cancellation_readback": cancellation_readback,
+                        },
+                        live_exchange_submitted=True,
+                        live_coinbase_orders_ran=True,
+                        failure_stage="cancellation_terminal_status",
+                    )
                 return AdminApiCommandResponse(
-                    status=AdminApiCommandStatus.REJECTED,
+                    status=AdminApiCommandStatus.ACCEPTED,
                     action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
                     required_permission=AdminApiPermission.ORDER_CANCEL,
                     service_method="cancel_order_by_client_order_id",
-                    message=message,
+                    message="Order cancellation confirmed by terminal readback",
                     client_order_id=client_order_id,
                     correlation_id=command.envelope.correlation_id,
                     idempotency_key=command.envelope.idempotency_key,
                     live_exchange_submitted=True,
                     live_coinbase_orders_ran=True,
-                    data=result,
-                    failure_stage="coinbase_rest",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": cancellation_readback,
+                    },
                     **self._command_runtime_evidence(),
+                )
+
+            if canonical_result:
+                deps.spot_order_admission_coordinator.record_uncertainty(
+                    retail_portfolio_id=profile_id,
+                    client_order_id=client_order_id,
+                    reason="canonical_cancel_terminal_status_unconfirmed",
+                )
+                return self._cancel_rejected(
+                    command=command,
+                    message=(
+                        "Canonical cancellation was accepted but exact terminal "
+                        "status proof is missing; absence is not cancellation."
+                    ),
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": cancellation_readback,
+                    },
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                    failure_stage="cancellation_readback",
+                )
+
+            if not readback.get("exact_identity_match"):
+                return self._cancel_rejected(
+                    command=command,
+                    message=(
+                        "Client-id cancellation was explicitly rejected and "
+                        "no exact exchange identity was proven for fallback."
+                    ),
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": cancellation_readback,
+                    },
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                    failure_stage="cancellation_readback",
+                )
+            exchange_order_id = str(readback.get("exchange_order_id") or "")
+            if not exchange_order_id:
+                return self._cancel_rejected(
+                    command=command,
+                    message="Exact fallback readback lacked exchange order identity.",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": cancellation_readback,
+                    },
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                    failure_stage="cancellation_readback",
+                )
+
+            cancellation_readback["fallback_attempted"] = True
+            cancellation_readback[
+                "fallback_exchange_order_id"
+            ] = exchange_order_id
+            try:
+                with controller.track_inflight(INFLIGHT_REST_CANCEL):
+                    fallback_result = cancel_by_exchange_id(exchange_order_id)
+            except Exception as exc:
+                cancellation_readback["fallback_error"] = (
+                    f"{type(exc).__name__}: {exc}"
+                )
+                deps.spot_order_admission_coordinator.record_uncertainty(
+                    retail_portfolio_id=profile_id,
+                    client_order_id=client_order_id,
+                    reason=f"exchange_id_cancel_exception:{type(exc).__name__}",
+                )
+                return self._cancel_rejected(
+                    command=command,
+                    message="Controlled exchange-id fallback outcome is unknown.",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": cancellation_readback,
+                    },
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                    failure_stage="cancellation_unknown",
+                )
+            cancellation_readback["fallback_accepted"] = fallback_result is True
+            if fallback_result is not True:
+                return self._cancel_rejected(
+                    command=command,
+                    message="Controlled exchange-id fallback was not accepted.",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": cancellation_readback,
+                    },
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                    failure_stage="cancellation_rejected",
+                )
+
+            try:
+                terminal_readback = exact_coinbase_order_readback(
+                    deps.rest_client,
+                    client_order_id=client_order_id,
+                    exchange_order_id=exchange_order_id,
+                    product_id=product_id or None,
+                )
+            except CoinbaseOrderReadbackError as exc:
+                terminal_readback = {
+                    "authoritative": False,
+                    "exact_identity_match": False,
+                    "confirmed_absent": False,
+                    "authoritative_status": None,
+                    "blocker": exc.blocker,
+                    "detail": exc.detail,
+                }
+            cancellation_readback["authoritative_readback"] = terminal_readback
+            cancellation_readback["confirmed_absent"] = bool(
+                terminal_readback.get("confirmed_absent")
+            )
+            authoritative_status = str(
+                terminal_readback.get("authoritative_status") or ""
+            ).upper()
+            cancellation_readback["authoritative_status"] = (
+                authoritative_status or None
+            )
+            terminal_status_proven = bool(
+                terminal_readback.get("authoritative")
+                and terminal_readback.get("exact_identity_match")
+                and authoritative_status in terminal_statuses
+            )
+            cancellation_readback[
+                "terminal_status_proven"
+            ] = terminal_status_proven
+            if not terminal_status_proven:
+                deps.spot_order_admission_coordinator.record_uncertainty(
+                    retail_portfolio_id=profile_id,
+                    client_order_id=client_order_id,
+                    reason="fallback_cancel_terminal_status_unconfirmed",
+                )
+                return self._cancel_rejected(
+                    command=command,
+                    message=(
+                        "Exchange-id fallback was accepted but exact terminal "
+                        "status proof is missing; absence is not cancellation."
+                    ),
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": cancellation_readback,
+                    },
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                    failure_stage="cancellation_readback",
+                )
+
+            try:
+                mark_submission_status(
+                    client_order_id=client_order_id,
+                    status=authoritative_status,
+                )
+            except Exception as exc:
+                deps.spot_order_admission_coordinator.record_uncertainty(
+                    retail_portfolio_id=profile_id,
+                    client_order_id=client_order_id,
+                    reason="cancel_terminal_status_persistence_failed",
+                )
+                cancellation_readback["terminal_status_persistence_error"] = (
+                    f"{type(exc).__name__}: {exc}"
+                )
+                return self._cancel_rejected(
+                    command=command,
+                    message=(
+                        "Coinbase terminal status is proven but local status "
+                        "persistence failed."
+                    ),
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": cancellation_readback,
+                    },
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                    failure_stage="cancellation_status_persistence",
+                )
+            deps.spot_order_admission_coordinator.resolve_uncertainty(
+                retail_portfolio_id=profile_id,
+                client_order_id=client_order_id,
+            )
+            if authoritative_status != OrderStatus.CANCELLED.value:
+                return self._cancel_rejected(
+                    command=command,
+                    message=(
+                        "Fallback completed with a non-cancel terminal status "
+                        f"({authoritative_status})."
+                    ),
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": cancellation_readback,
+                    },
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                    failure_stage="cancellation_terminal_status",
                 )
 
             deps.add_log_entry("INFO", f"Order cancelled: client_order_id={client_order_id}")
@@ -2868,16 +4243,14 @@ class AdminApiCommandService:
                 idempotency_key=command.envelope.idempotency_key,
                 live_exchange_submitted=True,
                 live_coinbase_orders_ran=True,
-                data=result,
+                data={
+                    "portfolio_scope": portfolio_scope,
+                    "cancellation_readback": cancellation_readback,
+                },
                 **self._command_runtime_evidence(),
             )
-        except Exception as exc:
-            deps.add_log_entry("ERROR", f"Order cancellation failed: {exc}")
-            return self._cancel_rejected(
-                command=command,
-                message=str(exc),
-                failure_stage="coinbase_rest",
-            )
+        finally:
+            profile_claim.__exit__(None, None, None)
 
     def cancel_stealth_order_by_stealth_order_id(
         self,
@@ -6440,6 +7813,10 @@ class AdminApiCommandService:
         guard: dict[str, Any] | None = None,
         data: dict[str, Any] | None = None,
         service_method: str = "place_manual_order",
+        coinbase_order_id: str | None = None,
+        live_exchange_submitted: bool = False,
+        live_coinbase_orders_ran: bool = False,
+        submission_event_recorded: bool | None = None,
     ) -> AdminApiCommandResponse:
         return AdminApiCommandResponse(
             status=AdminApiCommandStatus.REJECTED,
@@ -6448,10 +7825,14 @@ class AdminApiCommandService:
             service_method=service_method,
             message=message,
             client_order_id=client_order_id,
+            coinbase_order_id=coinbase_order_id,
             correlation_id=command.envelope.correlation_id,
             idempotency_key=command.envelope.idempotency_key,
             guard=guard,
             data=data,
+            live_exchange_submitted=live_exchange_submitted,
+            live_coinbase_orders_ran=live_coinbase_orders_ran,
+            submission_event_recorded=submission_event_recorded,
             failure_stage=failure_stage,
             **self._command_runtime_evidence(),
         )
@@ -6475,6 +7856,9 @@ class AdminApiCommandService:
         command: CancelOrderCommand,
         message: str,
         failure_stage: str,
+        data: Any = None,
+        live_exchange_submitted: bool = False,
+        live_coinbase_orders_ran: bool = False,
     ) -> AdminApiCommandResponse:
         return AdminApiCommandResponse(
             status=AdminApiCommandStatus.REJECTED,
@@ -6485,6 +7869,9 @@ class AdminApiCommandService:
             client_order_id=command.client_order_id,
             correlation_id=command.envelope.correlation_id,
             idempotency_key=command.envelope.idempotency_key,
+            data=data,
+            live_exchange_submitted=live_exchange_submitted,
+            live_coinbase_orders_ran=live_coinbase_orders_ran,
             failure_stage=failure_stage,
             **self._command_runtime_evidence(),
         )

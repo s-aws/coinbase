@@ -74,7 +74,7 @@ from configuration import (
 )
 
 from core.constants import get_local_now
-from core.enums import OrderStatus, OrderSide, ProductType, FollowUpRevealDirection, Direction, TargetMovementType, ChannelType, StealthOrderStatus, EventStreamType, EventSourceChannel, SpotFollowUpTrigger
+from core.enums import OrderStatus, OrderSide, ProductType, FollowUpRevealDirection, Direction, TargetMovementType, ChannelType, StealthOrderStatus, EventStreamType, EventSourceChannel, SpotFollowUpTrigger, OrderOwnershipProvenance
 from core.stealth_order_manager import resolve_stealth_chain_root
 from core.runtime_controller import (
     INFLIGHT_FILL_PROCESSING,
@@ -235,6 +235,11 @@ class OrderEngine:
         self.orderbook = orderbook
         self.db_module = db_module
         self.subscription = subscription
+        self.expected_retail_portfolio_id = (
+            str(getattr(subscription, "retail_portfolio_id", "") or "").strip()
+            or None
+        )
+        self._portfolio_scope_violation_reported = False
         self.api_key = api_key
         self.api_secret = api_secret
         self.order_post_only = order_post_only
@@ -1824,7 +1829,16 @@ class OrderEngine:
         with self.orderbook_lock:
             self.orderbook.positions["FUTURE"] = refreshed_positions
 
-    def resolve_parent_client_order_id(self, client_order_id: str, order: dict = None, create_parent: bool = False, status: str = None, stealth_order: dict = None, allow_partial_fills: bool = False) -> tuple:
+    def resolve_parent_client_order_id(
+        self,
+        client_order_id: str,
+        order: dict = None,
+        create_parent: bool = False,
+        status: str = None,
+        stealth_order: dict = None,
+        allow_partial_fills: bool = False,
+        ownership_provenance: OrderOwnershipProvenance | str | None = None,
+    ) -> tuple:
         """Resolve if an order is a parent or find its parent.
         
         Returns (is_parent: bool, parent_client_order_id: str).
@@ -1857,6 +1871,11 @@ class OrderEngine:
             parent_client_order_id = self.get_parent_of_child(client_order_id)
 
         elif create_parent and order is not None:
+            normalized_ownership_provenance = (
+                ownership_provenance.value
+                if isinstance(ownership_provenance, OrderOwnershipProvenance)
+                else ownership_provenance
+            )
             max_order_replacement = getattr(
                 self.orderbook,
                 "default_max_order_replacement",
@@ -1881,6 +1900,8 @@ class OrderEngine:
                 "max_order_replacement": max_order_replacement,
                 "current_order_replacement": 0,
                 "allow_partial_fills": allow_partial_fills,
+                "retail_portfolio_id": order.get("retail_portfolio_id"),
+                "ownership_provenance": normalized_ownership_provenance,
             }
 
             self.log_message(
@@ -1905,6 +1926,8 @@ class OrderEngine:
                 max_order_replacement=self.orderbook.parent_order_ids[client_order_id]["max_order_replacement"],
                 current_order_replacement=self.orderbook.parent_order_ids[client_order_id]["current_order_replacement"],
                 allow_partial_fills=allow_partial_fills,
+                retail_portfolio_id=order.get("retail_portfolio_id"),
+                ownership_provenance=normalized_ownership_provenance,
             )
 
             self.orderbook.parent_order_ids[client_order_id]["parent_id"] = parent_id
@@ -2249,19 +2272,27 @@ class OrderEngine:
         elif status == OrderStatus.FILLED:
             add_log_entry("INFO", f"Order FILLED: {product_id} {order_side} {order_size}")
 
+    def _is_admin_manual_root(self, client_order_id: str) -> bool:
+        """Return whether the source is the durable Admin-owned chain root."""
+
+        with self.orderbook_lock:
+            cached = self.orderbook.parent_order_ids.get(client_order_id)
+            return bool(
+                cached is not None
+                and cached.get("ownership_provenance")
+                == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+            )
+
     def _is_external_order(self, client_order_id: str) -> bool:
         """Check if an order is external (not created by our engine).
         
         External orders are ones placed directly via Coinbase UI or API,
         not by our automated order engine.
 
-        Resolution order:
-            1. If the cached parent entry carries ``externally_created=True``
-               (set by :meth:`_ensure_order_parent_row_exists`) â†’ external.
-            2. Otherwise, an order we have no record of (neither parent nor
-               child in the in-memory orderbook) is external. This is the
-               legacy path retained for callers that look up COIDs we have
-               not yet hoisted into the cache.
+        Only a root with durable ``ADMIN_MANUAL_ROOT`` provenance is owned for
+        direct-root automation. External observations, missing legacy values,
+        and unknown provenance fail closed. Persisted child links remain
+        internal because their authority is inherited through the flat chain.
         
         Args:
             client_order_id: The order's client order ID.
@@ -2276,7 +2307,9 @@ class OrderEngine:
         with self.orderbook_lock:
             cached = self.orderbook.parent_order_ids.get(client_order_id)
             if cached is not None:
-                return bool(cached.get("externally_created", False))
+                return cached.get("ownership_provenance") != (
+                    OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+                )
             in_child_cache = client_order_id in self.orderbook.child_order_ids
         return not in_child_cache
 
@@ -3081,6 +3114,32 @@ class OrderEngine:
         # Step 4: Call post-processor hooks for snapshot
         self.websocket_hooks.call_post_snapshot(snapshot)
 
+    def _validate_user_order_portfolio_scope(self, order: dict) -> bool:
+        """Reject cross-profile user events before hooks, memory, or DB writes."""
+
+        expected = str(
+            getattr(self, "expected_retail_portfolio_id", None) or ""
+        ).strip()
+        if not expected:
+            return True
+        observed = str(order.get("retail_portfolio_id") or "").strip()
+        if observed == expected:
+            return True
+
+        self.log_message(
+            "error",
+            (
+                "Authenticated user order portfolio scope violation: "
+                f"expected={expected} observed={observed or 'missing'}"
+            ),
+        )
+        callback = None
+        if not getattr(self, "_portfolio_scope_violation_reported", False):
+            self._portfolio_scope_violation_reported = True
+            callback = getattr(self, "_event_monitoring_lost_callback", None)
+        self._invoke_event_monitoring_lost_callback(callback)
+        return False
+
     def process_user_order(self, order: dict) -> None:
         """Process order event (state transitions).
         
@@ -3099,6 +3158,9 @@ class OrderEngine:
         Returns:
             None
         """
+        if not self._validate_user_order_portfolio_scope(order):
+            return
+
         client_order_id = order.get("client_order_id")
         status = order.get("status")
 
@@ -3348,6 +3410,10 @@ class OrderEngine:
                 "current_order_replacement": int(parent_order.get("current_order_replacement") or 0),
                 "parent_id": parent_order.get("id"),
                 "allow_partial_fills": bool(parent_order.get("allow_partial_fills", False)),
+                "retail_portfolio_id": parent_order.get("retail_portfolio_id"),
+                "ownership_provenance": parent_order.get(
+                    "ownership_provenance"
+                ),
             }
         return True
 
@@ -3412,6 +3478,9 @@ class OrderEngine:
             order=normalized_order,
             create_parent=True,
             status=normalized_order.get("status"),
+            ownership_provenance=(
+                OrderOwnershipProvenance.EXTERNAL_WS_OBSERVED
+            ),
         )
         with self.orderbook_lock:
             cached = self.orderbook.parent_order_ids.get(client_order_id)
@@ -4241,12 +4310,18 @@ class OrderEngine:
 
         # For external orders, just track them but don't create follow-ups
         # EXCEPT: Stealth-revealed orders should create follow-ups (Child stealth orders)
-        if is_external_order and not original_stealth_order:
+        if (
+            not original_stealth_order
+            and (
+                is_external_order
+                or not self._is_admin_manual_root(client_order_id)
+            )
+        ):
             self._handle_external_order_tracking(
                 client_order_id,
                 order,
                 "filled",
-                processed_flag_name=None,  # Don't complete processing for filled orders
+                processed_flag_name="filled",
             )
             return
 
@@ -4592,6 +4667,180 @@ class OrderEngine:
                     # an operator retry can create a second child blindly.
                     return
 
+            if not original_stealth_order:
+                try:
+                    direct_root_client_order_id = client_order_id
+                    if parent_client_order_id != direct_root_client_order_id:
+                        self.log_message(
+                            "error",
+                            self.build_follow_up_log_payload(
+                                "direct_root_follow_up_root_identity_mismatch",
+                                source_order=order,
+                                parent_client_order_id=parent_client_order_id,
+                                details={
+                                    "expected_root_client_order_id": (
+                                        direct_root_client_order_id
+                                    ),
+                                },
+                            ),
+                        )
+                        self.release_follow_up_processing(
+                            "filled",
+                            client_order_id,
+                        )
+                        return
+                    stealth_manager = getattr(
+                        self.stealth_order_bridge,
+                        "stealth_manager",
+                        None,
+                    ) if self.stealth_order_bridge else None
+                    create_direct_follow_up = getattr(
+                        stealth_manager,
+                        "create_direct_root_fill_follow_up_stealth_order",
+                        None,
+                    )
+                    if not callable(create_direct_follow_up):
+                        self.log_message(
+                            "error",
+                            self.build_follow_up_log_payload(
+                                "direct_root_follow_up_runtime_unavailable",
+                                source_order=order,
+                                parent_client_order_id=parent_client_order_id,
+                                details={
+                                    "reason": "stealth_manager_unavailable",
+                                },
+                            ),
+                        )
+                        self.release_follow_up_processing(
+                            "filled",
+                            client_order_id,
+                        )
+                        return
+
+                    filled_price = float(
+                        order.get("price") or order.get("avg_price") or 0
+                    )
+                    follow_up_price = float(order_template["start_price"])
+                    follow_up_side = str(order_template["side"]).upper()
+                    source_side = resolve_order_side(order) or "BUY"
+                    product_id = order.get("product_id")
+                    if self.profit_validator:
+                        profit_result = self.profit_validator.is_profitable(
+                            filled_price=filled_price,
+                            follow_up_price=follow_up_price,
+                            side=source_side,
+                            order_size=float(adjusted_follow_up_size),
+                            product_id=product_id,
+                            triggered_by_fill=True,
+                            post_only=False,
+                        )
+                        if not profit_result["is_profitable"]:
+                            self.log_message(
+                                "warning",
+                                self.build_follow_up_log_payload(
+                                    "direct_root_follow_up_skipped_unprofitable",
+                                    source_order=order,
+                                    parent_client_order_id=parent_client_order_id,
+                                    attempted_new_order={
+                                        "product_id": product_id,
+                                        "side": follow_up_side,
+                                        "price": follow_up_price,
+                                        "size": adjusted_follow_up_size,
+                                    },
+                                    details=profit_result,
+                                ),
+                            )
+                            self.complete_follow_up_processing(
+                                "filled",
+                                client_order_id,
+                            )
+                            return
+
+                    parent_target_movement = safe_float(
+                        (target_movement or {}).get("movement"),
+                        default=0.0,
+                    )
+                    parent_target_movement_type = (
+                        (target_movement or {}).get("type")
+                        or TargetMovementType.PERCENTAGE.value
+                    )
+                    stealth_follow_up_id = create_direct_follow_up(
+                        root_parent_client_order_id=(
+                            direct_root_client_order_id
+                        ),
+                        source_client_order_id=client_order_id,
+                        product_id=product_id,
+                        source_side=source_side,
+                        side=follow_up_side,
+                        total_size=adjusted_follow_up_size,
+                        limit_price=follow_up_price,
+                        target_movement=parent_target_movement,
+                        target_movement_type=parent_target_movement_type,
+                    )
+                    if stealth_follow_up_id is None:
+                        self.log_message(
+                            "warning",
+                            self.build_follow_up_log_payload(
+                                "direct_root_follow_up_blocked",
+                                source_order=order,
+                                parent_client_order_id=parent_client_order_id,
+                                attempted_new_order={
+                                    "product_id": product_id,
+                                    "side": follow_up_side,
+                                    "price": follow_up_price,
+                                    "size": adjusted_follow_up_size,
+                                },
+                                details={
+                                    "reason": "spot_follow_up_policy_blocked",
+                                },
+                            ),
+                        )
+                        self.release_follow_up_processing(
+                            "filled",
+                            client_order_id,
+                        )
+                        return
+
+                    self.register_child_order(
+                        stealth_follow_up_id,
+                        direct_root_client_order_id,
+                        bypass_replacement_cap=True,
+                    )
+                    self.log_message(
+                        "order",
+                        {
+                            "event": "direct_root_fill_follow_up_created",
+                            "source_client_order_id": client_order_id,
+                            "root_parent_client_order_id": (
+                                direct_root_client_order_id
+                            ),
+                            "stealth_follow_up_id": stealth_follow_up_id,
+                            "product_id": product_id,
+                            "side": follow_up_side,
+                            "follow_up_size": adjusted_follow_up_size,
+                            "follow_up_price": follow_up_price,
+                        },
+                    )
+                    self.complete_follow_up_processing(
+                        "filled",
+                        client_order_id,
+                    )
+                    return
+                except Exception as e:
+                    self.log_message(
+                        "error",
+                        {
+                            "event": "direct_root_fill_follow_up_creation_failed",
+                            "error": str(e),
+                            "client_order_id": client_order_id,
+                            "parent_client_order_id": parent_client_order_id,
+                            "claim_state": "processing",
+                        },
+                    )
+                    # Atomic persistence failures are ambiguous. Retain the
+                    # claim until reconciliation proves whether the child exists.
+                    return
+
         except Exception:
             self.release_follow_up_processing("filled", client_order_id)
             raise
@@ -4625,6 +4874,10 @@ class OrderEngine:
                 "max_order_replacement": int(parent["max_order_replacement"]),
                 "current_order_replacement": int(parent["current_order_replacement"]),
                 "allow_partial_fills": bool(parent.get("allow_partial_fills", False)),
+                "retail_portfolio_id": parent.get("retail_portfolio_id"),
+                "ownership_provenance": parent.get(
+                    "ownership_provenance"
+                ),
             }
 
             # All children are stealth children (stored in stealth_orders table)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import uuid
 from typing import Annotated, Callable
 
@@ -18,10 +19,16 @@ from application.admin_api.auth import get_authenticated_actor, require_permissi
 from application.admin_api.cap_guard import FileAdminApiCapGuardStore
 from application.admin_api.command_runtime import build_admin_api_command_service
 from application.admin_api.command_service import AdminApiCommandService
+from application.admin_api.spot_portfolio_binding import (
+    DEFAULT_SPOT_PORTFOLIO_LABEL,
+    SPOT_PORTFOLIO_ID_ENV,
+    SPOT_PORTFOLIO_LABEL_ENV,
+)
 from application.admin_api.idempotency import (
     FileIdempotencyStore,
     IdempotencyRecord,
     make_payload_hash,
+    serialize_idempotent_command,
 )
 from application.admin_api.live_execution import (
     AdminApiLiveExecutionService,
@@ -612,6 +619,38 @@ def _record_audit(
     return audit_store.append(AdminApiAuditEvent(**event_fields))
 
 
+def _attach_portfolio_scope_evidence(
+    response: AdminApiCommandResponse,
+    admission_decision: AdminLiveAdmissionDecisionEvidence,
+) -> None:
+    """Attach one route-bound scope and its proof-chain references."""
+
+    expected_scope = dict(admission_decision.execution_scope or {})
+    if not expected_scope:
+        return
+    observed_scope = {}
+    if isinstance(response.data, dict):
+        candidate = response.data.get("portfolio_scope")
+        if isinstance(candidate, dict):
+            observed_scope = dict(candidate)
+    portfolio_scope = {**expected_scope, **observed_scope}
+    expected_portfolio_id = expected_scope.get("portfolio_id")
+    observed_portfolio_id = observed_scope.get("portfolio_id")
+    portfolio_scope["scope_consistent"] = bool(
+        observed_scope.get("status") == "matched"
+        and expected_portfolio_id
+        and observed_portfolio_id == expected_portfolio_id
+    )
+    portfolio_scope["proof_bindings"] = {
+        "payload_hash": admission_decision.payload_hash,
+        "approval_snapshot_id": admission_decision.approval_snapshot_id,
+        "admission_audit_id": admission_decision.admission_audit_id,
+        "cap_guard_decision_id": admission_decision.cap_guard_decision_id,
+        "reconciliation_plan_id": admission_decision.reconciliation_plan_id,
+    }
+    response.portfolio_scope = portfolio_scope
+
+
 def _idempotency_payload_hash(
     *,
     endpoint: str,
@@ -619,15 +658,34 @@ def _idempotency_payload_hash(
     operator_intent: str,
     body: dict,
     path_params: dict | None = None,
+    backend_execution_scope: dict | None = None,
 ) -> str:
-    return make_payload_hash({
+    payload = {
         "endpoint": endpoint,
         "actor_id": actor.actor_id,
         "roles": [role.value for role in actor.roles],
         "operator_intent": operator_intent,
         "body": body,
         "path_params": path_params or {},
-    })
+    }
+    if backend_execution_scope is not None:
+        payload["backend_execution_scope"] = backend_execution_scope
+    return make_payload_hash(payload)
+
+
+def _manual_order_backend_execution_scope() -> dict:
+    """Return immutable backend scope committed into manual-order proofs."""
+
+    return {
+        "product_family": "SPOT",
+        "portfolio_id": os.environ.get(SPOT_PORTFOLIO_ID_ENV),
+        "profile_alias": (
+            os.environ.get(SPOT_PORTFOLIO_LABEL_ENV, "").strip()
+            or DEFAULT_SPOT_PORTFOLIO_LABEL
+        ),
+        "selection_authority": "cdp_api_key_permissioned_portfolio",
+        "request_portfolio_override_allowed": False,
+    }
 
 
 def _manual_order_with_backend_identity(
@@ -765,7 +823,7 @@ def _enum_text(value: object) -> str:
     return str(enum_value)
 
 
-def _should_retry_non_live_manual_order_after_admission(
+def _should_retry_non_live_controlled_order_after_admission(
     *,
     record: IdempotencyRecord,
     response: AdminApiCommandResponse,
@@ -779,28 +837,50 @@ def _should_retry_non_live_manual_order_after_admission(
     module_id: str,
     identity_key: str,
 ) -> bool:
-    """Return whether a prior blocked manual order can run after admission passes."""
+    """Return whether a prior no-live place/cancel may run after admission passes."""
 
     previous_admission = response.admission_decision
-    return (
+    manual_place = (
         endpoint == "POST /api/v1/orders"
         and route_template == "/api/v1/orders"
         and service_method == "place_manual_order"
-        and module_id == "spot_operations"
-        and identity_key == "client_order_id"
         and action_class == AdminApiActionClass.LIVE_EXCHANGE_PLACE
         and permission == AdminApiPermission.ORDER_CREATE
+    )
+    root_cancel = (
+        endpoint.startswith("POST /api/v1/orders/")
+        and endpoint.endswith("/cancel")
+        and route_template == "/api/v1/orders/{client_order_id}/cancel"
+        and service_method == "cancel_order_by_client_order_id"
+        and action_class == AdminApiActionClass.LIVE_EXCHANGE_CANCEL
+        and permission == AdminApiPermission.ORDER_CANCEL
+    )
+    return (
+        (manual_place or root_cancel)
+        and module_id == "spot_operations"
+        and identity_key == "client_order_id"
         and record.endpoint == endpoint
         and record.payload_hash == payload_hash
         and record.status == AdminApiCommandStatus.NOT_IMPLEMENTED
         and response.status == AdminApiCommandStatus.NOT_IMPLEMENTED
-        and response.action_class == AdminApiActionClass.LIVE_EXCHANGE_PLACE
-        and response.required_permission == AdminApiPermission.ORDER_CREATE
-        and response.service_method == "place_manual_order"
+        and response.action_class == action_class
+        and response.required_permission == permission
+        and response.service_method == service_method
+        and response.client_order_id == admission_decision.identity_value
         and response.live_exchange_submitted is False
         and response.live_coinbase_orders_ran is False
         and previous_admission is not None
         and previous_admission.allowed is False
+        and previous_admission.route == route_template
+        and previous_admission.method == "POST"
+        and previous_admission.module_id == module_id
+        and previous_admission.identity_key == identity_key
+        and previous_admission.identity_value == admission_decision.identity_value
+        and previous_admission.action_class == action_class
+        and previous_admission.required_permission == permission
+        and previous_admission.service_method == service_method
+        and previous_admission.payload_hash == payload_hash
+        and previous_admission.live_exchange_submitted is False
         and admission_decision.allowed is True
         and admission_decision.route == route_template
         and admission_decision.method == "POST"
@@ -813,6 +893,7 @@ def _should_retry_non_live_manual_order_after_admission(
     )
 
 
+@serialize_idempotent_command
 def _execute_idempotent_command(
     *,
     idempotency_key: str,
@@ -834,6 +915,7 @@ def _execute_idempotent_command(
     cap_guard_store: FileAdminApiCapGuardStore,
     reconciliation_store: FileAdminApiReconciliationStore,
     live_execution_service: AdminApiLiveExecutionService,
+    execution_scope: dict | None = None,
     stealth_exchange_truth_proof_store: FileStealthExchangeTruthProofStore | None = None,
     stealth_mutation_claim_proof_store: FileStealthMutationClaimProofStore | None = None,
     stealth_manager_policy_proof_store: (
@@ -895,6 +977,7 @@ def _execute_idempotent_command(
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
     )
+    admission_decision.execution_scope = execution_scope
     check = idempotency_store.evaluate(
         idempotency_key=idempotency_key,
         payload_hash=payload_hash,
@@ -902,7 +985,7 @@ def _execute_idempotent_command(
     if check.decision == AdminApiIdempotencyDecision.REPLAY and check.record:
         payload = dict(check.record.response)
         response = AdminApiCommandResponse.model_validate(payload)
-        if not _should_retry_non_live_manual_order_after_admission(
+        if not _should_retry_non_live_controlled_order_after_admission(
             record=check.record,
             response=response,
             admission_decision=admission_decision,
@@ -930,6 +1013,7 @@ def _execute_idempotent_command(
             admission_decision=admission_decision,
             failure_stage="idempotency",
         )
+        _attach_portfolio_scope_evidence(response, admission_decision)
         response.stealth_admission_context = _build_stealth_command_admission_context(
             admission_decision
         )
@@ -979,6 +1063,7 @@ def _execute_idempotent_command(
     else:
         raise ValueError("A command runner is required.")
     response.admission_decision = admission_decision
+    _attach_portfolio_scope_evidence(response, admission_decision)
     response.stealth_admission_context = _build_stealth_command_admission_context(
         admission_decision
     )
@@ -1398,6 +1483,7 @@ def create_manual_order(
     """
 
     endpoint = f"{request.method} {request.url.path}"
+    execution_scope = _manual_order_backend_execution_scope()
     envelope = _build_envelope(
         idempotency_key=idempotency_key,
         correlation_id=correlation_id,
@@ -1409,6 +1495,7 @@ def create_manual_order(
         actor=actor,
         operator_intent=operator_intent,
         body=body.model_dump(mode="json"),
+        backend_execution_scope=execution_scope,
     )
     body = _manual_order_with_backend_identity(
         body=body,
@@ -1433,6 +1520,7 @@ def create_manual_order(
                 request=body,
                 admin_cap_guard_decision_id=cap_guard_decision_id,
                 admin_max_submitted_notional_usdc=admin_max_notional,
+                admission_audit_id=admission_decision.admission_audit_id,
                 allow_live_execution=admission_decision.allowed,
             )
         )
@@ -1451,6 +1539,7 @@ def create_manual_order(
         module_id="spot_operations",
         identity_key="client_order_id",
         identity_value=body.client_order_id,
+        execution_scope=execution_scope,
         idempotency_store=idempotency_store,
         audit_store=audit_store,
         approval_store=approval_store,
@@ -1494,6 +1583,7 @@ def cancel_order_by_client_order_id(
     """Route adapter for cancel-by-client-order-id."""
 
     endpoint = f"{request.method} {request.url.path}"
+    execution_scope = _manual_order_backend_execution_scope()
     envelope = _build_envelope(
         idempotency_key=idempotency_key,
         correlation_id=correlation_id,
@@ -1506,6 +1596,7 @@ def cancel_order_by_client_order_id(
         operator_intent=operator_intent,
         body=body.model_dump(mode="json"),
         path_params={"client_order_id": client_order_id},
+        backend_execution_scope=execution_scope,
     )
     return _execute_idempotent_command(
         idempotency_key=idempotency_key,
@@ -1521,6 +1612,7 @@ def cancel_order_by_client_order_id(
         module_id="spot_operations",
         identity_key="client_order_id",
         identity_value=client_order_id,
+        execution_scope=execution_scope,
         idempotency_store=idempotency_store,
         audit_store=audit_store,
         approval_store=approval_store,
@@ -1528,11 +1620,14 @@ def cancel_order_by_client_order_id(
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
         client_order_id=client_order_id,
-        command_runner=lambda: service.cancel_order_by_client_order_id(
-            CancelOrderCommand(
-                envelope=envelope,
-                client_order_id=client_order_id,
-                request=body,
+        command_runner_with_admission=lambda admission_decision: (
+            service.cancel_order_by_client_order_id(
+                CancelOrderCommand(
+                    envelope=envelope,
+                    client_order_id=client_order_id,
+                    request=body,
+                    allow_live_execution=admission_decision.allowed,
+                )
             )
         ),
     )

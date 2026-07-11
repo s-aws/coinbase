@@ -14,6 +14,7 @@ from logging_service import get_logger
 from database.database import PostgresDB
 from typing import Dict, List, Any, Optional
 from core.constants import get_local_now
+from core.enums import OrderOwnershipProvenance, OrderStatus
 from core.exceptions import DatabaseConnectionError, OrderPersistenceError, DatabaseTransactionError
 from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
 
@@ -54,6 +55,27 @@ def _require_uuid_text(value: Any, field_name: str, client_order_id: Optional[st
             message=f"{field_name} must be a valid UUID, got {value!r}",
             client_order_id=client_order_id or str(value),
         )
+
+
+def _normalize_ownership_provenance(
+    value: Optional[OrderOwnershipProvenance | str],
+    *,
+    client_order_id: Optional[str] = None,
+) -> Optional[str]:
+    """Return canonical ownership provenance or reject an unknown value."""
+
+    if value is None:
+        return None
+    try:
+        if isinstance(value, OrderOwnershipProvenance):
+            return value.value
+        return OrderOwnershipProvenance(str(value)).value
+    except ValueError as exc:
+        raise OrderPersistenceError(
+            error_type="OwnershipProvenanceValidationError",
+            message=f"Unknown order ownership provenance: {value!r}",
+            client_order_id=client_order_id,
+        ) from exc
 
 
 def create_order_parent_table() -> None:
@@ -101,6 +123,10 @@ def create_order_parent_table() -> None:
         price NUMERIC NOT NULL,
         status VARCHAR(20) NOT NULL,
         parent_order_id VARCHAR(40),
+        ownership_provenance VARCHAR(64),
+        retail_portfolio_id UUID,
+        correlation_id VARCHAR(255),
+        audit_id VARCHAR(255),
         allow_partial_fills BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -110,6 +136,22 @@ def create_order_parent_table() -> None:
         cursor.execute(
             "ALTER TABLE order_parent ADD COLUMN IF NOT EXISTS "
             "allow_partial_fills BOOLEAN NOT NULL DEFAULT FALSE"
+        )
+        cursor.execute(
+            "ALTER TABLE order_parent ADD COLUMN IF NOT EXISTS "
+            "ownership_provenance VARCHAR(64)"
+        )
+        cursor.execute(
+            "ALTER TABLE order_parent ADD COLUMN IF NOT EXISTS "
+            "retail_portfolio_id UUID"
+        )
+        cursor.execute(
+            "ALTER TABLE order_parent ADD COLUMN IF NOT EXISTS "
+            "correlation_id VARCHAR(255)"
+        )
+        cursor.execute(
+            "ALTER TABLE order_parent ADD COLUMN IF NOT EXISTS "
+            "audit_id VARCHAR(255)"
         )
         # Hotpoint Auto-Replicate (per-order opt-in; provenance marker).
         # `enable_hotpoint_replication=TRUE` opts a parent's fills into the
@@ -218,8 +260,6 @@ def create_stealth_orders_table() -> None:
         last_lifecycle_event VARCHAR(64),
         failure_reason       VARCHAR(512)
     );
-    CREATE INDEX IF NOT EXISTS idx_stealth_orders_last_lifecycle_event
-        ON stealth_orders (last_lifecycle_event);
     """
     with DB_CLIENT.get_cursor() as cursor:
         cursor.execute(create_table_query)
@@ -239,6 +279,19 @@ def create_stealth_orders_table() -> None:
             """ALTER TABLE stealth_orders
                ADD COLUMN IF NOT EXISTS post_fill_retreat_policy_json
                JSONB DEFAULT '{"enabled": false}'::jsonb"""
+        )
+        cursor.execute(
+            "ALTER TABLE stealth_orders ADD COLUMN IF NOT EXISTS "
+            "last_lifecycle_event VARCHAR(64)"
+        )
+        cursor.execute(
+            "ALTER TABLE stealth_orders ADD COLUMN IF NOT EXISTS "
+            "failure_reason VARCHAR(512)"
+        )
+        cursor.execute(
+            "CREATE INDEX IF NOT EXISTS "
+            "idx_stealth_orders_last_lifecycle_event "
+            "ON stealth_orders (last_lifecycle_event)"
         )
         print("stealth_orders table done.")
 
@@ -685,6 +738,10 @@ def insert_order_parent(
     allow_partial_fills: bool = False,
     enable_hotpoint_replication: bool = False,
     auto_placed_by_hotpoint: bool = False,
+    retail_portfolio_id: Optional[str] = None,
+    correlation_id: Optional[str] = None,
+    audit_id: Optional[str] = None,
+    ownership_provenance: Optional[OrderOwnershipProvenance | str] = None,
 ) -> Optional[int]:
     """Insert a parent order into the order_parent table.
     
@@ -713,10 +770,95 @@ def insert_order_parent(
     _require_uuid_text(client_order_id, "client_order_id", client_order_id=client_order_id)
     if parent_order_id is not None:
         _require_uuid_text(parent_order_id, "parent_order_id", client_order_id=client_order_id)
+    if retail_portfolio_id is not None:
+        _require_uuid_text(
+            retail_portfolio_id,
+            "retail_portfolio_id",
+            client_order_id=client_order_id,
+        )
+    normalized_provenance = _normalize_ownership_provenance(
+        ownership_provenance,
+        client_order_id=client_order_id,
+    )
 
     # Check if parent order already exists (handles race condition with multiple threads)
     existing_parent = get_parent_order(client_order_id)
     if existing_parent:
+        existing_provenance_raw = existing_parent.get("ownership_provenance")
+        strict_immutable_reuse = (
+            normalized_provenance is not None
+            or existing_provenance_raw is not None
+        )
+        if strict_immutable_reuse:
+            try:
+                existing_provenance = _normalize_ownership_provenance(
+                    existing_provenance_raw,
+                    client_order_id=client_order_id,
+                )
+            except OrderPersistenceError:
+                existing_provenance = None
+
+            def numeric_equal(left: Any, right: Any) -> bool:
+                try:
+                    return Decimal(str(left)) == Decimal(str(right))
+                except (InvalidOperation, TypeError, ValueError):
+                    return False
+
+            immutable_facts_match = all(
+                (
+                    str(existing_parent.get("product_id") or "")
+                    == str(product_id),
+                    str(existing_parent.get("side") or "").upper()
+                    == str(side).upper(),
+                    numeric_equal(existing_parent.get("size"), size),
+                    numeric_equal(existing_parent.get("price"), price),
+                    (
+                        str(existing_parent.get("parent_order_id"))
+                        if existing_parent.get("parent_order_id")
+                        else None
+                    )
+                    == (str(parent_order_id) if parent_order_id else None),
+                    existing_provenance == normalized_provenance,
+                    (
+                        str(existing_parent.get("retail_portfolio_id"))
+                        if existing_parent.get("retail_portfolio_id")
+                        else None
+                    )
+                    == (str(retail_portfolio_id) if retail_portfolio_id else None),
+                    (
+                        str(existing_parent.get("correlation_id"))
+                        if existing_parent.get("correlation_id")
+                        else None
+                    )
+                    == (str(correlation_id) if correlation_id else None),
+                    (
+                        str(existing_parent.get("audit_id"))
+                        if existing_parent.get("audit_id")
+                        else None
+                    )
+                    == (str(audit_id) if audit_id else None),
+                )
+            )
+            if not immutable_facts_match:
+                raise OrderPersistenceError(
+                    error_type="OrderParentIdentityConflict",
+                    message=(
+                        "Existing order_parent immutable facts conflict with "
+                        f"requested identity for {client_order_id}"
+                    ),
+                    client_order_id=client_order_id,
+                )
+        if retail_portfolio_id is not None and str(
+            existing_parent.get("retail_portfolio_id") or ""
+        ) != str(retail_portfolio_id):
+            raise OrderPersistenceError(
+                error_type="PortfolioScopeConflict",
+                message=(
+                    "Existing order_parent portfolio scope conflicts with "
+                    f"requested scope for {client_order_id}"
+                ),
+                client_order_id=client_order_id,
+            )
         logger.info(f"âœ“ Parent order already exists: {client_order_id} (DB ID: {existing_parent['id']})")
         return existing_parent['id']
     
@@ -735,9 +877,13 @@ def insert_order_parent(
         parent_order_id,
         allow_partial_fills,
         enable_hotpoint_replication,
-        auto_placed_by_hotpoint
+        auto_placed_by_hotpoint,
+        retail_portfolio_id,
+        correlation_id,
+        audit_id,
+        ownership_provenance
     )
-    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     RETURNING id
     """
     params = (
@@ -755,6 +901,10 @@ def insert_order_parent(
         bool(allow_partial_fills),
         bool(enable_hotpoint_replication),
         bool(auto_placed_by_hotpoint),
+        retail_portfolio_id,
+        correlation_id,
+        audit_id,
+        normalized_provenance,
     )
 
     try:
@@ -845,14 +995,105 @@ def persist_filled_follow_up_atomic(
 
     with DB_CLIENT.get_cursor() as cursor:
         cursor.execute(
-            """SELECT id, product_id, side, size, price, parent_order_id
+            """SELECT product_id, parent_order_id, ownership_provenance,
+                      retail_portfolio_id, correlation_id, audit_id
+               FROM order_parent WHERE client_order_id = %s""",
+            (parent_order_id,),
+        )
+        root_parent_row = row_dict(cursor, cursor.fetchone())
+        if root_parent_row is None:
+            raise OrderPersistenceError(
+                error_type="FilledFollowUpRootMissing",
+                message=(
+                    "Atomic FILLED follow-up root order_parent row is missing "
+                    f"for {parent_order_id}"
+                ),
+                client_order_id=client_order_id,
+            )
+        if root_parent_row.get("parent_order_id"):
+            raise OrderPersistenceError(
+                error_type="FilledFollowUpNestedRoot",
+                message=(
+                    "Atomic FILLED follow-up rejected nested root "
+                    f"{parent_order_id}"
+                ),
+                client_order_id=client_order_id,
+            )
+        if str(root_parent_row.get("product_id") or "") != product_id:
+            raise OrderPersistenceError(
+                error_type="FilledFollowUpProductConflict",
+                message=(
+                    "Atomic FILLED follow-up product conflicts with root "
+                    f"{parent_order_id}"
+                ),
+                client_order_id=client_order_id,
+            )
+        root_provenance = _normalize_ownership_provenance(
+            root_parent_row.get("ownership_provenance"),
+            client_order_id=client_order_id,
+        )
+        if root_provenance == OrderOwnershipProvenance.EXTERNAL_WS_OBSERVED.value:
+            raise OrderPersistenceError(
+                error_type="FilledFollowUpExternalRoot",
+                message=(
+                    "Atomic FILLED follow-up rejected external root "
+                    f"{parent_order_id}"
+                ),
+                client_order_id=client_order_id,
+            )
+        root_portfolio_id = (
+            str(root_parent_row.get("retail_portfolio_id"))
+            if root_parent_row and root_parent_row.get("retail_portfolio_id")
+            else None
+        )
+        root_correlation_id = (
+            str(root_parent_row.get("correlation_id"))
+            if root_parent_row and root_parent_row.get("correlation_id")
+            else None
+        )
+        root_audit_id = (
+            str(root_parent_row.get("audit_id"))
+            if root_parent_row and root_parent_row.get("audit_id")
+            else None
+        )
+        if root_provenance == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value:
+            if root_portfolio_id is None:
+                raise OrderPersistenceError(
+                    error_type="FilledFollowUpPortfolioScopeMissing",
+                    message="Admin root portfolio scope is required",
+                    client_order_id=client_order_id,
+                )
+            if root_correlation_id is None:
+                raise OrderPersistenceError(
+                    error_type="FilledFollowUpCorrelationMissing",
+                    message="Admin root correlation_id is required",
+                    client_order_id=client_order_id,
+                )
+            if root_audit_id is None:
+                raise OrderPersistenceError(
+                    error_type="FilledFollowUpAuditMissing",
+                    message="Admin root audit_id is required",
+                    client_order_id=client_order_id,
+                )
+        child_provenance = (
+            OrderOwnershipProvenance.ADMIN_FILL_FOLLOW_UP.value
+            if root_provenance
+            == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+            else root_provenance
+        )
+
+        cursor.execute(
+            """SELECT id, product_id, side, size, price, parent_order_id,
+                      ownership_provenance, retail_portfolio_id,
+                      correlation_id, audit_id
                FROM order_parent WHERE client_order_id = %s""",
             (client_order_id,),
         )
         parent_row = row_dict(cursor, cursor.fetchone())
 
         cursor.execute(
-            """SELECT product_id, side, total_size, parent_order_id
+            """SELECT product_id, side, total_size, limit_price,
+                      parent_order_id
                FROM stealth_orders WHERE stealth_order_id = %s""",
             (client_order_id,),
         )
@@ -866,6 +1107,30 @@ def persist_filled_follow_up_atomic(
                 numeric_equal(parent_row.get("price"), limit_price),
                 str(parent_row.get("parent_order_id") or "")
                 == parent_order_id,
+                (
+                    str(parent_row.get("ownership_provenance"))
+                    if parent_row.get("ownership_provenance")
+                    else None
+                )
+                == child_provenance,
+                (
+                    str(parent_row.get("retail_portfolio_id"))
+                    if parent_row.get("retail_portfolio_id")
+                    else None
+                )
+                == root_portfolio_id,
+                (
+                    str(parent_row.get("correlation_id"))
+                    if parent_row.get("correlation_id")
+                    else None
+                )
+                == root_correlation_id,
+                (
+                    str(parent_row.get("audit_id"))
+                    if parent_row.get("audit_id")
+                    else None
+                )
+                == root_audit_id,
             )
         ):
             raise_conflict("order_parent")
@@ -875,6 +1140,7 @@ def persist_filled_follow_up_atomic(
                 str(stealth_row.get("product_id") or "") == product_id,
                 str(stealth_row.get("side") or "").upper() == side,
                 numeric_equal(stealth_row.get("total_size"), total_size),
+                numeric_equal(stealth_row.get("limit_price"), limit_price),
                 str(stealth_row.get("parent_order_id") or "")
                 == parent_order_id,
             )
@@ -890,10 +1156,12 @@ def persist_filled_follow_up_atomic(
                        target_movement, target_movement_type,
                        max_order_replacement, current_order_replacement,
                        parent_order_id, allow_partial_fills,
-                       enable_hotpoint_replication, auto_placed_by_hotpoint
+                       enable_hotpoint_replication, auto_placed_by_hotpoint,
+                       ownership_provenance, retail_portfolio_id,
+                       correlation_id, audit_id
                    ) VALUES (
                        %s, %s, %s, %s, %s, %s, %s, %s,
-                       0, 0, %s, FALSE, FALSE, FALSE
+                       0, 0, %s, FALSE, FALSE, FALSE, %s, %s, %s, %s
                    ) RETURNING id""",
                 (
                     client_order_id,
@@ -901,10 +1169,14 @@ def persist_filled_follow_up_atomic(
                     side,
                     total_size,
                     limit_price,
-                    "PENDING",
+                    OrderStatus.PENDING.value,
                     target_movement,
                     target_movement_type,
                     parent_order_id,
+                    child_provenance,
+                    root_portfolio_id,
+                    root_correlation_id,
+                    root_audit_id,
                 ),
             )
             inserted_parent = cursor.fetchone()
@@ -1093,6 +1365,58 @@ def get_parent_order(client_order_id: str) -> Optional[Dict[str, Any]]:
             )
 
 
+def get_unresolved_admin_manual_root_submissions(
+    retail_portfolio_id: str,
+) -> List[Dict[str, Any]]:
+    """Return nonterminal Admin manual roots for one portfolio.
+
+    This is the durable restart/single-flight admission source. Unknown and
+    newly introduced nonterminal statuses fail closed because the query
+    excludes only the explicit terminal exchange states.
+    """
+
+    _require_uuid_text(
+        retail_portfolio_id,
+        "retail_portfolio_id",
+        client_order_id=retail_portfolio_id,
+    )
+    terminal_statuses = (
+        OrderStatus.FILLED.value,
+        OrderStatus.CANCELLED.value,
+        OrderStatus.EXPIRED.value,
+        OrderStatus.FAILED.value,
+    )
+    query = """
+    SELECT client_order_id, product_id, side, size, price, status,
+           ownership_provenance, retail_portfolio_id,
+           correlation_id, audit_id, created_at
+    FROM order_parent
+    WHERE retail_portfolio_id = %s
+      AND ownership_provenance = %s
+      AND parent_order_id IS NULL
+      AND UPPER(status) NOT IN (%s, %s, %s, %s)
+    ORDER BY created_at ASC, id ASC
+    """
+    return DB_CLIENT.execute_query(
+        query,
+        (
+            retail_portfolio_id,
+            OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value,
+            *terminal_statuses,
+        ),
+    )
+
+
+def has_unresolved_admin_manual_root_submission(
+    retail_portfolio_id: str,
+) -> bool:
+    """Return whether durable Admin root state blocks another submission."""
+
+    return bool(
+        get_unresolved_admin_manual_root_submissions(retail_portfolio_id)
+    )
+
+
 def update_parent_order_target_movement(parent_order_id: str, target_movement: Optional[float], target_movement_type: str = "P") -> bool:
     """Update the target_movement and target_movement_type for a parent order.
     
@@ -1164,7 +1488,11 @@ def get_stealth_children_for_parent(parent_order_id: str) -> List[Dict[str, Any]
            product_id, 
            side, 
            total_size as size, 
-           limit_price as price
+           limit_price as price,
+           parent_order_id,
+           status as stealth_status,
+           last_lifecycle_event,
+           failure_reason
     FROM stealth_orders 
     WHERE parent_order_id = %s
     """

@@ -87,6 +87,10 @@ def build_canonical_order_runtime(
     stealth_bridge = None
     try:
         stealth_manager = stealth_order_manager_factory(db_module.DB_CLIENT)
+        stealth_manager.expected_retail_portfolio_id = (
+            str(getattr(subscription, "retail_portfolio_id", "") or "").strip()
+            or None
+        )
         stealth_bridge = stealth_order_bridge_factory(stealth_manager, None)
     except Exception:
         if require_stealth_bridge:

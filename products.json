@@ -1,6 +1,6 @@
 {
   "spot": [
-    "BTC-USD"
+    "BTC-USDC"
   ],
   "derivatives": [
     "AVP-20DEC30-CDE",
@@ -125,16 +125,16 @@
       "contract_size": null,
       "expiry": null
     },
-    "BTC-USD": {
+    "BTC-USDC": {
       "type": "SPOT",
-      "base_currency": null,
-      "quote_currency": null,
+      "base_currency": "BTC",
+      "quote_currency": "USDC",
       "base_increment": "0.00000001",
       "quote_increment": "0.01",
       "price_increment": "0.01",
       "base_min_size": "0.00000001",
       "quote_min_size": "1",
-      "display_name": "BTC-USD",
+      "display_name": "BTC-USDC",
       "status": "online",
       "mid_price": null,
       "trading_disabled": false,

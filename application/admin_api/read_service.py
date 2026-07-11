@@ -103,12 +103,14 @@ from core.enums import (
     AdminApiStealthCommandSuiteBlockerClosure,
     AdminApiStealthCommandSuiteGapFamily,
     AdminApiVerifierReadinessStatus,
+    OrderOwnershipProvenance,
     OrderSide,
     ProductCapability,
     ProductType,
     SpotFollowUpTrigger,
     SpotRecoveryCompletionState,
     SpotRecoveryRepairCategory,
+    StealthLifecycleEvent,
     StealthOrderStatus,
     StealthMutationKind,
     AdminRiskEvidenceSource,
@@ -788,6 +790,32 @@ def _string_or_none(value: Any) -> str | None:
     if value is None:
         return None
     return str(value)
+
+
+def _ownership_provenance_or_none(
+    value: Any,
+) -> OrderOwnershipProvenance | None:
+    if value is None:
+        return None
+    try:
+        if isinstance(value, OrderOwnershipProvenance):
+            return value
+        return OrderOwnershipProvenance(str(value))
+    except ValueError:
+        return None
+
+
+def _stealth_lifecycle_event_or_none(
+    value: Any,
+) -> StealthLifecycleEvent | None:
+    if value is None:
+        return None
+    try:
+        if isinstance(value, StealthLifecycleEvent):
+            return value
+        return StealthLifecycleEvent(str(value))
+    except ValueError:
+        return None
 
 
 def _now_iso() -> str:
@@ -2843,6 +2871,10 @@ def _order_item_from_row(row: dict[str, Any]) -> AdminOrderReadItem:
         size=_string_or_none(row.get("size")),
         price=_string_or_none(row.get("price")),
         parent_client_order_id=_string_or_none(row.get("parent_order_id")),
+        ownership_provenance=_ownership_provenance_or_none(
+            row.get("ownership_provenance")
+        ),
+        retail_portfolio_id=_string_or_none(row.get("retail_portfolio_id")),
         created_at=_string_or_none(row.get("created_at")),
         updated_at=_string_or_none(row.get("updated_at")),
         exchange_order_id=_string_or_none(
@@ -2852,6 +2884,10 @@ def _order_item_from_row(row: dict[str, Any]) -> AdminOrderReadItem:
         ),
         correlation_id=_string_or_none(row.get("correlation_id")),
         audit_id=_string_or_none(row.get("audit_id")),
+        last_lifecycle_event=_stealth_lifecycle_event_or_none(
+            row.get("last_lifecycle_event")
+        ),
+        failure_reason=_string_or_none(row.get("failure_reason")),
         source=_string_or_none(row.get("source")) or "order_parent",
     )
 
@@ -2950,6 +2986,14 @@ def _order_fill_follow_up_decision_audit(
     source_side = _string_or_none(row.get("side"))
     product_id = _string_or_none(row.get("product_id"))
     parent_client_order_id = _string_or_none(row.get("parent_order_id"))
+    ownership_provenance = _ownership_provenance_or_none(
+        row.get("ownership_provenance")
+    )
+    admin_manual_root_owned = bool(
+        parent_client_order_id is None
+        and ownership_provenance
+        == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT
+    )
     root_parent_client_order_id = parent_client_order_id or client_order_id
     filled_status_observed = str(source_status or "").upper() == "FILLED"
     derived_follow_up_side = _opposite_follow_up_side(source_side)
@@ -2963,6 +3007,10 @@ def _order_fill_follow_up_decision_audit(
     execution_adapter_observed, _execution_adapter_source = (
         _runtime_fill_follow_up_execution_adapter_state()
     )
+    expected_portfolio_id = _string_or_none(
+        os.environ.get("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID")
+    )
+    observed_portfolio_id = _string_or_none(row.get("retail_portfolio_id"))
 
     policy_allowed: bool | None = None
     policy_intent: str | None = None
@@ -2982,6 +3030,8 @@ def _order_fill_follow_up_decision_audit(
         blockers.insert(0, "source_side_missing")
     if not derived_follow_up_side:
         blockers.insert(0, "follow_up_side_unresolved")
+    if not admin_manual_root_owned:
+        blockers.insert(0, "admin_manual_root_ownership_provenance_missing")
 
     if product_id and source_side and derived_follow_up_side:
         policy_evaluation_ran = True
@@ -3006,12 +3056,54 @@ def _order_fill_follow_up_decision_audit(
             policy_reason = str(exc)
 
     eligible_no_live = filled_status_observed and policy_allowed is True
-    follow_up_decision = (
-        "eligible_no_live" if eligible_no_live else "blocked_no_live"
-    )
+    automatic_processing_blockers: list[str] = []
+    if not execution_adapter_observed:
+        automatic_processing_blockers.append(
+            "fill_follow_up_execution_adapter_missing"
+        )
+    if not admin_manual_root_owned:
+        automatic_processing_blockers.append(
+            "admin_manual_root_ownership_provenance_missing"
+        )
+    if expected_portfolio_id is None:
+        automatic_processing_blockers.append("spot_test_portfolio_id_missing")
+    elif observed_portfolio_id != expected_portfolio_id:
+        automatic_processing_blockers.append(
+            "owned_order_portfolio_scope_mismatch"
+        )
+    if not filled_status_observed:
+        automatic_processing_blockers.append("source_order_not_filled")
+    if policy_allowed is not True:
+        automatic_processing_blockers.append("spot_follow_up_policy_blocked")
+    automatic_processing_enabled = not automatic_processing_blockers
+    if not automatic_processing_enabled:
+        automatic_processing_blockers.insert(
+            0,
+            "automatic_fill_event_processing_not_enabled",
+        )
+
+    if (
+        automatic_processing_enabled
+        and claim_state == "done"
+        and follow_up_ids
+    ):
+        follow_up_decision = "automatic_child_created"
+    elif automatic_processing_enabled and claim_state == "processing":
+        follow_up_decision = "automatic_processing"
+    elif automatic_processing_enabled:
+        follow_up_decision = "automatic_eligible"
+    else:
+        follow_up_decision = (
+            "eligible_no_live" if eligible_no_live else "blocked_no_live"
+        )
     return AdminOrderFillFollowUpDecisionAuditEvidence(
         client_order_id=client_order_id,
-        status=AdminApiGateStatus.BLOCKED,
+        ownership_provenance=ownership_provenance,
+        status=(
+            AdminApiGateStatus.PASSED
+            if follow_up_decision == "automatic_child_created"
+            else AdminApiGateStatus.BLOCKED
+        ),
         source_order_status=source_status,
         filled_status_observed=filled_status_observed,
         trigger=SpotFollowUpTrigger.FILLED.value,
@@ -3030,18 +3122,22 @@ def _order_fill_follow_up_decision_audit(
         existing_follow_up_count=len(follow_up_ids),
         flat_hierarchy_enforced=True,
         chain_source="order_parent",
-        automation_mode="manual_no_live_trigger_only",
+        automation_mode=(
+            "automatic_owned_root_fill_event"
+            if automatic_processing_enabled
+            else "manual_no_live_trigger_only"
+        ),
         manual_trigger_route=FILL_FOLLOW_UP_TRIGGER_ROUTE,
-        automatic_fill_event_processing_enabled=False,
-        automatic_fill_event_processing_status="blocked",
-        automatic_fill_event_processing_blockers=[
-            "automatic_fill_event_processing_not_enabled",
-        ],
+        automatic_fill_event_processing_enabled=automatic_processing_enabled,
+        automatic_fill_event_processing_status=(
+            "enabled" if automatic_processing_enabled else "blocked"
+        ),
+        automatic_fill_event_processing_blockers=automatic_processing_blockers,
         duplicate_claim_protection_required=True,
         claim_state=claim_state,
         claim_state_source=claim_state_source,
         claim_reader_ran=claim_reader_ran,
-        claim_acquired=False,
+        claim_acquired=claim_state in {"processing", "done"},
         order_engine_handle_filled_order_called=False,
         stealth_create_follow_up_called=False,
         follow_up_order_created=False,
@@ -3080,13 +3176,18 @@ def _order_fill_follow_up_decision_audit(
         browser_authority="display_only",
         bff_authority="forward_only_no_execution",
         detail=(
-            "Order detail exposes fill-triggered follow-up decision evidence "
-            "only. The current Admin path is manual no-live trigger only; "
-            "unattended automatic fill-event processing remains blocked. It "
-            "evaluates local policy and chain readback without calling "
-            "OrderEngine.handle_filled_order, acquiring follow-up claims, "
-            "creating stealth follow-ups, submitting Coinbase orders, or "
-            "mutating local/exchange state."
+            "Read-only evidence confirms the profile-bound runtime supports "
+            "automatic owned-order FILLED processing through the canonical "
+            "exactly-once claim and hidden-child persistence path. This read "
+            "did not call the engine or mutate local/exchange state."
+            if automatic_processing_enabled
+            else (
+                "Order detail exposes fill-triggered follow-up decision "
+                "evidence only. Automatic processing is fail-closed until "
+                "the canonical runtime, Test portfolio scope, FILLED status, "
+                "and Spot follow-up policy all match. This read did not call "
+                "the engine or mutate local/exchange state."
+            )
         ),
     )
 
@@ -12863,6 +12964,11 @@ class AdminApiReadService:
                         item.module_id
                     ),
                     product_scope=LIVE_ENABLEMENT_PRODUCT_SCOPE,
+                    portfolio_scope=(
+                        command_runtime.spot_portfolio_scope
+                        if item.module_id == "spot_operations"
+                        else None
+                    ),
                     max_submitted_notional_usdc=LIVE_ENABLEMENT_MAX_SUBMITTED_NOTIONAL_USDC,
                     max_executed_notional_usdc=LIVE_ENABLEMENT_MAX_EXECUTED_NOTIONAL_USDC,
                     live_command_runtime_ready=controlled_live_runtime_ready,
@@ -12988,6 +13094,7 @@ class AdminApiReadService:
             executed_notional_usdc="0",
             quote_currency=LIVE_ENABLEMENT_QUOTE_CURRENCY,
             product_scope=LIVE_ENABLEMENT_PRODUCT_SCOPE,
+            spot_portfolio_scope=command_runtime.spot_portfolio_scope,
             max_submitted_notional_usdc=LIVE_ENABLEMENT_MAX_SUBMITTED_NOTIONAL_USDC,
             max_executed_notional_usdc=LIVE_ENABLEMENT_MAX_EXECUTED_NOTIONAL_USDC,
             cap_posture=LIVE_ENABLEMENT_CAP_POSTURE,
@@ -13625,6 +13732,14 @@ class AdminApiReadService:
                     source not in existing_sources
                     and not child_rows_conflict(existing_child, normalized_child)
                 ):
+                    for evidence_field in (
+                        "stealth_status",
+                        "last_lifecycle_event",
+                        "failure_reason",
+                    ):
+                        evidence_value = normalized_child.get(evidence_field)
+                        if evidence_value is not None:
+                            existing_child[evidence_field] = evidence_value
                     existing_sources.add(source)
                     return
                 if child_id not in duplicate_child_client_order_ids:
@@ -13682,16 +13797,91 @@ class AdminApiReadService:
             row,
             client_order_id=client_order_id,
         )
+        root_item = _order_item_from_row(root_row) if root_row else None
+        active_item = _order_item_from_row(row) if row else None
         child_items = [_order_item_from_row(child_row) for child_row in child_rows]
         child_ids = [item.client_order_id for item in child_items]
+        if root_item is not None and root_item.ownership_provenance != (
+            OrderOwnershipProvenance.ADMIN_MANUAL_ROOT
+        ):
+            blockers.append("root_admin_manual_ownership_provenance_missing")
+        if root_item is not None and root_item.ownership_provenance == (
+            OrderOwnershipProvenance.ADMIN_MANUAL_ROOT
+        ):
+            for child_item in child_items:
+                if child_item.ownership_provenance != (
+                    OrderOwnershipProvenance.ADMIN_FILL_FOLLOW_UP
+                ):
+                    blockers.append(
+                        "follow_up_child_ownership_provenance_mismatch:"
+                        f"{child_item.client_order_id}"
+                    )
+        for child_item in child_items:
+            if child_item.last_lifecycle_event == (
+                StealthLifecycleEvent.PLACEMENT_BLOCKED
+            ):
+                blockers.append(
+                    f"follow_up_child_placement_blocked:{child_item.client_order_id}"
+                )
+            elif child_item.failure_reason:
+                blockers.append(
+                    f"follow_up_child_reveal_failure:{child_item.client_order_id}"
+                )
+        expected_portfolio_id = _string_or_none(
+            os.environ.get("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID")
+        )
+        root_portfolio_id = _string_or_none(
+            root_row.get("retail_portfolio_id") if root_row else None
+        )
+        child_portfolio_ids = {
+            item.client_order_id: item.retail_portfolio_id for item in child_items
+        }
+        portfolio_scope_consistent = bool(
+            expected_portfolio_id
+            and root_portfolio_id == expected_portfolio_id
+            and all(
+                portfolio_id == root_portfolio_id
+                for portfolio_id in child_portfolio_ids.values()
+            )
+        )
+        if expected_portfolio_id:
+            if root_portfolio_id is None:
+                blockers.append("root_portfolio_scope_missing")
+            elif root_portfolio_id != expected_portfolio_id:
+                blockers.append("root_portfolio_scope_mismatch")
+            for child_id, child_portfolio_id in child_portfolio_ids.items():
+                if child_portfolio_id is None:
+                    blockers.append(
+                        f"follow_up_child_portfolio_scope_missing:{child_id}"
+                    )
+                elif child_portfolio_id != root_portfolio_id:
+                    blockers.append(
+                        f"follow_up_child_portfolio_scope_mismatch:{child_id}"
+                    )
+        portfolio_scope = {
+            "product_family": "SPOT",
+            "profile_alias": (
+                os.environ.get("COINBASE_ADMIN_API_SPOT_PORTFOLIO_LABEL", "").strip()
+                or "Test"
+            ),
+            "expected_portfolio_id": expected_portfolio_id,
+            "root_portfolio_id": root_portfolio_id,
+            "child_portfolio_ids": child_portfolio_ids,
+            "scope_consistent": portfolio_scope_consistent,
+            "status": (
+                "matched"
+                if portfolio_scope_consistent
+                else "blocked" if expected_portfolio_id else "unconfigured"
+            ),
+        }
         return AdminOrderFillFollowUpChainResponse(
             client_order_id=client_order_id,
             found=row is not None,
             root_parent_client_order_id=root_parent_client_order_id,
             parent_client_order_id=parent_client_order_id,
             active_client_order_id=client_order_id,
-            root_order=_order_item_from_row(root_row) if root_row else None,
-            active_order=_order_item_from_row(row) if row else None,
+            root_order=root_item,
+            active_order=active_item,
             follow_up_children=child_items,
             follow_up_child_client_order_ids=child_ids,
             follow_up_child_count=len(child_items),
@@ -13699,6 +13889,7 @@ class AdminApiReadService:
             nested_child_client_order_ids=nested_child_client_order_ids,
             nested_parent_client_order_ids=nested_parent_client_order_ids,
             flat_hierarchy_violation_count=len(nested_child_client_order_ids),
+            portfolio_scope=portfolio_scope,
             order_parent_child_read_ran=order_parent_child_read_ran,
             stealth_child_read_ran=stealth_child_read_ran,
             fill_follow_up_decision_audit=audit,

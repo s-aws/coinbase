@@ -30,6 +30,8 @@ class OrderStatus(str, Enum):
     - SNAPSHOT: Initial websocket snapshot payload
     """
     PENDING = "PENDING"
+    SUBMITTED = "SUBMITTED"
+    SUBMISSION_UNKNOWN = "SUBMISSION_UNKNOWN"
     OPEN = "OPEN"
     FILLED = "FILLED"
     CANCELLED = "CANCELLED"
@@ -38,6 +40,26 @@ class OrderStatus(str, Enum):
     CANCEL_QUEUED = "CANCEL_QUEUED"
     UPDATE = "UPDATE"
     SNAPSHOT = "SNAPSHOT"
+
+
+class OrderOwnershipProvenance(str, Enum):
+    """Durable authority provenance for an ``order_parent`` row.
+
+    Only roots registered through the Admin manual-order authority may enter
+    direct-root automatic follow-up processing. WebSocket observations are
+    persisted explicitly so a restart cannot turn an external order into an
+    owned root. Missing/legacy values therefore remain fail-closed.
+    """
+
+    ADMIN_MANUAL_ROOT = "ADMIN_MANUAL_ROOT"
+    ADMIN_FILL_FOLLOW_UP = "ADMIN_FILL_FOLLOW_UP"
+    EXTERNAL_WS_OBSERVED = "EXTERNAL_WS_OBSERVED"
+
+
+class StandingPriceLimitPolicy(str, Enum):
+    """Named standing-limit policy applied at backend placement boundaries."""
+
+    ADMIN_TEST_PROFILE = "admin_test_profile"
 
 
 class StealthOrderStatus(str, Enum):

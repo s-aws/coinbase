@@ -6,9 +6,12 @@ import hashlib
 import gzip
 import json
 import os
+from contextlib import contextmanager
+from functools import wraps
 from pathlib import Path
 from threading import RLock
-from typing import Any
+from typing import Any, Callable, Iterator, ParamSpec, TypeVar
+from weakref import WeakValueDictionary
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -24,6 +27,12 @@ MAX_IDEMPOTENCY_RESPONSE_BLOB_BYTES = 50_000_000
 IDEMPOTENCY_RESPONSE_READ_CHUNK_BYTES = 64 * 1024
 IDEMPOTENCY_LOG_PATH_ENV = "COINBASE_ADMIN_API_IDEMPOTENCY_LOG_PATH"
 DEFAULT_IDEMPOTENCY_LOG_PATH = Path("runtime_state") / "admin_api_idempotency.jsonl"
+
+
+_COMMAND_EXECUTION_LOCKS_GUARD = RLock()
+_COMMAND_EXECUTION_LOCKS: WeakValueDictionary = WeakValueDictionary()
+_CommandParameters = ParamSpec("_CommandParameters")
+_CommandResult = TypeVar("_CommandResult")
 
 
 class IdempotencyRecord(BaseModel):
@@ -97,6 +106,23 @@ class FileIdempotencyStore:
     def __init__(self, path: Path | str | None = None) -> None:
         self.path = resolve_idempotency_store_path(path)
         self._lock = RLock()
+
+    @contextmanager
+    def command_execution(
+        self,
+        *,
+        idempotency_key: str,
+    ) -> Iterator[None]:
+        """Serialize one key across store instances through final persistence."""
+
+        lock_identity = (str(self.path.resolve()), idempotency_key)
+        with _COMMAND_EXECUTION_LOCKS_GUARD:
+            execution_lock = _COMMAND_EXECUTION_LOCKS.get(lock_identity)
+            if execution_lock is None:
+                execution_lock = RLock()
+                _COMMAND_EXECUTION_LOCKS[lock_identity] = execution_lock
+        with execution_lock:
+            yield
 
     @property
     def _response_blob_dir(self) -> Path:
@@ -272,6 +298,30 @@ class FileIdempotencyStore:
             record = self._externalize_large_response(record)
             with self.path.open("a", encoding="utf-8") as handle:
                 handle.write(record.model_dump_json() + "\n")
+
+
+def serialize_idempotent_command(
+    command_handler: Callable[_CommandParameters, _CommandResult],
+) -> Callable[_CommandParameters, _CommandResult]:
+    """Keep evaluate, command execution, and response persistence atomic per key."""
+
+    @wraps(command_handler)
+    def serialized(
+        *args: _CommandParameters.args,
+        **kwargs: _CommandParameters.kwargs,
+    ) -> _CommandResult:
+        idempotency_store = kwargs.get("idempotency_store")
+        idempotency_key = kwargs.get("idempotency_key")
+        if not isinstance(idempotency_store, FileIdempotencyStore):
+            raise TypeError("FileIdempotencyStore is required for command execution.")
+        if not isinstance(idempotency_key, str) or not idempotency_key:
+            raise ValueError("A non-empty idempotency key is required.")
+        with idempotency_store.command_execution(
+            idempotency_key=idempotency_key,
+        ):
+            return command_handler(*args, **kwargs)
+
+    return serialized
 
 
 def resolve_idempotency_store_path(path: Path | str | None = None) -> Path:

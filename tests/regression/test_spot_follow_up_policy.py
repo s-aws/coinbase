@@ -148,3 +148,61 @@ def test_stealth_manager_allows_spot_exit_follow_up_to_existing_path():
             source_client_order_id=source_client_order_id,
         )
     )
+
+
+def test_stealth_manager_creates_deterministic_direct_root_exit_child():
+    manager = StealthOrderManager(db_client=None, log_callback=MagicMock())
+    manager.create_stealth_order = MagicMock(return_value="direct-root-child")
+    root_id = "880e8400-e29b-41d4-a716-446655440000"
+
+    follow_up_id = manager.create_direct_root_fill_follow_up_stealth_order(
+        root_parent_client_order_id=root_id,
+        source_client_order_id=root_id,
+        product_id="BTC-USDC",
+        source_side=OrderSide.BUY.value,
+        side=OrderSide.SELL.value,
+        total_size=0.01,
+        limit_price=101000.0,
+        target_movement=0.001,
+        target_movement_type="P",
+    )
+
+    assert follow_up_id == "direct-root-child"
+    kwargs = manager.create_stealth_order.call_args.kwargs
+    assert kwargs["parent_order_id"] == root_id
+    assert kwargs["stealth_order_id"] == _filled_follow_up_stealth_order_id(
+        original_stealth_order_id=root_id,
+        source_client_order_id=root_id,
+    )
+    assert kwargs["require_persistence"] is True
+    assert kwargs["reveal_condition"] == {
+        "type": "price",
+        "price_threshold": 101000.0,
+        "direction": "above",
+        "hold_duration_seconds": 0,
+        "standing_price_limit_policy": "admin_test_profile",
+    }
+
+
+def test_stealth_manager_blocks_direct_root_spot_rebuy_by_default():
+    manager = StealthOrderManager(db_client=None, log_callback=MagicMock())
+    manager.create_stealth_order = MagicMock(return_value="must-not-create")
+
+    follow_up_id = manager.create_direct_root_fill_follow_up_stealth_order(
+        root_parent_client_order_id=(
+            "880e8400-e29b-41d4-a716-446655440000"
+        ),
+        source_client_order_id="880e8400-e29b-41d4-a716-446655440000",
+        product_id="BTC-USDC",
+        source_side=OrderSide.SELL.value,
+        side=OrderSide.BUY.value,
+        total_size=0.01,
+        limit_price=99000.0,
+        target_movement=0.001,
+    )
+
+    assert follow_up_id is None
+    manager.create_stealth_order.assert_not_called()
+    assert manager.log_callback.call_args.args[1]["event"] == (
+        "direct_root_spot_follow_up_blocked"
+    )

@@ -537,6 +537,23 @@ def rest_get_account_wallets() -> dict:
 
     accounts_list = list_all_account_dicts(get_rest_client())
 
+    expected_portfolio_id = (
+        getenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", "").strip() or None
+    )
+    if expected_portfolio_id is not None:
+        mismatched_portfolio_ids = sorted({
+            str(item.get("retail_portfolio_id") or "missing").strip()
+            for item in accounts_list
+            if str(item.get("retail_portfolio_id") or "").strip()
+            != expected_portfolio_id
+        })
+        if mismatched_portfolio_ids:
+            raise RuntimeError(
+                "wallet portfolio scope mismatch: "
+                f"expected={expected_portfolio_id} "
+                f"observed={','.join(mismatched_portfolio_ids)}"
+            )
+
     account_wallets = {
         item["currency"]: item for item in accounts_list if item["deleted_at"] is None
     }

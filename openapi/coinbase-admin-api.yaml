@@ -14126,6 +14126,12 @@ components:
           - type: string
           - type: 'null'
           title: Audit Command
+        portfolio_scope:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Portfolio Scope
         admission_decision:
           anyOf:
           - $ref: '#/components/schemas/AdminLiveAdmissionDecisionEvidence'
@@ -134770,6 +134776,12 @@ components:
         payload_hash:
           type: string
           title: Payload Hash
+        execution_scope:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Execution Scope
         approval_snapshot_required:
           type: boolean
           title: Approval Snapshot Required
@@ -135330,6 +135342,10 @@ components:
           type: string
           title: Product Scope
           default: not_selected
+        portfolio_scope:
+          anyOf:
+          - $ref: '#/components/schemas/AdminSpotPortfolioBindingEvidence'
+          - type: 'null'
         max_submitted_notional_usdc:
           anyOf:
           - type: string
@@ -135469,6 +135485,10 @@ components:
         product_scope:
           type: string
           title: Product Scope
+        spot_portfolio_scope:
+          anyOf:
+          - $ref: '#/components/schemas/AdminSpotPortfolioBindingEvidence'
+          - type: 'null'
         max_submitted_notional_usdc:
           type: string
           pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
@@ -137291,6 +137311,10 @@ components:
           type: boolean
           title: Flat Hierarchy Enforced
           default: true
+        portfolio_scope:
+          anyOf:
+          - $ref: '#/components/schemas/AdminOrderPortfolioScopeEvidence'
+          - type: 'null'
         fill_follow_up_decision_audit:
           anyOf:
           - $ref: '#/components/schemas/AdminOrderFillFollowUpDecisionAuditEvidence'
@@ -137362,6 +137386,10 @@ components:
         client_order_id:
           type: string
           title: Client Order Id
+        ownership_provenance:
+          anyOf:
+          - $ref: '#/components/schemas/OrderOwnershipProvenance'
+          - type: 'null'
         status:
           $ref: '#/components/schemas/AdminApiGateStatus'
           default: blocked
@@ -137930,6 +137958,46 @@ components:
       - total_matching_count
       title: AdminOrderPagination
       description: Pagination evidence for order list reads.
+    AdminOrderPortfolioScopeEvidence:
+      properties:
+        product_family:
+          type: string
+          title: Product Family
+        profile_alias:
+          type: string
+          title: Profile Alias
+        expected_portfolio_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expected Portfolio Id
+        root_portfolio_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Root Portfolio Id
+        child_portfolio_ids:
+          additionalProperties:
+            anyOf:
+            - type: string
+            - type: 'null'
+          type: object
+          title: Child Portfolio Ids
+        scope_consistent:
+          type: boolean
+          title: Scope Consistent
+          default: false
+        status:
+          type: string
+          title: Status
+      additionalProperties: false
+      type: object
+      required:
+      - product_family
+      - profile_alias
+      - status
+      title: AdminOrderPortfolioScopeEvidence
+      description: Typed immutable portfolio inheritance across a root/child chain.
     AdminOrderReadItem:
       properties:
         client_order_id:
@@ -137970,6 +138038,15 @@ components:
           - type: string
           - type: 'null'
           title: Parent Client Order Id
+        ownership_provenance:
+          anyOf:
+          - $ref: '#/components/schemas/OrderOwnershipProvenance'
+          - type: 'null'
+        retail_portfolio_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Retail Portfolio Id
         created_at:
           anyOf:
           - type: string
@@ -137999,6 +138076,15 @@ components:
           - type: string
           - type: 'null'
           title: Audit Id
+        last_lifecycle_event:
+          anyOf:
+          - $ref: '#/components/schemas/StealthLifecycleEvent'
+          - type: 'null'
+        failure_reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Failure Reason
         source:
           type: string
           title: Source
@@ -139248,6 +139334,89 @@ components:
       - status
       title: AdminSpotFeeInputEvidence
       description: Spot fee input consumed by admission/risk views.
+    AdminSpotPortfolioBindingEvidence:
+      properties:
+        ready:
+          type: boolean
+          title: Ready
+        blocker:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Blocker
+        status:
+          type: string
+          title: Status
+        product_family:
+          type: string
+          title: Product Family
+        portfolio_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Portfolio Id
+        profile_alias:
+          type: string
+          title: Profile Alias
+        expected_portfolio_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Expected Portfolio Id
+        expected_portfolio_label:
+          type: string
+          title: Expected Portfolio Label
+        expected_portfolio_type:
+          type: string
+          title: Expected Portfolio Type
+        observed_portfolio_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Observed Portfolio Id
+        observed_portfolio_label:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Observed Portfolio Label
+        observed_portfolio_type:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Observed Portfolio Type
+        can_view:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Can View
+        can_trade:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Can Trade
+        selection_authority:
+          type: string
+          title: Selection Authority
+        request_portfolio_override_allowed:
+          type: boolean
+          title: Request Portfolio Override Allowed
+        source:
+          type: string
+          title: Source
+      additionalProperties: true
+      type: object
+      required:
+      - ready
+      - status
+      - product_family
+      - profile_alias
+      - expected_portfolio_label
+      - expected_portfolio_type
+      - selection_authority
+      - request_portfolio_override_allowed
+      - source
+      title: AdminSpotPortfolioBindingEvidence
+      description: Typed backend decision for the immutable Test-profile Spot scope.
     AdminStealthActivePlacementAuditEvidence:
       properties:
         stealth_order_id:
@@ -141114,6 +141283,23 @@ components:
       type: object
       title: MovementRepriceRequest
       description: Movement/reprice request body keyed by path ``stealth_order_id``.
+    OrderOwnershipProvenance:
+      type: string
+      enum:
+      - ADMIN_MANUAL_ROOT
+      - ADMIN_FILL_FOLLOW_UP
+      - EXTERNAL_WS_OBSERVED
+      title: OrderOwnershipProvenance
+      description: 'Durable authority provenance for an ``order_parent`` row.
+
+
+        Only roots registered through the Admin manual-order authority may enter
+
+        direct-root automatic follow-up processing. WebSocket observations are
+
+        persisted explicitly so a restart cannot turn an external order into an
+
+        owned root. Missing/legacy values therefore remain fail-closed.'
     OrderSide:
       type: string
       enum:
@@ -165379,6 +165565,38 @@ components:
       - detail
       title: StealthExecutionTransitionBarrierEvidence
       description: Read-only barrier between preflight evidence and execution authority.
+    StealthLifecycleEvent:
+      type: string
+      enum:
+      - CREATED
+      - CONDITION_WATCHING
+      - CONDITION_MET
+      - REVEAL_ATTEMPTED
+      - PLACEMENT_BLOCKED
+      - REVEAL_FAILED
+      - REVEAL_SUCCEEDED
+      - FILL_RECEIVED
+      - EXECUTED
+      - CANCELLED
+      title: StealthLifecycleEvent
+      description: "Fine-grained stealth order state-machine transition events.\n\n\
+        Provides a complete play-by-play audit trail of every stealth order from\n\
+        creation through final execution or failure. Stored in order_event_stream\n\
+        via StealthLifecycleHookRegistry -> OrderEventStreamPublisher.\n\nState machine\
+        \ flow:\n    CREATED\n      -> CONDITION_WATCHING  (condition partially met,\
+        \ watching for hold duration)\n         -> CONDITION_MET    (condition fully\
+        \ confirmed, order TRIGGERED)\n            -> REVEAL_ATTEMPTED\n         \
+        \      -> PLACEMENT_BLOCKED  (pre-submission hook raised)  [terminal/retriable]\n\
+        \               -> REVEAL_FAILED      (REST exception / network error) [terminal/retriable]\n\
+        \               -> REVEAL_SUCCEEDED   (slice placed on exchange books)\n \
+        \                 -> FILL_RECEIVED   (fill event arrived from exchange)\n\
+        \                  -> EXECUTED        (all size filled)               [terminal]\n\
+        \                  -> CANCELLED       (cancelled at any stage)        [terminal]\n\
+        \nIntegration:\n    Dispatched from StealthOrderManager at each transition\
+        \ point. Hooks are\n    called OUTSIDE any internal locks where possible.\
+        \ Subscribers receive a\n    context dict with product_id, side, product_type,\
+        \ size, limit_price, reason,\n    failure_reason (if applicable), placed_order_id\
+        \ (if applicable).\n    See integration/stealth_lifecycle_hooks.py and data/order_inventory.py."
     StealthLifecycleWriteGuardEvidenceSource:
       type: string
       enum:

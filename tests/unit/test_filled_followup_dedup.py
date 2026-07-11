@@ -3,7 +3,7 @@
 from unittest.mock import Mock, patch
 
 from configuration import OrderBook
-from core.enums import FollowUpKind, OrderStatus
+from core.enums import FollowUpKind, OrderOwnershipProvenance, OrderStatus
 from core.order_engine import OrderEngine
 from core.orderbook import ClaimLedger
 
@@ -135,6 +135,132 @@ def test_duplicate_filled_event_creates_follow_up_once(monkeypatch):
         == "placed-1"
     )
     assert claim_ledger.state("filled", "placed-1") == "done"
+
+
+def test_duplicate_filled_event_for_owned_direct_root_creates_one_child():
+    engine = _build_engine()
+    root_id = "880e8400-e29b-41d4-a716-446655440000"
+    child_id = "990e8400-e29b-41d4-a716-446655440000"
+    claim_ledger = ClaimLedger(FollowUpKind)
+    engine.orderbook.try_claim_follow_up = claim_ledger.try_claim
+    engine.orderbook.complete_follow_up = claim_ledger.complete
+    engine.orderbook.release_follow_up = claim_ledger.release
+    engine.orderbook.follow_up_claim_state = claim_ledger.state
+    engine.orderbook.parent_order_ids[root_id] = {
+        "orders": [],
+        "target_movement": {"movement": 0.001, "type": "P"},
+        "max_order_replacement": 11,
+        "current_order_replacement": 0,
+        "retail_portfolio_id": "11111111-2222-4333-8444-555555555555",
+        "ownership_provenance": (
+            OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+        ),
+    }
+    engine.fill_repo = None
+    engine.profit_validator = None
+    engine.resolve_parent_client_order_id = Mock(return_value=(True, root_id))
+    engine.can_create_follow_up_order = Mock(return_value=(True, {}))
+    engine.resolve_parent_target_movement = Mock(
+        return_value={"movement": 0.001, "type": "P"}
+    )
+    engine.compute_order_template = Mock(
+        return_value={
+            "start_price": "101.0",
+            "side": "SELL",
+            "order_base_size": "0.01",
+            "product_id": "BTC-USDC",
+        }
+    )
+    engine.child_order_already_exists = Mock(return_value=False)
+    engine._resolve_filled_follow_up_size_after_partials = Mock(
+        return_value=(0.01, {})
+    )
+    engine.register_child_order = Mock()
+
+    stealth_manager = Mock()
+    stealth_manager.find_stealth_order_by_placed_order_id.return_value = None
+    stealth_manager.create_direct_root_fill_follow_up_stealth_order.return_value = (
+        child_id
+    )
+    engine.stealth_order_bridge = Mock(stealth_manager=stealth_manager)
+    filled_order = {
+        "client_order_id": root_id,
+        "order_id": "exchange-direct-root",
+        "product_id": "BTC-USDC",
+        "order_side": "BUY",
+        "side": "BUY",
+        "price": "100.0",
+        "avg_price": "100.0",
+        "size": "0.01",
+        "filled_size": "0.01",
+        "status": OrderStatus.FILLED.value,
+        "outstanding_hold_amount": "0",
+        "retail_portfolio_id": "11111111-2222-4333-8444-555555555555",
+    }
+
+    engine.handle_filled_order(filled_order)
+    engine.handle_filled_order(filled_order)
+
+    (
+        stealth_manager.create_direct_root_fill_follow_up_stealth_order
+        .assert_called_once()
+    )
+    kwargs = (
+        stealth_manager.create_direct_root_fill_follow_up_stealth_order
+        .call_args.kwargs
+    )
+    assert kwargs["root_parent_client_order_id"] == root_id
+    assert kwargs["source_client_order_id"] == root_id
+    assert kwargs["side"] == "SELL"
+    engine.register_child_order.assert_called_once_with(
+        child_id,
+        root_id,
+        bypass_replacement_cap=True,
+    )
+    assert claim_ledger.state("filled", root_id) == "done"
+
+
+def test_external_filled_root_completes_no_follow_up_decision_once():
+    engine = _build_engine()
+    root_id = "770e8400-e29b-41d4-a716-446655440000"
+    claim_ledger = ClaimLedger(FollowUpKind)
+    engine.orderbook.try_claim_follow_up = claim_ledger.try_claim
+    engine.orderbook.complete_follow_up = claim_ledger.complete
+    engine.orderbook.release_follow_up = claim_ledger.release
+    engine.orderbook.follow_up_claim_state = claim_ledger.state
+    engine.orderbook.parent_order_ids[root_id] = {
+        "orders": [],
+        "target_movement": {"movement": 0.001, "type": "P"},
+        "max_order_replacement": 11,
+        "current_order_replacement": 0,
+        "ownership_provenance": (
+            OrderOwnershipProvenance.EXTERNAL_WS_OBSERVED.value
+        ),
+    }
+    engine.fill_repo = None
+    stealth_manager = Mock()
+    stealth_manager.find_stealth_order_by_placed_order_id.return_value = None
+    engine.stealth_order_bridge = Mock(stealth_manager=stealth_manager)
+
+    filled_order = {
+        "client_order_id": root_id,
+        "order_id": "exchange-external-root",
+        "product_id": "BTC-USDC",
+        "order_side": "BUY",
+        "side": "BUY",
+        "price": "100.0",
+        "avg_price": "100.0",
+        "size": "0.01",
+        "filled_size": "0.01",
+        "status": OrderStatus.FILLED.value,
+        "outstanding_hold_amount": "0",
+    }
+
+    engine.handle_filled_order(filled_order)
+    engine.handle_filled_order(filled_order)
+
+    assert claim_ledger.state("filled", root_id) == "done"
+    stealth_manager.create_direct_root_fill_follow_up_stealth_order.assert_not_called()
 
 
 def _build_failed_follow_up_attempt(*, creation_error=None):

@@ -60,6 +60,7 @@ Example: evaluate and reveal from scheduler loop
 """
 
 
+import copy
 import uuid
 import json
 import time
@@ -76,6 +77,7 @@ from configuration import (
 from core.action_condition_guard import (
     ActionConditionGuard,
     collect_spot_planned_budget_commitments,
+    evaluate_spot_standing_price_limit,
     fetch_account_wallets,
     get_action_condition_guard_policy,
     normalize_action_guard_wallet_policy,
@@ -85,7 +87,9 @@ from core.enums import (
     ActionGuardPhase,
     CancelReentryDecision,
     CancelReentryState,
+    Direction,
     FollowUpRevealDirection,
+    OrderOwnershipProvenance,
     OrderSide,
     OrderStatus,
     PostFillRetreatReason,
@@ -97,6 +101,7 @@ from core.enums import (
     RevealPriceSource,
     RoundingDirection,
     SpotFollowUpTrigger,
+    StandingPriceLimitPolicy,
     StealthLifecycleEvent,
     StealthOrderStatus,
 )
@@ -3604,11 +3609,265 @@ class StealthOrderManager:
             "reason": order.get("reason"),
             "reveal_number": len(order.get("revealed_orders", [])) + 1,
             "reveal_condition_type": order.get("reveal_condition_type"),
-            "reveal_condition_json": order.get("reveal_condition_json"),
+            # Hooks receive a mutable payload. Keep durable reveal policy and
+            # condition evidence isolated from hook-side enrichment/removal.
+            "reveal_condition_json": copy.deepcopy(
+                order.get("reveal_condition_json")
+            ),
             "condition_confirmed_at": condition_confirmed_at,
             "reveal_pricing_policy": reveal_plan.reveal_pricing_policy,
             "reveal_price_source": reveal_plan.reveal_price_source,
         }
+
+    def _resolve_admin_fill_follow_up_reveal_authority(
+        self,
+        *,
+        stealth_order_id: str,
+        order: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Resolve immutable authority for an automatic Admin fill child.
+
+        Mutable reveal-condition JSON is not ownership proof. The child must
+        have the dedicated durable provenance, link to an Admin manual root,
+        inherit the root's exact Test portfolio and trace fields, and retain
+        the named standing-price policy. Missing/legacy evidence fails closed
+        for any row related to this Admin chain.
+        """
+
+        parent_order_id = str(order.get("parent_order_id") or "").strip()
+        marker = str(
+            (order.get("reveal_condition_json") or {}).get(
+                "standing_price_limit_policy"
+            )
+            or ""
+        )
+        child_row = None
+        root_row = None
+        ownership_read_error = None
+        try:
+            child_row = get_parent_order(stealth_order_id)
+            if parent_order_id:
+                root_row = get_parent_order(parent_order_id)
+        except Exception as exc:
+            ownership_read_error = type(exc).__name__
+
+        child_row = child_row if isinstance(child_row, dict) else None
+        root_row = root_row if isinstance(root_row, dict) else None
+        child_provenance = str(
+            (child_row or {}).get("ownership_provenance") or ""
+        )
+        root_provenance = str(
+            (root_row or {}).get("ownership_provenance") or ""
+        )
+        expected_portfolio_id = str(
+            getattr(self, "expected_retail_portfolio_id", None) or ""
+        ).strip()
+        required = bool(
+            expected_portfolio_id
+            or marker
+            or child_provenance
+            == OrderOwnershipProvenance.ADMIN_FILL_FOLLOW_UP.value
+            or root_provenance
+            == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+            or (parent_order_id and ownership_read_error)
+        )
+        if not required:
+            return {
+                "required": False,
+                "ready": True,
+                "blockers": [],
+                "policy": marker or None,
+                "child_ownership_provenance": child_provenance or None,
+                "root_ownership_provenance": root_provenance or None,
+            }
+
+        blockers: list[str] = []
+        if ownership_read_error:
+            blockers.append("admin_child_ownership_read_unavailable")
+        if child_row is None:
+            blockers.append("admin_child_order_parent_missing")
+        if root_row is None:
+            blockers.append("admin_child_root_order_parent_missing")
+        if marker == "":
+            blockers.append("admin_child_standing_price_policy_missing")
+        elif marker != StandingPriceLimitPolicy.ADMIN_TEST_PROFILE.value:
+            blockers.append("admin_child_standing_price_policy_mismatch")
+        if child_provenance != (
+            OrderOwnershipProvenance.ADMIN_FILL_FOLLOW_UP.value
+        ):
+            blockers.append("admin_child_ownership_provenance_mismatch")
+        if root_provenance != OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value:
+            blockers.append("admin_child_root_ownership_provenance_mismatch")
+
+        child_portfolio_id = str(
+            (child_row or {}).get("retail_portfolio_id") or ""
+        ).strip()
+        root_portfolio_id = str(
+            (root_row or {}).get("retail_portfolio_id") or ""
+        ).strip()
+        if not expected_portfolio_id:
+            blockers.append("admin_child_expected_portfolio_scope_missing")
+        elif (
+            child_portfolio_id != expected_portfolio_id
+            or root_portfolio_id != expected_portfolio_id
+        ):
+            blockers.append("admin_child_portfolio_scope_mismatch")
+
+        child_correlation_id = str(
+            (child_row or {}).get("correlation_id") or ""
+        ).strip()
+        root_correlation_id = str(
+            (root_row or {}).get("correlation_id") or ""
+        ).strip()
+        child_audit_id = str((child_row or {}).get("audit_id") or "").strip()
+        root_audit_id = str((root_row or {}).get("audit_id") or "").strip()
+        if (
+            not child_correlation_id
+            or child_correlation_id != root_correlation_id
+        ):
+            blockers.append("admin_child_correlation_trace_mismatch")
+        if not child_audit_id or child_audit_id != root_audit_id:
+            blockers.append("admin_child_audit_trace_mismatch")
+
+        child_parent_id = str(
+            (child_row or {}).get("parent_order_id") or ""
+        ).strip()
+        if not parent_order_id or child_parent_id != parent_order_id:
+            blockers.append("admin_child_flat_root_link_mismatch")
+        if (root_row or {}).get("parent_order_id"):
+            blockers.append("admin_child_root_is_nested")
+
+        product_id = str(order.get("product_id") or "")
+        side = str(order.get("side") or "").upper()
+        total_size = safe_float(order.get("total_size"), default=0.0) or 0.0
+        limit_price = safe_float(order.get("limit_price"), default=0.0) or 0.0
+        if (
+            str((child_row or {}).get("product_id") or "") != product_id
+            or str((root_row or {}).get("product_id") or "") != product_id
+        ):
+            blockers.append("admin_child_product_scope_mismatch")
+        if str((child_row or {}).get("side") or "").upper() != side:
+            blockers.append("admin_child_side_mismatch")
+        if abs(
+            (safe_float((child_row or {}).get("size"), default=0.0) or 0.0)
+            - total_size
+        ) > 1e-12:
+            blockers.append("admin_child_size_mismatch")
+        if abs(
+            (safe_float((child_row or {}).get("price"), default=0.0) or 0.0)
+            - limit_price
+        ) > 1e-12:
+            blockers.append("admin_child_limit_price_mismatch")
+
+        return {
+            "required": True,
+            "ready": not blockers,
+            "blockers": blockers,
+            "policy": marker or None,
+            "expected_portfolio_id": expected_portfolio_id or None,
+            "child_portfolio_id": child_portfolio_id or None,
+            "root_portfolio_id": root_portfolio_id or None,
+            "child_ownership_provenance": child_provenance or None,
+            "root_ownership_provenance": root_provenance or None,
+            "child_client_order_id": stealth_order_id,
+            "root_client_order_id": parent_order_id or None,
+        }
+
+    def _record_admin_fill_follow_up_reveal_block(
+        self,
+        *,
+        stealth_order_id: str,
+        order: Dict[str, Any],
+        block_category: str,
+        failure_reason: str,
+        evidence: Dict[str, Any],
+        standing_price_limit: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Persist and emit one throttled pre-exchange Admin-child blocker."""
+
+        state = dict(order.get("anchor_repricing_state_json") or {})
+        decision = {
+            "block_category": block_category,
+            "failure_reason": failure_reason,
+            "evidence": evidence,
+        }
+        if standing_price_limit is not None:
+            decision["standing_price_limit"] = standing_price_limit
+            state["standing_price_limit_policy"] = (
+                StandingPriceLimitPolicy.ADMIN_TEST_PROFILE.value
+            )
+            state["standing_price_limit"] = standing_price_limit
+            state["standing_price_limit_blocker"] = block_category
+
+        repeated_decision = state.get("admin_fill_follow_up_reveal_block") == decision
+        state["admin_fill_follow_up_reveal_block"] = decision
+        order["anchor_repricing_state_json"] = state
+        order["failure_reason"] = failure_reason
+        order["last_lifecycle_event"] = (
+            StealthLifecycleEvent.PLACEMENT_BLOCKED.value
+        )
+        self._set_action_guard_blocked_until(stealth_order_id)
+        # Retry persistence even for an identical in-memory decision. A prior
+        # database failure must not make the blocker permanently memory-only.
+        self._update_stealth_order(order)
+        if repeated_decision:
+            return
+        self.log_callback(
+            "warning",
+            {
+                "event": "admin_fill_follow_up_reveal_blocked",
+                "stealth_order_id": stealth_order_id,
+                "block_category": block_category,
+                "failure_reason": failure_reason,
+                "evidence": evidence,
+                "standing_price_limit": standing_price_limit,
+            },
+        )
+        lifecycle_extra = {
+            "failure_reason": failure_reason,
+            "block_category": block_category,
+            "admin_fill_follow_up_reveal_authority": evidence,
+        }
+        if standing_price_limit is not None:
+            lifecycle_extra.update(
+                {
+                    "standing_price_limit_policy": (
+                        StandingPriceLimitPolicy.ADMIN_TEST_PROFILE.value
+                    ),
+                    "standing_price_limit": standing_price_limit,
+                }
+            )
+        self._dispatch_lifecycle_event(
+            stealth_order_id=stealth_order_id,
+            event=StealthLifecycleEvent.PLACEMENT_BLOCKED,
+            order_data=order,
+            extra=lifecycle_extra,
+        )
+
+    def _clear_admin_fill_follow_up_reveal_block(
+        self,
+        *,
+        stealth_order_id: str,
+        order: Dict[str, Any],
+    ) -> None:
+        """Clear stale pre-exchange blocker evidence after confirmed placement."""
+
+        state = dict(order.get("anchor_repricing_state_json") or {})
+        for key in (
+            "admin_fill_follow_up_reveal_block",
+            "standing_price_limit_policy",
+            "standing_price_limit",
+            "standing_price_limit_blocker",
+        ):
+            state.pop(key, None)
+        order["anchor_repricing_state_json"] = state
+        order["failure_reason"] = None
+        order["last_lifecycle_event"] = (
+            StealthLifecycleEvent.REVEAL_SUCCEEDED.value
+        )
+        blocked_until = getattr(self, "_action_guard_blocked_until", None)
+        if isinstance(blocked_until, dict):
+            blocked_until.pop(stealth_order_id, None)
 
     def reveal_order_slice(self, stealth_order_id: str) -> Optional[str]:
         """Reveal next slice of hidden order based on adaptive sizing.
@@ -3723,6 +3982,37 @@ class StealthOrderManager:
             if blocked_until > time.monotonic():
                 return None
 
+            admin_child_authority = (
+                self._resolve_admin_fill_follow_up_reveal_authority(
+                    stealth_order_id=stealth_order_id,
+                    order=order,
+                )
+            )
+            if (
+                admin_child_authority.get("required")
+                and not admin_child_authority.get("ready")
+            ):
+                authority_blockers = list(
+                    admin_child_authority.get("blockers") or []
+                )
+                block_category = (
+                    str(authority_blockers[0])
+                    if authority_blockers
+                    else "admin_child_reveal_authority_missing"
+                )
+                self._record_admin_fill_follow_up_reveal_block(
+                    stealth_order_id=stealth_order_id,
+                    order=order,
+                    block_category=block_category,
+                    failure_reason=(
+                        "Automatic Admin fill child lacks immutable root/child "
+                        "ownership, Test portfolio, trace, or standing-policy "
+                        "evidence; the child remains pre-exchange."
+                    ),
+                    evidence=admin_child_authority,
+                )
+                return None
+
             capability = evaluate_product_capability(
                 product_id=order["product_id"],
                 capability=ProductCapability.STEALTH_REVEAL,
@@ -3821,6 +4111,36 @@ class StealthOrderManager:
                 slice_size=slice_size,
                 client_order_id=client_order_id,
             )
+            # Capture the durable direct-child policy before extension hooks.
+            # The hook payload intentionally contains the reveal-condition
+            # mapping for enrichment, so reading the policy from ``order``
+            # after hooks would let an in-process mutation remove the guard.
+            standing_price_policy = str(
+                (order.get("reveal_condition_json") or {}).get(
+                    "standing_price_limit_policy"
+                )
+                or ""
+            )
+            immutable_submission_fields = {
+                "product_id": str(order_for_submission.get("product_id") or ""),
+                "side": str(order_for_submission.get("side") or "").upper(),
+                "base_size": safe_float(
+                    order_for_submission.get("base_size"), default=0.0
+                ),
+                "limit_price": safe_float(
+                    order_for_submission.get("limit_price"), default=0.0
+                ),
+                "client_order_id": str(
+                    order_for_submission.get("client_order_id") or ""
+                ),
+                "post_only": bool(order_for_submission.get("post_only")),
+                "stealth_order_id": str(
+                    order_for_submission.get("stealth_order_id") or ""
+                ),
+                "parent_order_id": str(
+                    order_for_submission.get("parent_order_id") or ""
+                ),
+            }
             
             # 🪝 PRE-SUBMISSION HOOKS: Validate/modify order before REST submission
             # Extensions can raise exceptions to block placement or modify order fields
@@ -3874,6 +4194,82 @@ class StealthOrderManager:
                 self._update_stealth_order(order)
                 self._record_reveal_event(order, reveal_event)
                 return None
+
+            if admin_child_authority.get("required"):
+                observed_submission_fields = {
+                    "product_id": str(
+                        order_for_submission.get("product_id") or ""
+                    ),
+                    "side": str(
+                        order_for_submission.get("side") or ""
+                    ).upper(),
+                    "base_size": safe_float(
+                        order_for_submission.get("base_size"), default=0.0
+                    ),
+                    "limit_price": safe_float(
+                        order_for_submission.get("limit_price"), default=0.0
+                    ),
+                    "client_order_id": str(
+                        order_for_submission.get("client_order_id") or ""
+                    ),
+                    "post_only": bool(order_for_submission.get("post_only")),
+                    "stealth_order_id": str(
+                        order_for_submission.get("stealth_order_id") or ""
+                    ),
+                    "parent_order_id": str(
+                        order_for_submission.get("parent_order_id") or ""
+                    ),
+                }
+                drifted_fields = sorted(
+                    field
+                    for field, expected_value in immutable_submission_fields.items()
+                    if observed_submission_fields.get(field) != expected_value
+                )
+                if drifted_fields:
+                    drift_evidence = {
+                        **admin_child_authority,
+                        "drifted_fields": drifted_fields,
+                        "expected_submission_fields": immutable_submission_fields,
+                        "observed_submission_fields": observed_submission_fields,
+                    }
+                    self._record_admin_fill_follow_up_reveal_block(
+                        stealth_order_id=stealth_order_id,
+                        order=order,
+                        block_category="admin_child_submission_payload_drift",
+                        failure_reason=(
+                            "A pre-submission hook changed immutable Admin fill "
+                            "child exchange fields after cap/wallet admission; "
+                            "the child remains pre-exchange."
+                        ),
+                        evidence=drift_evidence,
+                    )
+                    return None
+                if (
+                    standing_price_policy
+                    != StandingPriceLimitPolicy.ADMIN_TEST_PROFILE.value
+                    or str(order_for_submission.get("reveal_pricing_policy") or "")
+                    != RevealPricingPolicy.CONFIGURED_LIMIT.value
+                    or bool(order_for_submission.get("post_only"))
+                ):
+                    plan_evidence = {
+                        **admin_child_authority,
+                        "reveal_pricing_policy": order_for_submission.get(
+                            "reveal_pricing_policy"
+                        ),
+                        "post_only": bool(order_for_submission.get("post_only")),
+                    }
+                    self._record_admin_fill_follow_up_reveal_block(
+                        stealth_order_id=stealth_order_id,
+                        order=order,
+                        block_category="admin_child_reveal_plan_not_authorized",
+                        failure_reason=(
+                            "Automatic Admin fill children require one immutable "
+                            "configured-limit attempt; post-only retry semantics "
+                            "are not authorized for this slice."
+                        ),
+                        evidence=plan_evidence,
+                    )
+                    return None
             
             # ─────────────────────────────────────────────────────────────────
             # PRE-REST: Persist order_parent row with the correct chain link
@@ -4002,6 +4398,73 @@ class StealthOrderManager:
             order_result = None
             post_only_attempts = []
             for attempt_num in range(1, max_attempts + 1):
+                if admin_child_authority.get("required"):
+                    final_guard_ok, final_guard_failure = (
+                        self._evaluate_action_condition_guard(
+                            phase=ActionGuardPhase.REVEAL,
+                            product_id=order_for_submission["product_id"],
+                            side=order_for_submission["side"],
+                            size=float(order_for_submission["base_size"]),
+                            limit_price=float(attempt_price),
+                            stealth_order_id=stealth_order_id,
+                            parent_order_id=order.get("parent_order_id"),
+                        )
+                    )
+                    if not final_guard_ok:
+                        guard_evidence = {
+                            **admin_child_authority,
+                            "action_condition_guard": final_guard_failure,
+                        }
+                        self._record_admin_fill_follow_up_reveal_block(
+                            stealth_order_id=stealth_order_id,
+                            order=order,
+                            block_category=(
+                                str(
+                                    (final_guard_failure or {}).get(
+                                        "block_category"
+                                    )
+                                    or "admin_child_final_action_guard_blocked"
+                                )
+                            ),
+                            failure_reason=(
+                                str((final_guard_failure or {}).get("reason") or "")
+                                or "Final Admin child wallet/cap guard blocked reveal"
+                            ),
+                            evidence=guard_evidence,
+                        )
+                        return None
+                    latest_market = (
+                        self._get_current_market_data(
+                            order_for_submission["product_id"]
+                        )
+                        or {}
+                    )
+                    standing_price_limit = evaluate_spot_standing_price_limit(
+                        side=order_for_submission["side"],
+                        limit_price=attempt_price,
+                        best_bid=latest_market.get("bid"),
+                        market_source=latest_market.get("source"),
+                        market_observed_at=latest_market.get("time"),
+                    )
+                    if not standing_price_limit["allowed"]:
+                        blocker = str(
+                            standing_price_limit.get("blocker")
+                            or "standing_price_limit_not_authorized"
+                        )
+                        failure_reason = (
+                            "Automatic direct-root child reveal is outside the "
+                            "operator standing price authority or lacks a live "
+                            "ticker bid; the child remains pre-exchange."
+                        )
+                        self._record_admin_fill_follow_up_reveal_block(
+                            stealth_order_id=stealth_order_id,
+                            order=order,
+                            block_category=blocker,
+                            failure_reason=failure_reason,
+                            evidence=admin_child_authority,
+                            standing_price_limit=standing_price_limit,
+                        )
+                        return None
                 with controller.track_inflight(INFLIGHT_REST_PLACE):
                     controller.check_admission(INFLIGHT_REST_PLACE)
                     # Pre-insert chain-linked row for THIS attempt's COID before
@@ -4192,6 +4655,11 @@ class StealthOrderManager:
             # When fill event arrives with this client_order_id, it links directly to stealth order
             placed_order_id = client_order_id
             placement_success = True
+            if admin_child_authority.get("required"):
+                self._clear_admin_fill_follow_up_reveal_block(
+                    stealth_order_id=stealth_order_id,
+                    order=order,
+                )
 
             # NOTE: order_parent row was inserted PRE-REST above (see
             # placement_pre_inserted). Do not re-insert here — the WS event
@@ -5270,6 +5738,74 @@ class StealthOrderManager:
                 self._update_stealth_order(follow_up_order)
         
         return follow_up_id
+
+    def create_direct_root_fill_follow_up_stealth_order(
+        self,
+        *,
+        root_parent_client_order_id: str,
+        source_client_order_id: str,
+        product_id: str,
+        source_side: str,
+        side: str,
+        total_size: float,
+        limit_price: float,
+        target_movement: float,
+        target_movement_type: str = "P",
+    ) -> Optional[str]:
+        """Create one deterministic hidden child for an owned direct root fill."""
+
+        spot_follow_up = evaluate_spot_follow_up_policy(
+            product_id=product_id,
+            source_side=source_side,
+            follow_up_side=side,
+            trigger=SpotFollowUpTrigger.FILLED.value,
+        )
+        if not spot_follow_up.allowed:
+            self.log_callback(
+                "warning",
+                {
+                    "event": "direct_root_spot_follow_up_blocked",
+                    "root_parent_client_order_id": root_parent_client_order_id,
+                    **spot_follow_up.to_dict(),
+                },
+            )
+            return None
+
+        follow_up_id = _filled_follow_up_stealth_order_id(
+            original_stealth_order_id=root_parent_client_order_id,
+            source_client_order_id=source_client_order_id,
+        )
+        normalized_side = str(side or "").upper()
+        reveal_direction = (
+            Direction.ABOVE.value
+            if normalized_side == OrderSide.SELL.value
+            else Direction.BELOW.value
+        )
+        return self.create_stealth_order(
+            product_id=product_id,
+            side=normalized_side,
+            total_size=total_size,
+            limit_price=limit_price,
+            reveal_condition={
+                "type": RevealConditionType.PRICE_THRESHOLD.value,
+                "price_threshold": float(limit_price),
+                "direction": reveal_direction,
+                "hold_duration_seconds": 0,
+                "standing_price_limit_policy": (
+                    StandingPriceLimitPolicy.ADMIN_TEST_PROFILE.value
+                ),
+            },
+            sizing_strategy={"type": "fixed"},
+            parent_order_id=root_parent_client_order_id,
+            follow_up_reveal_direction=FollowUpRevealDirection.OPPOSITE.value,
+            reveal_pricing_policy="configured_limit",
+            reason="follow_up_replacement",
+            notes="Automatic follow-up from owned direct Admin root fill",
+            target_movement=target_movement,
+            target_movement_type=target_movement_type,
+            stealth_order_id=follow_up_id,
+            require_persistence=True,
+        )
     
     # Database operations
     
@@ -5411,6 +5947,7 @@ class StealthOrderManager:
                         cancel_reentry_policy_json = %s, cancel_reentry_state_json = %s,
                         post_fill_retreat_policy_json = %s,
                         condition_first_met_at = %s, condition_confirmed_at = %s,
+                        last_lifecycle_event = %s, failure_reason = %s,
                         updated_at = CURRENT_TIMESTAMP
                     WHERE stealth_order_id = %s""",
                 (order['status'],
@@ -5428,6 +5965,8 @@ class StealthOrderManager:
                   json.dumps(order.get('post_fill_retreat_policy_json', {"enabled": False})),
                   condition_first_met_at,
                   condition_confirmed_at,
+                  order.get('last_lifecycle_event'),
+                  order.get('failure_reason'),
                   order['stealth_order_id'])
             )
         except Exception as e:

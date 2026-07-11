@@ -10,10 +10,10 @@ This file covers active API surfaces in the codebase:
 
 The backend owns the OpenAPI contract for the enterprise admin frontend.
 Read-only operator routes are active. Mutating HTTP posture is route-specific:
-manual Spot placement can reach the shared live command path after exact
-backend admission, while HTTP Spot cancel, Futures, Stealth,
-movement/repricing, campaign, and sweep command routes remain no-live or
-local-evidence boundaries. The frontend does not own live authority.
+manual Spot placement and root-only cancellation can reach the shared live
+command path after exact backend admission and Test-profile authority, while
+Futures, Stealth, movement/repricing, campaign, and sweep command routes remain
+no-live or local-evidence boundaries. The frontend does not own live authority.
 
 Current work is goal id `legacy_fill_follow_up_operator_slice`. The default
 vertical slice is Admin order -> fill/readback evidence -> follow-up decision
@@ -721,6 +721,12 @@ Current route adapters:
 - `POST /api/v1/orders`
 - `GET /api/v1/orders`
 - `GET /api/v1/orders/{client_order_id}`
+- `GET /api/v1/orders/{client_order_id}/fill-readback`
+- `GET /api/v1/orders/{client_order_id}/fill-follow-up/replay`
+- `GET /api/v1/orders/{client_order_id}/fill-follow-up/live-readiness`
+- `GET /api/v1/orders/{client_order_id}/fill-follow-up/chain`
+- `GET /api/v1/orders/{client_order_id}/fill-follow-up/trigger-preview`
+- `POST /api/v1/orders/{client_order_id}/fill-follow-up/trigger`
 - `GET /api/v1/stealth/orders`
 - `GET /api/v1/stealth/orders/{stealth_order_id}`
 - `GET /api/v1/stealth/command-suite`
@@ -787,20 +793,46 @@ Current route adapters:
 - `GET /api/v1/spot/direct-orders/{client_order_id}/audit`
 
 Current behavior:
-- live-shaped mutating HTTP routes authenticate, authorize, evaluate
-  idempotency, write command audit records, then return HTTP `501` with `status:
-  "not_implemented"`
+- mutating HTTP routes authenticate, authorize, evaluate idempotency, and write
+  command audit evidence. Manual Spot placement and cancellation can reach the
+  shared guarded live service only after route admission and exact Test-profile
+  authority; unsupported routes remain fail-closed
+- direct Spot limit prices must be positive exact multiples of the configured
+  product `price_increment`; the backend rejects off-tick prices instead of
+  changing operator intent. Standing-price admission also requires a
+  ticker-sourced bid timestamp that is not in the future and is no more than
+  30 seconds old before applying the 50% BUY / 150% SELL limits
+- the canonical command executor serializes each `(idempotency store path,
+  Idempotency-Key)` through admission, execution, audit, and response
+  persistence in the embedded single-process runtime, so concurrent retries of
+  the same admitted cancel cannot both reach Coinbase
 - the guarded fill-follow-up trigger is a no-live local-state compatibility
   exception that can return accepted parent/child readback evidence after exact
   proof refs; Coinbase submit/cancel and live exchange mutation remain
   disallowed
-- mutating HTTP routes do not submit orders, cancel orders, call Coinbase, or
-  mutate live exchange state
-- the generated OpenAPI contract includes eventual `200` accepted/replayed
-  command response schemas, but the current runtime still returns `501` for
-  create, order cancel, stealth create, stealth reveal, stealth move,
-  stealth cancel, movement reprice, and campaign execution commands because HTTP live
-  execution is not approved
+- automatic fill-event processing does not use that trigger as an approval
+  source. It begins only from a durable `ADMIN_MANUAL_ROOT` in the exact
+  embedded Test profile, claims the FILLED decision once per source
+  `client_order_id`, and atomically persists a deterministic
+  `ADMIN_FILL_FOLLOW_UP` child in `order_parent` and `stealth_orders` before
+  publishing it in memory. Duplicate `processing` / `done` claims do not
+  create another child; ambiguous persistence keeps the claim in `processing`
+- the automatic child inherits the root's `retail_portfolio_id`,
+  `correlation_id`, and `audit_id`, and always points directly to the original
+  root. Child creation is local durable evidence, not proof that a Coinbase
+  placement ran
+- in the embedded Test runtime, legacy/unscoped stealth rows and any Admin
+  child whose root link, provenance, portfolio, trace, or standing-price policy
+  is missing or mismatched fail closed before REST. The manager persists
+  `PLACEMENT_BLOCKED` and `failure_reason`, leaving the child pre-exchange
+- `GET /api/v1/orders/{client_order_id}/fill-follow-up/chain` exposes root and
+  child ownership provenance, Test-profile scope consistency, duplicate/nested
+  hierarchy evidence, child lifecycle/failure evidence, and a
+  `follow_up_child_placement_blocked:<client_order_id>` blocker when applicable
+- the generated OpenAPI contract includes typed accepted/replayed and
+  fail-closed command responses; Stealth, movement/reprice, campaign, and other
+  unsupported HTTP command routes remain no-live unless their backend route
+  admission explicitly allows execution
 - `X-Operator-Intent` is durable command audit evidence and part of the
   idempotency payload hash
 - `GET /api/v1/orders` and `GET /api/v1/orders/{client_order_id}` expose
@@ -2274,7 +2306,7 @@ Inflight categories used by callers include:
 
 ---
 
-Last updated: 2026-07-10
+Last updated: 2026-07-11
 
 ## Completed M57 Futures Request Payload Validation Record Schema Evidence
 
