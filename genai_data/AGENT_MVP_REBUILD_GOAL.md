@@ -76,13 +76,17 @@ terminal success. Restart hydration rebuilds native JSONB placement lookup.
 The embedded mode is disabled by default. The deployed
 `tools/run_admin_api.py` app-only runner intentionally remains fail-closed.
 Activating `COINBASE_ADMIN_API_EMBEDDED_ENABLED=true` necessarily runs inside
-the automatic/live fill-event engine, so activation and a process-level fill
-proof remain behind the separate explicit fill-testing decision.
+the automatic/live fill-event engine. Activation does not create or grant a
+separate permission class: every order processed by that engine is governed by
+the canonical goal's explicit side, price, notional, rate, and cancellation
+limits plus backend authorization, wallet, cap, audit, reconciliation,
+rollback, and readback gates, whether the order ultimately fills or not.
 
 The remaining legacy-parity gap is automatic/live fill-event processing. That
-scope requires explicit fill-testing approval plus live-fill,
-wallet/cap/reconciliation, duplicate-order, audit-correlation, rollback, and
-readback evidence.
+scope must use the same order-level authority and backend proof chain as every
+other live order. A predicted fill, non-fill, or far-from-market outcome does
+not add or remove permission, and there is no separate no-fill,
+fill-testing, or live-fill approval category.
 
 ## Closed Scope Rule
 
@@ -97,9 +101,11 @@ futures evidence, broad stealth/repricing expansion, ladder/grid order sets,
 and phase-range tightening remain parked. Their unresolved blockers prevent
 those features from running; they do not make those features current work.
 
-When the no-live slice is clean and no direct blocker is demonstrated, stop
-and request a scope decision. Do not continue from the highest-rated parked
-blocker.
+When the current slice is complete and no direct blocker is demonstrated,
+stop. Do not continue from the highest-rated parked blocker. A live order that
+is part of this slice remains governed by the canonical order-level limits and
+backend gates; do not invent an additional decision based on whether the order
+is expected to fill.
 
 ## Safety And Validation
 
@@ -111,13 +117,18 @@ blocker.
 - Preserve the flat hierarchy: every child links to the original root parent.
 - Keep live execution fail-closed on authorization, idempotency, cap/wallet,
   duplicate claims, audit, reconciliation, rollback, and readback evidence.
-- Standing notional, distance, count, and rate limits in the canonical goal
-  remove only a separate approval request. They do not prioritize parked work
-  or authorize fill testing.
+- The canonical goal's explicit live-order side, price/distance, notional,
+  count/rate, and cancellation limits govern every order together with backend
+  authorization, wallet, cap, audit, reconciliation, rollback, and readback
+  gates. Fill status is an outcome, not a permission class; do not create a
+  separate no-fill, non-fill, fill-testing, or live-fill approval requirement.
+- Those order-level limits do not prioritize parked work or waive any backend
+  gate.
 - Use focused tests for ordinary changes. Run full backend/frontend suites only
   for durable milestone, release/deployment or cross-repository association
   closeout, broad cross-cutting changes, or explicit operator request.
 
 No additional no-live implementation lane remains. The selected topology is
-implementation-ready but deliberately inactive; automatic/live fill-event
-activation and validation require separate explicit fill-testing approval.
+implementation-ready and opt-in. Automatic/live fill-event activation and
+validation use the same canonical order-level limits and backend gates as all
+other live orders; activation itself is not a second permission source.

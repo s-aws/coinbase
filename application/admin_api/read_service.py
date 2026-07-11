@@ -2971,7 +2971,6 @@ def _order_fill_follow_up_decision_audit(
     policy_evaluation_ran = False
     blockers = [
         "fill_follow_up_reconciliation_proof_missing",
-        "live_fill_follow_up_scope_not_approved",
     ]
     if not execution_adapter_observed:
         blockers.insert(0, "fill_follow_up_execution_adapter_missing")
@@ -3037,7 +3036,6 @@ def _order_fill_follow_up_decision_audit(
         automatic_fill_event_processing_status="blocked",
         automatic_fill_event_processing_blockers=[
             "automatic_fill_event_processing_not_enabled",
-            "live_fill_follow_up_scope_not_approved",
         ],
         duplicate_claim_protection_required=True,
         claim_state=claim_state,
@@ -13458,12 +13456,14 @@ class AdminApiReadService:
             "engine, stealth, Coinbase, local-state, or exchange mutation ran."
             if ready_no_live
             else (
-                "Fill follow-up live readiness is fail-closed until separate "
-                "fill-testing approval, live-fill readback proof, wallet proof, "
-                "cap-guard proof, reconciliation proof, rollback readback, "
-                "observed duplicate-claim protection, and operator-visible audit "
-                "evidence exist. No engine, stealth, Coinbase, local-state, or "
-                "exchange mutation ran."
+                "Fill follow-up live readiness is fail-closed until all "
+                "required evidence exists. fill_testing_approval_id is the "
+                "legacy-compatible field name for the verified route-bound "
+                "order approval; required evidence also includes live-fill "
+                "readback proof, wallet proof, cap-guard proof, reconciliation "
+                "proof, rollback readback, observed duplicate-claim protection, "
+                "and operator-visible audit evidence. No engine, stealth, "
+                "Coinbase, local-state, or exchange mutation ran."
             )
         )
         return AdminOrderFillFollowUpLiveReadinessResponse(

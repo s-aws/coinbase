@@ -83,9 +83,10 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
   and `python3.13 tools/run_spot_campaign.py --pnl-delta-report --summary-only`
 - Local app-only Admin API runner:
   `python3.13 tools/run_admin_api.py --dev-token local-admin-token`
-- Approval-gated canonical engine embedding:
-  `main.py` with `COINBASE_ADMIN_API_EMBEDDED_ENABLED=true`; do not activate
-  until automatic/live fill-event testing is explicitly approved.
+- Canonical engine embedding:
+  `main.py` with `COINBASE_ADMIN_API_EMBEDDED_ENABLED=true`; activation is not
+  a separate fill-testing permission, and every order remains subject to the
+  current goal's explicit order limits and complete backend gate chain.
 - Process-parallel regression closeout:
   `python3.13 tools/run_parallel_regression.py --workers 4`
 - Stale test-process check before closeout and after interrupted tests:

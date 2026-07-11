@@ -78,7 +78,7 @@
       "caps": "not applicable",
       "audit": "optional read audit",
       "shared_method": "build_order_fill_follow_up_live_readiness",
-      "parity_test": "fail-closed fill follow-up live-readiness blockers for fill-testing approval, wallet/cap/reconciliation proof, duplicate-claim protection, and audit correlation; no claim acquisition, OrderEngine.handle_filled_order, stealth follow-up creation, Coinbase call, or local/exchange mutation",
+      "parity_test": "fail-closed fill follow-up live-readiness blockers for the route-bound order approval carried by legacy-compatible fill_testing_approval_id, wallet/cap/reconciliation proof, duplicate-claim protection, and audit correlation; no claim acquisition, OrderEngine.handle_filled_order, stealth follow-up creation, Coinbase call, or local/exchange mutation",
       "compatibility_mode": null,
       "command_contract": false
     },
@@ -126,7 +126,7 @@
       "caps": "required before accepted no-live trigger execution",
       "audit": "required",
       "shared_method": "trigger_order_fill_follow_up",
-      "parity_test": "fail-closed fill follow-up trigger boundary; rejects incomplete fill-testing approval, wallet/cap/reconciliation proof, duplicate-claim acknowledgement/readback, audit correlation, existing child, duplicate chain, or missing execution adapter; after exact route-bound approval, wallet proof cap_guard_wallet:<cap_guard_decision_id>, cap/guard, reconciliation, duplicate-claim, audit-correlation, and parent/child checks clear, it may invoke the no-live fill-follow-up executor, require accepted child readback, and still reports Coinbase submit/cancel and live exchange mutation remain disallowed",
+      "parity_test": "fail-closed fill follow-up trigger boundary; rejects incomplete route-bound order approval carried by legacy-compatible fill_testing_approval_id, wallet/cap/reconciliation proof, duplicate-claim acknowledgement/readback, audit correlation, existing child, duplicate chain, or missing execution adapter; after exact route-bound approval, wallet proof cap_guard_wallet:<cap_guard_decision_id>, cap/guard, reconciliation, duplicate-claim, audit-correlation, and parent/child checks clear, it may invoke the no-live fill-follow-up executor, require accepted child readback, and still reports Coinbase submit/cancel and live exchange mutation remain disallowed",
       "compatibility_mode": null,
       "command_contract": true
     },

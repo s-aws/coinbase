@@ -46,12 +46,14 @@ only after a passed backend read finds a live Coinbase fill for the
 may surface that ref and remove only the live-fill readback blocker. It may
 also surface `rollback_readback_ref=spot_recovery_rollback_journal:<journal_id>`
 from an accepted route-bound no-live Spot recovery rollback journal and remove
-only the rollback blocker. It may also surface the fill-testing approval id,
+only the rollback blocker. It may also surface the route-bound order approval
+id through the legacy-compatible `fill_testing_approval_id` field,
 `wallet_proof_ref=cap_guard_wallet:<cap_guard_decision_id>`,
 `cap_guard_decision_ref`, and `reconciliation_plan_ref` from one matching
 route-bound trigger proof chain with approval, admission audit, cap/guard
 wallet, and reconciliation rows, clearing only those proof blockers.
-Duplicate-claim blockers remain fail-closed until their own backend evidence
+That field name does not define a separate fill-testing permission category;
+duplicate-claim blockers remain fail-closed until their own backend evidence
 exists.
 
 `POST /api/v1/orders` is the enterprise manual Spot order command contract.
@@ -2284,8 +2286,11 @@ socket, and loss of the last acknowledged transport or the user-event consumer
 synchronously closes runtime admission before draining the canonical runtime.
 Bridge reveal/reprice/reentry entry points also honor that admission state, so
 cached market data cannot originate a new placement in the drain handoff. HTTP
-ingress stops before bridge/engine shutdown. Do not enable or launch this mode
-until the operator separately approves automatic/live fill-event testing.
+ingress stops before bridge/engine shutdown. Enabling this mode is not a
+separate fill-testing permission: every order is governed by the current
+goal's explicit side, price, notional, rate, and cancellation limits and by
+backend authorization, wallet, cap, audit, reconciliation, rollback, and
+readback gates, whether it fills or not.
 
 FILLED follow-ups use a deterministic child `client_order_id` derived from the
 source placement and atomically commit both `order_parent` and `stealth_orders`

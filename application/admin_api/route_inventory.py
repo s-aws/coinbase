@@ -76,7 +76,8 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         shared_method="build_order_fill_follow_up_live_readiness",
         parity_test=(
             "fail-closed fill follow-up live-readiness blockers for "
-            "fill-testing approval, wallet/cap/reconciliation proof, "
+            "the route-bound order approval carried by legacy-compatible "
+            "fill_testing_approval_id, wallet/cap/reconciliation proof, "
             "duplicate-claim protection, and audit correlation; no claim "
             "acquisition, OrderEngine.handle_filled_order, stealth follow-up "
             "creation, Coinbase call, or local/exchange mutation"
@@ -131,7 +132,8 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
         shared_method="trigger_order_fill_follow_up",
         parity_test=(
             "fail-closed fill follow-up trigger boundary; rejects incomplete "
-            "fill-testing approval, wallet/cap/reconciliation proof, "
+            "route-bound order approval carried by legacy-compatible "
+            "fill_testing_approval_id, wallet/cap/reconciliation proof, "
             "duplicate-claim acknowledgement/readback, audit correlation, "
             "existing child, duplicate chain, or missing execution adapter; "
             "after exact route-bound approval, wallet proof "

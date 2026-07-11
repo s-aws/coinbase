@@ -75893,6 +75893,9 @@ def test_admin_api_order_detail_surfaces_no_live_fill_follow_up_decision(
     assert "automatic_fill_event_processing_not_enabled" in (
         audit["automatic_fill_event_processing_blockers"]
     )
+    assert "live_fill_follow_up_scope_not_approved" not in (
+        audit["automatic_fill_event_processing_blockers"]
+    )
     assert audit["duplicate_claim_protection_required"] is True
     assert audit["claim_acquired"] is False
     assert audit["claim_state_source"] == "runtime_orderbook_unavailable"
@@ -75908,7 +75911,7 @@ def test_admin_api_order_detail_surfaces_no_live_fill_follow_up_decision(
         in audit["read_evidence_routes"]
     )
     assert "fill_follow_up_execution_adapter_missing" in audit["blockers"]
-    assert "live_fill_follow_up_scope_not_approved" in audit["blockers"]
+    assert "live_fill_follow_up_scope_not_approved" not in audit["blockers"]
 
 
 @pytest.mark.regression
@@ -75998,7 +76001,7 @@ def test_admin_api_order_fill_follow_up_replay_route_surfaces_no_live_decision(
         in audit["read_evidence_routes"]
     )
     assert "fill_follow_up_execution_adapter_missing" in audit["blockers"]
-    assert "live_fill_follow_up_scope_not_approved" in audit["blockers"]
+    assert "live_fill_follow_up_scope_not_approved" not in audit["blockers"]
 
 
 @pytest.mark.regression
@@ -76088,6 +76091,12 @@ def test_admin_api_order_fill_follow_up_live_readiness_blocks_without_prereqs(
     assert payload["fill_follow_up_decision_audit"]["follow_up_decision"] == (
         "eligible_no_live"
     )
+    assert (
+        "fill_testing_approval_id is the legacy-compatible field name for "
+        "the verified route-bound order approval"
+        in payload["detail"]
+    )
+    assert "fill-testing approval" not in payload["detail"]
 
 
 @pytest.mark.regression
@@ -91032,6 +91041,14 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert rows[
         "GET /api/v1/orders/{client_order_id}/fill-follow-up/live-readiness"
     ].action_class == AdminApiActionClass.READ_ONLY
+    live_readiness_route = rows[
+        "GET /api/v1/orders/{client_order_id}/fill-follow-up/live-readiness"
+    ]
+    assert "legacy-compatible fill_testing_approval_id" in (
+        live_readiness_route.parity_test
+    )
+    assert "route-bound order approval" in live_readiness_route.parity_test
+    assert "fill-testing approval" not in live_readiness_route.parity_test
     assert rows[
         "GET /api/v1/orders/{client_order_id}/fill-follow-up/chain"
     ].shared_method == "build_order_fill_follow_up_chain"
@@ -91056,6 +91073,11 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert trigger_route.approval == "required before accepted no-live trigger execution"
     assert trigger_route.caps == "required before accepted no-live trigger execution"
     assert "exact route-bound approval" in trigger_route.parity_test
+    assert "legacy-compatible fill_testing_approval_id" in (
+        trigger_route.parity_test
+    )
+    assert "route-bound order approval" in trigger_route.parity_test
+    assert "fill-testing approval" not in trigger_route.parity_test
     assert "may invoke the no-live fill-follow-up executor" in (
         trigger_route.parity_test
     )
@@ -91678,6 +91700,9 @@ def test_admin_api_route_inventory_names_required_shared_methods_and_doc():
     assert "build_order_fill_follow_up_live_readiness" in doc
     assert "build_order_fill_follow_up_chain" in doc
     assert "trigger_order_fill_follow_up" in doc
+    assert "legacy-compatible fill_testing_approval_id" in doc
+    assert "route-bound order approval" in doc
+    assert "fill-testing approval" not in doc
     assert "build_stealth_order_list" in doc
     assert "build_stealth_order_detail" in doc
     assert "cancel_stealth_order_by_stealth_order_id" in doc

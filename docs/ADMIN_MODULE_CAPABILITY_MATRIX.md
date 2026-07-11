@@ -7,9 +7,12 @@ implicit platform model.
 Current goal id: `legacy_fill_follow_up_operator_slice`. The current vertical
 slice is Admin order -> fill/readback evidence -> follow-up decision ->
 operator-visible parent/child chain. The guarded no-live slice is implemented;
-automatic/live fill-event processing is approval-gated. Fan-out, scheduler,
-runtime-control, retry/recovery, multi-product wallet-ledger work, and
-ladder/grid order sets are parked.
+automatic/live fill-event processing is governed by the same explicit
+order-level limits and backend authorization, wallet/cap, audit,
+reconciliation, rollback, and readback gates as every live order, without a
+separate fill-testing approval class. Fan-out, scheduler, runtime-control,
+retry/recovery, multi-product wallet-ledger work, and ladder/grid order sets
+are parked.
 
 Historical futures/perpetual M57 scope: `7961-7980`.
 

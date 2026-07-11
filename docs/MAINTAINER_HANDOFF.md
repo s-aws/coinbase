@@ -122,9 +122,11 @@ explicit-request gate:
 npm run release:gate
 ```
 
-Live Coinbase execution is not part of normal handoff validation. If a live
-phase is explicitly approved, report product, submitted notional, executed
-notional, retained inventory, reconciliation result, and audit ids.
+Live Coinbase execution is not part of normal handoff validation. When a live
+order is exercised under the current goal's explicit order limits and backend
+gates, report product, submitted notional, executed notional, retained
+inventory, reconciliation result, and audit ids. Expected fill status does not
+create a separate approval class.
 
 ## Current Handoff State
 
@@ -141,10 +143,11 @@ notional, retained inventory, reconciliation result, and audit ids.
   duplicate suppression; deterministic atomic parent/stealth child persistence;
   ambiguous-failure claim handling; dual-source chain corroboration; and restart
   placement lookup. The deployed app-only runner remains intentionally
-  fail-closed. Enabling and validating the embedded engine/API process crosses
-  the separate automatic/live fill-event approval gate and still requires live-fill,
-  wallet/cap/reconciliation, duplicate-order, audit, rollback, and readback
-  proof.
+  fail-closed. Enabling the embedded engine/API process is not a separate
+  fill-testing permission. Every order processed through it is governed by the
+  current goal's explicit side, price, notional, rate, and cancellation limits
+  plus backend authorization, wallet/cap, duplicate-order, audit,
+  reconciliation, rollback, and readback gates, whether it fills or not.
 - Legacy translation references inspected: `origin/prod:main.py` for the one
   engine/bridge lifecycle, `origin/prod:core/order_engine.py` for authenticated
   `user` event -> `handle_filled_order` -> follow-up behavior, and

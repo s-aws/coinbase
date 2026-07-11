@@ -17,7 +17,9 @@ private model routing, private release planning, or internal research notes.
 
 - Maintain the guarded no-live fill/follow-up operator slice and address only
   demonstrated operator-visible or immediate safety blockers. Automatic/live
-  fill-event parity requires explicit fill-testing approval.
+  fill-event parity uses the same explicit order limits and backend gate chain
+  as every live order; expected fill status creates no separate permission
+  class.
 - Enforce ownership boundaries with `.agents/ownership.yaml` and
   `tools/check_ownership.py`.
 - Keep dashboard message contracts synchronized with implemented behavior.

@@ -64,8 +64,10 @@ BFF wrappers. Do not use the dashboard WebSocket, a backend CLI, or an exchange
 ## Current Fill/Follow-Up Boundary
 
 The guarded no-live operator chain is implemented. Automatic/live fill-event
-parity requires explicit fill-testing approval and backend-owned live-fill,
-wallet/cap/reconciliation, duplicate-order, audit-correlation, rollback, and
-readback proof. Fan-out, scheduler, retry/runtime-control, wallet-ledger, and
-ladder/grid work is parked and cannot make itself current by producing more
-evidence about its own blockers.
+parity uses the same authority as every other live order: the current goal's
+explicit side, price, notional, rate, and cancellation limits plus
+backend-owned authorization, wallet/cap, duplicate-order, audit-correlation,
+reconciliation, rollback, and readback gates. Whether an order fills is an
+outcome, not a separate permission category. Fan-out, scheduler,
+retry/runtime-control, wallet-ledger, and ladder/grid work is parked and cannot
+make itself current by producing more evidence about its own blockers.
