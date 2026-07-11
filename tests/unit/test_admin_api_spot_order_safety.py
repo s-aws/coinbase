@@ -845,6 +845,9 @@ def test_submit_reads_every_open_order_page_before_admission() -> None:
     class _PagedClient(_SpotRestClient):
         def list_orders(self, **kwargs: Any) -> dict[str, Any]:
             self.list_calls.append(dict(kwargs))
+            requested_statuses = kwargs.get("order_status") or []
+            if requested_statuses != ["OPEN"]:
+                return {"orders": [], "has_next": False}
             if kwargs.get("cursor") == "page-2":
                 return {
                     "orders": [
@@ -868,11 +871,15 @@ def test_submit_reads_every_open_order_page_before_admission() -> None:
     assert response.status == AdminApiCommandStatus.REJECTED
     assert response.failure_stage == "active_order_limit"
     assert response.data["active_order_limit"]["open_order_count"] == 1
-    assert response.data["active_order_limit"]["page_count"] == 2
+    assert response.data["active_order_limit"]["page_count"] == 6
+    assert response.data["active_order_limit"]["status_query_count"] == 5
     assert rest_client.create_calls == []
 
 
-@pytest.mark.parametrize("active_status", ["PENDING", "CANCEL_QUEUED"])
+@pytest.mark.parametrize(
+    "active_status",
+    ["PENDING", "OPEN", "QUEUED", "CANCEL_QUEUED", "EDIT_QUEUED"],
+)
 def test_submit_blocks_every_authoritative_active_status_before_create(
     active_status: str,
 ) -> None:
@@ -882,6 +889,8 @@ def test_submit_blocks_every_authoritative_active_status_before_create(
             requested_statuses = {
                 str(value) for value in kwargs.get("order_status") or []
             }
+            if len(requested_statuses) != 1:
+                raise RuntimeError("Cannot pass multiple statuses with OPEN")
             return {
                 "orders": [
                     dict(row)
@@ -908,9 +917,10 @@ def test_submit_blocks_every_authoritative_active_status_before_create(
     assert response.status == AdminApiCommandStatus.REJECTED
     assert response.failure_stage == "active_order_limit"
     assert response.data["active_order_limit"]["open_order_count"] == 1
-    assert len(rest_client.list_calls) == 1
-    queried_statuses = rest_client.list_calls[0]["order_status"]
-    assert len(queried_statuses) == 5
+    assert len(rest_client.list_calls) == 5
+    queried_statuses = [
+        call["order_status"][0] for call in rest_client.list_calls
+    ]
     assert set(queried_statuses) == {
         "PENDING",
         "OPEN",
@@ -918,7 +928,10 @@ def test_submit_blocks_every_authoritative_active_status_before_create(
         "CANCEL_QUEUED",
         "EDIT_QUEUED",
     }
-    assert rest_client.list_calls[0]["product_type"] == "SPOT"
+    assert all(
+        len(call["order_status"]) == 1 and call["product_type"] == "SPOT"
+        for call in rest_client.list_calls
+    )
     assert rest_client.create_calls == []
     assert registrar.rows == {}
 
