@@ -8697,6 +8697,7 @@ def _validate_exact_coinbase_gtc_child_order(
     gtc = object_record(configuration.get("limit_limit_gtc"))
     allowed_fields = {
         "base_size",
+        "currency_size",
         "limit_price",
         "post_only",
         "reduce_only",
@@ -12419,8 +12420,11 @@ def run_offline_self_test() -> dict[str, Any]:
         "order_configuration": {
             "limit_limit_gtc": {
                 "base_size": child_tuples[0]["base_size"],
+                "currency_size": None,
                 "limit_price": child_tuples[0]["limit_price"],
                 "post_only": False,
+                "reduce_only": False,
+                "rfq_disabled": False,
             }
         },
     }
@@ -12429,6 +12433,42 @@ def run_offline_self_test() -> dict[str, Any]:
         expected_exchange_order_id="offline-child-exchange-id",
         expected_portfolio_id=str(preflight["portfolio_id"]),
         expected_child_tuple=child_tuples[0],
+    )
+    truthy_currency_size_child_order = json.loads(
+        json.dumps(canonical_child_order)
+    )
+    truthy_currency_size_child_order["order_configuration"][
+        "limit_limit_gtc"
+    ]["currency_size"] = True
+    require(
+        expect_proof_failure(
+            lambda: _validate_exact_coinbase_gtc_child_order(
+                truthy_currency_size_child_order,
+                expected_exchange_order_id="offline-child-exchange-id",
+                expected_portfolio_id=str(preflight["portfolio_id"]),
+                expected_child_tuple=child_tuples[0],
+            ),
+            "self_test_truthy_child_currency_size_not_denied",
+        )
+        == "exact_child_order_currency_size_truthy",
+        "self_test_truthy_child_currency_size_blocker_mismatch",
+    )
+    unknown_gtc_child_order = json.loads(json.dumps(canonical_child_order))
+    unknown_gtc_child_order["order_configuration"]["limit_limit_gtc"][
+        "unknown_field"
+    ] = None
+    require(
+        expect_proof_failure(
+            lambda: _validate_exact_coinbase_gtc_child_order(
+                unknown_gtc_child_order,
+                expected_exchange_order_id="offline-child-exchange-id",
+                expected_portfolio_id=str(preflight["portfolio_id"]),
+                expected_child_tuple=child_tuples[0],
+            ),
+            "self_test_unknown_child_gtc_field_not_denied",
+        )
+        == "exact_child_order_gtc_unknown_field",
+        "self_test_unknown_child_gtc_field_blocker_mismatch",
     )
 
     child_id = child_ids[0]
