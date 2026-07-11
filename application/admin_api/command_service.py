@@ -254,13 +254,7 @@ INTENTIONAL_FILL_OPERATOR_INTENT = (
 INTENTIONAL_FILL_PRODUCT_ID = "BTC-USDC"
 INTENTIONAL_FILL_MAX_NOTIONAL_USDC = Decimal("9.99")
 INTENTIONAL_FILL_MAX_ASK_RATIO = Decimal("1.005")
-COINBASE_ACTIVE_SPOT_ORDER_STATUSES = (
-    "PENDING",
-    "OPEN",
-    "QUEUED",
-    "CANCEL_QUEUED",
-    "EDIT_QUEUED",
-)
+COINBASE_ACTIVE_SPOT_ORDER_QUERY = ("OPEN",)
 
 
 def _noop_log(_level: str, _message: str) -> None:
@@ -872,74 +866,10 @@ def read_authoritative_coinbase_orders(
     terminal status.  Missing ``has_next``, an unusable cursor, malformed order
     rows, or a repeated cursor makes the read non-authoritative.
 
-    Coinbase rejects a status filter that combines ``OPEN`` with another
-    status.  Fan multi-status reads out into complete single-status queries so
-    active-order admission cannot silently omit transient active states.
+    Coinbase's historical-order endpoint requires ``OPEN`` as the aggregate
+    query token for active orders. Returned rows can still carry transient
+    active statuses such as ``PENDING`` or ``CANCEL_QUEUED``.
     """
-
-    if order_status is not None:
-        normalized_statuses: list[str] = []
-        for raw_status in order_status:
-            status = str(raw_status or "").strip()
-            if not status:
-                raise CoinbaseOrderReadbackError(
-                    "order_read_malformed_filter",
-                    "Coinbase order status filter contains an empty value",
-                )
-            if status not in normalized_statuses:
-                normalized_statuses.append(status)
-        if len(normalized_statuses) > 1:
-            rows_by_exchange_id: dict[str, dict[str, Any]] = {}
-            total_pages = 0
-            for status in normalized_statuses:
-                remaining_pages = maximum_pages - total_pages
-                if remaining_pages < 1:
-                    raise CoinbaseOrderReadbackError(
-                        "order_read_pagination_limit",
-                        "Coinbase multi-status order read exceeded the bounded pagination limit",
-                    )
-                status_rows, status_evidence = read_authoritative_coinbase_orders(
-                    rest_client,
-                    order_status=[status],
-                    order_ids=order_ids,
-                    product_ids=product_ids,
-                    product_type=product_type,
-                    maximum_pages=remaining_pages,
-                )
-                total_pages += int(status_evidence["page_count"])
-                for row in status_rows:
-                    exchange_order_id = str(row["order_id"])
-                    existing = rows_by_exchange_id.get(exchange_order_id)
-                    if existing is not None:
-                        for field in (
-                            "client_order_id",
-                            "product_id",
-                            "product_type",
-                            "retail_portfolio_id",
-                        ):
-                            existing_value = str(existing.get(field) or "")
-                            row_value = str(row.get(field) or "")
-                            if (
-                                existing_value
-                                and row_value
-                                and existing_value != row_value
-                            ):
-                                raise CoinbaseOrderReadbackError(
-                                    "order_read_malformed",
-                                    "Coinbase multi-status order read returned conflicting identity evidence",
-                                )
-                    else:
-                        rows_by_exchange_id[exchange_order_id] = row
-            rows = list(rows_by_exchange_id.values())
-            return rows, {
-                "authoritative": True,
-                "page_count": total_pages,
-                "order_count": len(rows),
-                "pagination_complete": True,
-                "status_query_count": len(normalized_statuses),
-                "queried_statuses": normalized_statuses,
-            }
-        order_status = normalized_statuses
 
     list_orders = getattr(rest_client, "list_orders", None)
     if not callable(list_orders):
@@ -3568,7 +3498,7 @@ class AdminApiCommandService:
                 try:
                     active_orders, pagination = read_authoritative_coinbase_orders(
                         deps.rest_client,
-                        order_status=list(COINBASE_ACTIVE_SPOT_ORDER_STATUSES),
+                        order_status=list(COINBASE_ACTIVE_SPOT_ORDER_QUERY),
                         product_type=ProductType.SPOT.value,
                     )
                     active_order_limit_evidence = {

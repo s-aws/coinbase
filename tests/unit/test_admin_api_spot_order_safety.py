@@ -845,9 +845,8 @@ def test_submit_reads_every_open_order_page_before_admission() -> None:
     class _PagedClient(_SpotRestClient):
         def list_orders(self, **kwargs: Any) -> dict[str, Any]:
             self.list_calls.append(dict(kwargs))
-            requested_statuses = kwargs.get("order_status") or []
-            if requested_statuses != ["OPEN"]:
-                return {"orders": [], "has_next": False}
+            if kwargs.get("order_status") != ["OPEN"]:
+                raise RuntimeError("active orders require the OPEN aggregate query")
             if kwargs.get("cursor") == "page-2":
                 return {
                     "orders": [
@@ -871,8 +870,7 @@ def test_submit_reads_every_open_order_page_before_admission() -> None:
     assert response.status == AdminApiCommandStatus.REJECTED
     assert response.failure_stage == "active_order_limit"
     assert response.data["active_order_limit"]["open_order_count"] == 1
-    assert response.data["active_order_limit"]["page_count"] == 6
-    assert response.data["active_order_limit"]["status_query_count"] == 5
+    assert response.data["active_order_limit"]["page_count"] == 2
     assert rest_client.create_calls == []
 
 
@@ -886,17 +884,12 @@ def test_submit_blocks_every_authoritative_active_status_before_create(
     class _StatusFilteringClient(_SpotRestClient):
         def list_orders(self, **kwargs: Any) -> dict[str, Any]:
             self.list_calls.append(dict(kwargs))
-            requested_statuses = {
-                str(value) for value in kwargs.get("order_status") or []
-            }
-            if len(requested_statuses) != 1:
-                raise RuntimeError("Cannot pass multiple statuses with OPEN")
+            if kwargs.get("order_status") != ["OPEN"]:
+                raise RuntimeError(
+                    "Query request does not support querying active status orders"
+                )
             return {
-                "orders": [
-                    dict(row)
-                    for row in self.open_orders
-                    if str(row.get("status") or "") in requested_statuses
-                ],
+                "orders": [dict(row) for row in self.open_orders],
                 "has_next": False,
             }
 
@@ -917,21 +910,9 @@ def test_submit_blocks_every_authoritative_active_status_before_create(
     assert response.status == AdminApiCommandStatus.REJECTED
     assert response.failure_stage == "active_order_limit"
     assert response.data["active_order_limit"]["open_order_count"] == 1
-    assert len(rest_client.list_calls) == 5
-    queried_statuses = [
-        call["order_status"][0] for call in rest_client.list_calls
+    assert rest_client.list_calls == [
+        {"limit": 100, "order_status": ["OPEN"], "product_type": "SPOT"}
     ]
-    assert set(queried_statuses) == {
-        "PENDING",
-        "OPEN",
-        "QUEUED",
-        "CANCEL_QUEUED",
-        "EDIT_QUEUED",
-    }
-    assert all(
-        len(call["order_status"]) == 1 and call["product_type"] == "SPOT"
-        for call in rest_client.list_calls
-    )
     assert rest_client.create_calls == []
     assert registrar.rows == {}
 
