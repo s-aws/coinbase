@@ -113,3 +113,68 @@ def test_automatic_complete_proof_accepts_exact_admin_root_provenance(
     )
     assert audit.automatic_fill_event_processing_enabled is True
     assert audit.follow_up_decision == "automatic_child_created"
+
+
+def test_automatic_complete_proof_survives_runtime_restart_from_durable_child(
+    monkeypatch,
+) -> None:
+    root = _filled_root(OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value)
+    child = {
+        "client_order_id": CHILD_ID,
+        "product_id": "BTC-USDC",
+        "side": "SELL",
+        "status": "PENDING",
+        "size": "0.01",
+        "price": "101",
+        "parent_order_id": ROOT_ID,
+        "retail_portfolio_id": TEST_PORTFOLIO_ID,
+        "exchange_order_id": None,
+        "ownership_provenance": (
+            OrderOwnershipProvenance.ADMIN_FILL_FOLLOW_UP.value
+        ),
+    }
+    monkeypatch.setenv("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID", TEST_PORTFOLIO_ID)
+    monkeypatch.setattr(
+        read_service,
+        "_runtime_follow_up_claim_state",
+        lambda _client_order_id: (
+            None,
+            "runtime_orderbook_unavailable",
+            False,
+        ),
+    )
+    monkeypatch.setattr(
+        read_service,
+        "_runtime_fill_follow_up_execution_adapter_state",
+        lambda: (False, "runtime_order_engine_unavailable"),
+    )
+    monkeypatch.setattr(
+        "database.order.get_parent_orders",
+        lambda: [root, child],
+    )
+    monkeypatch.setattr(
+        read_service,
+        "evaluate_spot_follow_up_policy",
+        lambda **_kwargs: SimpleNamespace(
+            allowed=True,
+            intent="exit",
+            reason="allowed",
+            product_type="SPOT",
+        ),
+    )
+
+    audit = read_service._order_fill_follow_up_decision_audit(
+        root,
+        client_order_id=ROOT_ID,
+    )
+
+    assert audit is not None
+    assert audit.claim_state == "done"
+    assert audit.claim_state_source == (
+        "order_parent.durable_admin_fill_follow_up"
+    )
+    assert audit.claim_reader_ran is True
+    assert audit.automatic_fill_event_processing_enabled is True
+    assert audit.existing_follow_up_client_order_ids == [CHILD_ID]
+    assert audit.existing_follow_up_count == 1
+    assert audit.follow_up_decision == "automatic_child_created"

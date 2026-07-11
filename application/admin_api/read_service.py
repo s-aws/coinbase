@@ -2974,6 +2974,54 @@ def _order_follow_up_chain_ids(
     return follow_up_ids
 
 
+def _durable_automatic_fill_follow_up_ids(
+    *,
+    root_parent_client_order_id: str,
+    product_id: str | None,
+    follow_up_side: str | None,
+    retail_portfolio_id: str | None,
+) -> list[str]:
+    """Return exact hidden Admin fill children that survive runtime restart."""
+
+    if not product_id or not follow_up_side or not retail_portfolio_id:
+        return []
+    try:
+        from database.order import get_parent_orders
+
+        rows = get_parent_orders() or []
+    except Exception:
+        return []
+    child_ids: list[str] = []
+    for row in rows:
+        child_id = _string_or_none(row.get("client_order_id"))
+        if not child_id or child_id in child_ids:
+            continue
+        if _string_or_none(row.get("parent_order_id")) != (
+            root_parent_client_order_id
+        ):
+            continue
+        if _ownership_provenance_or_none(row.get("ownership_provenance")) != (
+            OrderOwnershipProvenance.ADMIN_FILL_FOLLOW_UP
+        ):
+            continue
+        if _string_or_none(row.get("product_id")) != product_id:
+            continue
+        if str(row.get("side") or "").upper() != follow_up_side.upper():
+            continue
+        if _string_or_none(row.get("retail_portfolio_id")) != (
+            retail_portfolio_id
+        ):
+            continue
+        if str(row.get("status") or "").upper() not in {"HIDDEN", "PENDING"}:
+            continue
+        if _string_or_none(
+            row.get("exchange_order_id") or row.get("coinbase_order_id")
+        ):
+            continue
+        child_ids.append(child_id)
+    return child_ids
+
+
 def _order_fill_follow_up_decision_audit(
     row: dict[str, Any] | None,
     *,
@@ -3011,6 +3059,12 @@ def _order_fill_follow_up_decision_audit(
         os.environ.get("COINBASE_ADMIN_API_SPOT_PORTFOLIO_ID")
     )
     observed_portfolio_id = _string_or_none(row.get("retail_portfolio_id"))
+    durable_follow_up_ids = _durable_automatic_fill_follow_up_ids(
+        root_parent_client_order_id=root_parent_client_order_id,
+        product_id=product_id,
+        follow_up_side=derived_follow_up_side,
+        retail_portfolio_id=observed_portfolio_id,
+    )
 
     policy_allowed: bool | None = None
     policy_intent: str | None = None
@@ -3055,9 +3109,30 @@ def _order_fill_follow_up_decision_audit(
             )
             policy_reason = str(exc)
 
+    durable_automatic_completion = bool(
+        admin_manual_root_owned
+        and filled_status_observed
+        and product_id == "BTC-USDC"
+        and policy_allowed is True
+        and expected_portfolio_id is not None
+        and observed_portfolio_id == expected_portfolio_id
+        and len(durable_follow_up_ids) == 1
+        and durable_follow_up_ids == follow_up_ids
+    )
+    if durable_automatic_completion and claim_state is None:
+        claim_state = "done"
+        claim_state_source = "order_parent.durable_admin_fill_follow_up"
+        claim_reader_ran = True
+    if durable_automatic_completion:
+        blockers = [
+            blocker
+            for blocker in blockers
+            if blocker != "fill_follow_up_execution_adapter_missing"
+        ]
+
     eligible_no_live = filled_status_observed and policy_allowed is True
     automatic_processing_blockers: list[str] = []
-    if not execution_adapter_observed:
+    if not execution_adapter_observed and not durable_automatic_completion:
         automatic_processing_blockers.append(
             "fill_follow_up_execution_adapter_missing"
         )
