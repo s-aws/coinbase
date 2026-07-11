@@ -64146,7 +64146,11 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
     assert fake_root_registrar.registrations[0]["correlation_id"] == "corr-001"
     assert fake_root_registrar.registrations[0]["audit_id"] == audit_event.audit_id
     assert fake_root_registrar.status_updates == [
-        {"client_order_id": client_order_id, "status": "OPEN"}
+        {
+            "client_order_id": client_order_id,
+            "status": "OPEN",
+            "exchange_order_id": "exchange-admin-route-1",
+        }
     ]
     assert len(fake_event_publisher.events) == 1
     submission_event = fake_event_publisher.events[0]
