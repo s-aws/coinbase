@@ -127,6 +127,7 @@ def create_order_parent_table() -> None:
         retail_portfolio_id UUID,
         correlation_id VARCHAR(255),
         audit_id VARCHAR(255),
+        exchange_order_id VARCHAR(64),
         allow_partial_fills BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -152,6 +153,9 @@ def create_order_parent_table() -> None:
         cursor.execute(
             "ALTER TABLE order_parent ADD COLUMN IF NOT EXISTS "
             "audit_id VARCHAR(255)"
+        )
+        cursor.execute(
+            "ALTER TABLE order_parent ADD COLUMN IF NOT EXISTS exchange_order_id VARCHAR(64)"
         )
         # Hotpoint Auto-Replicate (per-order opt-in; provenance marker).
         # `enable_hotpoint_replication=TRUE` opts a parent's fills into the
@@ -1515,23 +1519,51 @@ def get_order_parent_replacement_count(client_order_id: str) -> Optional[int]:
 
 def update_order_parent_status(
     client_order_id: str,
-    status: str
+    status: str,
+    exchange_order_id: Optional[str] = None,
 ) -> int:
-    """Update the status of a parent order.
+    """Update parent status and optionally bind authoritative exchange evidence.
     
     Args:
         client_order_id: The client-specified parent order ID.
         status: New status value.
+        exchange_order_id: Exact Coinbase order ID proven by authoritative
+            readback.  Status-only calls leave any existing ID unchanged.
     
     Returns:
         Number of rows updated (0 or 1).
     """
-    query = "UPDATE order_parent SET status = %s WHERE client_order_id = %s"
-    params = (status, client_order_id)
+    if exchange_order_id is None:
+        query = "UPDATE order_parent SET status = %s WHERE client_order_id = %s"
+        params = (status, client_order_id)
+    else:
+        normalized_exchange_order_id = str(exchange_order_id).strip()
+        if not normalized_exchange_order_id or len(normalized_exchange_order_id) > 64:
+            raise ValueError("exchange_order_id must be 1-64 characters")
+        query = (
+            "UPDATE order_parent SET status = %s, exchange_order_id = %s "
+            "WHERE client_order_id = %s "
+            "AND (exchange_order_id IS NULL OR exchange_order_id = %s)"
+        )
+        params = (
+            status,
+            normalized_exchange_order_id,
+            client_order_id,
+            normalized_exchange_order_id,
+        )
 
     result = DB_CLIENT.execute_update(query, params)
     if result > 0:
-        logger.info(f"Parent order status updated: {client_order_id} -> {status}")
+        logger.info(
+            "Parent order status updated: %s -> %s%s",
+            client_order_id,
+            status,
+            (
+                f" (exchange_order_id={exchange_order_id})"
+                if exchange_order_id is not None
+                else ""
+            ),
+        )
     else:
         logger.warning(f"No parent order found to update status: {client_order_id}")
     return result

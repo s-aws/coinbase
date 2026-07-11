@@ -221,6 +221,16 @@ class TestSchemaParser:
             in text
         )
 
+    @pytest.mark.regression
+    def test_order_parent_persists_exchange_order_id_as_evidence(self):
+        text = SCHEMA_PATH.read_text(encoding="utf-8")
+
+        assert "exchange_order_id VARCHAR(64)" in text
+        assert (
+            "ALTER TABLE order_parent ADD COLUMN IF NOT EXISTS "
+            "exchange_order_id VARCHAR(64)"
+        ) in text
+
 
 class TestReconcilerSqlMatchesSchema:
     """The actual guard: every SQL ref in the reconciler must exist."""

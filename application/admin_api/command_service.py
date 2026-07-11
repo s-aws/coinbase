@@ -3980,6 +3980,7 @@ class AdminApiCommandService:
                     mark_submission_status(
                         client_order_id=client_order_id,
                         status=authoritative_status,
+                        exchange_order_id=order_id,
                     )
                 except Exception as exc:
                     root_status_update_error = f"{type(exc).__name__}: {exc}"

@@ -607,6 +607,7 @@ def test_manual_spot_root_is_registered_with_test_scope_before_rest_submit(
     assert Decimal(str(root_payload["base_size"])) == Decimal("0.00002")
     assert root_payload["limit_price"] == "65000.00"
     assert events[2][1]["status"] == "OPEN"
+    assert events[2][1]["exchange_order_id"] == "exchange-test-root"
     assert response.data["root_registration"]["parent_row_id"] == 41
 
 
@@ -687,15 +688,27 @@ def test_runtime_root_registrar_persists_and_hydrates_exact_test_scope() -> None
     class _DbModule:
         def __init__(self) -> None:
             self.insert_calls: list[dict[str, object]] = []
-            self.status_calls: list[tuple[str, str]] = []
+            self.status_calls: list[dict[str, object]] = []
             self.unresolved_calls: list[str] = []
 
         def insert_order_parent(self, **kwargs: object) -> int:
             self.insert_calls.append(dict(kwargs))
             return 73
 
-        def update_order_parent_status(self, client_order_id: str, status: str) -> None:
-            self.status_calls.append((client_order_id, status))
+        def update_order_parent_status(
+            self,
+            client_order_id: str,
+            status: str,
+            exchange_order_id: str | None = None,
+        ) -> int:
+            self.status_calls.append(
+                {
+                    "client_order_id": client_order_id,
+                    "status": status,
+                    "exchange_order_id": exchange_order_id,
+                }
+            )
+            return 1
 
         def get_unresolved_admin_manual_root_submissions(
             self,
@@ -724,6 +737,7 @@ def test_runtime_root_registrar_persists_and_hydrates_exact_test_scope() -> None
     registrar.mark_submission_status(
         client_order_id="22daf1ea-4c57-4c03-98c5-e74459576228",
         status="SUBMITTED",
+        exchange_order_id="exchange-test-root",
     )
     unresolved = registrar.get_unresolved_admin_manual_root_submissions(
         TEST_PORTFOLIO_ID
@@ -739,7 +753,11 @@ def test_runtime_root_registrar_persists_and_hydrates_exact_test_scope() -> None
     )
     assert evidence["ownership_provenance"] == "ADMIN_MANUAL_ROOT"
     assert db_module.status_calls == [
-        ("22daf1ea-4c57-4c03-98c5-e74459576228", "SUBMITTED")
+        {
+            "client_order_id": "22daf1ea-4c57-4c03-98c5-e74459576228",
+            "status": "SUBMITTED",
+            "exchange_order_id": "exchange-test-root",
+        }
     ]
     assert unresolved == [
         {"client_order_id": "unresolved-root", "status": "OPEN"}

@@ -61,6 +61,7 @@ class _RootRegistrar:
     def __init__(self) -> None:
         self.rows: dict[str, dict[str, Any]] = {}
         self.status_calls: list[tuple[str, str]] = []
+        self.exchange_status_calls: list[dict[str, Any]] = []
 
     def register_manual_spot_root(self, **kwargs: Any) -> dict[str, Any]:
         row = {
@@ -96,9 +97,24 @@ class _RootRegistrar:
             "source": "test_fee_aware_intentional_fill_target",
         }
 
-    def mark_submission_status(self, *, client_order_id: str, status: str) -> None:
+    def mark_submission_status(
+        self,
+        *,
+        client_order_id: str,
+        status: str,
+        exchange_order_id: str | None = None,
+    ) -> None:
         self.status_calls.append((client_order_id, status))
+        self.exchange_status_calls.append(
+            {
+                "client_order_id": client_order_id,
+                "status": status,
+                "exchange_order_id": exchange_order_id,
+            }
+        )
         self.rows[client_order_id]["status"] = status
+        if exchange_order_id is not None:
+            self.rows[client_order_id]["exchange_order_id"] = exchange_order_id
 
     def read_registered_order(self, client_order_id: str) -> dict[str, Any] | None:
         row = self.rows.get(client_order_id)
@@ -370,6 +386,14 @@ def test_submit_preserves_on_tick_price_through_root_and_coinbase_boundary() -> 
     }
     assert rest_client.get_calls == ["exchange-order-1"]
     assert not any(call.get("order_ids") for call in rest_client.list_calls)
+    assert registrar.exchange_status_calls[-1] == {
+        "client_order_id": client_order_id,
+        "status": "OPEN",
+        "exchange_order_id": "exchange-order-1",
+    }
+    assert registrar.rows[client_order_id]["exchange_order_id"] == (
+        "exchange-order-1"
+    )
 
 
 def test_intentional_fill_override_accepts_only_exact_approval_bound_tuple(
@@ -459,6 +483,9 @@ def test_intentional_fill_override_accepts_only_exact_approval_bound_tuple(
             "limit_price": "100.10",
         }
     }
+    assert registrar.exchange_status_calls[-1]["exchange_order_id"] == (
+        "exchange-intentional-fill-1"
+    )
     assert len(rest_client.create_calls) == 1
 
 

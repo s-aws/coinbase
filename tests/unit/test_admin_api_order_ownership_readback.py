@@ -23,6 +23,7 @@ def _filled_root(provenance: str | None) -> dict[str, object]:
         "retail_portfolio_id": TEST_PORTFOLIO_ID,
         "correlation_id": "corr-root",
         "audit_id": "audit-root",
+        "exchange_order_id": "exchange-root-1",
         "ownership_provenance": provenance,
     }
 
@@ -72,6 +73,7 @@ def test_order_item_exposes_ownership_and_blocked_reveal_evidence() -> None:
     )
     assert item.last_lifecycle_event == StealthLifecycleEvent.PLACEMENT_BLOCKED
     assert item.failure_reason == "standing_price_limit_exceeded"
+    assert item.exchange_order_id == "exchange-root-1"
 
 
 def test_automatic_complete_proof_requires_admin_root_provenance(monkeypatch) -> None:

@@ -555,6 +555,7 @@ class AdminApiOrderRootRuntimeRegistrar:
         *,
         client_order_id: str,
         status: str,
+        exchange_order_id: str | None = None,
     ) -> None:
         updater = getattr(
             getattr(self.order_engine, "db_module", None),
@@ -563,7 +564,16 @@ class AdminApiOrderRootRuntimeRegistrar:
         )
         if not callable(updater):
             raise RuntimeError("order_parent_status_update_unavailable")
-        updater(client_order_id, status)
+        if exchange_order_id is None:
+            updater(client_order_id, status)
+            return
+        rows_updated = updater(
+            client_order_id,
+            status,
+            exchange_order_id=exchange_order_id,
+        )
+        if int(rows_updated or 0) != 1:
+            raise RuntimeError("order_parent_exchange_identity_update_failed")
 
     def read_registered_order(self, client_order_id: str) -> dict[str, Any] | None:
         getter = getattr(
