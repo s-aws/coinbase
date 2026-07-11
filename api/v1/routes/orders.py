@@ -1518,6 +1518,9 @@ def create_manual_order(
             ManualOrderCommand(
                 envelope=envelope,
                 request=body,
+                admin_approval_snapshot_id=(
+                    admission_decision.approval_snapshot_id
+                ),
                 admin_cap_guard_decision_id=cap_guard_decision_id,
                 admin_max_submitted_notional_usdc=admin_max_notional,
                 admission_audit_id=admission_decision.admission_audit_id,

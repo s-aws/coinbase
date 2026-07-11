@@ -63252,6 +63252,9 @@ def test_admin_api_manual_order_route_passes_backend_admission_to_command_servic
     assert payload["live_coinbase_orders_ran"] is False
     assert len(command_service.commands) == 1
     assert command_service.commands[0].allow_live_execution is True
+    assert command_service.commands[0].admin_approval_snapshot_id == (
+        approval.approval_id
+    )
     assert command_service.commands[0].admin_cap_guard_decision_id == (
         cap_guard.decision_id
     )
@@ -63901,9 +63904,14 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
             self.submitted_order = {
                 "client_order_id": kwargs["client_order_id"],
                 "order_id": "exchange-admin-route-1",
+                "product_id": "BTC-USDC",
                 "status": "OPEN",
             }
             return SimpleNamespace(success=True, order_id="exchange-admin-route-1")
+
+        def get_order(self, order_id):
+            assert order_id == "exchange-admin-route-1"
+            return {"order": dict(self.submitted_order or {})}
 
         def list_orders(self, **kwargs):
             if kwargs.get("order_status") is not None:

@@ -72,16 +72,22 @@ def build_canonical_order_runtime(
 
         order_engine_factory = OrderEngine
 
-    create_order_parent_table = getattr(
-        db_module,
+    for schema_initializer_name in (
         "create_order_parent_table",
-        None,
-    )
-    if not callable(create_order_parent_table):
-        raise RuntimeError(
-            "Canonical order runtime requires db_module.create_order_parent_table"
+        "create_order_match_audit_table",
+        "create_order_moves_table",
+    ):
+        schema_initializer = getattr(
+            db_module,
+            schema_initializer_name,
+            None,
         )
-    create_order_parent_table()
+        if not callable(schema_initializer):
+            raise RuntimeError(
+                "Canonical order runtime requires "
+                f"db_module.{schema_initializer_name}"
+            )
+        schema_initializer()
 
     stealth_manager = None
     stealth_bridge = None

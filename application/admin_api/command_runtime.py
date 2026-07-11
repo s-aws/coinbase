@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from decimal import Decimal, ROUND_UP
 import os
 from threading import Lock
 from typing import Any, Callable
@@ -28,6 +29,10 @@ from .spot_portfolio_binding import (
 
 
 ORDER_EVENT_STREAM_DISABLED_ENV = "COINBASE_ADMIN_API_ORDER_EVENT_STREAM_DISABLED"
+INTENTIONAL_FILL_FEE_MAX_AGE_SECONDS = 300
+INTENTIONAL_FILL_TARGET_MAXIMUM = Decimal("0.05")
+INTENTIONAL_FILL_TARGET_SAFETY_MULTIPLIER = Decimal("1.25")
+INTENTIONAL_FILL_TARGET_PROFIT_BUFFER = Decimal("0.001")
 
 logger = get_logger("AdminApiCommandRuntime")
 
@@ -203,10 +208,14 @@ def get_admin_api_spot_market_reference(
             if isinstance(market, dict):
                 source = str(market.get("source") or "").lower()
                 best_bid = market.get("best_bid") or market.get("bid")
+                best_ask = market.get("best_ask") or market.get("ask")
                 if source == "ticker" and best_bid is not None:
                     return {
                         "product_id": product_id,
                         "best_bid": str(best_bid),
+                        "best_ask": (
+                            str(best_ask) if best_ask is not None else None
+                        ),
                         "source": source,
                         "observed_at": market.get("time"),
                     }
@@ -240,13 +249,21 @@ def get_admin_api_spot_market_reference(
         ]
         if not bids:
             return None
+        asks = [
+            _runtime_object_record(item)
+            for item in _runtime_list_value(matching[0].get("asks"))
+        ]
+        if not asks:
+            return None
         best_bid = bids[0].get("price")
+        best_ask = asks[0].get("price")
         observed_at = matching[0].get("time")
-        if best_bid is None or observed_at is None:
+        if best_bid is None or best_ask is None or observed_at is None:
             return None
         return {
             "product_id": product_id,
             "best_bid": str(best_bid),
+            "best_ask": str(best_ask),
             "source": "coinbase_rest_best_bid",
             "observed_at": observed_at,
         }
@@ -290,6 +307,7 @@ class AdminApiOrderRootRuntimeRegistrar:
         retail_portfolio_id: str,
         correlation_id: str | None = None,
         audit_id: str | None = None,
+        target_movement_override: str | float | None = None,
     ) -> dict[str, Any]:
         engine = self.order_engine
         db_module = getattr(engine, "db_module", None)
@@ -309,7 +327,16 @@ class AdminApiOrderRootRuntimeRegistrar:
         resolve_profit_target = getattr(engine, "resolve_profit_target", None)
         if not callable(resolve_profit_target):
             raise RuntimeError("order_root_profit_target_unavailable")
-        target_movement = resolve_profit_target(order)
+        if target_movement_override is None:
+            target_movement = resolve_profit_target(order)
+            target_movement_source = "canonical_orderbook_profit_target"
+        else:
+            target_movement = float(target_movement_override)
+            if target_movement <= 0:
+                raise RuntimeError(
+                    "intentional_fill_target_movement_override_invalid"
+                )
+            target_movement_source = "fee_aware_intentional_fill_target"
         max_order_replacement = int(
             getattr(
                 getattr(engine, "orderbook", None),
@@ -349,10 +376,162 @@ class AdminApiOrderRootRuntimeRegistrar:
             "retail_portfolio_id": retail_portfolio_id,
             "target_movement": str(target_movement),
             "target_movement_type": "P",
+            "target_movement_source": target_movement_source,
             "max_order_replacement": max_order_replacement,
             "ownership_provenance": (
                 OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
             ),
+        }
+
+    def build_intentional_fill_target_movement(
+        self,
+        *,
+        product_id: str,
+        side: str,
+        base_size: Any,
+        entry_limit_price: Any,
+    ) -> dict[str, Any]:
+        """Return a fresh fee-safe target for one approved hidden exit child."""
+
+        engine = self.order_engine
+        fee_manager = getattr(engine, "fee_manager", None)
+        profit_validator = getattr(engine, "profit_validator", None)
+        if fee_manager is None or profit_validator is None:
+            return {
+                "ready": False,
+                "blocker": "intentional_fill_fee_runtime_unavailable",
+            }
+        freshness_getter = getattr(fee_manager, "validate_fee_freshness", None)
+        fee_rate_getter = getattr(
+            fee_manager,
+            "get_profit_validation_fee_rate",
+            None,
+        )
+        profitability_getter = getattr(profit_validator, "is_profitable", None)
+        if not all(
+            callable(item)
+            for item in (
+                freshness_getter,
+                fee_rate_getter,
+                profitability_getter,
+            )
+        ):
+            return {
+                "ready": False,
+                "blocker": "intentional_fill_fee_runtime_unavailable",
+            }
+
+        freshness = dict(
+            freshness_getter(
+                max_age_seconds=INTENTIONAL_FILL_FEE_MAX_AGE_SECONDS
+            )
+            or {}
+        )
+        if freshness.get("is_fresh") is not True:
+            return {
+                "ready": False,
+                "blocker": "intentional_fill_fee_data_stale",
+                "fee_freshness": freshness,
+            }
+
+        try:
+            fee_rate = Decimal(
+                str(
+                    fee_rate_getter(
+                        product_id=product_id,
+                        post_only=False,
+                    )
+                )
+            )
+            entry_price = Decimal(str(entry_limit_price))
+            order_size = Decimal(str(base_size))
+            minimum_factor = Decimal(
+                str(
+                    getattr(
+                        fee_manager,
+                        "TARGET_MOVEMENT_MIN_FACTOR",
+                        "0.75",
+                    )
+                )
+            )
+        except (ArithmeticError, TypeError, ValueError):
+            return {
+                "ready": False,
+                "blocker": "intentional_fill_fee_target_inputs_invalid",
+            }
+        if not all(
+            value.is_finite() and value > 0
+            for value in (entry_price, order_size, minimum_factor)
+        ) or not fee_rate.is_finite() or fee_rate <= 0 or fee_rate >= 1:
+            return {
+                "ready": False,
+                "blocker": "intentional_fill_fee_target_inputs_invalid",
+            }
+
+        break_even_movement = (Decimal("2") * fee_rate) / (
+            Decimal("1") - fee_rate
+        )
+        minimum_effective_target = (
+            break_even_movement
+            * INTENTIONAL_FILL_TARGET_SAFETY_MULTIPLIER
+            + INTENTIONAL_FILL_TARGET_PROFIT_BUFFER
+        )
+        root_target = (
+            minimum_effective_target / minimum_factor
+        ).quantize(Decimal("0.000001"), rounding=ROUND_UP)
+        if root_target > INTENTIONAL_FILL_TARGET_MAXIMUM:
+            return {
+                "ready": False,
+                "blocker": "intentional_fill_fee_safe_target_exceeds_maximum",
+                "fee_rate": str(fee_rate),
+                "computed_target_movement": str(root_target),
+                "maximum_target_movement": str(
+                    INTENTIONAL_FILL_TARGET_MAXIMUM
+                ),
+                "fee_freshness": freshness,
+            }
+
+        minimum_follow_up_price = entry_price * (
+            Decimal("1") + root_target * minimum_factor
+        )
+        profitability = dict(
+            profitability_getter(
+                filled_price=float(entry_price),
+                follow_up_price=float(minimum_follow_up_price),
+                side=str(side or "").upper(),
+                order_size=float(order_size),
+                product_id=product_id,
+                triggered_by_fill=True,
+                post_only=False,
+            )
+            or {}
+        )
+        if profitability.get("is_profitable") is not True:
+            return {
+                "ready": False,
+                "blocker": "intentional_fill_profitability_preflight_failed",
+                "fee_rate": str(fee_rate),
+                "computed_target_movement": str(root_target),
+                "minimum_follow_up_price": str(minimum_follow_up_price),
+                "fee_freshness": freshness,
+                "profitability": profitability,
+            }
+
+        return {
+            "ready": True,
+            "blocker": None,
+            "source": "runtime_fee_manager_profit_validator",
+            "target_movement": str(root_target),
+            "target_movement_type": "P",
+            "minimum_effective_target_movement": str(
+                root_target * minimum_factor
+            ),
+            "minimum_target_movement_factor": str(minimum_factor),
+            "minimum_follow_up_price": str(minimum_follow_up_price),
+            "fee_rate": str(fee_rate),
+            "fee_freshness": freshness,
+            "profitability_preflight_passed": True,
+            "profitability": profitability,
         }
 
     def mark_submission_status(

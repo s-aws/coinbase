@@ -64,7 +64,9 @@ def test_canonical_runtime_composer_builds_one_wired_identity_after_schema():
     events: list[str] = []
     db_module = SimpleNamespace(
         DB_CLIENT=SimpleNamespace(),
-        create_order_parent_table=lambda: events.append("schema"),
+        create_order_parent_table=lambda: events.append("schema:parent"),
+        create_order_match_audit_table=lambda: events.append("schema:match"),
+        create_order_moves_table=lambda: events.append("schema:moves"),
     )
     manager = SimpleNamespace(profit_validator=None, fill_ledger_repo=None)
 
@@ -107,7 +109,14 @@ def test_canonical_runtime_composer_builds_one_wired_identity_after_schema():
         order_engine_factory=engine_factory,
     )
 
-    assert events == ["schema", "manager", "bridge", "engine"]
+    assert events == [
+        "schema:parent",
+        "schema:match",
+        "schema:moves",
+        "manager",
+        "bridge",
+        "engine",
+    ]
     assert runtime.order_engine.orderbook is orderbook
     assert runtime.order_engine.stealth_order_bridge is runtime.stealth_order_bridge
     assert runtime.stealth_order_bridge.order_engine is runtime.order_engine

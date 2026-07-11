@@ -86,6 +86,7 @@ def test_command_runtime_market_reference_falls_back_to_fresh_coinbase_rest(
     assert reference == {
         "product_id": "BTC-USDC",
         "best_bid": "64197.77",
+        "best_ask": "64197.78",
         "source": "coinbase_rest_best_bid",
         "observed_at": "2026-07-11T08:53:40.658107Z",
     }
@@ -744,6 +745,81 @@ def test_runtime_root_registrar_persists_and_hydrates_exact_test_scope() -> None
         {"client_order_id": "unresolved-root", "status": "OPEN"}
     ]
     assert db_module.unresolved_calls == [TEST_PORTFOLIO_ID]
+
+
+def test_runtime_root_registrar_builds_fresh_fee_safe_intentional_fill_target() -> None:
+    from application.admin_api.command_runtime import (
+        AdminApiOrderRootRuntimeRegistrar,
+    )
+
+    profitability_calls: list[dict[str, object]] = []
+    fee_manager = SimpleNamespace(
+        TARGET_MOVEMENT_MIN_FACTOR=0.75,
+        validate_fee_freshness=lambda **_kwargs: {
+            "is_fresh": True,
+            "age_seconds": 1,
+        },
+        get_profit_validation_fee_rate=lambda **_kwargs: 0.0066,
+    )
+
+    def profitability(**kwargs: object) -> dict[str, object]:
+        profitability_calls.append(dict(kwargs))
+        return {"is_profitable": True, "net_profit": 0.01}
+
+    registrar = AdminApiOrderRootRuntimeRegistrar(
+        SimpleNamespace(
+            fee_manager=fee_manager,
+            profit_validator=SimpleNamespace(is_profitable=profitability),
+        )
+    )
+
+    evidence = registrar.build_intentional_fill_target_movement(
+        product_id="BTC-USDC",
+        side="BUY",
+        base_size="0.00002",
+        entry_limit_price="65000.00",
+    )
+
+    assert evidence["ready"] is True
+    assert Decimal("0") < Decimal(evidence["target_movement"]) <= Decimal(
+        "0.05"
+    )
+    assert Decimal(evidence["minimum_effective_target_movement"]) > Decimal(
+        "0.013"
+    )
+    assert evidence["profitability_preflight_passed"] is True
+    assert profitability_calls[0]["product_id"] == "BTC-USDC"
+    assert profitability_calls[0]["triggered_by_fill"] is True
+    assert profitability_calls[0]["post_only"] is False
+
+
+def test_runtime_root_registrar_rejects_stale_intentional_fill_fee_data() -> None:
+    from application.admin_api.command_runtime import (
+        AdminApiOrderRootRuntimeRegistrar,
+    )
+
+    registrar = AdminApiOrderRootRuntimeRegistrar(
+        SimpleNamespace(
+            fee_manager=SimpleNamespace(
+                validate_fee_freshness=lambda **_kwargs: {
+                    "is_fresh": False,
+                    "age_seconds": 301,
+                },
+                get_profit_validation_fee_rate=lambda **_kwargs: 0.0066,
+            ),
+            profit_validator=SimpleNamespace(is_profitable=Mock()),
+        )
+    )
+
+    evidence = registrar.build_intentional_fill_target_movement(
+        product_id="BTC-USDC",
+        side="BUY",
+        base_size="0.00002",
+        entry_limit_price="65000.00",
+    )
+
+    assert evidence["ready"] is False
+    assert evidence["blocker"] == "intentional_fill_fee_data_stale"
 
 
 def test_manual_spot_buy_above_half_bid_is_rejected_before_root_or_rest(

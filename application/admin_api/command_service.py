@@ -19,6 +19,7 @@ from core.action_condition_guard import (
     ActionConditionGuard,
     evaluate_spot_standing_price_limit,
     get_action_condition_guard_policy,
+    normalize_action_guard_wallet_policy,
 )
 from core.enums import (
     ActionConditionType,
@@ -36,11 +37,13 @@ from core.enums import (
     OrderType,
     ProductCapability,
     ProductType,
+    TimeInForce,
     StealthMutationKind,
     TargetMovementType,
 )
 from core.exceptions import CoinbaseAPIError, OrderCreationError
 from core.product_capability import evaluate_product_capability
+from core.spot_follow_up_policy import evaluate_spot_follow_up_policy
 from core.runtime_controller import (
     INFLIGHT_REST_CANCEL,
     INFLIGHT_REST_PLACE,
@@ -243,6 +246,14 @@ from .stealth_lifecycle_execution import (
 from .stealth_create_pre_execution import (
     build_stealth_create_pre_execution_contract,
 )
+
+
+INTENTIONAL_FILL_OPERATOR_INTENT = (
+    "execute_one_approved_intentional_test_profile_spot_fill"
+)
+INTENTIONAL_FILL_PRODUCT_ID = "BTC-USDC"
+INTENTIONAL_FILL_MAX_NOTIONAL_USDC = Decimal("9.99")
+INTENTIONAL_FILL_MAX_ASK_RATIO = Decimal("1.005")
 
 
 def _noop_log(_level: str, _message: str) -> None:
@@ -562,6 +573,224 @@ def _evaluate_configured_price_increment(
             else None
         ),
         "tick_aligned": tick_aligned,
+    }
+
+
+def _intentional_fill_decimal_text(value: Decimal | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.normalize()
+    if normalized == normalized.to_integral():
+        return str(normalized.quantize(Decimal("1")))
+    return format(normalized, "f")
+
+
+def _evaluate_intentional_fill_standing_price_override(
+    *,
+    command: ManualOrderCommand,
+    product_id: str,
+    profile_scope: Mapping[str, Any] | None,
+    market_reference: Mapping[str, Any] | None,
+    standing_price_limit: Mapping[str, Any],
+    approved_base_size: Any,
+) -> dict[str, Any]:
+    """Evaluate the one-shot approval-bound intentional-fill exception.
+
+    The ordinary 50%/150% standing authority remains unchanged. This exception
+    is deliberately narrower: one exact route-approved Test-profile BTC-USDC
+    BUY, FOK, under 10 USDC, with fresh exact best-ask evidence and every child
+    exchange-reveal capability disabled before parent submission.
+    """
+
+    request = command.request
+    operator_intent = str(command.envelope.operator_intent or "")
+    side = str(getattr(request.side, "value", request.side) or "").upper()
+    order_type = str(
+        getattr(request.order_type, "value", request.order_type) or ""
+    ).upper()
+    time_in_force = str(
+        getattr(request.time_in_force, "value", request.time_in_force) or ""
+    ).upper()
+    market = dict(market_reference or {})
+    scope = dict(profile_scope or {})
+
+    def decimal_or_none(value: Any) -> Decimal | None:
+        try:
+            parsed = Decimal(str(value or ""))
+        except (ArithmeticError, TypeError, ValueError):
+            return None
+        return parsed if parsed.is_finite() else None
+
+    best_bid = decimal_or_none(standing_price_limit.get("best_bid"))
+    best_ask = decimal_or_none(market.get("best_ask"))
+    requested_limit = decimal_or_none(request.limit_price)
+    base_size = decimal_or_none(approved_base_size)
+    approved_cap = decimal_or_none(command.admin_max_submitted_notional_usdc)
+    planned_notional = (
+        base_size * requested_limit
+        if base_size is not None and requested_limit is not None
+        else None
+    )
+    maximum_marketable_limit = (
+        best_ask * INTENTIONAL_FILL_MAX_ASK_RATIO
+        if best_ask is not None and best_ask > 0
+        else None
+    )
+
+    filled_capability = evaluate_product_capability(
+        product_id=product_id,
+        capability=ProductCapability.FILLED_FOLLOW_UP,
+        allow_conditional=True,
+    )
+    partial_capability = evaluate_product_capability(
+        product_id=product_id,
+        capability=ProductCapability.PARTIAL_FILL_FOLLOW_UP,
+        allow_conditional=True,
+    )
+    cancelled_capability = evaluate_product_capability(
+        product_id=product_id,
+        capability=ProductCapability.CANCELLED_FOLLOW_UP,
+        allow_conditional=True,
+    )
+    reveal_capability = evaluate_product_capability(
+        product_id=product_id,
+        capability=ProductCapability.STEALTH_REVEAL,
+    )
+    planning_capability = evaluate_product_capability(
+        product_id=product_id,
+        capability=ProductCapability.STEALTH_PLANNING,
+    )
+    follow_up_policy = evaluate_spot_follow_up_policy(
+        product_id=product_id,
+        source_side=OrderSide.BUY.value,
+        follow_up_side=OrderSide.SELL.value,
+        trigger="filled",
+    )
+    wallet_policy = normalize_action_guard_wallet_policy(
+        get_action_condition_guard_policy()
+    )
+
+    blocker = None
+    if operator_intent != INTENTIONAL_FILL_OPERATOR_INTENT:
+        blocker = "intentional_fill_operator_intent_mismatch"
+    elif command.order_configuration_override is not None:
+        blocker = "intentional_fill_order_configuration_override_forbidden"
+    elif standing_price_limit.get("blocker") is None:
+        blocker = "intentional_fill_standing_override_not_required"
+    elif standing_price_limit.get("blocker") != "standing_price_limit_not_authorized":
+        blocker = "intentional_fill_fresh_standing_reference_not_proven"
+    elif not command.admin_approval_snapshot_id:
+        blocker = "intentional_fill_approval_missing"
+    elif not command.admission_audit_id:
+        blocker = "intentional_fill_admission_audit_missing"
+    elif not command.admin_cap_guard_decision_id:
+        blocker = "intentional_fill_cap_guard_missing"
+    elif approved_cap is None or approved_cap <= 0:
+        blocker = "intentional_fill_cap_invalid"
+    elif approved_cap > INTENTIONAL_FILL_MAX_NOTIONAL_USDC:
+        blocker = "intentional_fill_cap_exceeds_approved_maximum"
+    elif scope.get("status") != "matched" or scope.get("profile_alias") != "Test":
+        blocker = "intentional_fill_test_profile_not_proven"
+    elif str(scope.get("portfolio_id") or "") != str(
+        scope.get("expected_portfolio_id") or ""
+    ):
+        blocker = "intentional_fill_test_profile_not_proven"
+    elif product_id != INTENTIONAL_FILL_PRODUCT_ID:
+        blocker = "intentional_fill_product_not_authorized"
+    elif side != OrderSide.BUY.value:
+        blocker = "intentional_fill_side_not_authorized"
+    elif order_type != OrderType.LIMIT.value:
+        blocker = "intentional_fill_order_type_not_authorized"
+    elif time_in_force != TimeInForce.FILL_OR_KILL.value:
+        blocker = "intentional_fill_time_in_force_not_authorized"
+    elif request.post_only is not False:
+        blocker = "intentional_fill_post_only_must_be_false"
+    elif request.quote_size is not None:
+        blocker = "intentional_fill_quote_size_not_authorized"
+    elif str(market.get("product_id") or "") != INTENTIONAL_FILL_PRODUCT_ID:
+        blocker = "intentional_fill_market_product_mismatch"
+    elif best_ask is None or best_ask <= 0:
+        blocker = "intentional_fill_best_ask_unavailable"
+    elif best_bid is None or best_ask < best_bid:
+        blocker = "intentional_fill_best_ask_invalid"
+    elif requested_limit is None or requested_limit <= 0:
+        blocker = "intentional_fill_limit_price_invalid"
+    elif requested_limit < best_ask:
+        blocker = "intentional_fill_limit_not_marketable"
+    elif (
+        maximum_marketable_limit is None
+        or requested_limit > maximum_marketable_limit
+    ):
+        blocker = "intentional_fill_limit_exceeds_slippage_band"
+    elif base_size is None or base_size <= 0:
+        blocker = "intentional_fill_base_size_invalid"
+    elif planned_notional is None or planned_notional <= 0:
+        blocker = "intentional_fill_notional_invalid"
+    elif planned_notional >= Decimal("10") or planned_notional > approved_cap:
+        blocker = "intentional_fill_notional_exceeds_cap"
+    elif not planning_capability.allowed:
+        blocker = "intentional_fill_stealth_planning_not_enabled"
+    elif not filled_capability.allowed or filled_capability.mode != "conditional":
+        blocker = "intentional_fill_follow_up_not_conditional"
+    elif partial_capability.mode != "disabled":
+        blocker = "intentional_fill_partial_follow_up_not_disabled"
+    elif cancelled_capability.mode != "disabled":
+        blocker = "intentional_fill_cancelled_follow_up_not_disabled"
+    elif reveal_capability.mode != "disabled" or reveal_capability.allowed:
+        blocker = "intentional_fill_child_reveal_not_disabled"
+    elif not follow_up_policy.allowed or follow_up_policy.intent != "exit":
+        blocker = "intentional_fill_exit_follow_up_not_enabled"
+    elif wallet_policy.get("enabled") is not True:
+        blocker = "intentional_fill_wallet_guard_not_enabled"
+    elif wallet_policy.get("check_follow_up_planning") is not False:
+        blocker = "intentional_fill_fill_backed_planning_not_enabled"
+    elif wallet_policy.get("fail_open_on_fetch_error") is True:
+        blocker = "intentional_fill_wallet_guard_fail_open"
+
+    return {
+        "requested": operator_intent == INTENTIONAL_FILL_OPERATOR_INTENT,
+        "allowed": blocker is None,
+        "blocker": blocker,
+        "operator_intent": operator_intent,
+        "order_configuration_override_present": (
+            command.order_configuration_override is not None
+        ),
+        "approval_snapshot_id": command.admin_approval_snapshot_id,
+        "admission_audit_id": command.admission_audit_id,
+        "cap_guard_decision_id": command.admin_cap_guard_decision_id,
+        "profile_alias": scope.get("profile_alias"),
+        "portfolio_id": scope.get("portfolio_id"),
+        "product_id": product_id,
+        "side": side,
+        "order_type": order_type,
+        "time_in_force": time_in_force,
+        "post_only": request.post_only,
+        "best_bid": standing_price_limit.get("best_bid"),
+        "best_ask": _intentional_fill_decimal_text(best_ask),
+        "market_source": market.get("source"),
+        "market_observed_at": standing_price_limit.get("market_observed_at"),
+        "requested_limit_price": _intentional_fill_decimal_text(requested_limit),
+        "maximum_marketable_limit_price": _intentional_fill_decimal_text(
+            maximum_marketable_limit
+        ),
+        "maximum_ask_ratio": str(INTENTIONAL_FILL_MAX_ASK_RATIO),
+        "base_size": _intentional_fill_decimal_text(base_size),
+        "planned_notional_usdc": _intentional_fill_decimal_text(planned_notional),
+        "approved_max_notional_usdc": _intentional_fill_decimal_text(
+            approved_cap
+        ),
+        "marketable": bool(
+            best_ask is not None
+            and requested_limit is not None
+            and requested_limit >= best_ask
+        ),
+        "filled_follow_up_capability": filled_capability.to_dict(),
+        "partial_fill_follow_up_capability": partial_capability.to_dict(),
+        "cancelled_follow_up_capability": cancelled_capability.to_dict(),
+        "stealth_reveal_capability": reveal_capability.to_dict(),
+        "follow_up_policy": follow_up_policy.to_dict(),
+        "wallet_policy": wallet_policy,
+        "child_exchange_reveal_authorized": False,
     }
 
 
@@ -3116,9 +3345,48 @@ class AdminApiCommandService:
                         market_observed_at=(market_reference or {}).get(
                             "observed_at"
                         ),
+                        )
                     )
+                intentional_fill_requested = (
+                    str(command.envelope.operator_intent or "")
+                    == INTENTIONAL_FILL_OPERATOR_INTENT
                 )
-                if not standing_price_limit_evidence["allowed"]:
+                if (
+                    intentional_fill_requested
+                    or not standing_price_limit_evidence["allowed"]
+                ):
+                    intentional_fill_override = (
+                        _evaluate_intentional_fill_standing_price_override(
+                            command=command,
+                            product_id=str(capability.product_id),
+                            profile_scope=spot_portfolio_scope,
+                            market_reference=market_reference,
+                            standing_price_limit=standing_price_limit_evidence,
+                            approved_base_size=inner.get("base_size"),
+                        )
+                    )
+                    standing_price_limit_evidence[
+                        "intentional_fill_override"
+                    ] = intentional_fill_override
+                    standing_price_limit_evidence["effective_allowed"] = bool(
+                        intentional_fill_override["allowed"]
+                    )
+                ordinary_or_override_allowed = bool(
+                    standing_price_limit_evidence.get("allowed")
+                )
+                if intentional_fill_requested:
+                    ordinary_or_override_allowed = bool(
+                        standing_price_limit_evidence.get(
+                            "intentional_fill_override", {}
+                        ).get("allowed")
+                    )
+                elif not ordinary_or_override_allowed:
+                    ordinary_or_override_allowed = bool(
+                        standing_price_limit_evidence.get(
+                            "intentional_fill_override", {}
+                        ).get("allowed")
+                    )
+                if not ordinary_or_override_allowed:
                     reason = (
                         "Direct Spot order violates the standing price limit "
                         "or lacks a fresh backend market bid: BUY must be at or below "
@@ -3330,18 +3598,94 @@ class AdminApiCommandService:
                         failure_stage="order_root_registration",
                     )
 
+                intentional_fill_override = (
+                    standing_price_limit_evidence.get(
+                        "intentional_fill_override", {}
+                    )
+                    if standing_price_limit_evidence
+                    else {}
+                )
+                target_movement_override = None
+                if intentional_fill_override.get("allowed"):
+                    build_target = getattr(
+                        root_registrar,
+                        "build_intentional_fill_target_movement",
+                        None,
+                    )
+                    if not callable(build_target):
+                        target_evidence = {
+                            "ready": False,
+                            "blocker": (
+                                "intentional_fill_target_builder_unavailable"
+                            ),
+                        }
+                    else:
+                        try:
+                            target_evidence = dict(
+                                build_target(
+                                    product_id=product_id,
+                                    side=order_params.get("side"),
+                                    base_size=inner.get("base_size"),
+                                    entry_limit_price=inner.get("limit_price"),
+                                )
+                                or {}
+                            )
+                        except Exception as exc:
+                            target_evidence = {
+                                "ready": False,
+                                "blocker": (
+                                    "intentional_fill_target_builder_failed"
+                                ),
+                                "detail": f"{type(exc).__name__}: {exc}",
+                            }
+                    intentional_fill_override[
+                        "follow_up_target_movement"
+                    ] = target_evidence
+                    if not target_evidence.get("ready"):
+                        return self._place_rejected(
+                            command=command,
+                            client_order_id=client_order_id,
+                            message=(
+                                "Intentional fill requires a fresh fee-aware "
+                                "profitable hidden-child target before root "
+                                "submission."
+                            ),
+                            data={
+                                "portfolio_scope": spot_portfolio_scope,
+                                "standing_price_limit": (
+                                    standing_price_limit_evidence
+                                ),
+                                "active_order_limit": (
+                                    active_order_limit_evidence
+                                ),
+                            },
+                            failure_stage=(
+                                "intentional_fill_follow_up_target"
+                            ),
+                        )
+                    target_movement_override = target_evidence.get(
+                        "target_movement"
+                    )
+
                 try:
-                    root_registration = register_root(
-                        client_order_id=client_order_id,
-                        product_id=product_id,
-                        side=order_params.get("side"),
-                        base_size=inner.get("base_size"),
-                        limit_price=inner.get("limit_price"),
-                        retail_portfolio_id=(
+                    root_registration_kwargs = {
+                        "client_order_id": client_order_id,
+                        "product_id": product_id,
+                        "side": order_params.get("side"),
+                        "base_size": inner.get("base_size"),
+                        "limit_price": inner.get("limit_price"),
+                        "retail_portfolio_id": (
                             portfolio_binding.observed_portfolio_id
                         ),
-                        correlation_id=command.envelope.correlation_id,
-                        audit_id=command.admission_audit_id,
+                        "correlation_id": command.envelope.correlation_id,
+                        "audit_id": command.admission_audit_id,
+                    }
+                    if target_movement_override is not None:
+                        root_registration_kwargs[
+                            "target_movement_override"
+                        ] = target_movement_override
+                    root_registration = register_root(
+                        **root_registration_kwargs,
                     )
                 except Exception as exc:
                     reason = f"Canonical Spot root registration failed: {exc}"
@@ -3353,6 +3697,23 @@ class AdminApiCommandService:
                         data={"portfolio_scope": spot_portfolio_scope},
                         failure_stage="order_root_registration",
                     )
+                target_registration_matches = True
+                if target_movement_override is not None:
+                    try:
+                        target_registration_matches = bool(
+                            Decimal(
+                                str(
+                                    root_registration.get("target_movement")
+                                )
+                            )
+                            == Decimal(str(target_movement_override))
+                            and root_registration.get(
+                                "target_movement_source"
+                            )
+                            == "fee_aware_intentional_fill_target"
+                        )
+                    except (ArithmeticError, AttributeError, TypeError, ValueError):
+                        target_registration_matches = False
                 if not (
                     isinstance(root_registration, Mapping)
                     and root_registration.get("registered") is True
@@ -3362,6 +3723,7 @@ class AdminApiCommandService:
                     == str(portfolio_binding.observed_portfolio_id or "")
                     and str(root_registration.get("ownership_provenance") or "")
                     == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+                    and target_registration_matches
                 ):
                     return self._place_rejected(
                         command=command,
@@ -7844,7 +8206,18 @@ class AdminApiCommandService:
         }
         if request.quote_size is not None:
             inner["quote_size"] = request.quote_size
-        return order_params, {"limit_limit_gtc": {k: v for k, v in inner.items() if v is not None}}
+        if request.time_in_force == TimeInForce.FILL_OR_KILL:
+            fok_inner = {
+                key: value
+                for key, value in inner.items()
+                if key != "post_only" and value is not None
+            }
+            return order_params, {"limit_limit_fok": fok_inner}
+        return order_params, {
+            "limit_limit_gtc": {
+                key: value for key, value in inner.items() if value is not None
+            }
+        }
 
     def _place_rejected(
         self,

@@ -75,6 +75,25 @@ class _RootRegistrar:
             "client_order_id": kwargs["client_order_id"],
             "retail_portfolio_id": kwargs["retail_portfolio_id"],
             "ownership_provenance": "ADMIN_MANUAL_ROOT",
+            "target_movement": kwargs.get("target_movement_override"),
+            "target_movement_source": (
+                "fee_aware_intentional_fill_target"
+                if kwargs.get("target_movement_override") is not None
+                else "canonical_orderbook_profit_target"
+            ),
+        }
+
+    def build_intentional_fill_target_movement(
+        self,
+        **_kwargs: Any,
+    ) -> dict[str, Any]:
+        return {
+            "ready": True,
+            "blocker": None,
+            "target_movement": "0.03",
+            "target_movement_type": "P",
+            "profitability_preflight_passed": True,
+            "source": "test_fee_aware_intentional_fill_target",
         }
 
     def mark_submission_status(self, *, client_order_id: str, status: str) -> None:
@@ -181,12 +200,18 @@ def _manual_command(
     client_order_id: str = "22daf1ea-4c57-4c03-98c5-e74459576228",
     *,
     limit_price: str = "50.00",
+    operator_intent: str = "bounded_spot_test_order",
+    post_only: bool = True,
+    time_in_force: str = "GOOD_UNTIL_CANCELLED",
+    approval_snapshot_id: str | None = None,
+    max_submitted_notional_usdc: str = "9.99",
+    order_configuration_override: dict[str, Any] | None = None,
 ) -> ManualOrderCommand:
     return ManualOrderCommand(
         envelope=AdminApiCommandEnvelope(
             idempotency_key=f"idem-{client_order_id}",
             correlation_id=f"corr-{client_order_id}",
-            operator_intent="bounded_spot_test_order",
+            operator_intent=operator_intent,
             actor=AdminApiActor(
                 actor_id="operator-001",
                 roles=[AdminApiRole.ADMIN],
@@ -200,12 +225,16 @@ def _manual_command(
                 "order_type": "LIMIT",
                 "base_size": "0.02",
                 "limit_price": limit_price,
-                "post_only": True,
+                "post_only": post_only,
+                "time_in_force": time_in_force,
                 "manual_live_acknowledgement": True,
             }
         ),
+        order_configuration_override=order_configuration_override,
+        admin_approval_snapshot_id=approval_snapshot_id,
         admin_cap_guard_decision_id="cap-spot-test-profile",
-        admin_max_submitted_notional_usdc="9.99",
+        admin_max_submitted_notional_usdc=max_submitted_notional_usdc,
+        admission_audit_id="audit-spot-test-profile",
         allow_live_execution=True,
     )
 
@@ -240,7 +269,9 @@ def _service(
 ) -> AdminApiCommandService:
     publisher = publisher or _Publisher()
     resolved_market_reference = market_reference or {
+        "product_id": "BTC-USDC",
         "best_bid": "100.00",
+        "best_ask": "100.01",
         "source": "ticker",
         "observed_at": datetime.now(timezone.utc),
     }
@@ -339,6 +370,401 @@ def test_submit_preserves_on_tick_price_through_root_and_coinbase_boundary() -> 
     }
     assert rest_client.get_calls == ["exchange-order-1"]
     assert not any(call.get("order_ids") for call in rest_client.list_calls)
+
+
+def test_intentional_fill_override_accepts_only_exact_approval_bound_tuple(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import configuration
+
+    monkeypatch.setattr(
+        configuration,
+        "PRODUCT_CAPABILITIES",
+        {
+            "product_id": {
+                "BTC-USDC": {
+                    "filled_follow_up": "conditional",
+                    "partial_fill_follow_up": "disabled",
+                    "cancelled_follow_up": "disabled",
+                    "stealth_reveal": "disabled",
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        {
+            "wallet_available": {
+                "enabled": True,
+                "check_follow_up_planning": False,
+                "fail_open_on_fetch_error": False,
+            },
+            "limits": [],
+        },
+    )
+
+    class _AcceptingClient(_SpotRestClient):
+        def create_order(self, **kwargs: Any) -> Any:
+            self.create_calls.append(dict(kwargs))
+            self.history = [
+                {
+                    "client_order_id": kwargs["client_order_id"],
+                    "order_id": "exchange-intentional-fill-1",
+                    "product_id": "BTC-USDC",
+                    "status": "FILLED",
+                }
+            ]
+            return {
+                "success": True,
+                "success_response": {
+                    "order_id": "exchange-intentional-fill-1"
+                },
+            }
+
+    rest_client = _AcceptingClient()
+    registrar = _RootRegistrar()
+    response = _service(rest_client, registrar).place_manual_order(
+        _manual_command(
+            limit_price="100.10",
+            operator_intent=(
+                "execute_one_approved_intentional_test_profile_spot_fill"
+            ),
+            post_only=False,
+            time_in_force="FILL_OR_KILL",
+            approval_snapshot_id="approval-intentional-fill-1",
+        )
+    )
+
+    assert response.status == AdminApiCommandStatus.ACCEPTED
+    override = response.data["standing_price_limit"][
+        "intentional_fill_override"
+    ]
+    assert override["allowed"] is True
+    assert override["approval_snapshot_id"] == "approval-intentional-fill-1"
+    assert override["profile_alias"] == "Test"
+    assert override["product_id"] == "BTC-USDC"
+    assert override["side"] == "BUY"
+    assert override["planned_notional_usdc"] == "2.002"
+    assert override["best_ask"] == "100.01"
+    assert override["marketable"] is True
+    assert override["child_exchange_reveal_authorized"] is False
+    assert override["follow_up_target_movement"]["ready"] is True
+    assert registrar.rows[
+        "22daf1ea-4c57-4c03-98c5-e74459576228"
+    ]["target_movement_override"] == "0.03"
+    assert rest_client.create_calls[0]["order_configuration"] == {
+        "limit_limit_fok": {
+            "base_size": "0.02",
+            "limit_price": "100.10",
+        }
+    }
+    assert len(rest_client.create_calls) == 1
+
+
+def test_intentional_fill_rejects_before_root_when_fee_target_is_not_ready(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import configuration
+
+    monkeypatch.setattr(
+        configuration,
+        "PRODUCT_CAPABILITIES",
+        {
+            "product_id": {
+                "BTC-USDC": {
+                    "filled_follow_up": "conditional",
+                    "partial_fill_follow_up": "disabled",
+                    "cancelled_follow_up": "disabled",
+                    "stealth_reveal": "disabled",
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        {
+            "wallet_available": {
+                "enabled": True,
+                "check_follow_up_planning": False,
+                "fail_open_on_fetch_error": False,
+            },
+            "limits": [],
+        },
+    )
+
+    class _BlockedTargetRegistrar(_RootRegistrar):
+        def build_intentional_fill_target_movement(
+            self,
+            **_kwargs: Any,
+        ) -> dict[str, Any]:
+            return {
+                "ready": False,
+                "blocker": "intentional_fill_fee_data_stale",
+            }
+
+    rest_client = _SpotRestClient()
+    registrar = _BlockedTargetRegistrar()
+    response = _service(rest_client, registrar).place_manual_order(
+        _manual_command(
+            limit_price="100.10",
+            operator_intent=(
+                "execute_one_approved_intentional_test_profile_spot_fill"
+            ),
+            post_only=False,
+            time_in_force="FILL_OR_KILL",
+            approval_snapshot_id="approval-intentional-fill-1",
+        )
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "intentional_fill_follow_up_target"
+    assert response.data["standing_price_limit"][
+        "intentional_fill_override"
+    ]["follow_up_target_movement"]["blocker"] == (
+        "intentional_fill_fee_data_stale"
+    )
+    assert registrar.rows == {}
+    assert rest_client.create_calls == []
+
+
+def test_intentional_fill_rejects_when_child_reveal_capability_is_enabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import configuration
+
+    monkeypatch.setattr(
+        configuration,
+        "PRODUCT_CAPABILITIES",
+        {
+            "product_id": {
+                "BTC-USDC": {
+                    "filled_follow_up": "conditional",
+                    "partial_fill_follow_up": "disabled",
+                    "cancelled_follow_up": "disabled",
+                    "stealth_reveal": "enabled",
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        {
+            "wallet_available": {
+                "enabled": True,
+                "check_follow_up_planning": False,
+                "fail_open_on_fetch_error": False,
+            },
+            "limits": [],
+        },
+    )
+
+    rest_client = _SpotRestClient()
+    registrar = _RootRegistrar()
+    response = _service(rest_client, registrar).place_manual_order(
+        _manual_command(
+            limit_price="100.10",
+            operator_intent=(
+                "execute_one_approved_intentional_test_profile_spot_fill"
+            ),
+            post_only=False,
+            time_in_force="FILL_OR_KILL",
+            approval_snapshot_id="approval-intentional-fill-1",
+        )
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "standing_price_limit"
+    assert response.data["standing_price_limit"][
+        "intentional_fill_override"
+    ]["blocker"] == "intentional_fill_child_reveal_not_disabled"
+    assert registrar.rows == {}
+    assert rest_client.create_calls == []
+
+
+def test_intentional_fill_intent_cannot_fall_through_ordinary_price_authority(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import configuration
+
+    monkeypatch.setattr(
+        configuration,
+        "PRODUCT_CAPABILITIES",
+        {
+            "product_id": {
+                "BTC-USDC": {
+                    "filled_follow_up": "conditional",
+                    "partial_fill_follow_up": "disabled",
+                    "cancelled_follow_up": "disabled",
+                    "stealth_reveal": "disabled",
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        {
+            "wallet_available": {
+                "enabled": True,
+                "check_follow_up_planning": False,
+                "fail_open_on_fetch_error": False,
+            },
+            "limits": [],
+        },
+    )
+
+    rest_client = _SpotRestClient()
+    registrar = _RootRegistrar()
+    response = _service(rest_client, registrar).place_manual_order(
+        _manual_command(
+            limit_price="50.00",
+            operator_intent=(
+                "execute_one_approved_intentional_test_profile_spot_fill"
+            ),
+            post_only=False,
+            time_in_force="FILL_OR_KILL",
+            approval_snapshot_id="approval-intentional-fill-1",
+        )
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "standing_price_limit"
+    assert response.data["standing_price_limit"][
+        "intentional_fill_override"
+    ]["blocker"] == "intentional_fill_standing_override_not_required"
+    assert registrar.rows == {}
+    assert rest_client.create_calls == []
+
+
+def test_intentional_fill_rejects_internal_order_configuration_override(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import configuration
+
+    monkeypatch.setattr(
+        configuration,
+        "PRODUCT_CAPABILITIES",
+        {
+            "product_id": {
+                "BTC-USDC": {
+                    "filled_follow_up": "conditional",
+                    "partial_fill_follow_up": "disabled",
+                    "cancelled_follow_up": "disabled",
+                    "stealth_reveal": "disabled",
+                }
+            }
+        },
+    )
+    monkeypatch.setattr(
+        configuration,
+        "ACTION_CONDITION_GUARDS",
+        {
+            "wallet_available": {
+                "enabled": True,
+                "check_follow_up_planning": False,
+                "fail_open_on_fetch_error": False,
+            },
+            "limits": [],
+        },
+    )
+
+    rest_client = _SpotRestClient()
+    registrar = _RootRegistrar()
+    response = _service(rest_client, registrar).place_manual_order(
+        _manual_command(
+            limit_price="100.10",
+            operator_intent=(
+                "execute_one_approved_intentional_test_profile_spot_fill"
+            ),
+            post_only=False,
+            time_in_force="FILL_OR_KILL",
+            approval_snapshot_id="approval-intentional-fill-1",
+            order_configuration_override={
+                "limit_limit_gtc": {
+                    "base_size": "0.02",
+                    "limit_price": "100.10",
+                    "post_only": False,
+                }
+            },
+        )
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "standing_price_limit"
+    assert response.data["standing_price_limit"][
+        "intentional_fill_override"
+    ]["blocker"] == "intentional_fill_order_configuration_override_forbidden"
+    assert registrar.rows == {}
+    assert rest_client.create_calls == []
+
+
+@pytest.mark.parametrize(
+    ("approval_snapshot_id", "max_notional", "best_ask", "blocker"),
+    [
+        (None, "9.99", "100.01", "intentional_fill_approval_missing"),
+        (
+            "approval-intentional-fill-1",
+            "10.00",
+            "100.01",
+            "intentional_fill_cap_exceeds_approved_maximum",
+        ),
+        (
+            "approval-intentional-fill-1",
+            "9.99",
+            None,
+            "intentional_fill_best_ask_unavailable",
+        ),
+        (
+            "approval-intentional-fill-1",
+            "9.99",
+            "99.99",
+            "intentional_fill_best_ask_invalid",
+        ),
+    ],
+)
+def test_intentional_fill_override_fails_closed_on_missing_exact_authority(
+    approval_snapshot_id: str | None,
+    max_notional: str,
+    best_ask: str | None,
+    blocker: str,
+) -> None:
+    rest_client = _SpotRestClient()
+    registrar = _RootRegistrar()
+    market_reference = {
+        "product_id": "BTC-USDC",
+        "best_bid": "100.00",
+        "best_ask": best_ask,
+        "source": "ticker",
+        "observed_at": datetime.now(timezone.utc),
+    }
+
+    response = _service(
+        rest_client,
+        registrar,
+        market_reference=market_reference,
+    ).place_manual_order(
+        _manual_command(
+            limit_price="100.10",
+            operator_intent=(
+                "execute_one_approved_intentional_test_profile_spot_fill"
+            ),
+            post_only=False,
+            time_in_force="FILL_OR_KILL",
+            approval_snapshot_id=approval_snapshot_id,
+            max_submitted_notional_usdc=max_notional,
+        )
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "standing_price_limit"
+    assert response.data["standing_price_limit"][
+        "intentional_fill_override"
+    ]["blocker"] == blocker
+    assert registrar.rows == {}
+    assert rest_client.create_calls == []
 
 
 def test_submit_rejects_stale_ticker_before_root_or_coinbase_boundary() -> None:
