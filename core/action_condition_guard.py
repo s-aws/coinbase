@@ -36,6 +36,10 @@ SPOT_STANDING_BUY_LIMIT_RATIO = Decimal("0.5")
 SPOT_STANDING_SELL_LIMIT_RATIO = Decimal("1.5")
 SPOT_STANDING_MARKET_MAX_AGE_SECONDS = 30
 SPOT_STANDING_MARKET_FUTURE_TOLERANCE_SECONDS = 0
+SPOT_STANDING_MARKET_SOURCES = frozenset({
+    "ticker",
+    "coinbase_rest_best_bid",
+})
 
 
 def _coerce_utc_datetime(value: Any) -> datetime | None:
@@ -73,9 +77,9 @@ def evaluate_spot_standing_price_limit(
     """Evaluate the operator's standing Spot price authority.
 
     The same fail-closed evaluator is used at manual admission and at the
-    automatic direct-root child reveal boundary. A fresh ticker-sourced positive
-    bid is mandatory; BUY prices must be at or below 50% of bid and SELL prices
-    at or above 150% of bid.
+    automatic direct-root child reveal boundary. A fresh backend-owned positive
+    bid from the runtime ticker or Coinbase REST top of book is mandatory; BUY
+    prices must be at or below 50% of bid and SELL prices at or above 150%.
     """
 
     try:
@@ -106,7 +110,7 @@ def evaluate_spot_standing_price_limit(
     )
 
     blocker = None
-    if source != "ticker" or not valid_bid:
+    if source not in SPOT_STANDING_MARKET_SOURCES or not valid_bid:
         blocker = "live_ticker_bid_unavailable"
     elif observed_at is None or market_age_seconds is None:
         blocker = "live_ticker_timestamp_unavailable"

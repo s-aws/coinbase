@@ -152,6 +152,28 @@ def test_spot_standing_price_limit_is_shared_and_fail_closed():
     assert missing_ticker["allowed"] is False
     assert missing_ticker["blocker"] == "live_ticker_bid_unavailable"
 
+    fresh_rest_top_of_book = evaluate_spot_standing_price_limit(
+        side=OrderSide.BUY.value,
+        limit_price="50",
+        best_bid="100",
+        market_source="coinbase_rest_best_bid",
+        market_observed_at=evaluated_at,
+        evaluated_at=evaluated_at,
+    )
+    assert fresh_rest_top_of_book["allowed"] is True
+    assert fresh_rest_top_of_book["source"] == "coinbase_rest_best_bid"
+
+    stale_rest_top_of_book = evaluate_spot_standing_price_limit(
+        side=OrderSide.BUY.value,
+        limit_price="50",
+        best_bid="100",
+        market_source="coinbase_rest_best_bid",
+        market_observed_at=evaluated_at - timedelta(seconds=31),
+        evaluated_at=evaluated_at,
+    )
+    assert stale_rest_top_of_book["allowed"] is False
+    assert stale_rest_top_of_book["blocker"] == "live_ticker_bid_stale"
+
 
 @pytest.mark.regression
 def test_spot_standing_price_limit_rejects_stale_or_missing_ticker_time():

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from decimal import Decimal
+import sys
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -30,6 +31,66 @@ from application.admin_api.models import (
 
 TEST_PORTFOLIO_ID = "11111111-2222-4333-8444-555555555555"
 DEFAULT_PORTFOLIO_ID = "f4dfdb77-aa88-53d0-9c37-da3a0762ce54"
+
+
+def test_command_runtime_market_reference_falls_back_to_fresh_coinbase_rest(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from application.admin_api import command_runtime
+
+    monkeypatch.setitem(
+        sys.modules,
+        "dashboard_server",
+        SimpleNamespace(
+            stealth_order_bridge=SimpleNamespace(
+                stealth_manager=SimpleNamespace(
+                    _market_cache={
+                        "BTC-USD": {
+                            "product_id": "BTC-USD",
+                            "bid": "64197.70",
+                            "source": "ticker",
+                            "time": "2026-07-11T08:53:40.000000Z",
+                        }
+                    }
+                )
+            )
+        ),
+    )
+    best_bid_calls: list[dict[str, object]] = []
+
+    def get_best_bid_ask(**kwargs: object) -> SimpleNamespace:
+        best_bid_calls.append(dict(kwargs))
+        return SimpleNamespace(
+            to_dict=lambda: {
+                "pricebooks": [
+                    {
+                        "product_id": "BTC-USDC",
+                        "time": "2026-07-11T08:53:40.658107Z",
+                        "bids": [{"price": "64197.77", "size": "0.33691341"}],
+                        "asks": [{"price": "64197.78", "size": "0.12466358"}],
+                    }
+                ]
+            }
+        )
+
+    sdk_client = SimpleNamespace(
+        get_best_bid_ask=get_best_bid_ask,
+    )
+    rest_client = SimpleNamespace(get_sdk_client=lambda: sdk_client)
+
+    reference = command_runtime.get_admin_api_spot_market_reference(
+        "BTC-USDC",
+        rest_client=rest_client,
+    )
+
+    assert reference == {
+        "product_id": "BTC-USDC",
+        "best_bid": "64197.77",
+        "source": "coinbase_rest_best_bid",
+        "observed_at": "2026-07-11T08:53:40.658107Z",
+    }
+    assert best_bid_calls == [{"product_ids": ["BTC-USDC"]}]
+
 
 
 class _PermissionsClient:

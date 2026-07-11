@@ -63996,7 +63996,7 @@ def test_admin_api_manual_order_route_executes_through_backend_runtime_dependenc
     monkeypatch.setattr(
         command_runtime,
         "get_admin_api_spot_market_reference",
-        lambda _product_id: {
+        lambda _product_id, *, rest_client=None: {
             "best_bid": "130000.00",
             "source": "ticker",
             "observed_at": datetime.now(timezone.utc),

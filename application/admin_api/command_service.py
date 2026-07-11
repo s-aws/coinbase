@@ -3078,7 +3078,7 @@ class AdminApiCommandService:
                 if not standing_price_limit_evidence["allowed"]:
                     reason = (
                         "Direct Spot order violates the standing price limit "
-                        "or lacks a live ticker bid: BUY must be at or below "
+                        "or lacks a fresh backend market bid: BUY must be at or below "
                         "50% of bid; SELL must be at or above 150% of bid."
                     )
                     return self._place_rejected(

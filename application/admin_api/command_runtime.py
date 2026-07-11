@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 import os
 from threading import Lock
@@ -186,8 +187,10 @@ def log_admin_api_command(level: str, message: str) -> None:
 
 def get_admin_api_spot_market_reference(
     product_id: str,
+    *,
+    rest_client: Any | None = None,
 ) -> dict[str, Any] | None:
-    """Return the latest ticker bid from the canonical embedded runtime."""
+    """Return a fresh backend-owned ticker or Coinbase REST best bid."""
 
     try:
         import dashboard_server
@@ -195,24 +198,77 @@ def get_admin_api_spot_market_reference(
         bridge = getattr(dashboard_server, "stealth_order_bridge", None)
         manager = getattr(bridge, "stealth_manager", None) if bridge else None
         market_cache = getattr(manager, "_market_cache", None)
-        if not isinstance(market_cache, dict):
+        if isinstance(market_cache, dict):
+            market = market_cache.get(product_id)
+            if isinstance(market, dict):
+                source = str(market.get("source") or "").lower()
+                best_bid = market.get("best_bid") or market.get("bid")
+                if source == "ticker" and best_bid is not None:
+                    return {
+                        "product_id": product_id,
+                        "best_bid": str(best_bid),
+                        "source": source,
+                        "observed_at": market.get("time"),
+                    }
+    except Exception as exc:
+        logger.warning("Admin API Spot market reference unavailable: %s", exc)
+
+    if rest_client is None:
+        return None
+    try:
+        sdk_getter = getattr(rest_client, "get_sdk_client", None)
+        sdk_client = sdk_getter() if callable(sdk_getter) else rest_client
+        best_bid_ask = getattr(sdk_client, "get_best_bid_ask", None)
+        if not callable(best_bid_ask):
             return None
-        market = market_cache.get(product_id)
-        if not isinstance(market, dict):
+        response = best_bid_ask(product_ids=[product_id])
+        record = _runtime_object_record(response)
+        pricebooks = [
+            _runtime_object_record(item)
+            for item in _runtime_list_value(record.get("pricebooks"))
+        ]
+        matching = [
+            item
+            for item in pricebooks
+            if str(item.get("product_id") or "") == product_id
+        ]
+        if len(matching) != 1:
             return None
-        source = str(market.get("source") or "").lower()
-        best_bid = market.get("best_bid") or market.get("bid")
-        if source != "ticker" or best_bid is None:
+        bids = [
+            _runtime_object_record(item)
+            for item in _runtime_list_value(matching[0].get("bids"))
+        ]
+        if not bids:
+            return None
+        best_bid = bids[0].get("price")
+        observed_at = matching[0].get("time")
+        if best_bid is None or observed_at is None:
             return None
         return {
             "product_id": product_id,
             "best_bid": str(best_bid),
-            "source": source,
-            "observed_at": market.get("time"),
+            "source": "coinbase_rest_best_bid",
+            "observed_at": observed_at,
         }
     except Exception as exc:
-        logger.warning("Admin API Spot market reference unavailable: %s", exc)
+        logger.warning("Admin API Coinbase REST best bid unavailable: %s", exc)
         return None
+
+
+def _runtime_object_record(value: Any) -> dict[str, Any]:
+    if isinstance(value, Mapping):
+        return dict(value)
+    converter = getattr(value, "to_dict", None)
+    if callable(converter):
+        converted = converter()
+        return dict(converted) if isinstance(converted, Mapping) else {}
+    return dict(getattr(value, "__dict__", {}) or {})
+
+
+def _runtime_list_value(value: Any) -> list[Any]:
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes)):
+        return list(value)
+    return []
 
 
 class AdminApiOrderRootRuntimeRegistrar:
@@ -465,7 +521,12 @@ def build_admin_api_command_dependencies(
             os.environ.get(SPOT_PORTFOLIO_LABEL_ENV, "").strip()
             or DEFAULT_SPOT_PORTFOLIO_LABEL
         ),
-        spot_market_reference_getter=get_admin_api_spot_market_reference,
+        spot_market_reference_getter=lambda product_id: (
+            get_admin_api_spot_market_reference(
+                product_id,
+                rest_client=rest_client.client,
+            )
+        ),
         order_root_registrar_getter=get_admin_api_order_root_registrar,
         runtime_controller_factory=get_runtime_controller,
         add_log_entry=log_admin_api_command,
