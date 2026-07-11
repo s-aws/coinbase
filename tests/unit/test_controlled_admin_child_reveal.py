@@ -327,6 +327,36 @@ def test_atomic_prepare_normalizes_unsubmitted_preexchange_condition_state(
     assert "HIDDEN" in stealth_update
 
 
+def test_atomic_prepare_clears_raced_condition_timestamps_before_authority(
+    monkeypatch,
+):
+    first_met_at = NOW - timedelta(seconds=1)
+    confirmed_at = NOW - timedelta(milliseconds=500)
+    cursor = _Cursor(
+        stealth=_stealth_row(
+            status="TRIGGERED",
+            condition_first_met_at=first_met_at,
+            condition_confirmed_at=confirmed_at,
+        )
+    )
+
+    result = _prepare(cursor, monkeypatch)
+
+    evidence = result["anchor_repricing_state_json"][
+        "controlled_admin_first_child_reveal_preparation"
+    ]
+    assert evidence["original_stealth_status"] == "TRIGGERED"
+    assert evidence["original_condition_first_met_at"] == first_met_at
+    assert evidence["original_condition_confirmed_at"] == confirmed_at
+    statement, _params = next(
+        item
+        for item in cursor.statements
+        if item[0].startswith("UPDATE stealth_orders")
+    )
+    assert "condition_first_met_at = NULL" in statement
+    assert "condition_confirmed_at = NULL" in statement
+
+
 def test_atomic_prepare_rejects_batch_slot_above_approved_ten(monkeypatch):
     cursor = _Cursor()
 

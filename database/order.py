@@ -1595,8 +1595,6 @@ def prepare_controlled_admin_first_child_reveal_atomic(
             or executed_size != 0
             or revealed_orders
             or stealth_row.get("last_placement_at") is not None
-            or stealth_row.get("condition_first_met_at") is not None
-            or stealth_row.get("condition_confirmed_at") is not None
         ):
             reject("controlled reveal child must be wholly hidden and unsubmitted")
 
@@ -1661,6 +1659,12 @@ def prepare_controlled_admin_first_child_reveal_atomic(
             "original_stealth_limit_price": float(original_stealth_price),
             "original_price_threshold": float(original_threshold),
             "original_stealth_status": original_stealth_status,
+            "original_condition_first_met_at": stealth_row.get(
+                "condition_first_met_at"
+            ),
+            "original_condition_confirmed_at": stealth_row.get(
+                "condition_confirmed_at"
+            ),
             "root_client_order_id": root_id,
             "stealth_order_id": child_id,
             "portfolio_id": portfolio_id,
