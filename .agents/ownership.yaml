@@ -176,6 +176,7 @@ owners:
       - tests/regression/test_spot_paper_mode_replay.py
       - tests/unit/test_orderbook_v2.py
       - tests/unit/test_order_id_and_followup_rules.py
+      - tests/unit/test_filled_followup_*.py
       - tests/unit/test_order_progress_tracker.py
       - tests/unit/test_order_moves.py
     tests:

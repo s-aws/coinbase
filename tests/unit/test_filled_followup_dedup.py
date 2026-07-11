@@ -1,6 +1,6 @@
 ﻿"""Unit test proving duplicate FILLED events do not create duplicate follow-up orders."""
 
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from configuration import OrderBook
 from core.enums import OrderStatus
@@ -69,6 +69,9 @@ def test_duplicate_filled_event_creates_follow_up_once():
         }
     )
     engine.child_order_already_exists = Mock(return_value=False)
+    engine._resolve_filled_follow_up_size_after_partials = Mock(
+        return_value=(0.01, {})
+    )
     engine.normalize_product_type = Mock(return_value="SPOT")
     engine.register_child_order = Mock()
 
@@ -98,8 +101,15 @@ def test_duplicate_filled_event_creates_follow_up_once():
         "outstanding_hold_amount": "0",
     }
 
-    engine.handle_filled_order(filled_order)
-    engine.handle_filled_order(filled_order)
+    with patch(
+        "database.order.get_parent_order",
+        return_value={
+            "target_movement": 0.001,
+            "target_movement_type": "P",
+        },
+    ):
+        engine.handle_filled_order(filled_order)
+        engine.handle_filled_order(filled_order)
 
     # First FILLED creates the follow-up, second is dedup-blocked by claim flag.
     stealth_manager.create_follow_up_stealth_order.assert_called_once()
