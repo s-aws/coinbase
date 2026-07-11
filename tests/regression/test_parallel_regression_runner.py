@@ -29,7 +29,6 @@ pytestmark = pytest.mark.regression
 
 REGRESSION_POLICY_DOCS = (
     ".github/PULL_REQUEST_TEMPLATE.md",
-    ".github/workflows/public-agent-checks.yml",
     "AGENTS.md",
     "agent.md",
     "docs/agents/README.md",
@@ -75,7 +74,7 @@ REQUIRED_FULL_REGRESSION_TRIGGERS = (
 
 def test_regression_policy_docs_make_parallel_runner_canonical():
     root = Path(__file__).resolve().parents[2]
-    canonical_command = "python tools/run_parallel_regression.py --workers 4"
+    canonical_command = "python3.13 tools/run_parallel_regression.py --workers 4"
     stale_default_markers = (
         "Default full Bash regression command",
         "python3 -m pytest tests/regression/ -v",

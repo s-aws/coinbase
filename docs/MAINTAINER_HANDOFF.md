@@ -7,8 +7,9 @@ working on the enterprise admin platform.
 
 The backend repository owns trading behavior, Coinbase integration, guard
 checks, authorization, audit evidence, OpenAPI schema generation, and all live
-execution authority. The frontend repository at `C:\coinbase-frontend` owns the
-browser application and must consume backend-owned contracts only.
+execution authority. The frontend repository at
+`/home/ec2-user/coinbase-frontend` in the active EC2 workspace owns the browser
+application and must consume backend-owned contracts only.
 
 Spot is the first complete product module, not the generic model for futures,
 perpetuals, stealth orders, movement/repricing, or future modules.
@@ -16,15 +17,17 @@ perpetuals, stealth orders, movement/repricing, or future modules.
 ## Start Here
 
 1. Read `AGENTS.md`, then `agent.md`.
-2. Read `docs/README.md` for the ordered documentation index.
-3. Read `README.admin-api.md` for the Admin API boundary.
-4. Read `docs/ADMIN_MODULE_CAPABILITY_MATRIX.md` before changing module scope.
-5. Read `docs/plans/ADMIN_API_ROUTE_INVENTORY.md` before adding or changing a route.
-6. Read `docs/LIVE_ORDER_SURFACES.md` before any live-order or cancellation work.
-7. Read `docs/plans/ADMIN_API_CONTEXTLESS_REVIEW_LOG.md` before declaring a handoff complete.
-8. Read `docs/plans/AUTONOMOUS_WORK_QUEUE.md` before advancing phases. Each
-   active phase must map to an approved durable milestone and an explicit
-   architecture or planning gap.
+2. Read `genai_data/AGENT_MVP_REBUILD_GOAL.md` for current scope and stop rules.
+3. Read the frontend canonical goal and Origin Prod Feature MVP Map before
+   translating legacy behavior.
+4. Read `docs/README.md` for the ordered documentation index.
+5. Read `README.admin-api.md` for the Admin API boundary.
+6. Read `docs/ADMIN_MODULE_CAPABILITY_MATRIX.md` before changing module scope.
+7. Read `docs/plans/ADMIN_API_ROUTE_INVENTORY.md` before adding or changing a route.
+8. Read `docs/LIVE_ORDER_SURFACES.md` before any live-order or cancellation work.
+9. Read `docs/plans/ADMIN_API_CONTEXTLESS_REVIEW_LOG.md` before declaring a handoff complete.
+10. Read the historical autonomous queue only when the operator explicitly
+    reactivates phase-range work.
 
 ## Subagent Hygiene
 
@@ -83,12 +86,13 @@ implement trading behavior or live Coinbase execution.
 Passing answer requirements:
 
 - names `docs/MAINTAINER_HANDOFF.md`, `README.admin-api.md`,
+  `genai_data/AGENT_MVP_REBUILD_GOAL.md`,
   `docs/plans/ADMIN_API_ROUTE_INVENTORY.md`, and
   `docs/ADMIN_MODULE_CAPABILITY_MATRIX.md`
 - keeps backend authority over trading behavior and live execution
 - sends frontend work through OpenAPI generation and canonical wrappers
-- lists focused backend/frontend checks, autonomous validation, and
-  blind/contextless review for ordinary phases
+- lists focused backend/frontend checks for ordinary changes and applies the
+  current goal's direct-blocker rule before broadening scope
 - reserves full backend regression and frontend release gate for durable
   milestone closeout, public/release-candidate handoff, deployment
   approval/closeout, release-hardening closeout, Admin API/backend association
@@ -105,7 +109,7 @@ Admin API/backend association closeout, or explicit-request gate:
 
 ```powershell
 python3.13 tools/run_parallel_regression.py --workers 4
-python tools\run_autonomous_work_queue_check.py --summary-only
+python3.13 tools/run_autonomous_work_queue_check.py --summary-only
 ```
 
 Frontend/API association changes must pass focused frontend checks for the
@@ -124,16 +128,26 @@ notional, retained inventory, reconciliation result, and audit ids.
 
 ## Current Handoff State
 
+- Current goal id: `legacy_fill_follow_up_operator_slice`.
+- Current slice: Admin order -> fill/readback evidence -> follow-up decision ->
+  operator-visible parent/child chain.
+- Current state: the guarded no-live slice is implemented and focused coverage
+  is clean. Automatic/live fill-event parity requires explicit fill-testing
+  approval and live-fill, wallet/cap/reconciliation, duplicate-order, audit,
+  rollback, and readback proof.
+- Parked by default: M57 phase continuation, M58 fan-out/scheduler,
+  runtime-control, retry/recovery, multi-product wallet-ledger work, and the
+  single-product ladder/grid roadmap item.
 - M9/M21/M23/M24/M25/M26 enterprise readiness is exposed by
   `GET /api/v1/admin/enterprise-readiness`.
-- MVP active work policy: controlled-live Admin MVP continuous deployment is
-  the active default. The approved `7961-7980` M57 range is deferred by
-  default. Do not continue `complete_current_approved_range` unless the work
-  directly blocks MVP operation, safe backend-controlled execution, demo
-  readiness, or continuous deployment.
+- Historical policy metadata describes controlled-live Admin continuous
+  deployment and defers `7961-7980`; it does not supersede the current goal.
+
+### Historical Phase Snapshot
+
 - Latest completed autonomous range: `7941-7960` under M57.
-- Active autonomous range: `7961-7980` under M57.
-- Current active range: `7961-7980` adds futures risk-proof record validation
+- Historical queue entry - Active autonomous range: `7961-7980` under M57.
+- Historical queue scope: `7961-7980` adds futures risk-proof record validation
   remediation summary evidence derived from existing per-command risk-proof
   record-validation remediation rows. It remains disabled, no-live,
   backend-owned evidence only and cannot perform remediation, create work

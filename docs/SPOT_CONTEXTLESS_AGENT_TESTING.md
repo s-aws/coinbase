@@ -14,8 +14,8 @@ The repeatable local harness prints this prompt and rubric without editing
 files or calling Coinbase:
 
 ```powershell
-python tools/run_spot_contextless_agent_checklist.py --summary-only
-python tools/run_spot_contextless_agent_checklist.py
+python3.13 tools/run_spot_contextless_agent_checklist.py --summary-only
+python3.13 tools/run_spot_contextless_agent_checklist.py
 ```
 
 ## Blind Prompt

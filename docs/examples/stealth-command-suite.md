@@ -3,7 +3,7 @@
 Run the Admin API locally:
 
 ```powershell
-python tools\run_admin_api.py --dev-token local-admin-token
+python3.13 tools/run_admin_api.py --dev-token local-admin-token
 ```
 
 Read stealth command-suite readiness:
@@ -18,8 +18,8 @@ X-Admin-Roles: viewer
 Expected posture:
 
 The payload below is a historical stealth command-suite example for the M55
-`5181-5200` slice. It is not the current autonomous phase range. Current
-active phase metadata lives in `docs/plans/AUTONOMOUS_WORK_QUEUE.md`.
+`5181-5200` slice. Numbered phase metadata is historical compatibility
+evidence; current scope lives in `genai_data/AGENT_MVP_REBUILD_GOAL.md`.
 
 ```json
 {

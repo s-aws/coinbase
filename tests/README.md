@@ -32,7 +32,7 @@ user request.
 When the full regression gate is required, prefer the process-parallel helper:
 
 ```bash
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 ```
 
 The helper runs tests marked `serial` in a separate sequential lane and runs
@@ -55,7 +55,7 @@ milestone closeout.
 Runtime artifact check after memory guard aborts or unexplained memory spikes:
 
 ```powershell
-python tools/check_runtime_artifacts.py
+python3.13 tools/check_runtime_artifacts.py
 ```
 
 The helper first validates serial-lane classification. Regression files that
@@ -67,7 +67,7 @@ FastAPI app imports, or other process-shared/memory-heavy resources must use
 Fast classification preflight:
 
 ```bash
-python tools/run_parallel_regression.py --check-serial-classification-only
+python3.13 tools/run_parallel_regression.py --check-serial-classification-only
 ```
 
 ### Run All Tests
@@ -79,7 +79,7 @@ pytest tests/ -v
 ```bash
 pytest tests/unit/ -v              # Unit tests only
 pytest tests/integration/ -v       # Integration tests
-python tools/run_parallel_regression.py --workers 4  # Full milestone/release regression gate
+python3.13 tools/run_parallel_regression.py --workers 4  # Full milestone/release regression gate
 pytest tests/external/ -v          # Coinbase API tests (requires API key)
 ```
 
@@ -90,7 +90,7 @@ pytest tests/ --cov=. --cov-report=html
 
 ### Run Regression For Milestone Closeout Or Release Candidate
 ```bash
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 # Must pass before closing a durable milestone or releasing/deploying changes
 ```
 
@@ -257,7 +257,7 @@ candidate handoff, deployment approval, or explicit user request.
 
 **Run for milestone closeout or release/deployment handoff:**
 ```bash
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 exit_code=$?
 if [ $exit_code -ne 0 ]; then
     echo "REGRESSION TESTS FAILED - DO NOT CLOSE OUT OR DEPLOY"
@@ -331,7 +331,7 @@ Store fixture data in `tests/fixtures/`:
 
 6. **Run full regression before milestone closeout or deployment approval:**
    ```bash
-   python tools/run_parallel_regression.py --workers 4
+   python3.13 tools/run_parallel_regression.py --workers 4
    ```
 
 7. **Deploy only if required gates pass**
@@ -350,7 +350,7 @@ test:
     - pytest tests/integration/ -v
     
     # Regression tests (must pass)
-    - python tools/run_parallel_regression.py --workers 4
+    - python3.13 tools/run_parallel_regression.py --workers 4
     
   only:
     - merge_requests

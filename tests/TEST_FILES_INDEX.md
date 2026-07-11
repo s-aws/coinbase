@@ -266,7 +266,7 @@ pytest tests/ -v
 pytest tests/unit/ -v
 pytest tests/integration/ -v
 pytest tests/e2e/ -v
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 
 # Run specific test file
 pytest tests/unit/test_order_calculator.py -v
@@ -281,7 +281,7 @@ pytest tests/unit/test_order_calculator.py::TestSpreadCalculations::test_calcula
 pytest tests/ --cov=. --cov-report=html
 
 # Milestone/release closeout regression gate
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 ```
 
 ---
@@ -317,7 +317,7 @@ python tools/run_parallel_regression.py --workers 4
 
 3. Run full regression before durable milestone closeout or release handoff
    ```bash
-   python tools/run_parallel_regression.py --workers 4
+   python3.13 tools/run_parallel_regression.py --workers 4
    ```
 
 4. Add tests as new features are implemented

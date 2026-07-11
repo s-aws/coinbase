@@ -12,7 +12,7 @@ API/backend association closeout, or explicit user request, run the full
 regression gate:
 
 ```powershell
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 ```
 
 Must exit `0` before the milestone or release handoff is considered complete.
@@ -28,7 +28,7 @@ lane:
 
 ```powershell
 python -m pip install -e ".[test]"
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 ```
 
 The helper runs `tests/regression -m "not serial"` with xdist process workers
@@ -88,7 +88,7 @@ Live/sandbox Coinbase contract tests (opt-in, credential-gated).
 
 ### Full regression closeout gate
 ```powershell
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 ```
 
 ### Sequential fallback for missing pytest-xdist

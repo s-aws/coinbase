@@ -456,7 +456,7 @@ authority.
 Focused backend coverage:
 
 ```powershell
-python -m pytest tests\regression\test_admin_api_contract.py -v --tb=short
+pytest tests\regression\test_admin_api_contract.py -v --tb=short
 ```
 
 Full backend regression is a durable milestone closeout gate, not an ordinary
@@ -468,5 +468,5 @@ public/release-candidate handoff, or when explicitly requested. See
 python3.13 tools/run_parallel_regression.py --workers 4
 ```
 
-Use `python -m pytest tests\regression\ -v --tb=short` only as an intentional
+Use `pytest tests\regression\ -v --tb=short` only as an intentional
 sequential fallback when `pytest-xdist` is unavailable.

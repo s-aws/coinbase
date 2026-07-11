@@ -1,6 +1,7 @@
 # AGENTS.md - Session Entry Point
 
-This project runs on **Windows 11 + VS Code**. Linux/bash commands may not work as-is.
+The active workspace runs on EC2 Linux. Historical Windows commands remain in
+some operator/deployment references and must not replace the EC2 paths below.
 
 ## Required Reading (in this order)
 
@@ -112,7 +113,7 @@ This project runs on **Windows 11 + VS Code**. Linux/bash commands may not work 
   or a temporary worktree, then translate only MVP-aligned behavior into the
   backend Admin API/BFF path with focused tests.
 - When available, also read
-  `C:\coinbase-frontend\docs\ORIGIN_PROD_FEATURE_MVP_MAP.md` before translating
+  `/home/ec2-user/coinbase-frontend/docs/ORIGIN_PROD_FEATURE_MVP_MAP.md` before translating
   legacy behavior into Admin MVP work.
 - For backend-facing MVP work, record the `origin/prod` files or references
   inspected in the handoff/summary. If no legacy lookup was needed, state why it

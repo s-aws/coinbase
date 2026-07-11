@@ -2,27 +2,30 @@
 
 ## Purpose
 
-`genai_data/` is the canonical documentation set for this repository.
-Use it as the source of truth when implementing, debugging, or reviewing changes.
-
-This repo evolves quickly; these docs are aligned to the codebase as of 2026-05-16.
+`genai_data/` contains expanded engineering references and historical analyses.
+Current work authority is `AGENT_MVP_REBUILD_GOAL.md`, goal id
+`legacy_fill_follow_up_operator_slice`, paired with the frontend canonical goal
+at `/home/ec2-user/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. An individual
+analysis or implementation note does not become current work merely because it
+lives in this directory.
 
 ## Read Order
 
 1. `README.md` (this file)
-2. `ARCHITECTURE.md`
-3. `ORDER_ID_HANDLING.md`
-4. `MODULES.md`
-5. `DATA_MODELS.md`
-6. `CONFIGURATION.md`
-7. `API_REFERENCE.md`
-8. `DEBUGGING_STRATEGY.md`
-9. `TESTING_STRATEGY.md`
-10. `COMPREHENSIVE_TEST_SUITE.md`
+2. `AGENT_MVP_REBUILD_GOAL.md`
+3. `ARCHITECTURE.md`
+4. `ORDER_ID_HANDLING.md`
+5. `MODULES.md`
+6. `DATA_MODELS.md`
+7. `CONFIGURATION.md`
+8. `API_REFERENCE.md`
+9. `DEBUGGING_STRATEGY.md`
+10. `TESTING_STRATEGY.md`
+11. `COMPREHENSIVE_TEST_SUITE.md`
 
 Agent process files:
 - `AGENT_CONSISTENCY_PROTOCOL.md`
-- `agent_state.md`
+- `agent_state.md` (historical M57 snapshot, not current authority)
 - `AGENT_HANDOFF_TEMPLATE.md`
 
 ## System Snapshot
@@ -36,9 +39,11 @@ This is a multithreaded Coinbase trading engine with:
 - Dashboard WebSocket server (`dashboard_server.py`) plus browser/terminal consumers.
 - Enterprise Admin API (`api/v1/app.py`) with fail-closed auth/RBAC, durable
   idempotency/audit stores, read-only spot routes, and a generated OpenAPI
-  contract at `openapi/coinbase-admin-api.yaml`. Live-shaped mutating HTTP
-  routes currently return HTTP `501` / `not_implemented` and do not call
-  Coinbase. The guarded fill-follow-up trigger is a no-live local-state
+  contract at `openapi/coinbase-admin-api.yaml`. Command posture is
+  route-specific: manual Spot placement can reach the shared live service only
+  after exact backend admission; HTTP Spot cancel, Futures, Stealth,
+  movement/reprice, campaign, and sweep command routes remain no-live or
+  local-evidence boundaries. The guarded fill-follow-up trigger is a no-live local-state
   compatibility exception that can return accepted parent/child readback
   evidence after exact proof refs while Coinbase submit/cancel and live exchange
   mutation remain disallowed.
@@ -61,7 +66,7 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
   milestone closeout, public/release-candidate handoff, deployment
   approval/closeout, release-hardening closeout, Admin API/backend association
   closeout, or explicit user request. Prefer
-  `python tools/run_parallel_regression.py --workers 4` for the full closeout
+  `python3.13 tools/run_parallel_regression.py --workers 4` for the full closeout
   gate.
 
 ## Main Runtime Entry Points
@@ -93,9 +98,13 @@ A stealth order is a local execution plan, not a normal exchange order. It may s
 
 ## Documentation Scope
 
-The files listed above are living docs and should stay synchronized with current code.
-Root-level one-off incident notes and postmortems are historical artifacts unless explicitly updated.
+The read-order files above are living references and should stay synchronized
+with current code. One-off analyses such as deadlock findings, enum migration
+notes, prior follow-up implementation summaries, and target-movement rollout
+notes are historical unless a current goal or living reference explicitly
+adopts them. Broken source links inside `docs/archive/` or those historical
+notes are archival evidence, not current implementation instructions.
 
 ---
 
-Last updated: 2026-05-16
+Last updated: 2026-07-10

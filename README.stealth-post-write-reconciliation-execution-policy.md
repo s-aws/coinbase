@@ -102,5 +102,5 @@ Examples live in
 Focused verification:
 
 ```bash
-python -m pytest tests/regression/test_admin_api_contract.py::test_admin_api_stealth_post_write_reconciliation_policy_proof_is_no_live_and_path_keyed -q --tb=short
+pytest tests/regression/test_admin_api_contract.py::test_admin_api_stealth_post_write_reconciliation_policy_proof_is_no_live_and_path_keyed -q --tb=short
 ```

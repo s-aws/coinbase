@@ -42,7 +42,7 @@ If a recommendation would land softer than the evidence warrants, the recommenda
 6. Use one code path per behavior. Do not implement parallel logic.
 7. Run focused tests and validators for the changed behavior before marking
    ordinary phase work complete. Reserve the full regression gate
-   `python tools/run_parallel_regression.py --workers 4` for durable milestone
+   `python3.13 tools/run_parallel_regression.py --workers 4` for durable milestone
    closeout, public/release-candidate handoff, deployment approval/closeout,
    release-hardening closeout, Admin API/backend association closeout, or
    explicit user request. Use `pytest tests/regression/ -v --tb=short` only as

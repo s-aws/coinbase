@@ -1,5 +1,10 @@
 # Spot Trading
 
+Current work is goal id `legacy_fill_follow_up_operator_slice`. This document
+is domain behavior reference; campaign, sweep, fan-out, scheduler, retry, and
+wallet-ledger expansion remain parked unless they directly block that slice or
+the operator explicitly reprioritizes them.
+
 Spot trading uses the same order lifecycle, stealth lifecycle, sizing, fee,
 dashboard, and reconciliation paths as futures. There is no separate spot
 engine.
@@ -146,7 +151,7 @@ local order that reveals later under the shared guard path.
   sweep/campaign dry-run tools when a dry-runable spot order workflow is
   required.
   Direct orders can be inspected with:
-  `python tools\run_spot_direct_order_audit.py --client-order-id <client_order_id>`.
+  `python3.13 tools/run_spot_direct_order_audit.py --client-order-id <client_order_id>`.
   The dashboard can return the same local audit with
   `request_spot_direct_order_audit` and `params.client_order_id`.
   These are read-only local evidence audits, not retry or automation wrappers.
@@ -313,7 +318,7 @@ Not disabled:
   out.
 - Run focused tests for ordinary spot changes. Run full `tests/regression/`
   only before durable milestone closeout, public/release-candidate handoff, or
-  explicit request; prefer `python tools/run_parallel_regression.py --workers 4`.
+  explicit request; prefer `python3.13 tools/run_parallel_regression.py --workers 4`.
 
 ## Examples
 
@@ -330,7 +335,7 @@ For spot feature intake, see
 Validate a proposed spot-specific feature with:
 
 ```powershell
-python tools/run_spot_feature_intake_gate.py --request-file runtime_state/spot_feature_request.json --summary-only
+python3.13 tools/run_spot_feature_intake_gate.py --request-file runtime_state/spot_feature_request.json --summary-only
 ```
 
 ## Test Gate
@@ -338,13 +343,13 @@ python tools/run_spot_feature_intake_gate.py --request-file runtime_state/spot_f
 Run the focused spot readiness gate with:
 
 ```powershell
-python tools/run_spot_readiness_regression.py
+python3.13 tools/run_spot_readiness_regression.py
 ```
 
 Run the optional browser smoke gate with:
 
 ```powershell
-python tools/run_spot_readiness_browser_smoke.py
+python3.13 tools/run_spot_readiness_browser_smoke.py
 ```
 
 The browser gate uses `pytest-playwright` and installed Chromium to open
@@ -359,25 +364,25 @@ alone, fix the docs or code organization and rerun the same blind prompt.
 
 This does not replace the required full regression closeout gate when a durable
 milestone, public/release candidate, or deployment approval is being marked
-complete: `python tools/run_parallel_regression.py --workers 4`.
+complete: `python3.13 tools/run_parallel_regression.py --workers 4`.
 
 Run the read-only spot release wrapper with:
 
 ```powershell
-python tools/run_spot_release_gate.py
+python3.13 tools/run_spot_release_gate.py
 ```
 
 Approved live Coinbase spot smoke is available as a manual release-readiness
 check:
 
 ```powershell
-python tools/run_live_spot_usdc_smoke.py --approved-live-orders
+python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders
 ```
 
 For the approved live matrix plus fill-ledger reconciliation gate:
 
 ```powershell
-python tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix --reconciliation-gate
+python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix --reconciliation-gate
 ```
 
 This command places real Coinbase spot orders and prints submitted/executed

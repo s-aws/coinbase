@@ -183,7 +183,7 @@ response includes an `audit_command`, and the same read-only audit can be run
 directly:
 
 ```powershell
-python tools\run_spot_direct_order_audit.py --client-order-id 4af4f6a1-0ef6-4a58-8e02-f0db9c6106e8
+python3.13 tools/run_spot_direct_order_audit.py --client-order-id 4af4f6a1-0ef6-4a58-8e02-f0db9c6106e8
 ```
 
 The audit command reads local event-stream and fill-ledger evidence only. It

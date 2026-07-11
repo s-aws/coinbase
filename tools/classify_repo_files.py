@@ -60,7 +60,6 @@ PUBLIC_AGENT_FILES = {
     "agent.md",
     "ai-context.md",
     ".github/PULL_REQUEST_TEMPLATE.md",
-    ".github/workflows/public-agent-checks.yml",
     "tools/check_ownership.py",
     "tools/classify_repo_files.py",
 }

@@ -1,18 +1,26 @@
 # Agent State
 
-Use this file as the concise durable source of truth for active engineering
-work. Historical milestone detail belongs in
-`docs/plans/ADMIN_PLATFORM_DURABLE_MILESTONES.md`.
+Historical planning record; not current work authority.
+
+This is a frozen M57 handoff snapshot. Current work is goal id
+`legacy_fill_follow_up_operator_slice` in
+`genai_data/AGENT_MVP_REBUILD_GOAL.md` and the frontend canonical goal. Do not
+resume the branch, phase, or next-step instructions below without explicit
+operator reprioritization.
+
+Use this file only to interpret the frozen M57 payload fields. It is not a
+source of truth for active engineering work. Current scope lives in
+`genai_data/AGENT_MVP_REBUILD_GOAL.md`.
 
 ## Metadata
 
 - Last updated (ET): 2026-06-27
 - Updated by: Codex
-- Backend branch: `codex/stealth-live-service-decision-3501`
-- Frontend branch: `codex/stealth-live-service-decision-3501`
-- Current milestone: M57 - Futures/Perpetuals Contract Foundation And Commands
+- Historical backend branch: `codex/stealth-live-service-decision-3501`
+- Historical frontend branch: `codex/stealth-live-service-decision-3501`
+- Historical milestone: M57 - Futures/Perpetuals Contract Foundation And Commands
 
-## Current Objective
+## Historical Objective
 
 - Build the enterprise admin frontend/API path for the entire Coinbase trading
   engine, with Spot as the first complete product module but not the generic
@@ -22,10 +30,10 @@ work. Historical milestone detail belongs in
   and remain understandable to contextless/blind agents through docs,
   capability matrices, tests, and review logs.
 
-## Current Phase
+## Historical Phase Snapshot
 
 - Latest completed and pushed range before this work: `7941-7960`.
-- Active approved range: `7961-7980`.
+- Historical range: `7961-7980`; it is not current work authority.
 - Scope: futures risk-proof record validation remediation summary evidence and
   frontend display. This continues M57 by aggregating existing per-command
   risk-proof requirement record-validation remediation rows into
@@ -57,7 +65,8 @@ work. Historical milestone detail belongs in
   futures read-service contract check, focused futures risk-proof regression,
   frontend API generation/checks, frontend typecheck, targeted frontend units,
   and stale test-process checks passed.
-- Commit/push status: pending for `7961-7980` in backend and frontend repos.
+- Historical snapshot status recorded commit/push as pending for `7961-7980`;
+  both active repositories now work on `main`, so this is not an instruction.
 - Prior phase-end subagent sweep: reviewers
   `019f09b3-c679-7e63-90ce-f4a4ecb25cc2`,
   `019f09bb-cb84-72b1-b515-f38185c6a858`, and
@@ -504,7 +513,7 @@ work. Historical milestone detail belongs in
   deployment approval/closeout, release-hardening closeout, Admin API/backend
   association closeout, or explicit user request.
 - Canonical full backend regression command:
-  `python tools/run_parallel_regression.py --workers 4`.
+  `python3.13 tools/run_parallel_regression.py --workers 4`.
 - Full frontend `npm run release:gate` is likewise reserved for durable
   frontend milestone closeout or explicit closeout gates.
 

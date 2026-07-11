@@ -9,7 +9,7 @@ reconciliation, or mutate order, exchange, or lifecycle state.
 Run the Admin API locally:
 
 ```powershell
-python tools\run_admin_api.py --dev-token local-admin-token
+python3.13 tools/run_admin_api.py --dev-token local-admin-token
 ```
 
 ## Record Proof For A Recovery Command

@@ -51,8 +51,9 @@ or inspect public files through an allowlisted publish path.
 - `.agents/ownership.yaml` maps public files and test files to one owner id.
 - `tools/check_ownership.py` reports changed-file ownership and can enforce a
   specific owner with `--owner`.
-- `.github/workflows/public-agent-checks.yml` is manual-only and verifies
-  changed files are covered by the manifest when its results will be consumed.
+- GitHub-hosted agent workflows are retired. Run
+  `python3.13 tools/check_ownership.py` to verify changed files against the
+  manifest in the active EC2 workspace.
 - `.github/PULL_REQUEST_TEMPLATE.md` records the primary owner, canonical path,
   focused tests, and public/private boundary check.
 - `tools/classify_repo_files.py` and `docs/REPO_CLEANUP_CLASSIFICATION.md`

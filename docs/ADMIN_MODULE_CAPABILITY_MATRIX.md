@@ -4,9 +4,16 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current futures/perpetual M57 scope: `7961-7980`.
+Current goal id: `legacy_fill_follow_up_operator_slice`. The current vertical
+slice is Admin order -> fill/readback evidence -> follow-up decision ->
+operator-visible parent/child chain. The guarded no-live slice is implemented;
+automatic/live fill-event processing is approval-gated. Fan-out, scheduler,
+runtime-control, retry/recovery, multi-product wallet-ledger work, and
+ladder/grid order sets are parked.
 
-Current futures/perpetual M57 scope details: `7961-7980` adds futures
+Historical futures/perpetual M57 scope: `7961-7980`.
+
+Historical futures/perpetual M57 scope details: `7961-7980` adds futures
 risk-proof record validation remediation summary evidence on top of completed
 `7941-7960` futures risk-proof record validation summary evidence. The
 `risk_proof_record_validation_remediation_summaries` fields are backend-owned,

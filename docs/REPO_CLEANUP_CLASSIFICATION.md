@@ -8,7 +8,7 @@ identified.
 Use the classifier to refresh the current map:
 
 ```powershell
-python tools/classify_repo_files.py --format markdown
+python3.13 tools/classify_repo_files.py --format markdown
 ```
 
 ## Current Classification Snapshot
@@ -137,7 +137,7 @@ a separate plan.
 ```powershell
 python -m py_compile tools/classify_repo_files.py
 python3.13 tools/check_ownership.py
-python tools/classify_repo_files.py --quiet --fail-category empty_artifact_candidate --fail-category root_historical_note --fail-category root_diagnostic_tool --fail-category root_test_candidate --fail-category experimental_ui_candidate --fail-category ui_fixture_or_export_candidate --fail-category root_runtime_output
+python3.13 tools/classify_repo_files.py --quiet --fail-category empty_artifact_candidate --fail-category root_historical_note --fail-category root_diagnostic_tool --fail-category root_test_candidate --fail-category experimental_ui_candidate --fail-category ui_fixture_or_export_candidate --fail-category root_runtime_output
 ```
 
 - Moving tests or runtime-facing files requires focused coverage for the moved

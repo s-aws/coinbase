@@ -1,5 +1,9 @@
 # Spot Readiness Roadmap
 
+This is a domain readiness reference, not the current work queue. Current work
+is goal id `legacy_fill_follow_up_operator_slice`; only readiness failures that
+directly block that operator slice are eligible by default.
+
 This roadmap tracks the work needed before spot-specific features should be
 added on top of the trading engine. Spot uses the same canonical order,
 stealth, dashboard, sizing, fee, and reconciliation paths as futures, but spot
@@ -45,18 +49,18 @@ Implemented:
   baseline inventory by known/unknown cost basis, and structured guard or
   capability details when planning rejects an action.
 - Focused spot readiness regression gate is available through
-  `python tools/run_spot_readiness_regression.py`.
+  `python3.13 tools/run_spot_readiness_regression.py`.
 - Browser smoke coverage for the spot readiness panel is available through
-  `python tools/run_spot_readiness_browser_smoke.py`.
+  `python3.13 tools/run_spot_readiness_browser_smoke.py`.
 - Public-release readiness docs describe local, browser, sandbox, and approved
   live spot smoke gates.
 - Approved live Coinbase USDC spot smoke tooling is available through
-  `python tools/run_live_spot_usdc_smoke.py --approved-live-orders`.
+  `python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders`.
 - Paper-mode spot replay is covered in the focused spot readiness gate.
 - USDC-only spot portfolio sweep dry-run planning is available through
-  `python tools/run_spot_portfolio_sweep_dry_run.py`.
+  `python3.13 tools/run_spot_portfolio_sweep_dry_run.py`.
 - Explicitly approved USDC-only spot portfolio sweep live execution is
-  available through `python tools/run_spot_portfolio_sweep_live.py`.
+  available through `python3.13 tools/run_spot_portfolio_sweep_live.py`.
 - Durable run-if-due sweep automation records JSONL history under
   `runtime_state/spot_portfolio_sweeps.jsonl` by default.
 - Durable spot portfolio P/L snapshot helpers can report by product, by all
@@ -86,13 +90,13 @@ Implemented:
 - The dashboard shows sweep order detail, fill-backfill counts, and richer
   per-product P/L detail rows.
 - A read-only spot release gate command is available through
-  `python tools/run_spot_release_gate.py`.
+  `python3.13 tools/run_spot_release_gate.py`.
 - Fill-ledger `client_order_id` schema is hardened for longer generated ids,
   including an idempotent migration for existing deployments.
 - Fill-backfill recovery is available through
-  `python tools/run_spot_fill_backfill_recovery.py`.
+  `python3.13 tools/run_spot_fill_backfill_recovery.py`.
 - Sweep inventory coverage reporting is available through
-  `python tools/run_spot_portfolio_sweep_live.py --inventory-coverage`.
+  `python3.13 tools/run_spot_portfolio_sweep_live.py --inventory-coverage`.
 - Sweep inventory coverage and P/L reporting can optionally include Coinbase
   portfolio average cost basis as an explicit source separate from exact local
   fill-ledger lots.
@@ -101,13 +105,13 @@ Implemented:
 - Cost-basis drift auditing can compare local fill-ledger average basis with
   Coinbase average basis without submitting orders.
 - Sweep config registry reporting is available through
-  `python tools/run_spot_portfolio_sweep_live.py --config-registry`.
+  `python3.13 tools/run_spot_portfolio_sweep_live.py --config-registry`.
 - Sweep P/L reports include a FIFO realized-lot operational reporting scope.
 - Fill-ledger rows loaded from the DB normalize `product_id` from `instrument`
   when the schema has no separate product-id column, so P/L grouping remains
   reproducible from persisted fill evidence.
 - Sweep recovery gating is available through
-  `python tools/run_spot_sweep_recovery_gate.py`.
+  `python3.13 tools/run_spot_sweep_recovery_gate.py`.
 - The sweep examples document a Windows Task Scheduler recipe for invoking the
   run-if-due automation mode.
 - A one-product approved live sweep canary has run against Coinbase, with
@@ -218,7 +222,7 @@ or reconciliation:
   `pytest tests/regression/ -v --tb=short` only when `pytest-xdist` is
   unavailable and the fallback is intentional.
 - Focused spot readiness where relevant:
-  `python tools/run_spot_readiness_regression.py`.
+  `python3.13 tools/run_spot_readiness_regression.py`.
 - Read-only release/campaign gates before live order approval.
 - Explicit live approval and notional reporting for every Coinbase order test.
 - Contextless blind-agent readability test from
@@ -229,14 +233,13 @@ spot order path, safety gates, live approval boundary, `client_order_id`
 invariant, campaign/sweep split, wallet-vs-cost-basis distinction, and
 reconciliation path without being coached.
 
-## Immediate Next Phases
+## Historical Spot Phase Record
 
-These phases are intended for blanket approval as the next implementation
-batch. Each phase should remain small enough to review independently, but the
-sequence is designed so later spot-specific features have a reliable base.
-Execution note: phases in this roadmap are approved for sequential
-implementation; continue without stopping unless a material product, safety, or
-architecture decision requires user input.
+The phase sequence below is retained as implementation, validation, and parked
+roadmap history. The former blanket approval is no longer active. No phase,
+status line, or execution note in this document authorizes new work or live
+execution; current work must qualify under goal id
+`legacy_fill_follow_up_operator_slice`.
 
 ### Phase 1 - Product Capability Matrix
 
@@ -855,7 +858,7 @@ Package read-only release checks behind one command.
 
 Implemented scope:
 
-- `python tools/run_spot_release_gate.py` runs the focused spot readiness gate
+- `python3.13 tools/run_spot_release_gate.py` runs the focused spot readiness gate
   and prints `SPOT_RELEASE_GATE_SUMMARY`.
 - Optional flags include browser smoke and read-only Coinbase-backed status/P/L
   checks.
@@ -869,7 +872,7 @@ Add a live pass/fail gate for the approved validation matrix.
 
 Implemented scope:
 
-- `python tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix --reconciliation-gate`
+- `python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix --reconciliation-gate`
   runs the live matrix and fails if executed market orders cannot fetch REST
   fills and backfill local fill-ledger evidence.
 - Live runs must still report product, every order, submitted notional, and
@@ -1107,7 +1110,7 @@ Implemented scope:
 - Existing `--inventory-coverage` remains the baseline review command for
   wallet inventory versus fill-ledger/imported evidence.
 - The recommended baseline command is:
-  `python tools/run_spot_portfolio_sweep_live.py --inventory-coverage --summary-only`.
+  `python3.13 tools/run_spot_portfolio_sweep_live.py --inventory-coverage --summary-only`.
 - The command reads Coinbase wallets and product metadata, writes no orders,
   and reports zero live order notional.
 
@@ -1237,7 +1240,7 @@ Add a read-only baseline command for the current account.
 
 Implemented scope:
 
-- `python tools/run_spot_portfolio_sweep_live.py --cost-basis-baseline --summary-only`
+- `python3.13 tools/run_spot_portfolio_sweep_live.py --cost-basis-baseline --summary-only`
   fetches Coinbase products, portfolios, and portfolio breakdown data.
 - The command writes no local data, submits no orders, and reports zero live
   Coinbase order notional.
@@ -1252,7 +1255,7 @@ Implemented scope:
 
 - `build_cost_basis_drift_audit` reports per-product local average,
   Coinbase average, drift, drift percentage, and status.
-- `python tools/run_spot_portfolio_sweep_live.py --cost-basis-drift-audit --summary-only`
+- `python3.13 tools/run_spot_portfolio_sweep_live.py --cost-basis-drift-audit --summary-only`
   exposes the audit without live-order approval.
 
 ### Phase 60 - Spot Feature Intake Cost-Basis Requirements
@@ -1320,7 +1323,7 @@ Add cost-basis checks to the opt-in read-only Coinbase release gate.
 
 Implemented scope:
 
-- `python tools/run_spot_release_gate.py --include-coinbase-readonly` now runs
+- `python3.13 tools/run_spot_release_gate.py --include-coinbase-readonly` now runs
   average-cost inventory coverage and cost-basis drift audit checks in addition
   to sweep status and P/L.
 - The release gate still never submits live Coinbase orders.
@@ -1931,7 +1934,7 @@ Result on 2026-06-09:
   `coinbase_average_cost` with `0.5` percent profit buffer.
 - Required audit evidence: `client_order_id`, `exchange_order_id`,
   submitted/executed notional, and fill-ledger reconciliation.
-- `python tools/run_spot_feature_intake_gate.py --request-file docs\examples\spot-feature-intake-usdc-campaign.json --summary-only`
+- `python3.13 tools/run_spot_feature_intake_gate.py --request-file docs\examples\spot-feature-intake-usdc-campaign.json --summary-only`
   passed with `phase_50_ready: true`.
 - The only warning was expected: the all-product selection rule resolves to
   concrete eligible product ids at run time.
@@ -2152,7 +2155,7 @@ Status:
   state, readiness, automation due state, recovery counts, latest live run,
   notional, and P/L from durable campaign snapshots.
 - Browser smoke coverage remains the dashboard regression gate.
-- `python tools/run_spot_readiness_browser_smoke.py` passed against Chromium
+- `python3.13 tools/run_spot_readiness_browser_smoke.py` passed against Chromium
   with `tests/e2e/test_spot_readiness_ui_smoke.py`.
 - No live Coinbase orders were submitted for this phase. Submitted notional:
   `0` USDC. Executed notional: `0` USDC.
@@ -2562,7 +2565,7 @@ Result:
   submitted notional, and P/L.
 - The browser smoke now also asserts that campaign status errors render in the
   campaign panel instead of silently disappearing.
-- `python tools/run_spot_readiness_browser_smoke.py` passed with Chromium.
+- `python3.13 tools/run_spot_readiness_browser_smoke.py` passed with Chromium.
 - No live Coinbase orders were submitted for this phase. Submitted notional:
   `0` USDC. Executed notional: `0` USDC.
 
@@ -2605,7 +2608,7 @@ Status:
 
 Result:
 
-- No-credential `python tools/run_spot_release_gate.py` passed its read-only
+- No-credential `python3.13 tools/run_spot_release_gate.py` passed its read-only
   focused spot readiness gate.
 - No-credential campaign validation and scheduler-status modes completed
   without Coinbase order access.
@@ -3284,9 +3287,9 @@ Result:
   `pytest tests\regression\ -v --tb=short` reported `698` passed and `1`
   warning.
 - Browser smoke passed:
-  `python tools\run_spot_readiness_browser_smoke.py` reported `1` passed and
+  `python3.13 tools/run_spot_readiness_browser_smoke.py` reported `1` passed and
   `1` warning.
-- Ownership check passed: `python tools\check_ownership.py`.
+- Ownership check passed: `python3.13 tools/check_ownership.py`.
 - `git diff --check` exited `0`; output contained CRLF warnings only.
 - No live Coinbase orders were submitted for this phase. Submitted notional:
   `0` USDC. Executed notional: `0` USDC.
@@ -3512,7 +3515,7 @@ Result:
 - A fresh strict allowlist generated at `2026-06-10T11:16:30Z` found `51`
   allowlisted products and `301` blocked products with estimated allowlisted
   notional of `51.40305062` USDC.
-- `python tools\run_spot_release_gate.py --include-browser
+- `python3.13 tools/run_spot_release_gate.py --include-browser
   --include-coinbase-readonly --campaign-config-file
   runtime_state\phase158_sell_strict_release_gate_allowlist.config.json`
   passed.
@@ -3534,7 +3537,7 @@ Status:
 
 Result:
 
-- `python tools\run_spot_feature_intake_gate.py --request-file
+- `python3.13 tools/run_spot_feature_intake_gate.py --request-file
   docs\examples\spot-feature-intake-usdc-campaign.json --summary-only`
   passed.
 - Warning retained: `selection_rule must be resolved to concrete eligible
@@ -3920,7 +3923,7 @@ Status: prepared, not executed.
 - Validation passed after this batch with the historical fallback-era full
   regression command:
   `pytest tests\regression\ -v --tb=short` (`716` tests),
-  `python tools\run_spot_readiness_regression.py` (`212` tests),
+  `python3.13 tools/run_spot_readiness_regression.py` (`212` tests),
   browser smoke for direct-order and spot-readiness UI, ownership check, and
   `git diff --check` with CRLF warnings only.
 

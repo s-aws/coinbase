@@ -1,28 +1,33 @@
 # Admin API Examples
 
-These examples describe the current enterprise Admin API contract. Live-shaped
-mutating HTTP endpoints are authenticated, permission-checked, idempotent, and
-audited, then return `not_implemented`; they do not call Coinbase. The guarded
-fill-follow-up trigger is the no-live local-state compatibility exception and
-can return accepted parent/child readback evidence after exact proof refs while
-Coinbase submit/cancel and live exchange mutation remain disallowed. Read-only spot
-operator endpoints are available behind the same fail-closed auth dependency.
+The M57 phase labels below are historical contract examples, not current work
+authority. Current work is goal id `legacy_fill_follow_up_operator_slice`.
+
+These examples describe the current enterprise Admin API contract. Mutating
+HTTP endpoints are authenticated, permission-checked, idempotent, audited, and
+route-specific. `POST /api/v1/orders` can pass a backend admission decision to
+the shared command service and can reach Coinbase only when every backend live
+gate is enabled. The HTTP cancel route, Futures command routes, and guarded
+fill-follow-up trigger remain live-disabled/no-live in their current route
+implementations. See `docs/LIVE_ORDER_SURFACES.md` for the canonical surface
+matrix. Read-only Spot operator endpoints use the same fail-closed auth
+dependency.
 
 The Admin API is the backend contract layer for the enterprise admin platform.
 Spot is the first complete product module. Do not use spot wallet, USDC,
 cost-basis, or no-shorting rules as generic admin behavior for
 futures/perpetuals, stealth orders, repricing, or risk policy modules.
 
-## Current Futures/Perpetuals M57 Evidence
+## Historical Futures/Perpetuals M57 Evidence
 
 `GET /api/v1/futures/command-suite` currently reports
 `"approved_phase_range": "7961-7980"`. Futures/perpetual command-suite reads
 now expose backend-owned
 `risk_proof_record_validation_remediation_summary_count`,
 `risk_proof_record_validation_remediation_summary_blocking_count`, and
-`risk_proof_record_validation_remediation_summaries` evidence for current M57
+`risk_proof_record_validation_remediation_summaries` evidence from historical M57
 `7961-7980` while completed `7941-7960` risk-proof record validation summary
-evidence remains carried-forward history. The current rows are disabled,
+evidence remains carried-forward history. These rows are disabled,
 no-live evidence only and must not perform remediation, create work items,
 register record validators, run contextless reviews, configure validation
 gates, create stores, configure append-only logs, bind idempotency, register
@@ -694,7 +699,7 @@ account/collateral evidence, accept margin semantics, accept position
 semantics, bind live position evidence, accept or bind runtime evidence,
 accept runtime-evidence acceptances, admit commands, call Coinbase, execute
 reconciliation, mutate futures state, or grant browser/BFF authority.
-Exact autonomous phrase: Active M57 `6861-6880` evidence adds disabled futures request payload validation record liquidation semantics while completed M57 `6841-6860` carries forward disabled futures request payload validation record collateral semantics.
+Historical compatibility phrase: M57 `6861-6880` added disabled futures request payload validation record liquidation semantics while M57 `6841-6860` carried forward disabled futures request payload validation record collateral semantics.
 
 Representative no-live response keys include
 `"request_field_count"`, `"blocking_request_field_count"`,
@@ -888,7 +893,7 @@ futures/order/exchange state, or grant spot-rule authority.
 Start the local backend target for frontend development:
 
 ```powershell
-python tools\run_admin_api.py --dev-token local-admin-token
+python3.13 tools/run_admin_api.py --dev-token local-admin-token
 ```
 
 The runner binds `http://127.0.0.1:8787` by default and keeps mutating HTTP
@@ -935,7 +940,7 @@ before treating production OIDC evidence as available to frontend
 production-auth evidence:
 
 ```powershell
-python tools\run_admin_oidc_readiness_smoke.py --summary-only
+python3.13 tools/run_admin_oidc_readiness_smoke.py --summary-only
 ```
 
 Expected evidence:
@@ -3843,8 +3848,8 @@ mutation routes or browser authority. Each gap row may include typed
 from backend route inventory.
 
 The payload below is a historical spot command-suite example for the M54
-`3301-3320` slice. It is not the current autonomous phase range. Current
-active phase metadata lives in `docs/plans/AUTONOMOUS_WORK_QUEUE.md`.
+`3301-3320` slice. Numbered phase metadata is historical compatibility
+evidence; current scope lives in `genai_data/AGENT_MVP_REBUILD_GOAL.md`.
 
 ```http
 GET /api/v1/spot/command-suite

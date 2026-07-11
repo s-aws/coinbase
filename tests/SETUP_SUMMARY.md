@@ -95,7 +95,7 @@ pytest tests/regression/<focused_test_file>.py -v --tb=short
 
 ### 5. Run full regression at milestone/release closeout
 ```bash
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 ```
 
 ### 6. Run full test suite when change breadth requires it
@@ -171,7 +171,7 @@ pytest tests/ -v --tb=short --cov=.
 pytest tests/ -v
 
 # Run process-parallel full regression closeout gate
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 
 # Sequential fallback only when pytest-xdist is unavailable
 pytest tests/regression/ -v --tb=short

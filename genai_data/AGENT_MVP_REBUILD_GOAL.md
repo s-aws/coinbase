@@ -1,94 +1,93 @@
-# Coinbase Admin MVP Rebuild Goal
+# Coinbase Admin MVP Goal
+
+Goal ID: `legacy_fill_follow_up_operator_slice`
+
+Last reviewed: 2026-07-10 UTC.
+
+The canonical cross-repository goal is
+`/home/ec2-user/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This backend copy
+records the behavior-owner interpretation and must stay aligned with it.
 
 ## Objective
 
-Build a local, continuously deployable Coinbase Admin MVP from `origin/prod`,
-preserving only the useful MVP-critical frontend and backend pieces from the
-current work. The product must let an operator use the admin frontend locally to
-operate the backend through auditable Admin API/BFF paths, including controlled
-live Coinbase execution when explicitly enabled, authorized, capped, and
-recorded by the backend.
+Restore the shortest operator-usable workflow from `origin/prod` through the
+current backend-owned Admin API:
 
-An entirely new main branch may be created from prod if necessary to keep a
-clean starting point instead of correcting the current main branch.
+`Admin order -> fill/readback evidence -> follow-up decision -> operator-visible parent/child chain`
 
-## Non-Negotiables
+The Admin frontend is operator UI only. The backend owns validation,
+authorization, wallet and cap checks, fill handling, follow-up claims,
+Coinbase calls, reconciliation, rollback, and audit persistence.
 
-- Local deployment target is `coinbase-local` unless a real deployment target is
-  explicitly configured later.
-- Continuous deployment must always leave a functional local product.
-- The frontend is operator UI only. It must not call Coinbase directly or create
-  trading API calls outside the Admin/BFF/backend path.
-- The backend owns Coinbase calls, live-action authorization, guard checks,
-  wallet checks, approvals, caps, idempotency, and audit correlation.
-- Live Coinbase execution is allowed only through backend Admin interfaces with
-  explicit operator intent and auditable backend decision evidence.
-- `live_coinbase_execution` and `notional_usdc` are recorded outputs of a run.
-  They must reflect what actually happened; they are not hardcoded MVP limits.
-- CI/CD must not execute live trades by default. Any live execution validation
-  must be manual, explicit, capped, and separately auditable.
-- Avoid carrying forward evidence-tightening, phase-range, docs, or platform
-  expansion work unless it directly blocks MVP operation, local deployment,
-  controlled live execution, or demo readiness.
+## Previous-Version Baseline
 
-## MVP Acceptance
+Legacy source material is backend `origin/prod` commit
+`9bc7834584be9da4a7818acea0531dc220737378`, especially:
 
-An operator can run the local frontend and backend, use the UI to perform the
-intended admin workflow through backend Admin APIs, see backend decisions and
-audit correlation evidence, and verify deployment evidence that records the
-actual frontend commit, backend commit, live execution posture, and notional
-used for that run.
+- `dashboard_server.py` for the old operator command surface;
+- `core/order_engine.py` for fill and flat parent/child follow-up behavior;
+- `integration/fill_event_hooks.py` and `business/post_fill_hook.py` for fill
+  lifecycle integration;
+- fill/follow-up claim, partial-fill, deduplication, and hierarchy tests; and
+- `order.py:create_limit_order_span`, `ui_order_span_builder.html`, and legacy
+  ladder-generation tests for the parked single-product order-set idea. The
+  random-ladder test imports an untracked `genai_tools` implementation, so it
+  is behavioral clue rather than recoverable source authority.
 
-## Current Evidence
+The legacy dashboard WebSocket remains compatibility source material. It is
+not authority for new frontend product behavior.
 
-- `origin/prod` is the clean baseline but only has the legacy
-  `dashboard_server.py` WebSocket command path for direct dashboard operation.
-- `origin/prod` does not contain the current Admin API packages, generated
-  OpenAPI contract, backend local deployment scripts, or backend CI/CD local
-  deployment workflow.
-- Current backend `main` contains useful MVP pieces that should be harvested
-  selectively:
-  - `dashboard_server.py` bridge from legacy dashboard commands into
-    `AdminApiCommandService`.
-  - `api/v1/app.py` and the minimal Admin API route set needed for the local
-    operator workflow.
-  - `application/admin_api/models.py`, `auth.py`, `command_runtime.py`,
-    `command_service.py`, `idempotency.py`, `live_execution.py`, and audit or
-    decision services required by that workflow.
-  - `openapi/coinbase-admin-api.yaml` and route inventory generation, trimmed
-    only if the frontend contract remains satisfied.
-  - `tools/run_admin_api.py`,
-    `tools/run_admin_api_controlled_live_mvp_smoke.py`,
-    `tools/write_admin_api_deployment_manifest.py`, and
-    `tools/apply_admin_api_local_deployment.py`.
-  - `.github/workflows/deploy.yml` and public checks only insofar as they keep
-    a local `coinbase-local` backend deployment functional.
-- Current frontend `main` contains useful MVP pieces that should be preserved:
-  - Admin/BFF-only operator UI behavior.
-  - Generated-client/OpenAPI contract checks.
-  - Local deployment manifest generation and `coinbase-local` frontend apply.
-  - Backend local release manifest matching in frontend deployment evidence.
+## Current State
 
-## Explicit Exclusions By Default
+The guarded no-live compatibility slice is implemented on `main`:
 
-- Do not import futures/perpetual semantic proof expansions unless they are
-  required by the first local operator MVP workflow.
-- Do not import phase-range or autonomous queue bookkeeping unless it directly
-  gates local MVP operation.
-- Do not import broad documentation expansion unless it is needed to run,
-  deploy, or demo the local MVP.
-- Do not preserve the legacy dashboard direct Coinbase path as the product
-  authority path. It may only be used as a compatibility input that delegates to
-  the Admin API command service.
+- order and fill readback keyed by `client_order_id`;
+- fill-event replay and live-readiness evidence;
+- parent/child chain and flat-hierarchy readback;
+- trigger admission preview;
+- guarded no-live trigger execution with route-bound approval, wallet/cap,
+  reconciliation, duplicate-claim, and audit-correlation prerequisites; and
+- accepted child readback without Coinbase execution.
 
-## Immediate Build Order
+The remaining legacy-parity gap is automatic/live fill-event processing. That
+scope requires explicit fill-testing approval plus live-fill,
+wallet/cap/reconciliation, duplicate-order, audit-correlation, rollback, and
+readback evidence.
 
-1. Keep this prod-based branch clean and runnable.
-2. Harvest the smallest backend Admin API command path needed for one local
-   operator workflow.
-3. Add backend local deployment packaging/apply for `coinbase-local/backend`.
-4. Align the frontend backend contract reference to this prod-based backend
-   branch.
-5. Prove local frontend-to-backend operation through Admin/BFF, including audit
-   correlation and recorded live execution posture.
-6. Add continuous deployment that applies only to the local target by default.
+## Closed Scope Rule
+
+Default work must implement a missing step in the current vertical slice,
+remove a blocker demonstrated by a failing focused test or runtime observation
+on that slice, or prevent an immediate critical safety failure on that slice.
+
+A candidate blocker cannot make itself in scope by generating evidence about the candidate blocker.
+
+Fan-out, scheduler, runtime-control, retry/recovery, wallet-ledger, unrelated
+futures evidence, broad stealth/repricing expansion, ladder/grid order sets,
+and phase-range tightening remain parked. Their unresolved blockers prevent
+those features from running; they do not make those features current work.
+
+When the no-live slice is clean and no direct blocker is demonstrated, stop
+and request a scope decision. Do not continue from the highest-rated parked
+blocker.
+
+## Safety And Validation
+
+- Preserve one behavior path. Admin routes must call existing backend domain
+  services and claim mechanisms rather than reimplementing fill/follow-up
+  logic.
+- Preserve `client_order_id` as operator and local identity. Exchange
+  `order_id` is evidence or an exchange-required parameter only.
+- Preserve the flat hierarchy: every child links to the original root parent.
+- Keep live execution fail-closed on authorization, idempotency, cap/wallet,
+  duplicate claims, audit, reconciliation, rollback, and readback evidence.
+- Standing notional, distance, count, and rate limits in the canonical goal
+  remove only a separate approval request. They do not prioritize parked work
+  or authorize fill testing.
+- Use focused tests for ordinary changes. Run full backend/frontend suites only
+  for durable milestone, release/deployment or cross-repository association
+  closeout, broad cross-cutting changes, or explicit operator request.
+
+No default backend implementation step remains in this goal until the operator
+approves automatic/live fill-event scope or new focused evidence identifies a
+direct blocker in the current no-live operator slice.

@@ -128,7 +128,7 @@ pytest tests/ -v
 # Run specific category
 pytest tests/unit/ -v
 pytest tests/integration/ -v
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 
 # Run with coverage
 pytest tests/ --cov=. --cov-report=html
@@ -137,7 +137,7 @@ pytest tests/ --cov=. --cov-report=html
 ### Milestone/Release Closeout
 ```bash
 # Process-parallel full regression gate
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 
 # Full test suite when change breadth requires it
 pytest tests/ -v --tb=short --cov=.

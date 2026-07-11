@@ -1,5 +1,12 @@
 # Autonomous Work Queue
 
+Historical planning record; not current work authority.
+
+Current work is goal id `legacy_fill_follow_up_operator_slice`, documented in
+`genai_data/AGENT_MVP_REBUILD_GOAL.md` and the frontend canonical goal. The
+phase range below is a frozen compatibility/release artifact and cannot
+reactivate M57 or promote M58 fan-out/scheduler work.
+
 This document records durable approval for unattended work on this project.
 It exists so a contextless maintainer or agent can continue approved work
 without relying on chat history.
@@ -29,13 +36,13 @@ subagents remain open outside an active handoff with recorded owner, purpose,
 and expected next action. Record the phase-end or milestone-closeout sweep
 result in the phase evidence, handoff, or closeout summary before advancing.
 
-## Approved Range Status
+## Historical Approved-Range Snapshot
 
-- Approved phase range: **7961-7980**.
-- Range status: active under M57 - Futures/Perpetuals Contract Foundation And Commands.
+- Historical phase range: **7961-7980**.
+- Range status: completed compatibility history under M57; not current work authority.
 - Previous completed range: `7941-7960`.
-- The approved range allows unattended work without asking for another
-  approval when the work stays inside the phase scope and cap policy below.
+- This range historically allowed unattended work inside its phase scope and
+  cap policy; that approval is no longer active.
 - The prior live Coinbase cap posture is carried forward, but live execution
   remains exceptional. Default: no live Coinbase execution.
 - Maximum total submitted notional: `3.10` USDC.
@@ -56,24 +63,20 @@ result in the phase evidence, handoff, or closeout summary before advancing.
   milestone owns the next gap, stop and request a new decision instead of
   inventing scope.
 
-## Controlled-Live Admin MVP Scope Guard
+## Historical Controlled-Live Admin MVP Scope Guard
 
-- Controlled-live Admin MVP with continuous deployment.
-- Build the smallest usable, demoable admin product that replaces the ad hoc workflow.
-- Frontend is operator UI only.
-- All live actions and Coinbase API calls must go through auditable backend Admin interfaces.
-- Every increment must stay runnable, tested with focused checks, and deployable.
-- Defer evidence-tightening, new phase ranges, and docs expansion unless they directly block MVP operation, safe backend-controlled execution, demo readiness, or continuous deployment.
+The bullets in this section recorded the former controlled-live continuous-
+deployment objective. That objective is historical evidence, not an active
+scope guard or approval source.
 
-## MVP Active Work Policy
+## Historical MVP Work Policy
 
-The approved M57 range is recorded, but it is deferred by default while the
-active objective is controlled-live Admin MVP continuous deployment. Do not
-execute `complete_current_approved_range` by default. Continue `7961-7980`
-only when the specific change directly blocks MVP operation, safe
-backend-controlled execution, demo readiness, or continuous deployment.
-
-Default next action is `work_mvp_cd_blockers_before_phase_range`.
+The former M57 policy and its controlled-live continuous-deployment objective
+are no longer active. Do not execute `complete_current_approved_range`.
+Do not execute `work_mvp_cd_blockers_before_phase_range`. Current work must
+come from goal id
+`legacy_fill_follow_up_operator_slice`; this document cannot select or promote
+a next action.
 
 Durable future plan:
 [USDC Pair Snapshot Limit Automation MVP](USDC_PAIR_SNAPSHOT_LIMIT_AUTOMATION_MVP.md)
@@ -94,11 +97,11 @@ Forbidden default actions:
 - evidence-tightening batches
 - contextless-hardening without a direct MVP blocker
 
-## Current Progress Record
+## Historical Progress Record
 
-This record mirrors the machine-readable artifact contract. While the
-approved range is active, `current_phase` records the last completed gated
-baseline before the range, not the final phase id in the active range.
+This record mirrors the former machine-readable phase schema. Its
+`current_phase` and `next_phase` fields are frozen compatibility evidence, not
+current progress or executable instructions.
 
 - `current_phase`: `7960`.
 - `gate_status`: `passed`.
@@ -119,7 +122,7 @@ baseline before the range, not the final phase id in the active range.
 - Work would create a parallel implementation, second live trading path, browser-owned trading authority, or BFF execution authority.
 - Worktree contains unrelated changes affecting files in scope.
 
-## Active Phases 7961-7980
+## Historical Phase Snapshot 7961-7980
 
 Batch label: Futures/Perpetuals Risk-Proof Record Validation Remediation Summary Evidence.
 
@@ -128,7 +131,7 @@ risk-proof record-validation summary evidence. The concrete gap is that
 per-command risk-proof requirement rows already expose disabled proof
 record-validation remediation rows, but operators and contextless agents
 cannot yet see a backend-owned aggregate grouped by proof record contract
-kind. Active `7961-7980` must add derived read-only
+kind. Historical `7961-7980` added derived read-only
 `risk_proof_record_validation_remediation_summaries` to
 `GET /api/v1/futures/command-suite`, sync OpenAPI and the frontend, and prove
 that the summary cannot perform remediation, create work items, register
@@ -140,11 +143,11 @@ command readiness, admit commands, call Coinbase, execute reconciliation,
 mutate futures/order/exchange state, grant browser/BFF authority, or import
 spot-rule authority.
 
-Active M57 `7961-7980` evidence adds futures risk-proof record validation
+Historical M57 `7961-7980` evidence added futures risk-proof record validation
 remediation summary evidence while completed M57 `7941-7960` carries forward
 futures risk-proof record validation summary evidence.
 
-Exact autonomous phrase: Active M57 `7961-7980` evidence adds futures risk-proof record validation remediation summary evidence while completed M57 `7941-7960` carries forward futures risk-proof record validation summary evidence.
+Historical compatibility phrase: M57 `7961-7980` added futures risk-proof record validation remediation summary evidence while M57 `7941-7960` carried forward futures risk-proof record validation summary evidence.
 
 ### Phase 7961 - Prior Range Closure
 

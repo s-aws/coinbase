@@ -1,5 +1,10 @@
 # Futures/Perpetuals Admin Reads
 
+The M57 phase statements in this document are a historical implementation
+snapshot. Current work is goal id `legacy_fill_follow_up_operator_slice`; M57
+expansion is parked unless explicitly reprioritized or directly blocks that
+slice.
+
 This feature exposes read-only futures and perpetual account, risk, and
 position evidence through the enterprise Admin API. It is a separate module,
 not a Spot variant.
@@ -37,7 +42,7 @@ and position routes return
 blocked/no-live posture through route-bound draft, execution, browser, BFF,
 and notional evidence fields.
 
-Active M57 `7961-7980` evidence adds futures risk-proof record validation
+Historical M57 `7961-7980` evidence added futures risk-proof record validation
 remediation summary evidence while completed M57 `7941-7960` carries forward
 futures risk-proof record validation summary evidence. The
 `risk_proof_record_validation_remediation_summaries` rows are read-only
@@ -51,7 +56,7 @@ command readiness, admit commands, call Coinbase, execute reconciliation,
 mutate futures/order/exchange state, grant browser/BFF authority, or import
 spot-rule authority.
 
-Exact autonomous phrase: Active M57 `7961-7980` evidence adds futures risk-proof record validation remediation summary evidence while completed M57 `7941-7960` carries forward futures risk-proof record validation summary evidence.
+Historical compatibility phrase: M57 `7961-7980` added futures risk-proof record validation remediation summary evidence while M57 `7941-7960` carried forward futures risk-proof record validation summary evidence.
 
 ## Key Concepts
 
@@ -70,7 +75,7 @@ Exact autonomous phrase: Active M57 `7961-7980` evidence adds futures risk-proof
   registers route-bound no-live command drafts for those four families, but
   does not call Coinbase, execute reconciliation, mutate state, or grant
   browser/BFF authority.
-- Active M57 `7961-7980` evidence adds futures risk-proof record validation
+- Historical M57 `7961-7980` evidence added futures risk-proof record validation
   remediation summary evidence while completed M57 `7941-7960` carries
   forward futures risk-proof record validation summary evidence. The
   `risk_proof_record_validation_remediation_summaries` rows are derived from
@@ -84,7 +89,7 @@ Exact autonomous phrase: Active M57 `7961-7980` evidence adds futures risk-proof
   writers, accept risk proofs, clear command readiness, admit commands, call
   Coinbase, execute reconciliation, mutate futures/order/exchange state, grant
   browser/BFF authority, or import spot-only rules.
-- Exact active phrase: Active M57 `7961-7980` evidence adds futures risk-proof record validation remediation summary evidence while completed M57 `7941-7960` carries forward futures risk-proof record validation summary evidence.
+- Historical compatibility phrase: M57 `7961-7980` added futures risk-proof record validation remediation summary evidence while M57 `7941-7960` carried forward futures risk-proof record validation summary evidence.
 - Completed M57 `7941-7960` evidence adds futures risk-proof record validation
   summary evidence while completed M57 `7921-7940` carries forward futures
   risk-proof record contract summary evidence.

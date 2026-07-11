@@ -1,5 +1,8 @@
 # Public Release Readiness
 
+This is a closeout policy, not a work queue. Current scope remains goal id
+`legacy_fill_follow_up_operator_slice`.
+
 Use these gates when preparing the project for public release or validating a
 spot-specific feature before live trading.
 
@@ -17,23 +20,23 @@ python3.13 tools/run_parallel_regression.py --workers 4
 Run the focused spot readiness gate after spot trading changes:
 
 ```powershell
-python tools/run_spot_readiness_regression.py
+python3.13 tools/run_spot_readiness_regression.py
 ```
 
 The read-only spot release wrapper runs the focused gate and prints a single
 summary line:
 
 ```powershell
-python tools/run_spot_release_gate.py
+python3.13 tools/run_spot_release_gate.py
 ```
 
 Optional read-only additions:
 
 ```powershell
-python tools/run_spot_release_gate.py --include-browser
-python tools/run_spot_release_gate.py --include-coinbase-readonly
-python tools/run_spot_release_gate.py --campaign-config-file runtime_state/spot_campaign_buy.json
-python tools/run_spot_release_gate.py --campaign-config-file runtime_state/spot_campaign_buy_all_usdc.json --campaign-all-usdc-readiness
+python3.13 tools/run_spot_release_gate.py --include-browser
+python3.13 tools/run_spot_release_gate.py --include-coinbase-readonly
+python3.13 tools/run_spot_release_gate.py --campaign-config-file runtime_state/spot_campaign_buy.json
+python3.13 tools/run_spot_release_gate.py --campaign-config-file runtime_state/spot_campaign_buy_all_usdc.json --campaign-all-usdc-readiness
 ```
 
 The Coinbase read-only option includes sweep status, sweep P/L, average-cost
@@ -49,7 +52,8 @@ broad or that omit total/order/count safety caps.
 
 ## Admin Frontend Release Gate
 
-For the enterprise admin frontend sibling repository at `C:\coinbase-frontend`,
+For the enterprise admin frontend sibling repository at
+`/home/ec2-user/coinbase-frontend`,
 run the canonical no-live release gate:
 
 ```powershell
@@ -63,7 +67,8 @@ smokes, and Playwright e2e. These checks are dry/no-live checks. They must
 report live Coinbase execution as not run with notional `$0`.
 
 `npm run release:artifact` writes
-`artifacts/release-readiness.json` in the frontend repository for CI upload.
+`artifacts/release-readiness.json` in the frontend repository for local
+release evidence.
 `npm run deployment:package` writes
 `artifacts/deployment-package-manifest.json`, and
 `npm run observability:drill` writes `artifacts/observability-drill.json`.
@@ -71,8 +76,9 @@ report live Coinbase execution as not run with notional `$0`.
 `npm run release:checklist` writes
 `artifacts/public-release-checklist.json`. `npm run runtime:evidence` writes
 `artifacts/runtime-evidence.json`.
-It is release evidence for the read-only/disabled-command frontend candidate,
-not approval for live Coinbase execution. These checks do not replace this
+It is release evidence for the controlled-live Admin frontend candidate, not
+approval for live Coinbase execution. Default release checks remain no-live.
+These checks do not replace this
 repository's backend regression closeout gate when a milestone or release is
 being marked complete.
 
@@ -93,7 +99,7 @@ Backend no-live OIDC readiness smoke evidence is available as optional
 production-auth evidence with:
 
 ```powershell
-python tools\run_admin_oidc_readiness_smoke.py --summary-only
+python3.13 tools/run_admin_oidc_readiness_smoke.py --summary-only
 ```
 
 The frontend `npm run smoke:oidc:dry` command can run that backend smoke from
@@ -113,7 +119,7 @@ py -3.13 -m playwright install chromium
 Run the browser smoke gate:
 
 ```powershell
-python tools/run_spot_readiness_browser_smoke.py
+python3.13 tools/run_spot_readiness_browser_smoke.py
 ```
 
 This opens `ui_stealth_orders_manager.html` in Chromium, stubs the dashboard
@@ -135,7 +141,7 @@ pytest tests/external/ -v -m external --tb=short
 
 Live spot smoke is a manual release-readiness check. It places real Coinbase
 Advanced Trade spot orders and must never be part of default regression or
-default CI.
+default EC2-local validation.
 
 Required:
 
@@ -147,13 +153,13 @@ Required:
 Command:
 
 ```powershell
-python tools/run_live_spot_usdc_smoke.py --approved-live-orders
+python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders
 ```
 
 Validation matrix with reconciliation gate:
 
 ```powershell
-python tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix --reconciliation-gate
+python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix --reconciliation-gate
 ```
 
 The runner selects the lowest-minimum-notional, lowest-price, online,

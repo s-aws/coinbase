@@ -1,5 +1,9 @@
 # Frontend Association
 
+Current cross-repository work is goal id
+`legacy_fill_follow_up_operator_slice`. This association document defines the
+boundary; it does not broaden that goal.
+
 The approved enterprise admin frontend repository is:
 
 ```text
@@ -9,13 +13,13 @@ s-aws/coinbase-frontend
 Expected local sibling checkout:
 
 ```text
-C:\coinbase
-C:\coinbase-frontend
+/home/ec2-user/coinbase
+/home/ec2-user/coinbase-frontend
 ```
 
 Backend maintainer handoff starts at [Maintainer Handoff](MAINTAINER_HANDOFF.md).
 Frontend maintainer handoff lives in
-`C:\coinbase-frontend\docs\MAINTAINER_HANDOFF.md`.
+`/home/ec2-user/coinbase-frontend/docs/MAINTAINER_HANDOFF.md`.
 
 ## Contract Boundary
 
@@ -26,8 +30,9 @@ Frontend maintainer handoff lives in
   client, mocks, and browser tests.
 - New product UI must consume the HTTP Admin API contract generated from this
   repository. It must not call the legacy dashboard WebSocket.
-- HTTP mutating routes remain live-disabled until backend approval/cap/audit
-  gates are completed and tested.
+- HTTP command posture is route-specific. Manual Spot placement can reach the
+  shared live service only after exact backend admission; other routes remain
+  no-live unless their route inventory and implementation prove otherwise.
 - The enterprise admin surface is a platform plus domain modules. Spot is the
   first complete module; futures/perpetuals, stealth orders, repricing, and
   other modules need their own backend-owned contracts before frontend UI
@@ -44,11 +49,12 @@ openapi/coinbase-admin-api.yaml
 Frontend generated output:
 
 ```text
-C:\coinbase-frontend\src\shared\api\generated\schema.ts
+/home/ec2-user/coinbase-frontend/src/shared/api/generated/schema.ts
 ```
 
-Frontend CI checks this repository out with a read-only deploy key and fails
-when generated output is stale.
+EC2-local frontend validation reads this sibling backend checkout and fails
+when generated output is stale. The retired GitHub-hosted workflow is not a
+contract authority or routine validation path.
 
 ## Runtime Association
 
@@ -122,14 +128,14 @@ execution as not run with notional `$0` and do not replace backend regression.
 The frontend `npm run autonomous:check` command remains available for
 historical autonomous queue maintenance. It is not part of the local MVP
 release/deployment gate.
-The frontend release artifact is `C:\coinbase-frontend\artifacts\release-readiness.json`;
-CI uploads it as `frontend-release-readiness` instead of committing it.
-The same CI artifact includes
-`C:\coinbase-frontend\artifacts\deployment-package-manifest.json` and
-`C:\coinbase-frontend\artifacts\observability-drill.json`,
-`C:\coinbase-frontend\artifacts\synthetic-probes.json`, and
-`C:\coinbase-frontend\artifacts\public-release-checklist.json`, and
-`C:\coinbase-frontend\artifacts\runtime-evidence.json`
+The frontend release artifact is `/home/ec2-user/coinbase-frontend/artifacts/release-readiness.json`;
+it is generated and consumed locally rather than committed or uploaded by a
+GitHub-hosted workflow. The same local artifact set includes
+`/home/ec2-user/coinbase-frontend/artifacts/deployment-package-manifest.json` and
+`/home/ec2-user/coinbase-frontend/artifacts/observability-drill.json`,
+`/home/ec2-user/coinbase-frontend/artifacts/synthetic-probes.json`, and
+`/home/ec2-user/coinbase-frontend/artifacts/public-release-checklist.json`, and
+`/home/ec2-user/coinbase-frontend/artifacts/runtime-evidence.json`
 (`artifacts/runtime-evidence.json` in the frontend checkout).
 These artifacts are not approval for live Coinbase execution.
 Read-only frontend rollback is a hosting/build rollback. Live-action rollback
@@ -165,7 +171,7 @@ Machine-readable no-live backend smoke evidence is available as optional
 production-auth evidence with:
 
 ```powershell
-python tools\run_admin_oidc_readiness_smoke.py --summary-only
+python3.13 tools/run_admin_oidc_readiness_smoke.py --summary-only
 ```
 
 The frontend `npm run smoke:oidc:dry` command can run the same backend smoke

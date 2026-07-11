@@ -9,16 +9,22 @@ This file covers active API surfaces in the codebase:
 ## Enterprise Admin API (`api/v1/app.py`)
 
 The backend owns the OpenAPI contract for the enterprise admin frontend.
-Read-only operator routes are active. Mutating HTTP routes are intentionally
-not a live trading path yet: they run auth/RBAC, idempotency, audit, and shared
-command-service parity logic, then stop at the fail-closed live execution gate.
+Read-only operator routes are active. Mutating HTTP posture is route-specific:
+manual Spot placement can reach the shared live command path after exact
+backend admission, while HTTP Spot cancel, Futures, Stealth,
+movement/repricing, campaign, and sweep command routes remain no-live or
+local-evidence boundaries. The frontend does not own live authority.
+
+Current work is goal id `legacy_fill_follow_up_operator_slice`. The default
+vertical slice is Admin order -> fill/readback evidence -> follow-up decision
+-> operator-visible parent/child chain.
 
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`
 
-Current M57 `7961-7980` futures/perpetual risk-proof record validation
+Historical M57 `7961-7980` futures/perpetual risk-proof record validation
 remediation summary evidence for `GET /api/v1/futures/command-suite` is the
-active slice. It adds read-only
+planned slice. It adds read-only
 `risk_proof_record_validation_remediation_summary_count`,
 `risk_proof_record_validation_remediation_summary_blocking_count`, and
 `risk_proof_record_validation_remediation_summaries` fields derived from
@@ -1499,7 +1505,7 @@ HTTP OIDC/JWT mode:
   required/missing OIDC env, claim mapping, JWKS reachability, and no-live
   notional evidence
 - prove the no-live OIDC verifier path with
-  `python tools\run_admin_oidc_readiness_smoke.py --summary-only`
+  `python3.13 tools/run_admin_oidc_readiness_smoke.py --summary-only`
 
 Without configured backend auth, routes fail closed with `401`.
 
@@ -1509,13 +1515,13 @@ Route inventory:
 Generate the schema with:
 
 ```powershell
-python tools\generate_admin_api_openapi.py
+python3.13 tools/generate_admin_api_openapi.py
 ```
 
 Run the local Admin API for frontend development with:
 
 ```powershell
-python tools\run_admin_api.py --dev-token local-admin-token
+python3.13 tools/run_admin_api.py --dev-token local-admin-token
 ```
 
 The runner starts `api.v1.app:app`, defaults to `http://127.0.0.1:8787`, and
@@ -2240,7 +2246,7 @@ Operator contract:
   `audited_order_fill_notional_usdc` for evidence about the order being
   audited.
 - The equivalent CLI is
-  `python tools\run_spot_direct_order_audit.py --client-order-id <client_order_id>`.
+  `python3.13 tools/run_spot_direct_order_audit.py --client-order-id <client_order_id>`.
 - Missing `client_order_id` returns an error payload before local DB reads.
 
 ## 4) Internal Runtime Control API
@@ -2268,7 +2274,7 @@ Inflight categories used by callers include:
 
 ---
 
-Last updated: 2026-06-24
+Last updated: 2026-07-10
 
 ## Completed M57 Futures Request Payload Validation Record Schema Evidence
 

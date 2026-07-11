@@ -1,5 +1,15 @@
 # Admin API E2E Plan
 
+Historical planning record; not current work authority.
+
+Use `genai_data/AGENT_MVP_REBUILD_GOAL.md`, goal id
+`legacy_fill_follow_up_operator_slice`, for current scope. Numbered phase
+language below is implementation and regression history only.
+
+The active frontend workspace is `/home/ec2-user/coinbase-frontend`. Any
+Windows checkout or screenshot paths retained below are historical evidence,
+not current workspace instructions.
+
 This plan defines how the backend repository moves from proof-of-concept
 dashboard surfaces to a professional enterprise API consumed by the separate
 admin frontend repository at `C:\coinbase-frontend`.
@@ -49,11 +59,11 @@ dashboard WebSocket message
 -> dashboard response/state update
 ```
 
-## Current Active Phases 7961-7980
+## Historical Phase Snapshot 7961-7980
 
 Batch label: Futures/Perpetuals Risk-Proof Record Validation Remediation Summary Evidence.
 
-Current M57 `7961-7980` adds backend-owned read-only
+Historical M57 `7961-7980` added backend-owned read-only
 `risk_proof_record_validation_remediation_summaries` to
 `GET /api/v1/futures/command-suite` after completed `7941-7960` risk-proof
 record validation summary evidence. The remediation summary rows are derived
@@ -66,7 +76,7 @@ records, accept proof records, accept risk proofs, clear command readiness,
 admit commands, call Coinbase, execute reconciliation, mutate futures/order
 state, grant browser/BFF authority, or import spot-rule authority.
 
-Exact autonomous phrase: Active M57 `7961-7980` evidence adds futures risk-proof record validation remediation summary evidence while completed M57 `7941-7960` carries forward futures risk-proof record validation summary evidence.
+Historical compatibility phrase: M57 `7961-7980` added futures risk-proof record validation remediation summary evidence while M57 `7941-7960` carried forward futures risk-proof record validation summary evidence.
 
 ## Completed Phases 7941-7960
 

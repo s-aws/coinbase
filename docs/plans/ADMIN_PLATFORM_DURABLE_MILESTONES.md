@@ -1,5 +1,10 @@
 # Admin Platform Durable Milestones
 
+This is a future-capability catalog, not the current work queue. Current scope
+is goal id `legacy_fill_follow_up_operator_slice` in
+`genai_data/AGENT_MVP_REBUILD_GOAL.md`. Milestone status or an unresolved
+milestone blocker cannot promote a parked lane into current work.
+
 This plan defines completion-oriented milestones for the enterprise admin
 platform across the whole Coinbase trading engine. It is not a spot roadmap.
 Spot remains the first complete product module and the proving ground for the
@@ -96,28 +101,27 @@ If a milestone discovers missing backend functionality, the correct result is
 gap with frontend logic, BFF logic, route-local execution, or a second trading
 path.
 
-## Phase Continuity Rules
+## Historical Phase Continuity Rules
 
-Active phase ranges are execution slices inside these milestones. They are
-not independent roadmaps.
+The rules below explain the retired numbered-phase process. Phase ranges are
+no longer execution authority and this catalog cannot create a next action.
+Current work must satisfy `genai_data/AGENT_MVP_REBUILD_GOAL.md`, including its
+closed-scope rule.
 
 - Every new phase must name the parent milestone and the architecture or
   planning gap it closes from this document, the route inventory, the
   capability matrix, or the maintainer handoff.
-- When an active range is completed and pushed, the same handoff must mark
-  that range complete, create the next active range for the next milestone
-  gap, and update validators/artifacts that enforce the active range.
-- If the user explicitly requests a pause after a phase, mark the completed
-  range and leave the next active range pending restart instead of creating
-  new work in the same turn.
+- Historical handoffs recorded completed and next ranges. Do not create or
+  resume a range from this catalog without explicit operator prioritization.
 - Do not create generic polish phases, recommendation-only phases, or product
   scope that is not traceable to M47-M60.
 - Add a new milestone only when no existing approved milestone owns a gap
   that would block the durable objective. The new milestone must state its
   dependency, deliverable, proof, and non-goals. Otherwise use the existing
   milestone and split it into smaller phases.
-- If no milestone-aligned next phase exists, stop and ask for a decision
-  instead of inventing work.
+- If the current goal has no demonstrated missing slice step or direct safety
+  blocker, stop and ask for a decision instead of selecting the next milestone
+  gap.
 
 ## Milestone Status
 
@@ -177,20 +181,20 @@ not independent roadmaps.
 | M51 - Admission Audit Writer And Linkage | Complete | Complete append-only admission audit writing with approval, cap/guard, identity, payload, idempotency, and exchange-intent links before any adapter can run. |
 | M52 - Reconciliation Plan And Proof Records | Complete | Add backend-owned reconciliation plan record and proof contracts for admitted commands without browser reconciliation authority or reconciliation execution. |
 | M53 - Controlled Execution Adapter Pilot | Complete | Enable one tightly capped backend live adapter only after M49-M52 pass, with no browser live switch and mandatory reconciliation proof. |
-| M54 - Spot Full Admin Command Suite | Complete; reconciliation executor remains future live-enablement work | Complete spot manual orders, cancels, campaigns, sweeps, P/L, recovery, and reconciliation through the approved backend gate chain. |
-| M55 - Stealth Full Admin Command Suite | In Progress | Complete stealth create/cancel/reveal/move/reprice/recovery workflows while preserving exchange-reality invariants and mutation locks. |
-| M56 - Movement/Repricing Full Admin Command Suite | Approved; not started | Complete move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows through existing mutation claims and exchange handling. |
-| M57 - Futures/Perpetuals Contract Foundation And Commands | In Progress; active range 7961-7980; latest completed range 7941-7960 | Add futures/perpetual command contracts only after backend-owned position, margin, liquidation, reduce-only, close-only, funding, and collateral semantics exist. |
-| M58 - Automation, Campaign, Scheduler, And Retry Suite | Approved; not started | Complete durable scheduling, run limits, pause/resume, retries, operator status, and recovery for automation without browser schedulers or parallel live paths. |
+| M54 - Spot Full Admin Command Suite | Current compatibility slice: guarded no-live fill/follow-up chain complete; automatic/live parity approval-gated | Complete spot manual orders, cancels, campaigns, sweeps, P/L, recovery, reconciliation, and legacy fill/follow-up operation through the approved backend gate chain. |
+| M55 - Stealth Full Admin Command Suite | Partial; parked | Complete stealth create/cancel/reveal/move/reprice/recovery workflows while preserving exchange-reality invariants and mutation locks. |
+| M56 - Movement/Repricing Full Admin Command Suite | Approved future work; parked | Complete move, premark, reprice, cooldown, claim, cancel/replace, audit, and recovery workflows through existing mutation claims and exchange handling. |
+| M57 - Futures/Perpetuals Contract Foundation And Commands | Partial controlled-live slice exists; phase expansion parked | Add futures/perpetual command contracts only after backend-owned position, margin, liquidation, reduce-only, close-only, funding, and collateral semantics exist. |
+| M58 - Automation, Campaign, Scheduler, And Retry Suite | Partial proof/readback implementation; fan-out and scheduler parked | Complete durable scheduling, run limits, pause/resume, retries, operator status, and recovery for automation without browser schedulers or parallel live paths. |
 | M59 - Recovery, Repair, Policy, And Operations Admin | Approved; not started | Add backend-owned repair, policy/configuration, role, deployment, observability, and operator runbook administration without exposing secrets or browser-held authority. |
 | M60 - Full Functionality Release Candidate | Approved; not started | Prove all supported backend functionality through security review, regression, release gates, live-cap evidence, contextless reviews, and public maintainer handoff. |
 
 ## Remaining Milestone Dependency Ledger
 
-This section is the authoritative sequencing contract for M47-M60. Numbered
+This section records dependency ordering for future approved M47-M60 work. Numbered
 phases are execution slices inside these milestones; agents may split a
 milestone into smaller phases, but they must not skip the dependency gate or
-broaden the milestone's authority.
+broaden the milestone's authority. It does not select current work.
 
 | Milestone | Depends On | Backend Deliverable | Required Proof | Explicit Non-Goals |
 | --- | --- | --- | --- | --- |

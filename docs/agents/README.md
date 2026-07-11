@@ -51,14 +51,13 @@ python3.13 tools/check_ownership.py --owner stealth_lifecycle
 
 Pull requests use `.github/PULL_REQUEST_TEMPLATE.md` to record the primary
 owner, canonical behavior path, focused tests, and public/private boundary
-check. The manual-only `.github/workflows/public-agent-checks.yml` workflow can
-be dispatched when its ownership and policy results will be consumed; it does
-not run automatically on push or pull request events.
+check. GitHub-hosted agent workflows are retired; run the ownership and policy
+checks directly in the active EC2 workspace.
 
 Use the cleanup classifier before moving or archiving files:
 
 ```powershell
-python tools/classify_repo_files.py --format markdown
+python3.13 tools/classify_repo_files.py --format markdown
 ```
 
 Focused checks are the normal validation path for ordinary phase work. The

@@ -67,9 +67,9 @@ PowerShell:
 ```powershell
 $env:COINBASE_API_KEY = "your_live_key"
 $env:COINBASE_API_SECRET = "your_live_secret"
-python tools/run_live_spot_usdc_smoke.py --approved-live-orders
-python tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix
-python tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix --reconciliation-gate
+python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders
+python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix
+python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix --reconciliation-gate
 ```
 
 Bash:
@@ -77,9 +77,9 @@ Bash:
 ```bash
 export COINBASE_API_KEY="your_live_key"
 export COINBASE_API_SECRET="your_live_secret"
-python tools/run_live_spot_usdc_smoke.py --approved-live-orders
-python tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix
-python tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix --reconciliation-gate
+python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders
+python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix
+python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix --reconciliation-gate
 ```
 
 ## Standard Commands
@@ -106,16 +106,16 @@ Notes:
 - With no opt-in flag, deterministic WebSocket contract/wrapper tests run and live smoke tests skip.
 - With `COINBASE_ENABLE_WEBSOCKET_EXTERNAL=true`, live ticker smoke test is enabled.
 - Live spot smoke is not a pytest default. Run
-  `python tools/run_live_spot_usdc_smoke.py --approved-live-orders` only after
+  `python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders` only after
   explicit approval, and report the `LIVE_COINBASE_SPOT_SMOKE_SUMMARY`
   notional totals.
 - The approved live validation matrix is:
-  `python tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix`.
+  `python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix`.
   It places market BUY, post-only limit BUY cancel, post-only limit SELL
   cancel, and market SELL on the cheapest previewable USDC spot product.
   Report every order plus total submitted/executed notional from the summary.
 - The approved live reconciliation gate is:
-  `python tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix --reconciliation-gate`.
+  `python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders --validation-matrix --reconciliation-gate`.
   It places the same live orders and also requires executed market orders to
   have Coinbase REST fills that can be backfilled into local `fill_ledger`.
   Report the gate status and all notional totals from the summary.
@@ -156,7 +156,7 @@ Notes:
   absent. Override it with `COINBASE_SECRETS_MANAGER_SECRET_ID`,
   `COINBASE_API_CREDENTIALS_SECRET_ID`, or
   `COINBASE_LIVE_CREDENTIALS_SECRET_ID`; the backend helper
-  `python tools/coinbase_live_credentials.py --check` reports redacted
+  `python3.13 tools/coinbase_live_credentials.py --check` reports redacted
   presence/source evidence without printing credential values.
 
 ### "External tests require COINBASE_USE_SANDBOX=true"
@@ -178,12 +178,12 @@ Notes:
 - Treat the Coinbase order as live exchange truth.
 - Use the summary `exchange_order_id` values to inspect Coinbase directly.
 - Dry-run candidate recovery with:
-  `python tools/run_spot_fill_backfill_recovery.py --dry-run --summary-only`.
+  `python3.13 tools/run_spot_fill_backfill_recovery.py --dry-run --summary-only`.
 - Retry recorded fill backfill with:
-  `python tools/run_spot_fill_backfill_recovery.py --source sweep --run-id <run_id>`.
-- Run `python tools/run_spot_portfolio_sweep_live.py --reconcile --run-id <run_id>`
+  `python3.13 tools/run_spot_fill_backfill_recovery.py --source sweep --run-id <run_id>`.
+- Run `python3.13 tools/run_spot_portfolio_sweep_live.py --reconcile --run-id <run_id>`
   for sweep runs, or run
-  `python tools/run_spot_sweep_recovery_gate.py --run-id <run_id>` to combine
+  `python3.13 tools/run_spot_sweep_recovery_gate.py --run-id <run_id>` to combine
   reconciliation and fill-backfill retry after fixing DB credentials/connectivity.
 - Do not infer that the order did not fill from a local backfill error.
 

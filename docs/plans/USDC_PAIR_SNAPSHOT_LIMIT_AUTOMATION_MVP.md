@@ -1,5 +1,19 @@
 # USDC Pair Snapshot Limit Automation MVP
 
+Parked roadmap record; not current work authority.
+
+Prior approval and "current status" wording below is retained as historical
+implementation evidence only. Current work is goal id
+`legacy_fill_follow_up_operator_slice`, and this plan cannot resume fan-out,
+scheduler, runtime-control, retry/recovery, or wallet-ledger work without
+explicit operator reprioritization or direct blocker evidence that satisfies
+the canonical goal's closed scope rule.
+This lane cannot promote itself by generating more blocker evidence about its own parked prerequisites.
+
+Default next action: none. Use
+`/home/ec2-user/coinbase-frontend/docs/CURRENT_MVP_GOAL.md` to select current
+work.
+
 This durable plan records the approved direction for a future backend-owned
 automation MVP that discovers eligible Coinbase spot `*-USDC` products,
 captures a durable price snapshot for each product, and derives limit-order

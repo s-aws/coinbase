@@ -13,9 +13,8 @@ from tools.run_spot_release_gate import (
     build_release_gate_steps,
 )
 from tools.run_autonomous_work_queue_check import (
-    APPROVED_PHASES as AUTONOMOUS_APPROVED_PHASES,
-    MAX_EXECUTED_NOTIONAL_USDC as AUTONOMOUS_MAX_EXECUTED_NOTIONAL_USDC,
-    MAX_SUBMITTED_NOTIONAL_USDC as AUTONOMOUS_MAX_SUBMITTED_NOTIONAL_USDC,
+    GOAL_ID as AUTONOMOUS_GOAL_ID,
+    HISTORICAL_PHASES as AUTONOMOUS_HISTORICAL_PHASES,
     SUMMARY_PREFIX as AUTONOMOUS_WORK_QUEUE_SUMMARY_PREFIX,
     build_autonomous_work_queue_summary,
     build_parser as build_autonomous_work_queue_parser,
@@ -64,7 +63,7 @@ def test_spot_release_gate_command_is_read_only_by_default():
     assert args.include_coinbase_readonly is False
 
 
-def test_autonomous_work_queue_check_covers_approved_20_phase_batch():
+def test_autonomous_work_queue_check_preserves_historical_phases_without_reactivating_them():
     parser = build_autonomous_work_queue_parser()
     args = parser.parse_args(["--summary-only"])
     summary = build_autonomous_work_queue_summary()
@@ -73,66 +72,62 @@ def test_autonomous_work_queue_check_covers_approved_20_phase_batch():
     assert AUTONOMOUS_WORK_QUEUE_SUMMARY_PREFIX == (
         "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
     )
-    assert AUTONOMOUS_APPROVED_PHASES == tuple(range(7961, 7981))
+    assert AUTONOMOUS_GOAL_ID == "legacy_fill_follow_up_operator_slice"
+    assert AUTONOMOUS_HISTORICAL_PHASES == tuple(range(7961, 7981))
     check_results = {check["name"]: check for check in summary["checks"]}
     failed_checks = {
         name: check for name, check in check_results.items() if not check["passed"]
     }
 
-    if failed_checks:
-        assert summary["status"] == "blocked"
-        assert set(failed_checks) == {"contextless_review_log_current_range"}
-        review_evidence = failed_checks["contextless_review_log_current_range"][
-            "evidence"
-        ]
-        assert review_evidence["first_review_heading"] == (
-            "## M57 Futures/Perpetual Risk-Proof Record Validation "
-            "Remediation Summary Evidence - Phases 7961-7980"
-        )
-        assert (
-            "Result: PASS or PASS-after-remediation"
-            in review_evidence["missing_current_review_text"]
-        )
-    else:
-        assert summary["status"] == "passed"
-    assert summary["approved_phase_range"] == "7961-7980"
-    assert summary["approved_phase_count"] == 20
+    assert failed_checks == {}
+    assert summary["status"] == "passed"
+    assert summary["goal_id"] == "legacy_fill_follow_up_operator_slice"
+    assert summary["historical_phase_range"] == "7961-7980"
+    assert summary["historical_phase_count"] == 20
+    assert summary["phase_range_status"] == "historical_not_work_authority"
     assert summary["live_coinbase_orders_ran"] is False
     assert summary["live_order_notional_usdc"] == "0"
     assert summary["mvp_scope"] == {
-        "work_mode": "controlled_live_admin_mvp_continuous_deployment",
+        "work_mode": "legacy_fill_follow_up_operator_slice",
+        "goal_authority": (
+            "/home/ec2-user/coinbase-frontend/docs/CURRENT_MVP_GOAL.md"
+        ),
         "frontend_authority": "operator_ui_only",
         "live_action_path": "auditable_backend_admin_interfaces_only",
-        "phase_range_policy": "defer_unless_direct_mvp_blocker",
-        "continuous_deployment_required": True,
+        "phase_range_policy": "parked_unless_direct_current_slice_blocker",
+        "focused_blast_radius_tests_required": True,
+        "full_suite_at_durable_milestone_only": True,
         "active_work_policy": {
-            "current_priority": "controlled_live_admin_mvp_continuous_deployment",
-            "approved_phase_range_status": "deferred_by_default",
+            "current_priority": "legacy_fill_follow_up_operator_slice",
+            "approved_phase_range_status": "historical_not_work_authority",
             "phase_range_work_allowed": False,
-            "default_next_action": "work_mvp_cd_blockers_before_phase_range",
+            "default_next_action": "build_or_directly_unblock_current_vertical_slice",
             "allow_only_when_directly_blocks": [
-                "MVP operation",
-                "safe backend-controlled execution",
-                "demo readiness",
-                "continuous deployment",
+                "current vertical slice runtime behavior",
+                "current vertical slice focused test",
+                "live-safety or duplicate-order prevention",
+                "cap, wallet, authorization, data-loss, or traceability prevention",
             ],
             "forbidden_default_actions": [
                 "complete_current_approved_range",
+                "candidate_blocker_self_justification",
+                "fanout_or_scheduler_expansion",
                 "unrelated futures/perpetuals summaries",
                 "evidence-tightening batches",
                 "contextless-hardening without a direct MVP blocker",
             ],
         },
     }
-    assert summary["max_submitted_notional_usdc"] == (
-        AUTONOMOUS_MAX_SUBMITTED_NOTIONAL_USDC
-    )
-    assert summary["max_executed_notional_usdc"] == (
-        AUTONOMOUS_MAX_EXECUTED_NOTIONAL_USDC
-    )
-    assert check_results["controlled_live_admin_mvp_scope"]["passed"] is True
-    assert check_results["mvp_active_progress_policy"]["passed"] is True
-    assert "subagent_hygiene_policy" in check_results
+    assert summary["standing_limits"] == {
+        "preferred_spot_notional_under_usdc": "10.00",
+        "preferred_perpetual_notional_under_usdc": "30.00",
+        "max_fan_out_notional_usdc": "100.00",
+        "default_max_orders_per_second": 5,
+        "non_fill_snapshot_distance_percent": 10,
+    }
+    assert check_results["current_goal_alignment"]["passed"] is True
+    assert check_results["historical_queue_posture"]["passed"] is True
+    assert check_results["github_workflows_retired"]["passed"] is True
 
 
 def test_spot_release_gate_coinbase_readonly_includes_cost_basis_checks():

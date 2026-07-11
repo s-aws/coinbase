@@ -1,5 +1,10 @@
 # Spot Campaign Examples
 
+This is a parked Spot automation reference, not the current work queue.
+Current work is goal id `legacy_fill_follow_up_operator_slice`. Campaign,
+fan-out, retry, and scheduler examples require explicit operator
+reprioritization.
+
 ## Example Campaign Config
 
 Example `runtime_state/spot_campaign_buy.json`:
@@ -42,7 +47,7 @@ Example `runtime_state/spot_campaign_buy.json`:
 ## Validate Campaign Intake
 
 ```powershell
-python tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy.json --intake
+python3.13 tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy.json --intake
 ```
 
 This validates the campaign against the existing spot feature-intake gate. It
@@ -51,10 +56,10 @@ does not call Coinbase.
 ## Write A Canonical Template
 
 ```powershell
-python tools/run_spot_campaign.py --template-profile buy_canary --write-template-file runtime_state/spot_campaign_buy_canary.json
-python tools/run_spot_campaign.py --template-profile buy_all_usdc --write-template-file runtime_state/spot_campaign_buy_all_usdc.json
-python tools/run_spot_campaign.py --template-profile sell_canary --write-template-file runtime_state/spot_campaign_sell_canary.json
-python tools/run_spot_campaign.py --template-profile sell_all_usdc --write-template-file runtime_state/spot_campaign_sell_all_usdc.json
+python3.13 tools/run_spot_campaign.py --template-profile buy_canary --write-template-file runtime_state/spot_campaign_buy_canary.json
+python3.13 tools/run_spot_campaign.py --template-profile buy_all_usdc --write-template-file runtime_state/spot_campaign_buy_all_usdc.json
+python3.13 tools/run_spot_campaign.py --template-profile sell_canary --write-template-file runtime_state/spot_campaign_sell_canary.json
+python3.13 tools/run_spot_campaign.py --template-profile sell_all_usdc --write-template-file runtime_state/spot_campaign_sell_all_usdc.json
 ```
 
 Templates are normalized campaign configs. They submit no Coinbase orders.
@@ -95,17 +100,17 @@ allowlist before live execution.
 The durable tracking surfaces are:
 
 ```powershell
-python tools/run_spot_campaign.py --status --summary-only
-python tools/run_spot_campaign.py --run-index --summary-only
-python tools/run_spot_campaign.py --pnl-checkpoints --summary-only
-python tools/run_spot_portfolio_sweep_live.py --pnl-report --include-coinbase-average-cost --summary-only
-python tools/run_spot_portfolio_sweep_live.py --cost-basis-status --summary-only
+python3.13 tools/run_spot_campaign.py --status --summary-only
+python3.13 tools/run_spot_campaign.py --run-index --summary-only
+python3.13 tools/run_spot_campaign.py --pnl-checkpoints --summary-only
+python3.13 tools/run_spot_portfolio_sweep_live.py --pnl-report --include-coinbase-average-cost --summary-only
+python3.13 tools/run_spot_portfolio_sweep_live.py --cost-basis-status --summary-only
 ```
 
 ## Validate Config Safety
 
 ```powershell
-python tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy_all_usdc.json --validate-config-report
+python3.13 tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy_all_usdc.json --validate-config-report
 ```
 
 The validation report is local-only. It fails configs that omit explicit
@@ -114,7 +119,7 @@ per-order, total-notional, or planned-order caps.
 ## Apply A SELL Authority Profile
 
 ```powershell
-python tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_sell.json --sell-authority-profile coinbase_average_cost_buffered --write-profiled-config-file runtime_state/spot_campaign_sell.profiled.json
+python3.13 tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_sell.json --sell-authority-profile coinbase_average_cost_buffered --write-profiled-config-file runtime_state/spot_campaign_sell.profiled.json
 ```
 
 `fill_ledger_strict` requires local/imported known profitable lots.
@@ -126,13 +131,13 @@ authority and its extra buffer.
 Strict local-fill-ledger authority:
 
 ```powershell
-python tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_sell.json --sell-authority-profile fill_ledger_strict --sell-authority-allowlist --write-allowlist-file runtime_state/spot_campaign_sell.strict.allowlist.json --write-allowlist-config-file runtime_state/spot_campaign_sell.strict.allowlist.config.json --write-allowlist-sweep-config-file runtime_state/spot_campaign_sell.strict.allowlist.sweep.json --record-snapshot --summary-only
+python3.13 tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_sell.json --sell-authority-profile fill_ledger_strict --sell-authority-allowlist --write-allowlist-file runtime_state/spot_campaign_sell.strict.allowlist.json --write-allowlist-config-file runtime_state/spot_campaign_sell.strict.allowlist.config.json --write-allowlist-sweep-config-file runtime_state/spot_campaign_sell.strict.allowlist.sweep.json --record-snapshot --summary-only
 ```
 
 Coinbase average-cost-buffered authority:
 
 ```powershell
-python tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_sell.json --sell-authority-profile coinbase_average_cost_buffered --sell-authority-allowlist --write-allowlist-file runtime_state/spot_campaign_sell.average.allowlist.json --write-allowlist-config-file runtime_state/spot_campaign_sell.average.allowlist.config.json --write-allowlist-sweep-config-file runtime_state/spot_campaign_sell.average.allowlist.sweep.json --record-snapshot --summary-only
+python3.13 tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_sell.json --sell-authority-profile coinbase_average_cost_buffered --sell-authority-allowlist --write-allowlist-file runtime_state/spot_campaign_sell.average.allowlist.json --write-allowlist-config-file runtime_state/spot_campaign_sell.average.allowlist.config.json --write-allowlist-sweep-config-file runtime_state/spot_campaign_sell.average.allowlist.sweep.json --record-snapshot --summary-only
 ```
 
 The campaign command is read-only with respect to Coinbase orders. It writes a
@@ -160,7 +165,7 @@ enabled.
 ## Build A Read-Only Dry-Run Matrix
 
 ```powershell
-python tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy.json --dry-run-matrix --summary-only --record-snapshot
+python3.13 tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy.json --dry-run-matrix --summary-only --record-snapshot
 ```
 
 This reads Coinbase products and wallets, builds the wallet-aware sweep plan,
@@ -170,7 +175,7 @@ campaign snapshot, and submits no Coinbase orders.
 ## Run The Campaign Release Gate
 
 ```powershell
-python tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy.json --release-gate --summary-only --record-snapshot
+python3.13 tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy.json --release-gate --summary-only --record-snapshot
 ```
 
 The release gate checks feature intake, product planning, safety policy,
@@ -180,7 +185,7 @@ cost-basis state. It is read-only with respect to Coinbase orders.
 ## Compare Dry Runs
 
 ```powershell
-python tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy_all_usdc.json --baseline-config-file runtime_state/spot_campaign_buy_canary.json --dry-run-diff --summary-only
+python3.13 tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy_all_usdc.json --baseline-config-file runtime_state/spot_campaign_buy_canary.json --dry-run-diff --summary-only
 ```
 
 The diff compares planned/skipped counts, estimated notional, product status
@@ -190,9 +195,9 @@ orders.
 ## Build Local Run Index And P/L Checkpoints
 
 ```powershell
-python tools/run_spot_campaign.py --run-index
-python tools/run_spot_campaign.py --pnl-checkpoints
-python tools/run_spot_campaign.py --pnl-delta-report --summary-only
+python3.13 tools/run_spot_campaign.py --run-index
+python3.13 tools/run_spot_campaign.py --pnl-checkpoints
+python3.13 tools/run_spot_campaign.py --pnl-delta-report --summary-only
 ```
 
 These commands read local JSONL ledgers only. The delta report compares the
@@ -202,7 +207,7 @@ scopes present in the snapshots.
 ## Plan Campaign Ledger Cleanup
 
 ```powershell
-python tools/run_spot_campaign.py --ledger-cleanup-plan --summary-only
+python3.13 tools/run_spot_campaign.py --ledger-cleanup-plan --summary-only
 ```
 
 This reads the campaign and sweep ledgers only. It identifies unrecorded sweep
@@ -212,7 +217,7 @@ legacy no-order runs that should be deliberately documented or ignored.
 ## Run A No-Order Recovery Drill
 
 ```powershell
-python tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy_canary.json --no-order-recovery-drill --summary-only
+python3.13 tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy_canary.json --no-order-recovery-drill --summary-only
 ```
 
 The drill builds a synthetic no-submission sweep run and verifies that retry
@@ -221,7 +226,7 @@ classification targets only rows with no exchange evidence.
 ## Check Scheduler Due State
 
 ```powershell
-python tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy_canary.json --scheduler-status
+python3.13 tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy_canary.json --scheduler-status
 ```
 
 This reports whether the recurring sweep config is due according to the durable
@@ -231,8 +236,8 @@ orders.
 ## Gate A Broad All-USDC Campaign
 
 ```powershell
-python tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy_all_usdc.json --all-usdc-readiness-gate --summary-only
-python tools/run_spot_release_gate.py --campaign-config-file runtime_state/spot_campaign_buy_all_usdc.json --campaign-all-usdc-readiness
+python3.13 tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy_all_usdc.json --all-usdc-readiness-gate --summary-only
+python3.13 tools/run_spot_release_gate.py --campaign-config-file runtime_state/spot_campaign_buy_all_usdc.json --campaign-all-usdc-readiness
 ```
 
 The all-USDC gate requires the canonical USDC selector, no allow/deny product
@@ -242,7 +247,7 @@ runs the normal campaign release gate.
 ## Render The Equivalent Sweep Config
 
 ```powershell
-python tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy.json --write-sweep-config-file runtime_state/spot_campaign_buy.sweep.json
+python3.13 tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy.json --write-sweep-config-file runtime_state/spot_campaign_buy.sweep.json
 ```
 
 The rendered file uses the existing sweep config schema. It is the file to use
@@ -251,7 +256,7 @@ for live canaries.
 ## Run A One-Product Live Canary
 
 ```powershell
-python tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_buy.sweep.json --max-products 1 --max-total-notional-per-run 1 --max-notional-per-order 1 --approved-live-orders --summary-only
+python3.13 tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_buy.sweep.json --max-products 1 --max-total-notional-per-run 1 --max-notional-per-order 1 --approved-live-orders --summary-only
 ```
 
 This can submit real Coinbase orders. The command uses the existing sweep live
@@ -262,7 +267,7 @@ orders.
 Record the latest matching sweep run into the campaign ledger:
 
 ```powershell
-python tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy.json --record-latest-sweep-run
+python3.13 tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy.json --record-latest-sweep-run
 ```
 
 This is local-only. It reads `runtime_state/spot_portfolio_sweeps.jsonl` and
@@ -271,7 +276,7 @@ appends a `spot_campaign_snapshot` record with submitted/executed notional.
 ## Build A Targeted Retry Config From A Partial Run
 
 ```powershell
-python tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy_10.json --retry-plan --write-retry-config-file runtime_state/spot_campaign_buy_10.retry.json --summary-only
+python3.13 tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy_10.json --retry-plan --write-retry-config-file runtime_state/spot_campaign_buy_10.retry.json --summary-only
 ```
 
 This is local-only. It reads the durable sweep ledger, finds the latest matching
@@ -290,20 +295,20 @@ not-submitted, and not-retryable planned skip.
 Render the retry campaign to a sweep config:
 
 ```powershell
-python tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy_10.retry.json --write-sweep-config-file runtime_state/spot_campaign_buy_10.retry.sweep.json
+python3.13 tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_buy_10.retry.json --write-sweep-config-file runtime_state/spot_campaign_buy_10.retry.sweep.json
 ```
 
 Validate the retry config before any live order:
 
 ```powershell
-python tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_buy_10.retry.sweep.json --validate-config --summary-only
+python3.13 tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_buy_10.retry.sweep.json --validate-config --summary-only
 ```
 
 Live retry execution, when explicitly approved, still uses the existing sweep
 runner:
 
 ```powershell
-python tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_buy_10.retry.sweep.json --approved-live-orders --summary-only
+python3.13 tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_buy_10.retry.sweep.json --approved-live-orders --summary-only
 ```
 
 ## Compare SELL Authority Reports
@@ -312,7 +317,7 @@ Detect allowlist drift between a prior strict allowlist and a freshly generated
 strict allowlist:
 
 ```powershell
-python tools/run_spot_campaign.py --sell-authority-drift-report --baseline-allowlist-file runtime_state/spot_campaign_sell.previous.allowlist.json --current-allowlist-file runtime_state/spot_campaign_sell.current.allowlist.json --summary-only
+python3.13 tools/run_spot_campaign.py --sell-authority-drift-report --baseline-allowlist-file runtime_state/spot_campaign_sell.previous.allowlist.json --current-allowlist-file runtime_state/spot_campaign_sell.current.allowlist.json --summary-only
 ```
 
 If products were removed, the command exits blocked. Regenerate the allowlist
@@ -321,7 +326,7 @@ and validate the rendered sweep config immediately before live approval.
 Compare strict fill-ledger authority against Coinbase average-cost authority:
 
 ```powershell
-python tools/run_spot_campaign.py --authority-operator-report --strict-allowlist-file runtime_state/spot_campaign_sell.strict.allowlist.json --average-cost-allowlist-file runtime_state/spot_campaign_sell.average.allowlist.json --summary-only
+python3.13 tools/run_spot_campaign.py --authority-operator-report --strict-allowlist-file runtime_state/spot_campaign_sell.strict.allowlist.json --average-cost-allowlist-file runtime_state/spot_campaign_sell.average.allowlist.json --summary-only
 ```
 
 This is a read-only operator report. It does not make Coinbase average cost
@@ -331,7 +336,7 @@ Select capped strict SELL canary candidates while avoiding recently sold
 products:
 
 ```powershell
-python tools/run_spot_campaign.py --strict-sell-canary-candidates --input-allowlist-file runtime_state/spot_campaign_sell.strict.allowlist.json --summary-only
+python3.13 tools/run_spot_campaign.py --strict-sell-canary-candidates --input-allowlist-file runtime_state/spot_campaign_sell.strict.allowlist.json --summary-only
 ```
 
 The candidate selector is only a proposal surface. Live SELL still requires a
@@ -366,7 +371,7 @@ Example SELL config fragment:
 Read-only release gate:
 
 ```powershell
-python tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_sell.json --release-gate --include-coinbase-average-cost --summary-only
+python3.13 tools/run_spot_campaign.py --config-file runtime_state/spot_campaign_sell.json --release-gate --include-coinbase-average-cost --summary-only
 ```
 
 Live SELL execution still uses the sweep runner and still requires
@@ -375,7 +380,7 @@ Live SELL execution still uses the sweep runner and still requires
 Validate a generated SELL allowlist sweep config before live execution:
 
 ```powershell
-python tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_sell.strict.allowlist.sweep.json --validate-config --max-products 3 --max-total-notional-per-run 4 --max-notional-per-order 2 --max-planned-orders 3 --max-skipped-orders 500
+python3.13 tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_sell.strict.allowlist.sweep.json --validate-config --max-products 3 --max-total-notional-per-run 4 --max-notional-per-order 2 --max-planned-orders 3 --max-skipped-orders 500
 ```
 
 Omit `--summary-only` for the immediate pre-live check so the exact product
@@ -387,7 +392,7 @@ visible. The summary includes `sell_authority_allowlist_freshness`,
 Only after explicit live approval, execute through the sweep runner:
 
 ```powershell
-python tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_sell.strict.allowlist.sweep.json --require-known-profitable-inventory --approved-live-orders --max-products 3 --max-total-notional-per-run 4 --max-notional-per-order 2 --max-planned-orders 3 --max-skipped-orders 500
+python3.13 tools/run_spot_portfolio_sweep_live.py --config-file runtime_state/spot_campaign_sell.strict.allowlist.sweep.json --require-known-profitable-inventory --approved-live-orders --max-products 3 --max-total-notional-per-run 4 --max-notional-per-order 2 --max-planned-orders 3 --max-skipped-orders 500
 ```
 
 The live summary must report `live_coinbase_orders_ran`, submitted notional,
@@ -406,7 +411,7 @@ Coinbase products, account wallets, and Coinbase average cost data, but it
 submits no orders:
 
 ```powershell
-python tools/run_spot_portfolio_sweep_live.py --validate-config --side SELL --quote-notional 1.01 --order-type market_ioc --require-known-profitable-inventory --allow-coinbase-average-cost-basis --coinbase-average-cost-profit-buffer-pct 0.5 --max-total-notional-per-run 500 --max-notional-per-order 2 --max-planned-orders 400 --max-skipped-orders 500 --summary-only
+python3.13 tools/run_spot_portfolio_sweep_live.py --validate-config --side SELL --quote-notional 1.01 --order-type market_ioc --require-known-profitable-inventory --allow-coinbase-average-cost-basis --coinbase-average-cost-profit-buffer-pct 0.5 --max-total-notional-per-run 500 --max-notional-per-order 2 --max-planned-orders 400 --max-skipped-orders 500 --summary-only
 ```
 
 Omit `--summary-only` when you need the per-product `sell_authority` rows. Do

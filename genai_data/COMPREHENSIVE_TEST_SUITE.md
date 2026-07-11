@@ -30,7 +30,7 @@ the changed behavior. For durable milestone closeout, public/release-candidate
 handoff, or explicit user request, run the full regression closeout gate:
 
 ```powershell
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 ```
 
 The helper runs non-serial regression tests with pytest-xdist process workers
@@ -74,7 +74,7 @@ threads to parallelize the regression suite.
 
 ### Full regression closeout gate
 ```powershell
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 ```
 
 ### Full suite

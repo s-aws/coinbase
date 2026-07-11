@@ -189,8 +189,8 @@ Broadcast model:
 ## Enterprise Admin API
 
 The enterprise Admin API is the contract surface for the separate frontend
-repository at `C:\coinbase-frontend`. HTTP live execution remains disabled
-until approval and cap gates are complete.
+repository at `/home/ec2-user/coinbase-frontend` in the active EC2 workspace.
+HTTP command posture is route-specific and remains backend-owned.
 
 Current modules:
 - `api/v1/app.py`: FastAPI app factory.
@@ -199,6 +199,7 @@ Current modules:
   frontend-fixture routes.
 - `api/v1/routes/orders.py`: thin route adapters for `POST /api/v1/orders`,
   `GET /api/v1/orders`, `GET /api/v1/orders/{client_order_id}`,
+  fill/readback and fill-follow-up evidence/trigger routes,
   `POST /api/v1/orders/{client_order_id}/cancel`, and
   `POST /api/v1/spot/campaign/executions`.
 - `api/v1/routes/spot.py`: read-only spot operator routes.
@@ -206,8 +207,9 @@ Current modules:
 - `api/v1/routes/movement_repricing.py`: read-only movement/repricing
   evidence routes over `order_moves`, `stealth_order_moves`, stealth repricing
   state, and runtime-safe claim snapshots.
-- `api/v1/routes/futures.py`: read-only futures/perpetual account, risk, and
-  position evidence routes keyed by backend `position_key`.
+- `api/v1/routes/futures.py`: futures/perpetual account, risk, position, fill
+  readback, and no-live command-draft routes keyed by backend `position_key`,
+  product id, or `client_order_id` as appropriate.
 - `application/admin_api/command_service.py`: shared command service used by
   HTTP routes and legacy dashboard compatibility adapters.
 - `application/admin_api/auth.py`: fail-closed bearer-token/RBAC bootstrap.
@@ -220,19 +222,23 @@ Current modules:
 - `openapi/coinbase-admin-api.yaml`: generated backend-owned OpenAPI artifact.
 
 Current behavior:
-- Admin API live-shaped mutating routes authenticate, authorize, evaluate
-  idempotency, write audit records, then return HTTP `501` with `status:
-  "not_implemented"`.
+- Admin API commands authenticate, authorize, enforce idempotency, and record
+  audit evidence. Their final posture is route-specific rather than globally
+  `501`.
+- Manual Spot `POST /api/v1/orders` can pass an allowed route-bound admission
+  decision to the shared live command service. The service still fails closed
+  on runtime, product, size, wallet, inventory/no-short, notional, audit,
+  event-stream, and Coinbase response checks.
+- HTTP Spot cancel, Futures commands, Stealth commands, movement/reprice,
+  campaign, and sweep routes remain no-live or local-evidence boundaries.
+  Separate backend-only controlled-live tools do not change that HTTP posture.
 - The guarded fill-follow-up trigger is a no-live local-state compatibility
   exception: after exact route-bound proof refs it may return accepted
   parent/child readback evidence while Coinbase submit/cancel and live exchange
   mutation remain disallowed.
-- Admin API OpenAPI includes typed `200` accepted/replayed command response
-  schemas for the future live-enabled state, but runtime HTTP create/cancel and
-  campaign execution still return `501` until live execution is explicitly
-  approved.
-- HTTP mutating routes do not submit Coinbase orders, cancel Coinbase orders,
-  or mutate live exchange state.
+- Admin API OpenAPI includes typed accepted/replayed and fail-closed command
+  responses. Consumers must use the route response and backend decision rather
+  than assuming one global status.
 - Legacy dashboard `place_order` and `cancel_order` WebSocket messages delegate
   to `AdminApiCommandService` as compatibility adapters.
 - Order read routes are local-evidence reads keyed by `client_order_id`.
@@ -264,7 +270,7 @@ Current behavior:
   history, fetch Coinbase, replay commands, or approve browser live execution.
 - Admin bootstrap, health, session/RBAC, capabilities, release/recovery,
   fill-ledger health, and frontend fixture routes are read-only backend
-  association surfaces for `C:\coinbase-frontend`.
+  association surfaces for `/home/ec2-user/coinbase-frontend`.
 - Admin API responses include observability headers and structured error
   payloads for auth, RBAC, and validation failures.
 - Read-only spot routes expose readiness, sweep status, sweep P/L, cost-basis
@@ -328,4 +334,4 @@ When adding a feature:
 
 ---
 
-Last updated: 2026-05-16
+Last updated: 2026-07-10

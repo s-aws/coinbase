@@ -3,7 +3,7 @@
 Start the local Admin API:
 
 ```powershell
-python tools\run_admin_api.py --dev-token local-admin-token
+python3.13 tools/run_admin_api.py --dev-token local-admin-token
 ```
 
 List recent movement/repricing evidence:

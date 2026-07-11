@@ -11,6 +11,14 @@ This README is intentionally a short orientation. It does not enumerate every
 workflow or module; detailed behavior lives in the linked docs and durable MVP
 plans.
 
+## Current MVP Goal
+
+Current work is goal id `legacy_fill_follow_up_operator_slice`: restore the
+operator path from Admin order through backend fill/readback and follow-up
+decision to operator-visible parent/child chain. See
+[Coinbase Admin MVP Goal](genai_data/AGENT_MVP_REBUILD_GOAL.md). Historical M57
+phase ranges and M58 fan-out/scheduler blockers do not select default work.
+
 ## Current Posture
 
 - Python 3.13 is the supported backend interpreter.

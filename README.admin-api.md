@@ -1,7 +1,8 @@
 ﻿# Admin API
 
 This repository exposes the professional backend API for the separate
-enterprise admin platform at `C:\coinbase-frontend`.
+enterprise admin platform at `/home/ec2-user/coinbase-frontend` in the active
+EC2 workspace.
 Spot is the first complete product module consumed by that platform; it is not
 the generic contract shape for every backend feature.
 The repository association is documented in
@@ -10,6 +11,11 @@ Maintainer handoff for contextless agents starts at
 [Maintainer Handoff](docs/MAINTAINER_HANDOFF.md).
 
 ## Current Status
+
+Current work is goal id `legacy_fill_follow_up_operator_slice`: Admin order ->
+fill/readback evidence -> follow-up decision -> operator-visible parent/child
+chain. Numbered M57 phase material later in this document is historical
+contract evidence, not current work authority.
 
 The repository now contains an Admin API contract, generated OpenAPI and
 route-inventory artifacts, fail-closed auth/RBAC bootstrap, durable JSONL
@@ -22,10 +28,11 @@ account, position, command-suite contract, and risk-proof record read routes,
 a no-live append-only futures/perpetual risk-proof record route, read-only guard/risk policy evidence, read-only
 cross-module audit workbench evidence, backend-owned approval, cap/guard,
 admission audit, reconciliation plan, and live-service decision evidence
-routes, and read-only spot
-operator routes. Live-shaped trading command HTTP routes still return
-`not_implemented` after auth, permission, idempotency, and audit handling;
-they do not submit orders, cancel orders, or call Coinbase. The guarded
+routes, and read-only spot operator routes. Command posture is route-specific:
+manual Spot placement can reach the shared live service after exact backend
+admission, while HTTP Spot cancel, Futures commands, Stealth commands,
+movement/reprice, campaign, and sweep routes remain no-live or local-evidence
+boundaries. See [Live Order Surfaces](docs/LIVE_ORDER_SURFACES.md). The guarded
 fill-follow-up trigger is the no-live local-state compatibility exception:
 after exact route-bound approval, cap/guard wallet proof, reconciliation,
 duplicate-claim, and audit-correlation refs, it can return accepted
@@ -47,26 +54,23 @@ wallet, and reconciliation rows, clearing only those proof blockers.
 Duplicate-claim blockers remain fail-closed until their own backend evidence
 exists.
 
-`POST /api/v1/orders` is the enterprise manual Spot order command contract, but
-today it is a dry-submit/review path only. The route requires backend auth,
-RBAC, idempotency, correlation, and operator-intent headers, may derive a
-backend-owned `client_order_id` before admission when the request omits one,
-and then returns live-disabled evidence. It does not reach the live branch that
-checks Spot wallet inventory, no-short sell authority, product capability,
-event-stream audit, or REST submission unless a future HTTP live-execution gate
-explicitly passes `allow_live_execution=true`. The UI label "operator" names a
-human workflow role; backend order creation still requires `trader` or `admin`
-RBAC authority.
+`POST /api/v1/orders` is the enterprise manual Spot order command contract.
+The route requires backend auth, RBAC, idempotency, correlation, and
+operator-intent headers, may derive a backend-owned `client_order_id` before
+admission when the request omits one, and passes
+`allow_live_execution=admission_decision.allowed` to the shared command
+service. The service still fails closed on runtime, product, size, wallet,
+inventory/no-short, notional, durable-audit, event-stream, and Coinbase
+response checks. The UI label "operator" names a human workflow role; backend
+order creation still requires `trader` or `admin` RBAC authority.
 
-The generated OpenAPI contract documents the eventual `200` accepted/replayed
-command response shape and the current `501` live-disabled response shape.
-The current runtime still returns `501` for create, order cancel, stealth
-create, stealth reveal, stealth move, stealth cancel, stealth recovery,
-stealth reconciliation, movement reprice,
-campaign execution, and spot sweep automation
-commands because HTTP live execution is not approved. The fill-follow-up
-trigger's `200` path is no-live local compatibility evidence, not HTTP live
-execution approval. Read routes document
+The generated OpenAPI contract documents accepted/replayed and fail-closed
+command responses. Status depends on the route and backend decision; do not
+infer one global `501` posture. HTTP Spot cancel, Stealth lifecycle,
+movement/reprice, campaign, sweep, and Futures command methods currently remain
+live-disabled even though separate backend-only controlled-live tools exist for
+some Spot and Futures operations. The fill-follow-up trigger's `200` path is
+no-live local compatibility evidence, not HTTP live execution approval. Read routes document
 typed `200` payloads plus structured `401` and `403` errors.
 Enterprise-readiness evidence also includes structured per-module
 `command_gaps` and a top-level `command_gap_count` so unsupported, not
@@ -959,7 +963,7 @@ evidence only; it does not resolve blockers, create a store, configure a
 writer, allow writes, accept records, validate records, accept runtime evidence,
 admit commands, call Coinbase, execute reconciliation, mutate
 futures/order/exchange state, or grant browser/BFF or spot-rule authority.
-Active M57 `7381-7400` evidence adds futures request payload validation record
+Historical M57 `7381-7400` evidence added futures request payload validation record
 execution-eligibility resolution-plan step review input store record-validation
 remediation dependency work-item claim-trace clearance-step review input store
 record-validation check evidence while completed M57 `7361-7380` carries
@@ -1974,7 +1978,8 @@ For the current boundary between legacy live WebSocket commands, read-only
 HTTP routes, and sweep/campaign execution, see
 [Live Order Surfaces](docs/LIVE_ORDER_SURFACES.md).
 
-The frontend release-hardening gate is owned by `C:\coinbase-frontend` and is
+The frontend release-hardening gate is owned by
+`/home/ec2-user/coinbase-frontend` and is
 the canonical no-live command:
 
 ```powershell
@@ -1999,7 +2004,7 @@ checks for ordinary backend changes or the full backend regression gate when a
 durable milestone, release/deployment handoff, release-hardening closeout,
 Admin API/backend association closeout, or explicit user request requires it.
 When that full backend gate is required, use
-`python tools/run_parallel_regression.py --workers 4`; sequential
+`python3.13 tools/run_parallel_regression.py --workers 4`; sequential
 `pytest tests/regression/ -v --tb=short` is fallback-only when the parallel
 runner cannot be used.
 
@@ -2259,7 +2264,7 @@ The platform/module split is documented in
 Run the existing FastAPI app directly when developing the enterprise frontend:
 
 ```powershell
-python tools\run_admin_api.py --dev-token local-admin-token
+python3.13 tools/run_admin_api.py --dev-token local-admin-token
 ```
 
 The helper starts `api.v1.app:app` on `http://127.0.0.1:8787`, sets local CORS
@@ -2272,7 +2277,7 @@ For a deployment-like local run, configure auth explicitly instead of using
 ```powershell
 $env:COINBASE_ADMIN_API_BEARER_TOKEN = "local-admin-token"
 $env:COINBASE_ADMIN_API_CORS_ORIGINS = "http://127.0.0.1:3000"
-python tools\run_admin_api.py --port 8787
+python3.13 tools/run_admin_api.py --port 8787
 ```
 
 `COINBASE_ADMIN_API_CORS_ORIGINS` is an allowlist, not a wildcard. The Admin
@@ -2307,7 +2312,7 @@ before treating production OIDC evidence as usable by frontend production-auth
 evidence:
 
 ```powershell
-python tools\run_admin_oidc_readiness_smoke.py --summary-only
+python3.13 tools/run_admin_oidc_readiness_smoke.py --summary-only
 ```
 
 The smoke uses backend TestClient and temporary JWKS evidence to prove missing

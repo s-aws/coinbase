@@ -92,6 +92,7 @@ owners:
       - README.stealth-reconciliation-proofs.md
       - README.stealth-coinbase-exchange-policy.md
       - README.stealth-post-write-reconciliation-execution-policy.md
+      - README.stealth-state-mutation-policy.md
       - README.stealth-cancel-replace-proofs.md
       - README.stealth-recovery-proofs.md
       - README.stealth-reveal-trigger-proofs.md
@@ -118,7 +119,7 @@ owners:
       - tests/regression/test_spot_readiness_gate.py
       - tests/regression/test_backend_cd_workflow.py
     tests:
-      - python tools/check_ownership.py --owner architect
+      - python3.13 tools/check_ownership.py --owner architect
     requires_regression: false
 
   core_types:
@@ -453,5 +454,5 @@ owners:
     test_owns:
       - tests/regression/test_diagnostics_safety.py
     tests:
-      - python tools/check_ownership.py --owner ops_diagnostics
+      - python3.13 tools/check_ownership.py --owner ops_diagnostics
     requires_regression: false

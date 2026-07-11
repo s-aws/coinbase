@@ -134,7 +134,7 @@ that include this repository or the sibling `coinbase-frontend` path. Backend
 pytest regression commands launched from the repo root with relative
 `tests/regression` paths are also treated as repo-owned, because those children
 can survive an interrupted parent shell without retaining the absolute
-`C:\coinbase` path in their command line. The checker also reports matching
+`/home/ec2-user/coinbase` path in their command line. The checker also reports matching
 repo-owned test workers above `8192 MB` private or working-set memory even
 before they reach the age threshold; a failing pytest process retaining huge
 failure payloads is operationally stale once it is no longer part of active

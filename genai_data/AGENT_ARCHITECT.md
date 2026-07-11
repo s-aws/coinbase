@@ -568,7 +568,7 @@ approval/closeout, release-hardening closeout, Admin API/backend association
 closeout, or explicit full-gate request:
 
 ```powershell
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 ```
 
 Use `pytest tests/regression/ -v --tb=short` only as an intentional sequential

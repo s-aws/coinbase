@@ -4,7 +4,7 @@ Use this gate when changing spot trading behavior or preparing to add a
 spot-specific feature:
 
 ```powershell
-python tools/run_spot_readiness_regression.py
+python3.13 tools/run_spot_readiness_regression.py
 ```
 
 The focused gate covers:
@@ -22,7 +22,7 @@ The focused gate covers:
 For public-release readiness or dashboard changes, run the browser smoke gate:
 
 ```powershell
-python tools/run_spot_readiness_browser_smoke.py
+python3.13 tools/run_spot_readiness_browser_smoke.py
 ```
 
 The browser smoke gate uses `pytest-playwright` with Chromium. It opens
@@ -52,13 +52,13 @@ Chromium installation are documented for contributors.
 Campaign release readiness can be included in the public release wrapper:
 
 ```powershell
-python tools/run_spot_release_gate.py --campaign-config-file runtime_state/spot_campaign_buy.json
+python3.13 tools/run_spot_release_gate.py --campaign-config-file runtime_state/spot_campaign_buy.json
 ```
 
 For broad all-USDC campaign stages, include the all-USDC gate:
 
 ```powershell
-python tools/run_spot_release_gate.py --campaign-config-file runtime_state/spot_campaign_buy_all_usdc.json --campaign-all-usdc-readiness
+python3.13 tools/run_spot_release_gate.py --campaign-config-file runtime_state/spot_campaign_buy_all_usdc.json --campaign-all-usdc-readiness
 ```
 
 This remains read-only. It validates campaign release readiness and the broad
@@ -67,7 +67,7 @@ all-USDC intent before any rendered sweep config is handed to the live runner.
 For an explicitly approved live Coinbase spot smoke, run:
 
 ```powershell
-python tools/run_live_spot_usdc_smoke.py --approved-live-orders
+python3.13 tools/run_live_spot_usdc_smoke.py --approved-live-orders
 ```
 
 This places real orders. It selects the lowest-minimum-notional tradable USDC

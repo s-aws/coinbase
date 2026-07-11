@@ -29,109 +29,23 @@ LOCAL_DEPLOYMENT_MANIFEST_PATH = (
 )
 
 
-def test_backend_continuous_deployment_workflow_exists() -> None:
-    assert DEPLOY_WORKFLOW_PATH.exists(), "backend continuous deployment workflow is missing"
+def test_github_hosted_deployment_workflows_remain_retired() -> None:
+    assert not DEPLOY_WORKFLOW_PATH.exists()
+    assert not PUBLIC_CHECKS_WORKFLOW_PATH.exists()
 
 
-def test_public_agent_checks_workflow_is_manual_only() -> None:
-    workflow = PUBLIC_CHECKS_WORKFLOW_PATH.read_text(encoding="utf-8")
-    trigger_block = workflow.split("\njobs:", maxsplit=1)[0]
-
-    assert "workflow_dispatch:" in trigger_block
-    assert "pull_request:" not in trigger_block
-    assert "push:" not in trigger_block
-
-
-def test_backend_continuous_deployment_workflow_guards_local_deploy() -> None:
-    workflow = DEPLOY_WORKFLOW_PATH.read_text(encoding="utf-8")
-    normalized_workflow = workflow.replace(r"\"", '"')
-
-    for expected_text in [
-        "name: Continuous Deployment",
-        "workflow_run:",
-        "Public Agent Checks",
-        "workflow_dispatch:",
-        "deploy-local:",
-        "COINBASE_BACKEND_DEPLOYMENT_TIER: local",
-        "COINBASE_BACKEND_LOCAL_DEPLOY_ROOT",
-        "coinbase-local/backend",
-        "python tools/check_ownership.py",
-        "python tools/run_autonomous_work_queue_check.py --summary-only",
-        "python tools/generate_admin_api_openapi.py --check",
-        "python tools/export_admin_api_route_inventory.py --check",
-        "python -m pytest tests/regression/test_admin_api_local_run_contract.py -v --tb=short",
-        "Admin API controlled-live MVP route smoke",
-        "python tools/run_admin_api_controlled_live_mvp_smoke.py",
-        CONTROLLED_LIVE_SMOKE_TIMING_PATH,
-        "python tools/run_admin_oidc_readiness_smoke.py --summary-only",
-        "python tools/write_admin_api_deployment_manifest.py --deployment-tier local",
-        "python -m compileall -q -b",
-        "find \\",
-        "-name '*.pyc'",
-        "-delete",
-        "python tools/apply_admin_api_local_deployment.py",
-        "coinbase-backend-deployment.tgz",
-        "artifacts/coinbase-backend-deployment-manifest.json",
-        CONTROLLED_LIVE_SMOKE_TIMING_PATH,
-        LOCAL_DEPLOYMENT_MANIFEST_PATH,
-        "coinbase-local/backend/current-release.json",
-        "python-version: \"3.13\"",
-        "python -m pip install -e \".[test]\"",
-        "Live Coinbase execution: not run; notional $0",
+def test_ec2_local_deployment_contract_sources_exist() -> None:
+    for path in [
+        Path("tools/run_autonomous_work_queue_check.py"),
+        OPENAPI_GENERATOR_PATH,
+        ROUTE_INVENTORY_EXPORTER_PATH,
+        CONTROLLED_LIVE_SMOKE_RUNNER_PATH,
+        Path("tools/write_admin_api_deployment_manifest.py"),
+        Path("tools/apply_admin_api_local_deployment.py"),
+        Path("docs/LIVE_ORDER_SURFACES.md"),
+        Path("genai_data/AGENT_MVP_REBUILD_GOAL.md"),
     ]:
-        assert expected_text in normalized_workflow
-
-    for forbidden_text in [
-        "deployments: write",
-        "environment: staging",
-        "COINBASE_BACKEND_DEPLOY_WEBHOOK_URL",
-        "Validate deploy hook",
-        "Write backend deployment webhook payload",
-        "Call deployment webhook",
-        "curl --fail",
-        "deployment-webhook-payload",
-        "-d @",
-    ]:
-        assert forbidden_text not in normalized_workflow
-
-
-def test_backend_continuous_deployment_workflow_only_runs_after_success() -> None:
-    workflow = DEPLOY_WORKFLOW_PATH.read_text(encoding="utf-8")
-
-    assert "github.event.workflow_run.conclusion == 'success'" in workflow
-    assert "github.event_name == 'workflow_dispatch'" in workflow
-    assert "cancel-in-progress: false" in workflow
-
-
-def test_backend_deploy_applies_local_target_before_uploading_payload() -> None:
-    workflow = DEPLOY_WORKFLOW_PATH.read_text(encoding="utf-8")
-
-    assert workflow.index("Apply local backend deployment") > workflow.index(
-        "Package backend deploy payload"
-    )
-    assert workflow.index("Upload deployment payload") > workflow.index(
-        "Apply local backend deployment"
-    )
-    assert workflow.index("Confirm local no-live posture") > workflow.index(
-        "Apply local backend deployment"
-    )
-
-
-def test_backend_deploy_runs_controlled_live_mvp_smoke_before_packaging() -> None:
-    workflow = DEPLOY_WORKFLOW_PATH.read_text(encoding="utf-8")
-
-    assert workflow.index("Admin API controlled-live MVP route smoke") > workflow.index(
-        "Admin API deploy smoke"
-    )
-    assert workflow.index("Package backend deploy payload") > workflow.index(
-        "Admin API controlled-live MVP route smoke"
-    )
-    assert workflow.index(CONTROLLED_LIVE_SMOKE_TIMING_PATH) < workflow.index(
-        "Package backend deploy payload"
-    )
-    assert workflow.index("Upload deployment payload") > workflow.index(
-        CONTROLLED_LIVE_SMOKE_TIMING_PATH
-    )
+        assert path.exists(), path
 
 
 def test_backend_generated_artifacts_are_gitignored() -> None:
@@ -143,33 +57,6 @@ def test_backend_generated_artifacts_are_gitignored() -> None:
         check=False,
     )
     assert result.returncode == 0
-
-
-def test_backend_deploy_payload_contains_admin_runtime_contract_files() -> None:
-    payload_block = _deploy_payload_block()
-
-    for expected_path in [
-        "artifacts/coinbase-backend-deployment-manifest.json",
-        "products.json",
-        "openapi/coinbase-admin-api.yaml",
-        "openapi/coinbase-admin-api-route-inventory.json",
-        "pyproject.toml",
-        "tools/run_admin_api.py",
-        "tools/write_admin_api_deployment_manifest.py",
-        "tools/apply_admin_api_local_deployment.py",
-        "tools/export_admin_api_route_inventory.py",
-        "tools/run_admin_api_controlled_live_mvp_smoke.py",
-        "tools/run_admin_api_futures_live_fill_readback.py",
-        "tools/run_admin_api_manual_order_live_submit.py",
-        "tools/run_admin_api_usdc_pair_snapshot_live_submit.py",
-        "tools/run_admin_api_usdc_pair_snapshot_live_readback.py",
-        "tools/coinbase_live_credentials.py",
-        "tools/run_spot_fill_backfill_recovery.py",
-        "tools/run_spot_sweep_recovery_gate.py",
-        CONTROLLED_LIVE_SMOKE_TIMING_PATH,
-        "logging_service.py",
-    ]:
-        assert expected_path in payload_block
 
 
 def test_backend_deployment_manifest_describes_admin_runtime_without_live_execution() -> None:
@@ -220,19 +107,6 @@ def test_backend_deployment_manifest_prefers_ci_deployment_ref(monkeypatch) -> N
     args = deployment_manifest.build_parser().parse_args([])
 
     assert args.commit == "ci-deploy-ref"
-
-
-def test_public_agent_checks_cover_backend_continuous_deployment_contract() -> None:
-    workflow = PUBLIC_CHECKS_WORKFLOW_PATH.read_text(encoding="utf-8")
-
-    assert "Enable Windows long paths" in workflow
-    assert "git config --global core.longpaths true" in workflow
-    assert workflow.index("Enable Windows long paths") < workflow.index("uses: actions/checkout@v4")
-    assert "python -m pytest tests/regression/test_backend_cd_workflow.py -v --tb=short" in workflow
-    assert "python tools/generate_admin_api_openapi.py --check" in workflow
-    assert "python tools/export_admin_api_route_inventory.py --check" in workflow
-    assert "Admin API controlled-live MVP route smoke" in workflow
-    assert "python tools/run_admin_api_controlled_live_mvp_smoke.py --summary-only" in workflow
 
 
 def test_controlled_live_mvp_smoke_runner_records_timing_summary() -> None:
@@ -646,15 +520,3 @@ def _dependency_names(requirements: list[str]) -> set[str]:
             name = name.split(separator, 1)[0]
         names.add(name.strip().lower())
     return names
-
-
-def _deploy_payload_block() -> str:
-    workflow = DEPLOY_WORKFLOW_PATH.read_text(encoding="utf-8")
-    marker = "tar -czf artifacts/coinbase-backend-deployment.tgz"
-    _, package_block = workflow.split(marker, 1)
-    payload_lines: list[str] = []
-    for line in package_block.splitlines():
-        if not line.strip():
-            break
-        payload_lines.append(line)
-    return "\n".join(payload_lines)

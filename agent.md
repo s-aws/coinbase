@@ -168,7 +168,7 @@ positive, add a `parallel-regression: serial-safe` comment with the reason.
 The helper fails before pytest when oversized repo-local runtime artifacts under
 `runtime_state/` exceed 1 GiB. If it emits
 `runtime_artifact_preflight_failed`, treat the full regression gate as failed:
-run `python tools/check_runtime_artifacts.py`, preserve the evidence, and clean
+run `python3.13 tools/check_runtime_artifacts.py`, preserve the evidence, and clean
 or archive artifacts only after explicit operator cleanup approval. Use
 `--disable-runtime-artifact-preflight` only for a scoped diagnostic run after
 preserving artifact evidence.
@@ -187,7 +187,7 @@ retrying. Do not pass
 `--disable-memory-watch` for normal milestone closeout.
 Before full closeout gates and after any interrupted or timed-out backend or
 frontend test command, run the stale process checker:
-`python tools/check_stale_test_processes.py --include-sibling-frontend`.
+`python3.13 tools/check_stale_test_processes.py --include-sibling-frontend`.
 The checker is report-only by default; use `--kill` only when the matched
 repo-owned test worker is stale, or over the default high-memory threshold,
 and not part of active validation.
@@ -195,13 +195,13 @@ Exception: if changes are limited to agent/context files only (`AGENTS.md`, `age
 
 ```powershell
 # Full regression closeout gate - durable milestone closeout only unless explicitly requested
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 
 # Stale test-process hygiene - before closeout gates and after interruptions
-python tools/check_stale_test_processes.py --include-sibling-frontend
+python3.13 tools/check_stale_test_processes.py --include-sibling-frontend
 
 # Runtime artifact attribution - after memory guard aborts or unexpected spikes
-python tools/check_runtime_artifacts.py
+python3.13 tools/check_runtime_artifacts.py
 
 # Sequential fallback only when pytest-xdist is unavailable
 pytest tests/regression/ -v --tb=short

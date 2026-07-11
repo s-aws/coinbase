@@ -1,57 +1,71 @@
 # Live Order Surfaces
 
-This project has multiple operator surfaces, but they do not have equal live
-trading authority.
+This project has several operator and test surfaces. They do not have equal
+live authority, and a backend-only live runner is not proof that the matching
+HTTP or browser workflow is live-capable.
 
-The enterprise admin frontend release path is not a live-order surface. Its
-release checks are dry/no-live validation and must report live Coinbase
-execution as not run with notional `$0`.
+Current work is goal id `legacy_fill_follow_up_operator_slice`. Default release
+and deployment checks are no-live and must report live Coinbase execution as
+not run with notional `0`.
 
-## Current Live-Capable Surfaces
+## Admin HTTP Surfaces
 
-- Legacy dashboard WebSocket `place_order` is a compatibility-only manual live
-  surface. Spot direct orders require explicit
-  `manual_live_acknowledgement=true`, product capability, size validation,
-  planning-phase action-condition guard, an explicit direct spot notional cap,
-  and an enabled local `order_event_stream` publisher before REST submission.
-  Direct spot `SELL` also requires `known_inventory_available`.
-- Legacy dashboard WebSocket `cancel_order` is a compatibility-only manual
-  live cancellation surface. It accepts `client_order_id` and calls the project
-  wrapper `cancel_order(client_order_id)`.
-- Legacy dashboard WebSocket `place_hotpoint_test_order` is a compatibility
-  seed-order surface. It uses the shared command service and existing hotpoint
-  admission path.
-- `tools/run_spot_portfolio_sweep_live.py --approved-live-orders` is the live
-  USDC spot sweep and campaign execution surface. Campaigns render configs for
-  this runner; they do not place live Coinbase orders directly. Live SELL
-  sweeps additionally require `--require-known-profitable-inventory`, so wallet
-  balance alone cannot authorize a live SELL sweep.
+- `POST /api/v1/orders` is the live-capable manual Spot placement route. It may
+  pass `allow_live_execution=true` to the shared command service only after the
+  route-bound backend admission decision allows the exact request. The command
+  service still enforces runtime opt-in, product capability, size, wallet,
+  inventory/no-short, notional cap, audit, event-stream, and Coinbase response
+  checks.
+- `POST /api/v1/orders/{client_order_id}/cancel` is currently live-disabled at
+  the HTTP adapter. It calls the shared cancel service without
+  `allow_live_execution=true`, so the service returns fail-closed evidence
+  before Coinbase cancellation.
+- `POST /api/v1/orders/{client_order_id}/fill-follow-up/trigger` is a guarded
+  no-live local-state compatibility route. It can invoke the existing
+  fill-follow-up executor after exact prerequisites and must prove one accepted
+  child through parent/child readback. It does not submit or cancel Coinbase
+  orders and is not automatic fill-event processing.
+- Futures place, close/reduce, and cancel HTTP routes remain no-live command
+  drafts. Their shared command-service methods return disabled evidence and do
+  not invoke the backend-only futures live executor.
+- Stealth create/reveal/move/cancel/recovery/reconciliation, movement reprice,
+  campaign, and sweep HTTP command routes remain route-specific no-live or
+  local-evidence surfaces unless their current route inventory says otherwise.
 
-## Read-Only Or Disabled Surfaces
+## Backend-Only Controlled-Live Tools
 
-- Admin HTTP mutating routes currently fail closed after auth/RBAC,
-  idempotency, approval-gate, and audit handling. They do not submit or cancel
-  Coinbase orders yet.
-- Admin HTTP `POST /api/v1/orders` is a manual Spot order dry-submit/review
-  route, not a live order route. It may accept command-shaped evidence and
-  derive `client_order_id`, but the route does not pass
-  `allow_live_execution=true`, so the shared command service exits before the
-  Spot inventory/no-short/product-capability/event-stream/REST submission
-  branch. Backend `trader` or `admin` authority is required for the command
-  route; a human "operator" label in the frontend is not enough RBAC authority.
-- Admin HTTP read-only spot routes can report readiness, sweep status, P/L,
-  cost-basis status, campaign status, and direct-order audit evidence.
-- The enterprise frontend must use the HTTP Admin API contract. It must not
-  build new product workflows on the legacy dashboard WebSocket.
-- `tools/run_spot_campaign.py` is read-only with respect to Coinbase orders.
-  It owns campaign intake, dry-run matrices, rendered sweep configs, status,
-  and reports.
-- Direct-order audit commands and dashboard audit requests are read-only local
-  evidence readers. They do not submit, cancel, retry, or reconcile Coinbase
-  orders.
+The following manual tools can exercise backend-owned controlled-live paths
+after explicit confirmation and route-specific proof setup. They do not grant
+browser authority or change the HTTP posture above:
 
-## Operator Rule
+- Spot manual order submit, cancel, and order readback tools under `tools/`;
+- Futures place, close/reduce, cancel, and fill-readback tools under `tools/`;
+- one selected M58 USDC snapshot order submit/cancel/readback path; and
+- the proof-gated M58 fan-out executor boundary, which remains parked under the
+  current MVP goal and must fail closed unless every route proof clears.
 
-For new frontend or automation work, route live spot execution through the
-approved sweep runner until the HTTP live execution gate is completed. Keep
-legacy dashboard live commands compatibility-only.
+Each live run must record the actual product, `client_order_id`, environment,
+account or portfolio scope, submitted/executed notional, backend decisions,
+audit ids, and cancel/rollback/readback result.
+
+## Legacy Compatibility Surfaces
+
+- Dashboard WebSocket `place_order` and `cancel_order` remain compatibility
+  surfaces over the shared backend behavior path.
+- Dashboard `place_hotpoint_test_order` is a compatibility seed-order surface
+  and is not current Admin product authority.
+- Spot portfolio sweep live tooling remains a backend CLI surface. Campaign UI
+  does not itself place Coinbase orders.
+
+New frontend product work must use generated Admin API contracts and canonical
+BFF wrappers. Do not use the dashboard WebSocket, a backend CLI, or an exchange
+`order_id` as a shortcut around route authority.
+
+## Current Fill/Follow-Up Boundary
+
+The guarded no-live operator chain is implemented. Automatic/live fill-event
+parity requires explicit fill-testing approval and backend-owned live-fill,
+wallet/cap/reconciliation, duplicate-order, audit-correlation, rollback, and
+readback proof. Fan-out, scheduler, retry/runtime-control, wallet-ledger, and
+ladder/grid work is parked and cannot make itself current by producing more
+evidence about its own blockers.

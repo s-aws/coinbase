@@ -4,6 +4,8 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 
 ## Project Entry
 
+- [Current MVP Goal](../genai_data/AGENT_MVP_REBUILD_GOAL.md) - goal id
+  `legacy_fill_follow_up_operator_slice`; current scope and stop rules
 - [Root README](../README.md)
 - [Expanded AI Context](../genai_data/README.md)
 - [Architecture](../genai_data/ARCHITECTURE.md)
@@ -51,9 +53,9 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Command Workflows](COMMAND_WORKFLOWS.md)
 - [Operator Read Models](OPERATOR_READ_MODELS.md)
 - [Admin API Contextless Review Log](plans/ADMIN_API_CONTEXTLESS_REVIEW_LOG.md)
-- [Autonomous Work Queue](plans/AUTONOMOUS_WORK_QUEUE.md)
+- [Autonomous Work Queue](plans/AUTONOMOUS_WORK_QUEUE.md) - historical planning
+  and artifact evidence only
 - [Spot Phases 185-196 Report](plans/SPOT_PHASE_185_196_REPORT.md)
-- [Netflix AI Engineer Workbench](../README.netflix-ai-engineer-site.md)
 - [API Reference](../genai_data/API_REFERENCE.md)
 - [Configuration](../genai_data/CONFIGURATION.md)
 - [Data Models](../genai_data/DATA_MODELS.md)
@@ -71,28 +73,28 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Spot Readiness Test Gate](SPOT_READINESS_TEST_GATE.md)
 - [Spot Contextless Agent Testing](SPOT_CONTEXTLESS_AGENT_TESTING.md)
 - Contextless checklist harness:
-  `python tools\run_spot_contextless_agent_checklist.py --summary-only`
+  `python3.13 tools/run_spot_contextless_agent_checklist.py --summary-only`
 - Direct spot order audit:
-  `python tools\run_spot_direct_order_audit.py --client-order-id <client_order_id>`
+  `python3.13 tools/run_spot_direct_order_audit.py --client-order-id <client_order_id>`
 - Dashboard direct spot order audit:
   `request_spot_direct_order_audit` with `params.client_order_id`
 - Spot campaign operator reports:
-  `python tools\run_spot_campaign.py --ledger-cleanup-plan --summary-only`
-  and `python tools\run_spot_campaign.py --pnl-delta-report --summary-only`
+  `python3.13 tools/run_spot_campaign.py --ledger-cleanup-plan --summary-only`
+  and `python3.13 tools/run_spot_campaign.py --pnl-delta-report --summary-only`
 - Local Admin API runner:
-  `python tools\run_admin_api.py --dev-token local-admin-token`
+  `python3.13 tools/run_admin_api.py --dev-token local-admin-token`
 - Process-parallel regression closeout:
-  `python tools\run_parallel_regression.py --workers 4`
+  `python3.13 tools/run_parallel_regression.py --workers 4`
 - Stale test-process check before closeout and after interrupted tests:
-  `python tools\check_stale_test_processes.py --include-sibling-frontend`
+  `python3.13 tools/check_stale_test_processes.py --include-sibling-frontend`
 - Runtime artifact check after regression memory spikes:
-  `python tools\check_runtime_artifacts.py`
+  `python3.13 tools/check_runtime_artifacts.py`
 - Admin API OIDC readiness smoke:
-  `python tools\run_admin_oidc_readiness_smoke.py --summary-only`
+  `python3.13 tools/run_admin_oidc_readiness_smoke.py --summary-only`
 - Admin API route inventory export:
   `python -m tools.export_admin_api_route_inventory`
 - Autonomous work queue check:
-  `python tools\run_autonomous_work_queue_check.py --summary-only`
+  `python3.13 tools/run_autonomous_work_queue_check.py --summary-only`
 
 ## Examples
 
@@ -123,12 +125,11 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 - [Futures/Perpetuals Examples](examples/futures-perpetuals.md)
 - [Guard/Risk Policy Examples](examples/guard-risk-policy.md)
 - [Audit Workbench Examples](examples/audit-workbench.md)
-- [Netflix AI Engineer Workbench Examples](examples/netflix-ai-engineer-site.md)
 
 ## State, Modes, And Roadmaps
 
 - [Public Roadmap](PUBLIC_ROADMAP.md)
 - [Admin Platform Durable Milestones](plans/ADMIN_PLATFORM_DURABLE_MILESTONES.md)
 - [Spot Readiness Roadmap](SPOT_READINESS_ROADMAP.md)
-- [Agent State](../genai_data/agent_state.md)
+- [Historical Agent State Snapshot](../genai_data/agent_state.md)
 - [Debugging Strategy](../genai_data/DEBUGGING_STRATEGY.md)

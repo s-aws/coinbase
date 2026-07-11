@@ -33,7 +33,7 @@ Before deploying any changes to the platform (architectural changes, new feature
 
 - [ ] Run full regression before durable milestone closeout, public/release-candidate handoff, deployment approval/closeout, release-hardening closeout, Admin API/backend association closeout, or explicit user request
   ```bash
-  python tools/run_parallel_regression.py --workers 4
+  python3.13 tools/run_parallel_regression.py --workers 4
   ```
   - Requires pytest-xdist for the process-parallel lane; if pytest-xdist is
     unavailable, install the test dependencies or deliberately run the
@@ -43,7 +43,7 @@ Before deploying any changes to the platform (architectural changes, new feature
     state, full FastAPI app imports, or process-shared/memory-heavy resources
     must use `pytest.mark.serial`; false positives require a documented
     `parallel-regression: serial-safe` comment.
-  - Optional fast preflight: `python tools/run_parallel_regression.py --check-serial-classification-only`
+  - Optional fast preflight: `python3.13 tools/run_parallel_regression.py --check-serial-classification-only`
   - Must pass before the milestone/release/deployment is considered complete
 
 ## Phase 5: Full Test Suite
@@ -75,7 +75,7 @@ Before deploying any changes to the platform (architectural changes, new feature
 
 ## Phase 8: Deployment
 
-- [ ] Full regression closeout gate passed when this is a durable milestone, release, or deployment closeout: `python tools/run_parallel_regression.py --workers 4`
+- [ ] Full regression closeout gate passed when this is a durable milestone, release, or deployment closeout: `python3.13 tools/run_parallel_regression.py --workers 4`
 - [ ] All unit tests pass ✓
 - [ ] All integration tests pass ✓
 - [ ] External tests pass (if applicable) ✓
@@ -109,7 +109,7 @@ pytest tests/regression/<focused_test_file>.py -v --tb=short
 
 ### Check full regression at closeout/release
 ```bash
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 ```
 
 ### Full test suite after changes
@@ -143,7 +143,7 @@ Use these to validate test status in CI/CD:
 
 ```bash
 # Run full regression closeout gate
-python tools/run_parallel_regression.py --workers 4
+python3.13 tools/run_parallel_regression.py --workers 4
 EXIT_CODE=$?
 
 if [ $EXIT_CODE -ne 0 ]; then

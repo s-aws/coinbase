@@ -1,18 +1,22 @@
 # Futures/Perpetuals Examples
 
+The M57 range references below are historical examples. Current work is goal
+id `legacy_fill_follow_up_operator_slice`; futures expansion is parked.
+
 These examples use the enterprise Admin API. They are read-only examples and
 do not place, close, cancel, or modify Coinbase orders.
 
 Start the local Admin API:
 
 ```powershell
-python tools\run_admin_api.py --dev-token local-admin-token
+python3.13 tools/run_admin_api.py --dev-token local-admin-token
 ```
 
 ## Command-Suite Contract Evidence
 
-The active 7961-7980 range targets explicit M57 futures/perpetual risk-proof
-record validation remediation summary evidence. `GET /api/v1/futures/command-suite`
+The historical `7961-7980` range added explicit M57 futures/perpetual
+risk-proof record validation remediation summary evidence.
+`GET /api/v1/futures/command-suite`
 reports `"approved_phase_range": "7961-7980"`,
 `risk_proof_record_validation_remediation_summary_count`,
 `risk_proof_record_validation_remediation_summary_blocking_count`, and

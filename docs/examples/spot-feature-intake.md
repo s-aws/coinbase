@@ -6,7 +6,7 @@ local-only and read-only; it does not call Coinbase and cannot submit orders.
 ## Validate A Feature Request
 
 ```powershell
-python tools/run_spot_feature_intake_gate.py --request-file runtime_state/spot_feature_request.json --summary-only
+python3.13 tools/run_spot_feature_intake_gate.py --request-file runtime_state/spot_feature_request.json --summary-only
 ```
 
 The output prefix is `SPOT_FEATURE_INTAKE_GATE`. A passing request sets
@@ -74,7 +74,7 @@ Supported `cost_basis_authority.allowed_sources` values are `fill_ledger`,
 ## Check Missing Scope
 
 ```powershell
-python tools/run_spot_feature_intake_gate.py --allow-incomplete --summary-only
+python3.13 tools/run_spot_feature_intake_gate.py --allow-incomplete --summary-only
 ```
 
 This prints the missing fields without failing the shell command. Without
