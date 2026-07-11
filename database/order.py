@@ -2944,7 +2944,7 @@ def create_fill_ledger_table() -> None:
         id SERIAL PRIMARY KEY,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         derived_trade_key UUID UNIQUE NOT NULL,
-        exchange_trade_id UUID,
+        exchange_trade_id TEXT,
         exchange_entry_id VARCHAR(80),
         instrument VARCHAR(32) NOT NULL,
         side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),
@@ -2965,13 +2965,28 @@ def create_fill_ledger_table() -> None:
     # ALTER ... RENAME ... IF EXISTS for columns. Also handle the additive
     # columns idempotently with ADD COLUMN IF NOT EXISTS.
     additive_migrations = """
-    ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS exchange_trade_id UUID;
+    ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS exchange_trade_id TEXT;
     ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS exchange_entry_id VARCHAR(80);
     ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS reconciliation_status VARCHAR(16)
         NOT NULL DEFAULT 'WS_DERIVED';
     ALTER TABLE fill_ledger ADD COLUMN IF NOT EXISTS reconciled_at TIMESTAMP;
     ALTER TABLE fill_ledger ALTER COLUMN client_order_id TYPE VARCHAR(128);
     ALTER TABLE fill_ledger ALTER COLUMN price TYPE DECIMAL(24, 12);
+    DO $$
+    BEGIN
+        IF EXISTS (
+            SELECT 1
+              FROM information_schema.columns
+             WHERE table_schema = current_schema()
+               AND table_name = 'fill_ledger'
+               AND column_name = 'exchange_trade_id'
+               AND data_type <> 'text'
+        ) THEN
+            ALTER TABLE fill_ledger
+                ALTER COLUMN exchange_trade_id TYPE TEXT
+                USING exchange_trade_id::text;
+        END IF;
+    END $$;
     DO $$
     BEGIN
         ALTER TABLE fill_ledger
@@ -2993,7 +3008,7 @@ def create_fill_ledger_table() -> None:
         id SERIAL PRIMARY KEY,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         derived_trade_key UUID UNIQUE NOT NULL,
-        exchange_trade_id UUID,
+        exchange_trade_id TEXT,
         exchange_entry_id VARCHAR(80),
         instrument VARCHAR(32) NOT NULL,
         side VARCHAR(10) NOT NULL CHECK (side IN ('BUY', 'SELL')),

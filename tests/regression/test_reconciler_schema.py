@@ -203,6 +203,24 @@ class TestSchemaParser:
             in text
         )
 
+    @pytest.mark.regression
+    def test_fill_ledger_exchange_trade_id_preserves_opaque_coinbase_ids(self):
+        text = SCHEMA_PATH.read_text(encoding="utf-8")
+
+        assert "exchange_trade_id UUID" not in text
+        assert text.count("exchange_trade_id TEXT") >= 2
+        assert (
+            "ADD COLUMN IF NOT EXISTS exchange_trade_id TEXT"
+            in text
+        )
+        assert "AND data_type <> 'text'" in text
+        assert "ALTER COLUMN exchange_trade_id TYPE TEXT" in text
+        assert "USING exchange_trade_id::text" in text
+        assert (
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_fill_ledger_exchange_trade_id"
+            in text
+        )
+
 
 class TestReconcilerSqlMatchesSchema:
     """The actual guard: every SQL ref in the reconciler must exist."""

@@ -62,16 +62,6 @@ def _dict_response(response: Any) -> Any:
     return response
 
 
-def _uuid_or_none(value: Any) -> str | None:
-    text = _text(value)
-    if not text:
-        return None
-    try:
-        return str(uuid.UUID(text))
-    except ValueError:
-        return None
-
-
 def _timestamp(value: Any) -> datetime:
     if isinstance(value, datetime):
         timestamp = value
@@ -178,7 +168,7 @@ def fill_ledger_from_rest_fill(
         client_order_id=_text(client_order_id) or None,
         product_id=product_id,
         average_price=float(price),
-        exchange_trade_id=_uuid_or_none(trade_id),
+        exchange_trade_id=trade_id or None,
         exchange_entry_id=entry_id or None,
         reconciliation_status=FillLedgerReconciliationStatus.RECONCILED.value,
     )
