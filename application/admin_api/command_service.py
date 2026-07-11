@@ -735,13 +735,52 @@ def exact_coinbase_order_readback(
 ) -> dict[str, Any]:
     """Return exact identity/status proof without treating absence as terminal."""
 
-    order_ids = [exchange_order_id] if exchange_order_id else None
-    rows, pagination = read_authoritative_coinbase_orders(
-        rest_client,
-        order_ids=order_ids,
-        product_ids=[product_id] if product_id else None,
-        product_type=ProductType.SPOT.value,
-    )
+    if exchange_order_id:
+        get_order = getattr(rest_client, "get_order", None)
+        if not callable(get_order):
+            raise CoinbaseOrderReadbackError(
+                "order_read_unavailable",
+                "Coinbase get_order is unavailable for exact exchange identity readback",
+            )
+        try:
+            response = get_order(exchange_order_id)
+        except CoinbaseOrderReadbackError:
+            raise
+        except Exception as exc:
+            raise CoinbaseOrderReadbackError(
+                "order_read_failed",
+                f"Coinbase order read failed: {type(exc).__name__}: {exc}",
+            ) from exc
+        data = coinbase_order_response_to_dict(response)
+        raw_order = data.get("order")
+        if not isinstance(raw_order, Mapping):
+            raise CoinbaseOrderReadbackError(
+                "order_read_malformed",
+                "Coinbase get_order response requires an order object",
+            )
+        row = dict(raw_order)
+        if not all(
+            str(row.get(field) or "").strip()
+            for field in ("client_order_id", "order_id", "status")
+        ):
+            raise CoinbaseOrderReadbackError(
+                "order_read_malformed",
+                "Coinbase order row lacks client_order_id, order_id, or status",
+            )
+        rows = [row]
+        pagination = {
+            "authoritative": True,
+            "page_count": 1,
+            "order_count": 1,
+            "pagination_complete": True,
+            "read_method": "get_order",
+        }
+    else:
+        rows, pagination = read_authoritative_coinbase_orders(
+            rest_client,
+            product_ids=[product_id] if product_id else None,
+            product_type=ProductType.SPOT.value,
+        )
     matches = [
         row
         for row in rows
@@ -749,6 +788,10 @@ def exact_coinbase_order_readback(
         and (
             exchange_order_id is None
             or str(row.get("order_id") or "") == str(exchange_order_id)
+        )
+        and (
+            product_id is None
+            or str(row.get("product_id") or "") == str(product_id)
         )
     ]
     exact = len(matches) == 1 and (

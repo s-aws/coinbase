@@ -515,9 +515,14 @@ def test_manual_spot_root_is_registered_with_test_scope_before_rest_submit(
             self.submitted_order = {
                 "client_order_id": kwargs["client_order_id"],
                 "order_id": "exchange-test-root",
+                "product_id": "BTC-USDC",
                 "status": "OPEN",
             }
             return SimpleNamespace(success=True, order_id="exchange-test-root")
+
+        def get_order(self, order_id: str):
+            assert order_id == "exchange-test-root"
+            return {"order": dict(self.submitted_order or {})}
 
         def list_orders(self, **kwargs: object):
             if kwargs.get("order_status") is not None:
@@ -901,11 +906,16 @@ def test_manual_spot_cancel_uses_client_id_and_confirms_cancelled_terminal_statu
             self.order = {
                 "client_order_id": client_order_id,
                 "order_id": "exchange-test-order",
+                "product_id": "BTC-USDC",
                 "status": "OPEN",
             }
 
         def list_orders(self, **_kwargs: object):
             return {"orders": [dict(self.order)], "has_next": False}
+
+        def get_order(self, order_id: str):
+            assert order_id == "exchange-test-order"
+            return {"order": dict(self.order)}
 
         def cancel_order_by_exchange_order_id(self, order_id: str) -> bool:
             self.cancel_exchange_calls.append(order_id)

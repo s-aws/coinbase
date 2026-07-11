@@ -101,6 +101,25 @@ class TestCoinbaseRESTAPIClient:
                 "product_type": "SPOT",
             }
         ]
+
+    def test_get_order_passes_exchange_order_id_to_sdk(self):
+        class FakeSDKClient:
+            def __init__(self):
+                self.calls = []
+
+            def get_order(self, order_id):
+                self.calls.append(order_id)
+                return {"order": {"order_id": order_id, "status": "OPEN"}}
+
+        sdk_client = FakeSDKClient()
+        client = CoinbaseRestClient(sdk_client)
+
+        response = client.get_order("exchange-order-1")
+
+        assert response == {
+            "order": {"order_id": "exchange-order-1", "status": "OPEN"}
+        }
+        assert sdk_client.calls == ["exchange-order-1"]
     
     def test_create_order_request(self):
         """POST /api/v1/orders should create order."""

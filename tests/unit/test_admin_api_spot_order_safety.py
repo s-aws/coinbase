@@ -107,6 +107,7 @@ class _SpotRestClient:
         self.api_key_permission_calls = 0
         self.portfolio_calls = 0
         self.create_calls: list[dict[str, Any]] = []
+        self.get_calls: list[str] = []
         self.list_calls: list[dict[str, Any]] = []
         self.cancel_client_calls: list[str] = []
         self.cancel_exchange_calls: list[str] = []
@@ -147,6 +148,15 @@ class _SpotRestClient:
         if order_ids:
             rows = [row for row in rows if str(row.get("order_id")) in order_ids]
         return {"orders": [dict(row) for row in rows], "has_next": False}
+
+    def get_order(self, order_id: str) -> dict[str, Any]:
+        self.get_calls.append(order_id)
+        rows = [
+            dict(row)
+            for row in self.history
+            if str(row.get("order_id")) == str(order_id)
+        ]
+        return {"order": rows[0] if len(rows) == 1 else {}}
 
     def create_order(self, **kwargs: Any) -> Any:
         self.create_calls.append(dict(kwargs))
@@ -305,6 +315,7 @@ def test_submit_preserves_on_tick_price_through_root_and_coinbase_boundary() -> 
                 {
                     "client_order_id": kwargs["client_order_id"],
                     "order_id": "exchange-order-1",
+                    "product_id": "BTC-USDC",
                     "status": "OPEN",
                 }
             ]
@@ -326,6 +337,8 @@ def test_submit_preserves_on_tick_price_through_root_and_coinbase_boundary() -> 
             "post_only": True,
         }
     }
+    assert rest_client.get_calls == ["exchange-order-1"]
+    assert not any(call.get("order_ids") for call in rest_client.list_calls)
 
 
 def test_submit_rejects_stale_ticker_before_root_or_coinbase_boundary() -> None:
@@ -471,6 +484,7 @@ def test_submit_does_not_infer_success_from_nested_payload_without_true_flag() -
         {
             "client_order_id": "22daf1ea-4c57-4c03-98c5-e74459576228",
             "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
             "status": "OPEN",
         }
     ]
@@ -492,6 +506,7 @@ def test_submit_requires_authoritative_exact_identity_readback() -> None:
         {
             "client_order_id": "different-client-order-id",
             "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
             "status": "OPEN",
         }
     ]
@@ -512,6 +527,31 @@ def test_submit_requires_authoritative_exact_identity_readback() -> None:
     assert registrar.status_calls[-1][1] == "SUBMISSION_UNKNOWN"
 
 
+def test_submit_rejects_exact_order_readback_from_a_different_product() -> None:
+    rest_client = _SpotRestClient()
+    rest_client.history = [
+        {
+            "client_order_id": "22daf1ea-4c57-4c03-98c5-e74459576228",
+            "order_id": "exchange-order-1",
+            "product_id": "BTC-USD",
+            "status": "OPEN",
+        }
+    ]
+    registrar = _RootRegistrar()
+
+    response = _service(rest_client, registrar).place_manual_order(
+        _manual_command()
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "coinbase_submission_unknown"
+    assert response.data["submission_attempt"][
+        "authoritative_readback_confirmed"
+    ] is False
+    assert rest_client.get_calls == ["exchange-order-1"]
+    assert registrar.status_calls[-1][1] == "SUBMISSION_UNKNOWN"
+
+
 def test_submit_serializes_profile_open_read_through_create_outcome() -> None:
     create_entered = Event()
     release_create = Event()
@@ -524,6 +564,7 @@ def test_submit_serializes_profile_open_read_through_create_outcome() -> None:
             row = {
                 "client_order_id": kwargs["client_order_id"],
                 "order_id": "exchange-concurrent-order",
+                "product_id": "BTC-USDC",
                 "status": "OPEN",
             }
             self.history = [row]
@@ -579,6 +620,7 @@ def test_submit_audit_failure_reports_proven_live_order_without_accepting() -> N
         {
             "client_order_id": "22daf1ea-4c57-4c03-98c5-e74459576228",
             "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
             "status": "OPEN",
         }
     ]
@@ -613,6 +655,7 @@ def test_cancel_calls_client_order_id_first_and_requires_cancelled_terminal_proo
                 {
                     "client_order_id": requested,
                     "order_id": "exchange-order-1",
+                    "product_id": "BTC-USDC",
                     "status": "CANCELLED",
                 }
             ]
@@ -649,6 +692,7 @@ def test_cancel_falls_back_only_after_explicit_client_id_rejection_and_readback(
         {
             "client_order_id": client_order_id,
             "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
             "status": "OPEN",
         }
     ]
@@ -691,6 +735,7 @@ def test_cancel_falls_back_only_after_explicit_client_id_rejection_and_readback(
                 {
                     "client_order_id": "22daf1ea-4c57-4c03-98c5-e74459576228",
                     "order_id": "",
+                    "product_id": "BTC-USDC",
                     "status": "OPEN",
                 }
             ],
@@ -748,6 +793,7 @@ def test_cancel_filled_terminal_proof_does_not_fallback_or_claim_cancelled() -> 
         {
             "client_order_id": client_order_id,
             "order_id": "exchange-order-1",
+            "product_id": "BTC-USDC",
             "status": "FILLED",
         }
     ]

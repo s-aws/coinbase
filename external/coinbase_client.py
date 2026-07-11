@@ -634,6 +634,13 @@ class CoinbaseRestClient:
             product_type=product_type,
         )
 
+    def get_order(self, order_id: str) -> Dict[str, Any]:
+        """Get one order by its exchange-assigned order id."""
+
+        response = self._client.get_order(order_id)
+        data = coinbase_sdk_response_to_dict(response)
+        return data if isinstance(data, dict) else {}
+
     def list_fills(
         self,
         *,
