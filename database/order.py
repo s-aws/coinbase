@@ -14,11 +14,13 @@ from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from logging_service import get_logger
 from database.database import PostgresDB
 from typing import Dict, List, Any, NoReturn, Optional
+from core.action_condition_guard import SPOT_STANDING_MARKET_SOURCES
 from core.constants import get_local_now
 from core.enums import (
     OrderOwnershipProvenance,
     OrderSide,
     OrderStatus,
+    RevealConditionType,
     StealthOrderStatus,
 )
 from core.exceptions import DatabaseConnectionError, OrderPersistenceError, DatabaseTransactionError
@@ -1338,7 +1340,8 @@ def prepare_controlled_admin_first_child_reveal_atomic(
     submitted_limit_price: float,
     quote_increment: str,
     max_notional_usdc: float,
-    market_bid: float,
+    market_bid: Any,
+    market_source: str,
     market_observed_at: datetime,
     approval_snapshot_id: str,
     admission_audit_id: str,
@@ -1408,6 +1411,12 @@ def prepare_controlled_admin_first_child_reveal_atomic(
         field_name="market_bid",
         client_order_id=child_id,
     )
+    normalized_market_source = str(market_source or "").strip().lower()
+    if normalized_market_source not in SPOT_STANDING_MARKET_SOURCES:
+        raise _controlled_admin_child_persistence_error(
+            "controlled reveal market source is not canonical standing evidence",
+            client_order_id=child_id,
+        )
     hard_cap = _finite_positive_decimal(
         max_notional_usdc,
         field_name="max_notional_usdc",
@@ -1424,7 +1433,11 @@ def prepare_controlled_admin_first_child_reveal_atomic(
             client_order_id=child_id,
         )
 
-    if not isinstance(market_observed_at, datetime) or market_observed_at.tzinfo is None:
+    if (
+        not isinstance(market_observed_at, datetime)
+        or market_observed_at.tzinfo is None
+        or market_observed_at.utcoffset() is None
+    ):
         raise _controlled_admin_child_persistence_error(
             "market_observed_at must be timezone-aware fresh bid evidence",
             client_order_id=child_id,
@@ -1601,8 +1614,9 @@ def prepare_controlled_admin_first_child_reveal_atomic(
         condition = _json_mapping(stealth_row.get("reveal_condition_json"))
         if (
             str(stealth_row.get("reveal_condition_type") or "")
-            != "price_threshold"
-            or str(condition.get("type") or "") != "price_threshold"
+            != RevealConditionType.PRICE_THRESHOLD.value
+            or str(condition.get("type") or "")
+            != RevealConditionType.PRICE_THRESHOLD.value
             or str(condition.get("direction") or "").lower() != "above"
             or str(condition.get("standing_price_limit_policy") or "")
             != "admin_test_profile"
@@ -1648,7 +1662,8 @@ def prepare_controlled_admin_first_child_reveal_atomic(
             "prepared_at": now_utc.isoformat(),
             "market_observed_at": observed_at_utc.isoformat(),
             "market_age_seconds": float(market_age),
-            "market_bid": float(bid),
+            "market_bid": format(bid, "f"),
+            "market_source": normalized_market_source,
             "minimum_standing_price": float(minimum_standing_price),
             "requested_limit_price": float(requested_price),
             "prepared_limit_price": float(prepared_price),
@@ -1710,6 +1725,9 @@ def prepare_controlled_admin_first_child_reveal_atomic(
             "root_audit_id": root_audit_id,
             "prepared_limit_price": prepared_price,
             "reference_notional_usdc": reference_notional,
+            "market_bid": format(bid, "f"),
+            "market_source": normalized_market_source,
+            "market_observed_at": observed_at_utc,
             "reveal_condition_json": condition,
             "anchor_repricing_state_json": state,
         }

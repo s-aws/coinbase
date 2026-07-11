@@ -65,7 +65,8 @@ import uuid
 import json
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 from typing import Callable, Dict, Any, Iterator, Optional, Tuple, List
 
 from configuration import (
@@ -77,6 +78,7 @@ from configuration import (
 )
 from core.action_condition_guard import (
     ActionConditionGuard,
+    SPOT_STANDING_MARKET_SOURCES,
     collect_spot_planned_budget_commitments,
     evaluate_spot_standing_price_limit,
     fetch_account_wallets,
@@ -234,6 +236,9 @@ class ControlledAdminChildRevealAuthority:
     prepared_limit_price: float
     total_size: float
     reference_notional_usdc: float
+    market_bid: str
+    market_source: str
+    market_observed_at: datetime
     portfolio_id: str
     correlation_id: str
     root_audit_id: str
@@ -3659,7 +3664,8 @@ class StealthOrderManager:
         expected_portfolio_id: str,
         submitted_limit_price: float,
         max_notional_usdc: float,
-        market_bid: float,
+        market_bid: str,
+        market_source: str,
         market_observed_at: datetime,
         approval_snapshot_id: str,
         admission_audit_id: str,
@@ -3758,6 +3764,7 @@ class StealthOrderManager:
             quote_increment=quote_increment,
             max_notional_usdc=max_notional_usdc,
             market_bid=market_bid,
+            market_source=market_source,
             market_observed_at=market_observed_at,
             approval_snapshot_id=approval_snapshot_id,
             admission_audit_id=admission_audit_id,
@@ -3787,6 +3794,9 @@ class StealthOrderManager:
             prepared_limit_price=prepared_price,
             total_size=float(order["total_size"]),
             reference_notional_usdc=float(prepared["reference_notional_usdc"]),
+            market_bid=str(prepared["market_bid"]),
+            market_source=str(prepared["market_source"]),
+            market_observed_at=prepared["market_observed_at"],
             portfolio_id=str(prepared["portfolio_id"]),
             correlation_id=str(prepared["correlation_id"]),
             root_audit_id=str(prepared["root_audit_id"]),
@@ -3837,6 +3847,24 @@ class StealthOrderManager:
         if registered is not authority:
             return False, "controlled_admin_authority_not_issued"
 
+        try:
+            authority_market_bid = Decimal(str(authority.market_bid))
+        except (InvalidOperation, TypeError, ValueError):
+            return False, "controlled_admin_authority_market_bid_invalid"
+        if not authority_market_bid.is_finite() or authority_market_bid <= 0:
+            return False, "controlled_admin_authority_market_bid_invalid"
+        if authority.market_source not in SPOT_STANDING_MARKET_SOURCES:
+            return False, "controlled_admin_authority_market_source_invalid"
+        if (
+            not isinstance(authority.market_observed_at, datetime)
+            or authority.market_observed_at.tzinfo is None
+            or authority.market_observed_at.utcoffset() is None
+        ):
+            return False, "controlled_admin_authority_market_timestamp_invalid"
+        authority_market_observed_at = authority.market_observed_at.astimezone(
+            timezone.utc
+        )
+
         expected_fields = {
             "authority_id": authority.authority_id,
             "approval_snapshot_id": authority.approval_snapshot_id,
@@ -3850,6 +3878,9 @@ class StealthOrderManager:
             "portfolio_id": authority.portfolio_id,
             "correlation_id": authority.correlation_id,
             "root_audit_id": authority.root_audit_id,
+            "market_bid": authority.market_bid,
+            "market_source": authority.market_source,
+            "market_observed_at": authority_market_observed_at.isoformat(),
         }
         if any(preparation.get(key) != value for key, value in expected_fields.items()):
             return False, "controlled_admin_authority_audit_mismatch"
@@ -4776,12 +4807,38 @@ class StealthOrderManager:
                             evidence=guard_evidence,
                         )
                         return None
-                    latest_market = (
-                        self._get_current_market_data(
-                            order_for_submission["product_id"]
+                    if controlled_capability_bypass:
+                        if not isinstance(
+                            controlled_admin_authority,
+                            ControlledAdminChildRevealAuthority,
+                        ):
+                            self._record_admin_fill_follow_up_reveal_block(
+                                stealth_order_id=stealth_order_id,
+                                order=order,
+                                block_category=(
+                                    "controlled_admin_authority_type_mismatch"
+                                ),
+                                failure_reason=(
+                                    "Controlled Admin child market evidence is "
+                                    "not bound to the consumed one-call authority."
+                                ),
+                                evidence=admin_child_authority,
+                            )
+                            return None
+                        latest_market = {
+                            "bid": controlled_admin_authority.market_bid,
+                            "source": controlled_admin_authority.market_source,
+                            "time": (
+                                controlled_admin_authority.market_observed_at
+                            ),
+                        }
+                    else:
+                        latest_market = (
+                            self._get_current_market_data(
+                                order_for_submission["product_id"]
+                            )
+                            or {}
                         )
-                        or {}
-                    )
                     standing_price_limit = evaluate_spot_standing_price_limit(
                         side=order_for_submission["side"],
                         limit_price=attempt_price,

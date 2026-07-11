@@ -1,7 +1,7 @@
 import json
 import uuid
 from contextlib import contextmanager
-from dataclasses import FrozenInstanceError
+from dataclasses import FrozenInstanceError, replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from types import SimpleNamespace
@@ -12,6 +12,7 @@ import pytest
 from core.enums import (
     OrderOwnershipProvenance,
     OrderSide,
+    RevealConditionType,
     StealthOrderStatus,
 )
 from core.exceptions import OrderPersistenceError
@@ -88,9 +89,9 @@ def _stealth_row(**overrides):
         "executed_size": Decimal("0"),
         "limit_price": Decimal("101.00"),
         "status": "HIDDEN",
-        "reveal_condition_type": "price_threshold",
+        "reveal_condition_type": RevealConditionType.PRICE_THRESHOLD.value,
         "reveal_condition_json": {
-            "type": "price_threshold",
+            "type": RevealConditionType.PRICE_THRESHOLD.value,
             "price_threshold": 101.0,
             "direction": "above",
             "hold_duration_seconds": 0,
@@ -174,6 +175,7 @@ def _prepare(cursor, monkeypatch, **overrides):
         "quote_increment": "0.01",
         "max_notional_usdc": 9.99,
         "market_bid": 100.0,
+        "market_source": "coinbase_rest_best_bid",
         "market_observed_at": NOW - timedelta(seconds=2),
         "approval_snapshot_id": "approval-1",
         "admission_audit_id": "admission-1",
@@ -212,7 +214,35 @@ def test_atomic_prepare_rounds_sell_up_and_preserves_original_audit(monkeypatch)
     assert evidence["reconciliation_plan_id"] == "reconcile-1"
     assert evidence["batch_id"] == "batch-1"
     assert evidence["batch_slot"] == 1
+    assert evidence["market_bid"] == "100.0"
+    assert evidence["market_source"] == "coinbase_rest_best_bid"
+    assert evidence["market_observed_at"] == (
+        NOW - timedelta(seconds=2)
+    ).isoformat()
     assert state["unrelated"] == "preserve"
+
+
+@pytest.mark.parametrize("alias_location", ["column", "condition"])
+def test_atomic_prepare_rejects_noncanonical_price_threshold_alias(
+    monkeypatch,
+    alias_location,
+):
+    stealth = _stealth_row()
+    if alias_location == "column":
+        stealth["reveal_condition_type"] = "price_threshold"
+    else:
+        stealth["reveal_condition_json"] = {
+            **stealth["reveal_condition_json"],
+            "type": "price_threshold",
+        }
+    cursor = _Cursor(stealth=stealth)
+
+    with pytest.raises(OrderPersistenceError, match="policy evidence"):
+        _prepare(cursor, monkeypatch)
+
+    assert not any(
+        statement.startswith("UPDATE") for statement, _params in cursor.statements
+    )
 
 
 @pytest.mark.parametrize(
@@ -301,6 +331,17 @@ def test_atomic_prepare_rejects_stale_bid_and_notional_cap_without_db_mutation(
     assert second_generation_cursor.statements == []
 
 
+def test_atomic_prepare_rejects_noncanonical_market_source_without_db_mutation(
+    monkeypatch,
+):
+    cursor = _Cursor()
+
+    with pytest.raises(OrderPersistenceError, match="market source"):
+        _prepare(cursor, monkeypatch, market_source="placeholder")
+
+    assert cursor.statements == []
+
+
 @pytest.mark.parametrize("original_status", ["PENDING", "TRIGGERED"])
 def test_atomic_prepare_normalizes_unsubmitted_preexchange_condition_state(
     monkeypatch,
@@ -378,7 +419,7 @@ def _manager_order():
         "executed_size": 0.0,
         "limit_price": 101.0,
         "status": StealthOrderStatus.HIDDEN.value,
-        "reveal_condition_type": "price_threshold",
+        "reveal_condition_type": RevealConditionType.PRICE_THRESHOLD.value,
         "reveal_condition_json": _stealth_row()["reveal_condition_json"].copy(),
         "revealed_orders": [],
         "anchor_repricing_state_json": {"unrelated": "preserve"},
@@ -395,6 +436,7 @@ def _manager():
 
 
 def _prepare_result(**overrides):
+    observed_at = NOW - timedelta(seconds=2)
     result = {
         "stealth_order_id": CHILD_ID,
         "root_client_order_id": ROOT_ID,
@@ -403,6 +445,9 @@ def _prepare_result(**overrides):
         "root_audit_id": "root-audit-1",
         "prepared_limit_price": Decimal("160.01"),
         "reference_notional_usdc": Decimal("0.0032002"),
+        "market_bid": "100.0",
+        "market_source": "coinbase_rest_best_bid",
+        "market_observed_at": observed_at,
         "reveal_condition_json": {
             **_stealth_row()["reveal_condition_json"],
             "price_threshold": 160.01,
@@ -410,7 +455,10 @@ def _prepare_result(**overrides):
         "anchor_repricing_state_json": {
             "unrelated": "preserve",
             "controlled_admin_first_child_reveal_preparation": {
-                "authority_id": "authority-from-db"
+                "authority_id": "authority-from-db",
+                "market_bid": "100.0",
+                "market_source": "coinbase_rest_best_bid",
+                "market_observed_at": observed_at.isoformat(),
             },
         },
     }
@@ -425,7 +473,8 @@ def _manager_prepare_kwargs():
         "expected_portfolio_id": PORTFOLIO_ID,
         "submitted_limit_price": 160.001,
         "max_notional_usdc": 9.99,
-        "market_bid": 100.0,
+        "market_bid": "100.0",
+        "market_source": "coinbase_rest_best_bid",
         "market_observed_at": NOW - timedelta(seconds=2),
         "approval_snapshot_id": "approval-1",
         "admission_audit_id": "admission-1",
@@ -445,7 +494,12 @@ def test_manager_prepares_durably_then_updates_memory_and_issues_frozen_authorit
         anchor_repricing_state_json={
             "unrelated": "preserve",
             "controlled_admin_first_child_reveal_preparation": {
-                "authority_id": kwargs["authority_id"]
+                "authority_id": kwargs["authority_id"],
+                "market_bid": str(kwargs["market_bid"]),
+                "market_source": kwargs["market_source"],
+                "market_observed_at": kwargs[
+                    "market_observed_at"
+                ].isoformat(),
             },
         }
     ))
@@ -462,11 +516,15 @@ def test_manager_prepares_durably_then_updates_memory_and_issues_frozen_authorit
     assert authority.stealth_order_id == CHILD_ID
     assert authority.root_client_order_id == ROOT_ID
     assert authority.prepared_limit_price == 160.01
+    assert authority.market_bid == "100.0"
+    assert authority.market_source == "coinbase_rest_best_bid"
+    assert authority.market_observed_at == NOW - timedelta(seconds=2)
     assert manager.in_memory_orders[CHILD_ID]["limit_price"] == 160.01
     assert manager.in_memory_orders[CHILD_ID]["reveal_condition_json"][
         "price_threshold"
     ] == 160.01
     assert atomic.call_args.kwargs["quote_increment"] == "0.01"
+    assert atomic.call_args.kwargs["market_source"] == "coinbase_rest_best_bid"
     with pytest.raises(FrozenInstanceError):
         authority.prepared_limit_price = 999.0
 
@@ -513,6 +571,9 @@ def test_controlled_authority_is_exact_and_consumed_once():
         prepared_limit_price=160.01,
         total_size=0.00002,
         reference_notional_usdc=0.0032002,
+        market_bid="100.0",
+        market_source="coinbase_rest_best_bid",
+        market_observed_at=NOW - timedelta(seconds=2),
         portfolio_id=PORTFOLIO_ID,
         correlation_id="corr-1",
         root_audit_id="root-audit-1",
@@ -543,6 +604,9 @@ def test_controlled_authority_is_exact_and_consumed_once():
         "portfolio_id": PORTFOLIO_ID,
         "correlation_id": "corr-1",
         "root_audit_id": "root-audit-1",
+        "market_bid": "100.0",
+        "market_source": "coinbase_rest_best_bid",
+        "market_observed_at": (NOW - timedelta(seconds=2)).isoformat(),
     }
 
     allowed, reason = manager._consume_controlled_admin_child_reveal_authority(
@@ -557,10 +621,30 @@ def test_controlled_authority_is_exact_and_consumed_once():
             authority=authority,
         )
     )
+    drifted_authority = replace(
+        authority,
+        authority_id="authority-2",
+        market_bid="101.0",
+    )
+    manager._controlled_admin_child_reveal_authorities[
+        "authority-2"
+    ] = drifted_authority
+    order["anchor_repricing_state_json"][
+        "controlled_admin_first_child_reveal_preparation"
+    ]["authority_id"] = "authority-2"
+    drifted, drifted_reason = (
+        manager._consume_controlled_admin_child_reveal_authority(
+            stealth_order_id=CHILD_ID,
+            order=order,
+            authority=drifted_authority,
+        )
+    )
 
     assert (allowed, reason) == (True, None)
     assert repeated is False
     assert repeated_reason == "controlled_admin_authority_not_issued"
+    assert drifted is False
+    assert drifted_reason == "controlled_admin_authority_audit_mismatch"
 
 
 def test_prepared_child_without_one_call_authority_stays_pre_exchange(monkeypatch):
@@ -710,19 +794,49 @@ def test_controlled_authority_revalidates_instead_of_obeying_stale_guard_cooldow
     manager._evaluate_action_condition_guard.assert_called_once()
 
 
-def test_exact_authority_bypasses_only_disabled_reveal_capability(monkeypatch):
+@pytest.mark.parametrize(
+    (
+        "authority_market_source",
+        "authority_market_age_seconds",
+        "expected_result",
+        "expected_blocker",
+    ),
+    [
+        ("coinbase_rest_best_bid", 0, CHILD_ID, None),
+        ("coinbase_rest_best_bid", 31, None, "live_ticker_bid_stale"),
+        (
+            "placeholder",
+            0,
+            None,
+            "controlled_admin_authority_market_source_invalid",
+        ),
+    ],
+)
+def test_exact_authority_uses_bound_market_when_manager_cache_is_placeholder(
+    monkeypatch,
+    authority_market_source,
+    authority_market_age_seconds,
+    expected_result,
+    expected_blocker,
+):
     manager = StealthOrderManager(db_client=None, log_callback=MagicMock())
     manager.expected_retail_portfolio_id = PORTFOLIO_ID
     order = _manager_order()
     order["limit_price"] = 160.01
     order["reveal_condition_json"]["price_threshold"] = 160.01
     manager.in_memory_orders[CHILD_ID] = order
+    market_observed_at = datetime.now(timezone.utc) - timedelta(
+        seconds=authority_market_age_seconds
+    )
     authority = ControlledAdminChildRevealAuthority(
         stealth_order_id=CHILD_ID,
         root_client_order_id=ROOT_ID,
         prepared_limit_price=160.01,
         total_size=0.00002,
         reference_notional_usdc=0.0032002,
+        market_bid="100.0",
+        market_source=authority_market_source,
+        market_observed_at=market_observed_at,
         portfolio_id=PORTFOLIO_ID,
         correlation_id="corr-1",
         root_audit_id="root-audit-1",
@@ -749,6 +863,9 @@ def test_exact_authority_bypasses_only_disabled_reveal_capability(monkeypatch):
         "portfolio_id": PORTFOLIO_ID,
         "correlation_id": "corr-1",
         "root_audit_id": "root-audit-1",
+        "market_bid": "100.0",
+        "market_source": authority_market_source,
+        "market_observed_at": market_observed_at.isoformat(),
     }
     manager._controlled_admin_child_reveal_authorities = {
         "authority-1": authority
@@ -771,17 +888,18 @@ def test_exact_authority_bypasses_only_disabled_reveal_capability(monkeypatch):
     manager._resolve_admin_fill_follow_up_reveal_authority = MagicMock(
         return_value={"required": True, "ready": True, "blockers": []}
     )
+    manager._record_admin_fill_follow_up_reveal_block = MagicMock()
     manager._evaluate_action_condition_guard = MagicMock(return_value=(True, None))
     manager._resolve_target_movement_for_plan = MagicMock(
         return_value=(None, None, "none")
     )
     manager._get_current_market_data = MagicMock(
         return_value={
-            "price": 100.05,
-            "bid": 100.0,
-            "ask": 100.1,
-            "time": datetime.now(timezone.utc),
-            "source": "ticker",
+            "price": None,
+            "bid": None,
+            "ask": None,
+            "time": None,
+            "source": "placeholder",
         }
     )
     manager._update_stealth_order = MagicMock()
@@ -813,17 +931,29 @@ def test_exact_authority_bypasses_only_disabled_reveal_capability(monkeypatch):
     assert manager.reveal_order_slice(
         CHILD_ID,
         controlled_admin_authority=authority,
-    ) == CHILD_ID
+    ) == expected_result
 
-    rest_client.place_limit_order.assert_called_once_with(
-        product_id="BTC-USDC",
-        side="SELL",
-        limit_price="160.01",
-        base_size="2e-05",
-        client_order_id=CHILD_ID,
-        post_only=False,
-    )
+    if expected_result is not None:
+        rest_client.place_limit_order.assert_called_once_with(
+            product_id="BTC-USDC",
+            side="SELL",
+            limit_price="160.01",
+            base_size="2e-05",
+            client_order_id=CHILD_ID,
+            post_only=False,
+        )
+    else:
+        rest_client.place_limit_order.assert_not_called()
+        assert manager._record_admin_fill_follow_up_reveal_block.call_args.kwargs[
+            "block_category"
+        ] == expected_blocker
     # The initial admission and immediately-pre-REST revalidation both remain.
-    assert manager._evaluate_action_condition_guard.call_count == 2
-    manager.order_placement_hooks.call_pre_submission_hooks.assert_called_once()
+    expected_guard_calls = 2 if authority_market_source != "placeholder" else 0
+    assert manager._evaluate_action_condition_guard.call_count == expected_guard_calls
+    expected_cache_reads = 1 if authority_market_source != "placeholder" else 0
+    assert manager._get_current_market_data.call_count == expected_cache_reads
+    if authority_market_source != "placeholder":
+        manager.order_placement_hooks.call_pre_submission_hooks.assert_called_once()
+    else:
+        manager.order_placement_hooks.call_pre_submission_hooks.assert_not_called()
     assert manager._controlled_admin_child_reveal_authorities == {}

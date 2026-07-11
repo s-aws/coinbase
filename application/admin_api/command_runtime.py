@@ -11,7 +11,10 @@ from threading import Lock
 from typing import Any, Callable
 import uuid
 
-from core.action_condition_guard import rest_credentials_configured
+from core.action_condition_guard import (
+    SPOT_STANDING_MARKET_SOURCES,
+    rest_credentials_configured,
+)
 from core.enums import OrderOwnershipProvenance
 from core.runtime_controller import (
     INFLIGHT_FILL_PROCESSING,
@@ -753,6 +756,9 @@ class AdminApiControlledFirstChildRuntimeAdapter:
         if not market_bid.is_finite() or market_bid <= 0:
             raise RuntimeError("controlled_child_fresh_bid_missing")
         market_observed_at = self._observed_at(market.get("observed_at"))
+        market_source = str(market.get("source") or "").strip().lower()
+        if market_source not in SPOT_STANDING_MARKET_SOURCES:
+            raise RuntimeError("controlled_child_market_source_invalid")
 
         authority = manager.prepare_controlled_admin_first_child_reveal(
             stealth_order_id=stealth_order_id,
@@ -760,7 +766,8 @@ class AdminApiControlledFirstChildRuntimeAdapter:
             expected_portfolio_id=expected_portfolio_id,
             submitted_limit_price=float(Decimal(str(submitted_limit_price))),
             max_notional_usdc=float(Decimal(str(max_notional_usdc))),
-            market_bid=float(market_bid),
+            market_bid=self._decimal_text(market_bid),
+            market_source=market_source,
             market_observed_at=market_observed_at,
             approval_snapshot_id=approval_snapshot_id,
             admission_audit_id=admission_audit_id,

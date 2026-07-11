@@ -861,6 +861,10 @@ def test_runtime_adapter_uses_canonical_rest_reference_when_cache_is_placeholder
 
     canonical_reference.assert_called_once_with("BTC-USDC")
     manager.prepare_controlled_admin_first_child_reveal.assert_called_once()
+    preparation = manager.prepare_controlled_admin_first_child_reveal.call_args.kwargs
+    assert preparation["market_bid"] == "64000.00"
+    assert preparation["market_source"] == "coinbase_rest_best_bid"
+    assert preparation["market_observed_at"] == now
     manager.reveal_order_slice.assert_called_once_with(
         CHILD_ID,
         controlled_admin_authority=authority,
@@ -875,20 +879,34 @@ def test_runtime_adapter_uses_canonical_rest_reference_when_cache_is_placeholder
         (
             {
                 "best_bid": "NaN",
+                "source": "coinbase_rest_best_bid",
                 "observed_at": datetime.now(timezone.utc),
             },
             "controlled_child_fresh_bid_missing",
         ),
         (
-            {"best_bid": "64000.00", "observed_at": None},
+            {
+                "best_bid": "64000.00",
+                "source": "coinbase_rest_best_bid",
+                "observed_at": None,
+            },
             "controlled_child_market_timestamp_missing",
         ),
         (
             {
                 "best_bid": "64000.00",
+                "source": "coinbase_rest_best_bid",
                 "observed_at": datetime.now().replace(tzinfo=None),
             },
             "controlled_child_market_timestamp_not_aware",
+        ),
+        (
+            {
+                "best_bid": "64000.00",
+                "source": "placeholder",
+                "observed_at": datetime.now(timezone.utc),
+            },
+            "controlled_child_market_source_invalid",
         ),
     ],
 )

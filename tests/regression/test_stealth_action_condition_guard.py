@@ -17,7 +17,10 @@ from core.enums import (
 from core.action_condition_guard import evaluate_spot_standing_price_limit
 from core.exceptions import OrderCreationError
 from core.models import RevealExecutionPlan
-from core.stealth_order_manager import StealthOrderManager
+from core.stealth_order_manager import (
+    ControlledAdminChildRevealAuthority,
+    StealthOrderManager,
+)
 
 
 TEST_PORTFOLIO_ID = "11111111-2222-4333-8444-555555555555"
@@ -336,7 +339,26 @@ def test_direct_admin_root_child_reveal_stays_pre_exchange_outside_standing_limi
             (False, "controlled_admin_authority_not_issued"),
         ]
     )
-    controlled_authority = object()
+    controlled_authority = ControlledAdminChildRevealAuthority(
+        stealth_order_id=sid,
+        root_client_order_id=order["parent_order_id"],
+        prepared_limit_price=101.0,
+        total_size=0.01,
+        reference_notional_usdc=1.01,
+        market_bid="100.0",
+        market_source="ticker",
+        market_observed_at=datetime.now(timezone.utc),
+        portfolio_id=TEST_PORTFOLIO_ID,
+        correlation_id="corr-direct-child",
+        root_audit_id="audit-direct-child",
+        authority_id="authority-direct-child",
+        approval_snapshot_id="approval-direct-child",
+        admission_audit_id="admission-direct-child",
+        cap_guard_decision_id="cap-direct-child",
+        reconciliation_plan_id="reconciliation-direct-child",
+        batch_id="batch-direct-child",
+        batch_slot=1,
+    )
     manager.profit_validator = None
     manager._calculate_reveal_size = MagicMock(return_value=0.01)
     manager.build_reveal_execution_plan = MagicMock(

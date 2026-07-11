@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from contextlib import contextmanager, nullcontext
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 import uuid
@@ -9,7 +10,10 @@ import database.order as order_db
 import pytest
 from core.enums import OrderOwnershipProvenance
 from core.models import RevealExecutionPlan
-from core.stealth_order_manager import StealthOrderManager
+from core.stealth_order_manager import (
+    ControlledAdminChildRevealAuthority,
+    StealthOrderManager,
+)
 
 
 TEST_PORTFOLIO_ID = "11111111-2222-4333-8444-555555555555"
@@ -543,9 +547,29 @@ def test_admin_child_standing_block_persists_and_surfaces_in_chain_readback(
         manager._consume_controlled_admin_child_reveal_authority = MagicMock(
             return_value=(True, None)
         )
+        controlled_authority = ControlledAdminChildRevealAuthority(
+            stealth_order_id=child_id,
+            root_client_order_id=root_id,
+            prepared_limit_price=101.0,
+            total_size=0.01,
+            reference_notional_usdc=1.01,
+            market_bid="100.0",
+            market_source="ticker",
+            market_observed_at=datetime.now(timezone.utc),
+            portfolio_id=TEST_PORTFOLIO_ID,
+            correlation_id=ROOT_CORRELATION_ID,
+            root_audit_id=ROOT_AUDIT_ID,
+            authority_id="authority-standing-block",
+            approval_snapshot_id="approval-standing-block",
+            admission_audit_id="admission-standing-block",
+            cap_guard_decision_id="cap-standing-block",
+            reconciliation_plan_id="reconciliation-standing-block",
+            batch_id="batch-standing-block",
+            batch_slot=1,
+        )
 
         assert manager.reveal_order_slice(
-            child_id, controlled_admin_authority=object()
+            child_id, controlled_admin_authority=controlled_authority
         ) is None
         rest_client.place_limit_order.assert_not_called()
 
