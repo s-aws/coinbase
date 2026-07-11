@@ -1,5 +1,5 @@
 #!/usr/bin/env python3.13
-"""Controlled successor proof for the ten-slot Admin Spot root/child batch.
+"""Controlled v2 successor proof for the ten-slot Admin Spot root/child batch.
 
 Default mode is read-only. Exchange mutation additionally requires an
 owner-only, unexpired immutable plan, its exact SHA-256, the exact
@@ -10,13 +10,13 @@ slots 2 through 10. Each fully filled root authorizes exactly its deterministic
 first SELL/LIMIT/GTC child, which is submitted far from market and cancelled
 through the guarded Admin routes before the next root.
 
-The predecessor plan, marker, one-record ledger, and final SDK sentinel are
-read-only hash-bound evidence. A new fixed O_EXCL successor marker and ledger
+The original predecessor and the zero-placement failed-v1 successor are
+read-only hash-bound evidence. New fixed O_EXCL v2 plan, marker, and ledger
 consume the remaining 19 placements in the only legal order: child-1, then
-root/child pairs for slots 2 through 10. A consumed or crashed successor cannot
-resume, retry, or substitute a tuple. In-process SDK sentinels independently
-enforce at most nine new roots and ten new children; cumulative evidence proves
-ten roots and ten children across predecessor plus successor.
+root/child pairs for slots 2 through 10. A consumed or crashed v2 cannot resume,
+retry, or substitute a tuple. In-process SDK sentinels independently enforce at
+most nine new roots and ten new children; cumulative evidence proves ten roots
+and ten children across predecessor plus v2.
 """
 
 from __future__ import annotations
@@ -45,8 +45,8 @@ import requests
 
 
 ROOT = Path("/home/ec2-user/coinbase")
-# Immutable production parent/tree audited before this runner-only commit.
-EXPECTED_COMMIT = "cf9e804fefbc4672113847712327f481220239a1"
+# Immutable failed-successor runner commit audited before this runner-only fix.
+EXPECTED_COMMIT = "0eac3a234677a1ef565206d7504a5ad8c30ba729"
 SECRET_ID = "coinbase/Test"
 SECRET_REGION = "us-east-1"
 PRODUCT_ID = "BTC-USDC"
@@ -153,6 +153,39 @@ PREDECESSOR_SENTINEL_PATH = (
 PREDECESSOR_CLEANUP_PATH = (
     PREDECESSOR_STATE_DIR / "controlled-batch-cleanup.json"
 )
+FAILED_SUCCESSOR_V1_PLAN_PATH = Path(
+    "/home/ec2-user/.local/state/coinbase-controlled-root-child-successor-20260711.plan.json"
+)
+FAILED_SUCCESSOR_V1_MARKER_PATH = GLOBAL_BATCH_REGISTRY_DIR / (
+    "test-profile-btc-usdc-root-child-successor-20260711.authority.json"
+)
+FAILED_SUCCESSOR_V1_LEDGER_PATH = GLOBAL_BATCH_REGISTRY_DIR / (
+    "test-profile-btc-usdc-root-child-successor-20260711.attempts.jsonl"
+)
+FAILED_SUCCESSOR_V1_STATE_DIR = ROOT / (
+    "artifacts/controlled-root-child-batch-20260711T184038Z-b86ab210"
+)
+FAILED_SUCCESSOR_V1_FAILURE_PATH = (
+    FAILED_SUCCESSOR_V1_STATE_DIR / "controlled-batch-failure.json"
+)
+FAILED_SUCCESSOR_V1_CLEANUP_PATH = (
+    FAILED_SUCCESSOR_V1_STATE_DIR / "controlled-batch-cleanup.json"
+)
+FAILED_SUCCESSOR_V1_SENTINEL_PATH = (
+    FAILED_SUCCESSOR_V1_STATE_DIR / "sdk-boundary-sentinel.json"
+)
+FAILED_SUCCESSOR_V1_PARENT_LOSS_PATH = (
+    FAILED_SUCCESSOR_V1_STATE_DIR / "parent-authority-loss.json"
+)
+FAILED_SUCCESSOR_V1_RUNTIME_AUTH_PATH = (
+    FAILED_SUCCESSOR_V1_STATE_DIR / "runtime-child-authority.json"
+)
+FAILED_SUCCESSOR_V1_RUNTIME_AUTH_USED_PATH = (
+    FAILED_SUCCESSOR_V1_STATE_DIR / "runtime-child-authority.used.json"
+)
+SUCCESSOR_V2_PLAN_PATH = Path(
+    "/home/ec2-user/.local/state/coinbase-controlled-root-child-successor-v2-20260711.plan.json"
+)
 PREDECESSOR_PLAN_BYTES_SHA256 = (
     "b60931d4c4ea3f22616250ee93f51c74854fcaf27357b2d8ec364451cf7ec246"
 )
@@ -171,6 +204,33 @@ PREDECESSOR_SENTINEL_BYTES_SHA256 = (
 PREDECESSOR_CLEANUP_BYTES_SHA256 = (
     "17cb46a3df5d22f902ec06574d03b7c35d56130fbdf3c8a3430dda56a9962456"
 )
+FAILED_SUCCESSOR_V1_PLAN_BYTES_SHA256 = (
+    "b51fbb42f81df580a89d904576e7ca0a98ce28232da3c0f202b89474d365127e"
+)
+FAILED_SUCCESSOR_V1_MARKER_BYTES_SHA256 = (
+    "ce4ad0fde6b86e7e15f368dbdaec751a48842c104c561d98d6a834c4e9055834"
+)
+FAILED_SUCCESSOR_V1_LEDGER_BYTES_SHA256 = (
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+)
+FAILED_SUCCESSOR_V1_FAILURE_BYTES_SHA256 = (
+    "80a4af6ca017131c41417c69420a09a9f071901ce114f7d585a2123024717020"
+)
+FAILED_SUCCESSOR_V1_CLEANUP_BYTES_SHA256 = (
+    "c5b2218d782fa0aef403967a45d54fcf63f6f1c9a41b937bc427877b297aed1e"
+)
+FAILED_SUCCESSOR_V1_SENTINEL_BYTES_SHA256 = (
+    "9c66b8f43b5cfcc55ac18e2c6f527892926d458ef174df40a0808ce1e083a9a0"
+)
+FAILED_SUCCESSOR_V1_PARENT_LOSS_BYTES_SHA256 = (
+    "0ad6ebc5b2e1a966219babb474a52d4a2be52bb5540ce62c558b9427d726fdfc"
+)
+FAILED_SUCCESSOR_V1_RUNTIME_AUTH_BYTES_SHA256 = (
+    "532dae23a144a96e98736a359984a0655a163e177bbc4bf50289126faecc0ba1"
+)
+FAILED_SUCCESSOR_V1_RUNTIME_AUTH_USED_BYTES_SHA256 = (
+    "c91cdfc34759593cca6b728fd15a1fce0337cd0101cbd757657cbfe47a17920d"
+)
 PREDECESSOR_BACKEND_COMMIT = "794516bffb16f5af9b98392e60d9f3037f169322"
 PREDECESSOR_RUNNER_SHA256 = (
     "695deb8439d601a43b5a09f0f570b07ad612b9d7c115a1f0bc17eef64d942d8b"
@@ -179,9 +239,29 @@ PREDECESSOR_APPROVAL_ID = (
     "controlled-root-child-batch-82448d97-594b-4a58-9f24-b7cd51aa9be3"
 )
 PREDECESSOR_BATCH_ID = "45969fb1-6675-592b-ad96-37a1dfbb2c30"
+FAILED_SUCCESSOR_V1_RUNNER_COMMIT = "0eac3a234677a1ef565206d7504a5ad8c30ba729"
+FAILED_SUCCESSOR_V1_PRODUCTION_PARENT_COMMIT = (
+    "cf9e804fefbc4672113847712327f481220239a1"
+)
+FAILED_SUCCESSOR_V1_RUNNER_SHA256 = (
+    "20595a2f444b8d554e85ba07c1421e2e7cf08b1f7242130f5465dddf0fc8fd9d"
+)
+FAILED_SUCCESSOR_V1_APPROVAL_ID = (
+    "controlled-root-child-successor-85a47860-5baf-47b8-bc45-ef18136c5fc0"
+)
+FAILED_SUCCESSOR_V1_BATCH_ID = "a0a6d879-2b20-599c-aaa4-4418206fb818"
+FAILED_SUCCESSOR_V1_PLAN_SHA256 = (
+    "301614c74d77f087f6927a571a872e59683706ff27ef188e6de74b7a6da56fcf"
+)
+FAILED_SUCCESSOR_V1_PARENT_PID = 249625
+FAILED_SUCCESSOR_V1_RUNTIME_PID = 249659
 CARRIED_ROOT_CLIENT_ORDER_ID = "a32a9839-d7dc-507d-bed8-8f4da1b2e2e7"
 CARRIED_CHILD_CLIENT_ORDER_ID = "7fcadaa3-027f-5c09-b338-4e625ceee53f"
 CARRIED_ROOT_EXCHANGE_ORDER_ID = "edc4c227-8937-4c1a-b437-1c93127c1fb2"
+CARRIED_ROOT_EXCHANGE_TRADE_ID = "cbd8e50e-0789-4472-b868-b318c64bb8b6"
+CARRIED_ROOT_EXCHANGE_ENTRY_ID = (
+    "83f50589f7ae36e164ef0b757c2c54dac4839cbdb11102296ce8731a54dd820d"
+)
 CARRIED_ROOT_PLANNED_NOTIONAL = Decimal("1.1000855217")
 CARRIED_ROOT_FILLED_SIZE = Decimal("0.00001709")
 CARRIED_ROOT_FILLED_VALUE = Decimal("1.0970980188")
@@ -214,17 +294,41 @@ PREDECESSOR_PLANNED_CHILD_CLIENT_ORDER_IDS = (
     "1e3b4e11-e07d-5804-8bc1-6540286eeb3a",
     "25c8e065-1b0e-5874-b652-600af0d6cc8d",
 )
+FAILED_SUCCESSOR_V1_PLANNED_ROOT_CLIENT_ORDER_IDS = (
+    CARRIED_ROOT_CLIENT_ORDER_ID,
+    "814a64b7-1862-5bf1-aa17-c35ea654d520",
+    "e41b0b21-1ba1-5074-afdd-8c0d9d289a5f",
+    "b53aa660-3c13-5505-97c8-f40bfd6de381",
+    "a331af52-cad3-5f3d-bff9-95eee41e1306",
+    "4fabccb0-31d4-509f-bc05-fe056aa4b916",
+    "498fafba-bf4f-5fe9-8c4e-1402a2893442",
+    "9b8f2e81-c12d-52f7-ad66-3de001329f9d",
+    "74b4c108-0c64-5f55-a494-11298732bf35",
+    "e69429c4-d582-59e1-9e81-f5ca972942fa",
+)
+FAILED_SUCCESSOR_V1_PLANNED_CHILD_CLIENT_ORDER_IDS = (
+    CARRIED_CHILD_CLIENT_ORDER_ID,
+    "97cc7187-71b2-5044-ac61-6b7bb6aba159",
+    "0b13c1bd-5e29-507e-ba8c-ac95c939ce00",
+    "d72983c3-a58d-5719-8444-8ef670e2a0c5",
+    "d0594947-412b-565e-ae0a-14a10f1dde0b",
+    "a7326516-bee2-5c2e-8d4b-cb0cc29f56f8",
+    "98cd44e3-d9dd-5117-a958-bd06305de5d5",
+    "111d3b7d-085c-544e-9003-7462a4042445",
+    "d9ef068b-9c91-5fb5-b825-75a9ebd924ed",
+    "cac124ae-0acb-5010-a317-a6647092ff69",
+)
 SUCCESSOR_ROOT_ORDER_MAXIMUM = BATCH_SIZE - 1
 SUCCESSOR_CHILD_ORDER_MAXIMUM = BATCH_SIZE
 SUCCESSOR_ATTEMPT_COUNT = (
     SUCCESSOR_ROOT_ORDER_MAXIMUM + SUCCESSOR_CHILD_ORDER_MAXIMUM
 )
-PLAN_SCHEMA_VERSION = "5"
+PLAN_SCHEMA_VERSION = "6"
 GLOBAL_BATCH_MARKER_FILENAME = (
-    "test-profile-btc-usdc-root-child-successor-20260711.authority.json"
+    "test-profile-btc-usdc-root-child-successor-v2-20260711.authority.json"
 )
 GLOBAL_BATCH_LEDGER_FILENAME = (
-    "test-profile-btc-usdc-root-child-successor-20260711.attempts.jsonl"
+    "test-profile-btc-usdc-root-child-successor-v2-20260711.attempts.jsonl"
 )
 SPOT_NONTERMINAL_STATUSES = (
     "PENDING",
@@ -359,6 +463,51 @@ def require_runtime_exclusivity(
         probe.close()
 
 
+def failed_successor_runtime_shutdown_decision(
+    *,
+    runtime_pid_present: bool,
+    port_free: bool,
+) -> str:
+    """Pure gate for the preserved failed-v1 runtime's final shutdown."""
+
+    return (
+        "shutdown_proven"
+        if not runtime_pid_present and port_free
+        else "shutdown_unproven"
+    )
+
+
+def require_failed_successor_runtime_stopped() -> dict[str, Any]:
+    """Require the exact preserved v1 PID absent and Admin port unbound."""
+
+    runtime_pid_present = Path(
+        f"/proc/{FAILED_SUCCESSOR_V1_RUNTIME_PID}"
+    ).exists()
+    probe = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        probe.bind(("127.0.0.1", PORT))
+        port_free = True
+    except OSError:
+        port_free = False
+    finally:
+        probe.close()
+    require(
+        failed_successor_runtime_shutdown_decision(
+            runtime_pid_present=runtime_pid_present,
+            port_free=port_free,
+        )
+        == "shutdown_proven",
+        "failed_successor_runtime_shutdown_unproven",
+    )
+    return {
+        "failed_successor_runtime_pid": FAILED_SUCCESSOR_V1_RUNTIME_PID,
+        "failed_successor_runtime_pid_absent": True,
+        "admin_port": PORT,
+        "admin_port_free": True,
+        "shutdown_proven": True,
+    }
+
+
 def object_record(value: Any) -> dict[str, Any]:
     if isinstance(value, Mapping):
         return dict(value)
@@ -456,12 +605,74 @@ def offline_predecessor_binding_fixture() -> dict[str, Any]:
     }
 
 
+def offline_failed_successor_binding_fixture() -> dict[str, Any]:
+    """Return the immutable failed-v1 identity bound into v2 authority."""
+
+    return {
+        "schema_version": "1",
+        "runner_commit": FAILED_SUCCESSOR_V1_RUNNER_COMMIT,
+        "production_parent_commit": (
+            FAILED_SUCCESSOR_V1_PRODUCTION_PARENT_COMMIT
+        ),
+        "runner_sha256": FAILED_SUCCESSOR_V1_RUNNER_SHA256,
+        "approval_id": FAILED_SUCCESSOR_V1_APPROVAL_ID,
+        "batch_id": FAILED_SUCCESSOR_V1_BATCH_ID,
+        "plan_sha256": FAILED_SUCCESSOR_V1_PLAN_SHA256,
+        "plan_path": str(FAILED_SUCCESSOR_V1_PLAN_PATH),
+        "plan_bytes_sha256": FAILED_SUCCESSOR_V1_PLAN_BYTES_SHA256,
+        "marker_path": str(FAILED_SUCCESSOR_V1_MARKER_PATH),
+        "marker_bytes_sha256": FAILED_SUCCESSOR_V1_MARKER_BYTES_SHA256,
+        "ledger_path": str(FAILED_SUCCESSOR_V1_LEDGER_PATH),
+        "ledger_bytes_sha256": FAILED_SUCCESSOR_V1_LEDGER_BYTES_SHA256,
+        "failure_path": str(FAILED_SUCCESSOR_V1_FAILURE_PATH),
+        "failure_bytes_sha256": FAILED_SUCCESSOR_V1_FAILURE_BYTES_SHA256,
+        "cleanup_path": str(FAILED_SUCCESSOR_V1_CLEANUP_PATH),
+        "cleanup_bytes_sha256": FAILED_SUCCESSOR_V1_CLEANUP_BYTES_SHA256,
+        "sentinel_path": str(FAILED_SUCCESSOR_V1_SENTINEL_PATH),
+        "sentinel_bytes_sha256": FAILED_SUCCESSOR_V1_SENTINEL_BYTES_SHA256,
+        "parent_loss_path": str(FAILED_SUCCESSOR_V1_PARENT_LOSS_PATH),
+        "parent_loss_bytes_sha256": (
+            FAILED_SUCCESSOR_V1_PARENT_LOSS_BYTES_SHA256
+        ),
+        "runtime_auth_path": str(FAILED_SUCCESSOR_V1_RUNTIME_AUTH_PATH),
+        "runtime_auth_bytes_sha256": (
+            FAILED_SUCCESSOR_V1_RUNTIME_AUTH_BYTES_SHA256
+        ),
+        "runtime_auth_used_path": str(
+            FAILED_SUCCESSOR_V1_RUNTIME_AUTH_USED_PATH
+        ),
+        "runtime_auth_used_bytes_sha256": (
+            FAILED_SUCCESSOR_V1_RUNTIME_AUTH_USED_BYTES_SHA256
+        ),
+        "parent_pid": FAILED_SUCCESSOR_V1_PARENT_PID,
+        "runtime_pid": FAILED_SUCCESSOR_V1_RUNTIME_PID,
+        "attempt_count": 0,
+        "root_sdk_call_count": 0,
+        "child_sdk_call_count": 0,
+        "planned_root_client_order_ids": list(
+            FAILED_SUCCESSOR_V1_PLANNED_ROOT_CLIENT_ORDER_IDS
+        ),
+        "planned_child_client_order_ids": list(
+            FAILED_SUCCESSOR_V1_PLANNED_CHILD_CLIENT_ORDER_IDS
+        ),
+        "failure_reason": (
+            "fill_ledger_not_clean_ws_derived_before_reconciliation"
+        ),
+        "service_disabled": True,
+        "new_sdk_placements_denied": True,
+        "sdk_quiescence_proven": True,
+        "active_spot_orders_after_reconciliation": [],
+        "runtime_stopped_required": True,
+    }
+
+
 def _read_owner_only_bytes(
     path: Path,
     *,
     blocker_prefix: str,
     maximum_size: int = 100_000,
     allow_group_world_read: bool = False,
+    allow_empty: bool = False,
 ) -> bytes:
     """Read immutable evidence without following a symlink."""
 
@@ -488,13 +699,17 @@ def _read_owner_only_bytes(
                 f"{blocker_prefix}_permissions_too_broad",
             )
         require(
-            0 < metadata.st_size <= maximum_size,
+            (allow_empty or metadata.st_size > 0)
+            and metadata.st_size <= maximum_size,
             f"{blocker_prefix}_size_invalid",
         )
         raw = os.read(descriptor, maximum_size + 1)
     finally:
         os.close(descriptor)
-    require(0 < len(raw) <= maximum_size, f"{blocker_prefix}_size_invalid")
+    require(
+        (allow_empty or len(raw) > 0) and len(raw) <= maximum_size,
+        f"{blocker_prefix}_size_invalid",
+    )
     return raw
 
 
@@ -742,6 +957,317 @@ def load_predecessor_binding() -> dict[str, Any]:
             PREDECESSOR_CLEANUP_PATH,
             blocker_prefix="predecessor_cleanup",
             allow_group_world_read=True,
+        ),
+    )
+
+
+def validate_failed_successor_artifacts(
+    *,
+    plan_raw: bytes,
+    marker_raw: bytes,
+    ledger_raw: bytes,
+    failure_raw: bytes,
+    cleanup_raw: bytes,
+    sentinel_raw: bytes,
+    parent_loss_raw: bytes,
+    runtime_auth_raw: bytes,
+    runtime_auth_used_raw: bytes,
+) -> dict[str, Any]:
+    """Validate the failed v1's immutable zero-placement evidence exactly."""
+
+    for raw, expected, blocker in (
+        (
+            plan_raw,
+            FAILED_SUCCESSOR_V1_PLAN_BYTES_SHA256,
+            "failed_successor_plan_bytes_changed",
+        ),
+        (
+            marker_raw,
+            FAILED_SUCCESSOR_V1_MARKER_BYTES_SHA256,
+            "failed_successor_marker_bytes_changed",
+        ),
+        (
+            ledger_raw,
+            FAILED_SUCCESSOR_V1_LEDGER_BYTES_SHA256,
+            "failed_successor_ledger_bytes_changed",
+        ),
+        (
+            failure_raw,
+            FAILED_SUCCESSOR_V1_FAILURE_BYTES_SHA256,
+            "failed_successor_failure_bytes_changed",
+        ),
+        (
+            cleanup_raw,
+            FAILED_SUCCESSOR_V1_CLEANUP_BYTES_SHA256,
+            "failed_successor_cleanup_bytes_changed",
+        ),
+        (
+            sentinel_raw,
+            FAILED_SUCCESSOR_V1_SENTINEL_BYTES_SHA256,
+            "failed_successor_sentinel_bytes_changed",
+        ),
+        (
+            parent_loss_raw,
+            FAILED_SUCCESSOR_V1_PARENT_LOSS_BYTES_SHA256,
+            "failed_successor_parent_loss_bytes_changed",
+        ),
+        (
+            runtime_auth_raw,
+            FAILED_SUCCESSOR_V1_RUNTIME_AUTH_BYTES_SHA256,
+            "failed_successor_runtime_auth_bytes_changed",
+        ),
+        (
+            runtime_auth_used_raw,
+            FAILED_SUCCESSOR_V1_RUNTIME_AUTH_USED_BYTES_SHA256,
+            "failed_successor_runtime_auth_used_bytes_changed",
+        ),
+    ):
+        require(hashlib.sha256(raw).hexdigest() == expected, blocker)
+    require(ledger_raw == b"", "failed_successor_attempt_ledger_not_empty")
+
+    plan = _decode_predecessor_json(
+        plan_raw,
+        blocker="failed_successor_plan_malformed",
+    )
+    marker = _decode_predecessor_json(
+        marker_raw,
+        blocker="failed_successor_marker_malformed",
+    )
+    failure = _decode_predecessor_json(
+        failure_raw,
+        blocker="failed_successor_failure_malformed",
+    )
+    cleanup = _decode_predecessor_json(
+        cleanup_raw,
+        blocker="failed_successor_cleanup_malformed",
+    )
+    sentinel = _decode_predecessor_json(
+        sentinel_raw,
+        blocker="failed_successor_sentinel_malformed",
+    )
+    parent_loss = _decode_predecessor_json(
+        parent_loss_raw,
+        blocker="failed_successor_parent_loss_malformed",
+    )
+    runtime_auth = _decode_predecessor_json(
+        runtime_auth_raw,
+        blocker="failed_successor_runtime_auth_malformed",
+    )
+    runtime_auth_used = _decode_predecessor_json(
+        runtime_auth_used_raw,
+        blocker="failed_successor_runtime_auth_used_malformed",
+    )
+
+    require(
+        plan.get("schema_version") == "5"
+        and plan.get("continuation_kind")
+        == "consumed_root_1_child_1_first_successor"
+        and plan.get("backend_commit")
+        == FAILED_SUCCESSOR_V1_PRODUCTION_PARENT_COMMIT
+        and plan.get("runner_sha256") == FAILED_SUCCESSOR_V1_RUNNER_SHA256
+        and plan.get("approval_id") == FAILED_SUCCESSOR_V1_APPROVAL_ID
+        and plan.get("batch_id") == FAILED_SUCCESSOR_V1_BATCH_ID
+        and plan.get("plan_sha256") == FAILED_SUCCESSOR_V1_PLAN_SHA256
+        and plan_hash(plan) == FAILED_SUCCESSOR_V1_PLAN_SHA256
+        and plan.get("remaining_attempt_count") == SUCCESSOR_ATTEMPT_COUNT
+        and plan.get("new_root_order_maximum")
+        == SUCCESSOR_ROOT_ORDER_MAXIMUM
+        and plan.get("child_order_maximum")
+        == SUCCESSOR_CHILD_ORDER_MAXIMUM
+        and object_record(plan.get("predecessor_binding"))
+        == offline_predecessor_binding_fixture(),
+        "failed_successor_plan_identity_mismatch",
+    )
+    plan_roots = [
+        object_record(root) for root in list_value(plan.get("roots"))
+    ]
+    require(
+        [str(root.get("root_client_order_id") or "") for root in plan_roots]
+        == list(FAILED_SUCCESSOR_V1_PLANNED_ROOT_CLIENT_ORDER_IDS)
+        and [
+            str(root.get("child_client_order_id") or "")
+            for root in plan_roots
+        ]
+        == list(FAILED_SUCCESSOR_V1_PLANNED_CHILD_CLIENT_ORDER_IDS),
+        "failed_successor_plan_ids_mismatch",
+    )
+    require(
+        marker.get("schema_version") == "1"
+        and marker.get("authority")
+        == "controlled-admin-spot-root-child-successor-batch"
+        and marker.get("backend_commit")
+        == FAILED_SUCCESSOR_V1_PRODUCTION_PARENT_COMMIT
+        and marker.get("runner_sha256")
+        == FAILED_SUCCESSOR_V1_RUNNER_SHA256
+        and marker.get("approval_id") == FAILED_SUCCESSOR_V1_APPROVAL_ID
+        and marker.get("batch_id") == FAILED_SUCCESSOR_V1_BATCH_ID
+        and marker.get("plan_sha256") == FAILED_SUCCESSOR_V1_PLAN_SHA256
+        and marker.get("plan_file") == str(FAILED_SUCCESSOR_V1_PLAN_PATH)
+        and marker.get("marker_path")
+        == str(FAILED_SUCCESSOR_V1_MARKER_PATH)
+        and marker.get("attempt_ledger_path")
+        == str(FAILED_SUCCESSOR_V1_LEDGER_PATH)
+        and marker.get("remaining_attempt_count")
+        == SUCCESSOR_ATTEMPT_COUNT
+        and marker.get("root_order_maximum")
+        == SUCCESSOR_ROOT_ORDER_MAXIMUM
+        and marker.get("child_order_maximum")
+        == SUCCESSOR_CHILD_ORDER_MAXIMUM
+        and marker.get("process_id") == FAILED_SUCCESSOR_V1_PARENT_PID
+        and object_record(marker.get("predecessor_binding"))
+        == offline_predecessor_binding_fixture()
+        and marker.get("exact_child_client_order_ids")
+        == list(FAILED_SUCCESSOR_V1_PLANNED_CHILD_CLIENT_ORDER_IDS),
+        "failed_successor_marker_identity_mismatch",
+    )
+    failure_reconciliation = object_record(
+        failure.get("failure_reconciliation")
+    )
+    require(
+        failure.get("status") == "failed"
+        and failure.get("failure_type") == "ProofFailure"
+        and failure.get("failure_reason")
+        == "fill_ledger_not_clean_ws_derived_before_reconciliation"
+        and failure.get("backend_commit")
+        == FAILED_SUCCESSOR_V1_PRODUCTION_PARENT_COMMIT
+        and failure.get("runner_sha256")
+        == FAILED_SUCCESSOR_V1_RUNNER_SHA256
+        and failure.get("batch_id") == FAILED_SUCCESSOR_V1_BATCH_ID
+        and failure.get("plan_sha256") == FAILED_SUCCESSOR_V1_PLAN_SHA256
+        and failure.get("retry_authorized") is False
+        and failure.get("substitution_authorized") is False
+        and failure.get("generic_or_later_child_authorized") is False
+        and failure_reconciliation.get("attempt_ledger_count") == 0
+        and failure_reconciliation.get("attempt_ledger_readback_proven")
+        is True
+        and failure_reconciliation.get("current_root_attempt_count") == 0
+        and failure_reconciliation.get("current_child_attempt_count") == 0
+        and failure_reconciliation.get("current_root_attempt_consumed")
+        is False
+        and failure_reconciliation.get("current_child_attempt_consumed")
+        is False
+        and failure_reconciliation.get("current_root_sdk_call_occurred")
+        is False
+        and failure_reconciliation.get("current_child_sdk_call_occurred")
+        is False
+        and failure_reconciliation.get("authoritative_active_spot_order_count")
+        == 0
+        and failure_reconciliation.get("live_service_disabled") is True
+        and failure_reconciliation.get("next_slot_authorized") is False,
+        "failed_successor_failure_evidence_mismatch",
+    )
+    require(
+        cleanup.get("runtime_pid") == FAILED_SUCCESSOR_V1_RUNTIME_PID
+        and cleanup.get("runtime_process_started") is True
+        and cleanup.get("runtime_preserved_for_reconciliation") is True
+        and cleanup.get("runtime_process_shutdown_proven") is False
+        and cleanup.get("live_service_disable_attempted") is True
+        and cleanup.get("live_service_disable_proven_before_cleanup") is True
+        and cleanup.get("live_service_disable_proven_after_cleanup") is True
+        and cleanup.get("live_service_enable_attempted") is False,
+        "failed_successor_cleanup_evidence_mismatch",
+    )
+    require(
+        sentinel.get("process_id") == FAILED_SUCCESSOR_V1_RUNTIME_PID
+        and sentinel.get("phase") == "runtime_exited"
+        and sentinel.get("installed") is True
+        and sentinel.get("wrapper_identity_proven") is True
+        and sentinel.get("root_create_order_call_count") == 0
+        and sentinel.get("child_place_limit_order_call_count") == 0
+        and sentinel.get("root_sdk_inflight") is False
+        and sentinel.get("child_sdk_inflight") is False
+        and sentinel.get("denied_call_count") == 0
+        and sentinel.get("critical_failure") is False
+        and sentinel.get("error") is None,
+        "failed_successor_final_sentinel_mismatch",
+    )
+    require(
+        parent_loss.get("parent_pid") == FAILED_SUCCESSOR_V1_PARENT_PID
+        and parent_loss.get("live_service_disable_proven") is True
+        and parent_loss.get("new_sdk_placements_denied") is True
+        and parent_loss.get("sdk_quiescence_proven") is True
+        and parent_loss.get("root_create_order_call_count") == 0
+        and parent_loss.get("child_place_limit_order_call_count") == 0
+        and parent_loss.get("denied_sdk_call_count") == 0
+        and parent_loss.get("root_sdk_inflight_after_wait") is False
+        and parent_loss.get("child_sdk_inflight_after_wait") is False
+        and parent_loss.get("authoritative_active_order_read_proven") is True
+        and parent_loss.get("authoritative_active_orders_before_cancel") == []
+        and parent_loss.get("authoritative_active_orders_after_reconciliation")
+        == []
+        and parent_loss.get("unknown_active_client_order_ids") == []
+        and parent_loss.get("exact_active_client_order_ids") == []
+        and parent_loss.get("authoritative_active_zero_after_reconciliation")
+        is True
+        and parent_loss.get("transmitted_attempt_count") == 0
+        and parent_loss.get("terminal_transmitted_attempt_count") == 0
+        and parent_loss.get("all_transmitted_attempts_terminal") is True
+        and parent_loss.get("exact_transmitted_attempt_states") == {}
+        and parent_loss.get("critical_attempt_failures") == {}
+        and parent_loss.get("operator_reconciliation_required") is False
+        and parent_loss.get("automatic_cancel_retry_authorized") is False,
+        "failed_successor_parent_loss_evidence_mismatch",
+    )
+    for payload, blocker in (
+        (runtime_auth, "failed_successor_runtime_auth_identity_mismatch"),
+        (runtime_auth_used, "failed_successor_runtime_auth_used_identity_mismatch"),
+    ):
+        require(
+            payload.get("approval_id") == FAILED_SUCCESSOR_V1_APPROVAL_ID
+            and payload.get("batch_id") == FAILED_SUCCESSOR_V1_BATCH_ID
+            and payload.get("plan_sha256") == FAILED_SUCCESSOR_V1_PLAN_SHA256
+            and payload.get("runner_sha256")
+            == FAILED_SUCCESSOR_V1_RUNNER_SHA256
+            and payload.get("parent_pid") == FAILED_SUCCESSOR_V1_PARENT_PID
+            and payload.get("attempt_ledger_path")
+            == str(FAILED_SUCCESSOR_V1_LEDGER_PATH),
+            blocker,
+        )
+    return offline_failed_successor_binding_fixture()
+
+
+def load_failed_successor_binding() -> dict[str, Any]:
+    """Read and validate every immutable failed-v1 authority artifact."""
+
+    return validate_failed_successor_artifacts(
+        plan_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V1_PLAN_PATH,
+            blocker_prefix="failed_successor_plan",
+        ),
+        marker_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V1_MARKER_PATH,
+            blocker_prefix="failed_successor_marker",
+        ),
+        ledger_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V1_LEDGER_PATH,
+            blocker_prefix="failed_successor_ledger",
+            allow_empty=True,
+        ),
+        failure_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V1_FAILURE_PATH,
+            blocker_prefix="failed_successor_failure",
+            allow_group_world_read=True,
+        ),
+        cleanup_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V1_CLEANUP_PATH,
+            blocker_prefix="failed_successor_cleanup",
+            allow_group_world_read=True,
+        ),
+        sentinel_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V1_SENTINEL_PATH,
+            blocker_prefix="failed_successor_sentinel",
+        ),
+        parent_loss_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V1_PARENT_LOSS_PATH,
+            blocker_prefix="failed_successor_parent_loss",
+        ),
+        runtime_auth_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V1_RUNTIME_AUTH_PATH,
+            blocker_prefix="failed_successor_runtime_auth",
+        ),
+        runtime_auth_used_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V1_RUNTIME_AUTH_USED_PATH,
+            blocker_prefix="failed_successor_runtime_auth_used",
         ),
     )
 
@@ -1431,7 +1957,68 @@ def validate_runner_commit_topology(
     }
 
 
+def require_failed_successor_commit_binding() -> dict[str, Any]:
+    """Bind v1's recorded runner SHA to its runner-only Git commit."""
+
+    require(
+        EXPECTED_COMMIT == FAILED_SUCCESSOR_V1_RUNNER_COMMIT,
+        "failed_successor_runner_commit_not_current_parent",
+    )
+    runner_relative_path = (
+        Path(__file__).resolve().relative_to(ROOT).as_posix()
+    )
+    parent_record = subprocess.check_output(
+        [
+            "git",
+            "rev-list",
+            "--parents",
+            "-n",
+            "1",
+            FAILED_SUCCESSOR_V1_RUNNER_COMMIT,
+        ],
+        cwd=ROOT,
+        text=True,
+    ).strip().split()
+    changed_paths = subprocess.check_output(
+        [
+            "git",
+            "diff-tree",
+            "--no-commit-id",
+            "--name-only",
+            "-r",
+            FAILED_SUCCESSOR_V1_RUNNER_COMMIT,
+        ],
+        cwd=ROOT,
+        text=True,
+    ).splitlines()
+    committed_runner_bytes = subprocess.check_output(
+        [
+            "git",
+            "show",
+            f"{FAILED_SUCCESSOR_V1_RUNNER_COMMIT}:{runner_relative_path}",
+        ],
+        cwd=ROOT,
+    )
+    committed_runner_sha256 = hashlib.sha256(
+        committed_runner_bytes
+    ).hexdigest()
+    require(
+        committed_runner_sha256 == FAILED_SUCCESSOR_V1_RUNNER_SHA256,
+        "failed_successor_committed_runner_hash_mismatch",
+    )
+    return validate_runner_commit_topology(
+        production_commit=FAILED_SUCCESSOR_V1_PRODUCTION_PARENT_COMMIT,
+        head_commit=FAILED_SUCCESSOR_V1_RUNNER_COMMIT,
+        head_parents=parent_record[1:],
+        changed_paths=changed_paths,
+        runner_path=runner_relative_path,
+        committed_runner_sha256=committed_runner_sha256,
+        working_runner_sha256=committed_runner_sha256,
+    )
+
+
 def require_clean_commit() -> dict[str, Any]:
+    failed_successor_topology = require_failed_successor_commit_binding()
     head = subprocess.check_output(
         ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
     ).strip()
@@ -1501,6 +2088,7 @@ def require_clean_commit() -> dict[str, Any]:
         ["git", "status", "--porcelain"], cwd=ROOT, text=True
     ).strip()
     require(not status, "backend_worktree_not_clean")
+    topology["failed_successor_topology"] = failed_successor_topology
     return topology
 
 
@@ -1905,6 +2493,7 @@ def build_successor_live_plan(
     preflight: Mapping[str, Any],
     *,
     predecessor_binding: Mapping[str, Any],
+    failed_successor_binding: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Build child-1 plus nine fresh root/child pairs under new authority."""
 
@@ -1912,7 +2501,12 @@ def build_successor_live_plan(
         dict(predecessor_binding) == offline_predecessor_binding_fixture(),
         "successor_predecessor_binding_mismatch",
     )
-    approval_id = f"controlled-root-child-successor-{uuid4()}"
+    require(
+        dict(failed_successor_binding)
+        == offline_failed_successor_binding_fixture(),
+        "successor_failed_v1_binding_mismatch",
+    )
+    approval_id = f"controlled-root-child-successor-v2-{uuid4()}"
     exact_runner_hash = runner_sha256()
     batch_id = deterministic_batch_id(approval_id, exact_runner_hash)
     planned_bid = Decimal(str(preflight["best_bid"]))
@@ -1995,6 +2589,9 @@ def build_successor_live_plan(
     predecessor_ids = set(PREDECESSOR_PLANNED_ROOT_CLIENT_ORDER_IDS) | set(
         PREDECESSOR_PLANNED_CHILD_CLIENT_ORDER_IDS
     )
+    failed_successor_ids = set(
+        failed_successor_binding["planned_root_client_order_ids"]
+    ) | set(failed_successor_binding["planned_child_client_order_ids"])
     historical_ids = {
         HISTORICAL_FILLED_ROOT_CLIENT_ORDER_ID,
         HISTORICAL_HIDDEN_CHILD_CLIENT_ORDER_ID,
@@ -2002,8 +2599,9 @@ def build_successor_live_plan(
         CARRIED_CHILD_CLIENT_ORDER_ID,
     }
     require(
-        not fresh_ids & (predecessor_ids | historical_ids),
-        "successor_fresh_ids_overlap_predecessor_or_historical_chain",
+        not fresh_ids
+        & (predecessor_ids | failed_successor_ids | historical_ids),
+        "successor_fresh_ids_overlap_prior_authority_or_historical_chain",
     )
     planned_child_total = Decimal("0")
     for root in roots:
@@ -2036,7 +2634,7 @@ def build_successor_live_plan(
     first_new_order = object_record(roots[1]["order"])
     plan: dict[str, Any] = {
         "schema_version": PLAN_SCHEMA_VERSION,
-        "continuation_kind": "consumed_root_1_child_1_first_successor",
+        "continuation_kind": "failed_successor_v1_child_1_first_v2",
         "approval_id": approval_id,
         "batch_id": batch_id,
         "batch_size": BATCH_SIZE,
@@ -2048,6 +2646,7 @@ def build_successor_live_plan(
         "backend_commit": EXPECTED_COMMIT,
         "runner_sha256": exact_runner_hash,
         "predecessor_binding": dict(predecessor_binding),
+        "failed_successor_binding": dict(failed_successor_binding),
         "portfolio_id": str(preflight.get("portfolio_id") or ""),
         "portfolio_label": PROFILE_LABEL,
         "product_id": PRODUCT_ID,
@@ -2119,6 +2718,7 @@ def validate_successor_live_plan(
     expected_hash: str,
     preflight: Mapping[str, Any],
     predecessor_binding: Mapping[str, Any],
+    failed_successor_binding: Mapping[str, Any],
 ) -> tuple[list[dict[str, Any]], Decimal]:
     """Validate the 19-placement continuation and cumulative 10/10 cap."""
 
@@ -2136,6 +2736,7 @@ def validate_successor_live_plan(
         "backend_commit",
         "runner_sha256",
         "predecessor_binding",
+        "failed_successor_binding",
         "portfolio_id",
         "portfolio_label",
         "product_id",
@@ -2170,6 +2771,13 @@ def validate_successor_live_plan(
         == dict(predecessor_binding),
         "successor_plan_predecessor_binding_mismatch",
     )
+    require(
+        dict(failed_successor_binding)
+        == offline_failed_successor_binding_fixture()
+        and object_record(plan.get("failed_successor_binding"))
+        == dict(failed_successor_binding),
+        "successor_plan_failed_v1_binding_mismatch",
+    )
     supplied_hash = str(plan.get("plan_sha256") or "")
     computed_hash = plan_hash(plan)
     require(
@@ -2181,7 +2789,7 @@ def validate_successor_live_plan(
     require(
         plan.get("schema_version") == PLAN_SCHEMA_VERSION
         and plan.get("continuation_kind")
-        == "consumed_root_1_child_1_first_successor"
+        == "failed_successor_v1_child_1_first_v2"
         and plan.get("backend_commit") == EXPECTED_COMMIT
         and plan.get("runner_sha256") == runner_sha256(),
         "successor_plan_authority_mismatch",
@@ -2343,18 +2951,21 @@ def validate_successor_live_plan(
     predecessor_ids = set(PREDECESSOR_PLANNED_ROOT_CLIENT_ORDER_IDS) | set(
         PREDECESSOR_PLANNED_CHILD_CLIENT_ORDER_IDS
     )
+    failed_successor_ids = set(
+        failed_successor_binding["planned_root_client_order_ids"]
+    ) | set(failed_successor_binding["planned_child_client_order_ids"])
     fresh_ids = set(root_ids[1:]) | set(child_ids[1:])
     require(
         len(set(root_ids)) == BATCH_SIZE
         and len(set(child_ids)) == BATCH_SIZE
         and not set(root_ids) & set(child_ids)
-        and not fresh_ids & predecessor_ids
+        and not fresh_ids & (predecessor_ids | failed_successor_ids)
         and not fresh_ids
         & {
             HISTORICAL_FILLED_ROOT_CLIENT_ORDER_ID,
             HISTORICAL_HIDDEN_CHILD_CLIENT_ORDER_ID,
         },
-        "successor_plan_id_disjointness_failed",
+        "successor_plan_prior_authority_id_disjointness_failed",
     )
     for root in roots:
         planned_child_notional = (
@@ -2778,12 +3389,24 @@ def build_global_batch_marker_payload(
     registered_at: str,
     process_id: int,
 ) -> dict[str, Any]:
+    require(
+        plan_file == SUCCESSOR_V2_PLAN_PATH,
+        "successor_v2_marker_plan_path_mismatch",
+    )
     predecessor_binding = object_record(
         confirmed_plan.get("predecessor_binding")
     )
     require(
         predecessor_binding == offline_predecessor_binding_fixture(),
         "successor_marker_predecessor_binding_mismatch",
+    )
+    failed_successor_binding = object_record(
+        confirmed_plan.get("failed_successor_binding")
+    )
+    require(
+        failed_successor_binding
+        == offline_failed_successor_binding_fixture(),
+        "successor_marker_failed_v1_binding_mismatch",
     )
     root_plans = [
         object_record(root)
@@ -2797,8 +3420,8 @@ def build_global_batch_marker_payload(
         str(confirmed_plan.get("batch_id") or "")
     )
     return {
-        "schema_version": "1",
-        "authority": "controlled-admin-spot-root-child-successor-batch",
+        "schema_version": "2",
+        "authority": "controlled-admin-spot-root-child-successor-v2-batch",
         "approval_id": str(confirmed_plan.get("approval_id") or ""),
         "batch_id": str(confirmed_plan.get("batch_id") or ""),
         "batch_size": BATCH_SIZE,
@@ -2817,6 +3440,7 @@ def build_global_batch_marker_payload(
             CARRIED_ROOT_PLANNED_NOTIONAL
         ),
         "predecessor_binding": predecessor_binding,
+        "failed_successor_binding": failed_successor_binding,
         "exact_child_client_order_ids": [
             str(root["child_client_order_id"]) for root in root_plans
         ],
@@ -2882,6 +3506,10 @@ def initialize_global_batch_ledger(
     """Register this batch once; any partial creation remains fail-closed."""
 
     require(plan_file.is_absolute(), "controlled_batch_plan_path_not_absolute")
+    require(
+        plan_file == SUCCESSOR_V2_PLAN_PATH,
+        "successor_v2_plan_path_not_fixed",
+    )
     require(
         expected_runner_sha256 == runner_sha256(),
         "runner_sha256_changed_before_batch_registration",
@@ -3564,6 +4192,14 @@ def _validate_authority_plan_structure(
         predecessor_binding == offline_predecessor_binding_fixture(),
         "runtime_child_authority_predecessor_binding_mismatch",
     )
+    failed_successor_binding = object_record(
+        confirmed_plan.get("failed_successor_binding")
+    )
+    require(
+        failed_successor_binding
+        == offline_failed_successor_binding_fixture(),
+        "runtime_child_authority_failed_v1_binding_mismatch",
+    )
     require(
         confirmed_plan.get("remaining_attempt_count")
         == SUCCESSOR_ATTEMPT_COUNT
@@ -3586,6 +4222,10 @@ def _validate_authority_plan_structure(
         HISTORICAL_HIDDEN_CHILD_CLIENT_ORDER_ID,
     } | set(PREDECESSOR_PLANNED_ROOT_CLIENT_ORDER_IDS) | set(
         PREDECESSOR_PLANNED_CHILD_CLIENT_ORDER_IDS
+    ) | set(
+        failed_successor_binding["planned_root_client_order_ids"]
+    ) | set(
+        failed_successor_binding["planned_child_client_order_ids"]
     )
     for slot, root_plan in enumerate(roots, start=1):
         require(
@@ -3917,6 +4557,11 @@ def consume_runtime_child_authority(
         load_predecessor_binding()
         == object_record(confirmed_plan.get("predecessor_binding")),
         "runtime_child_predecessor_artifacts_changed",
+    )
+    require(
+        load_failed_successor_binding()
+        == object_record(confirmed_plan.get("failed_successor_binding")),
+        "runtime_child_failed_successor_artifacts_changed",
     )
     marker_path = Path(str(auth_payload["global_batch_marker"]))
     marker_payload, marker_raw = _read_owner_only_json(
@@ -6908,6 +7553,103 @@ def _raw_payload(value: Any) -> dict[str, Any]:
     raise ProofFailure("order_match_audit_raw_payload_missing")
 
 
+def _classify_fill_ledger_reconciliation_mode(
+    ledger_rows: Sequence[Mapping[str, Any]],
+    *,
+    client_order_id: str,
+    exchange_order_id: str,
+    portfolio_id: str,
+    expected_filled_size: Decimal,
+    expected_filled_value: Decimal,
+    expected_total_fees: Decimal,
+    expected_identity_pairs: Mapping[str, tuple[str, str]],
+) -> str:
+    """Accept only pristine WS rows or the exact carried reconciled fill."""
+
+    rows = [dict(row) for row in ledger_rows]
+    require(bool(rows), "fill_ledger_ws_rows_missing")
+    require(
+        all(
+            str(row.get("client_order_id") or "") == client_order_id
+            for row in rows
+        ),
+        "fill_ledger_client_order_id_mismatch",
+    )
+    derived_trade_keys = [
+        str(row.get("derived_trade_key") or "") for row in rows
+    ]
+    require(
+        all(derived_trade_keys)
+        and len(set(derived_trade_keys)) == len(derived_trade_keys),
+        "fill_ledger_derived_trade_key_invalid",
+    )
+    statuses = {
+        str(row.get("reconciliation_status") or "") for row in rows
+    }
+    if statuses == {"WS_DERIVED"}:
+        require(
+            all(
+                row.get("exchange_trade_id") is None
+                and row.get("exchange_entry_id") is None
+                and row.get("reconciled_at") is None
+                for row in rows
+            ),
+            "fill_ledger_ws_derived_not_pristine",
+        )
+        return "canonical_reconciliation_required"
+    require(
+        statuses == {"RECONCILED"},
+        "fill_ledger_reconciliation_state_not_uniform_clean",
+    )
+    require(
+        client_order_id == CARRIED_ROOT_CLIENT_ORDER_ID
+        and exchange_order_id == CARRIED_ROOT_EXCHANGE_ORDER_ID
+        and portfolio_id
+        == str(offline_predecessor_binding_fixture()["portfolio_id"])
+        and Decimal(str(expected_filled_size)) == CARRIED_ROOT_FILLED_SIZE
+        and Decimal(str(expected_filled_value)) == CARRIED_ROOT_FILLED_VALUE
+        and Decimal(str(expected_total_fees)) == CARRIED_ROOT_TOTAL_FEES,
+        "pre_reconciled_fill_not_exact_carried_root",
+    )
+    require(
+        len(rows) == 1 and len(expected_identity_pairs) == 1,
+        "carried_root_reconciled_fill_count_mismatch",
+    )
+    require(
+        all(row.get("reconciled_at") is not None for row in rows),
+        "fill_ledger_reconciled_timestamp_missing",
+    )
+    actual_pairs = {
+        str(row.get("derived_trade_key") or ""): (
+            str(row.get("exchange_trade_id") or ""),
+            str(row.get("exchange_entry_id") or ""),
+        )
+        for row in rows
+    }
+    normalized_expected_pairs = {
+        str(derived_trade_key): (
+            str(identity_pair[0]),
+            str(identity_pair[1]),
+        )
+        for derived_trade_key, identity_pair in expected_identity_pairs.items()
+    }
+    require(
+        actual_pairs == normalized_expected_pairs,
+        "fill_ledger_reconciled_identity_pairs_mismatch",
+    )
+    require(
+        set(normalized_expected_pairs.values())
+        == {
+            (
+                CARRIED_ROOT_EXCHANGE_TRADE_ID,
+                CARRIED_ROOT_EXCHANGE_ENTRY_ID,
+            )
+        },
+        "carried_root_rest_identity_pair_mismatch",
+    )
+    return "exact_carried_root_already_reconciled"
+
+
 def _reconcile_fill_ledger_with_exact_rest_fills(
     rest_client: Any,
     *,
@@ -6921,7 +7663,6 @@ def _reconcile_fill_ledger_with_exact_rest_fills(
     """Prove a per-row bijection, then invoke the canonical FillReconciler."""
 
     sys.path.insert(0, str(ROOT))
-    from business.fill_reconciler import FillReconciler
     from calculation.resolver import resolve_cumulative_filled
     from database import order as order_module
 
@@ -6937,9 +7678,13 @@ def _reconcile_fill_ledger_with_exact_rest_fills(
         )
     require(bool(ledger_rows), "fill_ledger_ws_rows_missing")
     require(bool(audit_rows), "order_match_audit_rows_missing")
+    initial_reconciliation_statuses = {
+        str(row.get("reconciliation_status") or "") for row in ledger_rows
+    }
     require(
-        all(str(row.get("reconciliation_status") or "") == "WS_DERIVED" for row in ledger_rows),
-        "fill_ledger_not_clean_ws_derived_before_reconciliation",
+        initial_reconciliation_statuses
+        in ({"WS_DERIVED"}, {"RECONCILED"}),
+        "fill_ledger_reconciliation_state_not_uniform_clean",
     )
 
     joined = order_module.DB_CLIENT.execute_query(
@@ -7120,17 +7865,45 @@ def _reconcile_fill_ledger_with_exact_rest_fills(
         for fill in normalized_rest
     ]
 
+    current_ledger_rows = order_module.get_fills_by_order(client_order_id) or []
+    require(
+        len(current_ledger_rows) == len(ledger_rows),
+        "fill_ledger_row_count_changed_during_reconciliation_proof",
+    )
+    reconciliation_mode = _classify_fill_ledger_reconciliation_mode(
+        current_ledger_rows,
+        client_order_id=client_order_id,
+        exchange_order_id=exchange_order_id,
+        portfolio_id=portfolio_id,
+        expected_filled_size=expected_filled_size,
+        expected_filled_value=expected_filled_value,
+        expected_total_fees=expected_total_fees,
+        expected_identity_pairs=expected_pairs,
+    )
+
     def fills_fetcher(candidate_exchange_order_id: str) -> list[dict[str, Any]]:
         require(candidate_exchange_order_id == exchange_order_id, "fill_reconciler_exchange_identity_drift")
         return [dict(fill) for fill in clean_rest_rows]
 
-    report = FillReconciler(
-        order_module.DB_CLIENT,
-        fills_fetcher,
-    ).reconcile_order(client_order_id, exchange_order_id)
-    require(report.is_clean and not report.ws_unmatched and not report.rest_unmatched, "fill_reconciler_report_not_clean")
-    require(len(report.matched) == len(clean_rest_rows), "fill_reconciler_match_count_mismatch")
-    require(report.rows_updated == len(clean_rest_rows), "fill_reconciler_update_count_mismatch")
+    canonical_reconciler_invoked = False
+    rows_updated = 0
+    if reconciliation_mode == "canonical_reconciliation_required":
+        from business.fill_reconciler import FillReconciler
+
+        report = FillReconciler(
+            order_module.DB_CLIENT,
+            fills_fetcher,
+        ).reconcile_order(client_order_id, exchange_order_id)
+        canonical_reconciler_invoked = True
+        require(report.is_clean and not report.ws_unmatched and not report.rest_unmatched, "fill_reconciler_report_not_clean")
+        require(len(report.matched) == len(clean_rest_rows), "fill_reconciler_match_count_mismatch")
+        require(report.rows_updated == len(clean_rest_rows), "fill_reconciler_update_count_mismatch")
+        rows_updated = report.rows_updated
+    else:
+        require(
+            reconciliation_mode == "exact_carried_root_already_reconciled",
+            "fill_ledger_reconciliation_mode_invalid",
+        )
     reconciled = order_module.get_fills_by_order(client_order_id) or []
     require(len(reconciled) == len(clean_rest_rows), "fill_ledger_reconciled_count_mismatch")
     require(all(str(row.get("reconciliation_status") or "") == "RECONCILED" for row in reconciled), "fill_ledger_status_not_reconciled")
@@ -7155,7 +7928,12 @@ def _reconcile_fill_ledger_with_exact_rest_fills(
         "ledger_quantity": decimal_text(ledger_quantity),
         "ledger_value": decimal_text(ledger_value),
         "ledger_fee_total": decimal_text(ledger_fees),
-        "rows_updated": report.rows_updated,
+        "rows_updated": rows_updated,
+        "reconciliation_mode": reconciliation_mode,
+        "canonical_reconciler_invoked": canonical_reconciler_invoked,
+        "already_reconciled_exact_predecessor": (
+            reconciliation_mode == "exact_carried_root_already_reconciled"
+        ),
         "reconciliation_statuses": ["RECONCILED"],
         **pagination,
     }
@@ -8130,11 +8908,13 @@ def execute_controlled_batch(
             require(not active_before_root, f"slot_{slot}_active_order_before_root")
             fresh_preflight = coinbase_preflight(rest_client)
             predecessor_binding = load_predecessor_binding()
+            failed_successor_binding = load_failed_successor_binding()
             fresh_roots, _ = validate_successor_live_plan(
                 confirmed_plan,
                 expected_hash=confirmed_plan_hash,
                 preflight=fresh_preflight,
                 predecessor_binding=predecessor_binding,
+                failed_successor_binding=failed_successor_binding,
             )
             fresh_root_plan = fresh_roots[slot - 1]
             require(fresh_root_plan == root_plan, f"slot_{slot}_root_plan_drift")
@@ -8149,6 +8929,7 @@ def execute_controlled_batch(
                 expected_hash=confirmed_plan_hash,
                 preflight=immediate_preflight,
                 predecessor_binding=predecessor_binding,
+                failed_successor_binding=failed_successor_binding,
             )
             require(immediate_roots[slot - 1] == root_plan, f"slot_{slot}_root_tuple_drift_before_http")
             root_calls_before = max(0, slot - 2)
@@ -9219,6 +10000,36 @@ def run_offline_self_test() -> dict[str, Any]:
         load_predecessor_binding() == predecessor,
         "self_test_predecessor_artifact_binding_mismatch",
     )
+    failed_successor = offline_failed_successor_binding_fixture()
+    require(
+        load_failed_successor_binding() == failed_successor,
+        "self_test_failed_successor_artifact_binding_mismatch",
+    )
+    require(
+        failed_successor_runtime_shutdown_decision(
+            runtime_pid_present=False,
+            port_free=True,
+        )
+        == "shutdown_proven",
+        "self_test_failed_successor_shutdown_not_accepted",
+    )
+    for runtime_pid_present, port_free in ((True, True), (False, False)):
+        require(
+            failed_successor_runtime_shutdown_decision(
+                runtime_pid_present=runtime_pid_present,
+                port_free=port_free,
+            )
+            == "shutdown_unproven",
+            "self_test_failed_successor_unsafe_shutdown_accepted",
+        )
+    require(
+        SUCCESSOR_V2_PLAN_PATH != FAILED_SUCCESSOR_V1_PLAN_PATH
+        and GLOBAL_BATCH_MARKER_FILENAME
+        != FAILED_SUCCESSOR_V1_MARKER_PATH.name
+        and GLOBAL_BATCH_LEDGER_FILENAME
+        != FAILED_SUCCESSOR_V1_LEDGER_PATH.name,
+        "self_test_v2_authority_paths_reuse_v1",
+    )
     successor_schedule = successor_attempt_schedule()
     require(
         successor_schedule
@@ -9237,12 +10048,14 @@ def run_offline_self_test() -> dict[str, Any]:
     successor_plan = build_successor_live_plan(
         preflight,
         predecessor_binding=predecessor,
+        failed_successor_binding=failed_successor,
     )
     successor_roots, _ = validate_successor_live_plan(
         successor_plan,
         expected_hash=str(successor_plan["plan_sha256"]),
         preflight=preflight,
         predecessor_binding=predecessor,
+        failed_successor_binding=failed_successor,
     )
     require(
         successor_roots[0]["root_placement_authorized"] is False
@@ -9500,6 +10313,155 @@ def run_offline_self_test() -> dict[str, Any]:
         "self_test_reconciliation_slot_blocker_mismatch",
     )
 
+    carried_derived_trade_key = "2c51ac3c-88ff-554d-8cb8-176eba91dbb1"
+    carried_rest_identity_pairs = {
+        carried_derived_trade_key: (
+            "cbd8e50e-0789-4472-b868-b318c64bb8b6",
+            "83f50589f7ae36e164ef0b757c2c54dac4839cbdb11102296ce8731a54dd820d",
+        )
+    }
+    carried_reconciled_row = {
+        "client_order_id": CARRIED_ROOT_CLIENT_ORDER_ID,
+        "derived_trade_key": carried_derived_trade_key,
+        "exchange_trade_id": "cbd8e50e-0789-4472-b868-b318c64bb8b6",
+        "exchange_entry_id": "83f50589f7ae36e164ef0b757c2c54dac4839cbdb11102296ce8731a54dd820d",
+        "reconciliation_status": "RECONCILED",
+        "reconciled_at": "2026-07-11T18:12:00+00:00",
+    }
+
+    def classify_fill_state(rows: Sequence[Mapping[str, Any]], **overrides: Any) -> str:
+        arguments = {
+            "client_order_id": CARRIED_ROOT_CLIENT_ORDER_ID,
+            "exchange_order_id": CARRIED_ROOT_EXCHANGE_ORDER_ID,
+            "portfolio_id": str(preflight["portfolio_id"]),
+            "expected_filled_size": CARRIED_ROOT_FILLED_SIZE,
+            "expected_filled_value": CARRIED_ROOT_FILLED_VALUE,
+            "expected_total_fees": CARRIED_ROOT_TOTAL_FEES,
+            "expected_identity_pairs": carried_rest_identity_pairs,
+        }
+        arguments.update(overrides)
+        return _classify_fill_ledger_reconciliation_mode(rows, **arguments)
+
+    require(
+        classify_fill_state([carried_reconciled_row])
+        == "exact_carried_root_already_reconciled",
+        "self_test_exact_carried_reconciled_fill_not_accepted",
+    )
+    pristine_ws_row = {
+        **carried_reconciled_row,
+        "exchange_trade_id": None,
+        "exchange_entry_id": None,
+        "reconciliation_status": "WS_DERIVED",
+        "reconciled_at": None,
+    }
+    require(
+        classify_fill_state([pristine_ws_row])
+        == "canonical_reconciliation_required",
+        "self_test_pristine_ws_fill_not_classified_for_reconciliation",
+    )
+    mixed_row = {
+        **pristine_ws_row,
+        "derived_trade_key": "offline-second-derived-trade-key",
+    }
+    require(
+        expect_proof_failure(
+            lambda: classify_fill_state(
+                [carried_reconciled_row, mixed_row],
+                expected_identity_pairs={
+                    **carried_rest_identity_pairs,
+                    "offline-second-derived-trade-key": (
+                        "offline-second-trade-id",
+                        "offline-second-entry-id",
+                    ),
+                },
+            ),
+            "self_test_mixed_fill_reconciliation_state_accepted",
+        )
+        == "fill_ledger_reconciliation_state_not_uniform_clean",
+        "self_test_mixed_fill_reconciliation_state_blocker_mismatch",
+    )
+    mismatch_row = {
+        **carried_reconciled_row,
+        "reconciliation_status": "MISMATCH",
+    }
+    require(
+        expect_proof_failure(
+            lambda: classify_fill_state([mismatch_row]),
+            "self_test_mismatch_fill_reconciliation_state_accepted",
+        )
+        == "fill_ledger_reconciliation_state_not_uniform_clean",
+        "self_test_mismatch_fill_reconciliation_state_blocker_mismatch",
+    )
+    prestamped_ws_row = {
+        **pristine_ws_row,
+        "exchange_trade_id": carried_reconciled_row["exchange_trade_id"],
+    }
+    require(
+        expect_proof_failure(
+            lambda: classify_fill_state([prestamped_ws_row]),
+            "self_test_prestamped_ws_fill_accepted",
+        )
+        == "fill_ledger_ws_derived_not_pristine",
+        "self_test_prestamped_ws_fill_blocker_mismatch",
+    )
+    wrong_reconciled_pair_row = {
+        **carried_reconciled_row,
+        "exchange_trade_id": "wrong-trade-id",
+    }
+    require(
+        expect_proof_failure(
+            lambda: classify_fill_state([wrong_reconciled_pair_row]),
+            "self_test_wrong_reconciled_identity_pair_accepted",
+        )
+        == "fill_ledger_reconciled_identity_pairs_mismatch",
+        "self_test_wrong_reconciled_identity_pair_blocker_mismatch",
+    )
+    arbitrary_pair = {
+        carried_derived_trade_key: (
+            "arbitrary-trade-id",
+            "arbitrary-entry-id",
+        )
+    }
+    arbitrary_reconciled_row = {
+        **carried_reconciled_row,
+        "exchange_trade_id": "arbitrary-trade-id",
+        "exchange_entry_id": "arbitrary-entry-id",
+    }
+    require(
+        expect_proof_failure(
+            lambda: classify_fill_state(
+                [arbitrary_reconciled_row],
+                expected_identity_pairs=arbitrary_pair,
+            ),
+            "self_test_arbitrary_exact_reconciled_pair_accepted",
+        )
+        == "carried_root_rest_identity_pair_mismatch",
+        "self_test_arbitrary_exact_reconciled_pair_blocker_mismatch",
+    )
+    missing_reconciled_at_row = {
+        **carried_reconciled_row,
+        "reconciled_at": None,
+    }
+    require(
+        expect_proof_failure(
+            lambda: classify_fill_state([missing_reconciled_at_row]),
+            "self_test_reconciled_fill_without_timestamp_accepted",
+        )
+        == "fill_ledger_reconciled_timestamp_missing",
+        "self_test_reconciled_fill_timestamp_blocker_mismatch",
+    )
+    require(
+        expect_proof_failure(
+            lambda: classify_fill_state(
+                [carried_reconciled_row],
+                exchange_order_id="unrelated-exchange-order-id",
+            ),
+            "self_test_unrelated_reconciled_fill_binding_accepted",
+        )
+        == "pre_reconciled_fill_not_exact_carried_root",
+        "self_test_unrelated_reconciled_fill_binding_blocker_mismatch",
+    )
+
     offline_runner_path = (
         Path(__file__).resolve().relative_to(ROOT).as_posix()
     )
@@ -9625,6 +10587,14 @@ def run_offline_self_test() -> dict[str, Any]:
         & predecessor_planned_ids,
         "self_test_fresh_successor_predecessor_id_collision",
     )
+    failed_successor_planned_ids = set(
+        failed_successor["planned_root_client_order_ids"]
+    ) | set(failed_successor["planned_child_client_order_ids"])
+    require(
+        not (set(root_ids[1:]) | set(child_ids[1:]))
+        & failed_successor_planned_ids,
+        "self_test_fresh_successor_failed_v1_id_collision",
+    )
     require(
         root_ids[0] == CARRIED_ROOT_CLIENT_ORDER_ID
         and child_ids[0] == CARRIED_CHILD_CLIENT_ORDER_ID,
@@ -9643,6 +10613,7 @@ def run_offline_self_test() -> dict[str, Any]:
             expected_hash=str(plan["plan_sha256"]),
             preflight=preflight,
             predecessor_binding=predecessor,
+            failed_successor_binding=failed_successor,
         ),
         "self_test_tampered_plan_accepted",
     )
@@ -9651,7 +10622,7 @@ def run_offline_self_test() -> dict[str, Any]:
         ROOT / "genai_tools" / "pytest-tmp" / "controlled-batch-offline"
     )
     marker_payload = build_global_batch_marker_payload(
-        offline_test_root / "controlled-root-child-batch-plan.json",
+        SUCCESSOR_V2_PLAN_PATH,
         confirmed_plan=plan,
         expected_hash=str(plan["plan_sha256"]),
         expected_runner_sha256=str(plan["runner_sha256"]),
@@ -9660,7 +10631,7 @@ def run_offline_self_test() -> dict[str, Any]:
     )
     require(
         marker_payload["authority"]
-        == "controlled-admin-spot-root-child-successor-batch",
+        == "controlled-admin-spot-root-child-successor-v2-batch",
         "self_test_global_marker_authority_mismatch",
     )
     require(
@@ -9673,6 +10644,7 @@ def run_offline_self_test() -> dict[str, Any]:
     second_plan = build_successor_live_plan(
         preflight,
         predecessor_binding=predecessor,
+        failed_successor_binding=failed_successor,
     )
     require(
         second_plan["batch_id"] != plan["batch_id"],
@@ -9695,6 +10667,10 @@ def run_offline_self_test() -> dict[str, Any]:
         and marker_payload["exact_child_client_order_ids"] == child_ids
         and marker_payload["predecessor_binding"] == predecessor,
         "self_test_global_marker_limits_mismatch",
+    )
+    require(
+        marker_payload["failed_successor_binding"] == failed_successor,
+        "self_test_global_marker_failed_successor_binding_mismatch",
     )
     require(
         marker_payload["inherited_reference_notional_usdc"]
@@ -10184,6 +11160,21 @@ def run_offline_self_test() -> dict[str, Any]:
         ),
         "predecessor_cleanup_bytes_bound": PREDECESSOR_CLEANUP_BYTES_SHA256,
         "predecessor_artifacts_preserved_read_only": True,
+        "failed_successor_artifacts_preserved_read_only": True,
+        "failed_successor_plan_bytes_bound": FAILED_SUCCESSOR_V1_PLAN_BYTES_SHA256,
+        "failed_successor_marker_bytes_bound": FAILED_SUCCESSOR_V1_MARKER_BYTES_SHA256,
+        "failed_successor_empty_ledger_bytes_bound": FAILED_SUCCESSOR_V1_LEDGER_BYTES_SHA256,
+        "failed_successor_failure_bytes_bound": FAILED_SUCCESSOR_V1_FAILURE_BYTES_SHA256,
+        "failed_successor_cleanup_bytes_bound": FAILED_SUCCESSOR_V1_CLEANUP_BYTES_SHA256,
+        "failed_successor_final_sentinel_bytes_bound": FAILED_SUCCESSOR_V1_SENTINEL_BYTES_SHA256,
+        "failed_successor_parent_loss_bytes_bound": FAILED_SUCCESSOR_V1_PARENT_LOSS_BYTES_SHA256,
+        "failed_successor_runtime_shutdown_decision_proven": True,
+        "v2_authority_paths_disjoint_from_v1": True,
+        "exact_carried_reconciled_fill_accepted": True,
+        "arbitrary_reconciled_fill_denied": True,
+        "mixed_fill_reconciliation_state_denied": True,
+        "pristine_ws_fill_uses_canonical_reconciler": True,
+        "already_reconciled_fill_skips_canonical_reconciler": True,
         "fresh_slots_disjoint_from_all_predecessor_planned_ids": True,
         "replay_denied": True,
         "crash_marker_denied": True,
@@ -10288,9 +11279,21 @@ def main() -> int:
         "runtime_auth_file_requires_runtime_child",
     )
     require_clean_commit()
+    if args.prepare_controlled_batch_plan is not None:
+        require(
+            args.prepare_controlled_batch_plan == SUCCESSOR_V2_PLAN_PATH,
+            "successor_v2_plan_path_not_fixed",
+        )
+    if args.execute_controlled_batch and args.plan_file is not None:
+        require(
+            args.plan_file == SUCCESSOR_V2_PLAN_PATH,
+            "successor_v2_plan_path_not_fixed",
+        )
+    predecessor_binding = load_predecessor_binding()
+    failed_successor_binding = load_failed_successor_binding()
+    failed_successor_shutdown = require_failed_successor_runtime_stopped()
     rest_client = hydrate_test_credentials()
     preflight = coinbase_preflight(rest_client)
-    predecessor_binding = load_predecessor_binding()
     carried_plan = {
         "root_client_order_id": CARRIED_ROOT_CLIENT_ORDER_ID,
         "child_client_order_id": CARRIED_CHILD_CLIENT_ORDER_ID,
@@ -10340,6 +11343,8 @@ def main() -> int:
         ],
         "historical_chain_exception": historical_scope,
         "predecessor_binding": predecessor_binding,
+        "failed_successor_binding": failed_successor_binding,
+        "failed_successor_shutdown": failed_successor_shutdown,
         "live_execution_requested": args.execute_controlled_batch,
         "controlled_batch_plan_requested": (
             args.prepare_controlled_batch_plan is not None
@@ -10356,12 +11361,14 @@ def main() -> int:
         plan = build_successor_live_plan(
             preflight,
             predecessor_binding=predecessor_binding,
+            failed_successor_binding=failed_successor_binding,
         )
         validate_successor_live_plan(
             plan,
             expected_hash=str(plan["plan_sha256"]),
             preflight=preflight,
             predecessor_binding=predecessor_binding,
+            failed_successor_binding=failed_successor_binding,
         )
         planned_ids = _planned_client_order_ids(plan)
         prove_local_scope_with_historical_hidden_child(
@@ -10450,6 +11457,7 @@ def main() -> int:
         expected_hash=str(args.confirm_plan_sha256),
         preflight=preflight,
         predecessor_binding=predecessor_binding,
+        failed_successor_binding=failed_successor_binding,
     )
     planned_ids = _planned_client_order_ids(confirmed_plan)
     require(len(planned_ids) == BATCH_SIZE * 2, "controlled_batch_plan_ids_not_exact")
@@ -10472,6 +11480,11 @@ def main() -> int:
                 load_predecessor_binding() == predecessor_binding,
                 "predecessor_artifacts_changed_before_successor_registration",
             )
+            require(
+                load_failed_successor_binding() == failed_successor_binding,
+                "failed_successor_artifacts_changed_before_v2_registration",
+            )
+            require_failed_successor_runtime_stopped()
             marker_path, ledger_path = initialize_global_batch_ledger(
                 args.plan_file,
                 confirmed_plan=confirmed_plan,
