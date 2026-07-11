@@ -2981,10 +2981,25 @@ def _durable_automatic_fill_follow_up_ids(
     follow_up_side: str | None,
     retail_portfolio_id: str | None,
 ) -> list[str]:
-    """Return exact hidden Admin fill children that survive runtime restart."""
+    """Return the deterministic first Admin fill child across its lifecycle.
+
+    The automatic decision is that the child was created exactly once.  A
+    controlled submission and terminal reconciliation must not erase that
+    durable decision merely because the same child now has Coinbase identity
+    evidence or has advanced from ``PENDING`` to ``OPEN``/``CANCELLED``.
+    """
 
     if not product_id or not follow_up_side or not retail_portfolio_id:
         return []
+    expected_first_child_id = str(
+        uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            (
+                "coinbase://filled-follow-up/"
+                f"{root_parent_client_order_id}/{root_parent_client_order_id}"
+            ),
+        )
+    )
     try:
         from database.order import get_parent_orders
 
@@ -2995,6 +3010,8 @@ def _durable_automatic_fill_follow_up_ids(
     for row in rows:
         child_id = _string_or_none(row.get("client_order_id"))
         if not child_id or child_id in child_ids:
+            continue
+        if child_id != expected_first_child_id:
             continue
         if _string_or_none(row.get("parent_order_id")) != (
             root_parent_client_order_id
@@ -3012,11 +3029,18 @@ def _durable_automatic_fill_follow_up_ids(
             retail_portfolio_id
         ):
             continue
-        if str(row.get("status") or "").upper() not in {"HIDDEN", "PENDING"}:
-            continue
-        if _string_or_none(
-            row.get("exchange_order_id") or row.get("coinbase_order_id")
-        ):
+        if str(row.get("status") or "").upper() not in {
+            "HIDDEN",
+            "PENDING",
+            "SUBMITTED",
+            "SUBMISSION_UNKNOWN",
+            "OPEN",
+            "FILLED",
+            "CANCEL_QUEUED",
+            "CANCELLED",
+            "EXPIRED",
+            "FAILED",
+        }:
             continue
         child_ids.append(child_id)
     return child_ids

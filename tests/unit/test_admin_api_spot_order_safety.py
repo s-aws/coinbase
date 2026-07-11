@@ -199,17 +199,69 @@ class _SpotRestClient:
             raise self.create_result
         return self.create_result
 
-    def cancel_order(self, client_order_id: str) -> Any:
+    def cancel_order(
+        self,
+        client_order_id: str,
+        *,
+        return_evidence: bool = False,
+    ) -> Any:
         self.cancel_client_calls.append(client_order_id)
         if isinstance(self.cancel_client_result, BaseException):
             raise self.cancel_client_result
-        return self.cancel_client_result
+        if not return_evidence:
+            return self.cancel_client_result
+        if self.cancel_client_result is True:
+            return {
+                "outcome": "succeeded",
+                "explicit_rejection": False,
+                "identity_rejection": False,
+                "identity_match": True,
+            }
+        if self.cancel_client_result is False:
+            return {
+                "outcome": "explicitly_rejected",
+                "explicit_rejection": True,
+                "identity_rejection": True,
+                "identity_match": True,
+            }
+        return {
+            "outcome": "unknown",
+            "explicit_rejection": False,
+            "identity_rejection": False,
+            "identity_match": False,
+        }
 
-    def cancel_order_by_exchange_order_id(self, order_id: str) -> Any:
+    def cancel_order_by_exchange_order_id(
+        self,
+        order_id: str,
+        *,
+        return_evidence: bool = False,
+    ) -> Any:
         self.cancel_exchange_calls.append(order_id)
         if isinstance(self.cancel_exchange_result, BaseException):
             raise self.cancel_exchange_result
-        return self.cancel_exchange_result
+        if not return_evidence:
+            return self.cancel_exchange_result
+        if self.cancel_exchange_result is True:
+            return {
+                "outcome": "succeeded",
+                "explicit_rejection": False,
+                "identity_rejection": False,
+                "identity_match": True,
+            }
+        if self.cancel_exchange_result is False:
+            return {
+                "outcome": "explicitly_rejected",
+                "explicit_rejection": True,
+                "identity_rejection": True,
+                "identity_match": True,
+            }
+        return {
+            "outcome": "unknown",
+            "explicit_rejection": False,
+            "identity_rejection": False,
+            "identity_match": False,
+        }
 
 
 def _manual_command(
@@ -1146,7 +1198,12 @@ def test_cancel_calls_client_order_id_first_and_requires_cancelled_terminal_proo
     events: list[str] = []
 
     class _CancelClient(_SpotRestClient):
-        def cancel_order(self, requested: str) -> bool:
+        def cancel_order(
+            self,
+            requested: str,
+            *,
+            return_evidence: bool = False,
+        ) -> Any:
             events.append("cancel_client")
             self.cancel_client_calls.append(requested)
             self.history = [
@@ -1157,6 +1214,13 @@ def test_cancel_calls_client_order_id_first_and_requires_cancelled_terminal_proo
                     "status": "CANCELLED",
                 }
             ]
+            if return_evidence:
+                return {
+                    "outcome": "succeeded",
+                    "explicit_rejection": False,
+                    "identity_rejection": False,
+                    "identity_match": True,
+                }
             return True
 
         def list_orders(self, **kwargs: Any) -> dict[str, Any]:
@@ -1195,9 +1259,16 @@ def test_cancel_falls_back_only_after_explicit_client_id_rejection_and_readback(
         }
     ]
 
-    def fallback(order_id: str) -> bool:
+    def fallback(order_id: str, *, return_evidence: bool = False) -> Any:
         rest_client.cancel_exchange_calls.append(order_id)
         rest_client.history[0]["status"] = "CANCELLED"
+        if return_evidence:
+            return {
+                "outcome": "succeeded",
+                "explicit_rejection": False,
+                "identity_rejection": False,
+                "identity_match": True,
+            }
         return True
 
     rest_client.cancel_order_by_exchange_order_id = fallback  # type: ignore[method-assign]

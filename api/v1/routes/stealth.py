@@ -101,6 +101,7 @@ from .orders import (
     _build_envelope,
     _execute_idempotent_command,
     _idempotency_payload_hash,
+    _manual_order_admin_cap_guard_context,
 )
 
 
@@ -653,7 +654,7 @@ def reveal_stealth_order_by_stealth_order_id(
         Depends(get_live_execution_service),
     ],
 ) -> JSONResponse:
-    """Route adapter for live-disabled stealth reveal by ``stealth_order_id``."""
+    """Route adapter for guarded reveal by ``stealth_order_id``."""
 
     endpoint = f"{request.method} {request.url.path}"
     envelope: AdminApiCommandEnvelope = _build_envelope(
@@ -669,6 +670,32 @@ def reveal_stealth_order_by_stealth_order_id(
         body=body.model_dump(mode="json"),
         path_params={"stealth_order_id": stealth_order_id},
     )
+    def run_reveal_with_admission(admission_decision):
+        cap_guard_decision_id, max_submitted_notional = (
+            _manual_order_admin_cap_guard_context(
+                admission_decision=admission_decision,
+                cap_guard_store=cap_guard_store,
+            )
+        )
+        return service.reveal_stealth_order_by_stealth_order_id(
+            StealthRevealCommand(
+                envelope=envelope,
+                stealth_order_id=stealth_order_id,
+                request=body,
+                admission_decision=admission_decision,
+                allow_live_execution=admission_decision.allowed,
+                admin_approval_snapshot_id=(
+                    admission_decision.approval_snapshot_id
+                ),
+                admission_audit_id=admission_decision.admission_audit_id,
+                admin_cap_guard_decision_id=cap_guard_decision_id,
+                admin_reconciliation_plan_id=(
+                    admission_decision.reconciliation_plan_id
+                ),
+                admin_max_submitted_notional_usdc=max_submitted_notional,
+            )
+        )
+
     return _execute_idempotent_command(
         idempotency_key=idempotency_key,
         payload_hash=payload_hash,
@@ -720,13 +747,7 @@ def reveal_stealth_order_by_stealth_order_id(
             service.dependencies.stealth_post_write_reconciliation_verification_store_getter()
         ),
         stealth_order_id=stealth_order_id,
-        command_runner=lambda: service.reveal_stealth_order_by_stealth_order_id(
-            StealthRevealCommand(
-                envelope=envelope,
-                stealth_order_id=stealth_order_id,
-                request=body,
-            )
-        ),
+        command_runner_with_admission=run_reveal_with_admission,
     )
 
 
@@ -865,7 +886,7 @@ def cancel_stealth_order_by_stealth_order_id(
         Depends(get_live_execution_service),
     ],
 ) -> JSONResponse:
-    """Route adapter for live-disabled stealth cancel by ``stealth_order_id``."""
+    """Route adapter for guarded stealth cancel by ``stealth_order_id``."""
 
     endpoint = f"{request.method} {request.url.path}"
     envelope: AdminApiCommandEnvelope = _build_envelope(
@@ -881,6 +902,27 @@ def cancel_stealth_order_by_stealth_order_id(
         body=body.model_dump(mode="json"),
         path_params={"stealth_order_id": stealth_order_id},
     )
+    def run_cancel_with_admission(admission_decision):
+        return service.cancel_stealth_order_by_stealth_order_id(
+            StealthCancelCommand(
+                envelope=envelope,
+                stealth_order_id=stealth_order_id,
+                request=body,
+                admission_decision=admission_decision,
+                allow_live_execution=admission_decision.allowed,
+                admin_approval_snapshot_id=(
+                    admission_decision.approval_snapshot_id
+                ),
+                admission_audit_id=admission_decision.admission_audit_id,
+                admin_cap_guard_decision_id=(
+                    admission_decision.cap_guard_decision_id
+                ),
+                admin_reconciliation_plan_id=(
+                    admission_decision.reconciliation_plan_id
+                ),
+            )
+        )
+
     return _execute_idempotent_command(
         idempotency_key=idempotency_key,
         payload_hash=payload_hash,
@@ -932,13 +974,7 @@ def cancel_stealth_order_by_stealth_order_id(
             service.dependencies.stealth_post_write_reconciliation_verification_store_getter()
         ),
         stealth_order_id=stealth_order_id,
-        command_runner=lambda: service.cancel_stealth_order_by_stealth_order_id(
-            StealthCancelCommand(
-                envelope=envelope,
-                stealth_order_id=stealth_order_id,
-                request=body,
-            )
-        ),
+        command_runner_with_admission=run_cancel_with_admission,
     )
 
 

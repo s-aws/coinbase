@@ -11221,7 +11221,7 @@ paths:
       - stealth
       summary: Reveal a stealth order by stealth_order_id through the shared command
         service
-      description: Route adapter for live-disabled stealth reveal by ``stealth_order_id``.
+      description: Route adapter for guarded reveal by ``stealth_order_id``.
       operationId: reveal_stealth_order_by_stealth_order_id_api_v1_stealth_orders__stealth_order_id__reveal_post
       parameters:
       - name: stealth_order_id
@@ -11453,7 +11453,7 @@ paths:
       - stealth
       summary: Cancel a stealth order by stealth_order_id through the shared command
         service
-      description: Route adapter for live-disabled stealth cancel by ``stealth_order_id``.
+      description: Route adapter for guarded stealth cancel by ``stealth_order_id``.
       operationId: cancel_stealth_order_by_stealth_order_id_api_v1_stealth_orders__stealth_order_id__cancel_post
       parameters:
       - name: stealth_order_id
@@ -146892,6 +146892,29 @@ components:
           - type: string
           - type: 'null'
           title: Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+        expected_root_client_order_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Expected Root Client Order Id
+        controlled_batch_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Controlled Batch Id
+        controlled_batch_slot:
+          anyOf:
+          - type: integer
+            maximum: 10.0
+            minimum: 1.0
+          - type: 'null'
+          title: Controlled Batch Slot
       additionalProperties: false
       type: object
       title: StealthCancelRequest
@@ -170404,6 +170427,35 @@ components:
           type: boolean
           title: Manual Live Acknowledgement
           default: false
+        expected_root_client_order_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Expected Root Client Order Id
+        controlled_limit_price:
+          anyOf:
+          - type: string
+            pattern: ^-?(0|[1-9]\d*)(\.\d+)?$
+            description: Decimal value serialized as a string; floats are not part
+              of the API contract.
+            examples:
+            - '1.00'
+          - type: 'null'
+          title: Controlled Limit Price
+        controlled_batch_id:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Controlled Batch Id
+        controlled_batch_slot:
+          anyOf:
+          - type: integer
+            maximum: 10.0
+            minimum: 1.0
+          - type: 'null'
+          title: Controlled Batch Slot
       additionalProperties: false
       type: object
       title: StealthRevealRequest

@@ -428,6 +428,10 @@ class StealthCancelRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     reason: str | None = None
+    manual_live_acknowledgement: bool = False
+    expected_root_client_order_id: str | None = Field(default=None, min_length=1)
+    controlled_batch_id: str | None = Field(default=None, min_length=1)
+    controlled_batch_slot: int | None = Field(default=None, ge=1, le=10)
 
 
 class StealthRevealRequest(BaseModel):
@@ -437,6 +441,10 @@ class StealthRevealRequest(BaseModel):
 
     reason: str | None = None
     manual_live_acknowledgement: bool = False
+    expected_root_client_order_id: str | None = Field(default=None, min_length=1)
+    controlled_limit_price: DecimalString | None = None
+    controlled_batch_id: str | None = Field(default=None, min_length=1)
+    controlled_batch_slot: int | None = Field(default=None, ge=1, le=10)
 
 
 class StealthMoveRequest(BaseModel):
@@ -1281,6 +1289,11 @@ class StealthCancelCommand(BaseModel):
     stealth_order_id: str = Field(min_length=1)
     request: StealthCancelRequest
     allow_live_execution: bool = False
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
+    admin_approval_snapshot_id: str | None = None
+    admission_audit_id: str | None = None
+    admin_cap_guard_decision_id: str | None = None
+    admin_reconciliation_plan_id: str | None = None
 
 
 class StealthCreateCommand(BaseModel):
@@ -1303,6 +1316,12 @@ class StealthRevealCommand(BaseModel):
     stealth_order_id: str = Field(min_length=1)
     request: StealthRevealRequest
     allow_live_execution: bool = False
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
+    admin_approval_snapshot_id: str | None = None
+    admission_audit_id: str | None = None
+    admin_cap_guard_decision_id: str | None = None
+    admin_reconciliation_plan_id: str | None = None
+    admin_max_submitted_notional_usdc: DecimalString | None = None
 
 
 class StealthMoveCommand(BaseModel):

@@ -540,8 +540,13 @@ def test_admin_child_standing_block_persists_and_surfaces_in_chain_readback(
         )
         rest_client = SimpleNamespace(place_limit_order=MagicMock())
         monkeypatch.setattr(configuration, "REST_CLIENT", rest_client)
+        manager._consume_controlled_admin_child_reveal_authority = MagicMock(
+            return_value=(True, None)
+        )
 
-        assert manager.reveal_order_slice(child_id) is None
+        assert manager.reveal_order_slice(
+            child_id, controlled_admin_authority=object()
+        ) is None
         rest_client.place_limit_order.assert_not_called()
 
         persisted = order_db.DB_CLIENT.execute_query(

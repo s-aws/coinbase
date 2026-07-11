@@ -140,15 +140,24 @@ evidence:
 - `POST /api/v1/stealth/orders` is linked as a live-disabled create command
   draft and does not invoke `StealthOrderManager` or create local lifecycle
   state.
-- `POST /api/v1/stealth/orders/{stealth_order_id}/reveal` is linked as a
-  live-disabled reveal command draft and does not invoke `reveal_order_slice`,
-  submit Coinbase orders, or mutate lifecycle state.
+- `POST /api/v1/stealth/orders/{stealth_order_id}/reveal` remains a
+  live-disabled draft for generic/UI requests. Its single backend-controlled
+  exception is the deterministic first `ADMIN_FILL_FOLLOW_UP` child in an
+  approval-bound Test-profile batch; that path requires exact root/slot proof,
+  a one-use manager authority, the standing-price and sub-2-USDC guards, and
+  authoritative Coinbase tuple readback. Ordinary and later-generation Admin
+  children remain pre-exchange.
 - `POST /api/v1/stealth/orders/{stealth_order_id}/move` is linked as a
   live-disabled cancel/replace-shaped move command draft and does not invoke
   `build_stealth_move_plan`, call `execute_stealth_move`, submit/cancel
   Coinbase orders, perform cancel/replace, or mutate lifecycle state.
-- `POST /api/v1/stealth/orders/{stealth_order_id}/cancel` is linked as a
-  live-disabled command row.
+- `POST /api/v1/stealth/orders/{stealth_order_id}/cancel` remains live-disabled
+  for generic/UI requests. The same controlled first-child batch may cancel
+  only its proven active placement. Cancellation starts with canonical
+  `cancel_order(client_order_id)`; the exchange id is a recorded fallback only
+  after explicit identity rejection. Exact zero-fill `CANCELLED` state is
+  required before the next root; any filled, partial, uncertain, or
+  persistence-mismatched result stops the batch.
 - `POST /api/v1/stealth/orders/{stealth_order_id}/recovery` is linked as a
   live-disabled recovery command contract and does not execute recovery
   repair, rollback, proof writing, Coinbase reads, Coinbase orders,

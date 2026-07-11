@@ -7721,7 +7721,25 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     ]
     assert "reason" in stealth_reveal_request_schema["properties"]
     assert "manual_live_acknowledgement" in stealth_reveal_request_schema["properties"]
+    assert "expected_root_client_order_id" in stealth_reveal_request_schema[
+        "properties"
+    ]
+    assert "controlled_limit_price" in stealth_reveal_request_schema["properties"]
+    assert "controlled_batch_id" in stealth_reveal_request_schema["properties"]
+    assert "controlled_batch_slot" in stealth_reveal_request_schema["properties"]
+    assert stealth_reveal_request_schema["properties"]["controlled_batch_slot"][
+        "anyOf"
+    ][0]["maximum"] == 10
     assert "order_id" not in stealth_reveal_request_schema["properties"]
+    stealth_cancel_request_schema = written["components"]["schemas"][
+        "StealthCancelRequest"
+    ]
+    assert "expected_root_client_order_id" in stealth_cancel_request_schema[
+        "properties"
+    ]
+    assert "controlled_batch_id" in stealth_cancel_request_schema["properties"]
+    assert "controlled_batch_slot" in stealth_cancel_request_schema["properties"]
+    assert "order_id" not in stealth_cancel_request_schema["properties"]
     stealth_list_schema = written["components"]["schemas"]["AdminStealthOrderListResponse"]
     assert "pagination" in stealth_list_schema["properties"]
     assert "command_routes_mode" in stealth_list_schema["properties"]
@@ -77652,6 +77670,7 @@ def test_admin_api_order_fill_follow_up_live_readiness_ready_no_live_when_proofs
         "exchange_order_id": "exchange-evidence-root",
         "correlation_id": "corr-root-follow-up-ready",
         "audit_id": "audit-root-follow-up-ready",
+        "ownership_provenance": "ADMIN_MANUAL_ROOT",
     }
     monkeypatch.setattr(
         order_module,
@@ -79007,6 +79026,7 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
         "updated_at": "2026-07-10T01:02:00Z",
         "exchange_order_id": "exchange-evidence-root",
         "correlation_id": "corr-root-follow-up",
+        "ownership_provenance": "ADMIN_MANUAL_ROOT",
     }
     child_order = {
         "client_order_id": child_id,
@@ -79022,6 +79042,7 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
         "exchange_order_id": None,
         "correlation_id": "corr-child-follow-up-executor",
         "audit_id": "audit-child-follow-up-executor",
+        "ownership_provenance": "ADMIN_FILL_FOLLOW_UP",
     }
     executor_state = {"called": False}
     executor_calls: list[dict[str, object]] = []
@@ -79294,6 +79315,10 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
         "exchange_order_id_evidence_only": True,
         "correlation_id": "corr-child-follow-up-executor",
         "audit_id": "audit-child-follow-up-executor",
+        "ownership_provenance": "ADMIN_FILL_FOLLOW_UP",
+        "retail_portfolio_id": None,
+        "last_lifecycle_event": None,
+        "failure_reason": None,
         "source": "order_parent",
     }
     assert data["post_trigger_duplicate_claim_state"] == "done"
@@ -79360,12 +79385,16 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
             "size": "0.01",
             "price": "101.00",
             "parent_client_order_id": root_id,
+            "ownership_provenance": "ADMIN_FILL_FOLLOW_UP",
+            "retail_portfolio_id": None,
             "created_at": "2026-07-10T01:03:00Z",
             "updated_at": "2026-07-10T01:03:00Z",
             "exchange_order_id": None,
             "exchange_order_id_evidence_only": True,
             "correlation_id": "corr-child-follow-up-executor",
             "audit_id": "audit-child-follow-up-executor",
+            "last_lifecycle_event": None,
+            "failure_reason": None,
             "source": "order_parent",
         }
     ]
@@ -79446,6 +79475,7 @@ def test_admin_api_order_fill_follow_up_trigger_accepts_public_route_proof_chain
         "updated_at": "2026-07-10T01:02:00Z",
         "exchange_order_id": "exchange-evidence-root",
         "correlation_id": "corr-root-public-proof-chain",
+        "ownership_provenance": "ADMIN_MANUAL_ROOT",
     }
     child_order = {
         "client_order_id": child_id,
@@ -79460,6 +79490,7 @@ def test_admin_api_order_fill_follow_up_trigger_accepts_public_route_proof_chain
         "updated_at": "2026-07-10T01:03:00Z",
         "exchange_order_id": None,
         "audit_id": "audit-child-public-proof-chain",
+        "ownership_provenance": "ADMIN_FILL_FOLLOW_UP",
     }
     executor_state = {"called": False}
     executor_calls: list[dict[str, object]] = []
@@ -79865,6 +79896,7 @@ def test_admin_api_order_fill_follow_up_trigger_replays_live_activity_rejection_
         "updated_at": "2026-07-10T01:02:00Z",
         "exchange_order_id": "exchange-evidence-root",
         "correlation_id": "corr-root-follow-up",
+        "ownership_provenance": "ADMIN_MANUAL_ROOT",
     }
     child_order = {
         "client_order_id": child_id,
@@ -79879,6 +79911,7 @@ def test_admin_api_order_fill_follow_up_trigger_replays_live_activity_rejection_
         "updated_at": "2026-07-10T01:03:00Z",
         "exchange_order_id": None,
         "audit_id": "audit-child-follow-up-live-reject-replay",
+        "ownership_provenance": "ADMIN_FILL_FOLLOW_UP",
     }
     executor_state = {"called": False}
     executor_calls: list[dict[str, object]] = []
@@ -80170,6 +80203,7 @@ def test_admin_api_order_fill_follow_up_trigger_classifies_missing_child_after_e
         "updated_at": "2026-07-10T01:02:00Z",
         "exchange_order_id": "exchange-evidence-root",
         "correlation_id": "corr-root-follow-up",
+        "ownership_provenance": "ADMIN_MANUAL_ROOT",
     }
     executor_state = {"called": False}
 
@@ -81196,6 +81230,7 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_child_without_claim(
         "updated_at": "2026-07-10T01:02:00Z",
         "exchange_order_id": "exchange-evidence-root",
         "correlation_id": "corr-root-follow-up",
+        "ownership_provenance": "ADMIN_MANUAL_ROOT",
     }
     child_order = {
         "client_order_id": child_id,
@@ -81210,6 +81245,7 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_child_without_claim(
         "updated_at": "2026-07-10T01:03:00Z",
         "exchange_order_id": None,
         "audit_id": "audit-child-follow-up-no-claim",
+        "ownership_provenance": "ADMIN_FILL_FOLLOW_UP",
     }
     executor_state = {"called": False}
 
@@ -81456,6 +81492,7 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_executor_live_submission
         "updated_at": "2026-07-10T01:02:00Z",
         "exchange_order_id": "exchange-evidence-root",
         "correlation_id": "corr-root-follow-up",
+        "ownership_provenance": "ADMIN_MANUAL_ROOT",
     }
     child_order = {
         "client_order_id": child_id,
@@ -81470,6 +81507,7 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_executor_live_submission
         "updated_at": "2026-07-10T01:03:00Z",
         "exchange_order_id": None,
         "audit_id": "audit-child-follow-up-live-report",
+        "ownership_provenance": "ADMIN_FILL_FOLLOW_UP",
     }
     executor_state = {"called": False}
 

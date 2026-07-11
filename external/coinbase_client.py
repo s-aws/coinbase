@@ -27,6 +27,10 @@ from core.enums import OrderSide, TimeInForce
 
 
 ACCOUNT_PAGE_LIMIT = 250
+_CANCEL_IDENTITY_REJECTION_REASONS = {
+    "ORDER_NOT_FOUND",
+    "UNKNOWN_CANCEL_ORDER",
+}
 
 
 def coinbase_sdk_response_to_dict(response: Any) -> Any:
@@ -37,6 +41,81 @@ def coinbase_sdk_response_to_dict(response: Any) -> Any:
     return response
 
 
+def coinbase_cancel_response_evidence(
+    response: Any,
+    *,
+    expected_order_id: str | None = None,
+) -> Dict[str, Any]:
+    """Classify one cancel response as success, explicit rejection, or unknown.
+
+    A boolean ``False`` is intentionally unknown: it does not prove Coinbase
+    rejected the supplied identity. Exchange-id fallback is safe only when a
+    structured result carries both ``success=false`` and a failure reason.
+    """
+
+    data = coinbase_sdk_response_to_dict(response)
+
+    def classify(item: Any) -> tuple[str, Optional[str]]:
+        item = coinbase_sdk_response_to_dict(item)
+        if item is True:
+            return "succeeded", None
+        if item is False or item is None or not isinstance(item, dict):
+            return "unknown", None
+        if item.get("success") is True:
+            return "succeeded", None
+        if item.get("success") is False:
+            reason = str(
+                item.get("failure_reason")
+                or item.get("error")
+                or item.get("message")
+                or ""
+            ).strip()
+            if reason.upper() in _CANCEL_IDENTITY_REJECTION_REASONS:
+                return "explicitly_rejected", reason
+            return "unknown", reason or None
+        return "unknown", None
+
+    if isinstance(data, dict) and isinstance(data.get("results"), list):
+        items = list(data["results"])
+    elif isinstance(data, list):
+        items = list(data)
+    else:
+        items = [data]
+
+    normalized_items = [coinbase_sdk_response_to_dict(item) for item in items]
+    identity_match = bool(
+        expected_order_id is None
+        or (
+            len(normalized_items) == 1
+            and isinstance(normalized_items[0], dict)
+            and str(normalized_items[0].get("order_id") or "")
+            == str(expected_order_id)
+        )
+    )
+    classified = [classify(item) for item in normalized_items]
+    outcomes = [outcome for outcome, _reason in classified]
+    reasons = [reason for _outcome, reason in classified if reason]
+    if items and outcomes and all(outcome == "succeeded" for outcome in outcomes):
+        outcome = "succeeded"
+    elif items and outcomes and all(
+        item_outcome == "explicitly_rejected" for item_outcome in outcomes
+    ):
+        outcome = "explicitly_rejected"
+    else:
+        outcome = "unknown"
+    if not identity_match:
+        outcome = "unknown"
+    return {
+        "outcome": outcome,
+        "succeeded": outcome == "succeeded",
+        "explicit_rejection": outcome == "explicitly_rejected",
+        "identity_rejection": outcome == "explicitly_rejected",
+        "identity_match": identity_match,
+        "failure_reasons": reasons,
+        "result_count": len(items),
+    }
+
+
 def coinbase_cancel_response_succeeded(response: Any) -> bool:
     """Return whether a Coinbase cancel response explicitly succeeded.
 
@@ -45,23 +124,7 @@ def coinbase_cancel_response_succeeded(response: Any) -> bool:
     failed so callers do not locally accept a rejected exchange cancel.
     """
 
-    data = coinbase_sdk_response_to_dict(response)
-    if isinstance(data, bool):
-        return data
-    if data is None:
-        return False
-    if isinstance(data, dict):
-        if "success" in data:
-            return data.get("success") is True
-        results = data.get("results")
-        if isinstance(results, list):
-            return bool(results) and all(
-                coinbase_cancel_response_succeeded(item) for item in results
-            )
-        return False
-    if isinstance(data, list):
-        return bool(data) and all(coinbase_cancel_response_succeeded(item) for item in data)
-    return False
+    return coinbase_cancel_response_evidence(response)["succeeded"] is True
 
 
 def list_all_account_dicts(
@@ -333,7 +396,12 @@ class CoinbaseRestClient:
 
         return coinbase_sdk_response_to_dict(response)
 
-    def cancel_order(self, client_order_id: str) -> bool:
+    def cancel_order(
+        self,
+        client_order_id: str,
+        *,
+        return_evidence: bool = False,
+    ) -> bool | Dict[str, Any]:
         """Cancel a single order by client order ID.
 
         The wrapper is intentionally called with client_order_id first because:
@@ -360,13 +428,26 @@ class CoinbaseRestClient:
             ...     print("Order cancelled")
         """
         result = self._client.cancel_orders([client_order_id])
-        return coinbase_cancel_response_succeeded(result)
+        evidence = coinbase_cancel_response_evidence(
+            result,
+            expected_order_id=client_order_id,
+        )
+        return evidence if return_evidence else evidence["succeeded"] is True
 
-    def cancel_order_by_exchange_order_id(self, order_id: str) -> bool:
-        """Cancel a single order by Coinbase exchange-assigned order ID."""
+    def cancel_order_by_exchange_order_id(
+        self,
+        order_id: str,
+        *,
+        return_evidence: bool = False,
+    ) -> bool | Dict[str, Any]:
+        """Cancel by exchange id only as an evidence-recorded fallback."""
 
         result = self._client.cancel_orders([order_id])
-        return coinbase_cancel_response_succeeded(result)
+        evidence = coinbase_cancel_response_evidence(
+            result,
+            expected_order_id=order_id,
+        )
+        return evidence if return_evidence else evidence["succeeded"] is True
     
     # ========================================================================
     # Futures Methods

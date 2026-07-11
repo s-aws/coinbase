@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from decimal import Decimal, ROUND_UP
 import os
 from threading import Lock
@@ -684,6 +685,301 @@ def get_admin_api_fill_follow_up_executor() -> Any | None:
         return None
 
 
+class AdminApiControlledFirstChildRuntimeAdapter:
+    """Route-facing adapter for one deterministic Admin first-child proof.
+
+    This adapter does not broaden automatic stealth behavior. It delegates the
+    durable preparation and the single placement to the canonical manager and
+    only returns exact evidence from that same in-memory lifecycle object.
+    """
+
+    source = "dashboard_server.stealth_order_bridge.stealth_manager"
+
+    def __init__(self, stealth_manager: Any) -> None:
+        self.stealth_manager = stealth_manager
+
+    @staticmethod
+    def _decimal_text(value: Any) -> str:
+        number = Decimal(str(value))
+        if not number.is_finite():
+            raise RuntimeError("controlled_child_numeric_evidence_invalid")
+        return format(number, "f")
+
+    @staticmethod
+    def _observed_at(value: Any) -> datetime:
+        if isinstance(value, datetime):
+            observed = value
+        elif isinstance(value, str) and value.strip():
+            observed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        else:
+            raise RuntimeError("controlled_child_market_timestamp_missing")
+        if observed.tzinfo is None or observed.utcoffset() is None:
+            raise RuntimeError("controlled_child_market_timestamp_not_aware")
+        return observed.astimezone(timezone.utc)
+
+    def submit_controlled_first_child(
+        self,
+        *,
+        stealth_order_id: str,
+        expected_root_client_order_id: str,
+        expected_portfolio_id: str,
+        submitted_limit_price: str,
+        max_notional_usdc: str,
+        approval_snapshot_id: str,
+        admission_audit_id: str,
+        cap_guard_decision_id: str,
+        reconciliation_plan_id: str,
+        controlled_batch_id: str,
+        controlled_batch_slot: int,
+    ) -> dict[str, Any]:
+        manager = self.stealth_manager
+        market = manager._get_current_market_data("BTC-USDC") or {}
+        market_bid = Decimal(str(market.get("bid") or "0"))
+        if not market_bid.is_finite() or market_bid <= 0:
+            raise RuntimeError("controlled_child_fresh_bid_missing")
+        market_observed_at = self._observed_at(market.get("time"))
+
+        authority = manager.prepare_controlled_admin_first_child_reveal(
+            stealth_order_id=stealth_order_id,
+            expected_root_client_order_id=expected_root_client_order_id,
+            expected_portfolio_id=expected_portfolio_id,
+            submitted_limit_price=float(Decimal(str(submitted_limit_price))),
+            max_notional_usdc=float(Decimal(str(max_notional_usdc))),
+            market_bid=float(market_bid),
+            market_observed_at=market_observed_at,
+            approval_snapshot_id=approval_snapshot_id,
+            admission_audit_id=admission_audit_id,
+            cap_guard_decision_id=cap_guard_decision_id,
+            reconciliation_plan_id=reconciliation_plan_id,
+            batch_id=controlled_batch_id,
+            batch_slot=controlled_batch_slot,
+        )
+        prepared_price = Decimal(str(authority.prepared_limit_price))
+        requested_price = Decimal(str(submitted_limit_price))
+        if prepared_price != requested_price:
+            raise RuntimeError("controlled_child_limit_price_not_increment_aligned")
+
+        placed_client_order_id = manager.reveal_order_slice(
+            stealth_order_id,
+            controlled_admin_authority=authority,
+        )
+        state = manager._get_stealth_order(stealth_order_id)
+        state = state if isinstance(state, dict) else {}
+        events = list(state.get("revealed_orders") or [])
+        latest_event = events[-1] if events and isinstance(events[-1], dict) else {}
+        placement_succeeded = bool(
+            placed_client_order_id == stealth_order_id
+            and latest_event.get("placement_success") is True
+            and str(latest_event.get("placed_order_id") or "") == stealth_order_id
+            and str(latest_event.get("exchange_order_id") or "")
+        )
+        placement_attempted = bool(
+            placement_succeeded
+            or (
+                latest_event
+                and str(latest_event.get("placement_status") or "").lower()
+                in {"placed", "failed"}
+                and not str(latest_event.get("placement_error") or "").startswith(
+                    "Pre-submission hook blocked:"
+                )
+            )
+        )
+        if not placement_succeeded:
+            return {
+                "placed_client_order_id": placed_client_order_id,
+                "exchange_order_id": latest_event.get("exchange_order_id"),
+                "product_id": str(state.get("product_id") or ""),
+                "side": str(state.get("side") or "").upper(),
+                "base_size": self._decimal_text(authority.total_size),
+                "submitted_limit_price": str(submitted_limit_price),
+                "post_only": False,
+                "placement_attempted": placement_attempted,
+                "placement_succeeded": False,
+                "placement_error": latest_event.get("placement_error"),
+                "reference_notional_usdc": self._decimal_text(
+                    authority.reference_notional_usdc
+                ),
+            }
+        return {
+            "placed_client_order_id": stealth_order_id,
+            "exchange_order_id": str(latest_event["exchange_order_id"]),
+            "product_id": str(state.get("product_id") or ""),
+            "side": str(state.get("side") or "").upper(),
+            "base_size": self._decimal_text(authority.total_size),
+            "submitted_limit_price": str(submitted_limit_price),
+            "post_only": False,
+            "placement_attempted": True,
+            "placement_succeeded": True,
+            "reference_notional_usdc": self._decimal_text(
+                authority.reference_notional_usdc
+            ),
+        }
+
+    def read_controlled_first_child(
+        self,
+        *,
+        stealth_order_id: str,
+        expected_root_client_order_id: str,
+        expected_portfolio_id: str,
+        controlled_batch_id: str,
+        controlled_batch_slot: int,
+    ) -> dict[str, Any]:
+        from database.order import get_parent_order
+
+        expected_child_id = str(
+            uuid.uuid5(
+                uuid.NAMESPACE_URL,
+                (
+                    "coinbase://filled-follow-up/"
+                    f"{expected_root_client_order_id}/"
+                    f"{expected_root_client_order_id}"
+                ),
+            )
+        )
+        if stealth_order_id != expected_child_id:
+            raise RuntimeError("controlled_child_not_deterministic_first_child")
+        child_row = get_parent_order(stealth_order_id)
+        root_row = get_parent_order(expected_root_client_order_id)
+        state = self.stealth_manager._get_stealth_order(stealth_order_id)
+        if not all(isinstance(item, dict) for item in (child_row, root_row, state)):
+            raise RuntimeError("controlled_child_state_missing")
+        preparation = (
+            (state.get("anchor_repricing_state_json") or {}).get(
+                "controlled_admin_first_child_reveal_preparation"
+            )
+            or {}
+        )
+        events = list(state.get("revealed_orders") or [])
+        latest_event = events[-1] if events and isinstance(events[-1], dict) else {}
+        active_state = state.get("anchor_repricing_state_json") or {}
+        active_client_order_id = str(
+            active_state.get("active_placement_client_order_id") or ""
+        )
+        active_exchange_order_id = str(
+            active_state.get("active_exchange_order_id") or ""
+        )
+        exact = bool(
+            str(child_row.get("client_order_id") or "") == stealth_order_id
+            and str(child_row.get("parent_order_id") or "")
+            == expected_root_client_order_id
+            and str(child_row.get("product_id") or "") == "BTC-USDC"
+            and str(child_row.get("side") or "").upper() == "SELL"
+            and str(child_row.get("ownership_provenance") or "")
+            == OrderOwnershipProvenance.ADMIN_FILL_FOLLOW_UP.value
+            and str(child_row.get("retail_portfolio_id") or "")
+            == expected_portfolio_id
+            and str(root_row.get("client_order_id") or "")
+            == expected_root_client_order_id
+            and root_row.get("parent_order_id") is None
+            and str(root_row.get("product_id") or "") == "BTC-USDC"
+            and str(root_row.get("side") or "").upper() == "BUY"
+            and str(root_row.get("status") or "").upper() == "FILLED"
+            and str(root_row.get("ownership_provenance") or "")
+            == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+            and str(root_row.get("retail_portfolio_id") or "")
+            == expected_portfolio_id
+            and str(child_row.get("correlation_id") or "")
+            == str(root_row.get("correlation_id") or "")
+            and str(child_row.get("audit_id") or "")
+            == str(root_row.get("audit_id") or "")
+            and str(state.get("stealth_order_id") or "") == stealth_order_id
+            and str(state.get("parent_order_id") or "")
+            == expected_root_client_order_id
+            and str(state.get("product_id") or "") == "BTC-USDC"
+            and str(state.get("side") or "").upper() == "SELL"
+            and str(state.get("status") or "").upper() == "REVEALED"
+            and preparation.get("batch_id") == controlled_batch_id
+            and preparation.get("batch_slot") == controlled_batch_slot
+            and active_client_order_id == stealth_order_id
+            and active_exchange_order_id
+            and str(child_row.get("exchange_order_id") or "")
+            == active_exchange_order_id
+            and len(events) == 1
+            and latest_event.get("placement_success") is True
+            and str(latest_event.get("placed_order_id") or "")
+            == stealth_order_id
+            and str(latest_event.get("exchange_order_id") or "")
+            == active_exchange_order_id
+        )
+        if not exact:
+            raise RuntimeError("controlled_child_state_mismatch")
+        return {
+            "stealth_order_id": stealth_order_id,
+            "root_client_order_id": expected_root_client_order_id,
+            "product_id": "BTC-USDC",
+            "side": "SELL",
+            "retail_portfolio_id": expected_portfolio_id,
+            "status": "REVEALED",
+            "active_placement_client_order_id": active_client_order_id,
+            "active_exchange_order_id": active_exchange_order_id,
+            "executed_size": self._decimal_text(state.get("executed_size") or 0),
+        }
+
+    def reconcile_controlled_first_child_terminal(
+        self,
+        *,
+        stealth_order_id: str,
+        authoritative_status: str,
+        executed_size: str,
+        exchange_order_id: str,
+    ) -> dict[str, Any]:
+        from core.enums import StealthOrderStatus
+
+        if str(authoritative_status or "").upper() != "CANCELLED":
+            raise RuntimeError("controlled_child_terminal_status_not_cancelled")
+        state = self.stealth_manager._get_stealth_order(stealth_order_id)
+        state = state if isinstance(state, dict) else {}
+        active = state.get("anchor_repricing_state_json") or {}
+        if (
+            str(state.get("status") or "").upper() != "REVEALED"
+            or str(active.get("active_placement_client_order_id") or "")
+            != stealth_order_id
+            or str(active.get("active_exchange_order_id") or "")
+            != exchange_order_id
+        ):
+            raise RuntimeError("controlled_child_active_placement_mismatch")
+        size = Decimal(str(executed_size))
+        if not size.is_finite() or size < 0:
+            raise RuntimeError("controlled_child_executed_size_invalid")
+        self.stealth_manager.update_execution(
+            stealth_order_id,
+            float(size),
+            StealthOrderStatus.CANCELLED.value,
+        )
+        reconciled = self.stealth_manager._get_stealth_order(stealth_order_id)
+        reconciled = reconciled if isinstance(reconciled, dict) else {}
+        reconciled_active = reconciled.get("anchor_repricing_state_json") or {}
+        cleared = bool(
+            str(reconciled.get("status") or "").upper() == "CANCELLED"
+            and not reconciled_active.get("active_placement_client_order_id")
+            and not reconciled_active.get("active_exchange_order_id")
+            and reconciled_active.get("active_exchange_price") is None
+        )
+        if not cleared:
+            raise RuntimeError("controlled_child_local_reconciliation_unproven")
+        return {
+            "local_status": "CANCELLED",
+            "active_placement_cleared": True,
+            "exchange_order_id": exchange_order_id,
+        }
+
+
+def get_admin_api_controlled_first_child_runtime() -> Any | None:
+    """Return the canonical embedded manager adapter when it is available."""
+
+    try:
+        import dashboard_server
+
+        bridge = getattr(dashboard_server, "stealth_order_bridge", None)
+        manager = getattr(bridge, "stealth_manager", None) if bridge else None
+        if manager is None:
+            return None
+        return AdminApiControlledFirstChildRuntimeAdapter(manager)
+    except Exception as exc:
+        logger.warning("Admin API controlled first-child runtime unavailable: %s", exc)
+        return None
+
+
 def build_admin_api_command_dependencies(
     *,
     read_service_getter: Callable[[], Any | None] | None = None,
@@ -737,6 +1033,7 @@ def build_admin_api_command_dependencies(
         add_log_entry=log_admin_api_command,
         order_event_publisher_getter=get_admin_api_order_event_stream_publisher,
         fill_follow_up_executor_getter=get_admin_api_fill_follow_up_executor,
+        stealth_order_runtime_getter=get_admin_api_controlled_first_child_runtime,
         read_service_getter=read_service_getter,
         uuid_factory=lambda: str(uuid.uuid4()),
     )

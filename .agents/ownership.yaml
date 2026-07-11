@@ -204,6 +204,7 @@ owners:
       - tests/regression/test_anchor_*.py
       - tests/regression/test_triggered_snapshot_commit.py
       - tests/unit/test_stealth_*.py
+      - tests/unit/test_controlled_admin_child_reveal.py
       - tests/unit/test_condition_evaluators.py
       - tests/integration/test_stealth_*.py
       - tests/integration/test_anchor_*.py
@@ -273,6 +274,7 @@ owners:
       - tools/run_admin_api_spot_live_order_readback.py
       - tools/run_admin_api_usdc_pair_snapshot_live_readback.py
       - tools/run_admin_api_usdc_pair_snapshot_live_submit.py
+      - tools/run_controlled_admin_spot_root_child_batch.py
     test_owns:
       - tests/regression/test_admin_api_*.py
       - tests/unit/test_admin_api_*.py

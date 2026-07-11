@@ -21,9 +21,17 @@ frontend request
 -> typed response
 ```
 
-Current HTTP command routes are authenticated, authorized, idempotent, audited,
-and live-disabled. Live-shaped routes return typed `501` `not_implemented`
-responses until live HTTP approval, guard, cap, and audit gates are complete.
+Current generic/browser HTTP command requests are authenticated, authorized,
+idempotent, audited, and live-disabled. Live-shaped requests return typed `501`
+`not_implemented` responses until live HTTP approval, guard, cap, and audit
+gates are complete. The sole backend-controlled stealth exception is the
+deterministic first `ADMIN_FILL_FOLLOW_UP` child in an explicitly approved
+Test-profile batch. It requires exact root/slot identity, backend live service,
+approval/audit/cap/reconciliation records, a fresh zero-active-order read, the
+Spot standing-price and sub-2-USDC guards, the manager's one-use authority,
+authoritative exchange tuple readback, and canonical client-id-first cancel
+with recorded exchange-id fallback. It grants no browser/BFF authority and
+cannot submit an ordinary or later-generation child.
 The guarded fill-follow-up trigger is a no-live local-state compatibility
 exception that can return accepted parent/child readback evidence after exact
 proof refs while Coinbase submit/cancel and live exchange mutation remain
@@ -69,7 +77,8 @@ Implemented modules:
 
 Shared command service methods currently cover manual placement,
 cancel-by-`client_order_id`, hotpoint test placement for legacy dashboard
-compatibility, live-disabled stealth cancel by `stealth_order_id`, and a
+compatibility, generic-live-disabled stealth reveal/cancel by
+`stealth_order_id` plus the exact controlled first-child exception above, and a
 live-disabled movement reprice command keyed by `stealth_order_id`, and a
 live-disabled spot campaign execution contract, and a live-disabled spot sweep
 automation command contract keyed by `sweep_config_id`.

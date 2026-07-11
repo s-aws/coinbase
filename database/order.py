@@ -9,17 +9,89 @@ It manages the parent-child order relationship for the trading engine.
 
 import json
 import uuid
-from decimal import Decimal, InvalidOperation
+from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation, ROUND_CEILING
 from logging_service import get_logger
 from database.database import PostgresDB
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, NoReturn, Optional
 from core.constants import get_local_now
-from core.enums import OrderOwnershipProvenance, OrderStatus
+from core.enums import (
+    OrderOwnershipProvenance,
+    OrderSide,
+    OrderStatus,
+    StealthOrderStatus,
+)
 from core.exceptions import DatabaseConnectionError, OrderPersistenceError, DatabaseTransactionError
 from configuration import DEFAULT_MAX_ORDER_REPLACEMENT
 
 logger = get_logger("OrderDB")
 DB_CLIENT: PostgresDB = PostgresDB()
+
+
+_CONTROLLED_ADMIN_CHILD_MAX_MARKET_AGE_SECONDS = Decimal("30")
+
+
+def _controlled_admin_child_persistence_error(
+    message: str,
+    *,
+    client_order_id: str,
+    error_type: str = "ControlledAdminChildPreparationRejected",
+) -> OrderPersistenceError:
+    """Build one structured fail-closed preparation error."""
+
+    return OrderPersistenceError(
+        error_type=error_type,
+        message=message,
+        operation="update",
+        table="order_parent,stealth_orders",
+        client_order_id=client_order_id,
+        stealth_order_id=client_order_id,
+    )
+
+
+def _finite_positive_decimal(
+    value: Any,
+    *,
+    field_name: str,
+    client_order_id: str,
+) -> Decimal:
+    try:
+        normalized = Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise _controlled_admin_child_persistence_error(
+            f"{field_name} must be finite and positive",
+            client_order_id=client_order_id,
+        ) from exc
+    if not normalized.is_finite() or normalized <= 0:
+        raise _controlled_admin_child_persistence_error(
+            f"{field_name} must be finite and positive",
+            client_order_id=client_order_id,
+        )
+    return normalized
+
+
+def _json_mapping(value: Any) -> Dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except (TypeError, ValueError):
+            return {}
+        return dict(parsed) if isinstance(parsed, dict) else {}
+    return {}
+
+
+def _json_list(value: Any) -> List[Any]:
+    if isinstance(value, list):
+        return list(value)
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except (TypeError, ValueError):
+            return [None]
+        return list(parsed) if isinstance(parsed, list) else [None]
+    return [] if value is None else [None]
 
 
 def _json_default_for_db(value: Any):
@@ -1256,6 +1328,387 @@ def persist_filled_follow_up_atomic(
             )
 
     return parent_row_id, stealth_row_created
+
+
+def prepare_controlled_admin_first_child_reveal_atomic(
+    *,
+    stealth_order_id: str,
+    expected_root_client_order_id: str,
+    expected_portfolio_id: str,
+    submitted_limit_price: float,
+    quote_increment: str,
+    max_notional_usdc: float,
+    market_bid: float,
+    market_observed_at: datetime,
+    approval_snapshot_id: str,
+    admission_audit_id: str,
+    cap_guard_decision_id: str,
+    reconciliation_plan_id: str,
+    batch_id: str,
+    batch_slot: int,
+    authority_id: str,
+    now: Optional[datetime] = None,
+) -> Dict[str, Any]:
+    """Atomically prepare one owned first-generation Admin child for reveal.
+
+    This is deliberately narrower than a general stealth reprice. It accepts
+    only the restart-stable first child of one FILLED ``ADMIN_MANUAL_ROOT`` on
+    the exact Test portfolio and records the original prices plus the complete
+    controlled-live admission evidence before changing either durable row.
+    Nothing in this function places or reveals an exchange order.
+    """
+
+    child_id = str(stealth_order_id or "").strip()
+    root_id = str(expected_root_client_order_id or "").strip()
+    portfolio_id = str(expected_portfolio_id or "").strip()
+    _require_uuid_text(child_id, "stealth_order_id", client_order_id=child_id)
+    _require_uuid_text(root_id, "expected_root_client_order_id", client_order_id=child_id)
+    _require_uuid_text(portfolio_id, "expected_portfolio_id", client_order_id=child_id)
+
+    evidence_ids = {
+        "approval_snapshot_id": approval_snapshot_id,
+        "admission_audit_id": admission_audit_id,
+        "cap_guard_decision_id": cap_guard_decision_id,
+        "reconciliation_plan_id": reconciliation_plan_id,
+        "batch_id": batch_id,
+        "authority_id": authority_id,
+    }
+    missing_evidence = sorted(
+        key for key, value in evidence_ids.items() if not str(value or "").strip()
+    )
+    if missing_evidence:
+        raise _controlled_admin_child_persistence_error(
+            "controlled reveal audit evidence is incomplete: "
+            + ",".join(missing_evidence),
+            client_order_id=child_id,
+        )
+    if (
+        not isinstance(batch_slot, int)
+        or isinstance(batch_slot, bool)
+        or batch_slot < 1
+        or batch_slot > 10
+    ):
+        raise _controlled_admin_child_persistence_error(
+            "batch_slot must be an integer from 1 through 10",
+            client_order_id=child_id,
+        )
+
+    requested_price = _finite_positive_decimal(
+        submitted_limit_price,
+        field_name="submitted_limit_price",
+        client_order_id=child_id,
+    )
+    increment = _finite_positive_decimal(
+        quote_increment,
+        field_name="quote_increment",
+        client_order_id=child_id,
+    )
+    bid = _finite_positive_decimal(
+        market_bid,
+        field_name="market_bid",
+        client_order_id=child_id,
+    )
+    hard_cap = _finite_positive_decimal(
+        max_notional_usdc,
+        field_name="max_notional_usdc",
+        client_order_id=child_id,
+    )
+    prepared_price = (
+        (requested_price / increment).to_integral_value(rounding=ROUND_CEILING)
+        * increment
+    )
+    minimum_standing_price = bid * Decimal("1.5")
+    if prepared_price < minimum_standing_price:
+        raise _controlled_admin_child_persistence_error(
+            "submitted SELL limit must be at least 150% of the fresh bid",
+            client_order_id=child_id,
+        )
+
+    if not isinstance(market_observed_at, datetime) or market_observed_at.tzinfo is None:
+        raise _controlled_admin_child_persistence_error(
+            "market_observed_at must be timezone-aware fresh bid evidence",
+            client_order_id=child_id,
+        )
+    observed_at_utc = market_observed_at.astimezone(timezone.utc)
+    now_utc = now or datetime.now(timezone.utc)
+    if now_utc.tzinfo is None:
+        now_utc = now_utc.replace(tzinfo=timezone.utc)
+    else:
+        now_utc = now_utc.astimezone(timezone.utc)
+    market_age = Decimal(str((now_utc - observed_at_utc).total_seconds()))
+    if market_age < 0 or market_age > _CONTROLLED_ADMIN_CHILD_MAX_MARKET_AGE_SECONDS:
+        raise _controlled_admin_child_persistence_error(
+            "controlled reveal requires fresh, non-future bid evidence",
+            client_order_id=child_id,
+        )
+
+    expected_child_id = str(
+        uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            f"coinbase://filled-follow-up/{root_id}/{root_id}",
+        )
+    )
+    if child_id != expected_child_id:
+        raise _controlled_admin_child_persistence_error(
+            "child is not the deterministic first ADMIN_FILL_FOLLOW_UP for the root",
+            client_order_id=child_id,
+        )
+
+    def row_dict(cursor, row) -> Optional[Dict[str, Any]]:
+        if row is None:
+            return None
+        columns = [description[0] for description in cursor.description]
+        return dict(zip(columns, row))
+
+    def row_dicts(cursor, rows) -> List[Dict[str, Any]]:
+        columns = [description[0] for description in cursor.description]
+        return [dict(zip(columns, row)) for row in rows]
+
+    def reject(message: str) -> NoReturn:
+        raise _controlled_admin_child_persistence_error(
+            message,
+            client_order_id=child_id,
+        )
+
+    with DB_CLIENT.get_cursor() as cursor:
+        cursor.execute(
+            "SELECT * FROM order_parent WHERE client_order_id = %s FOR UPDATE",
+            (root_id,),
+        )
+        root_row = row_dict(cursor, cursor.fetchone())
+        cursor.execute(
+            "SELECT * FROM order_parent WHERE client_order_id = %s FOR UPDATE",
+            (child_id,),
+        )
+        child_row = row_dict(cursor, cursor.fetchone())
+        cursor.execute(
+            "SELECT * FROM stealth_orders WHERE stealth_order_id = %s FOR UPDATE",
+            (child_id,),
+        )
+        stealth_row = row_dict(cursor, cursor.fetchone())
+        cursor.execute(
+            """SELECT client_order_id
+                 FROM order_parent
+                WHERE parent_order_id = %s
+                  AND ownership_provenance = %s
+                FOR UPDATE""",
+            (root_id, OrderOwnershipProvenance.ADMIN_FILL_FOLLOW_UP.value),
+        )
+        admin_children = row_dicts(cursor, cursor.fetchall())
+
+        if child_row is None or root_row is None or stealth_row is None:
+            reject("controlled reveal requires existing root, child, and stealth rows")
+        if str(child_row.get("client_order_id") or "") != child_id:
+            reject("child is not the deterministic current row")
+        if len(admin_children) != 1 or str(
+            admin_children[0].get("client_order_id") or ""
+        ) != child_id:
+            reject("root must have exactly one current ADMIN_FILL_FOLLOW_UP child")
+
+        if str(root_row.get("client_order_id") or "") != root_id:
+            reject("root ownership row mismatch")
+        if root_row.get("parent_order_id"):
+            reject("controlled reveal root must be flat and non-nested")
+        if str(root_row.get("ownership_provenance") or "") != (
+            OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+        ):
+            reject("root ownership provenance is not ADMIN_MANUAL_ROOT")
+        if str(root_row.get("status") or "").upper() != OrderStatus.FILLED.value:
+            reject("controlled reveal root must be FILLED")
+        if str(root_row.get("side") or "").upper() != OrderSide.BUY.value:
+            reject("controlled reveal root must be BUY")
+        if not str(root_row.get("exchange_order_id") or "").strip():
+            reject("controlled reveal root exchange fill evidence is missing")
+
+        if str(child_row.get("parent_order_id") or "") != root_id:
+            reject("controlled reveal child does not link flat to the expected root")
+        if str(child_row.get("ownership_provenance") or "") != (
+            OrderOwnershipProvenance.ADMIN_FILL_FOLLOW_UP.value
+        ):
+            reject("child ownership provenance is not ADMIN_FILL_FOLLOW_UP")
+        if str(child_row.get("status") or "").upper() != OrderStatus.PENDING.value:
+            reject("controlled reveal child tracking row must be PENDING")
+        if child_row.get("exchange_order_id"):
+            reject("controlled reveal child must be unsubmitted")
+
+        rows = (root_row, child_row, stealth_row)
+        if any(str(row.get("product_id") or "") != "BTC-USDC" for row in rows):
+            reject("controlled reveal is scoped only to BTC-USDC")
+        if str(child_row.get("side") or "").upper() != OrderSide.SELL.value or str(
+            stealth_row.get("side") or ""
+        ).upper() != OrderSide.SELL.value:
+            reject("controlled reveal child must be SELL")
+        if str(stealth_row.get("parent_order_id") or "") != root_id:
+            reject("stealth child does not link flat to the expected root")
+        if str(stealth_row.get("stealth_order_id") or "") != child_id:
+            reject("stealth child identity mismatch")
+
+        scoped_portfolios = {
+            str(root_row.get("retail_portfolio_id") or ""),
+            str(child_row.get("retail_portfolio_id") or ""),
+        }
+        if scoped_portfolios != {portfolio_id}:
+            reject("root/child portfolio does not match the exact Test portfolio")
+        root_correlation_id = str(root_row.get("correlation_id") or "").strip()
+        root_audit_id = str(root_row.get("audit_id") or "").strip()
+        if (
+            not root_correlation_id
+            or str(child_row.get("correlation_id") or "").strip()
+            != root_correlation_id
+        ):
+            reject("root/child correlation trace mismatch")
+        if (
+            not root_audit_id
+            or str(child_row.get("audit_id") or "").strip() != root_audit_id
+        ):
+            reject("root/child audit trace mismatch")
+
+        original_stealth_status = str(
+            stealth_row.get("status") or ""
+        ).upper()
+        if original_stealth_status not in {
+            StealthOrderStatus.HIDDEN.value,
+            StealthOrderStatus.PENDING.value,
+            StealthOrderStatus.TRIGGERED.value,
+        }:
+            reject(
+                "controlled reveal stealth child must remain in an "
+                "unsubmitted pre-exchange condition state"
+            )
+        revealed_orders = _json_list(stealth_row.get("revealed_orders"))
+        try:
+            total_size = Decimal(str(stealth_row.get("total_size")))
+            remaining_size = Decimal(str(stealth_row.get("remaining_size")))
+            revealed_size = Decimal(str(stealth_row.get("revealed_size") or 0))
+            executed_size = Decimal(str(stealth_row.get("executed_size") or 0))
+            tracked_size = Decimal(str(child_row.get("size")))
+            root_size = Decimal(str(root_row.get("size")))
+        except (InvalidOperation, TypeError, ValueError):
+            reject("controlled reveal child size evidence is invalid")
+        if (
+            not total_size.is_finite()
+            or total_size <= 0
+            or total_size != remaining_size
+            or total_size != tracked_size
+            or total_size != root_size
+            or revealed_size != 0
+            or executed_size != 0
+            or revealed_orders
+            or stealth_row.get("last_placement_at") is not None
+            or stealth_row.get("condition_first_met_at") is not None
+            or stealth_row.get("condition_confirmed_at") is not None
+        ):
+            reject("controlled reveal child must be wholly hidden and unsubmitted")
+
+        condition = _json_mapping(stealth_row.get("reveal_condition_json"))
+        if (
+            str(stealth_row.get("reveal_condition_type") or "")
+            != "price_threshold"
+            or str(condition.get("type") or "") != "price_threshold"
+            or str(condition.get("direction") or "").lower() != "above"
+            or str(condition.get("standing_price_limit_policy") or "")
+            != "admin_test_profile"
+            or str(stealth_row.get("reason") or "") != "follow_up_replacement"
+        ):
+            reject("controlled reveal child policy evidence is invalid")
+
+        state = _json_mapping(stealth_row.get("anchor_repricing_state_json"))
+        if state.get("controlled_admin_first_child_reveal_preparation"):
+            reject("controlled reveal child was already prepared")
+        if (
+            state.get("active_placement_client_order_id")
+            or state.get("active_exchange_order_id")
+        ):
+            reject("controlled reveal child has active placement evidence")
+
+        reference_notional = total_size * prepared_price
+        if not reference_notional.is_finite() or reference_notional >= hard_cap:
+            reject("controlled reveal child reference notional is not under the hard cap")
+
+        try:
+            original_parent_price = Decimal(str(child_row.get("price")))
+            original_stealth_price = Decimal(str(stealth_row.get("limit_price")))
+            original_threshold = Decimal(str(condition.get("price_threshold")))
+        except (InvalidOperation, TypeError, ValueError):
+            reject("controlled reveal original child price evidence is invalid")
+        if (
+            not original_parent_price.is_finite()
+            or not original_stealth_price.is_finite()
+            or not original_threshold.is_finite()
+            or original_parent_price != original_stealth_price
+        ):
+            reject("controlled reveal original child price evidence is inconsistent")
+
+        preparation_evidence = {
+            "authority_id": str(authority_id),
+            "approval_snapshot_id": str(approval_snapshot_id),
+            "admission_audit_id": str(admission_audit_id),
+            "cap_guard_decision_id": str(cap_guard_decision_id),
+            "reconciliation_plan_id": str(reconciliation_plan_id),
+            "batch_id": str(batch_id),
+            "batch_slot": batch_slot,
+            "prepared_at": now_utc.isoformat(),
+            "market_observed_at": observed_at_utc.isoformat(),
+            "market_age_seconds": float(market_age),
+            "market_bid": float(bid),
+            "minimum_standing_price": float(minimum_standing_price),
+            "requested_limit_price": float(requested_price),
+            "prepared_limit_price": float(prepared_price),
+            "quote_increment": str(increment),
+            "reference_notional_usdc": float(reference_notional),
+            "max_notional_usdc": float(hard_cap),
+            "original_order_parent_price": float(original_parent_price),
+            "original_stealth_limit_price": float(original_stealth_price),
+            "original_price_threshold": float(original_threshold),
+            "original_stealth_status": original_stealth_status,
+            "root_client_order_id": root_id,
+            "stealth_order_id": child_id,
+            "portfolio_id": portfolio_id,
+            "correlation_id": root_correlation_id,
+            "root_audit_id": root_audit_id,
+            "root_exchange_order_id": str(root_row.get("exchange_order_id")),
+        }
+        state["controlled_admin_first_child_reveal_preparation"] = preparation_evidence
+        condition["price_threshold"] = float(prepared_price)
+
+        cursor.execute(
+            "UPDATE order_parent SET price = %s WHERE client_order_id = %s",
+            (prepared_price, child_id),
+        )
+        if cursor.rowcount != 1:
+            reject("controlled reveal order_parent update did not affect exactly one row")
+        cursor.execute(
+            """UPDATE stealth_orders
+                  SET limit_price = %s,
+                      status = %s,
+                      reveal_condition_json = %s,
+                      anchor_repricing_state_json = %s,
+                      condition_first_met_at = NULL,
+                      condition_confirmed_at = NULL,
+                      updated_at = CURRENT_TIMESTAMP
+                WHERE stealth_order_id = %s""",
+            (
+                prepared_price,
+                StealthOrderStatus.HIDDEN.value,
+                json.dumps(condition, default=_json_default_for_db),
+                json.dumps(state, default=_json_default_for_db),
+                child_id,
+            ),
+        )
+        if cursor.rowcount != 1:
+            reject("controlled reveal stealth update did not affect exactly one row")
+
+        return {
+            "stealth_order_id": child_id,
+            "root_client_order_id": root_id,
+            "portfolio_id": portfolio_id,
+            "correlation_id": root_correlation_id,
+            "root_audit_id": root_audit_id,
+            "prepared_limit_price": prepared_price,
+            "reference_notional_usdc": reference_notional,
+            "reveal_condition_json": condition,
+            "anchor_repricing_state_json": state,
+        }
 
 
 def insert_order_parent_batch(

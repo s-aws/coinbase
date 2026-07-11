@@ -28,9 +28,20 @@ not run with notional `0`.
 - Futures place, close/reduce, and cancel HTTP routes remain no-live command
   drafts. Their shared command-service methods return disabled evidence and do
   not invoke the backend-only futures live executor.
-- Stealth create/reveal/move/cancel/recovery/reconciliation, movement reprice,
-  campaign, and sweep HTTP command routes remain route-specific no-live or
-  local-evidence surfaces unless their current route inventory says otherwise.
+- Generic stealth create/reveal/move/cancel/recovery/reconciliation, movement
+  reprice, campaign, and sweep HTTP commands remain route-specific no-live or
+  local-evidence surfaces. The only stealth exception is the backend-controlled
+  Test-profile proof for the deterministic first child of a FILLED
+  `ADMIN_MANUAL_ROOT`: reveal requires its exact root/batch slot, manual live
+  acknowledgement, route-bound approval/audit/cap/reconciliation records, a
+  fresh zero-active-order read, a limit at least 150% of bid, notional below the
+  2 USDC hard cap, and the manager's one-use authority. Cancel is keyed by the
+  same `stealth_order_id`, proves its exact Coinbase identity, calls canonical
+  `cancel_order(client_order_id)` first, and may use the exchange order id only
+  as a recorded fallback after explicit identity rejection. It requires
+  zero-fill `CANCELLED` readback before a batch may advance. This exception
+  grants no browser authority and cannot reveal an ordinary or
+  later-generation Admin child.
 
 ## Backend-Only Controlled-Live Tools
 

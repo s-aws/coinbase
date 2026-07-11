@@ -93,6 +93,127 @@ def test_cancel_order_rejects_non_empty_payload_without_success_flag():
 
 
 @pytest.mark.regression
+def test_cancel_order_evidence_distinguishes_rejection_from_unknown():
+    from external.coinbase_client import coinbase_cancel_response_evidence
+
+    rejected = coinbase_cancel_response_evidence(
+        {
+            "results": [
+                {
+                    "success": False,
+                    "failure_reason": "ORDER_NOT_FOUND",
+                    "order_id": "client-order-1",
+                }
+            ]
+        }
+    )
+    unknown = coinbase_cancel_response_evidence(
+        {"results": [{"order_id": "client-order-1"}]}
+    )
+    non_identity_failure = coinbase_cancel_response_evidence(
+        {
+            "results": [
+                {
+                    "success": False,
+                    "failure_reason": "RATE_LIMITED",
+                    "order_id": "client-order-1",
+                }
+            ]
+        },
+        expected_order_id="client-order-1",
+    )
+
+    assert rejected["outcome"] == "explicitly_rejected"
+    assert rejected["explicit_rejection"] is True
+    assert unknown["outcome"] == "unknown"
+    assert unknown["explicit_rejection"] is False
+    assert non_identity_failure["outcome"] == "unknown"
+    assert non_identity_failure["identity_rejection"] is False
+
+
+@pytest.mark.regression
+def test_cancel_order_can_return_typed_evidence_from_same_wrapper():
+    from external.coinbase_client import CoinbaseRestClient
+
+    client = CoinbaseRestClient.__new__(CoinbaseRestClient)
+    client._client = MagicMock()
+    client._client.cancel_orders.return_value = {
+        "results": [
+            {
+                "success": False,
+                "failure_reason": "ORDER_NOT_FOUND",
+                "order_id": "client-order-1",
+            }
+        ]
+    }
+
+    evidence = client.cancel_order("client-order-1", return_evidence=True)
+
+    assert evidence["outcome"] == "explicitly_rejected"
+    assert evidence["explicit_rejection"] is True
+    client._client.cancel_orders.assert_called_once_with(["client-order-1"])
+
+
+@pytest.mark.regression
+def test_exchange_id_cancel_can_return_unknown_typed_evidence():
+    from external.coinbase_client import CoinbaseRestClient
+
+    client = CoinbaseRestClient.__new__(CoinbaseRestClient)
+    client._client = MagicMock()
+    client._client.cancel_orders.return_value = {
+        "results": [{"order_id": "exchange-order-1"}]
+    }
+
+    evidence = client.cancel_order_by_exchange_order_id(
+        "exchange-order-1",
+        return_evidence=True,
+    )
+
+    assert evidence["outcome"] == "unknown"
+    assert evidence["explicit_rejection"] is False
+    client._client.cancel_orders.assert_called_once_with(["exchange-order-1"])
+
+
+@pytest.mark.regression
+@pytest.mark.parametrize(
+    "results",
+    [
+        [
+            {
+                "success": False,
+                "failure_reason": "ORDER_NOT_FOUND",
+                "order_id": "different-client-order",
+            }
+        ],
+        [
+            {
+                "success": False,
+                "failure_reason": "ORDER_NOT_FOUND",
+                "order_id": "client-order-1",
+            },
+            {
+                "success": False,
+                "failure_reason": "ORDER_NOT_FOUND",
+                "order_id": "different-client-order",
+            },
+        ],
+    ],
+)
+def test_typed_cancel_evidence_rejects_wrong_or_multiple_identity_rows(results):
+    from external.coinbase_client import CoinbaseRestClient
+
+    client = CoinbaseRestClient.__new__(CoinbaseRestClient)
+    client._client = MagicMock()
+    client._client.cancel_orders.return_value = {"results": results}
+
+    evidence = client.cancel_order("client-order-1", return_evidence=True)
+
+    assert evidence["outcome"] == "unknown"
+    assert evidence["identity_match"] is False
+    assert evidence["identity_rejection"] is False
+
+
+@pytest.mark.regression
 def test_list_fills_maps_friendly_names_to_sdk_param_names():
     """The wrapper must translate ``product_id`` → ``product_ids``,
     ``start_date`` → ``start_sequence_timestamp``,

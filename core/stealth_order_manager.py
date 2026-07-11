@@ -64,6 +64,7 @@ import copy
 import uuid
 import json
 import time
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Callable, Dict, Any, Iterator, Optional, Tuple, List
 
@@ -106,6 +107,7 @@ from core.enums import (
     StealthOrderStatus,
 )
 from core.exceptions import (
+    OrderPersistenceError,
     RevealPricingError,
     RevealConditionEvaluationError,
     RevealOrderSliceError,
@@ -130,6 +132,7 @@ from database.order import (
     get_parent_order,
     insert_order_parent,
     persist_filled_follow_up_atomic,
+    prepare_controlled_admin_first_child_reveal_atomic,
     update_order_parent_status,
 )
 from logging_service import get_logger
@@ -212,6 +215,35 @@ def _filled_follow_up_stealth_order_id(
             ),
         )
     )
+
+
+@dataclass(frozen=True)
+class ControlledAdminChildRevealAuthority:
+    """One-call in-process authority for one prepared first Admin child.
+
+    The durable preparation remains the audit source of truth. This frozen
+    object is an intentionally non-restartable capability: the issuing manager
+    stores the exact object identity and consumes it on the first reveal call.
+    It can bypass only the product ``STEALTH_REVEAL`` capability check; all
+    ownership, portfolio, wallet, cap, profitability, payload, standing-price,
+    and persistence guards continue to execute normally.
+    """
+
+    stealth_order_id: str
+    root_client_order_id: str
+    prepared_limit_price: float
+    total_size: float
+    reference_notional_usdc: float
+    portfolio_id: str
+    correlation_id: str
+    root_audit_id: str
+    authority_id: str
+    approval_snapshot_id: str
+    admission_audit_id: str
+    cap_guard_decision_id: str
+    reconciliation_plan_id: str
+    batch_id: str
+    batch_slot: int
 
 
 class StealthOrderManager:
@@ -3619,6 +3651,249 @@ class StealthOrderManager:
             "reveal_price_source": reveal_plan.reveal_price_source,
         }
 
+    def prepare_controlled_admin_first_child_reveal(
+        self,
+        *,
+        stealth_order_id: str,
+        expected_root_client_order_id: str,
+        expected_portfolio_id: str,
+        submitted_limit_price: float,
+        max_notional_usdc: float,
+        market_bid: float,
+        market_observed_at: datetime,
+        approval_snapshot_id: str,
+        admission_audit_id: str,
+        cap_guard_decision_id: str,
+        reconciliation_plan_id: str,
+        batch_id: str,
+        batch_slot: int,
+    ) -> ControlledAdminChildRevealAuthority:
+        """Durably prepare and authorize one far-price first Admin child.
+
+        The database transaction owns the authoritative validation and price
+        rewrite. The cache is changed only after that transaction commits.
+        Returning a one-call object does not itself reveal or place the order.
+        """
+
+        child_id = str(stealth_order_id or "").strip()
+        root_id = str(expected_root_client_order_id or "").strip()
+        portfolio_id = str(expected_portfolio_id or "").strip()
+        manager_portfolio_id = str(
+            getattr(self, "expected_retail_portfolio_id", None) or ""
+        ).strip()
+        if not manager_portfolio_id or portfolio_id != manager_portfolio_id:
+            raise OrderPersistenceError(
+                error_type="ControlledAdminChildPortfolioScopeMismatch",
+                message=(
+                    "controlled Admin child portfolio must exactly match the "
+                    "manager Test portfolio scope"
+                ),
+                operation="update",
+                table="order_parent,stealth_orders",
+                client_order_id=child_id,
+                stealth_order_id=child_id,
+            )
+
+        order = self._get_stealth_order(child_id)
+        if not isinstance(order, dict):
+            raise OrderPersistenceError(
+                error_type="ControlledAdminChildNotLoaded",
+                message="controlled Admin child is not loaded",
+                operation="update",
+                table="stealth_orders",
+                client_order_id=child_id,
+                stealth_order_id=child_id,
+            )
+        if (
+            str(order.get("stealth_order_id") or "") != child_id
+            or str(order.get("parent_order_id") or "") != root_id
+            or str(order.get("product_id") or "") != "BTC-USDC"
+            or str(order.get("side") or "").upper() != OrderSide.SELL.value
+            or str(order.get("status") or "").upper()
+            not in {
+                StealthOrderStatus.HIDDEN.value,
+                StealthOrderStatus.PENDING.value,
+                StealthOrderStatus.TRIGGERED.value,
+            }
+            or list(order.get("revealed_orders") or [])
+            or (safe_float(order.get("revealed_size"), default=0.0) or 0.0)
+            != 0.0
+            or (safe_float(order.get("executed_size"), default=0.0) or 0.0)
+            != 0.0
+            or abs(
+                (safe_float(order.get("remaining_size"), default=0.0) or 0.0)
+                - (safe_float(order.get("total_size"), default=0.0) or 0.0)
+            )
+            > 1e-12
+        ):
+            raise OrderPersistenceError(
+                error_type="ControlledAdminChildMemoryStateMismatch",
+                message=(
+                    "controlled Admin child cache is not the exact hidden, "
+                    "unsubmitted first child"
+                ),
+                operation="update",
+                table="stealth_orders",
+                client_order_id=child_id,
+                stealth_order_id=child_id,
+            )
+
+        quote_increment = self._get_price_increment("BTC-USDC")
+        if not quote_increment:
+            raise OrderPersistenceError(
+                error_type="ControlledAdminChildIncrementMissing",
+                message="BTC-USDC quote increment is unavailable",
+                operation="update",
+                table="stealth_orders",
+                client_order_id=child_id,
+                stealth_order_id=child_id,
+            )
+
+        authority_id = str(uuid.uuid4())
+        prepared = prepare_controlled_admin_first_child_reveal_atomic(
+            stealth_order_id=child_id,
+            expected_root_client_order_id=root_id,
+            expected_portfolio_id=portfolio_id,
+            submitted_limit_price=submitted_limit_price,
+            quote_increment=quote_increment,
+            max_notional_usdc=max_notional_usdc,
+            market_bid=market_bid,
+            market_observed_at=market_observed_at,
+            approval_snapshot_id=approval_snapshot_id,
+            admission_audit_id=admission_audit_id,
+            cap_guard_decision_id=cap_guard_decision_id,
+            reconciliation_plan_id=reconciliation_plan_id,
+            batch_id=batch_id,
+            batch_slot=batch_slot,
+            authority_id=authority_id,
+        )
+
+        prepared_price = float(prepared["prepared_limit_price"])
+        prepared_condition = copy.deepcopy(prepared["reveal_condition_json"])
+        prepared_state = copy.deepcopy(prepared["anchor_repricing_state_json"])
+        # Durable success is established above. Only now publish the exact
+        # prepared facts to the manager cache.
+        order["limit_price"] = prepared_price
+        order["status"] = StealthOrderStatus.HIDDEN.value
+        order["reveal_condition_json"] = prepared_condition
+        order["anchor_repricing_state_json"] = prepared_state
+        order["condition_first_met_at"] = None
+        order["condition_confirmed_at"] = None
+        order["updated_at"] = datetime.utcnow()
+
+        authority = ControlledAdminChildRevealAuthority(
+            stealth_order_id=child_id,
+            root_client_order_id=root_id,
+            prepared_limit_price=prepared_price,
+            total_size=float(order["total_size"]),
+            reference_notional_usdc=float(prepared["reference_notional_usdc"]),
+            portfolio_id=str(prepared["portfolio_id"]),
+            correlation_id=str(prepared["correlation_id"]),
+            root_audit_id=str(prepared["root_audit_id"]),
+            authority_id=authority_id,
+            approval_snapshot_id=str(approval_snapshot_id),
+            admission_audit_id=str(admission_audit_id),
+            cap_guard_decision_id=str(cap_guard_decision_id),
+            reconciliation_plan_id=str(reconciliation_plan_id),
+            batch_id=str(batch_id),
+            batch_slot=batch_slot,
+        )
+        issued = getattr(
+            self, "_controlled_admin_child_reveal_authorities", None
+        )
+        if not isinstance(issued, dict):
+            issued = {}
+            self._controlled_admin_child_reveal_authorities = issued
+        issued[authority_id] = authority
+        return authority
+
+    def _consume_controlled_admin_child_reveal_authority(
+        self,
+        *,
+        stealth_order_id: str,
+        order: Dict[str, Any],
+        authority: Optional[ControlledAdminChildRevealAuthority],
+    ) -> Tuple[bool, Optional[str]]:
+        """Consume and validate one manager-issued exact-child capability."""
+
+        preparation = (
+            (order.get("anchor_repricing_state_json") or {}).get(
+                "controlled_admin_first_child_reveal_preparation"
+            )
+            or {}
+        )
+        if not isinstance(preparation, dict) or not preparation:
+            return False, "controlled_admin_child_not_prepared"
+        if authority is None:
+            return False, "controlled_admin_authority_required"
+        if not isinstance(authority, ControlledAdminChildRevealAuthority):
+            return False, "controlled_admin_authority_type_mismatch"
+
+        issued = getattr(
+            self, "_controlled_admin_child_reveal_authorities", None
+        )
+        issued = issued if isinstance(issued, dict) else {}
+        registered = issued.pop(authority.authority_id, None)
+        if registered is not authority:
+            return False, "controlled_admin_authority_not_issued"
+
+        expected_fields = {
+            "authority_id": authority.authority_id,
+            "approval_snapshot_id": authority.approval_snapshot_id,
+            "admission_audit_id": authority.admission_audit_id,
+            "cap_guard_decision_id": authority.cap_guard_decision_id,
+            "reconciliation_plan_id": authority.reconciliation_plan_id,
+            "batch_id": authority.batch_id,
+            "batch_slot": authority.batch_slot,
+            "root_client_order_id": authority.root_client_order_id,
+            "stealth_order_id": authority.stealth_order_id,
+            "portfolio_id": authority.portfolio_id,
+            "correlation_id": authority.correlation_id,
+            "root_audit_id": authority.root_audit_id,
+        }
+        if any(preparation.get(key) != value for key, value in expected_fields.items()):
+            return False, "controlled_admin_authority_audit_mismatch"
+        if (
+            authority.stealth_order_id != stealth_order_id
+            or str(order.get("stealth_order_id") or "") != stealth_order_id
+            or str(order.get("parent_order_id") or "")
+            != authority.root_client_order_id
+            or str(order.get("product_id") or "") != "BTC-USDC"
+            or str(order.get("side") or "").upper() != OrderSide.SELL.value
+            or str(order.get("status") or "").upper()
+            != StealthOrderStatus.HIDDEN.value
+            or list(order.get("revealed_orders") or [])
+            or (safe_float(order.get("revealed_size"), default=0.0) or 0.0)
+            != 0.0
+            or (safe_float(order.get("executed_size"), default=0.0) or 0.0)
+            != 0.0
+            or abs(
+                (safe_float(order.get("remaining_size"), default=0.0) or 0.0)
+                - authority.total_size
+            )
+            > 1e-12
+            or abs(
+                (safe_float(order.get("limit_price"), default=0.0) or 0.0)
+                - authority.prepared_limit_price
+            )
+            > 1e-12
+            or abs(
+                (
+                    safe_float(
+                        (order.get("reveal_condition_json") or {}).get(
+                            "price_threshold"
+                        ),
+                        default=0.0,
+                    )
+                    or 0.0
+                )
+                - authority.prepared_limit_price
+            )
+            > 1e-12
+        ):
+            return False, "controlled_admin_authority_order_mismatch"
+        return True, None
+
     def _resolve_admin_fill_follow_up_reveal_authority(
         self,
         *,
@@ -3869,7 +4144,14 @@ class StealthOrderManager:
         if isinstance(blocked_until, dict):
             blocked_until.pop(stealth_order_id, None)
 
-    def reveal_order_slice(self, stealth_order_id: str) -> Optional[str]:
+    def reveal_order_slice(
+        self,
+        stealth_order_id: str,
+        *,
+        controlled_admin_authority: Optional[
+            ControlledAdminChildRevealAuthority
+        ] = None,
+    ) -> Optional[str]:
         """Reveal next slice of hidden order based on adaptive sizing.
         
         Integrates reveal execution planning:
@@ -3894,6 +4176,47 @@ class StealthOrderManager:
                 raise RevealOrderSliceError(
                     f"Stealth order not found: {stealth_order_id}"
                 )
+
+            controlled_preparation = (
+                (order.get("anchor_repricing_state_json") or {}).get(
+                    "controlled_admin_first_child_reveal_preparation"
+                )
+                or None
+            )
+            controlled_capability_bypass = False
+            if (
+                controlled_preparation is not None
+                or controlled_admin_authority is not None
+            ):
+                (
+                    controlled_capability_bypass,
+                    controlled_authority_blocker,
+                ) = self._consume_controlled_admin_child_reveal_authority(
+                    stealth_order_id=stealth_order_id,
+                    order=order,
+                    authority=controlled_admin_authority,
+                )
+                if not controlled_capability_bypass:
+                    self._record_admin_fill_follow_up_reveal_block(
+                        stealth_order_id=stealth_order_id,
+                        order=order,
+                        block_category=str(
+                            controlled_authority_blocker
+                            or "controlled_admin_authority_rejected"
+                        ),
+                        failure_reason=(
+                            "Controlled Admin child reveal requires the exact "
+                            "unused one-call manager authority; the child "
+                            "remains pre-exchange."
+                        ),
+                        evidence={
+                            "controlled_preparation": controlled_preparation,
+                            "controlled_authority_blocker": (
+                                controlled_authority_blocker
+                            ),
+                        },
+                    )
+                    return None
             
             # Calculate slice size (delegates to RevealStrategy in
             # business/stealth_reveal_strategy.py).
@@ -3979,7 +4302,10 @@ class StealthOrderManager:
                     return None
 
             blocked_until = self._get_action_guard_blocked_until(stealth_order_id)
-            if blocked_until > time.monotonic():
+            if (
+                blocked_until > time.monotonic()
+                and not controlled_capability_bypass
+            ):
                 return None
 
             admin_child_authority = (
@@ -4013,11 +4339,28 @@ class StealthOrderManager:
                 )
                 return None
 
+            if (
+                admin_child_authority.get("required")
+                and not controlled_capability_bypass
+            ):
+                self._record_admin_fill_follow_up_reveal_block(
+                    stealth_order_id=stealth_order_id,
+                    order=order,
+                    block_category="controlled_admin_authority_required",
+                    failure_reason=(
+                        "Every Admin fill-follow-up exchange submission requires "
+                        "the exact unused one-call controlled authority; ordinary "
+                        "automatic and later-generation children remain hidden."
+                    ),
+                    evidence=admin_child_authority,
+                )
+                return None
+
             capability = evaluate_product_capability(
                 product_id=order["product_id"],
                 capability=ProductCapability.STEALTH_REVEAL,
             )
-            if not capability.allowed:
+            if not capability.allowed and not controlled_capability_bypass:
                 self.log_callback("warning", {
                     "event": "stealth_order_reveal_blocked_by_product_capability",
                     **capability.to_dict(),

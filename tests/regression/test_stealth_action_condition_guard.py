@@ -330,6 +330,13 @@ def test_direct_admin_root_child_reveal_stays_pre_exchange_outside_standing_limi
         wraps=manager._resolve_admin_fill_follow_up_reveal_authority
     )
     manager._resolve_admin_fill_follow_up_reveal_authority = authority_resolver
+    manager._consume_controlled_admin_child_reveal_authority = MagicMock(
+        side_effect=[
+            (True, None),
+            (False, "controlled_admin_authority_not_issued"),
+        ]
+    )
+    controlled_authority = object()
     manager.profit_validator = None
     manager._calculate_reveal_size = MagicMock(return_value=0.01)
     manager.build_reveal_execution_plan = MagicMock(
@@ -373,8 +380,12 @@ def test_direct_admin_root_child_reveal_stays_pre_exchange_outside_standing_limi
         insert_parent,
     )
 
-    assert manager.reveal_order_slice(sid) is None
-    assert manager.reveal_order_slice(sid) is None
+    assert manager.reveal_order_slice(
+        sid, controlled_admin_authority=controlled_authority
+    ) is None
+    assert manager.reveal_order_slice(
+        sid, controlled_admin_authority=controlled_authority
+    ) is None
 
     rest_client.place_limit_order.assert_not_called()
     insert_parent.assert_not_called()
@@ -384,14 +395,20 @@ def test_direct_admin_root_child_reveal_stays_pre_exchange_outside_standing_limi
     )
     assert manager._evaluate_action_condition_guard.call_count == 2
     assert manager.order_placement_hooks.call_pre_submission_hooks.call_count == 1
-    assert manager._dispatch_lifecycle_event.call_count == 1
+    assert manager._dispatch_lifecycle_event.call_count == 2
     assert manager._get_action_guard_blocked_until(sid) > 0
-    _, lifecycle_kwargs = manager._dispatch_lifecycle_event.call_args
+    _, lifecycle_kwargs = manager._dispatch_lifecycle_event.call_args_list[0]
     assert lifecycle_kwargs["event"] == StealthLifecycleEvent.PLACEMENT_BLOCKED
     assert lifecycle_kwargs["extra"]["block_category"] == (
         "standing_price_limit_not_authorized"
     )
     assert lifecycle_kwargs["extra"]["standing_price_limit"]["allowed"] is False
+    _, repeated_lifecycle_kwargs = (
+        manager._dispatch_lifecycle_event.call_args_list[1]
+    )
+    assert repeated_lifecycle_kwargs["extra"]["block_category"] == (
+        "controlled_admin_authority_not_issued"
+    )
     assert order["status"] == StealthOrderStatus.TRIGGERED.value
     assert order["remaining_size"] == 0.01
     assert order["revealed_orders"] == []
@@ -591,6 +608,9 @@ def test_admin_child_reveal_rejects_exchange_payload_drift_after_hooks(monkeypat
             "policy": "admin_test_profile",
         }
     )
+    manager._consume_controlled_admin_child_reveal_authority = MagicMock(
+        return_value=(True, None)
+    )
     manager._evaluate_action_condition_guard = MagicMock(return_value=(True, None))
     manager._get_current_market_data = MagicMock(
         return_value={
@@ -636,7 +656,9 @@ def test_admin_child_reveal_rejects_exchange_payload_drift_after_hooks(monkeypat
         insert_parent,
     )
 
-    assert manager.reveal_order_slice(sid) is None
+    assert manager.reveal_order_slice(
+        sid, controlled_admin_authority=object()
+    ) is None
 
     rest_client.place_limit_order.assert_not_called()
     insert_parent.assert_not_called()

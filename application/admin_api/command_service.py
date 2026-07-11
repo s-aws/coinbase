@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from threading import RLock
 from typing import Any, Callable, Iterator, Mapping
+import time
 import uuid
 
 from calculation.formatter import safe_float
@@ -348,6 +349,68 @@ class SpotProfileOrderAdmissionCoordinator:
 _SPOT_PROFILE_ORDER_ADMISSION_COORDINATOR = SpotProfileOrderAdmissionCoordinator()
 
 
+CONTROLLED_FIRST_CHILD_REVEAL_OPERATOR_INTENT = (
+    "controlled_test_profile_first_child_reveal"
+)
+CONTROLLED_FIRST_CHILD_CANCEL_OPERATOR_INTENT = (
+    "controlled_test_profile_first_child_cancel"
+)
+CONTROLLED_FIRST_CHILD_MAX_NOTIONAL_USDC = Decimal("2.00")
+CONTROLLED_FIRST_CHILD_TERMINAL_POLL_SECONDS = 10.0
+CONTROLLED_FIRST_CHILD_TERMINAL_POLL_INTERVAL_SECONDS = 0.25
+
+
+def _controlled_child_false(value: Any) -> bool:
+    """Normalize explicit Coinbase false evidence without accepting absence."""
+
+    return value is False or value == 0 or (
+        isinstance(value, str) and value.strip().lower() in {"false", "0", "no"}
+    )
+
+
+def _controlled_child_authoritative_tuple_matches(
+    order: Mapping[str, Any],
+    *,
+    expected_base_size: Any,
+    expected_limit_price: Any,
+) -> bool:
+    """Prove the accepted child is the exact approved base-sized SELL GTC."""
+
+    configuration = order.get("order_configuration")
+    if not isinstance(configuration, Mapping) or set(configuration) != {
+        "limit_limit_gtc"
+    }:
+        return False
+    limit_gtc = configuration.get("limit_limit_gtc")
+    if not isinstance(limit_gtc, Mapping):
+        return False
+    try:
+        observed_size = Decimal(str(limit_gtc.get("base_size") or ""))
+        expected_size = Decimal(str(expected_base_size or ""))
+        observed_price = Decimal(str(limit_gtc.get("limit_price") or ""))
+        expected_price = Decimal(str(expected_limit_price or ""))
+    except Exception:
+        return False
+    if not all(
+        value.is_finite() and value > 0
+        for value in (observed_size, expected_size, observed_price, expected_price)
+    ):
+        return False
+    post_only = limit_gtc.get("post_only", order.get("post_only"))
+    size_in_quote = order.get("size_in_quote", False)
+    return bool(
+        observed_size == expected_size
+        and observed_price == expected_price
+        and str(order.get("order_type") or "").upper() == "LIMIT"
+        and str(order.get("time_in_force") or "").upper()
+        == TimeInForce.GOOD_UNTIL_CANCELLED.value
+        and _controlled_child_false(post_only)
+        and _controlled_child_false(size_in_quote)
+        and not str(limit_gtc.get("quote_size") or "").strip()
+        and not str(order.get("quote_size") or "").strip()
+    )
+
+
 @dataclass(slots=True)
 class AdminApiCommandDependencies:
     """Runtime dependencies required by live command execution."""
@@ -371,6 +434,7 @@ class AdminApiCommandDependencies:
     add_log_entry: Callable[[str, str], None] = _noop_log
     order_event_publisher_getter: Callable[[], Any | None] = lambda: None
     fill_follow_up_executor_getter: Callable[[], Any | None] = lambda: None
+    stealth_order_runtime_getter: Callable[[], Any | None] = lambda: None
     read_service_getter: Callable[[], Any | None] | None = None
     planned_budget_fetcher: Callable[[], dict[str, float]] = _empty_budget
     lot_authority_evaluator_getter: Callable[[], Any | None] = lambda: None
@@ -4275,7 +4339,10 @@ class AdminApiCommandService:
             cancellation_readback["canonical_cancel_attempted"] = True
             try:
                 with controller.track_inflight(INFLIGHT_REST_CANCEL):
-                    canonical_result = canonical_cancel(client_order_id)
+                    canonical_evidence = canonical_cancel(
+                        client_order_id,
+                        return_evidence=True,
+                    )
             except Exception as exc:
                 cancellation_readback["canonical_cancel_error"] = (
                     f"{type(exc).__name__}: {exc}"
@@ -4299,10 +4366,14 @@ class AdminApiCommandService:
                     live_coinbase_orders_ran=True,
                     failure_stage="cancellation_unknown",
                 )
-            if not isinstance(canonical_result, bool):
-                cancellation_readback["canonical_cancel_result_type"] = type(
-                    canonical_result
-                ).__name__
+            canonical_evidence = (
+                dict(canonical_evidence)
+                if isinstance(canonical_evidence, Mapping)
+                else {}
+            )
+            cancellation_readback["canonical_cancel_evidence"] = canonical_evidence
+            canonical_outcome = str(canonical_evidence.get("outcome") or "")
+            if canonical_outcome not in {"succeeded", "explicitly_rejected"}:
                 deps.spot_order_admission_coordinator.record_uncertainty(
                     retail_portfolio_id=profile_id,
                     client_order_id=client_order_id,
@@ -4322,10 +4393,37 @@ class AdminApiCommandService:
                     live_coinbase_orders_ran=True,
                     failure_stage="cancellation_unknown",
                 )
+            canonical_result = canonical_outcome == "succeeded"
+            canonical_explicit_rejection = bool(
+                canonical_outcome == "explicitly_rejected"
+                and canonical_evidence.get("explicit_rejection") is True
+                and canonical_evidence.get("identity_rejection") is True
+                and canonical_evidence.get("identity_match") is True
+            )
+            if not canonical_result and not canonical_explicit_rejection:
+                deps.spot_order_admission_coordinator.record_uncertainty(
+                    retail_portfolio_id=profile_id,
+                    client_order_id=client_order_id,
+                    reason="canonical_cancel_rejection_unproven",
+                )
+                return self._cancel_rejected(
+                    command=command,
+                    message=(
+                        "Canonical client_order_id cancellation rejection is "
+                        "unproven; exchange-id fallback is forbidden."
+                    ),
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": cancellation_readback,
+                    },
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                    failure_stage="cancellation_unknown",
+                )
             cancellation_readback["canonical_cancel_accepted"] = canonical_result
             cancellation_readback[
                 "canonical_cancel_explicitly_rejected"
-            ] = not canonical_result
+            ] = canonical_explicit_rejection
 
             try:
                 readback = exact_coinbase_order_readback(
@@ -4504,7 +4602,10 @@ class AdminApiCommandService:
             ] = exchange_order_id
             try:
                 with controller.track_inflight(INFLIGHT_REST_CANCEL):
-                    fallback_result = cancel_by_exchange_id(exchange_order_id)
+                    fallback_evidence = cancel_by_exchange_id(
+                        exchange_order_id,
+                        return_evidence=True,
+                    )
             except Exception as exc:
                 cancellation_readback["fallback_error"] = (
                     f"{type(exc).__name__}: {exc}"
@@ -4525,8 +4626,34 @@ class AdminApiCommandService:
                     live_coinbase_orders_ran=True,
                     failure_stage="cancellation_unknown",
                 )
-            cancellation_readback["fallback_accepted"] = fallback_result is True
-            if fallback_result is not True:
+            fallback_evidence = (
+                dict(fallback_evidence)
+                if isinstance(fallback_evidence, Mapping)
+                else {}
+            )
+            cancellation_readback["fallback_evidence"] = fallback_evidence
+            fallback_outcome = str(fallback_evidence.get("outcome") or "")
+            cancellation_readback["fallback_accepted"] = (
+                fallback_outcome == "succeeded"
+            )
+            if fallback_outcome not in {"succeeded", "explicitly_rejected"}:
+                deps.spot_order_admission_coordinator.record_uncertainty(
+                    retail_portfolio_id=profile_id,
+                    client_order_id=client_order_id,
+                    reason="exchange_id_cancel_result_unknown",
+                )
+                return self._cancel_rejected(
+                    command=command,
+                    message="Controlled exchange-id fallback outcome is unknown.",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": cancellation_readback,
+                    },
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                    failure_stage="cancellation_unknown",
+                )
+            if fallback_outcome != "succeeded":
                 return self._cancel_rejected(
                     command=command,
                     message="Controlled exchange-id fallback was not accepted.",
@@ -4667,38 +4794,680 @@ class AdminApiCommandService:
         self,
         command: StealthCancelCommand,
     ) -> AdminApiCommandResponse:
-        """Evaluate a stealth lifecycle cancel command through the live gate.
+        """Cancel and reconcile only an admitted controlled first child."""
 
-        This contract is keyed by ``stealth_order_id``. Active placement client
-        ids and Coinbase order ids remain evidence only until the stealth
-        lifecycle path owns the exchange handling and local-state reconciliation.
-        """
+        if not command.allow_live_execution:
+            gate = evaluate_live_execution_gate(allow_live_execution=False)
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method="cancel_stealth_order_by_stealth_order_id",
+                message=(
+                    "Stealth cancel requires enterprise auth, idempotency, audit, "
+                    "approval, cap/rate gates, and exchange-reality reconciliation "
+                    "before live execution."
+                ),
+                stealth_order_id=command.stealth_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=False,
+                guard=gate.model_dump(),
+                data={
+                    "stealth_order_id": command.stealth_order_id,
+                    "reason": command.request.reason,
+                    "identity_key": "stealth_order_id",
+                    "active_placement_client_order_id": None,
+                    "exchange_order_id_evidence_only": True,
+                },
+                failure_stage="approval",
+                **self._command_runtime_evidence(),
+            )
 
-        gate = evaluate_live_execution_gate(allow_live_execution=False)
-        return AdminApiCommandResponse(
-            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
-            action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
-            required_permission=AdminApiPermission.ORDER_CANCEL,
-            service_method="cancel_stealth_order_by_stealth_order_id",
-            message=(
-                "Stealth cancel requires enterprise auth, idempotency, audit, "
-                "approval, cap/rate gates, and exchange-reality reconciliation "
-                "before live execution."
-            ),
-            stealth_order_id=command.stealth_order_id,
-            correlation_id=command.envelope.correlation_id,
-            idempotency_key=command.envelope.idempotency_key,
-            live_exchange_submitted=False,
-            guard=gate.model_dump(),
-            data={
-                "stealth_order_id": command.stealth_order_id,
-                "reason": command.request.reason,
-                "identity_key": "stealth_order_id",
-                "active_placement_client_order_id": None,
-                "exchange_order_id_evidence_only": True,
-            },
-            failure_stage="approval",
+        request = command.request
+        exact_context = bool(
+            command.envelope.operator_intent
+            == CONTROLLED_FIRST_CHILD_CANCEL_OPERATOR_INTENT
+            and request.manual_live_acknowledgement is True
+            and request.expected_root_client_order_id
+            and request.controlled_batch_id
+            and request.controlled_batch_slot is not None
+            and command.admin_approval_snapshot_id
+            and command.admission_audit_id
+            and command.admin_cap_guard_decision_id
+            and command.admin_reconciliation_plan_id
         )
+        if not exact_context:
+            return self._stealth_cancel_rejected(
+                command=command,
+                message=(
+                    "Generic stealth cancel remains disabled; controlled cleanup "
+                    "requires the exact first-child root, batch slot, manual "
+                    "acknowledgement, approval, audit, cap, and reconciliation context."
+                ),
+                failure_stage="controlled_child_context",
+            )
+
+        deps = self.dependencies
+        if not deps.rest_client_available:
+            return self._stealth_cancel_rejected(
+                command=command,
+                message="REST client not available",
+                failure_stage="rest_client",
+            )
+        portfolio_binding = evaluate_spot_test_portfolio_binding(
+            rest_client=deps.rest_client,
+            expected_portfolio_id=deps.spot_portfolio_id,
+            expected_portfolio_label=deps.spot_portfolio_label,
+        )
+        portfolio_scope = portfolio_binding.to_dict()
+        if not portfolio_binding.ready:
+            return self._stealth_cancel_rejected(
+                command=command,
+                message=(
+                    "Controlled first-child cancellation requires the Coinbase "
+                    "key to remain bound to the approved Test portfolio."
+                ),
+                failure_stage="portfolio_scope",
+                data={"portfolio_scope": portfolio_scope},
+            )
+
+        runtime = deps.stealth_order_runtime_getter()
+        read_child = getattr(runtime, "read_controlled_first_child", None)
+        reconcile_terminal = getattr(
+            runtime,
+            "reconcile_controlled_first_child_terminal",
+            None,
+        )
+        if not callable(read_child) or not callable(reconcile_terminal):
+            return self._stealth_cancel_rejected(
+                command=command,
+                message="Canonical stealth cancellation runtime is unavailable.",
+                failure_stage="stealth_runtime",
+                data={"portfolio_scope": portfolio_scope},
+            )
+
+        profile_id = str(portfolio_binding.observed_portfolio_id or "")
+        try:
+            child = read_child(
+                stealth_order_id=command.stealth_order_id,
+                expected_root_client_order_id=request.expected_root_client_order_id,
+                expected_portfolio_id=profile_id,
+                controlled_batch_id=request.controlled_batch_id,
+                controlled_batch_slot=request.controlled_batch_slot,
+            )
+        except Exception as exc:
+            return self._stealth_cancel_rejected(
+                command=command,
+                message=f"Controlled first-child state read failed: {exc}",
+                failure_stage="controlled_child_state",
+                data={"portfolio_scope": portfolio_scope},
+            )
+        child = dict(child) if isinstance(child, Mapping) else {}
+        exchange_order_id = str(child.get("active_exchange_order_id") or "")
+        exact_child = bool(
+            str(child.get("stealth_order_id") or "") == command.stealth_order_id
+            and str(child.get("root_client_order_id") or "")
+            == request.expected_root_client_order_id
+            and str(child.get("product_id") or "") == "BTC-USDC"
+            and str(child.get("side") or "").upper() == OrderSide.SELL.value
+            and str(child.get("retail_portfolio_id") or "") == profile_id
+            and str(child.get("active_placement_client_order_id") or "")
+            == command.stealth_order_id
+            and exchange_order_id
+            and str(child.get("status") or "").upper() == "REVEALED"
+        )
+        if not exact_child:
+            return self._stealth_cancel_rejected(
+                command=command,
+                message=(
+                    "Controlled cancellation requires one exact revealed first "
+                    "child with an active exchange identity."
+                ),
+                failure_stage="controlled_child_state",
+                data={"portfolio_scope": portfolio_scope, "child_state": child},
+            )
+
+        cancel_by_client_order_id = getattr(
+            deps.rest_client,
+            "cancel_order",
+            None,
+        )
+        cancel_exchange = getattr(
+            deps.rest_client,
+            "cancel_order_by_exchange_order_id",
+            None,
+        )
+        if not callable(cancel_by_client_order_id) or not callable(cancel_exchange):
+            return self._stealth_cancel_rejected(
+                command=command,
+                message=(
+                    "Canonical client-order-id cancellation and the recorded "
+                    "exchange-id fallback must both be available."
+                ),
+                failure_stage="cancellation_boundary",
+                data={"portfolio_scope": portfolio_scope, "child_state": child},
+            )
+
+        profile_claim = deps.spot_order_admission_coordinator.claim(profile_id)
+        profile_claim.__enter__()
+        try:
+            try:
+                initial_readback = exact_coinbase_order_readback(
+                    deps.rest_client,
+                    client_order_id=command.stealth_order_id,
+                    exchange_order_id=exchange_order_id,
+                    product_id="BTC-USDC",
+                )
+            except CoinbaseOrderReadbackError as exc:
+                return self._stealth_cancel_rejected(
+                    command=command,
+                    message="Exact pre-cancel exchange readback failed closed.",
+                    failure_stage="cancellation_readback",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": {
+                            "authoritative": False,
+                            "blocker": exc.blocker,
+                            "detail": exc.detail,
+                        },
+                    },
+                )
+            matched = initial_readback.get("matched_order") or {}
+            initial_status = str(
+                initial_readback.get("authoritative_status") or ""
+            ).upper()
+            initial_exact = bool(
+                initial_readback.get("authoritative")
+                and initial_readback.get("exact_identity_match")
+                and str(initial_readback.get("exchange_order_id") or "")
+                == exchange_order_id
+                and str(matched.get("client_order_id") or "")
+                == command.stealth_order_id
+                and str(matched.get("order_id") or "") == exchange_order_id
+                and str(matched.get("product_id") or "") == "BTC-USDC"
+                and str(matched.get("product_type") or "").upper()
+                == ProductType.SPOT.value
+                and str(matched.get("side") or "").upper()
+                == OrderSide.SELL.value
+                and str(matched.get("retail_portfolio_id") or "") == profile_id
+            )
+            if not initial_exact:
+                return self._stealth_cancel_rejected(
+                    command=command,
+                    message="Exact pre-cancel child identity is unproven.",
+                    failure_stage="cancellation_readback",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": initial_readback,
+                    },
+                )
+            if initial_status == OrderStatus.FILLED.value:
+                return self._stealth_cancel_rejected(
+                    command=command,
+                    message=(
+                        "The first child filled before cancellation; no cancel "
+                        "request was sent and the batch must stop for fill reconciliation."
+                    ),
+                    failure_stage="controlled_child_already_filled",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": initial_readback,
+                    },
+                )
+            if initial_status == OrderStatus.CANCELLED.value:
+                terminal_readback = initial_readback
+                cancel_submitted = False
+                canonical_cancel_attempted = False
+                exchange_id_fallback_used = False
+                canonical_cancel_evidence = {
+                    "outcome": "not_attempted_already_cancelled",
+                    "explicit_rejection": False,
+                }
+                fallback_cancel_evidence = {
+                    "outcome": "not_attempted_already_cancelled",
+                    "explicit_rejection": False,
+                }
+            elif initial_status in {
+                OrderStatus.OPEN.value,
+                OrderStatus.PENDING.value,
+                "CANCEL_QUEUED",
+            }:
+                controller = deps.runtime_controller_factory()
+                canonical_cancel_attempted = False
+                exchange_id_fallback_used = False
+                canonical_cancel_evidence = {
+                    "outcome": "not_attempted",
+                    "explicit_rejection": False,
+                }
+                fallback_cancel_evidence = {
+                    "outcome": "not_attempted",
+                    "explicit_rejection": False,
+                }
+                try:
+                    with controller.track_inflight(INFLIGHT_REST_CANCEL):
+                        canonical_cancel_attempted = True
+                        canonical_cancel_evidence = cancel_by_client_order_id(
+                            command.stealth_order_id,
+                            return_evidence=True,
+                        )
+                        canonical_cancel_evidence = (
+                            dict(canonical_cancel_evidence)
+                            if isinstance(canonical_cancel_evidence, Mapping)
+                            else {}
+                        )
+                        canonical_cancel_outcome = str(
+                            canonical_cancel_evidence.get("outcome") or ""
+                        )
+                        if canonical_cancel_outcome == "succeeded":
+                            cancel_result = True
+                            fallback_cancel_evidence = {
+                                "outcome": "not_attempted",
+                                "explicit_rejection": False,
+                            }
+                        elif (
+                            canonical_cancel_outcome == "explicitly_rejected"
+                            and canonical_cancel_evidence.get(
+                                "explicit_rejection"
+                            )
+                            is True
+                            and canonical_cancel_evidence.get(
+                                "identity_rejection"
+                            )
+                            is True
+                            and canonical_cancel_evidence.get("identity_match")
+                            is True
+                        ):
+                            exchange_id_fallback_used = True
+                            fallback_cancel_evidence = cancel_exchange(
+                                exchange_order_id,
+                                return_evidence=True,
+                            )
+                            fallback_cancel_evidence = (
+                                dict(fallback_cancel_evidence)
+                                if isinstance(fallback_cancel_evidence, Mapping)
+                                else {}
+                            )
+                            fallback_outcome = str(
+                                fallback_cancel_evidence.get("outcome") or ""
+                            )
+                            if fallback_outcome == "succeeded":
+                                cancel_result = True
+                            elif (
+                                fallback_outcome == "explicitly_rejected"
+                                and fallback_cancel_evidence.get(
+                                    "explicit_rejection"
+                                )
+                                is True
+                            ):
+                                cancel_result = False
+                            else:
+                                raise RuntimeError(
+                                    "exchange_id_cancel_outcome_unknown"
+                                )
+                        else:
+                            raise RuntimeError(
+                                "canonical_client_order_id_cancel_outcome_unknown"
+                            )
+                except Exception as exc:
+                    unknown_boundary = (
+                        "exchange_id_fallback"
+                        if exchange_id_fallback_used
+                        else "canonical_client_order_id"
+                    )
+                    deps.spot_order_admission_coordinator.record_uncertainty(
+                        retail_portfolio_id=profile_id,
+                        client_order_id=command.stealth_order_id,
+                        reason=(
+                            f"controlled_child_{unknown_boundary}_cancel_unknown:"
+                            f"{type(exc).__name__}"
+                        ),
+                    )
+                    return self._stealth_cancel_rejected(
+                        command=command,
+                        message=(
+                            "Controlled first-child cancel outcome is unknown; "
+                            "no second cancel attempt is permitted."
+                        ),
+                        failure_stage="cancellation_unknown",
+                        data={
+                            "portfolio_scope": portfolio_scope,
+                            "cancellation_readback": initial_readback,
+                            "cancellation_identity": {
+                                "operator_identity_key": "client_order_id",
+                                "operator_identity_value": (
+                                    command.stealth_order_id
+                                ),
+                                "exchange_order_id_evidence_only": True,
+                                "exchange_order_id": exchange_order_id,
+                                "unknown_boundary": unknown_boundary,
+                                "canonical_client_order_id_cancel_attempted": (
+                                    canonical_cancel_attempted
+                                ),
+                                "canonical_cancel_evidence": (
+                                    canonical_cancel_evidence
+                                ),
+                                "exchange_id_fallback_used": (
+                                    exchange_id_fallback_used
+                                ),
+                                "fallback_cancel_evidence": (
+                                    fallback_cancel_evidence
+                                ),
+                            },
+                        },
+                        live_exchange_submitted=True,
+                        live_coinbase_orders_ran=True,
+                    )
+                cancel_submitted = True
+                if cancel_result is not True:
+                    return self._stealth_cancel_rejected(
+                        command=command,
+                        message="Exact exchange-id cancellation was not accepted.",
+                        failure_stage="cancellation_rejected",
+                        data={
+                            "portfolio_scope": portfolio_scope,
+                            "cancellation_readback": initial_readback,
+                        },
+                        live_exchange_submitted=True,
+                        live_coinbase_orders_ran=True,
+                    )
+
+                deadline = time.monotonic() + (
+                    CONTROLLED_FIRST_CHILD_TERMINAL_POLL_SECONDS
+                )
+                terminal_readback = initial_readback
+                while True:
+                    try:
+                        terminal_readback = exact_coinbase_order_readback(
+                            deps.rest_client,
+                            client_order_id=command.stealth_order_id,
+                            exchange_order_id=exchange_order_id,
+                            product_id="BTC-USDC",
+                        )
+                    except CoinbaseOrderReadbackError as exc:
+                        terminal_readback = {
+                            "authoritative": False,
+                            "exact_identity_match": False,
+                            "blocker": exc.blocker,
+                            "detail": exc.detail,
+                        }
+                    terminal_status = str(
+                        terminal_readback.get("authoritative_status") or ""
+                    ).upper()
+                    if (
+                        terminal_readback.get("authoritative")
+                        and terminal_readback.get("exact_identity_match")
+                        and terminal_status
+                        in {
+                            OrderStatus.CANCELLED.value,
+                            OrderStatus.FILLED.value,
+                            OrderStatus.EXPIRED.value,
+                            OrderStatus.FAILED.value,
+                        }
+                    ):
+                        break
+                    if time.monotonic() >= deadline:
+                        deps.spot_order_admission_coordinator.record_uncertainty(
+                            retail_portfolio_id=profile_id,
+                            client_order_id=command.stealth_order_id,
+                            reason="controlled_child_cancel_terminal_unproven",
+                        )
+                        return self._stealth_cancel_rejected(
+                            command=command,
+                            message=(
+                                "Cancellation was accepted but exact terminal "
+                                "readback did not converge."
+                            ),
+                            failure_stage="cancellation_readback",
+                            data={
+                                "portfolio_scope": portfolio_scope,
+                                "cancellation_readback": terminal_readback,
+                            },
+                            live_exchange_submitted=True,
+                            live_coinbase_orders_ran=True,
+                        )
+                    time.sleep(
+                        CONTROLLED_FIRST_CHILD_TERMINAL_POLL_INTERVAL_SECONDS
+                    )
+            else:
+                return self._stealth_cancel_rejected(
+                    command=command,
+                    message=f"Child status {initial_status or 'UNKNOWN'} is not cancellable.",
+                    failure_stage="controlled_child_state",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": initial_readback,
+                    },
+                )
+
+            terminal_status = str(
+                terminal_readback.get("authoritative_status") or ""
+            ).upper()
+            terminal_row = terminal_readback.get("matched_order") or {}
+            executed_size = str(
+                terminal_row.get("filled_size")
+                or terminal_row.get("filled_quantity")
+                or "0"
+            )
+            try:
+                executed_size_value = Decimal(executed_size)
+            except Exception:
+                executed_size_value = Decimal("NaN")
+            if not executed_size_value.is_finite() or executed_size_value < 0:
+                return self._stealth_cancel_rejected(
+                    command=command,
+                    message="Terminal child readback has invalid executed-size evidence.",
+                    failure_stage="cancellation_readback",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": terminal_readback,
+                    },
+                    coinbase_order_id=exchange_order_id,
+                    live_exchange_submitted=cancel_submitted,
+                    live_coinbase_orders_ran=cancel_submitted,
+                )
+            if terminal_status == OrderStatus.FILLED.value:
+                return self._stealth_cancel_rejected(
+                    command=command,
+                    message=(
+                        "The first child filled while cancellation was pending; "
+                        "the batch must stop for fill and follow-up reconciliation."
+                    ),
+                    failure_stage="controlled_child_filled_during_cancel",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": terminal_readback,
+                    },
+                    coinbase_order_id=exchange_order_id,
+                    live_exchange_submitted=cancel_submitted,
+                    live_coinbase_orders_ran=cancel_submitted,
+                )
+            if terminal_status != OrderStatus.CANCELLED.value:
+                return self._stealth_cancel_rejected(
+                    command=command,
+                    message=(
+                        "Controlled cancellation reached non-CANCELLED terminal "
+                        f"status {terminal_status or 'UNKNOWN'}."
+                    ),
+                    failure_stage="cancellation_terminal_status",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": terminal_readback,
+                    },
+                    coinbase_order_id=exchange_order_id,
+                    live_exchange_submitted=cancel_submitted,
+                    live_coinbase_orders_ran=cancel_submitted,
+                )
+
+            try:
+                reconciliation = reconcile_terminal(
+                    stealth_order_id=command.stealth_order_id,
+                    authoritative_status=terminal_status,
+                    executed_size=executed_size,
+                    exchange_order_id=exchange_order_id,
+                )
+            except Exception as exc:
+                deps.spot_order_admission_coordinator.record_uncertainty(
+                    retail_portfolio_id=profile_id,
+                    client_order_id=command.stealth_order_id,
+                    reason="controlled_child_cancel_local_reconciliation_failed",
+                )
+                return self._stealth_cancel_rejected(
+                    command=command,
+                    message=(
+                        "Coinbase cancellation is proven but local stealth "
+                        f"reconciliation failed: {exc}"
+                    ),
+                    failure_stage="cancellation_status_persistence",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": terminal_readback,
+                    },
+                    coinbase_order_id=exchange_order_id,
+                    live_exchange_submitted=cancel_submitted,
+                    live_coinbase_orders_ran=cancel_submitted,
+                )
+            reconciliation = (
+                dict(reconciliation) if isinstance(reconciliation, Mapping) else {}
+            )
+            if not (
+                str(reconciliation.get("local_status") or "").upper()
+                == OrderStatus.CANCELLED.value
+                and reconciliation.get("active_placement_cleared") is True
+            ):
+                return self._stealth_cancel_rejected(
+                    command=command,
+                    message=(
+                        "Coinbase cancellation is proven but local active-placement "
+                        "state was not cleared exactly."
+                    ),
+                    failure_stage="cancellation_status_persistence",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": terminal_readback,
+                        "local_reconciliation": reconciliation,
+                    },
+                    coinbase_order_id=exchange_order_id,
+                    live_exchange_submitted=cancel_submitted,
+                    live_coinbase_orders_ran=cancel_submitted,
+                )
+
+            registrar = deps.order_root_registrar_getter()
+            mark_status = getattr(registrar, "mark_submission_status", None)
+            if not callable(mark_status):
+                return self._stealth_cancel_rejected(
+                    command=command,
+                    message="Durable child terminal-status persistence is unavailable.",
+                    failure_stage="cancellation_status_persistence",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": terminal_readback,
+                        "local_reconciliation": reconciliation,
+                    },
+                    coinbase_order_id=exchange_order_id,
+                    live_exchange_submitted=cancel_submitted,
+                    live_coinbase_orders_ran=cancel_submitted,
+                )
+            try:
+                mark_status(
+                    client_order_id=command.stealth_order_id,
+                    status=terminal_status,
+                    exchange_order_id=exchange_order_id,
+                )
+            except Exception as exc:
+                return self._stealth_cancel_rejected(
+                    command=command,
+                    message=f"Durable child terminal-status persistence failed: {exc}",
+                    failure_stage="cancellation_status_persistence",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": terminal_readback,
+                        "local_reconciliation": reconciliation,
+                    },
+                    coinbase_order_id=exchange_order_id,
+                    live_exchange_submitted=cancel_submitted,
+                    live_coinbase_orders_ran=cancel_submitted,
+                )
+
+            if executed_size_value > 0:
+                deps.spot_order_admission_coordinator.resolve_uncertainty(
+                    retail_portfolio_id=profile_id,
+                    client_order_id=command.stealth_order_id,
+                )
+                return self._stealth_cancel_rejected(
+                    command=command,
+                    message=(
+                        "The first child was partially filled before its remainder "
+                        "was cancelled; exchange and local terminal state are "
+                        "reconciled, but the batch must stop."
+                    ),
+                    failure_stage="controlled_child_partial_fill_cancelled",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": terminal_readback,
+                        "local_reconciliation": reconciliation,
+                        "executed_size": executed_size,
+                        "cancellation_identity": {
+                            "operator_identity_key": "client_order_id",
+                            "operator_identity_value": command.stealth_order_id,
+                            "exchange_order_id_evidence_only": True,
+                            "exchange_order_id": exchange_order_id,
+                            "canonical_client_order_id_cancel_attempted": (
+                                canonical_cancel_attempted
+                            ),
+                            "canonical_cancel_evidence": (
+                                canonical_cancel_evidence
+                            ),
+                            "fallback_cancel_evidence": fallback_cancel_evidence,
+                            "exchange_id_fallback_used": (
+                                exchange_id_fallback_used
+                            ),
+                        },
+                    },
+                    coinbase_order_id=exchange_order_id,
+                    live_exchange_submitted=cancel_submitted,
+                    live_coinbase_orders_ran=cancel_submitted,
+                )
+
+            deps.spot_order_admission_coordinator.resolve_uncertainty(
+                retail_portfolio_id=profile_id,
+                client_order_id=command.stealth_order_id,
+            )
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.ACCEPTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method="cancel_stealth_order_by_stealth_order_id",
+                message="Controlled first-child cancellation confirmed",
+                stealth_order_id=command.stealth_order_id,
+                coinbase_order_id=exchange_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=cancel_submitted,
+                live_coinbase_orders_ran=cancel_submitted,
+                data={
+                    "portfolio_scope": portfolio_scope,
+                    "cancellation_readback": terminal_readback,
+                    "local_reconciliation": reconciliation,
+                    "controlled_batch_id": request.controlled_batch_id,
+                    "controlled_batch_slot": request.controlled_batch_slot,
+                    "cancellation_identity": {
+                        "operator_identity_key": "client_order_id",
+                        "operator_identity_value": command.stealth_order_id,
+                        "exchange_order_id_evidence_only": True,
+                        "exchange_order_id": exchange_order_id,
+                        "canonical_client_order_id_cancel_attempted": (
+                            canonical_cancel_attempted
+                        ),
+                        "canonical_cancel_evidence": canonical_cancel_evidence,
+                        "fallback_cancel_evidence": fallback_cancel_evidence,
+                        "exchange_id_fallback_used": exchange_id_fallback_used,
+                    },
+                },
+                **self._command_runtime_evidence(),
+            )
+        finally:
+            profile_claim.__exit__(None, None, None)
 
     def create_stealth_order(
         self,
@@ -4814,48 +5583,466 @@ class AdminApiCommandService:
         self,
         command: StealthRevealCommand,
     ) -> AdminApiCommandResponse:
-        """Evaluate a route-bound stealth reveal command through fail-closed gates.
+        """Submit one approved deterministic Admin fill child, otherwise fail closed.
 
-        Reveal is exchange-placement shaped, but this Admin API contract is not
-        wired to ``StealthOrderManager.reveal_order_slice`` yet. Future live
-        enablement must prove trigger evidence, approval, cap/guard, audit,
-        active-placement handling, and reconciliation before any Coinbase order
-        placement or local lifecycle mutation can occur.
+        The generic stealth reveal command remains disabled.  The only live
+        branch is the route-bound, fully admitted Test-profile proof for the
+        deterministic first child of an ``ADMIN_MANUAL_ROOT``.  A runtime
+        adapter reprices that exact hidden child to the explicitly supplied
+        far-from-market limit and passes a one-call authority object into the
+        canonical ``reveal_order_slice`` implementation.  The shared wallet,
+        cap, profitability, standing-price, and immutable-payload checks still
+        run immediately before the single Coinbase submission.
         """
 
-        gate = evaluate_live_execution_gate(allow_live_execution=False)
-        return AdminApiCommandResponse(
-            status=AdminApiCommandStatus.NOT_IMPLEMENTED,
-            action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
-            required_permission=AdminApiPermission.ORDER_CREATE,
-            service_method="reveal_stealth_order_by_stealth_order_id",
-            message=(
-                "Stealth reveal requires enterprise auth, idempotency, audit, "
-                "approval, trigger evidence, cap/guard checks, exchange "
-                "placement handling, and reconciliation before live execution."
-            ),
-            stealth_order_id=command.stealth_order_id,
-            correlation_id=command.envelope.correlation_id,
-            idempotency_key=command.envelope.idempotency_key,
-            live_exchange_submitted=False,
-            guard=gate.model_dump(),
-            data={
-                "stealth_order_id": command.stealth_order_id,
-                "reason": command.request.reason,
-                "manual_live_acknowledgement": (
-                    command.request.manual_live_acknowledgement
+        if not command.allow_live_execution:
+            gate = evaluate_live_execution_gate(allow_live_execution=False)
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+                required_permission=AdminApiPermission.ORDER_CREATE,
+                service_method="reveal_stealth_order_by_stealth_order_id",
+                message=(
+                    "Stealth reveal requires enterprise auth, idempotency, audit, "
+                    "approval, trigger evidence, cap/guard checks, exchange "
+                    "placement handling, and reconciliation before live execution."
                 ),
-                "identity_key": "stealth_order_id",
-                "active_placement_client_order_id": None,
-                "exchange_order_id_evidence_only": True,
-                "requires_trigger_evidence": True,
-                "reveal_order_slice_invoked": False,
-                "stealth_manager_invoked": False,
-                "local_state_mutated": False,
-                "coinbase_order_submitted": False,
-            },
-            failure_stage="approval",
+                stealth_order_id=command.stealth_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=False,
+                guard=gate.model_dump(),
+                data={
+                    "stealth_order_id": command.stealth_order_id,
+                    "reason": command.request.reason,
+                    "manual_live_acknowledgement": (
+                        command.request.manual_live_acknowledgement
+                    ),
+                    "identity_key": "stealth_order_id",
+                    "active_placement_client_order_id": None,
+                    "exchange_order_id_evidence_only": True,
+                    "requires_trigger_evidence": True,
+                    "reveal_order_slice_invoked": False,
+                    "stealth_manager_invoked": False,
+                    "local_state_mutated": False,
+                    "coinbase_order_submitted": False,
+                },
+                failure_stage="approval",
+                **self._command_runtime_evidence(),
+            )
+
+        request = command.request
+        exact_context = bool(
+            command.envelope.operator_intent
+            == CONTROLLED_FIRST_CHILD_REVEAL_OPERATOR_INTENT
+            and request.manual_live_acknowledgement is True
+            and request.expected_root_client_order_id
+            and request.controlled_limit_price is not None
+            and request.controlled_batch_id
+            and request.controlled_batch_slot is not None
+            and command.admin_approval_snapshot_id
+            and command.admission_audit_id
+            and command.admin_cap_guard_decision_id
+            and command.admin_reconciliation_plan_id
         )
+        if not exact_context:
+            return self._stealth_reveal_rejected(
+                command=command,
+                message=(
+                    "Generic stealth reveal remains disabled; the controlled "
+                    "first-child command requires its exact root, batch slot, "
+                    "manual acknowledgement, approval, audit, cap, and "
+                    "reconciliation context."
+                ),
+                failure_stage="controlled_child_context",
+            )
+
+        try:
+            max_notional = Decimal(
+                str(command.admin_max_submitted_notional_usdc or "")
+            )
+        except Exception:
+            max_notional = Decimal("0")
+        if (
+            not max_notional.is_finite()
+            or max_notional <= 0
+            or max_notional > CONTROLLED_FIRST_CHILD_MAX_NOTIONAL_USDC
+        ):
+            return self._stealth_reveal_rejected(
+                command=command,
+                message=(
+                    "Controlled first-child submission requires a positive "
+                    f"route-bound cap no greater than "
+                    f"{CONTROLLED_FIRST_CHILD_MAX_NOTIONAL_USDC} USDC."
+                ),
+                failure_stage="controlled_child_cap",
+                data={"approved_max_notional_usdc": str(max_notional)},
+            )
+
+        deps = self.dependencies
+        if not deps.rest_client_available:
+            return self._stealth_reveal_rejected(
+                command=command,
+                message="REST client not available",
+                failure_stage="rest_client",
+            )
+        portfolio_binding = evaluate_spot_test_portfolio_binding(
+            rest_client=deps.rest_client,
+            expected_portfolio_id=deps.spot_portfolio_id,
+            expected_portfolio_label=deps.spot_portfolio_label,
+        )
+        portfolio_scope = portfolio_binding.to_dict()
+        if not portfolio_binding.ready:
+            return self._stealth_reveal_rejected(
+                command=command,
+                message=(
+                    "Controlled first-child submission requires the Coinbase key "
+                    "to remain bound to the approved Test portfolio."
+                ),
+                failure_stage="portfolio_scope",
+                data={"portfolio_scope": portfolio_scope},
+            )
+
+        runtime = deps.stealth_order_runtime_getter()
+        submit_child = getattr(runtime, "submit_controlled_first_child", None)
+        if not callable(submit_child):
+            return self._stealth_reveal_rejected(
+                command=command,
+                message="Canonical stealth runtime adapter is unavailable.",
+                failure_stage="stealth_runtime",
+                data={"portfolio_scope": portfolio_scope},
+            )
+
+        profile_id = str(portfolio_binding.observed_portfolio_id or "")
+        profile_claim = deps.spot_order_admission_coordinator.claim(profile_id)
+        profile_claim.__enter__()
+        try:
+            runtime_uncertainties = (
+                deps.spot_order_admission_coordinator.uncertainty_snapshot(
+                    profile_id
+                )
+            )
+            if runtime_uncertainties:
+                return self._stealth_reveal_rejected(
+                    command=command,
+                    message=(
+                        "A prior Test-profile submission remains uncertain; "
+                        "authoritative reconciliation is required before the "
+                        "controlled first child can be submitted."
+                    ),
+                    failure_stage="submission_uncertainty",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "runtime_submission_uncertainties": runtime_uncertainties,
+                    },
+                )
+            try:
+                active_orders, active_pagination = (
+                    read_authoritative_coinbase_orders(
+                        deps.rest_client,
+                        order_status=list(COINBASE_ACTIVE_SPOT_ORDER_QUERY),
+                        product_type=ProductType.SPOT.value,
+                    )
+                )
+            except CoinbaseOrderReadbackError as exc:
+                return self._stealth_reveal_rejected(
+                    command=command,
+                    message="Authoritative active-order preflight failed closed.",
+                    failure_stage="active_order_limit",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "active_order_limit": {
+                            "authoritative": False,
+                            "blocker": exc.blocker,
+                            "detail": exc.detail,
+                        },
+                    },
+                )
+            if active_orders:
+                return self._stealth_reveal_rejected(
+                    command=command,
+                    message=(
+                        "Controlled first-child submission requires zero existing "
+                        "active Spot orders on the Test profile."
+                    ),
+                    failure_stage="active_order_limit",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "active_order_limit": {
+                            **active_pagination,
+                            "open_order_count": len(active_orders),
+                            "open_client_order_ids": [
+                                str(item.get("client_order_id") or "")
+                                for item in active_orders
+                            ],
+                        },
+                    },
+                )
+
+            try:
+                result = submit_child(
+                    stealth_order_id=command.stealth_order_id,
+                    expected_root_client_order_id=(
+                        request.expected_root_client_order_id
+                    ),
+                    expected_portfolio_id=profile_id,
+                    submitted_limit_price=str(request.controlled_limit_price),
+                    max_notional_usdc=str(max_notional),
+                    approval_snapshot_id=command.admin_approval_snapshot_id,
+                    admission_audit_id=command.admission_audit_id,
+                    cap_guard_decision_id=command.admin_cap_guard_decision_id,
+                    reconciliation_plan_id=command.admin_reconciliation_plan_id,
+                    controlled_batch_id=request.controlled_batch_id,
+                    controlled_batch_slot=request.controlled_batch_slot,
+                )
+            except Exception as exc:
+                deps.spot_order_admission_coordinator.record_uncertainty(
+                    retail_portfolio_id=profile_id,
+                    client_order_id=command.stealth_order_id,
+                    reason=f"controlled_child_submit_exception:{type(exc).__name__}",
+                )
+                return self._stealth_reveal_rejected(
+                    command=command,
+                    message=(
+                        "Controlled first-child submission outcome is unknown: "
+                        f"{type(exc).__name__}: {exc}"
+                    ),
+                    failure_stage="controlled_child_submission_unknown",
+                    data={"portfolio_scope": portfolio_scope},
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                )
+
+            result = dict(result) if isinstance(result, Mapping) else {}
+            placement_attempted = result.get("placement_attempted") is True
+            placement_succeeded = result.get("placement_succeeded") is True
+            exchange_order_id = str(result.get("exchange_order_id") or "")
+            exact_runtime_result = bool(
+                placement_succeeded
+                and str(result.get("placed_client_order_id") or "")
+                == command.stealth_order_id
+                and exchange_order_id
+                and str(result.get("product_id") or "") == "BTC-USDC"
+                and str(result.get("side") or "").upper() == OrderSide.SELL.value
+                and str(result.get("submitted_limit_price") or "")
+                == str(request.controlled_limit_price)
+                and result.get("post_only") is False
+            )
+            if not exact_runtime_result:
+                if placement_attempted:
+                    deps.spot_order_admission_coordinator.record_uncertainty(
+                        retail_portfolio_id=profile_id,
+                        client_order_id=command.stealth_order_id,
+                        reason="controlled_child_runtime_result_unproven",
+                    )
+                return self._stealth_reveal_rejected(
+                    command=command,
+                    message=(
+                        "Controlled first-child runtime did not return exact "
+                        "successful placement identity and tuple evidence."
+                    ),
+                    failure_stage=(
+                        "controlled_child_submission_unknown"
+                        if placement_attempted
+                        else "controlled_child_submission_blocked"
+                    ),
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "submission_attempt": result,
+                    },
+                    live_exchange_submitted=placement_attempted,
+                    live_coinbase_orders_ran=placement_attempted,
+                )
+
+            try:
+                readback = exact_coinbase_order_readback(
+                    deps.rest_client,
+                    client_order_id=command.stealth_order_id,
+                    exchange_order_id=exchange_order_id,
+                    product_id="BTC-USDC",
+                )
+            except CoinbaseOrderReadbackError as exc:
+                readback = {
+                    "authoritative": False,
+                    "exact_identity_match": False,
+                    "blocker": exc.blocker,
+                    "detail": exc.detail,
+                }
+            matched = readback.get("matched_order") or {}
+            authoritative_status = str(
+                readback.get("authoritative_status") or ""
+            ).upper()
+            readback_exact = bool(
+                readback.get("authoritative")
+                and readback.get("exact_identity_match")
+                and str(readback.get("exchange_order_id") or "")
+                == exchange_order_id
+                and str(matched.get("client_order_id") or "")
+                == command.stealth_order_id
+                and str(matched.get("order_id") or "") == exchange_order_id
+                and str(matched.get("product_id") or "") == "BTC-USDC"
+                and str(matched.get("product_type") or "").upper()
+                == ProductType.SPOT.value
+                and str(matched.get("side") or "").upper()
+                == OrderSide.SELL.value
+                and str(matched.get("retail_portfolio_id") or "") == profile_id
+                and _controlled_child_authoritative_tuple_matches(
+                    matched,
+                    expected_base_size=result.get("base_size"),
+                    expected_limit_price=request.controlled_limit_price,
+                )
+                and authoritative_status
+                in {
+                    OrderStatus.PENDING.value,
+                    OrderStatus.OPEN.value,
+                    OrderStatus.FILLED.value,
+                    OrderStatus.CANCELLED.value,
+                }
+            )
+            if not readback_exact:
+                deps.spot_order_admission_coordinator.record_uncertainty(
+                    retail_portfolio_id=profile_id,
+                    client_order_id=command.stealth_order_id,
+                    reason="controlled_child_authoritative_readback_unproven",
+                )
+                return self._stealth_reveal_rejected(
+                    command=command,
+                    message=(
+                        "Coinbase accepted the child placement but exact Test-profile "
+                        "identity/status readback is unproven."
+                    ),
+                    failure_stage="controlled_child_submission_readback",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "submission_attempt": result,
+                        "submission_readback": readback,
+                    },
+                    coinbase_order_id=exchange_order_id,
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                )
+
+            registrar = deps.order_root_registrar_getter()
+            mark_status = getattr(registrar, "mark_submission_status", None)
+            if not callable(mark_status):
+                return self._stealth_reveal_rejected(
+                    command=command,
+                    message=(
+                        "Child placement is proven on Coinbase but durable exchange "
+                        "identity persistence is unavailable."
+                    ),
+                    failure_stage="controlled_child_status_persistence",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "submission_attempt": result,
+                        "submission_readback": readback,
+                    },
+                    coinbase_order_id=exchange_order_id,
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                )
+            try:
+                mark_status(
+                    client_order_id=command.stealth_order_id,
+                    status=authoritative_status,
+                    exchange_order_id=exchange_order_id,
+                )
+            except Exception as exc:
+                deps.spot_order_admission_coordinator.record_uncertainty(
+                    retail_portfolio_id=profile_id,
+                    client_order_id=command.stealth_order_id,
+                    reason="controlled_child_status_persistence_failed",
+                )
+                return self._stealth_reveal_rejected(
+                    command=command,
+                    message=(
+                        "Child placement is proven on Coinbase but durable exchange "
+                        f"identity persistence failed: {exc}"
+                    ),
+                    failure_stage="controlled_child_status_persistence",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "submission_attempt": result,
+                        "submission_readback": readback,
+                    },
+                    coinbase_order_id=exchange_order_id,
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                )
+
+            try:
+                submission_event_recorded = publish_direct_order_submission_event(
+                    publisher_getter=deps.order_event_publisher_getter,
+                    client_order_id=command.stealth_order_id,
+                    order_id=exchange_order_id,
+                    order_params={
+                        "product_id": "BTC-USDC",
+                        "side": OrderSide.SELL.value,
+                        "retail_portfolio_id": profile_id,
+                        "portfolio_profile_alias": deps.spot_portfolio_label,
+                    },
+                    order_configuration={
+                        "limit_limit_gtc": {
+                            "base_size": str(result.get("base_size") or ""),
+                            "limit_price": str(request.controlled_limit_price),
+                            "post_only": False,
+                        }
+                    },
+                )
+            except Exception:
+                submission_event_recorded = False
+            if not submission_event_recorded:
+                deps.spot_order_admission_coordinator.record_uncertainty(
+                    retail_portfolio_id=profile_id,
+                    client_order_id=command.stealth_order_id,
+                    reason="controlled_child_submission_audit_persistence_failed",
+                )
+                return self._stealth_reveal_rejected(
+                    command=command,
+                    message=(
+                        "Child placement is proven on Coinbase but the durable "
+                        "submission event was not recorded."
+                    ),
+                    failure_stage="controlled_child_submission_audit",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "submission_attempt": result,
+                        "submission_readback": readback,
+                    },
+                    coinbase_order_id=exchange_order_id,
+                    live_exchange_submitted=True,
+                    live_coinbase_orders_ran=True,
+                )
+
+            deps.spot_order_admission_coordinator.resolve_uncertainty(
+                retail_portfolio_id=profile_id,
+                client_order_id=command.stealth_order_id,
+            )
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.ACCEPTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+                required_permission=AdminApiPermission.ORDER_CREATE,
+                service_method="reveal_stealth_order_by_stealth_order_id",
+                message="Controlled first-child exchange submission confirmed",
+                stealth_order_id=command.stealth_order_id,
+                coinbase_order_id=exchange_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=True,
+                live_coinbase_orders_ran=True,
+                submission_event_recorded=True,
+                data={
+                    "portfolio_scope": portfolio_scope,
+                    "submission_attempt": result,
+                    "submission_readback": readback,
+                    "controlled_batch_id": request.controlled_batch_id,
+                    "controlled_batch_slot": request.controlled_batch_slot,
+                    "generic_stealth_reveal_enabled": False,
+                },
+                **self._command_runtime_evidence(),
+            )
+        finally:
+            profile_claim.__exit__(None, None, None)
 
     def move_stealth_order_by_stealth_order_id(
         self,
@@ -8289,6 +9476,66 @@ class AdminApiCommandService:
             service_method="cancel_order_by_client_order_id",
             message=message,
             client_order_id=command.client_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            data=data,
+            live_exchange_submitted=live_exchange_submitted,
+            live_coinbase_orders_ran=live_coinbase_orders_ran,
+            failure_stage=failure_stage,
+            **self._command_runtime_evidence(),
+        )
+
+    def _stealth_reveal_rejected(
+        self,
+        *,
+        command: StealthRevealCommand,
+        message: str,
+        failure_stage: str,
+        data: dict[str, Any] | None = None,
+        coinbase_order_id: str | None = None,
+        live_exchange_submitted: bool = False,
+        live_coinbase_orders_ran: bool = False,
+    ) -> AdminApiCommandResponse:
+        """Return one fail-closed controlled first-child reveal response."""
+
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.REJECTED,
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_PLACE,
+            required_permission=AdminApiPermission.ORDER_CREATE,
+            service_method="reveal_stealth_order_by_stealth_order_id",
+            message=message,
+            stealth_order_id=command.stealth_order_id,
+            coinbase_order_id=coinbase_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            data=data,
+            live_exchange_submitted=live_exchange_submitted,
+            live_coinbase_orders_ran=live_coinbase_orders_ran,
+            failure_stage=failure_stage,
+            **self._command_runtime_evidence(),
+        )
+
+    def _stealth_cancel_rejected(
+        self,
+        *,
+        command: StealthCancelCommand,
+        message: str,
+        failure_stage: str,
+        data: dict[str, Any] | None = None,
+        coinbase_order_id: str | None = None,
+        live_exchange_submitted: bool = False,
+        live_coinbase_orders_ran: bool = False,
+    ) -> AdminApiCommandResponse:
+        """Return one fail-closed controlled first-child cancel response."""
+
+        return AdminApiCommandResponse(
+            status=AdminApiCommandStatus.REJECTED,
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            required_permission=AdminApiPermission.ORDER_CANCEL,
+            service_method="cancel_stealth_order_by_stealth_order_id",
+            message=message,
+            stealth_order_id=command.stealth_order_id,
+            coinbase_order_id=coinbase_order_id,
             correlation_id=command.envelope.correlation_id,
             idempotency_key=command.envelope.idempotency_key,
             data=data,
