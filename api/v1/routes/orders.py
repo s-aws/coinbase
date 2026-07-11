@@ -18,7 +18,11 @@ from application.admin_api.approval import (
 from application.admin_api.auth import get_authenticated_actor, require_permission
 from application.admin_api.cap_guard import FileAdminApiCapGuardStore
 from application.admin_api.command_runtime import build_admin_api_command_service
-from application.admin_api.command_service import AdminApiCommandService
+from application.admin_api.command_service import (
+    AdminApiCommandService,
+    CONTROLLED_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
+    CONTROLLED_FIRST_CHILD_REVEAL_OPERATOR_INTENT,
+)
 from application.admin_api.spot_portfolio_binding import (
     DEFAULT_SPOT_PORTFOLIO_LABEL,
     SPOT_PORTFOLIO_ID_ENV,
@@ -830,6 +834,7 @@ def _should_retry_non_live_controlled_order_after_admission(
     admission_decision: AdminLiveAdmissionDecisionEvidence,
     endpoint: str,
     payload_hash: str,
+    operator_intent: str,
     action_class: AdminApiActionClass,
     permission: AdminApiPermission,
     service_method: str,
@@ -855,10 +860,52 @@ def _should_retry_non_live_controlled_order_after_admission(
         and action_class == AdminApiActionClass.LIVE_EXCHANGE_CANCEL
         and permission == AdminApiPermission.ORDER_CANCEL
     )
-    return (
+    controlled_first_child_reveal = (
+        endpoint
+        == (
+            "POST /api/v1/stealth/orders/"
+            f"{admission_decision.identity_value}/reveal"
+        )
+        and route_template
+        == "/api/v1/stealth/orders/{stealth_order_id}/reveal"
+        and service_method == "reveal_stealth_order_by_stealth_order_id"
+        and action_class == AdminApiActionClass.LIVE_EXCHANGE_PLACE
+        and permission == AdminApiPermission.ORDER_CREATE
+        and operator_intent == CONTROLLED_FIRST_CHILD_REVEAL_OPERATOR_INTENT
+    )
+    controlled_first_child_cancel = (
+        endpoint
+        == (
+            "POST /api/v1/stealth/orders/"
+            f"{admission_decision.identity_value}/cancel"
+        )
+        and route_template
+        == "/api/v1/stealth/orders/{stealth_order_id}/cancel"
+        and service_method == "cancel_stealth_order_by_stealth_order_id"
+        and action_class == AdminApiActionClass.LIVE_EXCHANGE_CANCEL
+        and permission == AdminApiPermission.ORDER_CANCEL
+        and operator_intent == CONTROLLED_FIRST_CHILD_CANCEL_OPERATOR_INTENT
+    )
+    controlled_first_child = (
+        (controlled_first_child_reveal or controlled_first_child_cancel)
+        and module_id == "stealth_orders"
+        and identity_key == "stealth_order_id"
+    )
+    root_order_action = (
         (manual_place or root_cancel)
         and module_id == "spot_operations"
         and identity_key == "client_order_id"
+    )
+    response_identity_matches = (
+        root_order_action
+        and response.client_order_id == admission_decision.identity_value
+    ) or (
+        controlled_first_child
+        and response.stealth_order_id == admission_decision.identity_value
+    )
+    return (
+        (root_order_action or controlled_first_child)
+        and response_identity_matches
         and record.endpoint == endpoint
         and record.payload_hash == payload_hash
         and record.status == AdminApiCommandStatus.NOT_IMPLEMENTED
@@ -866,7 +913,6 @@ def _should_retry_non_live_controlled_order_after_admission(
         and response.action_class == action_class
         and response.required_permission == permission
         and response.service_method == service_method
-        and response.client_order_id == admission_decision.identity_value
         and response.live_exchange_submitted is False
         and response.live_coinbase_orders_ran is False
         and previous_admission is not None
@@ -879,6 +925,7 @@ def _should_retry_non_live_controlled_order_after_admission(
         and previous_admission.action_class == action_class
         and previous_admission.required_permission == permission
         and previous_admission.service_method == service_method
+        and previous_admission.operator_intent == operator_intent
         and previous_admission.payload_hash == payload_hash
         and previous_admission.live_exchange_submitted is False
         and admission_decision.allowed is True
@@ -889,6 +936,7 @@ def _should_retry_non_live_controlled_order_after_admission(
         and admission_decision.action_class == action_class
         and admission_decision.required_permission == permission
         and admission_decision.service_method == service_method
+        and admission_decision.operator_intent == operator_intent
         and admission_decision.live_exchange_submitted is False
     )
 
@@ -991,6 +1039,7 @@ def _execute_idempotent_command(
             admission_decision=admission_decision,
             endpoint=endpoint,
             payload_hash=payload_hash,
+            operator_intent=operator_intent,
             action_class=action_class,
             permission=permission,
             service_method=service_method,
