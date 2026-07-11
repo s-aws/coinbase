@@ -2,7 +2,7 @@
 
 Goal ID: `legacy_fill_follow_up_operator_slice`
 
-Last reviewed: 2026-07-10 UTC.
+Last reviewed: 2026-07-11 UTC.
 
 The canonical cross-repository goal is
 `/home/ec2-user/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This backend copy
@@ -39,7 +39,8 @@ not authority for new frontend product behavior.
 
 ## Current State
 
-The guarded no-live compatibility slice is implemented on `main`:
+The guarded no-live compatibility contract and injected operator path are
+implemented on `main`:
 
 - order and fill readback keyed by `client_order_id`;
 - fill-event replay and live-readiness evidence;
@@ -47,7 +48,23 @@ The guarded no-live compatibility slice is implemented on `main`:
 - trigger admission preview;
 - guarded no-live trigger execution with route-bound approval, wallet/cap,
   reconciliation, duplicate-claim, and audit-correlation prerequisites; and
-- accepted child readback without Coinbase execution.
+- accepted child readback without Coinbase execution in focused injected
+  contract tests.
+
+A focused canonical-runtime probe found one direct operator blocker. The
+standalone Admin API launcher starts only `api.v1.app:app`, while the
+fill-follow-up executor and duplicate-claim ledger are available only through
+the `dashboard_server.stealth_order_bridge.order_engine` constructed by
+`main.py`. `main.py` does not start FastAPI. The normal standalone deployment
+therefore remains fail-closed and cannot produce the accepted child modeled by
+the tests.
+
+There is no safe implicit wiring choice. Instantiating a second offline engine
+would split orderbook/claim authority, calling the legacy dashboard WebSocket
+would create a second product behavior path, and silently starting `main.py`
+from the API launcher would activate the live websocket runtime. The operator
+must choose whether to co-host FastAPI with the single canonical engine, add an
+audited IPC boundary, or keep the standalone trigger fail-closed.
 
 The remaining legacy-parity gap is automatic/live fill-event processing. That
 scope requires explicit fill-testing approval plus live-fill,
@@ -88,6 +105,7 @@ blocker.
   for durable milestone, release/deployment or cross-repository association
   closeout, broad cross-cutting changes, or explicit operator request.
 
-No default backend implementation step remains in this goal until the operator
-approves automatic/live fill-event scope or new focused evidence identifies a
-direct blocker in the current no-live operator slice.
+The runtime association is now a demonstrated direct blocker in the current
+no-live operator slice, but its safe resolution requires the explicit topology
+decision above. Automatic/live fill-event scope still requires separate
+fill-testing approval after that decision.

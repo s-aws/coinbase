@@ -131,10 +131,15 @@ notional, retained inventory, reconciliation result, and audit ids.
 - Current goal id: `legacy_fill_follow_up_operator_slice`.
 - Current slice: Admin order -> fill/readback evidence -> follow-up decision ->
   operator-visible parent/child chain.
-- Current state: the guarded no-live slice is implemented and focused coverage
-  is clean. Automatic/live fill-event parity requires explicit fill-testing
-  approval and live-fill, wallet/cap/reconciliation, duplicate-order, audit,
-  rollback, and readback proof.
+- Current state: the guarded no-live contract and frontend surface are clean in
+  focused injected tests, but the canonical standalone Admin API process cannot
+  share the existing engine executor or duplicate-claim ledger. The direct
+  runtime-association blocker requires an operator choice among co-hosting
+  FastAPI with the one canonical engine, an audited IPC boundary, or keeping the
+  standalone trigger fail-closed. Automatic/live fill-event parity still
+  requires separate fill-testing approval and live-fill,
+  wallet/cap/reconciliation, duplicate-order, audit, rollback, and readback
+  proof.
 - Parked by default: M57 phase continuation, M58 fan-out/scheduler,
   runtime-control, retry/recovery, multi-product wallet-ledger work, and the
   single-product ladder/grid roadmap item.
