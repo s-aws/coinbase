@@ -64,7 +64,7 @@ import uuid
 import json
 import time
 from datetime import datetime, timedelta
-from typing import Dict, Any, Iterator, Optional, Tuple, List
+from typing import Callable, Dict, Any, Iterator, Optional, Tuple, List
 
 from configuration import (
     DEFAULT_MAX_ORDER_REPLACEMENT,
@@ -121,7 +121,12 @@ from business.stealth_condition_evaluator import (
 )
 from core.models import MarketData, RepricingPolicy, RepricingState
 from core.runtime_controller import INFLIGHT_REST_CANCEL, INFLIGHT_REST_PLACE, get_runtime_controller
-from database.order import get_parent_order, insert_order_parent, update_order_parent_status
+from database.order import (
+    get_parent_order,
+    insert_order_parent,
+    persist_filled_follow_up_atomic,
+    update_order_parent_status,
+)
 from logging_service import get_logger
 
 
@@ -184,6 +189,24 @@ def resolve_stealth_chain_root(stealth_order: Dict[str, Any]) -> str:
     """
 
     return stealth_order.get("parent_order_id") or stealth_order["stealth_order_id"]
+
+
+def _filled_follow_up_stealth_order_id(
+    *,
+    original_stealth_order_id: str,
+    source_client_order_id: str,
+) -> str:
+    """Return the restart-stable child identity for one FILLED placement."""
+
+    return str(
+        uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            (
+                "coinbase://filled-follow-up/"
+                f"{original_stealth_order_id}/{source_client_order_id}"
+            ),
+        )
+    )
 
 
 class StealthOrderManager:
@@ -1069,6 +1092,9 @@ class StealthOrderManager:
 
         from configuration import REST_CLIENT
 
+        controller = get_runtime_controller()
+        controller.check_admission(INFLIGHT_REST_PLACE)
+
         bid = safe_float(market_data.get("bid"), default=None)
         ask = safe_float(market_data.get("ask"), default=None)
         normalized_side = str(order.get("side") or "").upper()
@@ -1107,13 +1133,13 @@ class StealthOrderManager:
             )
             return False
 
-        REST_CLIENT.cancel_orders(order_ids=[exchange_order_id])
-
-        placement_client_order_id = str(uuid.uuid4())
         # Track the cancel+replace as a single in-flight critical section so a
         # concurrent drain waits for both the cancellation and the replacement
         # placement to settle before transitioning to STOPPED.
-        with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
+        with controller.track_inflight(INFLIGHT_REST_PLACE):
+            controller.check_admission(INFLIGHT_REST_PLACE)
+            REST_CLIENT.cancel_orders(order_ids=[exchange_order_id])
+            placement_client_order_id = str(uuid.uuid4())
             order_result = REST_CLIENT.place_limit_order(
                 product_id=order["product_id"],
                 side=order["side"],
@@ -1828,6 +1854,10 @@ class StealthOrderManager:
         """Apply ticker-anchored repricing for eligible stealth orders on one product."""
         from core.enums import StealthMutationKind
 
+        controller = get_runtime_controller()
+        if not controller.is_admitting():
+            return 0
+
         capability = evaluate_product_capability(
             product_id=product_id,
             capability=ProductCapability.REPRICE_REVEALED,
@@ -1841,6 +1871,8 @@ class StealthOrderManager:
             return 0
 
         for stealth_order_id in list(self._get_active_stealth_orders()):
+            if not controller.is_admitting():
+                return processed
             order = self.in_memory_orders.get(stealth_order_id)
             if not order or order.get("product_id") != product_id:
                 continue
@@ -2074,6 +2106,9 @@ class StealthOrderManager:
 
     def process_cancel_reentry_for_product(self, product_id: str) -> int:
         """Apply cancel/re-entry policy for eligible stealth orders on one product."""
+        controller = get_runtime_controller()
+        if not controller.is_admitting():
+            return 0
         capability = evaluate_product_capability(
             product_id=product_id,
             capability=ProductCapability.CANCEL_REENTRY,
@@ -2087,6 +2122,8 @@ class StealthOrderManager:
             return 0
 
         for stealth_order_id in list(self._get_active_stealth_orders()):
+            if not controller.is_admitting():
+                return processed
             order = self.in_memory_orders.get(stealth_order_id)
             if not order or order.get("product_id") != product_id:
                 continue
@@ -3129,6 +3166,7 @@ class StealthOrderManager:
         enable_hotpoint_replication: bool = False,
         cancel_reentry_policy: Optional[Dict[str, Any]] = None,
         post_fill_retreat_policy: Optional[Dict[str, Any]] = None,
+        require_persistence: bool = False,
     ) -> str:
         """
         Create an order with automated reveal condition.
@@ -3170,6 +3208,9 @@ class StealthOrderManager:
             post_fill_retreat_policy: Optional policy that lets this hidden
                                       order retreat when a same-product,
                                       same-side order fills.
+            require_persistence: Require both the order_parent and
+                                 stealth_orders rows before publishing the
+                                 order to live in-memory evaluation.
             
         Returns:
             order_id (UUID string) - Used as client_order_id for all internal tracking
@@ -3350,47 +3391,29 @@ class StealthOrderManager:
             "post_fill_retreat_policy_json": normalized_post_fill_retreat_policy,
         }
         
-        # Store in memory for quick access
-        self.in_memory_orders[stealth_order_id] = order_data
-        
-        # Persist to database
-        self._save_stealth_order_to_db(order_data)
-        
-        # 📊 LOT-TRACKING: Log stealth order creation
-        reveal_type = reveal_condition.get("type", "time_delay")
-        reveal_delay = reveal_condition.get("delay_seconds", 0) if reveal_type == "time_delay" else "N/A"
-        self.log_callback("info", f"[LOT-TRACK] Stealth order created: {stealth_order_id} ({side} {total_size} {product_id} @ {limit_price}, reveal_type={reveal_type}, delay={reveal_delay}s)")
+        def insert_tracking_row() -> Optional[int]:
+            if parent_order_id:
+                return insert_order_parent(
+                    client_order_id=stealth_order_id,
+                    product_id=product_id,
+                    side=side,
+                    size=total_size,
+                    price=limit_price,
+                    target_movement=target_movement,
+                    target_movement_type=target_movement_type,
+                    max_order_replacement=0,
+                    current_order_replacement=0,
+                    status=StealthOrderStatus.PENDING.value,
+                    parent_order_id=parent_order_id,
+                    allow_partial_fills=False,
+                )
 
-        # 🔔 LIFECYCLE HOOK: CREATED
-        self._dispatch_lifecycle_event(
-            stealth_order_id=stealth_order_id,
-            event=StealthLifecycleEvent.CREATED,
-            order_data=order_data,
-        )
-        
-        # UNIFIED TRACKING: Insert into order_parent table (for both parent and child orders)
-        # This ensures stealth orders are tracked in the same parent-child hierarchy as regular orders
-        if parent_order_id:
-            # This is a child/follow-up order - insert with parent reference
-            insert_order_parent(
-                client_order_id=stealth_order_id,
-                product_id=product_id,
-                side=side,
-                size=total_size,
-                price=limit_price,
-                target_movement=target_movement,
-                target_movement_type=target_movement_type,
-                max_order_replacement=0,  # Children don't have follow-ups
-                current_order_replacement=0,
-                status=StealthOrderStatus.PENDING.value,
-                parent_order_id=parent_order_id,
-                allow_partial_fills=False,  # child orders never spawn partial-fill follow-ups
+            effective_max_replacements = (
+                max_order_replacements
+                if max_order_replacements is not None
+                else DEFAULT_MAX_ORDER_REPLACEMENT
             )
-        else:
-            # This is a root order (no parent) - insert as parent
-            effective_max_replacements = max_order_replacements if max_order_replacements is not None else DEFAULT_MAX_ORDER_REPLACEMENT
-            
-            insert_order_parent(
+            return insert_order_parent(
                 client_order_id=stealth_order_id,
                 product_id=product_id,
                 side=side,
@@ -3404,6 +3427,37 @@ class StealthOrderManager:
                 allow_partial_fills=allow_partial_fills,
                 enable_hotpoint_replication=enable_hotpoint_replication,
             )
+
+        if require_persistence:
+            self._persist_new_stealth_order_strict(
+                order_data,
+                persist_rows=lambda: persist_filled_follow_up_atomic(
+                    order=order_data,
+                    target_movement=target_movement,
+                    target_movement_type=target_movement_type,
+                ),
+            )
+        else:
+            # Legacy callers retain their best-effort behavior. FILLED
+            # follow-ups opt into the strict path above.
+            self.in_memory_orders[stealth_order_id] = order_data
+            self._save_stealth_order_to_db(order_data)
+
+        # 📊 LOT-TRACKING: Log stealth order creation
+        reveal_type = reveal_condition.get("type", "time_delay")
+        reveal_delay = reveal_condition.get("delay_seconds", 0) if reveal_type == "time_delay" else "N/A"
+        self.log_callback("info", f"[LOT-TRACK] Stealth order created: {stealth_order_id} ({side} {total_size} {product_id} @ {limit_price}, reveal_type={reveal_type}, delay={reveal_delay}s)")
+
+        # 🔔 LIFECYCLE HOOK: CREATED
+        self._dispatch_lifecycle_event(
+            stealth_order_id=stealth_order_id,
+            event=StealthLifecycleEvent.CREATED,
+            order_data=order_data,
+        )
+
+        # Strict creation already wrote both rows before publishing to memory.
+        if not require_persistence:
+            insert_tracking_row()
         
         return stealth_order_id
     
@@ -3573,6 +3627,8 @@ class StealthOrderManager:
             RevealOrderSliceError: If order slice operation fails
         """
         try:
+            controller = get_runtime_controller()
+            controller.check_admission(INFLIGHT_REST_PLACE)
             order = self._get_stealth_order(stealth_order_id)
             
             if not order:
@@ -3946,12 +4002,12 @@ class StealthOrderManager:
             order_result = None
             post_only_attempts = []
             for attempt_num in range(1, max_attempts + 1):
-                # Pre-insert chain-linked row for THIS attempt's COID before
-                # the REST call so the WS handler can resolve the parent.
-                if _pre_insert_placement_row(attempt_coid, attempt_price):
-                    placement_pre_inserted = True
-
-                with get_runtime_controller().track_inflight(INFLIGHT_REST_PLACE):
+                with controller.track_inflight(INFLIGHT_REST_PLACE):
+                    controller.check_admission(INFLIGHT_REST_PLACE)
+                    # Pre-insert chain-linked row for THIS attempt's COID before
+                    # the REST call so the WS handler can resolve the parent.
+                    if _pre_insert_placement_row(attempt_coid, attempt_price):
+                        placement_pre_inserted = True
                     order_result = REST_CLIENT.place_limit_order(
                         product_id=order_for_submission["product_id"],
                         side=order_for_submission["side"],
@@ -4987,6 +5043,7 @@ class StealthOrderManager:
         cancel_reentry_policy: Optional[Dict[str, Any]] = None,
         post_fill_retreat_policy: Optional[Dict[str, Any]] = None,
         follow_up_trigger: Optional[str] = None,
+        source_client_order_id: Optional[str] = None,
     ) -> Optional[str]:
         """Create a follow-up stealth order with same conditions as original.
         
@@ -5012,6 +5069,8 @@ class StealthOrderManager:
                 If None, inherits from original only when that policy allows follow-up inheritance.
             follow_up_trigger: Event that requested this follow-up
                 (filled, partial_fill, or cancelled).
+            source_client_order_id: Filled placement identity used to derive a
+                restart-stable child id for exactly-once FILLED replay.
             
         Returns:
             New stealth_order_id if created, None if original not found
@@ -5110,7 +5169,20 @@ class StealthOrderManager:
         # as the deterministic seed for retreat jitter BEFORE creating
         # the order. Same UUID then flows into create_stealth_order so
         # the seed and the persisted coid match (audit-replayable).
-        follow_up_stealth_order_id = str(uuid.uuid4())
+        normalized_trigger = str(
+            getattr(follow_up_trigger, "value", follow_up_trigger) or ""
+        ).lower()
+        if normalized_trigger == SpotFollowUpTrigger.FILLED.value:
+            if not source_client_order_id:
+                raise StealthOrderPersistenceError(
+                    "FILLED follow-up requires source_client_order_id"
+                )
+            follow_up_stealth_order_id = _filled_follow_up_stealth_order_id(
+                original_stealth_order_id=original_stealth_order_id,
+                source_client_order_id=str(source_client_order_id),
+            )
+        else:
+            follow_up_stealth_order_id = str(uuid.uuid4())
 
         # Apply post-fill retreat if configured. The inherited policy
         # owns the decision; helper returns ``limit_price`` unchanged
@@ -5165,6 +5237,12 @@ class StealthOrderManager:
             target_movement=follow_up_target_movement,
             target_movement_type=follow_up_target_movement_type,
             stealth_order_id=follow_up_stealth_order_id,
+            require_persistence=(
+                str(
+                    getattr(follow_up_trigger, "value", follow_up_trigger) or ""
+                ).lower()
+                == SpotFollowUpTrigger.FILLED.value
+            ),
         )
 
         # Mirror the target onto the in-memory stealth dict so cached lookups
@@ -5195,13 +5273,46 @@ class StealthOrderManager:
     
     # Database operations
     
-    def _save_stealth_order_to_db(self, order: Dict[str, Any]):
+    def _persist_new_stealth_order_strict(
+        self,
+        order: Dict[str, Any],
+        *,
+        persist_rows: Callable[[], Optional[tuple[int, bool]]],
+    ) -> None:
+        """Persist both required rows before exposing a FILLED follow-up."""
+
+        stealth_order_id = str(order["stealth_order_id"])
+        persistence_result = persist_rows()
+        if persistence_result is None:
+            raise StealthOrderPersistenceError(
+                "Strict stealth creation did not return an atomic result"
+            )
+        _parent_row_id, stealth_row_created = persistence_result
+        if not stealth_row_created:
+            if stealth_order_id not in self.in_memory_orders:
+                raise StealthOrderPersistenceError(
+                    "Existing atomic FILLED follow-up was not hydrated"
+                )
+            return
+
+        self.in_memory_orders[stealth_order_id] = order
+
+    def _save_stealth_order_to_db(
+        self,
+        order: Dict[str, Any],
+        *,
+        raise_on_error: bool = False,
+    ) -> bool:
         """Persist stealth order to database."""
         if not self.db_client:
-            return
+            if raise_on_error:
+                raise StealthOrderPersistenceError(
+                    "Strict stealth persistence requires a database client"
+                )
+            return False
         
         try:
-            self.db_client.execute_update(
+            rows_affected = self.db_client.execute_update(
                 """INSERT INTO stealth_orders 
                    (stealth_order_id, product_id, side, total_size, remaining_size,
                     limit_price, status, reveal_condition_type, reveal_condition_json,
@@ -5229,8 +5340,22 @@ class StealthOrderManager:
                    json.dumps(order.get('cancel_reentry_state_json', {})),
                    json.dumps(order.get('post_fill_retreat_policy_json', {"enabled": False})))
             )
+            if rows_affected != 1:
+                if raise_on_error:
+                    raise StealthOrderPersistenceError(
+                        "stealth_orders insert did not affect exactly one row"
+                    )
+                return False
+            return True
         except Exception as e:
             self.log_callback("error", {"event": "stealth_order_save_failed", "stealth_order_id": order['stealth_order_id'], "error": str(e)})
+            if raise_on_error:
+                if isinstance(e, StealthOrderPersistenceError):
+                    raise
+                raise StealthOrderPersistenceError(
+                    f"Failed to persist stealth order {order['stealth_order_id']}: {e}"
+                ) from e
+            return False
     
     def _update_stealth_order(self, order: Dict[str, Any]):
         """Update stealth order in database."""
@@ -5313,10 +5438,11 @@ class StealthOrderManager:
         """Parse JSONB/text fields returned by stealth order queries."""
         if value is None:
             return default
-        if isinstance(value, dict):
+        if isinstance(value, type(default)):
             return value
         if isinstance(value, str):
-            return json.loads(value)
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, type(default)) else default
         return default
 
     def _load_stealth_order_from_db(self, stealth_order_id: str) -> Optional[Dict[str, Any]]:
@@ -5379,7 +5505,11 @@ class StealthOrderManager:
         
         return None
     
-    def load_all_active_orders_from_db(self) -> int:
+    def load_all_active_orders_from_db(
+        self,
+        *,
+        raise_on_error: bool = False,
+    ) -> int:
         """Load all stealth orders from database into memory.
         
         Loads all orders (HIDDEN, PENDING, TRIGGERED, REVEALED, EXECUTED, CANCELLED)
@@ -5395,6 +5525,10 @@ class StealthOrderManager:
             Number of orders loaded
         """
         if not self.db_client:
+            if raise_on_error:
+                raise RuntimeError(
+                    "Stealth order hydration requires a database client"
+                )
             return 0
         
         try:
@@ -5461,13 +5595,26 @@ class StealthOrderManager:
                     }
                     
                     self.in_memory_orders[stealth_order_id] = order_data
+                    for reveal_event in order_data.get('revealed_orders', []):
+                        if not isinstance(reveal_event, dict):
+                            continue
+                        placed_order_id = (
+                            reveal_event.get('placement_client_order_id')
+                            or reveal_event.get('placed_order_id')
+                        )
+                        if placed_order_id:
+                            self._placed_order_index[str(placed_order_id)] = order_data
                     loaded_count += 1
                 except Exception as e:
                     self.log_callback("error", {"event": "stealth_order_load_item_failed", "stealth_order_id": row.get('stealth_order_id'), "error": str(e)})
+                    if raise_on_error:
+                        raise
             
             return loaded_count
         except Exception as e:
             self.log_callback("error", {"event": "stealth_orders_batch_load_failed", "error": str(e)})
+            if raise_on_error:
+                raise
             return 0
 
     def _format_reveal_trigger_reason(

@@ -181,7 +181,7 @@ class PostgresDB:
             try:
                 yield cursor
                 self._conn.commit()
-            except Error as e:
+            except Exception as e:
                 self._conn.rollback()
                 logger.error(f"Database transaction error - rolling back: {type(e).__name__}: {e}")
                 raise

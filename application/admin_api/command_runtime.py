@@ -9,7 +9,10 @@ from typing import Any, Callable
 import uuid
 
 from core.action_condition_guard import rest_credentials_configured
-from core.runtime_controller import get_runtime_controller
+from core.runtime_controller import (
+    INFLIGHT_FILL_PROCESSING,
+    get_runtime_controller,
+)
 from logging_service import get_logger
 
 from .command_service import AdminApiCommandDependencies, AdminApiCommandService
@@ -165,7 +168,9 @@ class AdminApiFillFollowUpRuntimeExecutor:
         handle_filled_order = getattr(self.order_engine, "handle_filled_order", None)
         if not callable(handle_filled_order):
             raise RuntimeError("order_engine_handle_filled_order_unavailable")
-        handle_filled_order(dict(order))
+        controller = get_runtime_controller()
+        with controller.track_inflight(INFLIGHT_FILL_PROCESSING):
+            handle_filled_order(dict(order))
         client_order_id = str(order.get("client_order_id") or "")
         claim_state_after = None
         orderbook = getattr(self.order_engine, "orderbook", None)

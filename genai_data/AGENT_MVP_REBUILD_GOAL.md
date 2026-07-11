@@ -51,20 +51,33 @@ implemented on `main`:
 - accepted child readback without Coinbase execution in focused injected
   contract tests.
 
-A focused canonical-runtime probe found one direct operator blocker. The
-standalone Admin API launcher starts only `api.v1.app:app`, while the
-fill-follow-up executor and duplicate-claim ledger are available only through
-the `dashboard_server.stealth_order_bridge.order_engine` constructed by
-`main.py`. `main.py` does not start FastAPI. The normal standalone deployment
-therefore remains fail-closed and cannot produce the accepted child modeled by
-the tests.
+The operator selected single-process embedding with the canonical live engine.
+`main.py` now has an opt-in embedded FastAPI server that validates exact
+engine/bridge/manager/orderbook identity, strictly hydrates before binding,
+serves reads while mutations remain gated, and starts bridge/engine producers
+only after the bind. Mutations open after an authenticated `user` subscription
+acknowledgement from the same retained WebSocket worker and reclose when that
+worker's actual socket or the user-event consumer is lost. Hidden SDK retries
+are disabled for this proof boundary; terminal loss synchronously closes
+runtime admission and starts the canonical drain. Bridge reveal, reprice, and
+reentry entry points honor that state so cached ticker data cannot originate a
+new placement during the drain handoff. Ingress stops before bridge and engine
+shutdown, and queued user events remain represented in drain accounting until
+the consumer exits.
 
-There is no safe implicit wiring choice. Instantiating a second offline engine
-would split orderbook/claim authority, calling the legacy dashboard WebSocket
-would create a second product behavior path, and silently starting `main.py`
-from the API launcher would activate the live websocket runtime. The operator
-must choose whether to co-host FastAPI with the single canonical engine, add an
-audited IPC boundary, or keep the standalone trigger fail-closed.
+Focused synthetic coverage proves the production handler and real claim kernel
+create one hidden child for duplicate FILLED inputs. The child ID is
+restart-stable from the filled placement, its `order_parent` and `stealth_orders`
+rows commit atomically before in-memory publication, and chain readback requires
+both sources. Explicit no-child outcomes release the claim; ambiguous creation
+or persistence exceptions remain `processing` instead of being misreported as
+terminal success. Restart hydration rebuilds native JSONB placement lookup.
+
+The embedded mode is disabled by default. The deployed
+`tools/run_admin_api.py` app-only runner intentionally remains fail-closed.
+Activating `COINBASE_ADMIN_API_EMBEDDED_ENABLED=true` necessarily runs inside
+the automatic/live fill-event engine, so activation and a process-level fill
+proof remain behind the separate explicit fill-testing decision.
 
 The remaining legacy-parity gap is automatic/live fill-event processing. That
 scope requires explicit fill-testing approval plus live-fill,
@@ -105,7 +118,6 @@ blocker.
   for durable milestone, release/deployment or cross-repository association
   closeout, broad cross-cutting changes, or explicit operator request.
 
-The runtime association is now a demonstrated direct blocker in the current
-no-live operator slice, but its safe resolution requires the explicit topology
-decision above. Automatic/live fill-event scope still requires separate
-fill-testing approval after that decision.
+No additional no-live implementation lane remains. The selected topology is
+implementation-ready but deliberately inactive; automatic/live fill-event
+activation and validation require separate explicit fill-testing approval.

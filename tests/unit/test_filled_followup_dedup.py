@@ -3,8 +3,9 @@
 from unittest.mock import Mock, patch
 
 from configuration import OrderBook
-from core.enums import OrderStatus
+from core.enums import FollowUpKind, OrderStatus
 from core.order_engine import OrderEngine
+from core.orderbook import ClaimLedger
 
 
 def _build_engine() -> OrderEngine:
@@ -44,13 +45,21 @@ def _build_engine() -> OrderEngine:
     return engine
 
 
-def test_duplicate_filled_event_creates_follow_up_once():
+def test_duplicate_filled_event_creates_follow_up_once(monkeypatch):
+    import dashboard_server
+
+    from application.admin_api.command_runtime import (
+        get_admin_api_fill_follow_up_executor,
+    )
+
     engine = _build_engine()
 
-    # Duplicate FILLED event sequence: first should process, second should be blocked.
-    engine.claim_follow_up_processing = Mock(side_effect=[True, False])
-    engine.complete_follow_up_processing = Mock()
-    engine.release_follow_up_processing = Mock()
+    # Exercise the production wrappers against the real three-state claim kernel.
+    claim_ledger = ClaimLedger(FollowUpKind)
+    engine.orderbook.try_claim_follow_up = claim_ledger.try_claim
+    engine.orderbook.complete_follow_up = claim_ledger.complete
+    engine.orderbook.release_follow_up = claim_ledger.release
+    engine.orderbook.follow_up_claim_state = claim_ledger.state
     engine.fill_repo = None
     engine.profit_validator = None
 
@@ -85,7 +94,10 @@ def test_duplicate_filled_event_creates_follow_up_once():
     }
     stealth_manager.create_follow_up_stealth_order.return_value = "stealth-child-1"
 
-    engine.stealth_order_bridge = Mock(stealth_manager=stealth_manager)
+    stealth_bridge = Mock(stealth_manager=stealth_manager)
+    stealth_bridge.order_engine = engine
+    engine.stealth_order_bridge = stealth_bridge
+    monkeypatch.setattr(dashboard_server, "stealth_order_bridge", stealth_bridge)
 
     filled_order = {
         "client_order_id": "placed-1",
@@ -108,9 +120,112 @@ def test_duplicate_filled_event_creates_follow_up_once():
             "target_movement_type": "P",
         },
     ):
-        engine.handle_filled_order(filled_order)
-        engine.handle_filled_order(filled_order)
+        executor = get_admin_api_fill_follow_up_executor()
+        assert executor is not None
+        assert executor.order_engine is engine
+        executor.trigger_filled_follow_up(order=filled_order, context={})
+        executor.trigger_filled_follow_up(order=filled_order, context={})
 
     # First FILLED creates the follow-up, second is dedup-blocked by claim flag.
     stealth_manager.create_follow_up_stealth_order.assert_called_once()
-    assert engine.claim_follow_up_processing.call_count == 2
+    assert (
+        stealth_manager.create_follow_up_stealth_order.call_args.kwargs[
+            "source_client_order_id"
+        ]
+        == "placed-1"
+    )
+    assert claim_ledger.state("filled", "placed-1") == "done"
+
+
+def _build_failed_follow_up_attempt(*, creation_error=None):
+    engine = _build_engine()
+    claim_ledger = ClaimLedger(FollowUpKind)
+    engine.orderbook.try_claim_follow_up = claim_ledger.try_claim
+    engine.orderbook.complete_follow_up = claim_ledger.complete
+    engine.orderbook.release_follow_up = claim_ledger.release
+    engine.orderbook.follow_up_claim_state = claim_ledger.state
+    engine.fill_repo = None
+    engine.profit_validator = None
+    engine._seed_parent_order_cache_from_db = Mock(return_value=True)
+    engine.resolve_parent_client_order_id = Mock(return_value=(True, "parent-1"))
+    engine.can_create_follow_up_order = Mock(
+        return_value=(True, {"max_order_replacement": 11, "current_order_replacement": 0})
+    )
+    engine.resolve_parent_target_movement = Mock(
+        return_value={"movement": 0.001, "type": "P"}
+    )
+    engine.compute_order_template = Mock(
+        return_value={
+            "start_price": "101.0",
+            "side": "SELL",
+            "order_base_size": "0.01",
+            "product_id": "BTC-USDC",
+        }
+    )
+    engine.child_order_already_exists = Mock(return_value=False)
+    engine._resolve_filled_follow_up_size_after_partials = Mock(
+        return_value=(0.01, {})
+    )
+    engine.register_child_order = Mock()
+
+    stealth_manager = Mock()
+    stealth_manager._market_cache = {}
+    stealth_manager.find_stealth_order_by_placed_order_id.return_value = {
+        "stealth_order_id": "stealth-parent-1",
+        "parent_order_id": "parent-1",
+        "reveal_condition_json": {"type": "price", "direction": "below"},
+        "follow_up_reveal_direction": "opposite",
+    }
+    if creation_error is None:
+        stealth_manager.create_follow_up_stealth_order.return_value = None
+    else:
+        stealth_manager.create_follow_up_stealth_order.side_effect = creation_error
+    engine.stealth_order_bridge = Mock(stealth_manager=stealth_manager)
+
+    filled_order = {
+        "client_order_id": "placed-1",
+        "order_id": "exchange-1",
+        "product_id": "BTC-USDC",
+        "order_side": "BUY",
+        "side": "BUY",
+        "price": "100.0",
+        "avg_price": "100.0",
+        "size": "0.01",
+        "filled_size": "0.01",
+        "status": OrderStatus.FILLED.value,
+        "outstanding_hold_amount": "0",
+    }
+    return engine, stealth_manager, filled_order, claim_ledger
+
+
+def test_blocked_filled_follow_up_releases_claim_when_no_child_was_created():
+    engine, _manager, filled_order, claim_ledger = _build_failed_follow_up_attempt()
+
+    with patch(
+        "database.order.get_parent_order",
+        return_value={
+            "target_movement": 0.001,
+            "target_movement_type": "P",
+        },
+    ):
+        engine.handle_filled_order(filled_order)
+
+    assert claim_ledger.state("filled", "placed-1") is None
+
+
+def test_failed_filled_follow_up_leaves_claim_processing_without_ambiguous_readback():
+    engine, _manager, filled_order, claim_ledger = _build_failed_follow_up_attempt(
+        creation_error=RuntimeError("synthetic persistence failure"),
+    )
+
+    with patch(
+        "database.order.get_parent_order",
+        return_value={
+            "target_movement": 0.001,
+            "target_movement_type": "P",
+        },
+    ):
+        engine.handle_filled_order(filled_order)
+
+    assert claim_ledger.state("filled", "placed-1") == "processing"
+    assert engine.child_order_already_exists.call_count == 1

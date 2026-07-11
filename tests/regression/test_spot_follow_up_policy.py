@@ -10,7 +10,10 @@ from core.enums import (
     SpotFollowUpTrigger,
 )
 from core.spot_follow_up_policy import evaluate_spot_follow_up_policy
-from core.stealth_order_manager import StealthOrderManager
+from core.stealth_order_manager import (
+    StealthOrderManager,
+    _filled_follow_up_stealth_order_id,
+)
 
 
 pytestmark = pytest.mark.regression
@@ -122,6 +125,7 @@ def test_stealth_manager_blocks_unsupported_spot_follow_up_before_creation():
 def test_stealth_manager_allows_spot_exit_follow_up_to_existing_path():
     manager, original_id = _manager_with_original(side=OrderSide.BUY.value)
     manager.create_stealth_order = MagicMock(return_value="new-exit-follow-up")
+    source_client_order_id = "placed-fill-1"
 
     follow_up_id = manager.create_follow_up_stealth_order(
         original_stealth_order_id=original_id,
@@ -129,7 +133,18 @@ def test_stealth_manager_allows_spot_exit_follow_up_to_existing_path():
         total_size=0.01,
         limit_price=101000.0,
         follow_up_trigger=SpotFollowUpTrigger.FILLED.value,
+        source_client_order_id=source_client_order_id,
     )
 
     assert follow_up_id == "new-exit-follow-up"
     manager.create_stealth_order.assert_called_once()
+    assert (
+        manager.create_stealth_order.call_args.kwargs["require_persistence"]
+        is True
+    )
+    assert manager.create_stealth_order.call_args.kwargs["stealth_order_id"] == (
+        _filled_follow_up_stealth_order_id(
+            original_stealth_order_id=original_id,
+            source_client_order_id=source_client_order_id,
+        )
+    )

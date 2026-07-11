@@ -9,6 +9,7 @@ It manages the parent-child order relationship for the trading engine.
 
 import json
 import uuid
+from decimal import Decimal, InvalidOperation
 from logging_service import get_logger
 from database.database import PostgresDB
 from typing import Dict, List, Any, Optional
@@ -784,6 +785,201 @@ def insert_order_parent(
                 message=f"Failed to insert parent order {client_order_id}: {str(e)}",
                 client_order_id=client_order_id,
             )
+
+
+def persist_filled_follow_up_atomic(
+    *,
+    order: Dict[str, Any],
+    target_movement: float,
+    target_movement_type: str = "P",
+) -> tuple[int, bool]:
+    """Atomically persist both durable rows for one FILLED follow-up.
+
+    The deterministic ``stealth_order_id`` is also the child
+    ``client_order_id``. Replays with the same identity are idempotent; an
+    existing row with conflicting immutable linkage fails closed.
+
+    Returns:
+        ``(order_parent_id, stealth_row_created)``.
+    """
+
+    client_order_id = str(order.get("stealth_order_id") or "")
+    parent_order_id = str(order.get("parent_order_id") or "")
+    _require_uuid_text(
+        client_order_id,
+        "stealth_order_id",
+        client_order_id=client_order_id,
+    )
+    _require_uuid_text(
+        parent_order_id,
+        "parent_order_id",
+        client_order_id=client_order_id,
+    )
+
+    product_id = str(order.get("product_id") or "")
+    side = str(order.get("side") or "").upper()
+    total_size = order.get("total_size")
+    limit_price = order.get("limit_price")
+
+    def row_dict(cursor, row) -> Optional[Dict[str, Any]]:
+        if row is None:
+            return None
+        columns = [description[0] for description in cursor.description]
+        return dict(zip(columns, row))
+
+    def numeric_equal(left: Any, right: Any) -> bool:
+        try:
+            return Decimal(str(left)) == Decimal(str(right))
+        except (InvalidOperation, TypeError, ValueError):
+            return False
+
+    def raise_conflict(source: str) -> None:
+        raise OrderPersistenceError(
+            error_type="FilledFollowUpIdentityConflict",
+            message=(
+                f"Existing {source} row conflicts with deterministic FILLED "
+                f"follow-up {client_order_id}"
+            ),
+            client_order_id=client_order_id,
+        )
+
+    with DB_CLIENT.get_cursor() as cursor:
+        cursor.execute(
+            """SELECT id, product_id, side, size, price, parent_order_id
+               FROM order_parent WHERE client_order_id = %s""",
+            (client_order_id,),
+        )
+        parent_row = row_dict(cursor, cursor.fetchone())
+
+        cursor.execute(
+            """SELECT product_id, side, total_size, parent_order_id
+               FROM stealth_orders WHERE stealth_order_id = %s""",
+            (client_order_id,),
+        )
+        stealth_row = row_dict(cursor, cursor.fetchone())
+
+        if parent_row and not all(
+            (
+                str(parent_row.get("product_id") or "") == product_id,
+                str(parent_row.get("side") or "").upper() == side,
+                numeric_equal(parent_row.get("size"), total_size),
+                numeric_equal(parent_row.get("price"), limit_price),
+                str(parent_row.get("parent_order_id") or "")
+                == parent_order_id,
+            )
+        ):
+            raise_conflict("order_parent")
+
+        if stealth_row and not all(
+            (
+                str(stealth_row.get("product_id") or "") == product_id,
+                str(stealth_row.get("side") or "").upper() == side,
+                numeric_equal(stealth_row.get("total_size"), total_size),
+                str(stealth_row.get("parent_order_id") or "")
+                == parent_order_id,
+            )
+        ):
+            raise_conflict("stealth_orders")
+
+        if parent_row:
+            parent_row_id = int(parent_row["id"])
+        else:
+            cursor.execute(
+                """INSERT INTO order_parent (
+                       client_order_id, product_id, side, size, price, status,
+                       target_movement, target_movement_type,
+                       max_order_replacement, current_order_replacement,
+                       parent_order_id, allow_partial_fills,
+                       enable_hotpoint_replication, auto_placed_by_hotpoint
+                   ) VALUES (
+                       %s, %s, %s, %s, %s, %s, %s, %s,
+                       0, 0, %s, FALSE, FALSE, FALSE
+                   ) RETURNING id""",
+                (
+                    client_order_id,
+                    product_id,
+                    side,
+                    total_size,
+                    limit_price,
+                    "PENDING",
+                    target_movement,
+                    target_movement_type,
+                    parent_order_id,
+                ),
+            )
+            inserted_parent = cursor.fetchone()
+            if not inserted_parent:
+                raise OrderPersistenceError(
+                    error_type="FilledFollowUpParentInsertMissing",
+                    message="Atomic FILLED follow-up parent insert returned no id",
+                    client_order_id=client_order_id,
+                )
+            parent_row_id = int(inserted_parent[0])
+
+        stealth_row_created = stealth_row is None
+        if stealth_row_created:
+            cursor.execute(
+                """INSERT INTO stealth_orders (
+                       stealth_order_id, product_id, side, total_size,
+                       remaining_size, limit_price, status,
+                       reveal_condition_type, reveal_condition_json,
+                       sizing_strategy_json, reason, notes, parent_order_id,
+                       anchor_repricing_policy_json,
+                       anchor_repricing_state_json,
+                       cancel_reentry_policy_json,
+                       cancel_reentry_state_json,
+                       post_fill_retreat_policy_json
+                   ) VALUES (
+                       %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                       %s, %s, %s, %s, %s, %s, %s, %s, %s
+                   )""",
+                (
+                    client_order_id,
+                    product_id,
+                    side,
+                    total_size,
+                    order.get("remaining_size"),
+                    limit_price,
+                    order.get("status", "HIDDEN"),
+                    order.get("reveal_condition_type", "time_delay"),
+                    json.dumps(
+                        order.get("reveal_condition_json", {}),
+                        default=_json_default_for_db,
+                    ),
+                    json.dumps(
+                        order.get("sizing_strategy_json", {}),
+                        default=_json_default_for_db,
+                    ),
+                    order.get("reason", ""),
+                    order.get("notes", ""),
+                    parent_order_id,
+                    json.dumps(
+                        order.get("anchor_repricing_policy_json", {}),
+                        default=_json_default_for_db,
+                    ),
+                    json.dumps(
+                        order.get("anchor_repricing_state_json", {}),
+                        default=_json_default_for_db,
+                    ),
+                    json.dumps(
+                        order.get("cancel_reentry_policy_json", {}),
+                        default=_json_default_for_db,
+                    ),
+                    json.dumps(
+                        order.get("cancel_reentry_state_json", {}),
+                        default=_json_default_for_db,
+                    ),
+                    json.dumps(
+                        order.get(
+                            "post_fill_retreat_policy_json",
+                            {"enabled": False},
+                        ),
+                        default=_json_default_for_db,
+                    ),
+                ),
+            )
+
+    return parent_row_id, stealth_row_created
 
 
 def insert_order_parent_batch(
@@ -3535,7 +3731,10 @@ def get_partial_fill_progress(client_order_id: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-def get_all_active_partial_fill_progress() -> List[Dict[str, Any]]:
+def get_all_active_partial_fill_progress(
+    *,
+    raise_on_error: bool = False,
+) -> List[Dict[str, Any]]:
     """Retrieve all ACTIVE partial-fill watermark rows for engine restart hydration.
 
     Returns:
@@ -3550,6 +3749,8 @@ def get_all_active_partial_fill_progress() -> List[Dict[str, Any]]:
         return DB_CLIENT.execute_query(query) or []
     except Exception as e:
         logger.error(f"[PARTIAL-FILL] get_all_active_partial_fill_progress failed: {type(e).__name__}: {e}")
+        if raise_on_error:
+            raise
         return []
 
 

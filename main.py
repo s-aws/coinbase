@@ -53,8 +53,15 @@ from configuration import (
 )
 
 import database.order as DB_MODULE
-from core.order_engine import OrderEngine
+from application.admin_api.embedded_server import (
+    build_embedded_admin_api_config,
+    prepare_embedded_admin_api_server,
+)
 from core.periodic_reconciler import PeriodicReconciler
+from core.runtime_composition import (
+    build_canonical_order_runtime,
+    hydrate_canonical_order_runtime,
+)
 from core.runtime_controller import get_runtime_controller
 from core.startup_reconciler import run_startup_reconciliation
 from dashboard_server import start_dashboard_server, set_stealth_order_bridge, update_order, update_position, add_log_entry, update_engine_status
@@ -64,50 +71,50 @@ set_backend(add_log_entry)
 
 if __name__ == "__main__":
     import sys
-    
-    # Initialize stealth order system first (before OrderEngine)
-    stealth_bridge = None
-    try:
-        from bridges.stealth_order_bridge import StealthOrderBridge
-        from core.stealth_order_manager import StealthOrderManager
-        
-        stealth_manager = StealthOrderManager(DB_MODULE.DB_CLIENT)
-        stealth_bridge = StealthOrderBridge(stealth_manager, None)  # engine will be set later
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-    
-    engine = OrderEngine(
+
+    embedded_admin_api_requested = (
+        build_embedded_admin_api_config() is not None
+    )
+
+    # Construct the one engine/bridge authority used by the live runtime and
+    # its opt-in embedded Admin API.
+    runtime = build_canonical_order_runtime(
         orderbook=ORDERBOOK,
         db_module=DB_MODULE,
         subscription=Subscription,
         api_key=API_KEY,
         api_secret=API_SECRET,
         order_post_only=ORDER_POST_ONLY,
-        stealth_order_bridge=stealth_bridge,
+        require_stealth_bridge=embedded_admin_api_requested,
     )
-    
-    # Update stealth bridge with engine reference if it exists
+    engine = runtime.order_engine
+    stealth_bridge = runtime.stealth_order_bridge
+    stealth_bridge_ready = False
+
     if stealth_bridge:
-        stealth_bridge.order_engine = engine
-        # Use the engine's shared ProfitValidator for reveal-time revalidation.
         if hasattr(engine, "profit_validator"):
-            stealth_bridge.stealth_manager.profit_validator = engine.profit_validator
             logger.info("StealthOrderManager wired with OrderEngine profit_validator")
         if hasattr(engine, "fill_repo"):
-            stealth_bridge.stealth_manager.fill_ledger_repo = engine.fill_repo
             logger.info("StealthOrderManager wired with OrderEngine fill ledger")
 
-    # Start dashboard server
-    import sys
-    start_dashboard_server()
-    
-    # Start stealth order system if it was initialized
+    # The default legacy runtime keeps its original dashboard/bridge startup
+    # ordering. Embedded mode defers all command ingress and live producers
+    # until strict hydration and the Admin API bind have succeeded.
+    if not embedded_admin_api_requested:
+        start_dashboard_server()
+
     if stealth_bridge:
         try:
             set_stealth_order_bridge(stealth_bridge)
-            stealth_bridge.start()
-        except Exception as e:
+            if embedded_admin_api_requested:
+                hydrate_canonical_order_runtime(runtime)
+            else:
+                stealth_bridge.start()
+            stealth_bridge_ready = True
+        except Exception:
+            if embedded_admin_api_requested:
+                engine.stop()
+                raise
             import traceback
             traceback.print_exc()
 
@@ -117,6 +124,66 @@ if __name__ == "__main__":
     # signal can fire; reconcile exchange vs DB BEFORE accepting work.
     # ------------------------------------------------------------------
     controller = get_runtime_controller()
+
+    def handle_embedded_admin_api_unexpected_exit(failure):
+        logger.error(
+            "Embedded Admin API exited unexpectedly; draining canonical runtime",
+            exc_info=(
+                type(failure),
+                failure,
+                failure.__traceback__,
+            ) if failure is not None else None,
+        )
+        controller.request_shutdown()
+        from threading import Thread
+
+        Thread(
+            target=controller.drain_and_stop,
+            kwargs={"timeout_seconds": 30.0},
+            daemon=False,
+            name="embedded-admin-api-failure-drain",
+        ).start()
+
+    def handle_embedded_event_monitoring_lost():
+        logger.critical(
+            "Authenticated Coinbase user-event monitoring was lost; "
+            "draining canonical runtime"
+        )
+        controller.request_shutdown()
+        from threading import Thread
+
+        Thread(
+            target=controller.drain_and_stop,
+            kwargs={"timeout_seconds": 30.0},
+            daemon=False,
+            name="event-monitoring-loss-drain",
+        ).start()
+
+    if embedded_admin_api_requested:
+        engine.set_event_monitoring_lost_callback(
+            handle_embedded_event_monitoring_lost
+        )
+
+    try:
+        embedded_admin_api_server = prepare_embedded_admin_api_server(
+            order_engine=engine,
+            stealth_order_bridge=stealth_bridge,
+            stealth_order_manager=runtime.stealth_order_manager,
+            runtime_ready=stealth_bridge_ready,
+            unexpected_exit_callback=(
+                handle_embedded_admin_api_unexpected_exit
+                if embedded_admin_api_requested
+                else None
+            ),
+        )
+    except Exception:
+        if stealth_bridge is not None:
+            stealth_bridge.stop()
+        engine.stop()
+        raise
+
+    if embedded_admin_api_server is not None:
+        controller.register_stop_hook("admin_api", embedded_admin_api_server.stop)
 
     if stealth_bridge is not None:
         controller.register_stop_hook(
@@ -179,6 +246,12 @@ if __name__ == "__main__":
     import os
     _reconciler_disabled = os.getenv("DISABLE_RECONCILER", "").strip().lower() in ("1", "true", "yes", "on")
     if _reconciler_disabled:
+        if embedded_admin_api_requested:
+            controller.drain_and_stop(timeout_seconds=30.0)
+            raise RuntimeError(
+                "Embedded Admin API requires startup reconciliation; "
+                "DISABLE_RECONCILER cannot be set"
+            )
         logger.warning(
             "DISABLE_RECONCILER is set; skipping startup reconciliation "
             "AND periodic audits. Drift detection is OFF until unset."
@@ -192,6 +265,9 @@ if __name__ == "__main__":
             )
         except Exception:
             logger.exception("Startup reconciliation raised; continuing")
+            if embedded_admin_api_requested:
+                controller.drain_and_stop(timeout_seconds=30.0)
+                raise
 
     # Periodic deep-audit against exchange truth. Mirrors the startup
     # configuration so drift that develops at runtime is healed on the
@@ -205,4 +281,30 @@ if __name__ == "__main__":
         controller.register_stop_hook("periodic_reconciler", periodic_reconciler.stop)
         periodic_reconciler.start()
 
-    engine.run_forever()
+    try:
+        if embedded_admin_api_server is not None:
+            # Prove the HTTP bind before any bridge/websocket producer. Reads
+            # are available during startup, while the ASGI readiness gate
+            # rejects mutations until every producer has started.
+            embedded_admin_api_server.start()
+
+            def mark_embedded_admin_api_runtime_ready():
+                if not engine.wait_for_event_monitoring_ready(
+                    timeout_seconds=30.0
+                ):
+                    raise RuntimeError(
+                        "Embedded Admin API cannot prove Coinbase event "
+                        "monitoring readiness"
+                    )
+                embedded_admin_api_server.mark_runtime_ready()
+
+            stealth_bridge.start()
+            engine.run_forever(on_started=mark_embedded_admin_api_runtime_ready)
+        else:
+            engine.run_forever()
+    except Exception:
+        controller.drain_and_stop(timeout_seconds=30.0)
+        raise
+    finally:
+        if embedded_admin_api_server is not None:
+            embedded_admin_api_server.stop()

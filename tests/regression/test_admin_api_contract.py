@@ -77063,7 +77063,11 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
         "corr-child-follow-up"
     )
     assert payload["follow_up_children"][0]["audit_id"] == "audit-child-follow-up"
-    assert payload["duplicate_child_client_order_ids"] == [child_id]
+    assert payload["duplicate_child_client_order_ids"] == []
+    assert not any(
+        blocker.startswith("follow_up_child_missing_")
+        for blocker in payload["blockers"]
+    )
     assert payload["order_parent_child_read_ran"] is True
     assert payload["stealth_child_read_ran"] is True
     assert payload["read_only"] is True
@@ -77084,6 +77088,21 @@ def test_admin_api_order_fill_follow_up_chain_surfaces_parent_child_readback(
     assert (
         "/api/v1/orders/{client_order_id}/fill-readback"
         in payload["fill_follow_up_decision_audit"]["read_evidence_routes"]
+    )
+
+    monkeypatch.setattr(
+        order_module,
+        "get_stealth_children_for_parent",
+        lambda parent_order_id: [],
+    )
+    missing_stealth_response = client.get(
+        f"/api/v1/orders/{root_id}/fill-follow-up/chain",
+        headers=_headers(roles=AdminApiRole.AUDITOR.value),
+    )
+    assert missing_stealth_response.status_code == 200
+    assert (
+        f"follow_up_child_missing_stealth_persistence:{child_id}"
+        in missing_stealth_response.json()["blockers"]
     )
 
 
@@ -78016,7 +78035,19 @@ def test_admin_api_order_fill_follow_up_trigger_invokes_executor_after_exact_ref
     monkeypatch.setattr(
         order_module,
         "get_stealth_children_for_parent",
-        lambda parent_order_id: [],
+        lambda parent_order_id: (
+            [
+                {
+                    "client_order_id": child_id,
+                    "product_id": child_order["product_id"],
+                    "side": child_order["side"],
+                    "size": child_order["size"],
+                    "price": child_order["price"],
+                }
+            ]
+            if executor_state["called"] and parent_order_id == root_id
+            else []
+        ),
     )
     monkeypatch.setattr(
         configuration,
@@ -78442,7 +78473,19 @@ def test_admin_api_order_fill_follow_up_trigger_accepts_public_route_proof_chain
     monkeypatch.setattr(
         order_module,
         "get_stealth_children_for_parent",
-        lambda parent_order_id: [],
+        lambda parent_order_id: (
+            [
+                {
+                    "client_order_id": child_id,
+                    "product_id": child_order["product_id"],
+                    "side": child_order["side"],
+                    "size": child_order["size"],
+                    "price": child_order["price"],
+                }
+            ]
+            if executor_state["called"] and parent_order_id == root_id
+            else []
+        ),
     )
     monkeypatch.setattr(
         configuration,
@@ -78849,7 +78892,19 @@ def test_admin_api_order_fill_follow_up_trigger_replays_live_activity_rejection_
     monkeypatch.setattr(
         order_module,
         "get_stealth_children_for_parent",
-        lambda parent_order_id: [],
+        lambda parent_order_id: (
+            [
+                {
+                    "client_order_id": child_id,
+                    "product_id": child_order["product_id"],
+                    "side": child_order["side"],
+                    "size": child_order["size"],
+                    "price": child_order["price"],
+                }
+            ]
+            if executor_state["called"] and parent_order_id == root_id
+            else []
+        ),
     )
     monkeypatch.setattr(
         configuration,
@@ -80163,7 +80218,19 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_child_without_claim(
     monkeypatch.setattr(
         order_module,
         "get_stealth_children_for_parent",
-        lambda parent_order_id: [],
+        lambda parent_order_id: (
+            [
+                {
+                    "client_order_id": child_id,
+                    "product_id": child_order["product_id"],
+                    "side": child_order["side"],
+                    "size": child_order["size"],
+                    "price": child_order["price"],
+                }
+            ]
+            if executor_state["called"] and parent_order_id == root_id
+            else []
+        ),
     )
     monkeypatch.setattr(
         configuration,
@@ -80411,7 +80478,19 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_executor_live_submission
     monkeypatch.setattr(
         order_module,
         "get_stealth_children_for_parent",
-        lambda parent_order_id: [],
+        lambda parent_order_id: (
+            [
+                {
+                    "client_order_id": child_id,
+                    "product_id": child_order["product_id"],
+                    "side": child_order["side"],
+                    "size": child_order["size"],
+                    "price": child_order["price"],
+                }
+            ]
+            if executor_state["called"] and parent_order_id == root_id
+            else []
+        ),
     )
     monkeypatch.setattr(
         configuration,
@@ -80639,7 +80718,19 @@ def test_admin_api_order_fill_follow_up_trigger_rejects_existing_child_to_avoid_
     monkeypatch.setattr(
         order_module,
         "get_stealth_children_for_parent",
-        lambda parent_order_id: [],
+        lambda parent_order_id: (
+            [
+                {
+                    "client_order_id": child_id,
+                    "product_id": child_order["product_id"],
+                    "side": child_order["side"],
+                    "size": child_order["size"],
+                    "price": child_order["price"],
+                }
+            ]
+            if parent_order_id == root_id
+            else []
+        ),
     )
     monkeypatch.setattr(
         configuration,

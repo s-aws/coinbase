@@ -2261,15 +2261,38 @@ The platform/module split is documented in
 
 ## Local Run
 
-Run the existing FastAPI app directly when developing the enterprise frontend:
+Run the FastAPI app directly for frontend contract development:
 
 ```powershell
 python3.13 tools/run_admin_api.py --dev-token local-admin-token
 ```
 
 The helper starts `api.v1.app:app` on `http://127.0.0.1:8787`, sets local CORS
-for `http://127.0.0.1:3000`, and keeps live Coinbase execution disabled. It
-does not import trading clients or submit/cancel exchange orders.
+for `http://127.0.0.1:3000`, and keeps live Coinbase execution disabled. It is
+an app-only contract runner, so the fill-follow-up trigger intentionally stays
+fail-closed without a process-local engine.
+
+The operator-selected production topology is implemented as an opt-in embedded
+server in `main.py`, guarded by `COINBASE_ADMIN_API_EMBEDDED_ENABLED=true`.
+It strictly hydrates placement lookup, root/child linkage, and partial-fill
+watermarks, completes startup reconciliation, then binds with reads available
+and mutations gated. The bridge and engine producers start afterward; mutation
+routes open only after the same retained WebSocket worker receives Coinbase's
+authenticated `user` subscription acknowledgement and its user-event consumer
+is alive. Hidden SDK retries are disabled: every mutation rechecks the actual
+socket, and loss of the last acknowledged transport or the user-event consumer
+synchronously closes runtime admission before draining the canonical runtime.
+Bridge reveal/reprice/reentry entry points also honor that admission state, so
+cached market data cannot originate a new placement in the drain handoff. HTTP
+ingress stops before bridge/engine shutdown. Do not enable or launch this mode
+until the operator separately approves automatic/live fill-event testing.
+
+FILLED follow-ups use a deterministic child `client_order_id` derived from the
+source placement and atomically commit both `order_parent` and `stealth_orders`
+rows before becoming visible in memory. Chain readback requires corroborating
+evidence from both rows. Queued user events retain drain accounting until the
+user worker exits, so shutdown cannot report clean while an accepted fill is
+still waiting to be processed.
 
 For a deployment-like local run, configure auth explicitly instead of using
 `--dev-token`:

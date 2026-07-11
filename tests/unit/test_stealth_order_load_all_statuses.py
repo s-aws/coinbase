@@ -66,7 +66,7 @@ class TestLoadAllStealthOrderStatuses:
                             'reason': 'Test executed order',
                             'notes': 'This order should be visible after restart',
                             'parent_order_id': None,
-                            'revealed_orders': json.dumps([
+                            'revealed_orders': [
                                 {
                                     'reveal_number': 1,
                                     'revealed_size': 10.0,
@@ -75,7 +75,7 @@ class TestLoadAllStealthOrderStatuses:
                                     'reveal_time': datetime.utcnow().isoformat(),
                                     'market_price': 3100.0
                                 }
-                            ]),
+                            ],
                             'created_at': datetime.utcnow(),
                             'updated_at': datetime.utcnow(),
                             'visibility_score': 1.0,
@@ -192,7 +192,20 @@ class TestLoadAllStealthOrderStatuses:
         assert 'order-hidden-1' in serializable, "HIDDEN order should be present"
         assert 'order-revealed-1' in serializable, "REVEALED order should be present"
         assert 'order-cancelled-1' in serializable, "CANCELLED order should be present"
-    
+
+    def test_restart_load_rebuilds_placed_order_lookup(self, mock_db_with_all_statuses):
+        """A filled placement must still resolve to its stealth root after restart."""
+
+        manager = StealthOrderManager(
+            mock_db_with_all_statuses,
+            log_callback=lambda _level, _data: None,
+        )
+
+        manager.load_all_active_orders_from_db()
+
+        resolved = manager.find_stealth_order_by_placed_order_id("placed-order-1")
+        assert resolved is manager.in_memory_orders["order-executed-1"]
+
     def test_hidden_orders_reset_to_hidden_on_restart(self, mock_db_with_all_statuses):
         """
         Verify that HIDDEN and PENDING/TRIGGERED orders are reset to HIDDEN for fresh evaluation.

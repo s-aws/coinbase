@@ -142,6 +142,7 @@ owners:
     owns:
       - main.py
       - core/runtime_controller.py
+      - core/runtime_composition.py
       - core/startup_reconciler.py
       - core/periodic_reconciler.py
       - logging_service.py
@@ -288,6 +289,7 @@ owners:
       - tests/regression/test_db_*.py
       - tests/regression/test_reconciler_schema.py
       - tests/unit/test_database.py
+      - tests/unit/test_filled_follow_up_atomic_persistence.py
       - tests/unit/test_order_inventory.py
     tests:
       - pytest tests/regression/test_db_cursor_thread_safety.py tests/regression/test_db_prod_guard.py tests/regression/test_reconciler_schema.py -v --tb=short

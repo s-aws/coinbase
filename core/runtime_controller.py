@@ -152,6 +152,32 @@ class RuntimeController:
     # In-flight tracking
     # ------------------------------------------------------------------
 
+    def begin_inflight(self, category: str) -> None:
+        """Increment an in-flight category for work spanning call boundaries.
+
+        Prefer :meth:`track_inflight` for lexical critical sections. This
+        explicit pair exists for lifecycle reservations whose ownership moves
+        between threads, such as a queue worker retained until shutdown drain
+        completes.
+        """
+        with self._inflight_lock:
+            self._inflight[category] = self._inflight.get(category, 0) + 1
+
+    def end_inflight(self, category: str) -> None:
+        """Release a reservation created by :meth:`begin_inflight`."""
+        with self._inflight_lock:
+            current = self._inflight.get(category, 0)
+            if current <= 0:
+                raise RuntimeError(
+                    f"Cannot end unreserved in-flight category {category!r}"
+                )
+            if current == 1:
+                self._inflight.pop(category, None)
+            else:
+                self._inflight[category] = current - 1
+            if not self._inflight:
+                self._inflight_zero.notify_all()
+
     @contextmanager
     def track_inflight(self, category: str) -> Iterator[None]:
         """Mark a critical section as in-flight for the duration of the block.
@@ -168,19 +194,11 @@ class RuntimeController:
         Always decrements on exit, even on exception, and notifies any
         waiter blocked in ``wait_drain``.
         """
-        with self._inflight_lock:
-            self._inflight[category] = self._inflight.get(category, 0) + 1
+        self.begin_inflight(category)
         try:
             yield
         finally:
-            with self._inflight_lock:
-                remaining = self._inflight.get(category, 0) - 1
-                if remaining <= 0:
-                    self._inflight.pop(category, None)
-                else:
-                    self._inflight[category] = remaining
-                if not self._inflight:
-                    self._inflight_zero.notify_all()
+            self.end_inflight(category)
 
     def inflight_snapshot(self) -> Dict[str, int]:
         """Return a copy of current in-flight counters (for status / drain logs)."""

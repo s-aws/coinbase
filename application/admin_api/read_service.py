@@ -13570,6 +13570,34 @@ class AdminApiReadService:
         child_rows: list[dict[str, Any]] = []
         duplicate_child_client_order_ids: list[str] = []
         seen_child_ids: set[str] = set()
+        child_rows_by_id: dict[str, dict[str, Any]] = {}
+        child_sources_by_id: dict[str, set[str]] = {}
+        order_parent_child_ids: set[str] = set()
+        stealth_child_ids: set[str] = set()
+
+        def child_rows_conflict(
+            existing: dict[str, Any],
+            candidate: dict[str, Any],
+        ) -> bool:
+            for field in ("parent_order_id", "product_id", "side"):
+                existing_value = _string_or_none(existing.get(field))
+                candidate_value = _string_or_none(candidate.get(field))
+                if (
+                    existing_value is not None
+                    and candidate_value is not None
+                    and existing_value.upper() != candidate_value.upper()
+                ):
+                    return True
+            for field in ("size", "price"):
+                existing_value = _numeric_float_or_none(existing.get(field))
+                candidate_value = _numeric_float_or_none(candidate.get(field))
+                if (
+                    existing_value is not None
+                    and candidate_value is not None
+                    and existing_value != candidate_value
+                ):
+                    return True
+            return False
 
         def add_child_row(child_row: dict[str, Any], *, source: str) -> None:
             child_id = _string_or_none(
@@ -13586,11 +13614,25 @@ class AdminApiReadService:
                 or root_parent_client_order_id,
                 "source": source,
             }
+            if source == "order_parent":
+                order_parent_child_ids.add(child_id)
+            elif source == "stealth_orders":
+                stealth_child_ids.add(child_id)
             if child_id in seen_child_ids:
+                existing_child = child_rows_by_id[child_id]
+                existing_sources = child_sources_by_id[child_id]
+                if (
+                    source not in existing_sources
+                    and not child_rows_conflict(existing_child, normalized_child)
+                ):
+                    existing_sources.add(source)
+                    return
                 if child_id not in duplicate_child_client_order_ids:
                     duplicate_child_client_order_ids.append(child_id)
                 return
             seen_child_ids.add(child_id)
+            child_rows_by_id[child_id] = normalized_child
+            child_sources_by_id[child_id] = {source}
             child_rows.append(normalized_child)
 
         if root_parent_client_order_id:
@@ -13620,6 +13662,16 @@ class AdminApiReadService:
                 blockers.append("root_parent_client_order_id_not_uuid")
             except Exception as exc:
                 blockers.append(f"stealth_child_read_error:{type(exc).__name__}")
+
+        if order_parent_child_read_ran and stealth_child_read_ran:
+            blockers.extend(
+                f"follow_up_child_missing_stealth_persistence:{child_id}"
+                for child_id in sorted(order_parent_child_ids - stealth_child_ids)
+            )
+            blockers.extend(
+                f"follow_up_child_missing_order_parent_persistence:{child_id}"
+                for child_id in sorted(stealth_child_ids - order_parent_child_ids)
+            )
 
         if row is None:
             blockers.append("order_not_found")

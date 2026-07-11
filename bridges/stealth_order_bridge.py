@@ -124,14 +124,12 @@ class StealthOrderBridge:
             try:
                 # Get all active stealth orders
                 active_orders = self.stealth_manager._get_active_stealth_orders()
-                admitting = controller.is_admitting()
-
                 for stealth_order_id in active_orders:
                     try:
                         should_reveal, reason = self.stealth_manager.should_trigger_reveal(stealth_order_id)
                         
                         if should_reveal:
-                            if not admitting:
+                            if not controller.is_admitting():
                                 logger.debug(
                                     f"Reveal deferred (engine state {controller.state.value}): "
                                     f"{stealth_order_id}"
@@ -143,6 +141,9 @@ class StealthOrderBridge:
                             # Track the reveal as in-flight so a concurrent
                             # drain waits for the REST placement to complete.
                             with controller.track_inflight(INFLIGHT_STEALTH_REVEAL):
+                                controller.check_admission(
+                                    INFLIGHT_STEALTH_REVEAL
+                                )
                                 client_order_id = self.stealth_manager.reveal_order_slice(stealth_order_id)
 
                                 if client_order_id:
@@ -278,6 +279,8 @@ class StealthOrderBridge:
         
         # Store market data in cache for evaluators
         self._update_market_cache(trading_product_id, market_data)
+        if not get_runtime_controller().is_admitting():
+            return
         self.stealth_manager.process_cancel_reentry_for_product(trading_product_id)
         self.stealth_manager.process_anchor_repricing_for_product(trading_product_id)
     

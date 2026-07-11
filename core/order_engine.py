@@ -59,7 +59,7 @@ from queue import Queue, Full, Empty
 from copy import deepcopy
 from concurrent.futures import ThreadPoolExecutor
 from types import ModuleType
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 from coinbase.websocket import WSClient, WSClientConnectionClosedException
 
 from external import CoinbaseWebSocketClient
@@ -76,6 +76,10 @@ from configuration import (
 from core.constants import get_local_now
 from core.enums import OrderStatus, OrderSide, ProductType, FollowUpRevealDirection, Direction, TargetMovementType, ChannelType, StealthOrderStatus, EventStreamType, EventSourceChannel, SpotFollowUpTrigger
 from core.stealth_order_manager import resolve_stealth_chain_root
+from core.runtime_controller import (
+    INFLIGHT_FILL_PROCESSING,
+    get_runtime_controller,
+)
 from core.exceptions import (
     OrderProcessingError,
     OrderCalculationError,
@@ -307,6 +311,22 @@ class OrderEngine:
         # so they wake immediately on shutdown rather than after the next
         # interval expires.
         self._shutdown_event = threading.Event()
+        self._event_ingress_lock = threading.Lock()
+        self._event_worker_threads: Dict[str, threading.Thread] = {}
+        self._user_worker_drain_lock = threading.Lock()
+        self._user_worker_drain_reserved = False
+        self._websocket_monitoring_lock = threading.Lock()
+        self._websocket_worker_threads: Dict[str, threading.Thread] = {}
+        self._websocket_worker_products: Dict[str, tuple[str, ...]] = {}
+        self._websocket_worker_channels: Dict[str, tuple[str, ...]] = {}
+        self._websocket_worker_transports: Dict[str, Callable[[], bool]] = {}
+        self._acknowledged_websocket_workers: set[str] = set()
+        self._event_monitoring_lost_callback: Optional[Callable[[], None]] = None
+        self._event_monitoring_loss_reported = False
+        # Set only after at least one Coinbase WS client has connected and
+        # completed its channel subscription. Embedded Admin mutations stay
+        # gated until this proves fill monitoring is active.
+        self._websocket_monitoring_ready = threading.Event()
         # Short blocking timeout used by event-worker queue.get() calls so
         # workers can periodically observe the shutdown event between events.
         self._worker_queue_poll_seconds = 0.5
@@ -824,7 +844,11 @@ class OrderEngine:
     # Partial-fill persistence helpers
     # ------------------------------------------------------------------
 
-    def _hydrate_order_progress_tracker_from_db(self) -> None:
+    def _hydrate_order_progress_tracker_from_db(
+        self,
+        *,
+        raise_on_error: bool = False,
+    ) -> None:
         """Load ACTIVE ``partial_fill_progress`` rows into the tracker.
 
         Called once at engine startup (inside ``start_background_threads``) so
@@ -833,9 +857,13 @@ class OrderEngine:
         """
         try:
             from database.order import get_all_active_partial_fill_progress
-            rows = get_all_active_partial_fill_progress()
+            rows = get_all_active_partial_fill_progress(
+                raise_on_error=raise_on_error
+            )
         except Exception as e:
             self.log_message("warning", f"[PARTIAL-FILL] Hydration failed: {e}")
+            if raise_on_error:
+                raise
             return
 
         self.order_progress_tracker.hydrate(rows)
@@ -2367,7 +2395,229 @@ class OrderEngine:
         """
         self.log_message("connection", "Connection Opened!")
 
-    def on_message(self, msg: str) -> None:
+    def _record_user_subscription_ack(
+        self,
+        json_msg: dict,
+        *,
+        websocket_worker_token: str | None,
+    ) -> bool:
+        """Record authenticated user-channel readiness for one live WS worker."""
+        if (
+            not websocket_worker_token
+            or json_msg.get("channel") != ChannelType.SUBSCRIPTIONS.value
+        ):
+            return False
+
+        events = json_msg.get("events")
+        if not isinstance(events, list):
+            return False
+        has_user_ack = False
+        for event in events:
+            if not isinstance(event, dict):
+                continue
+            subscriptions = event.get("subscriptions")
+            if not isinstance(subscriptions, dict):
+                continue
+            user_ack = subscriptions.get(ChannelType.USER.value)
+            if isinstance(user_ack, list) and any(
+                isinstance(value, str) and bool(value.strip())
+                for value in user_ack
+            ):
+                has_user_ack = True
+                break
+        if not has_user_ack:
+            return False
+
+        user_worker = self._event_worker_threads.get(ChannelType.USER.value)
+        if user_worker is None or not user_worker.is_alive():
+            return False
+
+        with self._websocket_monitoring_lock:
+            websocket_worker = self._websocket_worker_threads.get(
+                websocket_worker_token
+            )
+            products = self._websocket_worker_products.get(
+                websocket_worker_token,
+                (),
+            )
+            channels = self._websocket_worker_channels.get(
+                websocket_worker_token,
+                tuple(getattr(self.subscription, "channels", ())),
+            )
+            if (
+                websocket_worker is None
+                or not websocket_worker.is_alive()
+                or not self._websocket_transport_is_open_locked(
+                    websocket_worker_token
+                )
+                or not products
+                or ChannelType.USER.value not in channels
+                or getattr(self, "_event_monitoring_loss_reported", False)
+            ):
+                return False
+            self._acknowledged_websocket_workers.add(websocket_worker_token)
+            self._websocket_monitoring_ready.set()
+            return True
+
+    def _mark_websocket_worker_inactive(self, websocket_worker_token: str) -> None:
+        """Remove terminal WS worker evidence and revoke stale readiness."""
+        monitoring_lost_callback = None
+        with self._websocket_monitoring_lock:
+            was_acknowledged = (
+                websocket_worker_token
+                in self._acknowledged_websocket_workers
+            )
+            self._acknowledged_websocket_workers.discard(websocket_worker_token)
+            self._websocket_worker_products.pop(websocket_worker_token, None)
+            self._websocket_worker_channels.pop(websocket_worker_token, None)
+            self._websocket_worker_transports.pop(websocket_worker_token, None)
+            self._websocket_worker_threads.pop(websocket_worker_token, None)
+            monitoring_lost_callback = (
+                self._claim_event_monitoring_lost_callback_locked(
+                    had_established_readiness=was_acknowledged,
+                )
+            )
+        self._invoke_event_monitoring_lost_callback(monitoring_lost_callback)
+
+    def _mark_user_event_worker_inactive(self) -> None:
+        """Revoke monitoring when the sole user-event consumer exits."""
+        monitoring_lock = getattr(self, "_websocket_monitoring_lock", None)
+        if monitoring_lock is None:
+            return
+        monitoring_lost_callback = None
+        with monitoring_lock:
+            had_established_readiness = bool(
+                self._acknowledged_websocket_workers
+            )
+            self._acknowledged_websocket_workers.clear()
+            monitoring_lost_callback = (
+                self._claim_event_monitoring_lost_callback_locked(
+                    had_established_readiness=had_established_readiness,
+                )
+            )
+        self._invoke_event_monitoring_lost_callback(monitoring_lost_callback)
+
+    def _claim_event_monitoring_lost_callback_locked(
+        self,
+        *,
+        had_established_readiness: bool,
+    ) -> Optional[Callable[[], None]]:
+        """Latch one fatal monitoring-loss report while holding the lock."""
+        if self._acknowledged_websocket_workers:
+            return None
+        self._websocket_monitoring_ready.clear()
+        shutdown_event = getattr(self, "_shutdown_event", None)
+        configured_callback = getattr(
+            self,
+            "_event_monitoring_lost_callback",
+            None,
+        )
+        if (
+            not had_established_readiness
+            or (shutdown_event is not None and shutdown_event.is_set())
+            or get_runtime_controller().is_stopping()
+            or getattr(self, "_event_monitoring_loss_reported", False)
+            or not callable(configured_callback)
+        ):
+            return None
+        self._event_monitoring_loss_reported = True
+        return configured_callback
+
+    def _invoke_event_monitoring_lost_callback(
+        self,
+        callback: Optional[Callable[[], None]],
+    ) -> None:
+        """Invoke a claimed fatal-loss callback outside monitoring locks."""
+        if callback is None:
+            return
+        try:
+            callback()
+        except Exception as exc:
+            self.log_message(
+                "error",
+                self.build_event_log_payload(
+                    "event_monitoring_lost_callback_failed",
+                    error=str(exc),
+                ),
+            )
+
+    def set_event_monitoring_lost_callback(
+        self,
+        callback: Optional[Callable[[], None]],
+    ) -> None:
+        """Install the embedded runtime's fail-closed monitoring-loss hook."""
+        if callback is not None and not callable(callback):
+            raise TypeError("event monitoring loss callback must be callable")
+        with self._websocket_monitoring_lock:
+            self._event_monitoring_lost_callback = callback
+
+    def is_event_monitoring_ready(self) -> bool:
+        """Return whether the same acknowledged user WS worker is still alive."""
+        monitoring_lost_callback = None
+        ready = False
+        with self._websocket_monitoring_lock:
+            user_worker = self._event_worker_threads.get(ChannelType.USER.value)
+            if user_worker is None or not user_worker.is_alive():
+                had_established_readiness = bool(
+                    self._acknowledged_websocket_workers
+                )
+                self._acknowledged_websocket_workers.clear()
+            else:
+                inactive_tokens = {
+                    token
+                    for token in self._acknowledged_websocket_workers
+                    if (
+                        (worker := self._websocket_worker_threads.get(token))
+                        is None
+                        or not worker.is_alive()
+                        or not self._websocket_transport_is_open_locked(token)
+                    )
+                }
+                had_established_readiness = bool(inactive_tokens)
+                self._acknowledged_websocket_workers.difference_update(
+                    inactive_tokens
+                )
+            if self._acknowledged_websocket_workers:
+                ready = True
+            else:
+                monitoring_lost_callback = (
+                    self._claim_event_monitoring_lost_callback_locked(
+                        had_established_readiness=had_established_readiness,
+                    )
+                )
+        self._invoke_event_monitoring_lost_callback(monitoring_lost_callback)
+        return ready
+
+    def _websocket_transport_is_open_locked(
+        self,
+        websocket_worker_token: str,
+    ) -> bool:
+        """Inspect one SDK socket while the monitoring lock is held."""
+        transport_check = self._websocket_worker_transports.get(
+            websocket_worker_token
+        )
+        if transport_check is None:
+            return False
+        try:
+            return bool(transport_check())
+        except Exception:
+            return False
+
+    def _websocket_transport_is_open(
+        self,
+        websocket_worker_token: str,
+    ) -> bool:
+        with self._websocket_monitoring_lock:
+            return self._websocket_transport_is_open_locked(
+                websocket_worker_token
+            )
+
+    def on_message(
+        self,
+        msg: str,
+        *,
+        websocket_worker_token: str | None = None,
+    ) -> None:
         """Process incoming websocket message.
         
         Parses JSON, deduplicates events using EventBridge, and enqueues for processing.
@@ -2382,36 +2632,48 @@ class OrderEngine:
             json_msg = json.loads(msg)
             channel = json_msg.get("channel")
 
+            if channel == ChannelType.SUBSCRIPTIONS.value:
+                self._record_user_subscription_ack(
+                    json_msg,
+                    websocket_worker_token=websocket_worker_token,
+                )
+                return
+
             if any((
                 "events" not in json_msg,
-                channel == ChannelType.SUBSCRIPTIONS.value,
                 not channel,
                 channel not in self.event_queue,
             )):
                 return
 
-            for event in json_msg["events"]:
-                # Atomic claim: under EventProcessor's dedup lock, check all
-                # buckets and add to the current bucket in one step. This
-                # prevents the fan-out race where N WSClient threads all
-                # observe "new" for the same payload and all enqueue it.
-                # The legacy is_duplicate_event/mark_event_seen pair was
-                # racy across threads â€” do not reintroduce it here.
-                if not self.evt_bridge.claim_event(event):
-                    continue
+            with self._event_ingress_lock:
+                if self._shutdown_event.is_set():
+                    return
+                for event in json_msg["events"]:
+                    # Atomic claim: under EventProcessor's dedup lock, check all
+                    # buckets and add to the current bucket in one step. This
+                    # prevents the fan-out race where N WSClient threads all
+                    # observe "new" for the same payload and all enqueue it.
+                    # The legacy is_duplicate_event/mark_event_seen pair was
+                    # racy across threads â€” do not reintroduce it here.
+                    if not self.evt_bridge.claim_event(event):
+                        continue
 
-                try:
-                    self.event_queue[channel].put(deepcopy(event), timeout=0.01)
+                    try:
+                        self.event_queue[channel].put(
+                            deepcopy(event),
+                            timeout=0.01,
+                        )
 
-                except Full:
-                    self.log_message(
-                        "warning",
-                        self.build_event_log_payload(
-                            "event_queue_full",
-                            channel=channel,
-                            **self.include_debug_fields(dropped_event=event),
-                        ),
-                    )
+                    except Full:
+                        self.log_message(
+                            "warning",
+                            self.build_event_log_payload(
+                                "event_queue_full",
+                                channel=channel,
+                                **self.include_debug_fields(dropped_event=event),
+                            ),
+                        )
 
         except Exception as e:
             self.log_message(
@@ -2983,7 +3245,7 @@ class OrderEngine:
             return
         if status == OrderStatus.FILLED:
             self._finalize_partial_fill_progress(client_order_id, "FINALIZED")
-            self.handle_filled_order(normalized_order)
+            self._handle_filled_order_with_runtime_tracking(normalized_order)
             self._update_dashboard_order_status(client_order_id, normalized_order, status)
 
             # Same eviction reason as the CANCELLED branch above.
@@ -3000,6 +3262,13 @@ class OrderEngine:
                 source=self.build_order_log_context(normalized_order),
             ),
         )
+
+    def _handle_filled_order_with_runtime_tracking(self, order: dict) -> None:
+        """Track automatic WS follow-up persistence through shutdown drain."""
+
+        controller = get_runtime_controller()
+        with controller.track_inflight(INFLIGHT_FILL_PROCESSING):
+            self.handle_filled_order(order)
 
     def _sync_stealth_exchange_order_id(self, order: dict) -> None:
         """Backfill exchange_order_id for stealth audit rows when websocket data arrives."""
@@ -4248,6 +4517,7 @@ class OrderEngine:
                         target_movement=parent_target_movement,
                         target_movement_type=parent_target_movement_type,
                         follow_up_trigger=SpotFollowUpTrigger.FILLED.value,
+                        source_client_order_id=client_order_id,
                     )
                     if stealth_follow_up_id is None:
                         self.log_message(
@@ -4270,7 +4540,7 @@ class OrderEngine:
                                 },
                             ),
                         )
-                        self.complete_follow_up_processing("filled", client_order_id)
+                        self.release_follow_up_processing("filled", client_order_id)
                         return
                     
                     # Register stealth follow-up as child of the chain ROOT.
@@ -4313,11 +4583,13 @@ class OrderEngine:
                             "event": "stealth_follow_up_creation_failed",
                             "error": str(e),
                             "original_stealth_order_id": original_stealth_order.get("stealth_order_id"),
-                            "client_order_id": client_order_id
+                            "client_order_id": client_order_id,
+                            "claim_state": "processing",
                         }
                     )
-                    # All orders are stealth orders - no fallback to regular orders
-                    self.complete_follow_up_processing("filled", client_order_id)
+                    # Creation/persistence exceptions are ambiguous. Leave the
+                    # claim in ``processing`` so neither automatic replay nor
+                    # an operator retry can create a second child blindly.
                     return
 
         except Exception:
@@ -4629,7 +4901,12 @@ class OrderEngine:
             "throttle": "1_emit_per_hour",
         }
 
-    def load_parent_child_order_ids(self, force_log: bool = False) -> bool:
+    def load_parent_child_order_ids(
+        self,
+        force_log: bool = False,
+        *,
+        raise_on_error: bool = False,
+    ) -> bool:
         """Load parent/child order mappings from database into orderbook.
         
         Args:
@@ -4654,6 +4931,8 @@ class OrderEngine:
                     error=str(e),
                 ),
             )
+            if raise_on_error:
+                raise
             return False
 
         loaded_parent_count = len(new_parent_order_ids)
@@ -4794,8 +5073,14 @@ class OrderEngine:
             >>> thread = threading.Thread(target=worker, daemon=True)
             >>> thread.start()
         """
+        drain_user_events = channel == ChannelType.USER.value
+
         def worker() -> None:
-            while not self._shutdown_event.is_set():
+            controller = get_runtime_controller()
+            while (
+                not self._shutdown_event.is_set()
+                or (drain_user_events and not self.event_queue[channel].empty())
+            ):
                 try:
                     event = self.event_queue[channel].get(
                         timeout=self._worker_queue_poll_seconds,
@@ -4879,7 +5164,11 @@ class OrderEngine:
                                 **self.include_debug_fields(received_event=event),
                             ),
                         )
-                        self.event_executor.submit(self.process_user_event, event)
+                        # Process user-order events in queue order and keep the
+                        # entire task (including partial-progress finalization)
+                        # visible to RuntimeController drain accounting.
+                        with controller.track_inflight(INFLIGHT_FILL_PROCESSING):
+                            self.process_user_event(event)
 
                     elif channel == ChannelType.FUTURES_BALANCE_SUMMARY.value:
                         self.process_futures_balance_summary_event(event)
@@ -4887,9 +5176,47 @@ class OrderEngine:
                 finally:
                     self.event_queue[channel].task_done()
 
-        return worker
+        if not drain_user_events:
+            return worker
 
-    def connect_to_websocket(self) -> None:
+        def draining_user_worker() -> None:
+            try:
+                worker()
+            finally:
+                # Hold a lifecycle reservation across fatal-loss reporting so
+                # a concurrently-started runtime drain cannot race this thread
+                # to STOPPED before the consumer actually exits.
+                self._reserve_user_worker_drain()
+                try:
+                    self._mark_user_event_worker_inactive()
+                finally:
+                    self._release_user_worker_drain()
+
+        return draining_user_worker
+
+    def _reserve_user_worker_drain(self) -> None:
+        """Keep queued user events visible until the retained worker exits."""
+        with self._user_worker_drain_lock:
+            if self._user_worker_drain_reserved:
+                return
+            get_runtime_controller().begin_inflight(INFLIGHT_FILL_PROCESSING)
+            self._user_worker_drain_reserved = True
+
+    def _release_user_worker_drain(self) -> None:
+        """Release the user-worker lifecycle reservation, if held."""
+        with self._user_worker_drain_lock:
+            if not self._user_worker_drain_reserved:
+                return
+            get_runtime_controller().end_inflight(INFLIGHT_FILL_PROCESSING)
+            self._user_worker_drain_reserved = False
+
+    def connect_to_websocket(
+        self,
+        *,
+        websocket_worker_token: str,
+        subscribed_products: tuple[str, ...],
+        subscribed_channels: tuple[str, ...],
+    ) -> None:
         """Establish and maintain websocket connection to Coinbase.
         
         Runs in daemon thread, loops forever. Reconnects on disconnect.
@@ -4902,20 +5229,35 @@ class OrderEngine:
             verbose=True,
             api_key=self.api_key,
             api_secret=self.api_secret,
+            retry=False,
             on_open=self.on_open,
-            on_message=self.on_message,
+            on_message=lambda msg: self.on_message(
+                msg,
+                websocket_worker_token=websocket_worker_token,
+            ),
         )
         ws_client = CoinbaseWebSocketClient(sdk_client)
-
-        ws_client.connect()
-        ws_client.subscribe(
-            products=self.subscription.product_ids,
-            channels=self.subscription.channels,
-        )
+        with self._websocket_monitoring_lock:
+            self._websocket_worker_transports[websocket_worker_token] = (
+                lambda: bool(sdk_client._is_websocket_open())
+            )
 
         try:
+            ws_client.connect()
+            ws_client.subscribe(
+                products=list(subscribed_products),
+                channels=list(subscribed_channels),
+            )
             while not self._shutdown_event.is_set():
+                if not self._websocket_transport_is_open(
+                    websocket_worker_token
+                ):
+                    break
                 if ws_client.sleep_with_exception_check(1):
+                    break
+                if not self._websocket_transport_is_open(
+                    websocket_worker_token
+                ):
                     break
         except WSClientConnectionClosedException as e:
             self.log_message(
@@ -4925,6 +5267,30 @@ class OrderEngine:
                     error=str(e),
                 ),
             )
+        finally:
+            self._mark_websocket_worker_inactive(websocket_worker_token)
+
+    def wait_for_event_monitoring_ready(self, *, timeout_seconds: float) -> bool:
+        """Wait for at least one live, acknowledged Coinbase user subscription."""
+
+        if timeout_seconds <= 0:
+            return False
+        if not self._websocket_monitoring_ready.wait(timeout=timeout_seconds):
+            return False
+        return self.is_event_monitoring_ready()
+
+    def _hydrate_startup_order_state(self) -> None:
+        """Refresh startup state, preserving strict embedded fail-closed mode."""
+        raise_on_error = bool(
+            getattr(self, "_canonical_state_strictly_hydrated", False)
+        )
+        self.load_parent_child_order_ids(
+            force_log=True,
+            raise_on_error=raise_on_error,
+        )
+        self._hydrate_order_progress_tracker_from_db(
+            raise_on_error=raise_on_error,
+        )
 
     def start_background_threads(self) -> None:
         """Start all background worker threads.
@@ -4939,8 +5305,15 @@ class OrderEngine:
         Returns:
             None
         """
-        self.load_parent_child_order_ids(force_log=True)
-        self._hydrate_order_progress_tracker_from_db()
+        self._websocket_monitoring_ready.clear()
+        with self._websocket_monitoring_lock:
+            self._acknowledged_websocket_workers.clear()
+            self._event_monitoring_loss_reported = False
+            self._websocket_worker_threads.clear()
+            self._websocket_worker_products.clear()
+            self._websocket_worker_channels.clear()
+            self._websocket_worker_transports.clear()
+        self._hydrate_startup_order_state()
 
         # Update dashboard with initial engine status
         update_engine_status(self._build_engine_status_payload(event_queue_depth=0))
@@ -5014,22 +5387,44 @@ class OrderEngine:
             daemon=True,
         ).start()
 
+        self._event_worker_threads.clear()
         for channel in self.subscription.channels:
-            threading.Thread(
+            worker_thread = threading.Thread(
                 name=f"{channel}_worker",
                 target=self.generate_process_event_worker(channel),
                 daemon=True,
-            ).start()
+            )
+            self._event_worker_threads[channel] = worker_thread
+            worker_thread.start()
         
         # Start fee manager (fetches taker fees from Coinbase API, refreshes hourly)
         self.fee_manager.start()
 
+        subscribed_products = tuple(self.subscription.product_ids)
+        subscribed_channels = tuple(self.subscription.channels)
         for websocket in range(self.websocket_thread_maximum):
-            threading.Thread(
+            websocket_worker_token = f"websocket-{uuid.uuid4()}"
+            websocket_thread = threading.Thread(
                 name=f"websocket_thread_{websocket}",
                 target=self.connect_to_websocket,
+                kwargs={
+                    "websocket_worker_token": websocket_worker_token,
+                    "subscribed_products": subscribed_products,
+                    "subscribed_channels": subscribed_channels,
+                },
                 daemon=True,
-            ).start()
+            )
+            with self._websocket_monitoring_lock:
+                self._websocket_worker_threads[
+                    websocket_worker_token
+                ] = websocket_thread
+                self._websocket_worker_products[
+                    websocket_worker_token
+                ] = subscribed_products
+                self._websocket_worker_channels[
+                    websocket_worker_token
+                ] = subscribed_channels
+            websocket_thread.start()
 
     def _monitor_engine_status(self) -> None:
         """Monitor and broadcast engine status periodically to dashboard.
@@ -5099,7 +5494,28 @@ class OrderEngine:
         so the drain waits for outstanding fill processing / DB writes before
         the process exits.
         """
-        self._shutdown_event.set()
+        user_worker = getattr(self, "_event_worker_threads", {}).get(
+            ChannelType.USER.value
+        )
+        reserve_user_worker_drain = getattr(
+            self, "_reserve_user_worker_drain", None
+        )
+        if (
+            user_worker is not None
+            and user_worker.is_alive()
+            and callable(reserve_user_worker_drain)
+        ):
+            reserve_user_worker_drain()
+
+        event_ingress_lock = getattr(self, "_event_ingress_lock", None)
+        if event_ingress_lock is None:
+            self._shutdown_event.set()
+        else:
+            with event_ingress_lock:
+                self._shutdown_event.set()
+
+        if user_worker is not None and user_worker is not threading.current_thread():
+            user_worker.join(timeout=5.0)
         try:
             self.event_executor.shutdown(wait=False, cancel_futures=False)
         except Exception:
@@ -5112,7 +5528,7 @@ class OrderEngine:
         except Exception:
             pass
 
-    def run_forever(self) -> None:
+    def run_forever(self, on_started: Optional[Callable[[], None]] = None) -> None:
         """Start all background threads and loop until shutdown is signalled.
         
         Call this to launch the trading engine. Blocks until
@@ -5127,6 +5543,8 @@ class OrderEngine:
             >>> engine.run_forever()  # Starts all threads, returns on shutdown
         """
         self.start_background_threads()
+        if on_started is not None:
+            on_started()
         # Block on the shutdown event instead of busy-sleeping. Returns
         # promptly when ``stop()`` is called.
         #

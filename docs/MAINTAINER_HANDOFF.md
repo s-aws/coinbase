@@ -131,15 +131,35 @@ notional, retained inventory, reconciliation result, and audit ids.
 - Current goal id: `legacy_fill_follow_up_operator_slice`.
 - Current slice: Admin order -> fill/readback evidence -> follow-up decision ->
   operator-visible parent/child chain.
-- Current state: the guarded no-live contract and frontend surface are clean in
-  focused injected tests, but the canonical standalone Admin API process cannot
-  share the existing engine executor or duplicate-claim ledger. The direct
-  runtime-association blocker requires an operator choice among co-hosting
-  FastAPI with the one canonical engine, an audited IPC boundary, or keeping the
-  standalone trigger fail-closed. Automatic/live fill-event parity still
-  requires separate fill-testing approval and live-fill,
+- Current state: the operator-selected embedded FastAPI topology is implemented
+  in `main.py` and disabled by default. Focused synthetic coverage proves exact
+  runtime identity; strict pre-bind and post-bind hydration; read-only bind
+  before producers; authenticated per-worker `user` subscription readiness;
+  actual-socket mutation rechecks, synchronous admission closure, and fatal
+  canonical drain on monitoring loss; cached bridge-action gating; queued-fill
+  drain; production-handler
+  duplicate suppression; deterministic atomic parent/stealth child persistence;
+  ambiguous-failure claim handling; dual-source chain corroboration; and restart
+  placement lookup. The deployed app-only runner remains intentionally
+  fail-closed. Enabling and validating the embedded engine/API process crosses
+  the separate automatic/live fill-event approval gate and still requires live-fill,
   wallet/cap/reconciliation, duplicate-order, audit, rollback, and readback
   proof.
+- Legacy translation references inspected: `origin/prod:main.py` for the one
+  engine/bridge lifecycle, `origin/prod:core/order_engine.py` for authenticated
+  `user` event -> `handle_filled_order` -> follow-up behavior, and
+  `origin/prod:core/stealth_order_manager.py` plus
+  `origin/prod:dashboard_server.py` for placement lookup, hidden-child creation,
+  and historical operator authority. The legacy dashboard WebSocket was not
+  reused as product authority.
+- Review sweep: the contextless runtime, backend safety, and focused-test
+  reviewers completed; all causal findings were consumed and no review agent
+  remains assigned to implementation work.
+- Final no-live validation: 137 focused backend tests passed, changed Python
+  files compiled, ownership and diff checks passed, and no engine process or
+  Coinbase action ran. Repository-wide `compileall` remains unsuitable on this
+  filesystem because a pre-existing generated Admin module name exceeds the
+  `__pycache__` filename limit; explicit changed-file compilation is clean.
 - Parked by default: M57 phase continuation, M58 fan-out/scheduler,
   runtime-control, retry/recovery, multi-product wallet-ledger work, and the
   single-product ladder/grid roadmap item.
