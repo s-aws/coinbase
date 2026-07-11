@@ -254,6 +254,13 @@ INTENTIONAL_FILL_OPERATOR_INTENT = (
 INTENTIONAL_FILL_PRODUCT_ID = "BTC-USDC"
 INTENTIONAL_FILL_MAX_NOTIONAL_USDC = Decimal("9.99")
 INTENTIONAL_FILL_MAX_ASK_RATIO = Decimal("1.005")
+COINBASE_ACTIVE_SPOT_ORDER_STATUSES = (
+    "PENDING",
+    "OPEN",
+    "QUEUED",
+    "CANCEL_QUEUED",
+    "EDIT_QUEUED",
+)
 
 
 def _noop_log(_level: str, _message: str) -> None:
@@ -3491,21 +3498,21 @@ class AdminApiCommandService:
                     )
 
                 try:
-                    open_orders, pagination = read_authoritative_coinbase_orders(
+                    active_orders, pagination = read_authoritative_coinbase_orders(
                         deps.rest_client,
-                        order_status=[OrderStatus.OPEN.value],
+                        order_status=list(COINBASE_ACTIVE_SPOT_ORDER_STATUSES),
                         product_type=ProductType.SPOT.value,
                     )
                     active_order_limit_evidence = {
-                        "allowed": len(open_orders) == 0,
-                        "open_order_count": len(open_orders),
+                        "allowed": len(active_orders) == 0,
+                        "open_order_count": len(active_orders),
                         "open_client_order_ids": [
-                            str(item["client_order_id"]) for item in open_orders
+                            str(item["client_order_id"]) for item in active_orders
                         ],
                         "cancel_before_next": True,
                         "blocker": (
                             None
-                            if not open_orders
+                            if not active_orders
                             else "existing_open_order_requires_cancel"
                         ),
                         **pagination,
@@ -3526,9 +3533,9 @@ class AdminApiCommandService:
                     }
                 if not active_order_limit_evidence["allowed"]:
                     reason = (
-                        "Direct Spot order requires zero existing open orders "
-                        "on the Test profile; cancel and confirm readback before "
-                        "submitting another order."
+                        "Direct Spot order requires zero existing active orders "
+                        "on the Test profile; authoritative terminal reconciliation "
+                        "is required before submitting another order."
                     )
                     return self._place_rejected(
                         command=command,

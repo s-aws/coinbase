@@ -845,6 +845,57 @@ def test_submit_reads_every_open_order_page_before_admission() -> None:
     assert rest_client.create_calls == []
 
 
+@pytest.mark.parametrize("active_status", ["PENDING", "CANCEL_QUEUED"])
+def test_submit_blocks_every_authoritative_active_status_before_create(
+    active_status: str,
+) -> None:
+    class _StatusFilteringClient(_SpotRestClient):
+        def list_orders(self, **kwargs: Any) -> dict[str, Any]:
+            self.list_calls.append(dict(kwargs))
+            requested_statuses = {
+                str(value) for value in kwargs.get("order_status") or []
+            }
+            return {
+                "orders": [
+                    dict(row)
+                    for row in self.open_orders
+                    if str(row.get("status") or "") in requested_statuses
+                ],
+                "has_next": False,
+            }
+
+    rest_client = _StatusFilteringClient()
+    rest_client.open_orders = [
+        {
+            "client_order_id": "existing-active-order",
+            "order_id": "exchange-existing-active-order",
+            "status": active_status,
+        }
+    ]
+    registrar = _RootRegistrar()
+
+    response = _service(rest_client, registrar).place_manual_order(
+        _manual_command()
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "active_order_limit"
+    assert response.data["active_order_limit"]["open_order_count"] == 1
+    assert len(rest_client.list_calls) == 1
+    queried_statuses = rest_client.list_calls[0]["order_status"]
+    assert len(queried_statuses) == 5
+    assert set(queried_statuses) == {
+        "PENDING",
+        "OPEN",
+        "QUEUED",
+        "CANCEL_QUEUED",
+        "EDIT_QUEUED",
+    }
+    assert rest_client.list_calls[0]["product_type"] == "SPOT"
+    assert rest_client.create_calls == []
+    assert registrar.rows == {}
+
+
 def test_submit_requires_exact_durable_root_registration_evidence() -> None:
     class _MalformedRegistrar(_RootRegistrar):
         def register_manual_spot_root(self, **_kwargs: Any) -> dict[str, Any]:
