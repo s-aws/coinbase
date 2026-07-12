@@ -1,8 +1,10 @@
 # Coinbase Admin MVP Goal
 
-Goal ID: `legacy_fill_follow_up_operator_slice`
+Goal ID: `selected_order_execution_closeout_slice`
 
-Last reviewed: 2026-07-11 UTC.
+Last reviewed: 2026-07-12 UTC.
+
+Status: `complete`
 
 The canonical cross-repository goal is
 `/home/ec2-user/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This backend copy
@@ -10,10 +12,10 @@ records the behavior-owner interpretation and must stay aligned with it.
 
 ## Objective
 
-Restore the shortest operator-usable workflow from `origin/prod` through the
-current backend-owned Admin API:
+Close the restored operator workflow through the current backend-owned Admin
+API and operator UI:
 
-`Admin order -> fill/readback evidence -> follow-up decision -> operator-visible parent/child chain`
+`Selected Admin root -> client_order_id-bound fill-ledger and audit readback -> child terminal-cancel proof -> read-only recovery posture -> operator-visible execution closeout`
 
 The Admin frontend is operator UI only. The backend owns validation,
 authorization, wallet and cap checks, fill handling, follow-up claims,
@@ -82,11 +84,26 @@ the canonical goal's explicit side, price, notional, rate, and cancellation
 limits plus backend authorization, wallet, cap, audit, reconciliation,
 rollback, and readback gates, whether the order ultimately fills or not.
 
-The remaining legacy-parity gap is automatic/live fill-event processing. That
-scope must use the same order-level authority and backend proof chain as every
-other live order. A predicted fill, non-fill, or far-from-market outcome does
-not add or remove permission, and there is no separate no-fill,
-fill-testing, or live-fill approval category.
+V14 completed automatic/live fill-event parity for ten Test-profile Spot roots
+and ten first-child submissions under the approved `30.00 USDC` reference cap.
+Every root was authoritatively FILLED, every child was authoritatively CANCELLED
+with zero child fill, every final chain was flat with active placement cleared,
+the final active-order count was zero, and shutdown was quiescent. The frontend
+then completed the read-only selected-root closeout against those backend-owned
+reads. No next work item is selected. A predicted fill, non-fill, or
+far-from-market outcome does not add or remove permission, and there is no
+separate no-fill, fill-testing, or live-fill approval category.
+
+Durable closeout validation passed after the final selected-root fixes. Backend
+`python3.13 tools/run_parallel_regression.py --workers 4` passed `1458/1458`
+tests (`1005` parallel plus `453` serial), ownership, and diff checks with live
+Coinbase execution false and submitted/executed notional `0 USDC`; evidence is
+under
+`genai_tools/pytest-tmp/parallel-regression/4f87afaef742452b83c938640c168c14/`.
+The frontend baseline and canonical release gate passed `548/548` unit tests,
+`8/8` Playwright tests, focused deploy `142/142`, all
+deployment/backend/local-stack/dry smokes, and managed-process cleanup while
+reporting live execution `not_run` and notional `0 USDC`.
 
 ## Closed Scope Rule
 
@@ -128,7 +145,8 @@ is expected to fill.
   for durable milestone, release/deployment or cross-repository association
   closeout, broad cross-cutting changes, or explicit operator request.
 
-No additional no-live implementation lane remains. The selected topology is
-implementation-ready and opt-in. Automatic/live fill-event activation and
-validation use the same canonical order-level limits and backend gates as all
-other live orders; activation itself is not a second permission source.
+The selected slice is complete. Do not select a parked lane merely because it
+has a blocker or is next in a roadmap. Any future automatic/live activation or
+mutating child action requires a new operator-selected scope and continues to
+use the canonical order-level limits and backend gates; activation itself is
+not a second permission source.

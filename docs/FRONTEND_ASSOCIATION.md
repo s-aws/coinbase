@@ -1,7 +1,7 @@
 # Frontend Association
 
 Current cross-repository work is goal id
-`legacy_fill_follow_up_operator_slice`. This association document defines the
+`selected_order_execution_closeout_slice`. This association document defines the
 boundary; it does not broaden that goal.
 
 The approved enterprise admin frontend repository is:

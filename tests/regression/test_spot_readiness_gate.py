@@ -72,7 +72,7 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert AUTONOMOUS_WORK_QUEUE_SUMMARY_PREFIX == (
         "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
     )
-    assert AUTONOMOUS_GOAL_ID == "legacy_fill_follow_up_operator_slice"
+    assert AUTONOMOUS_GOAL_ID == "selected_order_execution_closeout_slice"
     assert AUTONOMOUS_HISTORICAL_PHASES == tuple(range(7961, 7981))
     check_results = {check["name"]: check for check in summary["checks"]}
     failed_checks = {
@@ -81,14 +81,14 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
 
     assert failed_checks == {}
     assert summary["status"] == "passed"
-    assert summary["goal_id"] == "legacy_fill_follow_up_operator_slice"
+    assert summary["goal_id"] == "selected_order_execution_closeout_slice"
     assert summary["historical_phase_range"] == "7961-7980"
     assert summary["historical_phase_count"] == 20
     assert summary["phase_range_status"] == "historical_not_work_authority"
     assert summary["live_coinbase_orders_ran"] is False
     assert summary["live_order_notional_usdc"] == "0"
     assert summary["mvp_scope"] == {
-        "work_mode": "legacy_fill_follow_up_operator_slice",
+        "work_mode": "selected_order_execution_closeout_slice",
         "goal_authority": (
             "/home/ec2-user/coinbase-frontend/docs/CURRENT_MVP_GOAL.md"
         ),
@@ -98,10 +98,10 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "focused_blast_radius_tests_required": True,
         "full_suite_at_durable_milestone_only": True,
         "active_work_policy": {
-            "current_priority": "legacy_fill_follow_up_operator_slice",
+            "current_priority": "selected_order_execution_closeout_slice",
             "approved_phase_range_status": "historical_not_work_authority",
             "phase_range_work_allowed": False,
-            "default_next_action": "build_or_directly_unblock_current_vertical_slice",
+            "default_next_action": "none_current_slice_complete",
             "allow_only_when_directly_blocks": [
                 "current vertical slice runtime behavior",
                 "current vertical slice focused test",

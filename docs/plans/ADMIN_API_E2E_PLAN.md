@@ -3,7 +3,7 @@
 Historical planning record; not current work authority.
 
 Use `genai_data/AGENT_MVP_REBUILD_GOAL.md`, goal id
-`legacy_fill_follow_up_operator_slice`, for current scope. Numbered phase
+`selected_order_execution_closeout_slice`, for current scope. Numbered phase
 language below is implementation and regression history only.
 
 The active frontend workspace is `/home/ec2-user/coinbase-frontend`. Any

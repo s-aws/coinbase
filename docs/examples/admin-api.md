@@ -1,7 +1,7 @@
 # Admin API Examples
 
 The M57 phase labels below are historical contract examples, not current work
-authority. Current work is goal id `legacy_fill_follow_up_operator_slice`.
+authority. Current goal id is `selected_order_execution_closeout_slice`.
 
 These examples describe the current enterprise Admin API contract. Mutating
 HTTP endpoints are authenticated, permission-checked, idempotent, audited, and

@@ -4,10 +4,10 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current goal id: `legacy_fill_follow_up_operator_slice`. The current vertical
-slice is Admin order -> fill/readback evidence -> follow-up decision ->
-operator-visible parent/child chain. The guarded no-live slice is implemented;
-automatic/live fill-event processing is governed by the same explicit
+Current goal id: `selected_order_execution_closeout_slice`. The completed
+vertical slice binds a selected Admin root to exact fill-ledger/audit,
+terminal-child, and read-only recovery closeout evidence. V14 proved automatic/
+live fill-event processing under the same explicit
 order-level limits and backend authorization, wallet/cap, audit,
 reconciliation, rollback, and readback gates as every live order, without a
 separate fill-testing approval class. Fan-out, scheduler, runtime-control,

@@ -4,7 +4,7 @@ Parked roadmap record; not current work authority.
 
 Prior approval and "current status" wording below is retained as historical
 implementation evidence only. Current work is goal id
-`legacy_fill_follow_up_operator_slice`, and this plan cannot resume fan-out,
+`selected_order_execution_closeout_slice`, and this plan cannot resume fan-out,
 scheduler, runtime-control, retry/recovery, or wallet-ledger work without
 explicit operator reprioritization or direct blocker evidence that satisfies
 the canonical goal's closed scope rule.

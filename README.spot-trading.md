@@ -1,6 +1,6 @@
 # Spot Trading
 
-Current work is goal id `legacy_fill_follow_up_operator_slice`. This document
+Current goal id is `selected_order_execution_closeout_slice`. This document
 is domain behavior reference; campaign, sweep, fan-out, scheduler, retry, and
 wallet-ledger expansion remain parked unless they directly block that slice or
 the operator explicitly reprioritizes them.

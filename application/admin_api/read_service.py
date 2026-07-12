@@ -9426,6 +9426,11 @@ class AdminApiReadService:
                 "{run_state_id}/live-submit"
             ),
             (
+                "POST /api/v1/automation/"
+                "usdc-pair-snapshot-allowlist-run-states/"
+                "{run_state_id}/live-fanout-submit"
+            ),
+            (
                 "POST /api/v1/automation/usdc-pair-snapshot-order-plans/"
                 "{plan_id}/proof-chain-refresh"
             ),
@@ -10371,6 +10376,56 @@ class AdminApiReadService:
                 spot_rule_boundary=(
                     "Spot cancel may release spot inventory holds only through backend "
                     "reconciliation; browser state is not wallet authority."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
+                surface=FILL_FOLLOW_UP_TRIGGER_ENDPOINT,
+                mutation_id="spot.fill_follow_up_trigger",
+                mutation_family=AdminApiMutationFamilyType.SPOT_MANUAL_ORDER,
+                workflow_id="spot.order_command_drafts",
+                related_workflow_ids=["spot.read_models"],
+                module="Spot Operations",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "The guarded no-live fill-follow-up trigger may invoke the "
+                    "backend executor only after the exact parent-scoped proof "
+                    "chain passes, then requires one accepted child readback and "
+                    "rejects any reported live Coinbase activity."
+                ),
+                identity_keys=["client_order_id"],
+                owning_backend_service=(
+                    "application/admin_api/command_service.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/orders.py::trigger_order_fill_follow_up",
+                    "application/admin_api/command_service.py::trigger_order_fill_follow_up",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendRuntime.ts",
+                    "src/features/spot-ops/selectedOrderExecutionCloseout.ts",
+                ],
+                documentation_refs=[
+                    "docs/LIVE_ORDER_SURFACES.md",
+                    "docs/plans/ADMIN_API_ROUTE_INVENTORY.md",
+                ],
+                blockers=[],
+                live_adapter_required=False,
+                frontend_boundary=(
+                    "The current closeout UI reads parent/child and audit evidence "
+                    "only; it does not invoke this trigger or decide follow-up "
+                    "eligibility."
+                ),
+                route_local_boundary=(
+                    "The route binds the exact proof chain and delegates to the "
+                    "backend command service; it does not implement follow-up "
+                    "decisions or Coinbase behavior locally."
+                ),
+                spot_rule_boundary=(
+                    "This root-fill follow-up trigger is Spot-specific and must "
+                    "not be copied into futures/perpetual command workflows."
                 ),
             ),
             mutation_taxonomy_from_surface(

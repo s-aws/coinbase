@@ -17,13 +17,14 @@ BACKEND_QUEUE_DOC = PROJECT_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.md"
 BACKEND_E2E_PLAN = PROJECT_ROOT / "docs" / "plans" / "ADMIN_API_E2E_PLAN.md"
 FRONTEND_QUEUE_DOC = FRONTEND_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.md"
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-GOAL_ID = "legacy_fill_follow_up_operator_slice"
+GOAL_ID = "selected_order_execution_closeout_slice"
 HISTORICAL_PHASE_RANGE = "7961-7980"
 HISTORICAL_PHASES = tuple(range(7961, 7981))
 PHASE_RANGE_STATUS = "historical_not_work_authority"
 CURRENT_SLICE = (
-    "Admin order -> fill/readback evidence -> follow-up decision -> "
-    "operator-visible parent/child chain"
+    "Selected Admin root -> client_order_id-bound fill-ledger and audit readback -> "
+    "child terminal-cancel proof -> read-only recovery posture -> "
+    "operator-visible execution closeout"
 )
 CLOSED_LOOPHOLE_RULE = (
     "A candidate blocker cannot make itself in scope by generating evidence "
@@ -41,7 +42,7 @@ MVP_SCOPE = {
         "current_priority": GOAL_ID,
         "approved_phase_range_status": PHASE_RANGE_STATUS,
         "phase_range_work_allowed": False,
-        "default_next_action": "build_or_directly_unblock_current_vertical_slice",
+        "default_next_action": "none_current_slice_complete",
         "allow_only_when_directly_blocks": [
             "current vertical slice runtime behavior",
             "current vertical slice focused test",

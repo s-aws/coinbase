@@ -12,15 +12,42 @@ from core.enums import (
     ActionGuardPhase,
     EventSourceChannel,
     EventStreamType,
-    OrderStatus,
     ProductCapability,
     ProductCapabilityMode,
     ProductType,
 )
 from core.exceptions import OrderCreationError
+from application.admin_api.spot_portfolio_binding import (
+    EXPECTED_SPOT_PORTFOLIO_TYPE,
+    SpotPortfolioBindingEvidence,
+)
 
 
 _ASYNC_RUNNER = None
+_TEST_PORTFOLIO_ID = "11111111-2222-4333-8444-555555555555"
+
+
+@pytest.fixture
+def matched_spot_profile(monkeypatch):
+    """Clear only the already-covered Test-profile prerequisite."""
+    import application.admin_api.command_service as command_service
+
+    monkeypatch.setattr(
+        command_service,
+        "evaluate_spot_test_portfolio_binding",
+        lambda **_kwargs: SpotPortfolioBindingEvidence(
+            ready=True,
+            blocker=None,
+            expected_portfolio_id=_TEST_PORTFOLIO_ID,
+            expected_portfolio_label="Test",
+            expected_portfolio_type=EXPECTED_SPOT_PORTFOLIO_TYPE,
+            observed_portfolio_id=_TEST_PORTFOLIO_ID,
+            observed_portfolio_label="Test",
+            observed_portfolio_type=EXPECTED_SPOT_PORTFOLIO_TYPE,
+            can_view=True,
+            can_trade=True,
+        ),
+    )
 
 
 def _make_websocket() -> MagicMock:
@@ -55,6 +82,35 @@ def _sent_payload(ws: MagicMock) -> dict:
     return json.loads(ws.send.await_args_list[-1].args[0])
 
 
+def _shared_service_response(
+    *,
+    accepted: bool,
+    client_order_id: str,
+    message: str,
+    coinbase_order_id: str | None = None,
+    submission_event_recorded: bool | None = None,
+    audit_command: str | None = None,
+    guard: dict | None = None,
+    data=None,
+):
+    from core.enums import AdminApiCommandStatus
+
+    return SimpleNamespace(
+        status=(
+            AdminApiCommandStatus.ACCEPTED
+            if accepted
+            else AdminApiCommandStatus.REJECTED
+        ),
+        message=message,
+        client_order_id=client_order_id,
+        coinbase_order_id=coinbase_order_id,
+        submission_event_recorded=submission_event_recorded,
+        audit_command=audit_command,
+        guard=guard,
+        data=data,
+    )
+
+
 def _place_order_message(
     order_configuration,
     side="BUY",
@@ -64,7 +120,7 @@ def _place_order_message(
     return json.dumps({
         "type": "place_order",
         "params": {
-            "product_id": "BTC-USD",
+            "product_id": "BTC-USDC",
             "side": side,
             "order_configuration": order_configuration,
             "manual_live_acknowledgement": manual_live_acknowledgement,
@@ -94,7 +150,10 @@ def _direct_spot_cap_policy(
 
 
 @pytest.mark.regression
-def test_direct_spot_place_order_requires_manual_live_ack_before_rest(monkeypatch):
+def test_direct_spot_place_order_requires_manual_live_ack_before_rest(
+    monkeypatch,
+    matched_spot_profile,
+):
     import dashboard_server
 
     ws = _make_websocket()
@@ -123,7 +182,10 @@ def test_direct_spot_place_order_requires_manual_live_ack_before_rest(monkeypatc
 
 
 @pytest.mark.regression
-def test_direct_spot_place_order_requires_configured_notional_cap(monkeypatch):
+def test_direct_spot_place_order_requires_configured_notional_cap(
+    monkeypatch,
+    matched_spot_profile,
+):
     import configuration
     import core.action_condition_guard as guard_module
     import dashboard_server
@@ -156,7 +218,10 @@ def test_direct_spot_place_order_requires_configured_notional_cap(monkeypatch):
 
 
 @pytest.mark.regression
-def test_direct_spot_sell_requires_known_inventory_policy_before_rest(monkeypatch):
+def test_direct_spot_sell_requires_known_inventory_policy_before_rest(
+    monkeypatch,
+    matched_spot_profile,
+):
     import configuration
     import core.action_condition_guard as guard_module
     import dashboard_server
@@ -194,14 +259,17 @@ def test_direct_spot_sell_requires_known_inventory_policy_before_rest(monkeypatc
 
 
 @pytest.mark.regression
-def test_direct_place_order_blocks_max_notional_before_rest(monkeypatch):
+def test_direct_place_order_blocks_max_notional_before_rest(
+    monkeypatch,
+    matched_spot_profile,
+):
     import configuration
     import dashboard_server
 
     monkeypatch.setattr(configuration, "ACTION_CONDITION_GUARDS", {
         "limits": [{
             "name": "direct_spot_cap",
-            "product_id": "BTC-USD",
+            "product_id": "BTC-USDC",
             "max_notional": 50.0,
         }],
     })
@@ -231,7 +299,10 @@ def test_direct_place_order_blocks_max_notional_before_rest(monkeypatch):
 
 
 @pytest.mark.regression
-def test_direct_place_order_blocks_spot_sell_wallet_before_rest(monkeypatch):
+def test_direct_place_order_blocks_spot_sell_wallet_before_rest(
+    monkeypatch,
+    matched_spot_profile,
+):
     import configuration
     import core.action_condition_guard as guard_module
     import dashboard_server
@@ -271,7 +342,10 @@ def test_direct_place_order_blocks_spot_sell_wallet_before_rest(monkeypatch):
 
 
 @pytest.mark.regression
-def test_direct_place_order_reports_known_inventory_guard_before_rest(monkeypatch):
+def test_direct_place_order_reports_known_inventory_guard_before_rest(
+    monkeypatch,
+    matched_spot_profile,
+):
     import configuration
     import dashboard_server
 
@@ -306,14 +380,17 @@ def test_direct_place_order_reports_known_inventory_guard_before_rest(monkeypatc
 
 
 @pytest.mark.regression
-def test_direct_market_buy_quote_size_blocks_max_notional(monkeypatch):
+def test_direct_market_buy_quote_size_blocks_max_notional(
+    monkeypatch,
+    matched_spot_profile,
+):
     import configuration
     import dashboard_server
 
     monkeypatch.setattr(configuration, "ACTION_CONDITION_GUARDS", {
         "limits": [{
             "name": "direct_quote_cap",
-            "product_id": "BTC-USD",
+            "product_id": "BTC-USDC",
             "max_notional": 100.0,
         }],
     })
@@ -342,12 +419,15 @@ def test_direct_market_buy_quote_size_blocks_max_notional(monkeypatch):
 
 
 @pytest.mark.regression
-def test_direct_market_buy_quote_size_blocks_below_quote_min_before_rest(monkeypatch):
+def test_direct_market_buy_quote_size_blocks_below_quote_min_before_rest(
+    monkeypatch,
+    matched_spot_profile,
+):
     import calculation.size_validation as size_validation
     import dashboard_server
 
     monkeypatch.setattr(size_validation, "PRODUCT_METADATA", {
-        "BTC-USD": {
+        "BTC-USDC": {
             "base_increment": "0.00000001",
             "base_min_size": "0.00000001",
             "quote_increment": "0.01",
@@ -374,34 +454,36 @@ def test_direct_market_buy_quote_size_blocks_below_quote_min_before_rest(monkeyp
 
 
 @pytest.mark.regression
-def test_direct_place_order_success_returns_client_order_id(monkeypatch):
-    import configuration
-    import core.action_condition_guard as guard_module
+def test_direct_place_order_forwards_and_renders_shared_success_client_order_id():
     import dashboard_server
 
-    monkeypatch.setattr(
-        configuration,
-        "ACTION_CONDITION_GUARDS",
-        _direct_spot_cap_policy(),
-    )
-    monkeypatch.setattr(guard_module, "rest_credentials_configured", lambda: False)
     ws = _make_websocket()
-    rest_client = MagicMock()
-    rest_client.create_order.return_value = SimpleNamespace(
-        success=True,
-        order_id="exchange-1",
-    )
-    event_publisher = SimpleNamespace(enabled=True, publish_event=MagicMock(return_value=True))
+    service = MagicMock()
+
+    def accept(command):
+        client_order_id = "generated-client-order-1"
+        return _shared_service_response(
+            accepted=True,
+            client_order_id=client_order_id,
+            message="Order accepted by shared command service",
+            coinbase_order_id="exchange-1",
+            submission_event_recorded=True,
+            audit_command=(
+                "python tools\\run_spot_direct_order_audit.py "
+                f"--client-order-id {client_order_id}"
+            ),
+        )
+
+    service.place_manual_order.side_effect = accept
     message = _place_order_message({
-        "market_market_ioc": {
-            "quote_size": "5",
+        "limit_limit_gtc": {
+            "base_size": "0.02",
+            "limit_price": "50.00",
         },
     })
 
-    with patch.object(dashboard_server, "REST_CLIENT_AVAILABLE", True), \
-         patch.object(dashboard_server, "REST_CLIENT", rest_client), \
-         patch.object(dashboard_server, "_get_dashboard_order_event_stream_publisher",
-                      return_value=event_publisher), \
+    with patch.object(dashboard_server, "_dashboard_command_service",
+                      return_value=service), \
          patch.object(dashboard_server, "get_runtime_controller",
                       return_value=_admitting_controller()), \
          patch.object(dashboard_server, "add_log_entry"):
@@ -417,43 +499,41 @@ def test_direct_place_order_success_returns_client_order_id(monkeypatch):
         "python tools\\run_spot_direct_order_audit.py "
         f"--client-order-id {payload['client_order_id']}"
     )
-    rest_client.create_order.assert_called_once()
-    assert rest_client.create_order.call_args.kwargs["client_order_id"] == (
-        payload["client_order_id"]
-    )
-    event_publisher.publish_event.assert_called_once()
-    event_kwargs = event_publisher.publish_event.call_args.kwargs
-    assert event_kwargs["event_type"] == EventStreamType.ORDER_SUBMITTED.value
-    assert event_kwargs["source_channel"] == EventSourceChannel.REST_SUBMIT.value
-    assert event_kwargs["status_to"] == OrderStatus.PENDING.value
-    assert event_kwargs["payload"]["client_order_id"] == payload["client_order_id"]
-    assert event_kwargs["payload"]["order_id"] == "exchange-1"
+    service.place_manual_order.assert_called_once()
+    forwarded = service.place_manual_order.call_args.args[0]
+    assert forwarded.request.client_order_id is None
+    assert payload["client_order_id"] == "generated-client-order-1"
+    assert forwarded.request.product_id == "BTC-USDC"
 
 
 @pytest.mark.regression
-def test_direct_spot_place_order_requires_durable_audit_before_rest(monkeypatch):
-    import configuration
-    import core.action_condition_guard as guard_module
+def test_direct_spot_place_order_renders_shared_durable_audit_rejection():
     import dashboard_server
 
-    monkeypatch.setattr(
-        configuration,
-        "ACTION_CONDITION_GUARDS",
-        _direct_spot_cap_policy(),
-    )
-    monkeypatch.setattr(guard_module, "rest_credentials_configured", lambda: False)
     ws = _make_websocket()
-    rest_client = MagicMock()
+    service = MagicMock()
+
+    def reject(command):
+        return _shared_service_response(
+            accepted=False,
+            client_order_id=command.request.client_order_id,
+            message="Durable submission audit is required",
+            guard={
+                "block_category": ActionConditionType.DURABLE_AUDIT_AVAILABLE.value,
+                "durable_audit_required": True,
+            },
+        )
+
+    service.place_manual_order.side_effect = reject
     message = _place_order_message({
-        "market_market_ioc": {
-            "quote_size": "5",
+        "limit_limit_gtc": {
+            "base_size": "0.02",
+            "limit_price": "50.00",
         },
     })
 
-    with patch.object(dashboard_server, "REST_CLIENT_AVAILABLE", True), \
-         patch.object(dashboard_server, "REST_CLIENT", rest_client), \
-         patch.object(dashboard_server, "_get_dashboard_order_event_stream_publisher",
-                      return_value=None), \
+    with patch.object(dashboard_server, "_dashboard_command_service",
+                      return_value=service), \
          patch.object(dashboard_server, "get_runtime_controller",
                       return_value=_admitting_controller()), \
          patch.object(dashboard_server, "add_log_entry"):
@@ -466,42 +546,34 @@ def test_direct_spot_place_order_requires_durable_audit_before_rest(monkeypatch)
         ActionConditionType.DURABLE_AUDIT_AVAILABLE.value
     )
     assert payload["guard"]["durable_audit_required"] is True
-    rest_client.create_order.assert_not_called()
+    service.place_manual_order.assert_called_once()
 
 
 @pytest.mark.regression
-def test_direct_place_order_normalizes_nested_success_response(monkeypatch):
-    import configuration
-    import core.action_condition_guard as guard_module
+def test_direct_place_order_renders_shared_normalized_exchange_evidence():
     import dashboard_server
 
-    class NestedResponse:
-        def to_dict(self):
-            return {
-                "success": True,
-                "success_response": {"order_id": "exchange-nested-1"},
-            }
-
-    monkeypatch.setattr(
-        configuration,
-        "ACTION_CONDITION_GUARDS",
-        _direct_spot_cap_policy(),
-    )
-    monkeypatch.setattr(guard_module, "rest_credentials_configured", lambda: False)
     ws = _make_websocket()
-    rest_client = MagicMock()
-    rest_client.create_order.return_value = NestedResponse()
-    event_publisher = SimpleNamespace(enabled=True, publish_event=MagicMock(return_value=True))
+    service = MagicMock()
+
+    def accept(command):
+        return _shared_service_response(
+            accepted=True,
+            client_order_id=command.request.client_order_id,
+            message="Nested Coinbase response normalized by shared service",
+            coinbase_order_id="exchange-nested-1",
+        )
+
+    service.place_manual_order.side_effect = accept
     message = _place_order_message({
-        "market_market_ioc": {
-            "quote_size": "5",
+        "limit_limit_gtc": {
+            "base_size": "0.02",
+            "limit_price": "50.00",
         },
     })
 
-    with patch.object(dashboard_server, "REST_CLIENT_AVAILABLE", True), \
-         patch.object(dashboard_server, "REST_CLIENT", rest_client), \
-         patch.object(dashboard_server, "_get_dashboard_order_event_stream_publisher",
-                      return_value=event_publisher), \
+    with patch.object(dashboard_server, "_dashboard_command_service",
+                      return_value=service), \
          patch.object(dashboard_server, "get_runtime_controller",
                       return_value=_admitting_controller()), \
          patch.object(dashboard_server, "add_log_entry"):
@@ -510,12 +582,13 @@ def test_direct_place_order_normalizes_nested_success_response(monkeypatch):
     payload = _sent_payload(ws)
     assert payload["status"] == "success"
     assert payload["order_id"] == "exchange-nested-1"
-    event_kwargs = event_publisher.publish_event.call_args.kwargs
-    assert event_kwargs["payload"]["order_id"] == "exchange-nested-1"
+    service.place_manual_order.assert_called_once()
 
 
 @pytest.mark.regression
-def test_direct_place_order_size_validation_runs_before_action_guard():
+def test_direct_place_order_size_validation_runs_before_action_guard(
+    matched_spot_profile,
+):
     import application.admin_api.command_service as command_service
     import dashboard_server
 
@@ -550,15 +623,30 @@ def test_cancel_order_calls_cancel_order_with_client_order_id():
     import dashboard_server
 
     ws = _make_websocket()
-    rest_client = MagicMock()
-    rest_client.cancel_order.return_value = True
+    service = MagicMock()
+
+    def accept(command):
+        return _shared_service_response(
+            accepted=True,
+            client_order_id=command.client_order_id,
+            message="Order cancellation confirmed by terminal readback",
+            data={
+                "cancellation_readback": {
+                    "operator_identity_key": "client_order_id",
+                    "terminal_status_proven": True,
+                    "authoritative_status": "CANCELLED",
+                }
+            },
+        )
+
+    service.cancel_order_by_client_order_id.side_effect = accept
     message = json.dumps({
         "type": "cancel_order",
         "client_order_id": "client-order-1",
     })
 
-    with patch.object(dashboard_server, "REST_CLIENT_AVAILABLE", True), \
-         patch.object(dashboard_server, "REST_CLIENT", rest_client), \
+    with patch.object(dashboard_server, "_dashboard_command_service",
+                      return_value=service), \
          patch.object(dashboard_server, "get_runtime_controller",
                       return_value=_admitting_controller()), \
          patch.object(dashboard_server, "add_log_entry"):
@@ -568,25 +656,49 @@ def test_cancel_order_calls_cancel_order_with_client_order_id():
     assert payload["type"] == "cancel_response"
     assert payload["status"] == "success"
     assert payload["client_order_id"] == "client-order-1"
-    assert payload["data"] is True
-    rest_client.cancel_order.assert_called_once_with("client-order-1")
-    rest_client.cancel_orders.assert_not_called()
+    assert payload["data"]["cancellation_readback"] == {
+        "operator_identity_key": "client_order_id",
+        "terminal_status_proven": True,
+        "authoritative_status": "CANCELLED",
+    }
+    service.cancel_order_by_client_order_id.assert_called_once()
+    forwarded = service.cancel_order_by_client_order_id.call_args.args[0]
+    assert forwarded.client_order_id == "client-order-1"
 
 
 @pytest.mark.regression
-def test_cancel_order_false_result_is_error():
+def test_cancel_order_surfaces_shared_unknown_result_as_error():
     import dashboard_server
 
     ws = _make_websocket()
-    rest_client = MagicMock()
-    rest_client.cancel_order.return_value = False
+    service = MagicMock()
+
+    def reject(command):
+        return _shared_service_response(
+            accepted=False,
+            client_order_id=command.client_order_id,
+            message=(
+                "Canonical client_order_id cancellation returned no explicit "
+                "outcome; exchange-id fallback is forbidden."
+            ),
+            data={
+                "cancellation_readback": {
+                    "operator_identity_key": "client_order_id",
+                    "canonical_cancel_attempted": True,
+                    "fallback_attempted": False,
+                    "terminal_status_proven": False,
+                }
+            },
+        )
+
+    service.cancel_order_by_client_order_id.side_effect = reject
     message = json.dumps({
         "type": "cancel_order",
         "client_order_id": "client-order-false",
     })
 
-    with patch.object(dashboard_server, "REST_CLIENT_AVAILABLE", True), \
-         patch.object(dashboard_server, "REST_CLIENT", rest_client), \
+    with patch.object(dashboard_server, "_dashboard_command_service",
+                      return_value=service), \
          patch.object(dashboard_server, "get_runtime_controller",
                       return_value=_admitting_controller()), \
          patch.object(dashboard_server, "add_log_entry"):
@@ -596,10 +708,9 @@ def test_cancel_order_false_result_is_error():
     assert payload["type"] == "cancel_response"
     assert payload["status"] == "error"
     assert payload["client_order_id"] == "client-order-false"
-    assert payload["data"] is False
-    assert payload["message"] == "Order cancellation was not accepted by Coinbase"
-    rest_client.cancel_order.assert_called_once_with("client-order-false")
-    rest_client.cancel_orders.assert_not_called()
+    assert payload["data"]["cancellation_readback"]["fallback_attempted"] is False
+    assert "no explicit outcome" in payload["message"]
+    service.cancel_order_by_client_order_id.assert_called_once()
 
 
 @pytest.mark.regression
@@ -607,15 +718,22 @@ def test_cancel_order_accepts_nested_params_client_order_id():
     import dashboard_server
 
     ws = _make_websocket()
-    rest_client = MagicMock()
-    rest_client.cancel_order.return_value = True
+    service = MagicMock()
+    service.cancel_order_by_client_order_id.side_effect = lambda command: (
+        _shared_service_response(
+            accepted=True,
+            client_order_id=command.client_order_id,
+            message="Order cancellation confirmed by terminal readback",
+            data={"cancellation_readback": {"terminal_status_proven": True}},
+        )
+    )
     message = json.dumps({
         "type": "cancel_order",
         "params": {"client_order_id": "client-order-params"},
     })
 
-    with patch.object(dashboard_server, "REST_CLIENT_AVAILABLE", True), \
-         patch.object(dashboard_server, "REST_CLIENT", rest_client), \
+    with patch.object(dashboard_server, "_dashboard_command_service",
+                      return_value=service), \
          patch.object(dashboard_server, "get_runtime_controller",
                       return_value=_admitting_controller()), \
          patch.object(dashboard_server, "add_log_entry"):
@@ -624,7 +742,8 @@ def test_cancel_order_accepts_nested_params_client_order_id():
     payload = _sent_payload(ws)
     assert payload["status"] == "success"
     assert payload["client_order_id"] == "client-order-params"
-    rest_client.cancel_order.assert_called_once_with("client-order-params")
+    forwarded = service.cancel_order_by_client_order_id.call_args.args[0]
+    assert forwarded.client_order_id == "client-order-params"
 
 
 @pytest.mark.regression

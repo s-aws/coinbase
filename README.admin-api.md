@@ -12,9 +12,9 @@ Maintainer handoff for contextless agents starts at
 
 ## Current Status
 
-Current work is goal id `legacy_fill_follow_up_operator_slice`: Admin order ->
-fill/readback evidence -> follow-up decision -> operator-visible parent/child
-chain. Numbered M57 phase material later in this document is historical
+Current goal id `selected_order_execution_closeout_slice` records the completed
+selected-root fill-ledger/audit, terminal-child, and read-only recovery
+closeout. Numbered M57 phase material later in this document is historical
 contract evidence, not current work authority.
 
 The repository now contains an Admin API contract, generated OpenAPI and

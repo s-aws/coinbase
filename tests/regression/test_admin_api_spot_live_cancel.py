@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from application.admin_api.mvp_service import AdminMvpDependencies, AdminMvpService
+from application.admin_api.mvp_service import (
+    AdminMvpDependencies,
+    AdminMvpEvidenceLog,
+    AdminMvpService,
+    AdminMvpStore,
+)
 from tests.regression.test_admin_mvp_api import FakeAccountRestClient
 from tools.run_admin_api_spot_live_cancel import (
     LiveCapExceededError,
@@ -11,6 +16,20 @@ from tools.run_admin_api_spot_live_cancel import (
     build_spot_live_cancel_body,
     run_spot_live_cancel,
 )
+
+
+def _isolated_service(rest_client, *, uuid_factory=None):
+    optional = {"uuid_factory": uuid_factory} if uuid_factory is not None else {}
+    return AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+            **optional,
+        ),
+        store=AdminMvpStore(),
+        evidence_log=AdminMvpEvidenceLog(),
+    )
 
 
 def test_spot_live_cancel_body_defaults_to_backend_controlled_acknowledgement():
@@ -30,13 +49,7 @@ def test_spot_live_cancel_body_defaults_to_backend_controlled_acknowledgement():
 
 def test_spot_live_cancel_requires_explicit_confirmation_before_service_calls():
     rest_client = FakeAccountRestClient()
-    service = AdminMvpService(
-        AdminMvpDependencies(
-            rest_client=rest_client,
-            rest_client_available=True,
-            live_coinbase_execution_enabled=True,
-        )
-    )
+    service = _isolated_service(rest_client)
 
     with pytest.raises(LiveCancelConfirmationError):
         run_spot_live_cancel(
@@ -63,13 +76,7 @@ def test_spot_live_cancel_records_backend_evidence_before_rest_submission():
             }
         ]
     }
-    service = AdminMvpService(
-        AdminMvpDependencies(
-            rest_client=rest_client,
-            rest_client_available=True,
-            live_coinbase_execution_enabled=True,
-        )
-    )
+    service = _isolated_service(rest_client)
 
     summary = run_spot_live_cancel(
         service,
@@ -126,13 +133,9 @@ def test_spot_live_cancel_can_seed_resting_gtc_order_before_cancel():
             }
         ]
     }
-    service = AdminMvpService(
-        AdminMvpDependencies(
-            rest_client=rest_client,
-            rest_client_available=True,
-            live_coinbase_execution_enabled=True,
-            uuid_factory=lambda: "spot-live-cancel-seed-test-order",
-        )
+    service = _isolated_service(
+        rest_client,
+        uuid_factory=lambda: "spot-live-cancel-seed-test-order",
     )
 
     summary = run_spot_live_cancel(
@@ -198,13 +201,9 @@ def test_spot_live_cancel_blocks_seed_when_state_would_exceed_submitted_cap(tmp_
         encoding="utf-8",
     )
     rest_client = FakeAccountRestClient()
-    service = AdminMvpService(
-        AdminMvpDependencies(
-            rest_client=rest_client,
-            rest_client_available=True,
-            live_coinbase_execution_enabled=True,
-            uuid_factory=lambda: "spot-live-cancel-seed-over-cap",
-        )
+    service = _isolated_service(
+        rest_client,
+        uuid_factory=lambda: "spot-live-cancel-seed-over-cap",
     )
 
     with pytest.raises(LiveCapExceededError, match="Spot live cancel seed would exceed"):
@@ -260,13 +259,9 @@ def test_spot_live_cancel_summary_records_exchange_id_fallback_when_needed():
             }
         ]
     }
-    service = AdminMvpService(
-        AdminMvpDependencies(
-            rest_client=rest_client,
-            rest_client_available=True,
-            live_coinbase_execution_enabled=True,
-            uuid_factory=lambda: "spot-live-cancel-seed-fallback-order",
-        )
+    service = _isolated_service(
+        rest_client,
+        uuid_factory=lambda: "spot-live-cancel-seed-fallback-order",
     )
 
     summary = run_spot_live_cancel(

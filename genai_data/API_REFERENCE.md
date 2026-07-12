@@ -15,9 +15,9 @@ command path after exact backend admission and Test-profile authority, while
 Futures, Stealth, movement/repricing, campaign, and sweep command routes remain
 no-live or local-evidence boundaries. The frontend does not own live authority.
 
-Current work is goal id `legacy_fill_follow_up_operator_slice`. The default
-vertical slice is Admin order -> fill/readback evidence -> follow-up decision
--> operator-visible parent/child chain.
+Current goal id is `selected_order_execution_closeout_slice`. The completed
+vertical slice binds one selected Admin root to exact fill-ledger/audit,
+terminal-child, and read-only recovery closeout evidence.
 
 Current generated schema artifact:
 - `openapi/coinbase-admin-api.yaml`

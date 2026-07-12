@@ -1,7 +1,7 @@
 # Futures/Perpetuals Admin Reads
 
 The M57 phase statements in this document are a historical implementation
-snapshot. Current work is goal id `legacy_fill_follow_up_operator_slice`; M57
+snapshot. Current goal id is `selected_order_execution_closeout_slice`; M57
 expansion is parked unless explicitly reprioritized or directly blocks that
 slice.
 

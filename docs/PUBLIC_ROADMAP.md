@@ -5,9 +5,9 @@ private model routing, private release planning, or internal research notes.
 
 ## Current Direction
 
-- Keep goal id `legacy_fill_follow_up_operator_slice` as the current delivery
-  authority: Admin order -> fill/readback evidence -> follow-up decision ->
-  operator-visible parent/child chain.
+- Keep goal id `selected_order_execution_closeout_slice` as the current
+  completed delivery authority: selected-root fill-ledger/audit,
+  terminal-child, and read-only recovery closeout evidence.
 - Keep the public repo runnable and reviewable without private orchestration.
 - Maintain strict module ownership boundaries for smaller-agent work.
 - Preserve the existing regression suite as the public release gate.
@@ -15,7 +15,7 @@ private model routing, private release planning, or internal research notes.
 
 ## Near-Term Public Work
 
-- Maintain the guarded no-live fill/follow-up operator slice and address only
+- Maintain the completed selected-order execution closeout and address only
   demonstrated operator-visible or immediate safety blockers. Automatic/live
   fill-event parity uses the same explicit order limits and backend gate chain
   as every live order; expected fill status creates no separate permission

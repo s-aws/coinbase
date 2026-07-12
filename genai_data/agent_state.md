@@ -3,7 +3,7 @@
 Historical planning record; not current work authority.
 
 This is a frozen M57 handoff snapshot. Current work is goal id
-`legacy_fill_follow_up_operator_slice` in
+`selected_order_execution_closeout_slice` in
 `genai_data/AGENT_MVP_REBUILD_GOAL.md` and the frontend canonical goal. Do not
 resume the branch, phase, or next-step instructions below without explicit
 operator reprioritization.

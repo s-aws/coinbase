@@ -45,7 +45,7 @@ def _spot_order(
 ):
     return {
         "stealth_order_id": stealth_order_id,
-        "product_id": "BTC-USD",
+        "product_id": "BTC-USDC",
         "side": side,
         "total_size": remaining_size,
         "remaining_size": remaining_size,
@@ -62,11 +62,11 @@ def _spot_order(
 
 def _spot_metadata():
     return {
-        "BTC-USD": {
-            "product_id": "BTC-USD",
+        "BTC-USDC": {
+            "product_id": "BTC-USDC",
             "product_type": "SPOT",
             "base_currency": "BTC",
-            "quote_currency": "USD",
+            "quote_currency": "USDC",
         },
     }
 
@@ -130,23 +130,23 @@ def test_planned_budget_collects_only_pre_exchange_spot_commitments():
 
     assert commitments == {
         "BTC": 0.25,
-        "USD": 1000.0,
+        "USDC": 1000.0,
     }
 
 
 def test_spot_buy_replacement_budget_delta_credits_existing_quote_hold():
     delta = estimate_spot_replacement_budget_delta(
-        product_id="BTC-USD",
+        product_id="BTC-USDC",
         side=OrderSide.BUY.value,
         size=0.1,
         limit_price=110000.0,
         existing_size=0.1,
         existing_limit_price=100000.0,
         product_metadata=_spot_metadata(),
-        spot_product_ids=["BTC-USD"],
+        spot_product_ids=["BTC-USDC"],
     )
 
-    assert delta["currency"] == "USD"
+    assert delta["currency"] == "USDC"
     assert delta["new_required"] == pytest.approx(11000.0)
     assert delta["existing_credit"] == pytest.approx(10000.0)
     assert delta["amount"] == pytest.approx(1000.0)
@@ -154,14 +154,14 @@ def test_spot_buy_replacement_budget_delta_credits_existing_quote_hold():
 
 def test_spot_sell_replacement_budget_delta_credits_existing_base_hold():
     delta = estimate_spot_replacement_budget_delta(
-        product_id="BTC-USD",
+        product_id="BTC-USDC",
         side=OrderSide.SELL.value,
         size=1.0,
         limit_price=110000.0,
         existing_size=1.0,
         existing_limit_price=100000.0,
         product_metadata=_spot_metadata(),
-        spot_product_ids=["BTC-USD"],
+        spot_product_ids=["BTC-USDC"],
     )
 
     assert delta["currency"] == "BTC"
@@ -175,16 +175,16 @@ def test_spot_replacement_guard_subtracts_planned_budget_from_delta():
         policy={ActionConditionType.WALLET_AVAILABLE.value: {"enabled": True}},
         credentials_configured=lambda: True,
         wallet_fetcher=lambda: {
-            "USD": {"available_balance": {"value": "15.0"}},
+            "USDC": {"available_balance": {"value": "15.0"}},
         },
-        planned_budget_fetcher=lambda: {"USD": 6.0},
+        planned_budget_fetcher=lambda: {"USDC": 6.0},
         product_metadata=_spot_metadata(),
-        spot_product_ids=["BTC-USD"],
+        spot_product_ids=["BTC-USDC"],
     )
 
     ok, failure = guard.evaluate_replacement(
         phase=ActionGuardPhase.REVEAL,
-        product_id="BTC-USD",
+        product_id="BTC-USDC",
         side=OrderSide.BUY.value,
         size=0.1,
         limit_price=200.0,
@@ -219,7 +219,7 @@ def test_spot_planning_blocks_when_hidden_budget_would_overcommit():
 
     with pytest.raises(OrderCreationError, match="planned commitment"):
         manager.create_stealth_order(
-            product_id="BTC-USD",
+            product_id="BTC-USDC",
             side=OrderSide.SELL.value,
             total_size=0.3,
             limit_price=100000.0,
@@ -324,8 +324,31 @@ def _admitting_controller():
 
 def test_dashboard_direct_spot_order_subtracts_hidden_stealth_budget(monkeypatch):
     import configuration
+    import application.admin_api.command_service as command_service
     import core.action_condition_guard as guard_module
     import dashboard_server
+    from application.admin_api.spot_portfolio_binding import (
+        EXPECTED_SPOT_PORTFOLIO_TYPE,
+        SpotPortfolioBindingEvidence,
+    )
+
+    test_portfolio_id = "11111111-2222-4333-8444-555555555555"
+    monkeypatch.setattr(
+        command_service,
+        "evaluate_spot_test_portfolio_binding",
+        lambda **_kwargs: SpotPortfolioBindingEvidence(
+            ready=True,
+            blocker=None,
+            expected_portfolio_id=test_portfolio_id,
+            expected_portfolio_label="Test",
+            expected_portfolio_type=EXPECTED_SPOT_PORTFOLIO_TYPE,
+            observed_portfolio_id=test_portfolio_id,
+            observed_portfolio_label="Test",
+            observed_portfolio_type=EXPECTED_SPOT_PORTFOLIO_TYPE,
+            can_view=True,
+            can_trade=True,
+        ),
+    )
 
     monkeypatch.setattr(
         configuration,
@@ -343,11 +366,11 @@ def test_dashboard_direct_spot_order_subtracts_hidden_stealth_budget(monkeypatch
     monkeypatch.setattr(
         guard_module,
         "fetch_account_wallets",
-        lambda: {"USD": {"available_balance": {"value": "1000"}}},
+        lambda: {"USDC": {"available_balance": {"value": "1000"}}},
     )
 
     manager = MagicMock()
-    manager._get_spot_planned_budget_commitments.return_value = {"USD": 900.0}
+    manager._get_spot_planned_budget_commitments.return_value = {"USDC": 900.0}
     bridge = MagicMock()
     bridge.stealth_manager = manager
 
@@ -356,7 +379,7 @@ def test_dashboard_direct_spot_order_subtracts_hidden_stealth_budget(monkeypatch
     message = json.dumps({
         "type": "place_order",
         "params": {
-            "product_id": "BTC-USD",
+            "product_id": "BTC-USDC",
             "side": OrderSide.BUY.value,
             "manual_live_acknowledgement": True,
             "order_configuration": {

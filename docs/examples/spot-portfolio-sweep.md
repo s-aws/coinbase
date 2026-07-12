@@ -1,7 +1,7 @@
 # Spot Portfolio Sweep Examples
 
 This is a parked Spot automation reference, not the current work queue.
-Current work is goal id `legacy_fill_follow_up_operator_slice`. Live sweep,
+Current goal id is `selected_order_execution_closeout_slice`. Live sweep,
 fan-out, cadence, and scheduler examples require explicit operator
 reprioritization; their presence here does not authorize or prioritize them.
 

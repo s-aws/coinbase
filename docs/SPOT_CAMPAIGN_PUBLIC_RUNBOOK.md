@@ -1,7 +1,7 @@
 # Spot Campaign Public Runbook
 
 This is a parked operator reference, not the current work queue. Current work
-is goal id `legacy_fill_follow_up_operator_slice`; do not run campaign,
+is goal id `selected_order_execution_closeout_slice`; do not run campaign,
 fan-out, retry, or scheduler work from this document without explicit operator
 reprioritization.
 

@@ -13,9 +13,9 @@ plans.
 
 ## Current MVP Goal
 
-Current work is goal id `legacy_fill_follow_up_operator_slice`: restore the
-operator path from Admin order through backend fill/readback and follow-up
-decision to operator-visible parent/child chain. See
+Current goal id `selected_order_execution_closeout_slice` records the completed
+read-only selected-root fill-ledger, audit, terminal-child, and recovery
+closeout. No next work item is selected. See
 [Coinbase Admin MVP Goal](genai_data/AGENT_MVP_REBUILD_GOAL.md). Historical M57
 phase ranges and M58 fan-out/scheduler blockers do not select default work.
 

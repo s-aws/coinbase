@@ -4,7 +4,12 @@ import json
 
 import pytest
 
-from application.admin_api.mvp_service import AdminMvpDependencies, AdminMvpService
+from application.admin_api.mvp_service import (
+    AdminMvpDependencies,
+    AdminMvpEvidenceLog,
+    AdminMvpService,
+    AdminMvpStore,
+)
 from tests.regression.test_admin_mvp_api import FakeAccountRestClient
 from tools.run_admin_api_futures_live_close_reduce import (
     FuturesLiveCloseReduceConfig,
@@ -41,7 +46,9 @@ def test_futures_live_close_reduce_requires_explicit_confirmation_before_service
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
-        )
+        ),
+        store=AdminMvpStore(),
+        evidence_log=AdminMvpEvidenceLog(),
     )
 
     with pytest.raises(LiveCloseReduceConfirmationError):
@@ -71,7 +78,9 @@ def test_futures_live_close_reduce_records_backend_evidence_before_rest_submissi
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
-        )
+        ),
+        store=AdminMvpStore(),
+        evidence_log=AdminMvpEvidenceLog(),
     )
 
     summary = run_futures_live_close_reduce(
@@ -156,7 +165,9 @@ def test_futures_live_close_reduce_refreshes_existing_artifact_without_resubmitt
             rest_client=rest_client,
             rest_client_available=True,
             live_coinbase_execution_enabled=True,
-        )
+        ),
+        store=AdminMvpStore(),
+        evidence_log=AdminMvpEvidenceLog(),
     )
     artifact_path = tmp_path / "futures-live-close-reduce.json"
     summary = run_futures_live_close_reduce(

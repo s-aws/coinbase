@@ -77,7 +77,7 @@ def _revealed_spot_order(
     return {
         "stealth_order_id": stealth_order_id,
         "parent_order_id": "root_spot_parent",
-        "product_id": "BTC-USD",
+        "product_id": "BTC-USDC",
         "side": side,
         "status": StealthOrderStatus.REVEALED.value,
         "executed_size": executed_size,
@@ -511,7 +511,7 @@ class TestSpotReplaceAwareActionGuard:
         mgr = StealthOrderManager(db_client=None, log_callback=MagicMock())
         mgr._rest_credentials_configured = MagicMock(return_value=True)
         mgr._get_account_wallets_for_action_guard = MagicMock(
-            return_value={"USD": {"available_balance": {"value": "5.0"}}}
+            return_value={"USDC": {"available_balance": {"value": "5.0"}}}
         )
         order = _revealed_spot_order(remaining_size=0.1, limit_price=100.0)
         mgr.in_memory_orders[order["stealth_order_id"]] = order
@@ -540,7 +540,7 @@ class TestSpotReplaceAwareActionGuard:
         mgr.log_callback = MagicMock()
         mgr._rest_credentials_configured = MagicMock(return_value=True)
         mgr._get_account_wallets_for_action_guard = MagicMock(
-            return_value={"USD": {"available_balance": {"value": "5.0"}}}
+            return_value={"USDC": {"available_balance": {"value": "5.0"}}}
         )
 
         order = _revealed_spot_order(remaining_size=0.1, limit_price=100.0)
@@ -572,7 +572,7 @@ class TestSpotReplaceAwareActionGuard:
         mgr = StealthOrderManager(db_client=None, log_callback=MagicMock())
         mgr._rest_credentials_configured = MagicMock(return_value=True)
         mgr._get_account_wallets_for_action_guard = MagicMock(
-            return_value={"USD": {"available_balance": {"value": "5.0"}}}
+            return_value={"USDC": {"available_balance": {"value": "5.0"}}}
         )
         mgr._update_stealth_order = MagicMock()
         order = _revealed_spot_order(remaining_size=0.1, limit_price=100.0)

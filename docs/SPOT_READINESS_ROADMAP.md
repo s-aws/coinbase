@@ -1,7 +1,7 @@
 # Spot Readiness Roadmap
 
 This is a domain readiness reference, not the current work queue. Current work
-is goal id `legacy_fill_follow_up_operator_slice`; only readiness failures that
+is goal id `selected_order_execution_closeout_slice`; only readiness failures that
 directly block that operator slice are eligible by default.
 
 This roadmap tracks the work needed before spot-specific features should be
@@ -239,7 +239,7 @@ The phase sequence below is retained as implementation, validation, and parked
 roadmap history. The former blanket approval is no longer active. No phase,
 status line, or execution note in this document authorizes new work or live
 execution; current work must qualify under goal id
-`legacy_fill_follow_up_operator_slice`.
+`selected_order_execution_closeout_slice`.
 
 ### Phase 1 - Product Capability Matrix
 

@@ -4,7 +4,12 @@ import json
 
 import pytest
 
-from application.admin_api.mvp_service import AdminMvpDependencies, AdminMvpService
+from application.admin_api.mvp_service import (
+    AdminMvpDependencies,
+    AdminMvpEvidenceLog,
+    AdminMvpService,
+    AdminMvpStore,
+)
 from tests.regression.test_admin_mvp_api import FakeAccountRestClient
 from tools.run_admin_api_futures_live_cancel import (
     FuturesLiveCancelConfig,
@@ -13,6 +18,18 @@ from tools.run_admin_api_futures_live_cancel import (
     refresh_existing_futures_live_cancel_summary,
     run_futures_live_cancel,
 )
+
+
+def _isolated_service(rest_client):
+    return AdminMvpService(
+        AdminMvpDependencies(
+            rest_client=rest_client,
+            rest_client_available=True,
+            live_coinbase_execution_enabled=True,
+        ),
+        store=AdminMvpStore(),
+        evidence_log=AdminMvpEvidenceLog(),
+    )
 
 
 def test_futures_live_cancel_body_defaults_to_backend_controlled_acknowledgement():
@@ -33,13 +50,7 @@ def test_futures_live_cancel_body_defaults_to_backend_controlled_acknowledgement
 
 def test_futures_live_cancel_requires_explicit_confirmation_before_service_calls():
     rest_client = FakeAccountRestClient()
-    service = AdminMvpService(
-        AdminMvpDependencies(
-            rest_client=rest_client,
-            rest_client_available=True,
-            live_coinbase_execution_enabled=True,
-        )
-    )
+    service = _isolated_service(rest_client)
 
     with pytest.raises(LiveCancelConfirmationError):
         run_futures_live_cancel(
@@ -66,13 +77,7 @@ def test_futures_live_cancel_records_backend_evidence_before_rest_submission():
             }
         ]
     }
-    service = AdminMvpService(
-        AdminMvpDependencies(
-            rest_client=rest_client,
-            rest_client_available=True,
-            live_coinbase_execution_enabled=True,
-        )
-    )
+    service = _isolated_service(rest_client)
 
     summary = run_futures_live_cancel(
         service,
@@ -175,13 +180,7 @@ def test_futures_live_cancel_summary_audits_exchange_order_id_fallback():
             }
         ]
     }
-    service = AdminMvpService(
-        AdminMvpDependencies(
-            rest_client=rest_client,
-            rest_client_available=True,
-            live_coinbase_execution_enabled=True,
-        )
-    )
+    service = _isolated_service(rest_client)
 
     summary = run_futures_live_cancel(
         service,
@@ -230,13 +229,7 @@ def test_futures_live_cancel_refreshes_existing_artifact_without_resubmitting(
             }
         ]
     }
-    service = AdminMvpService(
-        AdminMvpDependencies(
-            rest_client=rest_client,
-            rest_client_available=True,
-            live_coinbase_execution_enabled=True,
-        )
-    )
+    service = _isolated_service(rest_client)
     artifact_path = tmp_path / "futures-live-cancel.json"
     summary = run_futures_live_cancel(
         service,

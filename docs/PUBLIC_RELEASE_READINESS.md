@@ -1,7 +1,7 @@
 # Public Release Readiness
 
 This is a closeout policy, not a work queue. Current scope remains goal id
-`legacy_fill_follow_up_operator_slice`.
+`selected_order_execution_closeout_slice`.
 
 Use these gates when preparing the project for public release or validating a
 spot-specific feature before live trading.

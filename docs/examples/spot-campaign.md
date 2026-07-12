@@ -1,7 +1,7 @@
 # Spot Campaign Examples
 
 This is a parked Spot automation reference, not the current work queue.
-Current work is goal id `legacy_fill_follow_up_operator_slice`. Campaign,
+Current goal id is `selected_order_execution_closeout_slice`. Campaign,
 fan-out, retry, and scheduler examples require explicit operator
 reprioritization.
 

@@ -4,7 +4,7 @@ This project has several operator and test surfaces. They do not have equal
 live authority, and a backend-only live runner is not proof that the matching
 HTTP or browser workflow is live-capable.
 
-Current work is goal id `legacy_fill_follow_up_operator_slice`. Default release
+Current goal id is `selected_order_execution_closeout_slice`. Default release
 and deployment checks are no-live and must report live Coinbase execution as
 not run with notional `0`.
 

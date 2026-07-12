@@ -5,7 +5,7 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 ## Project Entry
 
 - [Current MVP Goal](../genai_data/AGENT_MVP_REBUILD_GOAL.md) - goal id
-  `legacy_fill_follow_up_operator_slice`; current scope and stop rules
+  `selected_order_execution_closeout_slice`; completed scope and stop rules
 - [Root README](../README.md)
 - [Expanded AI Context](../genai_data/README.md)
 - [Architecture](../genai_data/ARCHITECTURE.md)

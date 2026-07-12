@@ -130,24 +130,19 @@ create a separate approval class.
 
 ## Current Handoff State
 
-- Current goal id: `legacy_fill_follow_up_operator_slice`.
-- Current slice: Admin order -> fill/readback evidence -> follow-up decision ->
-  operator-visible parent/child chain.
-- Current state: the operator-selected embedded FastAPI topology is implemented
-  in `main.py` and disabled by default. Focused synthetic coverage proves exact
-  runtime identity; strict pre-bind and post-bind hydration; read-only bind
-  before producers; authenticated per-worker `user` subscription readiness;
-  actual-socket mutation rechecks, synchronous admission closure, and fatal
-  canonical drain on monitoring loss; cached bridge-action gating; queued-fill
-  drain; production-handler
-  duplicate suppression; deterministic atomic parent/stealth child persistence;
-  ambiguous-failure claim handling; dual-source chain corroboration; and restart
-  placement lookup. The deployed app-only runner remains intentionally
-  fail-closed. Enabling the embedded engine/API process is not a separate
-  fill-testing permission. Every order processed through it is governed by the
-  current goal's explicit side, price, notional, rate, and cancellation limits
-  plus backend authorization, wallet/cap, duplicate-order, audit,
-  reconciliation, rollback, and readback gates, whether it fills or not.
+- Current goal id: `selected_order_execution_closeout_slice`.
+- Current slice: Selected Admin root -> client_order_id-bound fill-ledger and
+  audit readback -> child terminal-cancel proof -> read-only recovery posture ->
+  operator-visible execution closeout. The slice is complete; no next work item
+  is selected.
+- Current state: V14 completed the predecessor automatic/live proof for ten
+  Test-profile roots and ten first-child submissions under the approved
+  `30.00 USDC` reference cap. Every root was authoritatively FILLED, every child
+  was authoritatively CANCELLED with zero child fill, every final chain was flat
+  with active placement cleared, the final active-order count was zero, and
+  shutdown was quiescent. The frontend now binds a selected root to exact
+  fill-ledger/audit, exactly-once decision, terminal child, audit workbench, and
+  four read-only recovery surfaces without adding mutation authority.
 - Legacy translation references inspected: `origin/prod:main.py` for the one
   engine/bridge lifecycle, `origin/prod:core/order_engine.py` for authenticated
   `user` event -> `handle_filled_order` -> follow-up behavior, and
@@ -157,12 +152,18 @@ create a separate approval class.
   reused as product authority.
 - Review sweep: the contextless runtime, backend safety, and focused-test
   reviewers completed; all causal findings were consumed and no review agent
-  remains assigned to implementation work.
-- Final no-live validation: 137 focused backend tests passed, changed Python
-  files compiled, ownership and diff checks passed, and no engine process or
-  Coinbase action ran. Repository-wide `compileall` remains unsuitable on this
-  filesystem because a pre-existing generated Admin module name exceeds the
-  `__pycache__` filename limit; explicit changed-file compilation is clean.
+  remains assigned to implementation work. The final milestone-closeout sweep
+  found no active validation or review subagent.
+- Final validation: focused backend tests passed without a new mutating/live
+  action, then `python3.13 tools/run_parallel_regression.py --workers 4`
+  passed `1458/1458` tests (`1005` parallel plus `453` serial), ownership, and
+  diff checks. The runner reported live Coinbase execution false and
+  submitted/executed notional `0 USDC`; evidence is under
+  `genai_tools/pytest-tmp/parallel-regression/4f87afaef742452b83c938640c168c14/`.
+  The synchronized frontend baseline and release gate passed `548/548` unit,
+  `8/8` Playwright, focused deploy `142/142`, all
+  deployment/backend/local-stack/dry smokes, and managed-process cleanup with
+  live execution `not_run` and notional `0 USDC`.
 - Parked by default: M57 phase continuation, M58 fan-out/scheduler,
   runtime-control, retry/recovery, multi-product wallet-ledger work, and the
   single-product ladder/grid roadmap item.
