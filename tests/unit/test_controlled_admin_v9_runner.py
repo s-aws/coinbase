@@ -12,6 +12,7 @@ from tools import run_controlled_admin_spot_root_child_batch as runner
 
 
 EXPECTED_PRODUCTION_COMMIT = "8c2f0ad0474b24988bccda1862193690f897cd24"
+EXPECTED_V9_AUTHORITY_PARENT = "47e812f6eaa5421a491fd3a7787e03ddab99c7a8"
 V8_ROOT_ID = "12a52c06-e368-5c39-bfa0-6eb5880f3c64"
 V8_CHILD_ID = "252b6389-d544-58db-a796-e9bc258f794f"
 V8_PREPARATION_SHA256 = (
@@ -97,6 +98,10 @@ def _client_order_ids(value: Any, *, key: str = "") -> set[str]:
 
 def test_v9_fixed_authority_and_attempt_schedule() -> None:
     assert runner.EXPECTED_COMMIT == EXPECTED_PRODUCTION_COMMIT
+    assert (
+        runner.V9_RUNNER_AUTHORITY_PARENT_COMMIT
+        == EXPECTED_V9_AUTHORITY_PARENT
+    )
     assert runner.PLAN_SCHEMA_VERSION == "13"
     assert runner.SUCCESSOR_V9_PLAN_PATH.name.endswith(
         "successor-v9-20260712.plan.json"
@@ -576,3 +581,62 @@ def test_recovery_failure_reconciliation_is_fail_closed_end_to_end(
         assert evidence["recovery_child_cleanup_decision"] == (
             "preserve_runtime_sdk_call_absence_ambiguous"
         )
+
+
+def test_inherited_absence_helpers_forward_exact_recovery_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan, _ = _validated_v9_plan()
+    recovery = plan["recovery_slot_2"]
+    observed: list[Mapping[str, Any] | None] = []
+
+    def local_scope(**kwargs: Any) -> dict[str, Any]:
+        observed.append(kwargs.get("recovery_slot_2"))
+        return {
+            "planned_ids_absent_from_order_parent": True,
+            "planned_ids_absent_from_stealth_orders": True,
+            "planned_ids_absent_from_fill_ledger": True,
+            "planned_ids_absent_from_order_match_audit": True,
+        }
+
+    monkeypatch.setattr(
+        runner,
+        "prove_local_scope_with_historical_hidden_child",
+        local_scope,
+    )
+    from application.admin_api import command_service
+
+    monkeypatch.setattr(
+        command_service,
+        "exact_coinbase_order_readback",
+        lambda *_args, **_kwargs: {
+            "authoritative": True,
+            "pagination_complete": True,
+            "confirmed_absent": True,
+            "exact_identity_match": False,
+            "exchange_order_id": None,
+            "matched_order": None,
+        },
+    )
+    runner.prove_failed_v5_root_2_absence(
+        object(),
+        recovery_slot_2=recovery,
+    )
+    monkeypatch.setattr(
+        runner,
+        "read_failed_v6_v7_order_catalog",
+        lambda _client: (
+            [],
+            {
+                "authoritative": True,
+                "pagination_complete": True,
+                "page_count": 1,
+                "order_count": 0,
+            },
+        ),
+    )
+    runner.prove_failed_v6_v7_client_ids_absent(
+        object(),
+        recovery_slot_2=recovery,
+    )
+    assert observed == [recovery, recovery]

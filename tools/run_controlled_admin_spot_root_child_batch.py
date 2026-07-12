@@ -60,6 +60,11 @@ ROOT = Path("/home/ec2-user/coinbase")
 V9_RUNNER_TEST_PATH = "tests/unit/test_controlled_admin_v9_runner.py"
 # Audited production parent containing the sealed v8-only recovery primitive.
 EXPECTED_COMMIT = "8c2f0ad0474b24988bccda1862193690f897cd24"
+# The first committed v9 runner discovered a read-only local-scope integration
+# blocker before plan creation. The final scoped fix must sit directly on it.
+V9_RUNNER_AUTHORITY_PARENT_COMMIT = (
+    "47e812f6eaa5421a491fd3a7787e03ddab99c7a8"
+)
 SECRET_ID = "coinbase/Test"
 SECRET_REGION = "us-east-1"
 PRODUCT_ID = "BTC-USDC"
@@ -5738,7 +5743,11 @@ def prove_v8_slot_2_recovery_preconditions(
     }
 
 
-def prove_failed_v5_root_2_absence(rest_client: Any) -> dict[str, Any]:
+def prove_failed_v5_root_2_absence(
+    rest_client: Any,
+    *,
+    recovery_slot_2: Mapping[str, Any],
+) -> dict[str, Any]:
     """Freshly prove v5 root-2 remained absent locally and at Coinbase."""
 
     local = prove_local_scope_with_historical_hidden_child(
@@ -5747,6 +5756,7 @@ def prove_failed_v5_root_2_absence(rest_client: Any) -> dict[str, Any]:
             FAILED_SUCCESSOR_V5_PLANNED_CHILD_CLIENT_ORDER_IDS[0],
         },
         carried_root_plan=completed_slot_1_binding_fixture(),
+        recovery_slot_2=recovery_slot_2,
     )
     from application.admin_api.command_service import (
         exact_coinbase_order_readback,
@@ -5839,7 +5849,11 @@ def read_failed_v6_v7_order_catalog(
         rest_client.timeout = original_timeout
 
 
-def prove_failed_v6_v7_client_ids_absent(rest_client: Any) -> dict[str, Any]:
+def prove_failed_v6_v7_client_ids_absent(
+    rest_client: Any,
+    *,
+    recovery_slot_2: Mapping[str, Any],
+) -> dict[str, Any]:
     """Prove all 36 expired-v6/v7 IDs absent with one complete Spot read."""
 
     planned_ids = set(FAILED_SUCCESSOR_V6_PLANNED_ROOT_CLIENT_ORDER_IDS) | set(
@@ -5852,6 +5866,7 @@ def prove_failed_v6_v7_client_ids_absent(rest_client: Any) -> dict[str, Any]:
     local = prove_local_scope_with_historical_hidden_child(
         planned_client_order_ids=planned_ids,
         carried_root_plan=completed_slot_1_binding_fixture(),
+        recovery_slot_2=recovery_slot_2,
     )
     rows, pagination = read_failed_v6_v7_order_catalog(rest_client)
     coinbase = validate_failed_v6_v7_coinbase_client_ids_absent(
@@ -7054,7 +7069,7 @@ def require_clean_commit() -> dict[str, Any]:
         cwd=ROOT,
     )
     topology = validate_runner_commit_topology(
-        production_commit=EXPECTED_COMMIT,
+        production_commit=V9_RUNNER_AUTHORITY_PARENT_COMMIT,
         head_commit=head,
         head_parents=parent_record[1:],
         changed_paths=changed_paths,
@@ -14906,10 +14921,16 @@ def execute_controlled_batch(
             prove_completed_slot_1_exchange_terminal(rest_client)
         )
         failed_v5_root_2_at_runtime_start = (
-            prove_failed_v5_root_2_absence(rest_client)
+            prove_failed_v5_root_2_absence(
+                rest_client,
+                recovery_slot_2=recovery_slot_2,
+            )
         )
         failed_v6_v7_ids_at_runtime_start = (
-            prove_failed_v6_v7_client_ids_absent(rest_client)
+            prove_failed_v6_v7_client_ids_absent(
+                rest_client,
+                recovery_slot_2=recovery_slot_2,
+            )
         )
         stable_active_zero_at_runtime_start = (
             prove_stable_authoritative_active_zero(
@@ -15592,7 +15613,10 @@ def execute_controlled_batch(
                     prove_completed_slot_1_exchange_terminal(rest_client)
                 )
                 failed_v6_v7_ids_before_first_enable = (
-                    prove_failed_v6_v7_client_ids_absent(rest_client)
+                    prove_failed_v6_v7_client_ids_absent(
+                        rest_client,
+                        recovery_slot_2=recovery_slot_2,
+                    )
                 )
                 require(
                     recovery_before_first_enable["fresh_read"] is True
@@ -18453,7 +18477,7 @@ def run_offline_self_test() -> dict[str, Any]:
         registration_index,
     )
     failed_v5_absence_before_registration_index = main_source.rfind(
-        "prove_failed_v5_root_2_absence(rest_client)",
+        "prove_failed_v5_root_2_absence(",
         0,
         registration_index,
     )
@@ -18489,7 +18513,7 @@ def run_offline_self_test() -> dict[str, Any]:
         and "execute_controlled_batch(" not in before_registration_source
         and "hydrate_test_credentials(" not in before_registration_source
         and "prove_local_scope_with_historical_hidden_child(" not in before_registration_source,
-        "self_test_v8_registration_terminal_absence_ordering_mismatch",
+        "self_test_v9_registration_terminal_absence_ordering_mismatch",
     )
     failed_v6_v7_absence_call_token = (
         "prove_failed_v6_v7_client_ids_" + "absent("
@@ -18898,7 +18922,10 @@ def run_offline_self_test() -> dict[str, Any]:
         "cross_generation_lifetime_sdk_counts_claimed": False,
         "reference_cap_scope": "completed_slot_1_plus_v8_root_2_plus_v9",
         "runtime_child_authority_validation_proven": True,
-        "production_parent_commit_bound": EXPECTED_COMMIT,
+        "backend_production_commit_bound": EXPECTED_COMMIT,
+        "runner_authority_parent_commit_bound": (
+            V9_RUNNER_AUTHORITY_PARENT_COMMIT
+        ),
         "runner_and_focused_test_direct_child_commit_topology_proven": True,
         "initial_v7_production_parent_commit_bound": (
             INITIAL_V7_PRODUCTION_PARENT_COMMIT
@@ -19038,7 +19065,8 @@ def main() -> int:
         rest_client
     )
     failed_v6_v7_client_ids_preflight = prove_failed_v6_v7_client_ids_absent(
-        rest_client
+        rest_client,
+        recovery_slot_2=recovery_scope,
     )
     sanitized = {
         "status": "read_only_preflight_passed",
@@ -19307,10 +19335,16 @@ def main() -> int:
                 prove_completed_slot_1_exchange_terminal(rest_client)
             )
             failed_v5_root_2_before_registration = (
-                prove_failed_v5_root_2_absence(rest_client)
+                prove_failed_v5_root_2_absence(
+                    rest_client,
+                    recovery_slot_2=recovery_slot_2,
+                )
             )
             failed_v6_v7_ids_before_registration = (
-                prove_failed_v6_v7_client_ids_absent(rest_client)
+                prove_failed_v6_v7_client_ids_absent(
+                    rest_client,
+                    recovery_slot_2=recovery_slot_2,
+                )
             )
             v8_recovery_before_registration = (
                 prove_v8_slot_2_recovery_preconditions(
