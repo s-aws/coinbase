@@ -54,6 +54,7 @@ def _bindings() -> dict[str, dict[str, object]]:
         "v8_binding": runner.offline_v8_binding_fixture(),
         "v9_binding": runner.offline_v9_binding_fixture(),
         "v10_binding": runner.offline_v10_binding_fixture(),
+        "v11_binding": runner.offline_v11_binding_fixture(),
     }
 
 
@@ -352,15 +353,15 @@ def test_v10_uses_a_fresh_fixed_authority_namespace() -> None:
     assert runner.V10_RUNNER_AUTHORITY_PARENT_COMMIT == (
         EXPECTED_V10_AUTHORITY_PARENT
     )
-    assert runner.PLAN_SCHEMA_VERSION == "15"
-    assert runner.SUCCESSOR_V11_PLAN_PATH.name.endswith(
-        "successor-v11-20260712.plan.json"
+    assert runner.PLAN_SCHEMA_VERSION == "16"
+    assert runner.SUCCESSOR_V12_PLAN_PATH.name.endswith(
+        "successor-v12-20260712.plan.json"
     )
     assert runner.GLOBAL_BATCH_MARKER_FILENAME.endswith(
-        "successor-v11-20260712.authority.json"
+        "successor-v12-20260712.authority.json"
     )
     assert runner.GLOBAL_BATCH_LEDGER_FILENAME.endswith(
-        "successor-v11-20260712.attempts.jsonl"
+        "successor-v12-20260712.attempts.jsonl"
     )
 
 
@@ -375,16 +376,17 @@ def test_v10_plan_binds_v9_and_burns_every_v9_fresh_identity() -> None:
         **bindings,
     )
 
-    assert plan["schema_version"] == "15"
+    assert plan["schema_version"] == "16"
     assert plan["approval_id"].startswith(
-        "controlled-root-child-successor-v11-"
+        "controlled-root-child-successor-v12-"
     )
     assert plan["continuation_kind"] == (
-        "sealed_v10_root_3_fill_recover_child_then_fresh_slots_4_to_10_v11"
+        "sealed_v11_terminal_failure_fresh_pairs_slots_5_to_10_v12"
     )
     assert plan["v9_binding"] == bindings["v9_binding"]
     assert plan["v10_binding"] == bindings["v10_binding"]
-    assert [root["slot"] for root in roots] == list(range(4, 11))
+    assert plan["v11_binding"] == bindings["v11_binding"]
+    assert [root["slot"] for root in roots] == list(range(5, 11))
     fresh_ids = {
         value
         for root in roots
@@ -393,13 +395,10 @@ def test_v10_plan_binds_v9_and_burns_every_v9_fresh_identity() -> None:
             root["child_client_order_id"],
         )
     }
-    burned_v10 = set(bindings["v10_binding"]["burned_root_client_order_ids"])
-    burned_v10 |= set(bindings["v10_binding"]["burned_child_client_order_ids"])
-    assert not fresh_ids & burned_v10
-    assert plan["recovery_slot_3"]["root_placement_authorized"] is False
-    assert plan["recovery_slot_3"]["child_client_order_id"] == (
-        runner.V10_SLOT_3_CHILD_CLIENT_ORDER_ID
-    )
+    burned_v11 = set(bindings["v11_binding"]["burned_root_client_order_ids"])
+    burned_v11 |= set(bindings["v11_binding"]["burned_child_client_order_ids"])
+    assert not fresh_ids & burned_v11
+    assert "recovery_slot_3" not in plan
 
 
 def test_v10_marker_and_runtime_authority_bind_v9_lineage() -> None:
@@ -407,7 +406,7 @@ def test_v10_marker_and_runtime_authority_bind_v9_lineage() -> None:
     bindings = _bindings()
     plan = runner.build_successor_live_plan(preflight, **bindings)
     marker = runner.build_global_batch_marker_payload(
-        runner.SUCCESSOR_V11_PLAN_PATH,
+        runner.SUCCESSOR_V12_PLAN_PATH,
         confirmed_plan=plan,
         expected_hash=str(plan["plan_sha256"]),
         expected_runner_sha256=str(plan["runner_sha256"]),
@@ -415,13 +414,14 @@ def test_v10_marker_and_runtime_authority_bind_v9_lineage() -> None:
         process_id=1,
     )
 
-    assert marker["schema_version"] == "11"
+    assert marker["schema_version"] == "12"
     assert marker["authority"] == (
-        "controlled-admin-spot-root-child-successor-v11-batch"
+        "controlled-admin-spot-root-child-successor-v12-batch"
     )
     assert marker["v9_binding"] == bindings["v9_binding"]
     assert marker["v10_binding"] == bindings["v10_binding"]
-    assert marker["reference_cap_scope"] == runner.V11_REFERENCE_CAP_SCOPE
+    assert marker["v11_binding"] == bindings["v11_binding"]
+    assert marker["reference_cap_scope"] == runner.V12_REFERENCE_CAP_SCOPE
     runner._validate_authority_plan_structure(
         plan,
         expected_plan_hash=str(plan["plan_sha256"]),
@@ -431,8 +431,6 @@ def test_v10_marker_and_runtime_authority_bind_v9_lineage() -> None:
 def test_failed_v9_absence_gate_checks_all_fresh_ids_and_recovery_scope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    plan = runner.build_successor_live_plan(_preflight(), **_bindings())
-    recovery = plan["recovery_slot_3"]
     observed: dict[str, object] = {}
 
     def local_scope(**kwargs: object) -> dict[str, bool]:
@@ -462,17 +460,18 @@ def test_failed_v9_absence_gate_checks_all_fresh_ids_and_recovery_scope(
             },
         ),
     )
-
-    evidence = runner.prove_failed_v10_unattempted_client_ids_absent(
-        object(),
-        recovery_slot_3=recovery,
+    monkeypatch.setattr(
+        runner,
+        "prove_completed_v11_flat_chains_local",
+        lambda: {"chain_count": 4, "chains": [], "fresh_local_read": True},
     )
 
-    assert evidence["planned_client_order_id_count"] == 14
-    assert observed["recovery_slot_3"] == recovery
+    evidence = runner.prove_failed_v11_unused_client_ids_absent(object())
+
+    assert evidence["planned_client_order_id_count"] == 12
     assert observed["planned_client_order_ids"] == (
-        set(runner.FAILED_SUCCESSOR_V10_PLANNED_ROOT_CLIENT_ORDER_IDS[1:])
-        | set(runner.FAILED_SUCCESSOR_V10_PLANNED_CHILD_CLIENT_ORDER_IDS[1:])
+        set(runner.FAILED_SUCCESSOR_V11_PLANNED_ROOT_CLIENT_ORDER_IDS[1:])
+        | set(runner.FAILED_SUCCESSOR_V11_PLANNED_CHILD_CLIENT_ORDER_IDS[1:])
     )
 
 
@@ -488,6 +487,7 @@ def test_v10_commit_scope_is_only_runner_focused_tests_and_ownership() -> None:
             runner.V9_RUNNER_TEST_PATH,
             runner.V10_RUNNER_TEST_PATH,
             runner.V11_RUNNER_TEST_PATH,
+            runner.V12_RUNNER_TEST_PATH,
             runner.OWNERSHIP_MANIFEST_PATH,
         ],
         runner_path=runner_path,
@@ -497,6 +497,7 @@ def test_v10_commit_scope_is_only_runner_focused_tests_and_ownership() -> None:
             runner.V9_RUNNER_TEST_PATH,
             runner.V10_RUNNER_TEST_PATH,
             runner.V11_RUNNER_TEST_PATH,
+            runner.V12_RUNNER_TEST_PATH,
             runner.OWNERSHIP_MANIFEST_PATH,
         ),
     )

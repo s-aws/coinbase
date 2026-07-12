@@ -1,64 +1,12 @@
-"""Focused recovery and pricing tests for the controlled v11 runner."""
+"""Focused sealed-lineage, recovery, and pricing tests for v11 evidence."""
 
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_CEILING
-import json
 import inspect
 
 import pytest
 
 from tools import run_controlled_admin_spot_root_child_batch as runner
-
-
-def _preflight() -> dict[str, object]:
-    return {
-        "portfolio_id": runner.TEST_PORTFOLIO_ID,
-        "wallets": {"USDC": Decimal("990"), "BTC": Decimal("0.00007084")},
-        "product": {
-            "price_increment": "0.01",
-            "base_increment": "0.00000001",
-            "base_min_size": "0.00000001",
-            "quote_min_size": "1",
-        },
-        "best_bid": Decimal("63817.31"),
-        "best_ask": Decimal("63817.32"),
-        "market": {
-            "product_id": runner.PRODUCT_ID,
-            "source": "coinbase_rest_get_best_bid_ask_exact_product",
-            "observed_at": "2026-07-12T08:30:00+00:00",
-        },
-    }
-
-
-def _bindings() -> dict[str, dict[str, object]]:
-    return {
-        "predecessor_binding": runner.offline_predecessor_binding_fixture(),
-        "failed_successor_binding": (
-            runner.offline_failed_successor_binding_fixture()
-        ),
-        "failed_v2_binding": runner.offline_failed_v2_binding_fixture(),
-        "failed_v3_binding": runner.offline_failed_v3_binding_fixture(),
-        "failed_v4_binding": runner.offline_failed_v4_binding_fixture(),
-        "failed_v5_binding": runner.offline_failed_v5_binding_fixture(),
-        "failed_v6_binding": runner.offline_failed_v6_binding_fixture(),
-        "failed_v7_binding": runner.offline_failed_v7_binding_fixture(),
-        "v8_binding": runner.offline_v8_binding_fixture(),
-        "v9_binding": runner.offline_v9_binding_fixture(),
-        "v10_binding": runner.offline_v10_binding_fixture(),
-    }
-
-
-def _validated_v11_plan() -> tuple[dict[str, object], list[dict[str, object]]]:
-    preflight = _preflight()
-    bindings = _bindings()
-    plan = runner.build_successor_live_plan(preflight, **bindings)
-    roots, _ = runner.validate_successor_live_plan(
-        plan,
-        expected_hash=str(plan["plan_sha256"]),
-        preflight=preflight,
-        **bindings,
-    )
-    return plan, roots
 
 
 def test_burned_v10_lineage_is_exactly_sealed() -> None:
@@ -114,271 +62,6 @@ def test_v10_artifact_validator_rejects_cap_seed_constant_drift(
 
     with pytest.raises(runner.ProofFailure, match=blocker):
         runner.load_v10_binding()
-
-
-def test_v11_authority_is_exactly_child_3_then_pairs_4_through_10() -> None:
-    assert runner.PLAN_SCHEMA_VERSION == "15"
-    assert runner.SUCCESSOR_ROOT_ORDER_MAXIMUM == 7
-    assert runner.SUCCESSOR_CHILD_ORDER_MAXIMUM == 8
-    assert runner.SUCCESSOR_ATTEMPT_COUNT == 15
-    assert runner.successor_attempt_schedule() == [
-        (3, "child"),
-        *[
-            item
-            for slot in range(4, 11)
-            for item in ((slot, "root"), (slot, "child"))
-        ],
-    ]
-    assert runner.SUCCESSOR_V11_PLAN_PATH.name.endswith(
-        "successor-v11-20260712.plan.json"
-    )
-    assert runner.GLOBAL_BATCH_MARKER_FILENAME.endswith(
-        "successor-v11-20260712.authority.json"
-    )
-    assert runner.GLOBAL_BATCH_LEDGER_FILENAME.endswith(
-        "successor-v11-20260712.attempts.jsonl"
-    )
-
-
-def test_v11_plan_recovers_only_child_3_and_uses_fresh_slots_4_to_10() -> None:
-    plan, roots = _validated_v11_plan()
-
-    assert plan["continuation_kind"] == (
-        "sealed_v10_root_3_fill_recover_child_then_fresh_slots_4_to_10_v11"
-    )
-    assert str(plan["approval_id"]).startswith(
-        "controlled-root-child-successor-v11-"
-    )
-    assert plan["remaining_attempt_count"] == 15
-    assert plan["new_root_order_maximum"] == 7
-    assert plan["child_order_maximum"] == 8
-    assert plan["v10_binding"] == runner.offline_v10_binding_fixture()
-    assert [root["slot"] for root in roots] == list(range(4, 11))
-
-    recovery = plan["recovery_slot_3"]
-    assert recovery["slot"] == 3
-    assert recovery["root_placement_authorized"] is False
-    assert recovery["child_recovery_authorized"] is True
-    assert recovery["root_client_order_id"] == runner.V10_SLOT_3_ROOT_CLIENT_ORDER_ID
-    assert recovery["child_client_order_id"] == runner.V10_SLOT_3_CHILD_CLIENT_ORDER_ID
-    assert recovery["root_exchange_order_id"] == runner.V10_SLOT_3_ROOT_EXCHANGE_ORDER_ID
-    assert recovery["prior_child_attempt_tuple_sha256"] == (
-        runner.V10_SLOT_3_CHILD_TUPLE_SHA256
-    )
-    assert recovery["prior_child_sdk_call_occurred"] is False
-
-    fresh_ids = {
-        str(value)
-        for root in roots
-        for value in (
-            root["root_client_order_id"],
-            root["child_client_order_id"],
-        )
-    }
-    burned_v10_ids = set(
-        runner.FAILED_SUCCESSOR_V10_PLANNED_ROOT_CLIENT_ORDER_IDS
-    ) | set(runner.FAILED_SUCCESSOR_V10_PLANNED_CHILD_CLIENT_ORDER_IDS)
-    assert not fresh_ids & burned_v10_ids
-
-
-def test_v11_plan_cap_starts_after_exact_v10_completed_reference() -> None:
-    plan, roots = _validated_v11_plan()
-    planned_new_root = sum(
-        Decimal(str(root["planned_notional_usdc"])) for root in roots
-    )
-    increment = Decimal(str(plan["child_price_increment"]))
-    planned_bid = Decimal(str(plan["best_bid_at_plan"]))
-    child_price = (
-        (planned_bid * runner.CHILD_TARGET_BID_RATIO) / increment
-    ).to_integral_value(rounding=ROUND_CEILING) * increment
-    planned_new_child = (
-        runner.V10_SLOT_3_ROOT_FILLED_SIZE
-        + sum(Decimal(str(root["order"]["base_size"])) for root in roots)
-    ) * child_price
-    expected_total = (
-        runner.V10_COMPLETED_REFERENCE_NOTIONAL
-        + planned_new_root
-        + planned_new_child
-    )
-
-    assert Decimal(str(plan["completed_reference_notional_usdc"])) == (
-        runner.V10_COMPLETED_REFERENCE_NOTIONAL
-    )
-    assert plan["reference_cap_scope"] == (
-        "completed_pairs_1_to_2_plus_v10_root_3_plus_"
-        "v11_child_3_and_pairs_4_to_10"
-    )
-    assert Decimal(str(plan["planned_new_root_notional_usdc"])) == planned_new_root
-    assert Decimal(
-        str(plan["planned_new_child_reference_notional_usdc"])
-    ) == planned_new_child
-    assert Decimal(
-        str(plan["planned_total_root_child_reference_notional_usdc"])
-    ) == expected_total
-    assert expected_total < Decimal("30.00")
-    assert all(
-        Decimal(str(root["order"]["base_size"])) * child_price
-        < Decimal("2.00")
-        for root in roots
-    )
-    assert runner.V10_SLOT_3_ROOT_FILLED_SIZE * child_price < Decimal("2.00")
-
-
-@pytest.mark.parametrize(
-    ("field", "replacement"),
-    [("child_target_bid_ratio", "1.71"), ("child_price_increment", "0.10")],
-)
-def test_v11_rehashed_plan_rejects_price_policy_tamper(
-    field: str,
-    replacement: str,
-) -> None:
-    preflight = _preflight()
-    bindings = _bindings()
-    plan = runner.build_successor_live_plan(preflight, **bindings)
-    plan[field] = replacement
-    plan["plan_sha256"] = runner.plan_hash(plan)
-
-    with pytest.raises(runner.ProofFailure, match="successor_plan_cap_policy_mismatch"):
-        runner.validate_successor_live_plan(
-            plan,
-            expected_hash=str(plan["plan_sha256"]),
-            preflight=preflight,
-            **bindings,
-        )
-
-
-def test_v11_marker_exposes_exact_recovery_price_and_cap_authority() -> None:
-    plan, roots = _validated_v11_plan()
-    marker = runner.build_global_batch_marker_payload(
-        runner.SUCCESSOR_V11_PLAN_PATH,
-        confirmed_plan=plan,
-        expected_hash=str(plan["plan_sha256"]),
-        expected_runner_sha256=runner.runner_sha256(),
-        registered_at=datetime.now(timezone.utc).isoformat(),
-        process_id=12345,
-    )
-
-    assert marker["schema_version"] == "11"
-    assert marker["authority"] == (
-        "controlled-admin-spot-root-child-successor-v11-batch"
-    )
-    assert marker["remaining_attempt_count"] == 15
-    assert marker["root_order_maximum"] == 7
-    assert marker["child_order_maximum"] == 8
-    assert marker["reference_cap_scope"] == plan["reference_cap_scope"]
-    assert Decimal(str(marker["inherited_reference_notional_usdc"])) == (
-        runner.V10_COMPLETED_REFERENCE_NOTIONAL
-    )
-    assert marker["v10_binding"] == runner.offline_v10_binding_fixture()
-    assert marker["recovery_slot_3_policy"] == {
-        "batch_slot": 3,
-        "root_client_order_id": runner.V10_SLOT_3_ROOT_CLIENT_ORDER_ID,
-        "child_client_order_id": runner.V10_SLOT_3_CHILD_CLIENT_ORDER_ID,
-        "root_exchange_order_id": runner.V10_SLOT_3_ROOT_EXCHANGE_ORDER_ID,
-        "root_placement_authorized": False,
-        "child_recovery_authorized": True,
-        "prior_child_attempt_tuple_sha256": runner.V10_SLOT_3_CHILD_TUPLE_SHA256,
-        "prior_child_sdk_call_occurred": False,
-    }
-    assert marker["exact_child_client_order_ids"] == [
-        runner.V10_SLOT_3_CHILD_CLIENT_ORDER_ID,
-        *[str(root["child_client_order_id"]) for root in roots],
-    ]
-    assert marker["child_policy"]["minimum_fresh_bid_ratio"] == "1.60"
-    assert marker["child_policy"]["target_fresh_bid_ratio"] == "1.70"
-    assert marker["child_policy"]["price_increment"] == "0.01"
-
-
-def test_v11_ledger_first_attempt_is_exact_recovery_child_3() -> None:
-    plan, _ = _validated_v11_plan()
-    rows = runner.successor_plan_rows_by_slot(plan)
-    recovery = rows[3]
-    child_tuple = runner.build_child_order_tuple(
-        plan,
-        recovery,
-        filled_size=runner.V10_SLOT_3_ROOT_FILLED_SIZE,
-        fresh_market={
-            "best_bid": Decimal("63817.31"),
-            "observed_at": datetime.now(timezone.utc).isoformat(),
-        },
-        price_increment=Decimal("0.01"),
-    )
-    record = runner.build_batch_attempt_record(
-        confirmed_plan=plan,
-        confirmed_plan_hash=str(plan["plan_sha256"]),
-        sequence=1,
-        slot=3,
-        attempt_kind="child",
-        exact_order_tuple=child_tuple,
-        consumed_at=datetime.now(timezone.utc).isoformat(),
-        process_id=12345,
-    )
-    raw = (json.dumps(record, sort_keys=True) + "\n").encode()
-
-    assert runner._parse_and_validate_attempt_ledger(
-        raw,
-        confirmed_plan=plan,
-        confirmed_plan_hash=str(plan["plan_sha256"]),
-    ) == [record]
-    assert record["client_order_id"] == runner.V10_SLOT_3_CHILD_CLIENT_ORDER_ID
-    assert record["root_client_order_id"] == runner.V10_SLOT_3_ROOT_CLIENT_ORDER_ID
-    assert record["exact_order_tuple_sha256"] == runner._canonical_json_sha256(
-        child_tuple
-    )
-
-
-def test_v11_ledger_cap_seed_includes_every_v10_completed_reference(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    plan, _ = _validated_v11_plan()
-    recovery = runner.successor_plan_rows_by_slot(plan)[3]
-    child_tuple = runner.build_child_order_tuple(
-        plan,
-        recovery,
-        filled_size=runner.V10_SLOT_3_ROOT_FILLED_SIZE,
-        fresh_market={
-            "best_bid": Decimal("63817.31"),
-            "observed_at": datetime.now(timezone.utc).isoformat(),
-        },
-        price_increment=Decimal("0.01"),
-    )
-    record = runner.build_batch_attempt_record(
-        confirmed_plan=plan,
-        confirmed_plan_hash=str(plan["plan_sha256"]),
-        sequence=1,
-        slot=3,
-        attempt_kind="child",
-        exact_order_tuple=child_tuple,
-        consumed_at=datetime.now(timezone.utc).isoformat(),
-        process_id=12345,
-    )
-    tuple_notional = Decimal(child_tuple["base_size"]) * Decimal(
-        child_tuple["limit_price"]
-    )
-    monkeypatch.setattr(
-        runner,
-        "BATCH_TOTAL_REFERENCE_CAP_USDC",
-        runner.V10_COMPLETED_REFERENCE_NOTIONAL + tuple_notional,
-    )
-
-    with pytest.raises(
-        runner.ProofFailure,
-        match="global_batch_attempt_cumulative_reference_cap_exceeded",
-    ):
-        runner._parse_and_validate_attempt_ledger(
-            (json.dumps(record, sort_keys=True) + "\n").encode(),
-            confirmed_plan=plan,
-            confirmed_plan_hash=str(plan["plan_sha256"]),
-        )
-
-
-def test_v11_runtime_authority_accepts_only_the_new_plan_structure() -> None:
-    plan, _ = _validated_v11_plan()
-
-    runner._validate_authority_plan_structure(
-        plan,
-        expected_plan_hash=str(plan["plan_sha256"]),
-    )
 
 
 def test_completed_slot_2_child_is_freshly_proven_cancelled_zero_fill() -> None:
@@ -518,6 +201,55 @@ def test_v11_root_attempts_start_disabled_and_enable_only_after_ledger() -> None
 
     assert disabled < proofs < ledger < enabled < preview < submitted
     assert terminal_child < disabled_after_pair < chain_readback
+
+
+def test_parent_loss_durable_rejected_cancel_requires_direct_reconciliation() -> None:
+    result = {
+        "http_status": 400,
+        "payload": {
+            "status": "rejected",
+            "message": "Controlled first-child state read failed",
+        },
+    }
+
+    outcome = runner._classify_parent_loss_cancel_response(result)
+
+    assert outcome == "durable_rejected"
+    assert runner._parent_loss_cancel_retry_decision(
+        exact_order_active=True,
+        stable_active_scope_proven=True,
+        prior_cancel_outcome=outcome,
+    ) == "require_operator_direct_reconciliation"
+    retry_pending, direct_reconciliation_ids = (
+        runner._parent_loss_cancel_pending_state(
+            exact_active_client_order_ids=["exact-child-id"],
+            cancel_outcomes={"exact-child-id": outcome},
+        )
+    )
+    assert retry_pending is False
+    assert direct_reconciliation_ids == ["exact-child-id"]
+    assert runner._parent_loss_cancel_pending_state(
+        exact_active_client_order_ids=[],
+        cancel_outcomes={"exact-child-id": outcome},
+    ) == (False, ["exact-child-id"])
+
+
+def test_parent_loss_timeout_retains_only_same_idempotent_cancel_retry() -> None:
+    outcome = "timeout_or_exception"
+
+    assert runner._parent_loss_cancel_retry_decision(
+        exact_order_active=True,
+        stable_active_scope_proven=True,
+        prior_cancel_outcome=outcome,
+    ) == "issue_same_idempotent_exact_cancel"
+    retry_pending, direct_reconciliation_ids = (
+        runner._parent_loss_cancel_pending_state(
+            exact_active_client_order_ids=["exact-child-id"],
+            cancel_outcomes={"exact-child-id": outcome},
+        )
+    )
+    assert retry_pending is True
+    assert direct_reconciliation_ids == []
 
 
 def test_child_tuple_uses_v11_target_170_ratio_and_survives_six_percent_bid_drift() -> None:
