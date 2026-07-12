@@ -52,8 +52,8 @@ import requests
 
 
 ROOT = Path("/home/ec2-user/coinbase")
-# Immutable expired-v6 runner commit audited before this runner-only v7.
-EXPECTED_COMMIT = "df39b0b548596d651ebabfe71817bb4443096ec7"
+# Audited initial-v7 commit before the focused catalog-timeout successor.
+EXPECTED_COMMIT = "75307c7815bd70549c805acd92ca14501843259d"
 SECRET_ID = "coinbase/Test"
 SECRET_REGION = "us-east-1"
 PRODUCT_ID = "BTC-USDC"
@@ -89,6 +89,7 @@ CONTROLLED_CHILD_CANCEL_OPERATOR_INTENT = (
 )
 HTTP_TIMEOUT_SECONDS = 20
 COINBASE_SDK_TIMEOUT_SECONDS = 5
+COINBASE_CATALOG_TIMEOUT_SECONDS = 20
 PLAN_TTL = timedelta(minutes=60)
 FAILED_SUCCESSOR_V6_PLAN_TTL = timedelta(minutes=30)
 TERMINAL_STATUSES = {
@@ -645,6 +646,11 @@ FAILED_SUCCESSOR_V6_PRODUCTION_PARENT_COMMIT = (
 )
 FAILED_SUCCESSOR_V6_RUNNER_SHA256 = (
     "8af178c621b855c77c9f2d233f419f894e270ed62556b92a43dc43fb2dc28835"
+)
+INITIAL_V7_PRODUCTION_PARENT_COMMIT = FAILED_SUCCESSOR_V6_RUNNER_COMMIT
+INITIAL_V7_RUNNER_COMMIT = "75307c7815bd70549c805acd92ca14501843259d"
+INITIAL_V7_RUNNER_SHA256 = (
+    "ae257d3939a98ef1f5ca1fcaa6e89ad1867cd8a141396204eed71fce3124c5bb"
 )
 FAILED_SUCCESSOR_V6_APPROVAL_ID = (
     "controlled-root-child-successor-v6-97e62266-9735-491b-b2e7-f0c8e68bad5b"
@@ -4245,6 +4251,30 @@ def validate_failed_v6_coinbase_client_ids_absent(
     }
 
 
+def read_failed_v6_order_catalog(
+    rest_client: Any,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Read the complete Spot catalog with a temporary read-only timeout."""
+
+    from application.admin_api.command_service import (
+        read_authoritative_coinbase_orders,
+    )
+
+    original_timeout = getattr(rest_client, "timeout", None)
+    require(
+        original_timeout == COINBASE_SDK_TIMEOUT_SECONDS,
+        "failed_v6_catalog_mutation_sdk_timeout_drift",
+    )
+    rest_client.timeout = COINBASE_CATALOG_TIMEOUT_SECONDS
+    try:
+        return read_authoritative_coinbase_orders(
+            rest_client,
+            product_type="SPOT",
+        )
+    finally:
+        rest_client.timeout = original_timeout
+
+
 def prove_failed_v6_client_ids_absent(rest_client: Any) -> dict[str, Any]:
     """Prove all 18 expired-v6 IDs absent with one complete Spot read."""
 
@@ -4255,14 +4285,7 @@ def prove_failed_v6_client_ids_absent(rest_client: Any) -> dict[str, Any]:
         planned_client_order_ids=planned_ids,
         carried_root_plan=completed_slot_1_binding_fixture(),
     )
-    from application.admin_api.command_service import (
-        read_authoritative_coinbase_orders,
-    )
-
-    rows, pagination = read_authoritative_coinbase_orders(
-        rest_client,
-        product_type="SPOT",
-    )
+    rows, pagination = read_failed_v6_order_catalog(rest_client)
     coinbase = validate_failed_v6_coinbase_client_ids_absent(
         rows,
         pagination,
@@ -5020,8 +5043,9 @@ def require_failed_v6_commit_binding() -> dict[str, Any]:
     """Bind expired v6 to the exact runner-only production commit."""
 
     require(
-        FAILED_SUCCESSOR_V6_RUNNER_COMMIT == EXPECTED_COMMIT,
-        "failed_v6_not_v7_production_parent",
+        FAILED_SUCCESSOR_V6_RUNNER_COMMIT
+        == INITIAL_V7_PRODUCTION_PARENT_COMMIT,
+        "failed_v6_not_initial_v7_production_parent",
     )
     runner_relative_path = Path(__file__).resolve().relative_to(ROOT).as_posix()
     parent_record = subprocess.check_output(
@@ -5060,6 +5084,44 @@ def require_failed_v6_commit_binding() -> dict[str, Any]:
     return topology
 
 
+def require_initial_v7_commit_binding() -> dict[str, Any]:
+    """Bind the audited initial-v7 runner-only commit before timeout repair."""
+
+    require(
+        INITIAL_V7_RUNNER_COMMIT == EXPECTED_COMMIT,
+        "initial_v7_not_timeout_successor_production_parent",
+    )
+    runner_relative_path = Path(__file__).resolve().relative_to(ROOT).as_posix()
+    parent_record = subprocess.check_output(
+        ["git", "rev-list", "--parents", "-n", "1", INITIAL_V7_RUNNER_COMMIT],
+        cwd=ROOT,
+        text=True,
+    ).strip().split()
+    changed_paths = subprocess.check_output(
+        ["git", "diff-tree", "--no-commit-id", "--name-only", "-r", INITIAL_V7_RUNNER_COMMIT],
+        cwd=ROOT,
+        text=True,
+    ).splitlines()
+    committed_runner_bytes = subprocess.check_output(
+        ["git", "show", f"{INITIAL_V7_RUNNER_COMMIT}:{runner_relative_path}"],
+        cwd=ROOT,
+    )
+    committed_runner_sha256 = hashlib.sha256(committed_runner_bytes).hexdigest()
+    require(
+        committed_runner_sha256 == INITIAL_V7_RUNNER_SHA256,
+        "initial_v7_committed_runner_hash_mismatch",
+    )
+    return validate_runner_commit_topology(
+        production_commit=INITIAL_V7_PRODUCTION_PARENT_COMMIT,
+        head_commit=INITIAL_V7_RUNNER_COMMIT,
+        head_parents=parent_record[1:],
+        changed_paths=changed_paths,
+        runner_path=runner_relative_path,
+        committed_runner_sha256=committed_runner_sha256,
+        working_runner_sha256=committed_runner_sha256,
+    )
+
+
 def require_clean_commit() -> dict[str, Any]:
     failed_successor_topology = require_failed_successor_commit_binding()
     failed_v2_topology = require_failed_v2_commit_binding()
@@ -5067,6 +5129,7 @@ def require_clean_commit() -> dict[str, Any]:
     failed_v4_topology = require_failed_v4_commit_binding()
     failed_v5_topology = require_failed_v5_commit_binding()
     failed_v6_topology = require_failed_v6_commit_binding()
+    initial_v7_topology = require_initial_v7_commit_binding()
     head = subprocess.check_output(
         ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
     ).strip()
@@ -5142,6 +5205,7 @@ def require_clean_commit() -> dict[str, Any]:
     topology["failed_v4_topology"] = failed_v4_topology
     topology["failed_v5_topology"] = failed_v5_topology
     topology["failed_v6_topology"] = failed_v6_topology
+    topology["initial_v7_topology"] = initial_v7_topology
     return topology
 
 
@@ -13455,6 +13519,17 @@ def execute_controlled_batch(
 def run_offline_self_test() -> dict[str, Any]:
     """Exercise batch authority, ledgers, and SDK guards without I/O."""
 
+    catalog_timeout = globals().get("COINBASE_CATALOG_TIMEOUT_SECONDS")
+    require(
+        isinstance(catalog_timeout, int)
+        and catalog_timeout >= HTTP_TIMEOUT_SECONDS
+        > COINBASE_SDK_TIMEOUT_SECONDS,
+        "offline_catalog_timeout_not_isolated_from_mutation_sdk_timeout",
+    )
+    require(
+        callable(globals().get("read_failed_v6_order_catalog")),
+        "offline_timed_catalog_reader_missing",
+    )
     require(
         EXECUTION_LOCK_PATH.parent == GLOBAL_BATCH_REGISTRY_DIR,
         "self_test_execution_lease_not_in_durable_registry",
@@ -13666,6 +13741,18 @@ def run_offline_self_test() -> dict[str, Any]:
     require(
         load_failed_v6_binding() == failed_v6,
         "self_test_failed_v6_artifact_binding_mismatch",
+    )
+    require(
+        callable(globals().get("require_initial_v7_commit_binding")),
+        "offline_initial_v7_commit_binding_missing",
+    )
+    initial_v7_topology = require_initial_v7_commit_binding()
+    require(
+        initial_v7_topology["production_commit"]
+        == FAILED_SUCCESSOR_V6_RUNNER_COMMIT
+        and initial_v7_topology["runner_commit"] == EXPECTED_COMMIT
+        and initial_v7_topology["runner_only_commit_proven"] is True,
+        "offline_initial_v7_commit_topology_mismatch",
     )
     require(
         all(
@@ -13902,6 +13989,49 @@ def run_offline_self_test() -> dict[str, Any]:
         except ProofFailure as exc:
             return str(exc)
         raise ProofFailure(blocker)
+
+    class OfflineTimedCatalogClient:
+        def __init__(self, *, fail: bool = False) -> None:
+            self.timeout = COINBASE_SDK_TIMEOUT_SECONDS
+            self.fail = fail
+            self.observed_timeouts: list[int] = []
+
+        def list_orders(self, **kwargs: Any) -> dict[str, Any]:
+            del kwargs
+            self.observed_timeouts.append(self.timeout)
+            if self.fail:
+                raise RuntimeError("offline_catalog_failure")
+            return {"orders": [], "has_next": False, "cursor": ""}
+
+    timed_catalog_client = OfflineTimedCatalogClient()
+    timed_rows, timed_pagination = read_failed_v6_order_catalog(
+        timed_catalog_client
+    )
+    require(
+        timed_rows == []
+        and timed_pagination["pagination_complete"] is True
+        and timed_catalog_client.observed_timeouts
+        == [COINBASE_CATALOG_TIMEOUT_SECONDS]
+        and timed_catalog_client.timeout == COINBASE_SDK_TIMEOUT_SECONDS,
+        "self_test_catalog_timeout_override_or_restore_failed",
+    )
+    failing_timed_catalog_client = OfflineTimedCatalogClient(fail=True)
+    try:
+        read_failed_v6_order_catalog(failing_timed_catalog_client)
+    except Exception as exc:
+        require(
+            type(exc).__name__ == "CoinbaseOrderReadbackError",
+            "self_test_catalog_failure_type_mismatch",
+        )
+    else:
+        raise ProofFailure("self_test_catalog_failure_not_propagated")
+    require(
+        failing_timed_catalog_client.observed_timeouts
+        == [COINBASE_CATALOG_TIMEOUT_SECONDS]
+        and failing_timed_catalog_client.timeout
+        == COINBASE_SDK_TIMEOUT_SECONDS,
+        "self_test_catalog_timeout_not_restored_after_failure",
+    )
 
     future_plan = json.loads(json.dumps(successor_plan))
     future_created_at = now + timedelta(hours=2)
@@ -15549,7 +15679,7 @@ def run_offline_self_test() -> dict[str, Any]:
         "self_test_v7_failed_v6_absence_four_call_sites_mismatch",
     )
     failed_v6_absence_function_source = source[
-        source.index("def " + failed_v6_absence_call_token) :
+        source.index("def read_failed_v6_order_catalog(") :
         source.index("def prove_stable_authoritative_active_zero(")
     ]
     require(
@@ -15559,6 +15689,15 @@ def run_offline_self_test() -> dict[str, Any]:
         == 1
         and 'product_type="SPOT"' in failed_v6_absence_function_source
         and "product_ids=" not in failed_v6_absence_function_source
+        and "original_timeout = getattr(rest_client, \"timeout\", None)"
+        in failed_v6_absence_function_source
+        and "rest_client.timeout = COINBASE_CATALOG_TIMEOUT_SECONDS"
+        in failed_v6_absence_function_source
+        and "finally:" in failed_v6_absence_function_source
+        and "rest_client.timeout = original_timeout"
+        in failed_v6_absence_function_source
+        and "rows, pagination = read_failed_v6_order_catalog(rest_client)"
+        in failed_v6_absence_function_source
         and "planned_client_order_ids=planned_ids"
         in failed_v6_absence_function_source
         and 'local.get("planned_ids_absent_from_order_parent") is True'
@@ -15881,6 +16020,18 @@ def run_offline_self_test() -> dict[str, Any]:
         "runtime_child_authority_validation_proven": True,
         "production_parent_commit_bound": EXPECTED_COMMIT,
         "runner_only_direct_child_commit_topology_proven": True,
+        "initial_v7_production_parent_commit_bound": (
+            INITIAL_V7_PRODUCTION_PARENT_COMMIT
+        ),
+        "initial_v7_runner_commit_bound": INITIAL_V7_RUNNER_COMMIT,
+        "initial_v7_runner_sha256_bound": INITIAL_V7_RUNNER_SHA256,
+        "initial_v7_runner_only_commit_topology_proven": True,
+        "coinbase_sdk_timeout_seconds": COINBASE_SDK_TIMEOUT_SECONDS,
+        "coinbase_catalog_timeout_seconds": (
+            COINBASE_CATALOG_TIMEOUT_SECONDS
+        ),
+        "complete_catalog_timeout_covers_admin_http_timeout": True,
+        "mutation_sdk_timeout_below_admin_http_timeout": True,
         "intervening_or_unrelated_commit_denied": True,
         "committed_runner_blob_hash_binding_proven": True,
         "live_path_tmp_dependency_absent": True,
