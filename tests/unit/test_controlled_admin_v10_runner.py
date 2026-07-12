@@ -55,6 +55,7 @@ def _bindings() -> dict[str, dict[str, object]]:
         "v9_binding": runner.offline_v9_binding_fixture(),
         "v10_binding": runner.offline_v10_binding_fixture(),
         "v11_binding": runner.offline_v11_binding_fixture(),
+        "v12_binding": runner.offline_v12_binding_fixture(),
     }
 
 
@@ -349,23 +350,23 @@ def test_burned_v9_zero_sdk_failure_is_exactly_sealed() -> None:
     assert len(binding["burned_child_client_order_ids"]) == 8
 
 
-def test_v10_uses_a_fresh_fixed_authority_namespace() -> None:
+def test_active_runner_uses_the_v13_fixed_authority_namespace() -> None:
     assert runner.V10_RUNNER_AUTHORITY_PARENT_COMMIT == (
         EXPECTED_V10_AUTHORITY_PARENT
     )
-    assert runner.PLAN_SCHEMA_VERSION == "16"
-    assert runner.SUCCESSOR_V12_PLAN_PATH.name.endswith(
-        "successor-v12-20260712.plan.json"
+    assert runner.PLAN_SCHEMA_VERSION == "17"
+    assert runner.SUCCESSOR_V13_PLAN_PATH.name.endswith(
+        "successor-v13-20260712.plan.json"
     )
     assert runner.GLOBAL_BATCH_MARKER_FILENAME.endswith(
-        "successor-v12-20260712.authority.json"
+        "successor-v13-20260712.authority.json"
     )
     assert runner.GLOBAL_BATCH_LEDGER_FILENAME.endswith(
-        "successor-v12-20260712.attempts.jsonl"
+        "successor-v13-20260712.attempts.jsonl"
     )
 
 
-def test_v10_plan_binds_v9_and_burns_every_v9_fresh_identity() -> None:
+def test_v13_plan_binds_v9_through_v12_and_burns_historical_identities() -> None:
     preflight = _preflight()
     bindings = _bindings()
     plan = runner.build_successor_live_plan(preflight, **bindings)
@@ -376,17 +377,18 @@ def test_v10_plan_binds_v9_and_burns_every_v9_fresh_identity() -> None:
         **bindings,
     )
 
-    assert plan["schema_version"] == "16"
+    assert plan["schema_version"] == "17"
     assert plan["approval_id"].startswith(
-        "controlled-root-child-successor-v12-"
+        "controlled-root-child-successor-v13-"
     )
     assert plan["continuation_kind"] == (
-        "sealed_v11_terminal_failure_fresh_pairs_slots_5_to_10_v12"
+        "sealed_v12_root_5_fill_recover_child_then_fresh_slots_6_to_10_v13"
     )
     assert plan["v9_binding"] == bindings["v9_binding"]
     assert plan["v10_binding"] == bindings["v10_binding"]
     assert plan["v11_binding"] == bindings["v11_binding"]
-    assert [root["slot"] for root in roots] == list(range(5, 11))
+    assert plan["v12_binding"] == bindings["v12_binding"]
+    assert [root["slot"] for root in roots] == list(range(6, 11))
     fresh_ids = {
         value
         for root in roots
@@ -399,14 +401,15 @@ def test_v10_plan_binds_v9_and_burns_every_v9_fresh_identity() -> None:
     burned_v11 |= set(bindings["v11_binding"]["burned_child_client_order_ids"])
     assert not fresh_ids & burned_v11
     assert "recovery_slot_3" not in plan
+    assert plan["recovery_slot_5"]["child_recovery_authorized"] is True
 
 
-def test_v10_marker_and_runtime_authority_bind_v9_lineage() -> None:
+def test_v13_marker_and_runtime_authority_bind_v9_through_v12_lineage() -> None:
     preflight = _preflight()
     bindings = _bindings()
     plan = runner.build_successor_live_plan(preflight, **bindings)
     marker = runner.build_global_batch_marker_payload(
-        runner.SUCCESSOR_V12_PLAN_PATH,
+        runner.SUCCESSOR_V13_PLAN_PATH,
         confirmed_plan=plan,
         expected_hash=str(plan["plan_sha256"]),
         expected_runner_sha256=str(plan["runner_sha256"]),
@@ -414,14 +417,15 @@ def test_v10_marker_and_runtime_authority_bind_v9_lineage() -> None:
         process_id=1,
     )
 
-    assert marker["schema_version"] == "12"
+    assert marker["schema_version"] == "13"
     assert marker["authority"] == (
-        "controlled-admin-spot-root-child-successor-v12-batch"
+        "controlled-admin-spot-root-child-successor-v13-batch"
     )
     assert marker["v9_binding"] == bindings["v9_binding"]
     assert marker["v10_binding"] == bindings["v10_binding"]
     assert marker["v11_binding"] == bindings["v11_binding"]
-    assert marker["reference_cap_scope"] == runner.V12_REFERENCE_CAP_SCOPE
+    assert marker["v12_binding"] == bindings["v12_binding"]
+    assert marker["reference_cap_scope"] == runner.V13_REFERENCE_CAP_SCOPE
     runner._validate_authority_plan_structure(
         plan,
         expected_plan_hash=str(plan["plan_sha256"]),

@@ -282,6 +282,7 @@ owners:
       - tests/unit/test_controlled_admin_v10_runner.py
       - tests/unit/test_controlled_admin_v11_runner.py
       - tests/unit/test_controlled_admin_v12_runner.py
+      - tests/unit/test_controlled_admin_v13_runner.py
       - tests/regression/test_admin_mvp_account_reality_live_read_smoke.py
       - tests/regression/test_admin_mvp_futures_executor_boundary_smoke.py
       - tests/regression/test_coinbase_live_credentials.py
