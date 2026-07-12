@@ -9,6 +9,7 @@ import uuid
 import pytest
 
 from application.admin_api.command_service import AdminApiCommandDependencies
+from application.admin_api.idempotency import make_payload_hash
 from application.admin_api.models import (
     AdminApiCommandResponse,
     AdminLiveAdmissionDecisionEvidence,
@@ -251,6 +252,18 @@ def test_controlled_first_child_reveal_route_binds_proofs_rbac_and_idempotency(
     assert command.admin_cap_guard_decision_id == "cap-controlled-child-route"
     assert command.admin_reconciliation_plan_id == "recon-controlled-child-route"
     assert str(command.admin_max_submitted_notional_usdc) == "2.00"
+    legacy_payload_hash = make_payload_hash(
+        {
+            "endpoint": f"POST /api/v1/stealth/orders/{child_id}/reveal",
+            "actor_id": "operator-001",
+            "roles": ["trader"],
+            "operator_intent": intent,
+            "body": body,
+            "path_params": {"stealth_order_id": child_id},
+        }
+    )
+    assert command.request.controlled_prior_preparation_sha256 is None
+    assert command.admission_decision.payload_hash == legacy_payload_hash
     assert len(client.admin_api_test_audit_store.read_recent()) == audit_count + 1
 
     replay = client.post(
@@ -270,6 +283,40 @@ def test_controlled_first_child_reveal_route_binds_proofs_rbac_and_idempotency(
     assert conflict.status_code == 409
     assert conflict.json()["status"] == AdminApiCommandStatus.CONFLICT.value
     assert len(service.reveal_commands) == 1
+
+    recovery_hash = "a" * 64
+    recovery_body = {
+        **body,
+        "controlled_prior_preparation_sha256": recovery_hash,
+    }
+    recovery = client.post(
+        f"/api/v1/stealth/orders/{child_id}/reveal",
+        headers={
+            **headers,
+            "Idempotency-Key": "idem-controlled-first-child-recovery-route",
+        },
+        json=recovery_body,
+    )
+    assert recovery.status_code == 200
+    assert len(service.reveal_commands) == 2
+    recovery_command = service.reveal_commands[1]
+    expected_recovery_payload_hash = make_payload_hash(
+        {
+            "endpoint": f"POST /api/v1/stealth/orders/{child_id}/reveal",
+            "actor_id": "operator-001",
+            "roles": ["trader"],
+            "operator_intent": intent,
+            "body": recovery_body,
+            "path_params": {"stealth_order_id": child_id},
+        }
+    )
+    assert recovery_command.request.controlled_prior_preparation_sha256 == (
+        recovery_hash
+    )
+    assert recovery_command.admission_decision.payload_hash == (
+        expected_recovery_payload_hash
+    )
+    assert expected_recovery_payload_hash != legacy_payload_hash
 
 
 def test_controlled_first_child_cancel_route_binds_proofs_and_replays_once(

@@ -16,6 +16,7 @@ from core.action_condition_guard import (
     rest_credentials_configured,
 )
 from core.enums import OrderOwnershipProvenance
+from core.exceptions import ControlledChildPrePlacementError
 from core.runtime_controller import (
     INFLIGHT_FILL_PROCESSING,
     get_runtime_controller,
@@ -744,42 +745,73 @@ class AdminApiControlledFirstChildRuntimeAdapter:
         reconciliation_plan_id: str,
         controlled_batch_id: str,
         controlled_batch_slot: int,
+        expected_prior_preparation_sha256: str | None = None,
     ) -> dict[str, Any]:
         manager = self.stealth_manager
-        market = self.market_reference_getter("BTC-USDC")
-        if not isinstance(market, Mapping):
-            raise RuntimeError("controlled_child_fresh_bid_missing")
         try:
-            market_bid = Decimal(str(market.get("best_bid") or "0"))
-        except (ArithmeticError, TypeError, ValueError) as exc:
-            raise RuntimeError("controlled_child_fresh_bid_missing") from exc
-        if not market_bid.is_finite() or market_bid <= 0:
-            raise RuntimeError("controlled_child_fresh_bid_missing")
-        market_observed_at = self._observed_at(market.get("observed_at"))
-        market_source = str(market.get("source") or "").strip().lower()
-        if market_source not in SPOT_STANDING_MARKET_SOURCES:
-            raise RuntimeError("controlled_child_market_source_invalid")
+            market = self.market_reference_getter("BTC-USDC")
+            if not isinstance(market, Mapping):
+                raise RuntimeError("controlled_child_fresh_bid_missing")
+            try:
+                market_bid = Decimal(str(market.get("best_bid") or "0"))
+            except (ArithmeticError, TypeError, ValueError) as exc:
+                raise RuntimeError("controlled_child_fresh_bid_missing") from exc
+            if not market_bid.is_finite() or market_bid <= 0:
+                raise RuntimeError("controlled_child_fresh_bid_missing")
+            market_observed_at = self._observed_at(market.get("observed_at"))
+            market_source = str(market.get("source") or "").strip().lower()
+            if market_source not in SPOT_STANDING_MARKET_SOURCES:
+                raise RuntimeError("controlled_child_market_source_invalid")
+        except Exception as exc:
+            raise ControlledChildPrePlacementError(
+                str(exc),
+                stage="market_reference",
+                cause_type=type(exc).__name__,
+                stealth_order_id=stealth_order_id,
+            ) from exc
 
-        authority = manager.prepare_controlled_admin_first_child_reveal(
-            stealth_order_id=stealth_order_id,
-            expected_root_client_order_id=expected_root_client_order_id,
-            expected_portfolio_id=expected_portfolio_id,
-            submitted_limit_price=float(Decimal(str(submitted_limit_price))),
-            max_notional_usdc=float(Decimal(str(max_notional_usdc))),
-            market_bid=self._decimal_text(market_bid),
-            market_source=market_source,
-            market_observed_at=market_observed_at,
-            approval_snapshot_id=approval_snapshot_id,
-            admission_audit_id=admission_audit_id,
-            cap_guard_decision_id=cap_guard_decision_id,
-            reconciliation_plan_id=reconciliation_plan_id,
-            batch_id=controlled_batch_id,
-            batch_slot=controlled_batch_slot,
-        )
-        prepared_price = Decimal(str(authority.prepared_limit_price))
-        requested_price = Decimal(str(submitted_limit_price))
-        if prepared_price != requested_price:
-            raise RuntimeError("controlled_child_limit_price_not_increment_aligned")
+        try:
+            authority = manager.prepare_controlled_admin_first_child_reveal(
+                stealth_order_id=stealth_order_id,
+                expected_root_client_order_id=expected_root_client_order_id,
+                expected_portfolio_id=expected_portfolio_id,
+                submitted_limit_price=float(Decimal(str(submitted_limit_price))),
+                max_notional_usdc=float(Decimal(str(max_notional_usdc))),
+                market_bid=self._decimal_text(market_bid),
+                market_source=market_source,
+                market_observed_at=market_observed_at,
+                approval_snapshot_id=approval_snapshot_id,
+                admission_audit_id=admission_audit_id,
+                cap_guard_decision_id=cap_guard_decision_id,
+                reconciliation_plan_id=reconciliation_plan_id,
+                batch_id=controlled_batch_id,
+                batch_slot=controlled_batch_slot,
+                expected_prior_preparation_sha256=(
+                    expected_prior_preparation_sha256
+                ),
+            )
+        except Exception as exc:
+            raise ControlledChildPrePlacementError(
+                str(exc),
+                stage="preparation",
+                cause_type=type(exc).__name__,
+                stealth_order_id=stealth_order_id,
+            ) from exc
+
+        try:
+            prepared_price = Decimal(str(authority.prepared_limit_price))
+            requested_price = Decimal(str(submitted_limit_price))
+            if prepared_price != requested_price:
+                raise RuntimeError(
+                    "controlled_child_limit_price_not_increment_aligned"
+                )
+        except Exception as exc:
+            raise ControlledChildPrePlacementError(
+                str(exc),
+                stage="price_alignment",
+                cause_type=type(exc).__name__,
+                stealth_order_id=stealth_order_id,
+            ) from exc
 
         placed_client_order_id = manager.reveal_order_slice(
             stealth_order_id,

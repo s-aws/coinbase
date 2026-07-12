@@ -7,7 +7,9 @@ replacement tracking, and status updates.
 It manages the parent-child order relationship for the trading engine.
 """
 
+import hashlib
 import json
+import secrets
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_CEILING
@@ -31,6 +33,31 @@ DB_CLIENT: PostgresDB = PostgresDB()
 
 
 _CONTROLLED_ADMIN_CHILD_MAX_MARKET_AGE_SECONDS = Decimal("30")
+
+# One narrowly scoped recovery authorization for the v8 child whose durable
+# preparation committed before the HTTP request failed, while Coinbase SDK
+# placement was independently proven not to have started.  This is deliberately
+# backend-owned rather than a generic client-provided compare-and-swap token.
+_SEALED_V8_CONTROLLED_CHILD_RECOVERY_SHA256 = (
+    "af16bf8f7867c3f8a385b0d0cef31371d4381289cc1fd7a58e81c29102d783a9"
+)
+_SEALED_V8_CONTROLLED_CHILD_RECOVERY_BINDING = {
+    "authority_id": "d67b89be-549b-4778-9061-e6decb20f550",
+    "approval_snapshot_id": "bb1d8b0b-a32f-5acd-be46-a91af74ef701",
+    "admission_audit_id": "6d2dd88a-e974-4c55-88a8-e869ae6ce492",
+    "cap_guard_decision_id": (
+        "cap-v8-slot-2-child-reveal-f88967db-5156-4a8a-b121-dd56dd5a24a3"
+    ),
+    "reconciliation_plan_id": (
+        "reconciliation-v8-slot-2-child-reveal-ee4daeb4-7ab6-4f86-973f-977e502c6653"
+    ),
+    "batch_id": "4b4322db-64c6-57fc-8e2b-0890b64507e6",
+    "batch_slot": 2,
+    "root_client_order_id": "12a52c06-e368-5c39-bfa0-6eb5880f3c64",
+    "stealth_order_id": "252b6389-d544-58db-a796-e9bc258f794f",
+    "portfolio_id": "62f28f44-8e72-4fe0-ace7-d71a01f54883",
+    "root_exchange_order_id": "2ed7d436-b16e-4a7e-b0af-cb8f8bb86e68",
+}
 
 
 def _controlled_admin_child_persistence_error(
@@ -1350,6 +1377,7 @@ def prepare_controlled_admin_first_child_reveal_atomic(
     batch_id: str,
     batch_slot: int,
     authority_id: str,
+    expected_prior_preparation_sha256: Optional[str] = None,
     now: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     """Atomically prepare one owned first-generation Admin child for reveal.
@@ -1625,8 +1653,129 @@ def prepare_controlled_admin_first_child_reveal_atomic(
             reject("controlled reveal child policy evidence is invalid")
 
         state = _json_mapping(stealth_row.get("anchor_repricing_state_json"))
-        if state.get("controlled_admin_first_child_reveal_preparation"):
-            reject("controlled reveal child was already prepared")
+        prior_preparation_value = state.get(
+            "controlled_admin_first_child_reveal_preparation"
+        )
+        expected_prior_hash = str(
+            expected_prior_preparation_sha256 or ""
+        ).strip()
+        supersession_record: Optional[Dict[str, Any]] = None
+        sealed_prior_preparation: Optional[Dict[str, Any]] = None
+        if prior_preparation_value:
+            if not expected_prior_hash:
+                reject("controlled reveal child was already prepared")
+            if len(expected_prior_hash) != 64 or any(
+                character not in "0123456789abcdef"
+                for character in expected_prior_hash
+            ):
+                reject("controlled reveal prior preparation hash is invalid")
+            if not secrets.compare_digest(
+                expected_prior_hash,
+                _SEALED_V8_CONTROLLED_CHILD_RECOVERY_SHA256,
+            ):
+                reject(
+                    "controlled reveal prior preparation hash is not authorized "
+                    "for the sealed v8 recovery"
+                )
+            prior_preparation = _json_mapping(prior_preparation_value)
+            if not prior_preparation:
+                reject("controlled reveal prior preparation is malformed")
+            prior_encoded = json.dumps(
+                prior_preparation,
+                sort_keys=True,
+                separators=(",", ":"),
+                ensure_ascii=True,
+            ).encode("utf-8")
+            observed_prior_hash = hashlib.sha256(prior_encoded).hexdigest()
+            if not secrets.compare_digest(
+                observed_prior_hash,
+                expected_prior_hash,
+            ):
+                reject("controlled reveal prior preparation hash mismatch")
+            if any(
+                prior_preparation.get(field_name) != expected_value
+                for field_name, expected_value in (
+                    _SEALED_V8_CONTROLLED_CHILD_RECOVERY_BINDING.items()
+                )
+            ):
+                reject("controlled reveal prior preparation is not the sealed v8 recovery")
+            sealed_prior_preparation = prior_preparation
+            required_prior_values = {
+                "authority_id": prior_preparation.get("authority_id"),
+                "approval_snapshot_id": prior_preparation.get(
+                    "approval_snapshot_id"
+                ),
+                "admission_audit_id": prior_preparation.get(
+                    "admission_audit_id"
+                ),
+                "cap_guard_decision_id": prior_preparation.get(
+                    "cap_guard_decision_id"
+                ),
+                "reconciliation_plan_id": prior_preparation.get(
+                    "reconciliation_plan_id"
+                ),
+                "batch_id": prior_preparation.get("batch_id"),
+                "root_exchange_order_id": prior_preparation.get(
+                    "root_exchange_order_id"
+                ),
+            }
+            if any(
+                not str(value or "").strip()
+                for value in required_prior_values.values()
+            ):
+                reject("controlled reveal prior preparation evidence is incomplete")
+            if (
+                str(prior_preparation.get("root_client_order_id") or "")
+                != root_id
+                or str(prior_preparation.get("stealth_order_id") or "")
+                != child_id
+                or str(prior_preparation.get("portfolio_id") or "")
+                != portfolio_id
+                or prior_preparation.get("batch_slot") != batch_slot
+                or str(prior_preparation.get("root_exchange_order_id") or "")
+                != str(root_row.get("exchange_order_id") or "")
+            ):
+                reject("controlled reveal prior preparation scope mismatch")
+            if (
+                str(prior_preparation.get("batch_id") or "") == str(batch_id)
+                or str(prior_preparation.get("authority_id") or "")
+                == str(authority_id)
+                or str(prior_preparation.get("approval_snapshot_id") or "")
+                == str(approval_snapshot_id)
+                or str(prior_preparation.get("admission_audit_id") or "")
+                == str(admission_audit_id)
+                or str(prior_preparation.get("cap_guard_decision_id") or "")
+                == str(cap_guard_decision_id)
+                or str(prior_preparation.get("reconciliation_plan_id") or "")
+                == str(reconciliation_plan_id)
+            ):
+                reject("controlled reveal supersession must use fresh authority")
+            history_value = state.get(
+                "controlled_admin_first_child_reveal_preparation_history"
+            )
+            if history_value is None:
+                history: List[Dict[str, Any]] = []
+            elif isinstance(history_value, list) and all(
+                isinstance(item, dict) for item in history_value
+            ):
+                history = [dict(item) for item in history_value]
+            else:
+                reject("controlled reveal prior preparation history is malformed")
+            if history:
+                reject("controlled reveal prior preparation history is not empty")
+            supersession_record = {
+                "preparation": prior_preparation,
+                "preparation_sha256": observed_prior_hash,
+                "superseded_at": now_utc.isoformat(),
+                "superseded_by_batch_id": str(batch_id),
+                "superseded_by_authority_id": str(authority_id),
+            }
+            history.append(supersession_record)
+            state[
+                "controlled_admin_first_child_reveal_preparation_history"
+            ] = history
+        elif expected_prior_hash:
+            reject("controlled reveal prior preparation is missing")
         if (
             state.get("active_placement_client_order_id")
             or state.get("active_exchange_order_id")
@@ -1650,6 +1799,48 @@ def prepare_controlled_admin_first_child_reveal_atomic(
             or original_parent_price != original_stealth_price
         ):
             reject("controlled reveal original child price evidence is inconsistent")
+        if sealed_prior_preparation is not None:
+            try:
+                sealed_prepared_price = Decimal(
+                    str(sealed_prior_preparation.get("prepared_limit_price"))
+                )
+                sealed_reference_notional = Decimal(
+                    str(
+                        sealed_prior_preparation.get(
+                            "reference_notional_usdc"
+                        )
+                    )
+                )
+                sealed_total_size = (
+                    sealed_reference_notional / sealed_prepared_price
+                )
+            except (ArithmeticError, InvalidOperation, TypeError, ValueError):
+                reject("controlled reveal sealed v8 numeric evidence is invalid")
+            if (
+                not sealed_prepared_price.is_finite()
+                or sealed_prepared_price <= 0
+                or not sealed_reference_notional.is_finite()
+                or sealed_reference_notional <= 0
+                or not sealed_total_size.is_finite()
+                or sealed_total_size <= 0
+                or sealed_total_size * sealed_prepared_price
+                != sealed_reference_notional
+                or total_size != sealed_total_size
+                or original_parent_price != sealed_prepared_price
+                or original_stealth_price != sealed_prepared_price
+                or original_threshold != sealed_prepared_price
+                or root_correlation_id
+                != str(sealed_prior_preparation.get("correlation_id") or "")
+                or root_audit_id
+                != str(sealed_prior_preparation.get("root_audit_id") or "")
+                or original_stealth_status != StealthOrderStatus.HIDDEN.value
+                or stealth_row.get("condition_first_met_at") is not None
+                or stealth_row.get("condition_confirmed_at") is not None
+            ):
+                reject(
+                    "controlled reveal rows do not match the sealed v8 "
+                    "materialized state"
+                )
 
         preparation_evidence = {
             "authority_id": str(authority_id),
@@ -1687,6 +1878,13 @@ def prepare_controlled_admin_first_child_reveal_atomic(
             "root_audit_id": root_audit_id,
             "root_exchange_order_id": str(root_row.get("exchange_order_id")),
         }
+        if supersession_record is not None:
+            preparation_evidence["supersedes_preparation_sha256"] = (
+                supersession_record["preparation_sha256"]
+            )
+            preparation_evidence["supersedes_batch_id"] = str(
+                supersession_record["preparation"].get("batch_id") or ""
+            )
         state["controlled_admin_first_child_reveal_preparation"] = preparation_evidence
         condition["price_threshold"] = float(prepared_price)
 

@@ -1,3 +1,4 @@
+import hashlib
 import json
 import uuid
 from contextlib import contextmanager
@@ -33,6 +34,13 @@ CHILD_ID = str(
 )
 PORTFOLIO_ID = "22222222-2222-4222-8222-222222222222"
 NOW = datetime(2026, 7, 11, 15, 0, tzinfo=timezone.utc)
+V8_ROOT_ID = "12a52c06-e368-5c39-bfa0-6eb5880f3c64"
+V8_CHILD_ID = "252b6389-d544-58db-a796-e9bc258f794f"
+V8_PORTFOLIO_ID = "62f28f44-8e72-4fe0-ace7-d71a01f54883"
+V8_ROOT_EXCHANGE_ID = "2ed7d436-b16e-4a7e-b0af-cb8f8bb86e68"
+V8_PREPARATION_SHA256 = (
+    "af16bf8f7867c3f8a385b0d0cef31371d4381289cc1fd7a58e81c29102d783a9"
+)
 
 
 def _root_row(**overrides):
@@ -138,9 +146,15 @@ class _Cursor:
                 keys = list(rows[0]) if rows else ["client_order_id"]
                 self.description = [(key,) for key in keys]
                 self._all = [tuple(row[key] for key in keys) for row in rows]
-            elif params == (CHILD_ID,):
+            elif params in {
+                (CHILD_ID,),
+                (str(self.child["client_order_id"]),),
+            }:
                 self._set_one(self.child)
-            elif params == (ROOT_ID,):
+            elif params in {
+                (ROOT_ID,),
+                (str(self.root["client_order_id"]),),
+            }:
                 self._set_one(self.root)
         elif normalized.startswith("SELECT") and "FROM stealth_orders" in normalized:
             self._set_one(self.stealth)
@@ -289,6 +303,285 @@ def test_atomic_prepare_rejects_unowned_historical_or_wrong_state_without_update
 ):
     with pytest.raises(OrderPersistenceError, match=match):
         _prepare(cursor, monkeypatch)
+
+    assert not any(
+        statement.startswith("UPDATE") for statement, _params in cursor.statements
+    )
+
+
+def _prior_preparation() -> dict:
+    return {
+        "authority_id": "prior-authority",
+        "approval_snapshot_id": "prior-approval",
+        "admission_audit_id": "prior-admission",
+        "cap_guard_decision_id": "prior-cap",
+        "reconciliation_plan_id": "prior-reconciliation",
+        "batch_id": "prior-batch",
+        "batch_slot": 2,
+        "root_client_order_id": ROOT_ID,
+        "stealth_order_id": CHILD_ID,
+        "portfolio_id": PORTFOLIO_ID,
+        "root_exchange_order_id": "exchange-root-1",
+    }
+
+
+def _v8_prior_preparation() -> dict:
+    return {
+        "admission_audit_id": "6d2dd88a-e974-4c55-88a8-e869ae6ce492",
+        "approval_snapshot_id": "bb1d8b0b-a32f-5acd-be46-a91af74ef701",
+        "authority_id": "d67b89be-549b-4778-9061-e6decb20f550",
+        "batch_id": "4b4322db-64c6-57fc-8e2b-0890b64507e6",
+        "batch_slot": 2,
+        "cap_guard_decision_id": (
+            "cap-v8-slot-2-child-reveal-f88967db-5156-4a8a-b121-dd56dd5a24a3"
+        ),
+        "correlation_id": (
+            "corr-4b4322db-64c6-57fc-8e2b-0890b64507e6-root-2"
+        ),
+        "market_age_seconds": 0.19536,
+        "market_bid": "64143.89",
+        "market_observed_at": "2026-07-12T04:17:03.886752+00:00",
+        "market_source": "coinbase_rest_best_bid",
+        "max_notional_usdc": 2.0,
+        "minimum_standing_price": 96215.835,
+        "original_condition_confirmed_at": None,
+        "original_condition_first_met_at": None,
+        "original_order_parent_price": 64582.69,
+        "original_price_threshold": 64582.69,
+        "original_stealth_limit_price": 64582.69,
+        "original_stealth_status": "HIDDEN",
+        "portfolio_id": V8_PORTFOLIO_ID,
+        "prepared_at": "2026-07-12T04:17:04.082112+00:00",
+        "prepared_limit_price": 102630.23,
+        "quote_increment": "0.01",
+        "reconciliation_plan_id": (
+            "reconciliation-v8-slot-2-child-reveal-"
+            "ee4daeb4-7ab6-4f86-973f-977e502c6653"
+        ),
+        "reference_notional_usdc": 1.7560032353,
+        "requested_limit_price": 102630.23,
+        "root_audit_id": "d7c642bb-9d7a-4a76-a1c6-2b0eb73590d8",
+        "root_client_order_id": V8_ROOT_ID,
+        "root_exchange_order_id": V8_ROOT_EXCHANGE_ID,
+        "stealth_order_id": V8_CHILD_ID,
+    }
+
+
+def _canonical_sha256(value: dict) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            sort_keys=True,
+            separators=(",", ":"),
+            ensure_ascii=True,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def _v8_recovery_cursor(*, history=None) -> _Cursor:
+    prior = _v8_prior_preparation()
+    root = _root_row(
+        client_order_id=V8_ROOT_ID,
+        size=Decimal("0.00001711"),
+        retail_portfolio_id=V8_PORTFOLIO_ID,
+        correlation_id=prior["correlation_id"],
+        audit_id=prior["root_audit_id"],
+        exchange_order_id=V8_ROOT_EXCHANGE_ID,
+    )
+    child = _child_parent_row(
+        client_order_id=V8_CHILD_ID,
+        parent_order_id=V8_ROOT_ID,
+        size=Decimal("0.00001711"),
+        price=Decimal("102630.23"),
+        retail_portfolio_id=V8_PORTFOLIO_ID,
+        correlation_id=prior["correlation_id"],
+        audit_id=prior["root_audit_id"],
+    )
+    state = {
+        "unrelated": "preserve",
+        "controlled_admin_first_child_reveal_preparation": prior,
+    }
+    if history is not None:
+        state["controlled_admin_first_child_reveal_preparation_history"] = history
+    return _Cursor(
+        root=root,
+        child=child,
+        siblings=[child],
+        stealth=_stealth_row(
+            stealth_order_id=V8_CHILD_ID,
+            parent_order_id=V8_ROOT_ID,
+            total_size=Decimal("0.00001711"),
+            remaining_size=Decimal("0.00001711"),
+            limit_price=Decimal("102630.23"),
+            reveal_condition_json={
+                **_stealth_row()["reveal_condition_json"],
+                "price_threshold": 102630.23,
+            },
+            anchor_repricing_state_json=state,
+        ),
+    )
+
+
+def _prepare_v8_recovery(cursor, monkeypatch, **overrides):
+    prior = _v8_prior_preparation()
+    kwargs = {
+        "stealth_order_id": V8_CHILD_ID,
+        "expected_root_client_order_id": V8_ROOT_ID,
+        "expected_portfolio_id": V8_PORTFOLIO_ID,
+        "expected_prior_preparation_sha256": V8_PREPARATION_SHA256,
+        "submitted_limit_price": 102630.23,
+        "max_notional_usdc": 2.0,
+        "market_bid": 64143.89,
+        "market_observed_at": datetime.fromisoformat(prior["market_observed_at"]),
+        "approval_snapshot_id": "approval-v9",
+        "admission_audit_id": "admission-v9",
+        "cap_guard_decision_id": "cap-v9",
+        "reconciliation_plan_id": "reconciliation-v9",
+        "batch_id": "successor-v9-batch",
+        "batch_slot": 2,
+        "authority_id": "authority-v9",
+        "now": datetime(2026, 7, 12, 4, 17, 5, tzinfo=timezone.utc),
+    }
+    kwargs.update(overrides)
+    return _prepare(cursor, monkeypatch, **kwargs)
+
+
+def test_atomic_prepare_supersedes_only_exact_bound_prior_preparation(
+    monkeypatch,
+):
+    prior = _v8_prior_preparation()
+    prior_hash = _canonical_sha256(prior)
+    assert prior_hash == V8_PREPARATION_SHA256
+    cursor = _v8_recovery_cursor()
+
+    result = _prepare_v8_recovery(cursor, monkeypatch)
+
+    state = result["anchor_repricing_state_json"]
+    current = state["controlled_admin_first_child_reveal_preparation"]
+    history = state[
+        "controlled_admin_first_child_reveal_preparation_history"
+    ]
+    assert current["batch_id"] == "successor-v9-batch"
+    assert current["supersedes_preparation_sha256"] == prior_hash
+    assert current["supersedes_batch_id"] == prior["batch_id"]
+    assert history == [
+        {
+            "preparation": prior,
+            "preparation_sha256": prior_hash,
+            "superseded_at": "2026-07-12T04:17:05+00:00",
+            "superseded_by_batch_id": "successor-v9-batch",
+            "superseded_by_authority_id": "authority-v9",
+        }
+    ]
+    assert state["unrelated"] == "preserve"
+
+
+def test_atomic_prepare_rejects_generic_client_driven_supersession(
+    monkeypatch,
+):
+    prior = _prior_preparation()
+    cursor = _Cursor(
+        stealth=_stealth_row(
+            anchor_repricing_state_json={
+                "controlled_admin_first_child_reveal_preparation": prior,
+            }
+        )
+    )
+
+    with pytest.raises(OrderPersistenceError, match="sealed v8 recovery"):
+        _prepare(
+            cursor,
+            monkeypatch,
+            expected_prior_preparation_sha256=_canonical_sha256(prior),
+            batch_id="successor-batch",
+            batch_slot=2,
+        )
+
+    assert not any(
+        statement.startswith("UPDATE") for statement, _params in cursor.statements
+    )
+
+
+def test_atomic_prepare_rejects_wrong_prior_preparation_hash_without_update(
+    monkeypatch,
+):
+    prior = _prior_preparation()
+    cursor = _Cursor(
+        stealth=_stealth_row(
+            anchor_repricing_state_json={
+                "controlled_admin_first_child_reveal_preparation": prior,
+            }
+        )
+    )
+
+    with pytest.raises(OrderPersistenceError, match="prior preparation hash"):
+        _prepare(
+            cursor,
+            monkeypatch,
+            expected_prior_preparation_sha256="0" * 64,
+            batch_id="successor-batch",
+            batch_slot=2,
+        )
+
+    assert not any(
+        statement.startswith("UPDATE") for statement, _params in cursor.statements
+    )
+
+
+def test_atomic_prepare_rejects_a_second_supersession_without_update(
+    monkeypatch,
+):
+    cursor = _v8_recovery_cursor(
+        history=[{"preparation_sha256": "f" * 64}]
+    )
+
+    with pytest.raises(OrderPersistenceError, match="history"):
+        _prepare_v8_recovery(cursor, monkeypatch)
+
+    assert not any(
+        statement.startswith("UPDATE") for statement, _params in cursor.statements
+    )
+
+
+@pytest.mark.parametrize(
+    "drift",
+    [
+        "pre_v8_prices",
+        "condition_threshold",
+        "stealth_status",
+        "condition_timestamp",
+        "size",
+        "trace",
+    ],
+)
+def test_atomic_prepare_rejects_drift_from_sealed_v8_materialized_state(
+    monkeypatch,
+    drift,
+):
+    cursor = _v8_recovery_cursor()
+    if drift == "pre_v8_prices":
+        cursor.child["price"] = Decimal("64582.69")
+        cursor.stealth["limit_price"] = Decimal("64582.69")
+        cursor.stealth["reveal_condition_json"]["price_threshold"] = 64582.69
+    elif drift == "condition_threshold":
+        cursor.stealth["reveal_condition_json"]["price_threshold"] = 102630.22
+    elif drift == "stealth_status":
+        cursor.stealth["status"] = "PENDING"
+    elif drift == "condition_timestamp":
+        cursor.stealth["condition_first_met_at"] = NOW
+    elif drift == "size":
+        cursor.root["size"] = Decimal("0.00001712")
+        cursor.child["size"] = Decimal("0.00001712")
+        cursor.stealth["total_size"] = Decimal("0.00001712")
+        cursor.stealth["remaining_size"] = Decimal("0.00001712")
+    else:
+        cursor.root["correlation_id"] = "drifted-correlation"
+        cursor.child["correlation_id"] = "drifted-correlation"
+        cursor.root["audit_id"] = "drifted-audit"
+        cursor.child["audit_id"] = "drifted-audit"
+
+    with pytest.raises(OrderPersistenceError, match="sealed v8 materialized state"):
+        _prepare_v8_recovery(cursor, monkeypatch)
 
     assert not any(
         statement.startswith("UPDATE") for statement, _params in cursor.statements
@@ -545,6 +838,26 @@ def test_manager_durable_failure_leaves_memory_untouched(monkeypatch):
 
     assert manager.in_memory_orders[CHILD_ID] == before
     assert manager._controlled_admin_child_reveal_authorities == {}
+
+
+def test_manager_binds_prior_preparation_hash_into_atomic_supersession(
+    monkeypatch,
+):
+    manager = _manager()
+    manager._get_price_increment = MagicMock(return_value="0.01")
+    atomic = MagicMock(return_value=_prepare_result())
+    monkeypatch.setattr(
+        "core.stealth_order_manager.prepare_controlled_admin_first_child_reveal_atomic",
+        atomic,
+    )
+    kwargs = _manager_prepare_kwargs()
+    kwargs["expected_prior_preparation_sha256"] = "a" * 64
+
+    manager.prepare_controlled_admin_first_child_reveal(**kwargs)
+
+    assert atomic.call_args.kwargs[
+        "expected_prior_preparation_sha256"
+    ] == "a" * 64
 
 
 def test_manager_prepare_normalizes_unsubmitted_triggered_child(monkeypatch):

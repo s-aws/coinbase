@@ -7727,6 +7727,15 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "controlled_limit_price" in stealth_reveal_request_schema["properties"]
     assert "controlled_batch_id" in stealth_reveal_request_schema["properties"]
     assert "controlled_batch_slot" in stealth_reveal_request_schema["properties"]
+    assert "controlled_prior_preparation_sha256" in (
+        stealth_reveal_request_schema["properties"]
+    )
+    assert stealth_reveal_request_schema["properties"][
+        "controlled_prior_preparation_sha256"
+    ]["anyOf"][0]["pattern"] == "^[0-9a-f]{64}$"
+    assert "controlled_prior_preparation_sha256" not in (
+        stealth_reveal_request_schema.get("required") or []
+    )
     assert stealth_reveal_request_schema["properties"]["controlled_batch_slot"][
         "anyOf"
     ][0]["maximum"] == 10

@@ -42,7 +42,11 @@ from core.enums import (
     StealthMutationKind,
     TargetMovementType,
 )
-from core.exceptions import CoinbaseAPIError, OrderCreationError
+from core.exceptions import (
+    CoinbaseAPIError,
+    ControlledChildPrePlacementError,
+    OrderCreationError,
+)
 from core.product_capability import evaluate_product_capability
 from core.spot_follow_up_policy import evaluate_spot_follow_up_policy
 from core.runtime_controller import (
@@ -1030,6 +1034,7 @@ def exact_coinbase_order_readback(
     client_order_id: str,
     exchange_order_id: str | None = None,
     product_id: str | None = None,
+    product_type: str | None = ProductType.SPOT.value,
 ) -> dict[str, Any]:
     """Return exact identity/status proof without treating absence as terminal."""
 
@@ -1077,7 +1082,7 @@ def exact_coinbase_order_readback(
         rows, pagination = read_authoritative_coinbase_orders(
             rest_client,
             product_ids=[product_id] if product_id else None,
-            product_type=ProductType.SPOT.value,
+            product_type=product_type,
         )
     matches = [
         row
@@ -5779,6 +5784,54 @@ class AdminApiCommandService:
                     },
                 )
 
+            if request.controlled_prior_preparation_sha256 is not None:
+                try:
+                    recovery_absence = exact_coinbase_order_readback(
+                        deps.rest_client,
+                        client_order_id=command.stealth_order_id,
+                        product_type=None,
+                    )
+                except CoinbaseOrderReadbackError as exc:
+                    recovery_absence = {
+                        "authoritative": False,
+                        "pagination_complete": False,
+                        "client_order_id": command.stealth_order_id,
+                        "exact_identity_match": False,
+                        "confirmed_absent": False,
+                        "matched_order": None,
+                        "blocker": exc.blocker,
+                        "detail": exc.detail,
+                    }
+                exact_recovery_absence = bool(
+                    recovery_absence.get("authoritative") is True
+                    and recovery_absence.get("pagination_complete") is True
+                    and str(recovery_absence.get("client_order_id") or "")
+                    == command.stealth_order_id
+                    and recovery_absence.get("confirmed_absent") is True
+                    and recovery_absence.get("exact_identity_match") is False
+                    and recovery_absence.get("matched_order") is None
+                    and recovery_absence.get("exchange_order_id") is None
+                    and recovery_absence.get("authoritative_status") is None
+                )
+                if not exact_recovery_absence:
+                    return self._stealth_reveal_rejected(
+                        command=command,
+                        message=(
+                            "Controlled first-child recovery requires an "
+                            "authoritative, complete Coinbase catalog proof that "
+                            "the exact child client_order_id has never been submitted."
+                        ),
+                        failure_stage=(
+                            "controlled_child_recovery_exchange_absence"
+                        ),
+                        data={
+                            "portfolio_scope": portfolio_scope,
+                            "recovery_exchange_absence": recovery_absence,
+                        },
+                        live_exchange_submitted=False,
+                        live_coinbase_orders_ran=False,
+                    )
+
             try:
                 result = submit_child(
                     stealth_order_id=command.stealth_order_id,
@@ -5794,6 +5847,30 @@ class AdminApiCommandService:
                     reconciliation_plan_id=command.admin_reconciliation_plan_id,
                     controlled_batch_id=request.controlled_batch_id,
                     controlled_batch_slot=request.controlled_batch_slot,
+                    expected_prior_preparation_sha256=(
+                        request.controlled_prior_preparation_sha256
+                    ),
+                )
+            except ControlledChildPrePlacementError as exc:
+                return self._stealth_reveal_rejected(
+                    command=command,
+                    message=(
+                        "Controlled first-child submission stopped before the "
+                        f"exchange-placement boundary: {exc.detail}"
+                    ),
+                    failure_stage="controlled_child_pre_placement",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "pre_placement_failure": {
+                            "stage": exc.stage,
+                            "cause_type": exc.cause_type,
+                            "detail": exc.detail,
+                            "stealth_order_id": exc.stealth_order_id,
+                            "placement_attempted": False,
+                        },
+                    },
+                    live_exchange_submitted=False,
+                    live_coinbase_orders_ran=False,
                 )
             except Exception as exc:
                 deps.spot_order_admission_coordinator.record_uncertainty(

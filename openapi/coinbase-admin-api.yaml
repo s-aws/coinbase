@@ -170456,6 +170456,12 @@ components:
             minimum: 1.0
           - type: 'null'
           title: Controlled Batch Slot
+        controlled_prior_preparation_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Controlled Prior Preparation Sha256
       additionalProperties: false
       type: object
       title: StealthRevealRequest

@@ -445,6 +445,10 @@ class StealthRevealRequest(BaseModel):
     controlled_limit_price: DecimalString | None = None
     controlled_batch_id: str | None = Field(default=None, min_length=1)
     controlled_batch_slot: int | None = Field(default=None, ge=1, le=10)
+    controlled_prior_preparation_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
 
 
 class StealthMoveRequest(BaseModel):

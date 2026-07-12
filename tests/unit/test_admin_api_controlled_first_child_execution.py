@@ -27,6 +27,10 @@ from application.admin_api.models import (
     StealthRevealRequest,
 )
 from core.enums import AdminApiCommandStatus, OrderStatus
+from core.exceptions import (
+    ControlledChildPrePlacementError,
+    OrderPersistenceError,
+)
 
 
 TEST_PORTFOLIO_ID = "62f28f44-8e72-4fe0-ace7-d71a01f54883"
@@ -46,6 +50,7 @@ class _ClaimTrackingCoordinator:
         self.claimed = False
         self.claim_observations = []
         self.uncertainties = list(uncertainties or [])
+        self.recorded_uncertainties = []
 
     @contextmanager
     def claim(self, _portfolio_id):
@@ -59,7 +64,8 @@ class _ClaimTrackingCoordinator:
     def uncertainty_snapshot(self, _portfolio_id):
         return list(self.uncertainties)
 
-    def record_uncertainty(self, **_kwargs):
+    def record_uncertainty(self, **kwargs):
+        self.recorded_uncertainties.append(dict(kwargs))
         return None
 
     def resolve_uncertainty(self, **_kwargs):
@@ -98,6 +104,7 @@ def _reveal_command(
     allow_live_execution: bool = True,
     operator_intent: str = CONTROLLED_FIRST_CHILD_REVEAL_OPERATOR_INTENT,
     max_notional: str = "2.00",
+    prior_preparation_sha256: str | None = None,
 ) -> StealthRevealCommand:
     return StealthRevealCommand(
         envelope=_envelope(operator_intent),
@@ -109,6 +116,9 @@ def _reveal_command(
             controlled_limit_price="102400.00",
             controlled_batch_id=BATCH_ID,
             controlled_batch_slot=1,
+            controlled_prior_preparation_sha256=(
+                prior_preparation_sha256
+            ),
         ),
         allow_live_execution=allow_live_execution,
         admin_approval_snapshot_id="approval-child-1",
@@ -192,7 +202,7 @@ def _runtime_adapter_success_evidence():
     return authority, order
 
 
-def _submit_runtime_adapter(adapter):
+def _submit_runtime_adapter(adapter, *, prior_preparation_sha256=None):
     return adapter.submit_controlled_first_child(
         stealth_order_id=CHILD_ID,
         expected_root_client_order_id=ROOT_ID,
@@ -205,6 +215,7 @@ def _submit_runtime_adapter(adapter):
         reconciliation_plan_id="recon-child-1",
         controlled_batch_id=BATCH_ID,
         controlled_batch_slot=1,
+        expected_prior_preparation_sha256=prior_preparation_sha256,
     )
 
 
@@ -405,6 +416,278 @@ def test_controlled_child_reveal_submits_once_and_requires_exact_readback(monkey
     assert kwargs["expected_portfolio_id"] == TEST_PORTFOLIO_ID
     assert kwargs["controlled_batch_slot"] == 1
     assert kwargs["max_notional_usdc"] == "2.00"
+    assert kwargs["expected_prior_preparation_sha256"] is None
+
+
+@pytest.mark.parametrize(
+    ("historical_product_id", "historical_product_type"),
+    [
+        ("BTC-USDC", "SPOT"),
+        ("ETH-USDC", "SPOT"),
+        ("BTC-PERP", "FUTURE"),
+    ],
+)
+def test_controlled_child_recovery_blocks_account_wide_historical_identity(
+    monkeypatch,
+    historical_product_id,
+    historical_product_type,
+):
+    monkeypatch.setattr(
+        "application.admin_api.command_service.evaluate_spot_test_portfolio_binding",
+        lambda **_kwargs: _portfolio_binding(),
+    )
+    rest_client = MagicMock()
+    rest_client.list_orders.side_effect = [
+        {"orders": [], "has_next": False},
+        {
+            "orders": [
+                {
+                    "client_order_id": CHILD_ID,
+                    "order_id": EXCHANGE_ID,
+                    "product_id": historical_product_id,
+                    "product_type": historical_product_type,
+                    "status": "CANCELLED",
+                }
+            ],
+            "has_next": False,
+        },
+    ]
+    runtime = MagicMock()
+    service = AdminApiCommandService(_deps(runtime, rest_client))
+
+    response = service.reveal_stealth_order_by_stealth_order_id(
+        _reveal_command(prior_preparation_sha256="a" * 64)
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "controlled_child_recovery_exchange_absence"
+    assert response.live_exchange_submitted is False
+    assert response.live_coinbase_orders_ran is False
+    assert response.data["recovery_exchange_absence"][
+        "authoritative_status"
+    ] == "CANCELLED"
+    runtime.submit_controlled_first_child.assert_not_called()
+    assert rest_client.list_orders.call_count == 2
+    recovery_query = rest_client.list_orders.call_args_list[1].kwargs
+    assert "product_ids" not in recovery_query
+    assert "product_type" not in recovery_query
+    assert "order_status" not in recovery_query
+
+
+def test_controlled_child_recovery_blocks_full_catalog_read_failure(monkeypatch):
+    monkeypatch.setattr(
+        "application.admin_api.command_service.evaluate_spot_test_portfolio_binding",
+        lambda **_kwargs: _portfolio_binding(),
+    )
+    rest_client = MagicMock()
+    rest_client.list_orders.side_effect = [
+        {"orders": [], "has_next": False},
+        RuntimeError("full catalog unavailable"),
+    ]
+    runtime = MagicMock()
+    coordinator = _ClaimTrackingCoordinator()
+    dependencies = _deps(runtime, rest_client)
+    dependencies.spot_order_admission_coordinator = coordinator
+    service = AdminApiCommandService(dependencies)
+
+    response = service.reveal_stealth_order_by_stealth_order_id(
+        _reveal_command(prior_preparation_sha256="a" * 64)
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "controlled_child_recovery_exchange_absence"
+    assert response.live_exchange_submitted is False
+    assert response.live_coinbase_orders_ran is False
+    assert response.data["recovery_exchange_absence"]["authoritative"] is False
+    assert coordinator.recorded_uncertainties == []
+    runtime.submit_controlled_first_child.assert_not_called()
+
+
+def test_controlled_child_recovery_proves_absence_before_single_submission(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "application.admin_api.command_service.evaluate_spot_test_portfolio_binding",
+        lambda **_kwargs: _portfolio_binding(),
+    )
+    events = []
+    readbacks = iter(
+        [
+            {
+                "authoritative": True,
+                "pagination_complete": True,
+                "client_order_id": CHILD_ID,
+                "exchange_order_id": None,
+                "exact_identity_match": False,
+                "confirmed_absent": True,
+                "authoritative_status": None,
+                "matched_order": None,
+            },
+            {
+                "authoritative": True,
+                "pagination_complete": True,
+                "client_order_id": CHILD_ID,
+                "exchange_order_id": EXCHANGE_ID,
+                "exact_identity_match": True,
+                "confirmed_absent": False,
+                "authoritative_status": "OPEN",
+                "matched_order": {
+                    "client_order_id": CHILD_ID,
+                    "order_id": EXCHANGE_ID,
+                    "product_id": "BTC-USDC",
+                    "product_type": "SPOT",
+                    "side": "SELL",
+                    "status": "OPEN",
+                    "retail_portfolio_id": TEST_PORTFOLIO_ID,
+                    "order_type": "LIMIT",
+                    "limit_price": "102400.00",
+                    "base_size": "0.00001718",
+                    "filled_size": "0",
+                    "time_in_force": "GOOD_UNTIL_CANCELLED",
+                    "post_only": False,
+                    "order_configuration": {
+                        "limit_limit_gtc": {
+                            "base_size": "0.00001718",
+                            "limit_price": "102400.00",
+                            "post_only": False,
+                        }
+                    },
+                },
+            },
+        ]
+    )
+
+    def readback(*_args, **_kwargs):
+        item = next(readbacks)
+        events.append(
+            "readback_absence" if item["confirmed_absent"] else "readback_post"
+        )
+        return item
+
+    monkeypatch.setattr(
+        "application.admin_api.command_service.exact_coinbase_order_readback",
+        readback,
+    )
+    runtime = MagicMock()
+
+    def submit(**_kwargs):
+        events.append("submit")
+        return {
+            "placed_client_order_id": CHILD_ID,
+            "exchange_order_id": EXCHANGE_ID,
+            "product_id": "BTC-USDC",
+            "side": "SELL",
+            "base_size": "0.00001718",
+            "submitted_limit_price": "102400.00",
+            "post_only": False,
+            "placement_attempted": True,
+            "placement_succeeded": True,
+        }
+
+    runtime.submit_controlled_first_child.side_effect = submit
+    service = AdminApiCommandService(_deps(runtime))
+
+    response = service.reveal_stealth_order_by_stealth_order_id(
+        _reveal_command(prior_preparation_sha256="a" * 64)
+    )
+
+    assert response.status == AdminApiCommandStatus.ACCEPTED
+    assert events == ["readback_absence", "submit", "readback_post"]
+    kwargs = runtime.submit_controlled_first_child.call_args.kwargs
+    assert kwargs["expected_prior_preparation_sha256"] == "a" * 64
+
+
+def test_controlled_child_pre_placement_error_is_non_live_and_not_uncertain(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "application.admin_api.command_service.evaluate_spot_test_portfolio_binding",
+        lambda **_kwargs: _portfolio_binding(),
+    )
+    runtime = MagicMock()
+    runtime.submit_controlled_first_child.side_effect = (
+        ControlledChildPrePlacementError(
+            "controlled reveal prior preparation hash mismatch",
+            stage="preparation",
+            cause_type="OrderPersistenceError",
+            stealth_order_id=CHILD_ID,
+        )
+    )
+    coordinator = _ClaimTrackingCoordinator()
+    dependencies = _deps(runtime)
+    dependencies.spot_order_admission_coordinator = coordinator
+    service = AdminApiCommandService(dependencies)
+
+    response = service.reveal_stealth_order_by_stealth_order_id(_reveal_command())
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "controlled_child_pre_placement"
+    assert response.live_exchange_submitted is False
+    assert response.live_coinbase_orders_ran is False
+    assert response.data["pre_placement_failure"]["stage"] == "preparation"
+    assert coordinator.recorded_uncertainties == []
+
+
+def test_controlled_child_wrong_hash_rejection_never_crosses_reveal_boundary(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "application.admin_api.command_service.evaluate_spot_test_portfolio_binding",
+        lambda **_kwargs: _portfolio_binding(),
+    )
+    manager = MagicMock()
+    manager.prepare_controlled_admin_first_child_reveal.side_effect = (
+        OrderPersistenceError("controlled reveal prior preparation hash mismatch")
+    )
+    runtime = AdminApiControlledFirstChildRuntimeAdapter(
+        manager,
+        market_reference_getter=lambda _product_id: {
+            "best_bid": "64000.00",
+            "source": "coinbase_rest_best_bid",
+            "observed_at": datetime.now(timezone.utc),
+        },
+    )
+    coordinator = _ClaimTrackingCoordinator()
+    dependencies = _deps(runtime)
+    dependencies.spot_order_admission_coordinator = coordinator
+    service = AdminApiCommandService(dependencies)
+
+    response = service.reveal_stealth_order_by_stealth_order_id(
+        _reveal_command(prior_preparation_sha256="0" * 64)
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "controlled_child_pre_placement"
+    assert response.live_exchange_submitted is False
+    assert response.live_coinbase_orders_ran is False
+    assert coordinator.recorded_uncertainties == []
+    manager.reveal_order_slice.assert_not_called()
+
+
+def test_controlled_child_post_boundary_exception_remains_exchange_unknown(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "application.admin_api.command_service.evaluate_spot_test_portfolio_binding",
+        lambda **_kwargs: _portfolio_binding(),
+    )
+    runtime = MagicMock()
+    runtime.submit_controlled_first_child.side_effect = RuntimeError(
+        "placement response lost"
+    )
+    coordinator = _ClaimTrackingCoordinator()
+    dependencies = _deps(runtime)
+    dependencies.spot_order_admission_coordinator = coordinator
+    service = AdminApiCommandService(dependencies)
+
+    response = service.reveal_stealth_order_by_stealth_order_id(_reveal_command())
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "controlled_child_submission_unknown"
+    assert response.live_exchange_submitted is True
+    assert response.live_coinbase_orders_ran is True
+    assert len(coordinator.recorded_uncertainties) == 1
+    assert coordinator.recorded_uncertainties[0]["client_order_id"] == CHILD_ID
 
 
 def test_controlled_child_reveal_rejects_authoritative_tuple_drift(monkeypatch):
@@ -865,6 +1148,7 @@ def test_runtime_adapter_uses_canonical_rest_reference_when_cache_is_placeholder
     assert preparation["market_bid"] == "64000.00"
     assert preparation["market_source"] == "coinbase_rest_best_bid"
     assert preparation["market_observed_at"] == now
+    assert preparation["expected_prior_preparation_sha256"] is None
     manager.reveal_order_slice.assert_called_once_with(
         CHILD_ID,
         controlled_admin_authority=authority,
@@ -927,12 +1211,88 @@ def test_runtime_adapter_rejects_invalid_canonical_reference_before_preparation(
     manager._get_current_market_data.return_value = {"source": "placeholder"}
     adapter = AdminApiControlledFirstChildRuntimeAdapter(manager)
 
-    with pytest.raises(RuntimeError, match=expected_error):
+    with pytest.raises(
+        ControlledChildPrePlacementError,
+        match=expected_error,
+    ) as raised:
         _submit_runtime_adapter(adapter)
 
+    assert raised.value.stage == "market_reference"
     canonical_reference.assert_called_once_with("BTC-USDC")
     manager.prepare_controlled_admin_first_child_reveal.assert_not_called()
     manager.reveal_order_slice.assert_not_called()
+
+
+def test_runtime_adapter_wraps_preparation_rejection_before_reveal():
+    manager = MagicMock()
+    manager.prepare_controlled_admin_first_child_reveal.side_effect = (
+        OrderPersistenceError("controlled reveal prior preparation hash mismatch")
+    )
+    adapter = AdminApiControlledFirstChildRuntimeAdapter(
+        manager,
+        market_reference_getter=lambda _product_id: {
+            "best_bid": "64000.00",
+            "source": "coinbase_rest_best_bid",
+            "observed_at": datetime.now(timezone.utc),
+        },
+    )
+
+    with pytest.raises(
+        ControlledChildPrePlacementError,
+        match="prior preparation hash mismatch",
+    ) as raised:
+        _submit_runtime_adapter(
+            adapter,
+            prior_preparation_sha256="a" * 64,
+        )
+
+    assert raised.value.stage == "preparation"
+    assert raised.value.cause_type == "OrderPersistenceError"
+    manager.reveal_order_slice.assert_not_called()
+
+
+def test_runtime_adapter_wraps_price_alignment_failure_before_reveal():
+    manager = MagicMock()
+    authority, _order = _runtime_adapter_success_evidence()
+    authority.prepared_limit_price = 102400.01
+    manager.prepare_controlled_admin_first_child_reveal.return_value = authority
+    adapter = AdminApiControlledFirstChildRuntimeAdapter(
+        manager,
+        market_reference_getter=lambda _product_id: {
+            "best_bid": "64000.00",
+            "source": "coinbase_rest_best_bid",
+            "observed_at": datetime.now(timezone.utc),
+        },
+    )
+
+    with pytest.raises(
+        ControlledChildPrePlacementError,
+        match="limit_price_not_increment_aligned",
+    ) as raised:
+        _submit_runtime_adapter(adapter)
+
+    assert raised.value.stage == "price_alignment"
+    manager.reveal_order_slice.assert_not_called()
+
+
+def test_runtime_adapter_does_not_wrap_reveal_boundary_exception():
+    manager = MagicMock()
+    authority, _order = _runtime_adapter_success_evidence()
+    manager.prepare_controlled_admin_first_child_reveal.return_value = authority
+    manager.reveal_order_slice.side_effect = TimeoutError("SDK response lost")
+    adapter = AdminApiControlledFirstChildRuntimeAdapter(
+        manager,
+        market_reference_getter=lambda _product_id: {
+            "best_bid": "64000.00",
+            "source": "coinbase_rest_best_bid",
+            "observed_at": datetime.now(timezone.utc),
+        },
+    )
+
+    with pytest.raises(TimeoutError, match="SDK response lost"):
+        _submit_runtime_adapter(adapter)
+
+    manager.reveal_order_slice.assert_called_once()
 
 
 def test_runtime_adapter_prepares_then_submits_exact_child_from_cached_ticker(

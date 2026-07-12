@@ -3673,6 +3673,7 @@ class StealthOrderManager:
         reconciliation_plan_id: str,
         batch_id: str,
         batch_slot: int,
+        expected_prior_preparation_sha256: Optional[str] = None,
     ) -> ControlledAdminChildRevealAuthority:
         """Durably prepare and authorize one far-price first Admin child.
 
@@ -3773,6 +3774,9 @@ class StealthOrderManager:
             batch_id=batch_id,
             batch_slot=batch_slot,
             authority_id=authority_id,
+            expected_prior_preparation_sha256=(
+                expected_prior_preparation_sha256
+            ),
         )
 
         prepared_price = float(prepared["prepared_limit_price"])

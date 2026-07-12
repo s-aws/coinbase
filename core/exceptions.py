@@ -248,6 +248,37 @@ class RevealOrderSliceError(StealthOrderError):
     pass
 
 
+class ControlledChildPrePlacementError(StealthOrderError):
+    """Controlled Admin child failed before the exchange-placement boundary.
+
+    Only the runtime adapter's market validation, durable preparation, and
+    prepared-price alignment stages may raise this type.  Once
+    ``reveal_order_slice`` begins, callers must conservatively treat an
+    unexpected exception as a potentially live/unknown Coinbase submission.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        stage: str,
+        cause_type: str,
+        stealth_order_id: Optional[str] = None,
+    ):
+        self.detail = str(message)
+        self.stage = str(stage)
+        self.cause_type = str(cause_type)
+        self.stealth_order_id = stealth_order_id
+        super().__init__(
+            _format_error_message(
+                self.detail,
+                stage=self.stage,
+                cause_type=self.cause_type,
+                stealth_order_id=self.stealth_order_id,
+            )
+        )
+
+
 class StealthMoveError(StealthOrderError):
     """
     Move of a REVEALED stealth order failed.
