@@ -12,7 +12,7 @@ from tools import run_controlled_admin_spot_root_child_batch as runner
 
 
 EXPECTED_PRODUCTION_COMMIT = "8c2f0ad0474b24988bccda1862193690f897cd24"
-EXPECTED_V9_AUTHORITY_PARENT = "47e812f6eaa5421a491fd3a7787e03ddab99c7a8"
+EXPECTED_V10_AUTHORITY_PARENT = "47092520ccd1cd94b0dd02671b82c7aeb9aeb236"
 V8_ROOT_ID = "12a52c06-e368-5c39-bfa0-6eb5880f3c64"
 V8_CHILD_ID = "252b6389-d544-58db-a796-e9bc258f794f"
 V8_PREPARATION_SHA256 = (
@@ -62,6 +62,7 @@ def _bindings() -> dict:
         "failed_v6_binding": runner.offline_failed_v6_binding_fixture(),
         "failed_v7_binding": runner.offline_failed_v7_binding_fixture(),
         "v8_binding": runner.offline_v8_binding_fixture(),
+        "v9_binding": runner.offline_v9_binding_fixture(),
     }
 
 
@@ -99,18 +100,18 @@ def _client_order_ids(value: Any, *, key: str = "") -> set[str]:
 def test_v9_fixed_authority_and_attempt_schedule() -> None:
     assert runner.EXPECTED_COMMIT == EXPECTED_PRODUCTION_COMMIT
     assert (
-        runner.V9_RUNNER_AUTHORITY_PARENT_COMMIT
-        == EXPECTED_V9_AUTHORITY_PARENT
+        runner.V10_RUNNER_AUTHORITY_PARENT_COMMIT
+        == EXPECTED_V10_AUTHORITY_PARENT
     )
-    assert runner.PLAN_SCHEMA_VERSION == "13"
-    assert runner.SUCCESSOR_V9_PLAN_PATH.name.endswith(
-        "successor-v9-20260712.plan.json"
+    assert runner.PLAN_SCHEMA_VERSION == "14"
+    assert runner.SUCCESSOR_V10_PLAN_PATH.name.endswith(
+        "successor-v10-20260712.plan.json"
     )
     assert runner.GLOBAL_BATCH_MARKER_FILENAME.endswith(
-        "successor-v9-20260712.authority.json"
+        "successor-v10-20260712.authority.json"
     )
     assert runner.GLOBAL_BATCH_LEDGER_FILENAME.endswith(
-        "successor-v9-20260712.attempts.jsonl"
+        "successor-v10-20260712.attempts.jsonl"
     )
     assert runner.SUCCESSOR_ROOT_ORDER_MAXIMUM == 8
     assert runner.SUCCESSOR_CHILD_ORDER_MAXIMUM == 9
@@ -432,9 +433,9 @@ def test_v9_ledger_first_record_is_recovery_child_and_root_two_is_denied() -> No
     ),
     [
         (0, "absent", "v8_prepared_hidden", True),
-        (1, "absent", "v9_superseded_preplacement_hidden", False),
-        (1, "active", "v9_superseded_preplacement_hidden", False),
-        (1, "cancelled", "v9_recovered_zero_fill_cancelled", True),
+        (1, "absent", "v10_superseded_preplacement_hidden", False),
+        (1, "active", "v10_superseded_preplacement_hidden", False),
+        (1, "cancelled", "v10_recovered_zero_fill_cancelled", True),
     ],
 )
 def test_recovery_failure_reconciliation_is_fail_closed_end_to_end(
