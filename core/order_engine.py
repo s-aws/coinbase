@@ -3140,6 +3140,33 @@ class OrderEngine:
         self._invoke_event_monitoring_lost_callback(callback)
         return False
 
+    def _should_propagate_child_status_to_root(
+        self,
+        root_client_order_id: str,
+    ) -> bool:
+        """Keep a filled Admin root independent from its follow-up lifecycle."""
+
+        with self.orderbook_lock:
+            root_ownership_provenance = self.orderbook.parent_order_ids.get(
+                root_client_order_id,
+                {},
+            ).get("ownership_provenance")
+        if (
+            root_ownership_provenance
+            != OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+        ):
+            return True
+        if not self.db_module or not hasattr(self.db_module, "get_parent_order"):
+            return True
+        root_order = self.db_module.get_parent_order(root_client_order_id)
+        if not isinstance(root_order, dict):
+            return True
+        return not (
+            root_order.get("status") == OrderStatus.FILLED.value
+            and root_order.get("ownership_provenance")
+            == OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+        )
+
     def process_user_order(self, order: dict) -> None:
         """Process order event (state transitions).
         
@@ -3240,8 +3267,17 @@ class OrderEngine:
                 )
                 # Propagate to the chain root so the logical order's status
                 # (read by dashboards) reflects the placement's lifecycle.
+                # Admin manual roots are exchange orders in their own right:
+                # once FILLED, a follow-up child's PENDING/OPEN/terminal state
+                # belongs only to the child row and must not rewrite history.
                 root_client_order_id = self.get_parent_of_child(client_order_id)
-                if root_client_order_id and root_client_order_id != client_order_id:
+                if (
+                    root_client_order_id
+                    and root_client_order_id != client_order_id
+                    and self._should_propagate_child_status_to_root(
+                        root_client_order_id
+                    )
+                ):
                     self.db_module.update_order_parent_status(
                         client_order_id=root_client_order_id,
                         status=status,

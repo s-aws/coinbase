@@ -35,7 +35,9 @@ Contract pinned by this module:
      reality; re-incrementing on every WS event / reconcile pass would
      double-count).
   C. Status updates for a child placement update both the placement row
-     AND propagate to the chain root row.
+     AND propagate to a logical stealth root row. An already-FILLED
+     ADMIN_MANUAL_ROOT remains terminal while its follow-up row tracks its
+     own lifecycle.
 """
 
 from __future__ import annotations
@@ -45,7 +47,7 @@ from unittest.mock import Mock
 import pytest
 
 from configuration import OrderBook
-from core.enums import OrderStatus
+from core.enums import OrderOwnershipProvenance, OrderStatus
 from core.order_engine import OrderEngine
 
 
@@ -229,4 +231,77 @@ def test_status_update_propagates_from_child_placement_to_chain_root():
         f"chain root {root} did not receive the status update â€” this is the "
         "observable symptom of the 2026-04-29 stealth-status-stuck-at-PENDING "
         f"bug. update_order_parent_status calls: {update_calls}"
+    )
+
+
+@pytest.mark.regression
+@pytest.mark.parametrize(
+    "child_status",
+    [
+        OrderStatus.PENDING.value,
+        OrderStatus.OPEN.value,
+        OrderStatus.CANCELLED.value,
+    ],
+)
+def test_child_lifecycle_does_not_regress_filled_admin_manual_root(child_status):
+    """A filled Admin root is exchange history, not child lifecycle state."""
+    engine = _build_engine()
+    engine._process_ws_order_delta = Mock()
+    engine._finalize_partial_fill_progress = Mock()
+    engine.handle_cancelled_order = Mock()
+    root = "admin-manual-root-coid"
+    placement = "admin-fill-follow-up-coid"
+
+    root_row = {
+        **_root_row(root),
+        "status": OrderStatus.FILLED.value,
+        "ownership_provenance": (
+            OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+        ),
+    }
+    placement_row = {
+        **_child_row(placement, root),
+        "status": OrderStatus.PENDING.value,
+        "ownership_provenance": (
+            OrderOwnershipProvenance.ADMIN_FILL_FOLLOW_UP.value
+        ),
+    }
+
+    def fake_get_parent_order(coid):
+        if coid == placement:
+            return placement_row
+        if coid == root:
+            return root_row
+        return None
+
+    engine.db_module.get_parent_order = Mock(side_effect=fake_get_parent_order)
+
+    engine.process_user_order(
+        {
+            "client_order_id": placement,
+            "order_id": "exchange-child-uuid",
+            "product_id": "BTC-USDC",
+            "order_side": "SELL",
+            "side": "SELL",
+            "status": child_status,
+            "limit_price": "108000.00",
+            "outstanding_hold_amount": "0",
+            "filled_size": "0",
+        }
+    )
+
+    update_calls = engine.db_module.update_order_parent_status.call_args_list
+    assert any(
+        call.kwargs == {
+            "client_order_id": placement,
+            "status": child_status,
+        }
+        for call in update_calls
+    ), "child placement row must track its own websocket lifecycle"
+    assert not any(
+        call.kwargs.get("client_order_id") == root
+        for call in update_calls
+    ), (
+        "child websocket lifecycle regressed the already-FILLED "
+        f"ADMIN_MANUAL_ROOT: {update_calls}"
     )
