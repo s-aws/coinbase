@@ -11318,6 +11318,89 @@ def _wallet_balances(rest_client: Any, *, expected_portfolio_id: str) -> dict[st
     return balances
 
 
+def _wait_for_root_wallet_propagation(
+    rest_client: Any,
+    *,
+    expected_portfolio_id: str,
+    wallets_before: Mapping[str, Decimal],
+    filled_size: Decimal,
+    filled_value: Decimal,
+    total_fees: Decimal,
+    base_increment: Decimal,
+    timeout_seconds: float = 30,
+    poll_interval_seconds: float = 0.25,
+) -> tuple[dict[str, Decimal], dict[str, Any]]:
+    """Wait until Coinbase wallet balances include the settled root fill.
+
+    Exact order and fill readback can become authoritative before the accounts
+    endpoint reflects the same fill.  The first-child wallet guard consumes the
+    accounts read, so advancing while it is stale can incorrectly block the
+    child before the SDK boundary.  This bounded barrier proves both sides of
+    the root wallet delta before any child attempt is consumed.
+    """
+
+    require(bool(expected_portfolio_id), "root_wallet_portfolio_missing")
+    require(
+        set(wallets_before) >= {"BTC", "USDC"},
+        "root_wallet_baseline_incomplete",
+    )
+    require(
+        filled_size.is_finite() and filled_size > 0,
+        "root_wallet_filled_size_invalid",
+    )
+    require(
+        filled_value.is_finite() and filled_value > 0,
+        "root_wallet_filled_value_invalid",
+    )
+    require(
+        total_fees.is_finite() and total_fees >= 0,
+        "root_wallet_total_fees_invalid",
+    )
+    require(
+        base_increment.is_finite() and base_increment > 0,
+        "root_wallet_base_increment_invalid",
+    )
+    require(
+        timeout_seconds >= 0 and poll_interval_seconds >= 0,
+        "root_wallet_propagation_timing_invalid",
+    )
+
+    deadline = time.monotonic() + timeout_seconds
+    read_count = 0
+    base_tolerance = base_increment * 2
+    while True:
+        wallets_after = _wallet_balances(
+            rest_client,
+            expected_portfolio_id=expected_portfolio_id,
+        )
+        read_count += 1
+        btc_delta = wallets_after["BTC"] - wallets_before["BTC"]
+        usdc_delta = wallets_after["USDC"] - wallets_before["USDC"]
+        usdc_spent = -usdc_delta
+        btc_proven = (
+            filled_size <= btc_delta <= filled_size + base_tolerance
+        )
+        usdc_proven = (
+            usdc_delta < 0
+            and (
+                abs(usdc_spent - (filled_value + total_fees))
+                <= Decimal("0.05")
+                or abs(usdc_spent - filled_value) <= Decimal("0.05")
+            )
+        )
+        if btc_proven and usdc_proven:
+            return wallets_after, {
+                "wallet_delta_kind": "new_root_fill",
+                "wallet_btc_delta": decimal_text(btc_delta),
+                "wallet_usdc_delta": decimal_text(usdc_delta),
+                "wallet_propagation_read_count": read_count,
+                "wallet_propagation_proven": True,
+            }
+        if time.monotonic() >= deadline:
+            raise ProofFailure("root_wallet_propagation_timeout")
+        time.sleep(poll_interval_seconds)
+
+
 def _read_order_match_audit_rows(db_client: Any, client_order_id: str) -> list[dict[str, Any]]:
     rows = db_client.execute_query(
         """
@@ -13514,6 +13597,26 @@ def execute_controlled_batch(
                 exchange_order=exchange_order,
                 reconciliation=fill_reconciliation,
             )
+            require(
+                wallets_before is not None,
+                f"slot_{slot}_wallet_baseline_missing_before_child",
+            )
+            _, root_wallet_propagation = _wait_for_root_wallet_propagation(
+                rest_client,
+                expected_portfolio_id=runtime.portfolio_id,
+                wallets_before=wallets_before,
+                filled_size=filled_size,
+                filled_value=filled_value,
+                total_fees=total_fees,
+                base_increment=Decimal(
+                    str(
+                        object_record(immediate_preflight["product"])[
+                            "base_increment"
+                        ]
+                    )
+                ),
+            )
+            slot_result["root_wallet_propagation"] = root_wallet_propagation
             _, replay, _ = runtime.request(
                 "GET",
                 f"/orders/{current_root_id}/fill-follow-up/replay",
@@ -16311,6 +16414,9 @@ def run_offline_self_test() -> dict[str, Any]:
         ),
         "self_test_v8_failed_v6_v7_absence_not_immediately_before_first_enable",
     )
+    root_wallet_propagation_index = execution_source.index(
+        "_, root_wallet_propagation = _wait_for_root_wallet_propagation("
+    )
     initial_child_reveal_context_index = execution_source.index(
         "_, initial_child_reveal, _ = runtime.request("
     )
@@ -16348,7 +16454,8 @@ def run_offline_self_test() -> dict[str, Any]:
         "child_status_code, child_response, child_headers = runtime.request("
     )
     require(
-        initial_child_reveal_context_index
+        root_wallet_propagation_index
+        < initial_child_reveal_context_index
         < initial_child_cancel_context_index
         < child_reveal_proof_index
         < child_cancel_proof_index
