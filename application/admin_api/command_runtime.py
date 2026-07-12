@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from decimal import Decimal, ROUND_UP
+from decimal import Decimal, InvalidOperation, ROUND_UP
 import os
 from threading import Lock
 from typing import Any, Callable
@@ -983,18 +983,64 @@ class AdminApiControlledFirstChildRuntimeAdapter:
             raise RuntimeError("controlled_child_terminal_status_not_cancelled")
         state = self.stealth_manager._get_stealth_order(stealth_order_id)
         state = state if isinstance(state, dict) else {}
-        active = state.get("anchor_repricing_state_json") or {}
-        if (
-            str(state.get("status") or "").upper() != "REVEALED"
-            or str(active.get("active_placement_client_order_id") or "")
-            != stealth_order_id
-            or str(active.get("active_exchange_order_id") or "")
-            != exchange_order_id
-        ):
-            raise RuntimeError("controlled_child_active_placement_mismatch")
+        active_value = state.get("anchor_repricing_state_json")
+        active = active_value if isinstance(active_value, Mapping) else {}
         size = Decimal(str(executed_size))
         if not size.is_finite() or size < 0:
             raise RuntimeError("controlled_child_executed_size_invalid")
+        active_placement_matches = bool(
+            str(state.get("status") or "").upper() == "REVEALED"
+            and str(active.get("active_placement_client_order_id") or "")
+            == stealth_order_id
+            and str(active.get("active_exchange_order_id") or "")
+            == exchange_order_id
+        )
+        if not active_placement_matches:
+            # The exchange-event worker can persist the exact terminal child
+            # before the synchronous cancel command reaches this step.
+            events = state.get("revealed_orders") or []
+            events = events if isinstance(events, list) else []
+            latest_event = (
+                events[-1]
+                if events and isinstance(events[-1], dict)
+                else {}
+            )
+            try:
+                local_executed_size = Decimal(str(state["executed_size"]))
+            except (InvalidOperation, KeyError, TypeError, ValueError):
+                local_executed_size = Decimal("NaN")
+            clear_state_fields = {
+                "active_placement_client_order_id",
+                "active_exchange_order_id",
+                "active_exchange_price",
+            }
+            already_reconciled = bool(
+                stealth_order_id
+                and exchange_order_id
+                and str(state.get("stealth_order_id") or "")
+                == stealth_order_id
+                and str(state.get("status") or "").upper() == "CANCELLED"
+                and local_executed_size.is_finite()
+                and local_executed_size == size
+                and clear_state_fields.issubset(active)
+                and active.get("active_placement_client_order_id") is None
+                and active.get("active_exchange_order_id") is None
+                and active.get("active_exchange_price") is None
+                and len(events) == 1
+                and latest_event.get("placement_success") is True
+                and str(latest_event.get("placed_order_id") or "")
+                == stealth_order_id
+                and str(latest_event.get("exchange_order_id") or "")
+                == exchange_order_id
+            )
+            if already_reconciled:
+                return {
+                    "local_status": "CANCELLED",
+                    "active_placement_cleared": True,
+                    "exchange_order_id": exchange_order_id,
+                    "already_reconciled": True,
+                }
+            raise RuntimeError("controlled_child_active_placement_mismatch")
         self.stealth_manager.update_execution(
             stealth_order_id,
             float(size),

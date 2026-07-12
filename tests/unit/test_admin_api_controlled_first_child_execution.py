@@ -1432,3 +1432,150 @@ def test_runtime_adapter_reads_and_reconciles_exact_first_child(monkeypatch):
         "active_placement_cleared": True,
         "exchange_order_id": EXCHANGE_ID,
     }
+
+
+def test_runtime_adapter_accepts_exact_already_reconciled_cancelled_first_child():
+    state = {
+        "stealth_order_id": CHILD_ID,
+        "status": "CANCELLED",
+        "executed_size": 0.0,
+        "anchor_repricing_state_json": {
+            "active_placement_client_order_id": None,
+            "active_exchange_order_id": None,
+            "active_exchange_price": None,
+        },
+        "revealed_orders": [
+            {
+                "placed_order_id": CHILD_ID,
+                "exchange_order_id": EXCHANGE_ID,
+                "placement_success": True,
+            }
+        ],
+    }
+    manager = MagicMock()
+    manager._get_stealth_order.return_value = state
+    adapter = AdminApiControlledFirstChildRuntimeAdapter(manager)
+
+    reconciled = adapter.reconcile_controlled_first_child_terminal(
+        stealth_order_id=CHILD_ID,
+        authoritative_status="CANCELLED",
+        executed_size="0",
+        exchange_order_id=EXCHANGE_ID,
+    )
+
+    manager.update_execution.assert_not_called()
+    assert reconciled == {
+        "local_status": "CANCELLED",
+        "active_placement_cleared": True,
+        "exchange_order_id": EXCHANGE_ID,
+        "already_reconciled": True,
+    }
+
+
+def test_runtime_adapter_rejects_already_cancelled_child_with_exchange_identity_drift():
+    state = {
+        "stealth_order_id": CHILD_ID,
+        "status": "CANCELLED",
+        "executed_size": 0.0,
+        "anchor_repricing_state_json": {
+            "active_placement_client_order_id": None,
+            "active_exchange_order_id": None,
+            "active_exchange_price": None,
+        },
+        "revealed_orders": [
+            {
+                "placed_order_id": CHILD_ID,
+                "exchange_order_id": "different-exchange-order-id",
+                "placement_success": True,
+            }
+        ],
+    }
+    manager = MagicMock()
+    manager._get_stealth_order.return_value = state
+    adapter = AdminApiControlledFirstChildRuntimeAdapter(manager)
+
+    with pytest.raises(
+        RuntimeError,
+        match="controlled_child_active_placement_mismatch",
+    ):
+        adapter.reconcile_controlled_first_child_terminal(
+            stealth_order_id=CHILD_ID,
+            authoritative_status="CANCELLED",
+            executed_size="0",
+            exchange_order_id=EXCHANGE_ID,
+        )
+
+    manager.update_execution.assert_not_called()
+
+
+def test_runtime_adapter_rejects_already_cancelled_child_without_clear_state_evidence():
+    state = {
+        "stealth_order_id": CHILD_ID,
+        "status": "CANCELLED",
+        "executed_size": 0.0,
+        "anchor_repricing_state_json": {},
+        "revealed_orders": [
+            {
+                "placed_order_id": CHILD_ID,
+                "exchange_order_id": EXCHANGE_ID,
+                "placement_success": True,
+            }
+        ],
+    }
+    manager = MagicMock()
+    manager._get_stealth_order.return_value = state
+    adapter = AdminApiControlledFirstChildRuntimeAdapter(manager)
+
+    with pytest.raises(
+        RuntimeError,
+        match="controlled_child_active_placement_mismatch",
+    ):
+        adapter.reconcile_controlled_first_child_terminal(
+            stealth_order_id=CHILD_ID,
+            authoritative_status="CANCELLED",
+            executed_size="0",
+            exchange_order_id=EXCHANGE_ID,
+        )
+
+    manager.update_execution.assert_not_called()
+
+
+@pytest.mark.parametrize("local_executed_size", [None, 0.00000001])
+def test_runtime_adapter_rejects_already_cancelled_child_with_executed_size_drift(
+    local_executed_size,
+):
+    state = {
+        "stealth_order_id": CHILD_ID,
+        "status": "CANCELLED",
+        "executed_size": local_executed_size,
+        "anchor_repricing_state_json": {
+            "active_placement_client_order_id": None,
+            "active_exchange_order_id": None,
+            "active_exchange_price": None,
+        },
+        "revealed_orders": [
+            {
+                "placed_order_id": CHILD_ID,
+                "exchange_order_id": EXCHANGE_ID,
+                "placement_success": True,
+            }
+        ],
+    }
+    if local_executed_size is None:
+        state.pop("executed_size")
+    manager = MagicMock()
+    manager._get_stealth_order.return_value = state
+    adapter = AdminApiControlledFirstChildRuntimeAdapter(manager)
+
+    with pytest.raises(
+        RuntimeError,
+        match="controlled_child_active_placement_mismatch",
+    ):
+        adapter.reconcile_controlled_first_child_terminal(
+            stealth_order_id=CHILD_ID,
+            authoritative_status="CANCELLED",
+            executed_size="0",
+            exchange_order_id=EXCHANGE_ID,
+        )
+
+    manager.update_execution.assert_not_called()
