@@ -1,12 +1,14 @@
 #!/usr/bin/env python3.13
-"""Controlled v8 successor proof for the ten-slot Admin Spot root/child batch.
+"""Controlled v9 successor proof for the ten-slot Admin Spot root/child batch.
 
 Default mode is read-only. Exchange mutation additionally requires an
 owner-only, unexpired immutable plan, its exact SHA-256, the exact
 ``--execute-controlled-batch`` flag, and the audited backend commit. One
-embedded backend runtime freshly proves the completed slot-1 child terminal,
-then executes Test-profile ``BTC-USDC`` BUY/LIMIT/FOK roots for slots 2 through
-10. Each fully filled root authorizes exactly its deterministic first
+embedded backend runtime freshly proves the completed slot-1 child terminal
+and the filled v8 slot-2 root. It first recovers only the exact deterministic
+slot-2 child whose v8 preparation committed before any child SDK call, then
+executes Test-profile ``BTC-USDC`` BUY/LIMIT/FOK roots for slots 3 through 10.
+Each fully filled root authorizes exactly its deterministic first
 SELL/LIMIT/GTC child, which is submitted far from market and cancelled through
 the guarded Admin routes before the next root.
 
@@ -18,13 +20,14 @@ absence was proven. V6 was prepared and expired; its marker and ledger are
 currently absent, and all of its order identities must be freshly proven
 absent from Coinbase and local state. V7 expired with no current marker or
 ledger evidence; all v7 identifiers are burned and freshly checked for
-absence. New fixed O_EXCL v8 authority consumes only the remaining
-18 placements: root/child pairs for
-slots 2 through 10. Slot 1 is completed proof and has no v8 placement, cancel,
-idempotency, proof, tuple, or ledger capability. V5, v6, and v7 identifiers are
-permanently burned; a consumed or crashed v8 cannot resume, retry, or substitute a tuple.
-In-process SDK sentinels enforce at most nine new roots and nine new children;
-slot-1 exchange evidence plus v8 targets a ten-root/ten-child proof set without
+absence. New fixed O_EXCL v9 authority consumes only the remaining
+17 placements: root/child pairs for slots 3 through 10 plus the one recovered
+slot-2 child. Slot 1 is completed
+proof; v8 slot 2 contributes only its already-filled root. Unused v8 slots
+3-10 are permanently burned; a consumed or crashed v9 cannot resume, retry,
+or substitute a tuple. In-process SDK sentinels enforce at most eight new
+roots and nine new children; slot-1 and slot-2 exchange evidence plus v9
+targets a ten-root/ten-child proof set without
 claiming an exact cross-generation lifetime SDK count.
 """
 
@@ -54,8 +57,9 @@ import requests
 
 
 ROOT = Path("/home/ec2-user/coinbase")
-# Immutable expired-v7 runner commit audited before this runner-only v8.
-EXPECTED_COMMIT = "6f839669ae925d81b5f82d8fdc411dc7103bc44a"
+V9_RUNNER_TEST_PATH = "tests/unit/test_controlled_admin_v9_runner.py"
+# Audited production parent containing the sealed v8-only recovery primitive.
+EXPECTED_COMMIT = "8c2f0ad0474b24988bccda1862193690f897cd24"
 SECRET_ID = "coinbase/Test"
 SECRET_REGION = "us-east-1"
 PRODUCT_ID = "BTC-USDC"
@@ -353,8 +357,57 @@ FAILED_SUCCESSOR_V7_MARKER_PATH = GLOBAL_BATCH_REGISTRY_DIR / (
 FAILED_SUCCESSOR_V7_LEDGER_PATH = GLOBAL_BATCH_REGISTRY_DIR / (
     "test-profile-btc-usdc-root-child-successor-v7-20260712.attempts.jsonl"
 )
-SUCCESSOR_V8_PLAN_PATH = Path(
+FAILED_SUCCESSOR_V8_PLAN_PATH = Path(
     "/home/ec2-user/.local/state/coinbase-controlled-root-child-successor-v8-20260712.plan.json"
+)
+FAILED_SUCCESSOR_V8_MARKER_PATH = GLOBAL_BATCH_REGISTRY_DIR / (
+    "test-profile-btc-usdc-root-child-successor-v8-20260712.authority.json"
+)
+FAILED_SUCCESSOR_V8_LEDGER_PATH = GLOBAL_BATCH_REGISTRY_DIR / (
+    "test-profile-btc-usdc-root-child-successor-v8-20260712.attempts.jsonl"
+)
+FAILED_SUCCESSOR_V8_STATE_DIR = ROOT / (
+    "artifacts/controlled-root-child-batch-20260712T041629Z-90171143"
+)
+FAILED_SUCCESSOR_V8_FAILURE_PATH = (
+    FAILED_SUCCESSOR_V8_STATE_DIR / "controlled-batch-failure.json"
+)
+FAILED_SUCCESSOR_V8_CLEANUP_PATH = (
+    FAILED_SUCCESSOR_V8_STATE_DIR / "controlled-batch-cleanup.json"
+)
+FAILED_SUCCESSOR_V8_PARENT_LOSS_PATH = (
+    FAILED_SUCCESSOR_V8_STATE_DIR / "parent-authority-loss.json"
+)
+FAILED_SUCCESSOR_V8_SENTINEL_PATH = (
+    FAILED_SUCCESSOR_V8_STATE_DIR / "sdk-boundary-sentinel.json"
+)
+FAILED_SUCCESSOR_V8_RUNTIME_AUTH_PATH = (
+    FAILED_SUCCESSOR_V8_STATE_DIR / "runtime-child-authority.json"
+)
+FAILED_SUCCESSOR_V8_RUNTIME_AUTH_USED_PATH = (
+    FAILED_SUCCESSOR_V8_STATE_DIR / "runtime-child-authority.used.json"
+)
+FAILED_SUCCESSOR_V8_APPROVALS_PATH = (
+    FAILED_SUCCESSOR_V8_STATE_DIR / "approvals.jsonl"
+)
+FAILED_SUCCESSOR_V8_AUDIT_PATH = FAILED_SUCCESSOR_V8_STATE_DIR / "audit.jsonl"
+FAILED_SUCCESSOR_V8_CAP_GUARD_PATH = (
+    FAILED_SUCCESSOR_V8_STATE_DIR / "cap_guard.jsonl"
+)
+FAILED_SUCCESSOR_V8_IDEMPOTENCY_PATH = (
+    FAILED_SUCCESSOR_V8_STATE_DIR / "idempotency.jsonl"
+)
+FAILED_SUCCESSOR_V8_LIVE_SERVICE_PATH = (
+    FAILED_SUCCESSOR_V8_STATE_DIR / "live_service.jsonl"
+)
+FAILED_SUCCESSOR_V8_RECONCILIATION_PATH = (
+    FAILED_SUCCESSOR_V8_STATE_DIR / "reconciliation.jsonl"
+)
+FAILED_SUCCESSOR_V8_RUNTIME_LOG_PATH = (
+    FAILED_SUCCESSOR_V8_STATE_DIR / "embedded-runtime.log"
+)
+SUCCESSOR_V9_PLAN_PATH = Path(
+    "/home/ec2-user/.local/state/coinbase-controlled-root-child-successor-v9-20260712.plan.json"
 )
 PREDECESSOR_PLAN_BYTES_SHA256 = (
     "b60931d4c4ea3f22616250ee93f51c74854fcaf27357b2d8ec364451cf7ec246"
@@ -551,6 +604,57 @@ FAILED_SUCCESSOR_V7_PLAN_BYTES_SHA256 = (
 FAILED_SUCCESSOR_V7_PLAN_SHA256 = (
     "d934f3f5230a855f7f4cb8080bfeb69dea0e5d88ddf9d7b6077fec36afe335f4"
 )
+FAILED_SUCCESSOR_V8_PLAN_BYTES_SHA256 = (
+    "0e826bf7e806973912941bfce3eed0548fc51f52040bd822f73619c635d7d1be"
+)
+FAILED_SUCCESSOR_V8_PLAN_SHA256 = (
+    "815a2e2ad8210cebc370bc2bf29852be20862a5602c6e37c68513ed89f4f80bf"
+)
+FAILED_SUCCESSOR_V8_MARKER_BYTES_SHA256 = (
+    "8cbe7a91971a8718b60348bbc07df7f905aef31ddd55c71a17d1cee8344d9f52"
+)
+FAILED_SUCCESSOR_V8_LEDGER_BYTES_SHA256 = (
+    "a5670c153165d65ef89b3bb1cbf5c040c777c6d3825614fb3a737ade6030a674"
+)
+FAILED_SUCCESSOR_V8_FAILURE_BYTES_SHA256 = (
+    "1f904cffb4531f6dcbcf2928540afbaa6f1566f14c3724ea119c091a182b2745"
+)
+FAILED_SUCCESSOR_V8_CLEANUP_BYTES_SHA256 = (
+    "c874792d7b33b41ece8e67fb3d5a154febc634f0ac94bde0d636396d7fc7bc37"
+)
+FAILED_SUCCESSOR_V8_PARENT_LOSS_BYTES_SHA256 = (
+    "620d53bd9c8a017e9af643189f6d5ae5247541727e8adbb02405d5b5ca53d77c"
+)
+FAILED_SUCCESSOR_V8_SENTINEL_BYTES_SHA256 = (
+    "10e8b10a3d3080ac88709d8605ef50df173755a602c1da800b1c30732b47f9dd"
+)
+FAILED_SUCCESSOR_V8_RUNTIME_AUTH_BYTES_SHA256 = (
+    "ff5f25cc9a6c6fe4bac820c986c68e544d88d6c5851a20c3dafbe91822e3279a"
+)
+FAILED_SUCCESSOR_V8_RUNTIME_AUTH_USED_BYTES_SHA256 = (
+    "7197b75f47be7045c59a4277e72f477a9a221a74c398e6b19e1cb1e57fcb7b50"
+)
+FAILED_SUCCESSOR_V8_APPROVALS_BYTES_SHA256 = (
+    "5e027d1ff710bbe21b54688b7d0ba61bdde57b6703f26bf42c91c65126ad4710"
+)
+FAILED_SUCCESSOR_V8_AUDIT_BYTES_SHA256 = (
+    "238b9d6904d4a31c07945a94bd21912062580f2dc8d0ba43028b5dc7ed0c6999"
+)
+FAILED_SUCCESSOR_V8_CAP_GUARD_BYTES_SHA256 = (
+    "1b5504dbaf936fd161989b153c7546289566c1253609d810b3901a59f1e0330f"
+)
+FAILED_SUCCESSOR_V8_IDEMPOTENCY_BYTES_SHA256 = (
+    "d0f1add0bc0ea3c838aa7998d8ee7cadb206274cf1fa375ab4e2553cfc46f7fa"
+)
+FAILED_SUCCESSOR_V8_LIVE_SERVICE_BYTES_SHA256 = (
+    "0eb41d800f8971fe279f1fdfacdf681db1c0657094bda8d562ab7f1e84cfed7c"
+)
+FAILED_SUCCESSOR_V8_RECONCILIATION_BYTES_SHA256 = (
+    "a1c31ed54da73db49edc04261f7d9089f922a42b9a5c1bee9518ddaea4d0457a"
+)
+FAILED_SUCCESSOR_V8_RUNTIME_LOG_BYTES_SHA256 = (
+    "4c5583d6ba7c68022485fb2ee3d57e8366dc20774d0f30b59919f00f5fa93497"
+)
 PREDECESSOR_BACKEND_COMMIT = "794516bffb16f5af9b98392e60d9f3037f169322"
 PREDECESSOR_RUNNER_SHA256 = (
     "695deb8439d601a43b5a09f0f570b07ad612b9d7c115a1f0bc17eef64d942d8b"
@@ -689,6 +793,68 @@ FAILED_SUCCESSOR_V7_APPROVAL_ID = (
 FAILED_SUCCESSOR_V7_BATCH_ID = "caa9c829-4b88-5223-bca6-cb51877683e6"
 FAILED_SUCCESSOR_V7_CREATED_AT = "2026-07-12T02:20:22.509062+00:00"
 FAILED_SUCCESSOR_V7_EXPIRES_AT = "2026-07-12T03:20:22.509062+00:00"
+FAILED_SUCCESSOR_V8_RUNNER_COMMIT = (
+    "19970e6aedd56d89e54dd1c9f5fa408072b658b2"
+)
+FAILED_SUCCESSOR_V8_PRODUCTION_PARENT_COMMIT = (
+    "6f839669ae925d81b5f82d8fdc411dc7103bc44a"
+)
+FAILED_SUCCESSOR_V8_RUNNER_SHA256 = (
+    "e33ca3e8f89d7d5b25f641555db2b79b1ff26469de669e76add239de4631dd87"
+)
+FAILED_SUCCESSOR_V8_APPROVAL_ID = (
+    "controlled-root-child-successor-v8-c4c14fec-6218-4111-a903-dec58666b410"
+)
+FAILED_SUCCESSOR_V8_BATCH_ID = "4b4322db-64c6-57fc-8e2b-0890b64507e6"
+V8_SLOT_2_ROOT_CLIENT_ORDER_ID = "12a52c06-e368-5c39-bfa0-6eb5880f3c64"
+V8_SLOT_2_CHILD_CLIENT_ORDER_ID = "252b6389-d544-58db-a796-e9bc258f794f"
+V8_SLOT_2_ROOT_EXCHANGE_ORDER_ID = "2ed7d436-b16e-4a7e-b0af-cb8f8bb86e68"
+V8_SLOT_2_ROOT_PLANNED_NOTIONAL = Decimal("1.1001110618")
+V8_SLOT_2_ROOT_FILLED_SIZE = Decimal("0.00001711")
+V8_SLOT_2_ROOT_FILLED_VALUE = Decimal("1.0974591127851021")
+V8_SLOT_2_ROOT_TOTAL_FEES = Decimal("0.0009328402458673")
+V8_SLOT_2_CHILD_AUDIT_REFERENCE_NOTIONAL = Decimal("1.7560032353")
+V8_SLOT_2_ROOT_CORRELATION_ID = (
+    "corr-4b4322db-64c6-57fc-8e2b-0890b64507e6-root-2"
+)
+V8_SLOT_2_ROOT_ADMISSION_AUDIT_ID = "d7c642bb-9d7a-4a76-a1c6-2b0eb73590d8"
+V8_SLOT_2_ROOT_TUPLE_SHA256 = (
+    "da6441e98758cb6ca02e342d9f072107abce14f918ef91de9e77390bea85d3fb"
+)
+V8_SLOT_2_CHILD_TUPLE_SHA256 = (
+    "d2def2b82a9f1e515c0edc67d5611f4d650c8ce356b7809e61926c36dc2203d3"
+)
+V8_SLOT_2_PRIOR_PREPARATION_SHA256 = (
+    "af16bf8f7867c3f8a385b0d0cef31371d4381289cc1fd7a58e81c29102d783a9"
+)
+V8_SLOT_2_PRIOR_PREPARATION_AUTHORITY_ID = (
+    "d67b89be-549b-4778-9061-e6decb20f550"
+)
+V8_SLOT_2_PRIOR_CHILD_REVEAL_APPROVAL_ID = (
+    "bb1d8b0b-a32f-5acd-be46-a91af74ef701"
+)
+FAILED_SUCCESSOR_V8_PLANNED_ROOT_CLIENT_ORDER_IDS = (
+    V8_SLOT_2_ROOT_CLIENT_ORDER_ID,
+    "0a25cbaf-6af0-58a1-ac8f-1fe30b35c0f4",
+    "b5215e35-671a-523c-9ad1-05a64775d27d",
+    "3501daad-9753-5fb0-959e-c831bcee358c",
+    "917736af-2331-5830-b615-3521a1f7428b",
+    "862c184d-c9ea-56a5-9774-558c1ab812b6",
+    "662b67c8-66d8-506f-9ea8-aad6aee203d5",
+    "2c1eb7e6-c3b3-5fdd-a90b-567af4ee94f7",
+    "ea759959-6456-50d5-8acd-d5554fcd1536",
+)
+FAILED_SUCCESSOR_V8_PLANNED_CHILD_CLIENT_ORDER_IDS = (
+    V8_SLOT_2_CHILD_CLIENT_ORDER_ID,
+    "8a4f1ea2-c88c-5437-8318-89698eb9fdcd",
+    "5e698a76-2485-5cd8-a180-3fb65db4a5b0",
+    "207b8d9f-dde0-534f-8b89-a87c73673eac",
+    "2f316483-874b-5c2d-a7ba-c06d5a42f4c5",
+    "e7e7fd3a-eae0-5189-86ee-005d50473cf8",
+    "9c6fcbfc-b924-5843-9c7e-d8bb9dd601a4",
+    "d335e07b-950b-533e-b82f-7f0b9a68ddd5",
+    "d6380e22-f8c5-5201-80f9-3f0c3b8ae575",
+)
 CARRIED_ROOT_CLIENT_ORDER_ID = "a32a9839-d7dc-507d-bed8-8f4da1b2e2e7"
 CARRIED_CHILD_CLIENT_ORDER_ID = "7fcadaa3-027f-5c09-b338-4e625ceee53f"
 CARRIED_ROOT_EXCHANGE_ORDER_ID = "edc4c227-8937-4c1a-b437-1c93127c1fb2"
@@ -707,6 +873,9 @@ CARRIED_ROOT_ADMISSION_AUDIT_ID = "18860534-220e-46f9-a2e2-2ba91da4b025"
 COMPLETED_CHILD_EXCHANGE_ORDER_ID = "31cacd98-bdf2-4d6d-80a5-9b6156532bd9"
 COMPLETED_CHILD_REFERENCE_NOTIONAL = Decimal("1.7570837404")
 COMPLETED_INHERITED_REFERENCE_NOTIONAL = Decimal("2.8571692621")
+TOTAL_INHERITED_REFERENCE_NOTIONAL = (
+    COMPLETED_INHERITED_REFERENCE_NOTIONAL + V8_SLOT_2_ROOT_PLANNED_NOTIONAL
+)
 PREDECESSOR_PLANNED_ROOT_CLIENT_ORDER_IDS = (
     CARRIED_ROOT_CLIENT_ORDER_ID,
     "88fcb024-02f3-5a07-8552-82a6e8f75f0c",
@@ -893,21 +1062,26 @@ FAILED_SUCCESSOR_V7_PLANNED_CHILD_CLIENT_ORDER_IDS = (
     "b0afefe2-5609-54bd-9287-e89e2a195d19",
     "9604c48c-6dc5-5e59-9ce7-670f2c2b3d1a",
 )
-SUCCESSOR_ROOT_ORDER_MAXIMUM = BATCH_SIZE - 1
+V8_ROOT_ORDER_MAXIMUM = BATCH_SIZE - 1
+V8_CHILD_ORDER_MAXIMUM = BATCH_SIZE - 1
+V8_ATTEMPT_COUNT = (
+    V8_ROOT_ORDER_MAXIMUM + V8_CHILD_ORDER_MAXIMUM
+)
+PRIOR_V8_CHILD_ORDER_MAXIMUM = BATCH_SIZE
+PRIOR_V8_ATTEMPT_COUNT = (
+    V8_ROOT_ORDER_MAXIMUM + PRIOR_V8_CHILD_ORDER_MAXIMUM
+)
+SUCCESSOR_ROOT_ORDER_MAXIMUM = BATCH_SIZE - 2
 SUCCESSOR_CHILD_ORDER_MAXIMUM = BATCH_SIZE - 1
 SUCCESSOR_ATTEMPT_COUNT = (
     SUCCESSOR_ROOT_ORDER_MAXIMUM + SUCCESSOR_CHILD_ORDER_MAXIMUM
 )
-PRIOR_SUCCESSOR_CHILD_ORDER_MAXIMUM = BATCH_SIZE
-PRIOR_SUCCESSOR_ATTEMPT_COUNT = (
-    SUCCESSOR_ROOT_ORDER_MAXIMUM + PRIOR_SUCCESSOR_CHILD_ORDER_MAXIMUM
-)
-PLAN_SCHEMA_VERSION = "12"
+PLAN_SCHEMA_VERSION = "13"
 GLOBAL_BATCH_MARKER_FILENAME = (
-    "test-profile-btc-usdc-root-child-successor-v8-20260712.authority.json"
+    "test-profile-btc-usdc-root-child-successor-v9-20260712.authority.json"
 )
 GLOBAL_BATCH_LEDGER_FILENAME = (
-    "test-profile-btc-usdc-root-child-successor-v8-20260712.attempts.jsonl"
+    "test-profile-btc-usdc-root-child-successor-v9-20260712.attempts.jsonl"
 )
 SPOT_NONTERMINAL_STATUSES = (
     "PENDING",
@@ -1129,11 +1303,11 @@ def require(condition: bool, message: str) -> None:
 
 
 def successor_attempt_schedule() -> list[tuple[int, str]]:
-    """Return only the 18 placements remaining after completed slot 1."""
+    """Return the recovered child-2 then fresh pairs 3 through 10."""
 
-    return [
+    return [(2, "child")] + [
         item
-        for slot in range(2, BATCH_SIZE + 1)
+        for slot in range(3, BATCH_SIZE + 1)
         for item in ((slot, "root"), (slot, "child"))
     ]
 
@@ -1969,6 +2143,129 @@ def offline_failed_v7_binding_fixture() -> dict[str, Any]:
     }
 
 
+def offline_v8_binding_fixture() -> dict[str, Any]:
+    """Return the exact sealed v8 root-2/child-2 failure evidence."""
+
+    return {
+        "schema_version": "1",
+        "runner_commit": FAILED_SUCCESSOR_V8_RUNNER_COMMIT,
+        "production_parent_commit": (
+            FAILED_SUCCESSOR_V8_PRODUCTION_PARENT_COMMIT
+        ),
+        "runner_sha256": FAILED_SUCCESSOR_V8_RUNNER_SHA256,
+        "approval_id": FAILED_SUCCESSOR_V8_APPROVAL_ID,
+        "batch_id": FAILED_SUCCESSOR_V8_BATCH_ID,
+        "plan_path": str(FAILED_SUCCESSOR_V8_PLAN_PATH),
+        "plan_bytes_sha256": FAILED_SUCCESSOR_V8_PLAN_BYTES_SHA256,
+        "plan_sha256": FAILED_SUCCESSOR_V8_PLAN_SHA256,
+        "marker_path": str(FAILED_SUCCESSOR_V8_MARKER_PATH),
+        "marker_bytes_sha256": FAILED_SUCCESSOR_V8_MARKER_BYTES_SHA256,
+        "ledger_path": str(FAILED_SUCCESSOR_V8_LEDGER_PATH),
+        "ledger_bytes_sha256": FAILED_SUCCESSOR_V8_LEDGER_BYTES_SHA256,
+        "failure_path": str(FAILED_SUCCESSOR_V8_FAILURE_PATH),
+        "failure_bytes_sha256": FAILED_SUCCESSOR_V8_FAILURE_BYTES_SHA256,
+        "cleanup_path": str(FAILED_SUCCESSOR_V8_CLEANUP_PATH),
+        "cleanup_bytes_sha256": FAILED_SUCCESSOR_V8_CLEANUP_BYTES_SHA256,
+        "parent_loss_path": str(FAILED_SUCCESSOR_V8_PARENT_LOSS_PATH),
+        "parent_loss_bytes_sha256": (
+            FAILED_SUCCESSOR_V8_PARENT_LOSS_BYTES_SHA256
+        ),
+        "sentinel_path": str(FAILED_SUCCESSOR_V8_SENTINEL_PATH),
+        "sentinel_bytes_sha256": FAILED_SUCCESSOR_V8_SENTINEL_BYTES_SHA256,
+        "runtime_auth_path": str(FAILED_SUCCESSOR_V8_RUNTIME_AUTH_PATH),
+        "runtime_auth_bytes_sha256": (
+            FAILED_SUCCESSOR_V8_RUNTIME_AUTH_BYTES_SHA256
+        ),
+        "runtime_auth_used_path": str(
+            FAILED_SUCCESSOR_V8_RUNTIME_AUTH_USED_PATH
+        ),
+        "runtime_auth_used_bytes_sha256": (
+            FAILED_SUCCESSOR_V8_RUNTIME_AUTH_USED_BYTES_SHA256
+        ),
+        "approvals_path": str(FAILED_SUCCESSOR_V8_APPROVALS_PATH),
+        "approvals_bytes_sha256": FAILED_SUCCESSOR_V8_APPROVALS_BYTES_SHA256,
+        "audit_path": str(FAILED_SUCCESSOR_V8_AUDIT_PATH),
+        "audit_bytes_sha256": FAILED_SUCCESSOR_V8_AUDIT_BYTES_SHA256,
+        "cap_guard_path": str(FAILED_SUCCESSOR_V8_CAP_GUARD_PATH),
+        "cap_guard_bytes_sha256": FAILED_SUCCESSOR_V8_CAP_GUARD_BYTES_SHA256,
+        "idempotency_path": str(FAILED_SUCCESSOR_V8_IDEMPOTENCY_PATH),
+        "idempotency_bytes_sha256": (
+            FAILED_SUCCESSOR_V8_IDEMPOTENCY_BYTES_SHA256
+        ),
+        "live_service_path": str(FAILED_SUCCESSOR_V8_LIVE_SERVICE_PATH),
+        "live_service_bytes_sha256": (
+            FAILED_SUCCESSOR_V8_LIVE_SERVICE_BYTES_SHA256
+        ),
+        "reconciliation_path": str(
+            FAILED_SUCCESSOR_V8_RECONCILIATION_PATH
+        ),
+        "reconciliation_bytes_sha256": (
+            FAILED_SUCCESSOR_V8_RECONCILIATION_BYTES_SHA256
+        ),
+        "runtime_log_path": str(FAILED_SUCCESSOR_V8_RUNTIME_LOG_PATH),
+        "runtime_log_bytes_sha256": (
+            FAILED_SUCCESSOR_V8_RUNTIME_LOG_BYTES_SHA256
+        ),
+        "attempt_count": 2,
+        "root_sdk_call_count": 1,
+        "child_sdk_call_count": 0,
+        "slot_2_root_client_order_id": V8_SLOT_2_ROOT_CLIENT_ORDER_ID,
+        "slot_2_child_client_order_id": V8_SLOT_2_CHILD_CLIENT_ORDER_ID,
+        "slot_2_root_exchange_order_id": V8_SLOT_2_ROOT_EXCHANGE_ORDER_ID,
+        "slot_2_root_planned_notional_usdc": decimal_text(
+            V8_SLOT_2_ROOT_PLANNED_NOTIONAL
+        ),
+        "slot_2_root_filled_size": decimal_text(V8_SLOT_2_ROOT_FILLED_SIZE),
+        "slot_2_root_filled_value": decimal_text(
+            V8_SLOT_2_ROOT_FILLED_VALUE
+        ),
+        "slot_2_root_total_fees": decimal_text(V8_SLOT_2_ROOT_TOTAL_FEES),
+        "slot_2_child_reference_notional_usdc": decimal_text(
+            V8_SLOT_2_CHILD_AUDIT_REFERENCE_NOTIONAL
+        ),
+        "slot_2_root_correlation_id": V8_SLOT_2_ROOT_CORRELATION_ID,
+        "slot_2_root_admission_audit_id": (
+            V8_SLOT_2_ROOT_ADMISSION_AUDIT_ID
+        ),
+        "slot_2_root_tuple_sha256": V8_SLOT_2_ROOT_TUPLE_SHA256,
+        "slot_2_child_tuple_sha256": V8_SLOT_2_CHILD_TUPLE_SHA256,
+        "slot_2_prior_preparation_sha256": (
+            V8_SLOT_2_PRIOR_PREPARATION_SHA256
+        ),
+        "slot_2_prior_preparation_authority_id": (
+            V8_SLOT_2_PRIOR_PREPARATION_AUTHORITY_ID
+        ),
+        "slot_2_prior_child_reveal_approval_id": (
+            V8_SLOT_2_PRIOR_CHILD_REVEAL_APPROVAL_ID
+        ),
+        "planned_root_client_order_ids": list(
+            FAILED_SUCCESSOR_V8_PLANNED_ROOT_CLIENT_ORDER_IDS
+        ),
+        "planned_child_client_order_ids": list(
+            FAILED_SUCCESSOR_V8_PLANNED_CHILD_CLIENT_ORDER_IDS
+        ),
+        "burned_root_client_order_ids": list(
+            FAILED_SUCCESSOR_V8_PLANNED_ROOT_CLIENT_ORDER_IDS[1:]
+        ),
+        "burned_child_client_order_ids": list(
+            FAILED_SUCCESSOR_V8_PLANNED_CHILD_CLIENT_ORDER_IDS[1:]
+        ),
+        "failure_reason": "child_reveal_http_failed:400",
+        "root_terminal_status": "FILLED",
+        "root_authoritative_readback_proven": True,
+        "child_exchange_submission_attempted": False,
+        "child_live_exchange_submitted": False,
+        "cleanup_was_unsafe_intermediate_snapshot": True,
+        "parent_loss_terminal_closeout_proven": True,
+        "final_runtime_exit_sentinel_proven": True,
+        "service_disabled_at_closeout": True,
+        "new_sdk_placements_denied_at_closeout": True,
+        "sdk_quiescence_proven_at_closeout": True,
+        "active_spot_orders_at_closeout": [],
+        "all_v8_authority_burned": True,
+    }
+
+
 def completed_slot_1_v5_binding_fixture() -> dict[str, Any]:
     """Return the sealed v5 plan's immutable slot-1 proof object."""
 
@@ -2479,11 +2776,11 @@ def validate_failed_successor_artifacts(
         and plan.get("batch_id") == FAILED_SUCCESSOR_V1_BATCH_ID
         and plan.get("plan_sha256") == FAILED_SUCCESSOR_V1_PLAN_SHA256
         and plan_hash(plan) == FAILED_SUCCESSOR_V1_PLAN_SHA256
-        and plan.get("remaining_attempt_count") == PRIOR_SUCCESSOR_ATTEMPT_COUNT
+        and plan.get("remaining_attempt_count") == PRIOR_V8_ATTEMPT_COUNT
         and plan.get("new_root_order_maximum")
-        == SUCCESSOR_ROOT_ORDER_MAXIMUM
+        == V8_ROOT_ORDER_MAXIMUM
         and plan.get("child_order_maximum")
-        == PRIOR_SUCCESSOR_CHILD_ORDER_MAXIMUM
+        == PRIOR_V8_CHILD_ORDER_MAXIMUM
         and object_record(plan.get("predecessor_binding"))
         == offline_predecessor_binding_fixture(),
         "failed_successor_plan_identity_mismatch",
@@ -2518,11 +2815,11 @@ def validate_failed_successor_artifacts(
         and marker.get("attempt_ledger_path")
         == str(FAILED_SUCCESSOR_V1_LEDGER_PATH)
         and marker.get("remaining_attempt_count")
-        == PRIOR_SUCCESSOR_ATTEMPT_COUNT
+        == PRIOR_V8_ATTEMPT_COUNT
         and marker.get("root_order_maximum")
-        == SUCCESSOR_ROOT_ORDER_MAXIMUM
+        == V8_ROOT_ORDER_MAXIMUM
         and marker.get("child_order_maximum")
-        == PRIOR_SUCCESSOR_CHILD_ORDER_MAXIMUM
+        == PRIOR_V8_CHILD_ORDER_MAXIMUM
         and marker.get("process_id") == FAILED_SUCCESSOR_V1_PARENT_PID
         and object_record(marker.get("predecessor_binding"))
         == offline_predecessor_binding_fixture()
@@ -2799,11 +3096,11 @@ def validate_failed_v2_artifacts(
         and plan.get("batch_id") == FAILED_SUCCESSOR_V2_BATCH_ID
         and plan.get("plan_sha256") == FAILED_SUCCESSOR_V2_PLAN_SHA256
         and plan_hash(plan) == FAILED_SUCCESSOR_V2_PLAN_SHA256
-        and plan.get("remaining_attempt_count") == PRIOR_SUCCESSOR_ATTEMPT_COUNT
+        and plan.get("remaining_attempt_count") == PRIOR_V8_ATTEMPT_COUNT
         and plan.get("new_root_order_maximum")
-        == SUCCESSOR_ROOT_ORDER_MAXIMUM
+        == V8_ROOT_ORDER_MAXIMUM
         and plan.get("child_order_maximum")
-        == PRIOR_SUCCESSOR_CHILD_ORDER_MAXIMUM
+        == PRIOR_V8_CHILD_ORDER_MAXIMUM
         and object_record(plan.get("predecessor_binding"))
         == offline_predecessor_binding_fixture()
         and object_record(plan.get("failed_successor_binding"))
@@ -2838,11 +3135,11 @@ def validate_failed_v2_artifacts(
         and marker.get("marker_path") == str(FAILED_SUCCESSOR_V2_MARKER_PATH)
         and marker.get("attempt_ledger_path")
         == str(FAILED_SUCCESSOR_V2_LEDGER_PATH)
-        and marker.get("remaining_attempt_count") == PRIOR_SUCCESSOR_ATTEMPT_COUNT
+        and marker.get("remaining_attempt_count") == PRIOR_V8_ATTEMPT_COUNT
         and marker.get("root_order_maximum")
-        == SUCCESSOR_ROOT_ORDER_MAXIMUM
+        == V8_ROOT_ORDER_MAXIMUM
         and marker.get("child_order_maximum")
-        == PRIOR_SUCCESSOR_CHILD_ORDER_MAXIMUM
+        == PRIOR_V8_CHILD_ORDER_MAXIMUM
         and marker.get("process_id") == FAILED_SUCCESSOR_V2_PARENT_PID
         and object_record(marker.get("predecessor_binding"))
         == offline_predecessor_binding_fixture()
@@ -3104,10 +3401,10 @@ def validate_failed_v3_artifacts(
         and plan.get("batch_id") == FAILED_SUCCESSOR_V3_BATCH_ID
         and plan.get("plan_sha256") == FAILED_SUCCESSOR_V3_PLAN_SHA256
         and plan_hash(plan) == FAILED_SUCCESSOR_V3_PLAN_SHA256
-        and plan.get("remaining_attempt_count") == PRIOR_SUCCESSOR_ATTEMPT_COUNT
-        and plan.get("new_root_order_maximum") == SUCCESSOR_ROOT_ORDER_MAXIMUM
+        and plan.get("remaining_attempt_count") == PRIOR_V8_ATTEMPT_COUNT
+        and plan.get("new_root_order_maximum") == V8_ROOT_ORDER_MAXIMUM
         and plan.get("child_order_maximum")
-        == PRIOR_SUCCESSOR_CHILD_ORDER_MAXIMUM
+        == PRIOR_V8_CHILD_ORDER_MAXIMUM
         and object_record(plan.get("predecessor_binding")) == offline_predecessor_binding_fixture()
         and object_record(plan.get("failed_successor_binding")) == offline_failed_successor_binding_fixture()
         and object_record(plan.get("failed_v2_binding")) == offline_failed_v2_binding_fixture(),
@@ -3133,10 +3430,10 @@ def validate_failed_v3_artifacts(
         and marker.get("marker_path") == str(FAILED_SUCCESSOR_V3_MARKER_PATH)
         and marker.get("attempt_ledger_path") == str(FAILED_SUCCESSOR_V3_LEDGER_PATH)
         and marker.get("remaining_attempt_count")
-        == PRIOR_SUCCESSOR_ATTEMPT_COUNT
-        and marker.get("root_order_maximum") == SUCCESSOR_ROOT_ORDER_MAXIMUM
+        == PRIOR_V8_ATTEMPT_COUNT
+        and marker.get("root_order_maximum") == V8_ROOT_ORDER_MAXIMUM
         and marker.get("child_order_maximum")
-        == PRIOR_SUCCESSOR_CHILD_ORDER_MAXIMUM
+        == PRIOR_V8_CHILD_ORDER_MAXIMUM
         and marker.get("process_id") == FAILED_SUCCESSOR_V3_PARENT_PID
         and object_record(marker.get("predecessor_binding")) == offline_predecessor_binding_fixture()
         and object_record(marker.get("failed_successor_binding")) == offline_failed_successor_binding_fixture()
@@ -3360,11 +3657,11 @@ def validate_failed_v4_artifacts(
         and plan.get("plan_sha256") == FAILED_SUCCESSOR_V4_PLAN_SHA256
         and plan_hash(plan) == FAILED_SUCCESSOR_V4_PLAN_SHA256
         and plan.get("remaining_attempt_count")
-        == PRIOR_SUCCESSOR_ATTEMPT_COUNT
+        == PRIOR_V8_ATTEMPT_COUNT
         and plan.get("new_root_order_maximum")
-        == SUCCESSOR_ROOT_ORDER_MAXIMUM
+        == V8_ROOT_ORDER_MAXIMUM
         and plan.get("child_order_maximum")
-        == PRIOR_SUCCESSOR_CHILD_ORDER_MAXIMUM
+        == PRIOR_V8_CHILD_ORDER_MAXIMUM
         and object_record(plan.get("predecessor_binding")) == offline_predecessor_binding_fixture()
         and object_record(plan.get("failed_successor_binding")) == offline_failed_successor_binding_fixture()
         and object_record(plan.get("failed_v2_binding")) == offline_failed_v2_binding_fixture()
@@ -3392,11 +3689,11 @@ def validate_failed_v4_artifacts(
         and marker.get("attempt_ledger_path") == str(FAILED_SUCCESSOR_V4_LEDGER_PATH)
         and marker.get("process_id") == FAILED_SUCCESSOR_V4_PARENT_PID
         and marker.get("remaining_attempt_count")
-        == PRIOR_SUCCESSOR_ATTEMPT_COUNT
+        == PRIOR_V8_ATTEMPT_COUNT
         and marker.get("root_order_maximum")
-        == SUCCESSOR_ROOT_ORDER_MAXIMUM
+        == V8_ROOT_ORDER_MAXIMUM
         and marker.get("child_order_maximum")
-        == PRIOR_SUCCESSOR_CHILD_ORDER_MAXIMUM
+        == PRIOR_V8_CHILD_ORDER_MAXIMUM
         and object_record(marker.get("failed_v3_binding")) == offline_failed_v3_binding_fixture()
         and marker.get("exact_child_client_order_ids") == list(FAILED_SUCCESSOR_V4_PLANNED_CHILD_CLIENT_ORDER_IDS),
         "failed_v4_marker_identity_mismatch",
@@ -3663,9 +3960,9 @@ def validate_failed_v5_artifacts(
         and plan.get("batch_id") == FAILED_SUCCESSOR_V5_BATCH_ID
         and plan.get("plan_sha256") == FAILED_SUCCESSOR_V5_PLAN_SHA256
         and plan_hash(plan) == FAILED_SUCCESSOR_V5_PLAN_SHA256
-        and plan.get("remaining_attempt_count") == SUCCESSOR_ATTEMPT_COUNT
-        and plan.get("new_root_order_maximum") == SUCCESSOR_ROOT_ORDER_MAXIMUM
-        and plan.get("child_order_maximum") == SUCCESSOR_CHILD_ORDER_MAXIMUM
+        and plan.get("remaining_attempt_count") == V8_ATTEMPT_COUNT
+        and plan.get("new_root_order_maximum") == V8_ROOT_ORDER_MAXIMUM
+        and plan.get("child_order_maximum") == V8_CHILD_ORDER_MAXIMUM
         and plan.get("completed_inherited_reference_notional_usdc")
         == decimal_text(COMPLETED_INHERITED_REFERENCE_NOTIONAL)
         and Decimal(str(plan.get("planned_total_root_child_reference_notional_usdc") or "0"))
@@ -3721,9 +4018,9 @@ def validate_failed_v5_artifacts(
         and marker.get("marker_path") == str(FAILED_SUCCESSOR_V5_MARKER_PATH)
         and marker.get("attempt_ledger_path") == str(FAILED_SUCCESSOR_V5_LEDGER_PATH)
         and marker.get("process_id") == FAILED_SUCCESSOR_V5_PARENT_PID
-        and marker.get("remaining_attempt_count") == SUCCESSOR_ATTEMPT_COUNT
-        and marker.get("root_order_maximum") == SUCCESSOR_ROOT_ORDER_MAXIMUM
-        and marker.get("child_order_maximum") == SUCCESSOR_CHILD_ORDER_MAXIMUM
+        and marker.get("remaining_attempt_count") == V8_ATTEMPT_COUNT
+        and marker.get("root_order_maximum") == V8_ROOT_ORDER_MAXIMUM
+        and marker.get("child_order_maximum") == V8_CHILD_ORDER_MAXIMUM
         and marker.get("exact_child_client_order_ids")
         == list(FAILED_SUCCESSOR_V5_PLANNED_CHILD_CLIENT_ORDER_IDS)
         and [object_record(item) for item in list_value(marker.get("exact_root_tuples"))]
@@ -3915,11 +4212,11 @@ def validate_failed_v6_artifacts(
         and plan.get("plan_sha256") == FAILED_SUCCESSOR_V6_PLAN_SHA256
         and plan_hash(plan) == FAILED_SUCCESSOR_V6_PLAN_SHA256
         and plan.get("batch_size") == BATCH_SIZE
-        and plan.get("remaining_attempt_count") == SUCCESSOR_ATTEMPT_COUNT
+        and plan.get("remaining_attempt_count") == V8_ATTEMPT_COUNT
         and plan.get("new_root_order_maximum")
-        == SUCCESSOR_ROOT_ORDER_MAXIMUM
+        == V8_ROOT_ORDER_MAXIMUM
         and plan.get("child_order_maximum")
-        == SUCCESSOR_CHILD_ORDER_MAXIMUM
+        == V8_CHILD_ORDER_MAXIMUM
         and plan.get("portfolio_id") == TEST_PORTFOLIO_ID
         and plan.get("portfolio_label") == PROFILE_LABEL
         and plan.get("product_id") == PRODUCT_ID
@@ -3984,7 +4281,7 @@ def validate_failed_v6_artifacts(
     )
     roots = [object_record(item) for item in list_value(plan.get("roots"))]
     require(
-        len(roots) == SUCCESSOR_ROOT_ORDER_MAXIMUM
+        len(roots) == V8_ROOT_ORDER_MAXIMUM
         and [int(root.get("slot") or 0) for root in roots]
         == list(range(2, BATCH_SIZE + 1)),
         "failed_v6_root_slots_mismatch",
@@ -4038,7 +4335,7 @@ def validate_failed_v6_artifacts(
         root_ids == list(FAILED_SUCCESSOR_V6_PLANNED_ROOT_CLIENT_ORDER_IDS)
         and child_ids == list(FAILED_SUCCESSOR_V6_PLANNED_CHILD_CLIENT_ORDER_IDS)
         and proof_ids == failed_v6_proof_approval_ids()
-        and len(set(root_ids) | set(child_ids)) == SUCCESSOR_ATTEMPT_COUNT
+        and len(set(root_ids) | set(child_ids)) == V8_ATTEMPT_COUNT
         and len(set(proof_ids)) == 36,
         "failed_v6_planned_authority_ids_mismatch",
     )
@@ -4110,11 +4407,11 @@ def validate_failed_v7_artifacts(
         and plan.get("plan_sha256") == FAILED_SUCCESSOR_V7_PLAN_SHA256
         and plan_hash(plan) == FAILED_SUCCESSOR_V7_PLAN_SHA256
         and plan.get("batch_size") == BATCH_SIZE
-        and plan.get("remaining_attempt_count") == SUCCESSOR_ATTEMPT_COUNT
+        and plan.get("remaining_attempt_count") == V8_ATTEMPT_COUNT
         and plan.get("new_root_order_maximum")
-        == SUCCESSOR_ROOT_ORDER_MAXIMUM
+        == V8_ROOT_ORDER_MAXIMUM
         and plan.get("child_order_maximum")
-        == SUCCESSOR_CHILD_ORDER_MAXIMUM
+        == V8_CHILD_ORDER_MAXIMUM
         and plan.get("portfolio_id") == TEST_PORTFOLIO_ID
         and plan.get("portfolio_label") == PROFILE_LABEL
         and plan.get("product_id") == PRODUCT_ID
@@ -4181,7 +4478,7 @@ def validate_failed_v7_artifacts(
     )
     roots = [object_record(item) for item in list_value(plan.get("roots"))]
     require(
-        len(roots) == SUCCESSOR_ROOT_ORDER_MAXIMUM
+        len(roots) == V8_ROOT_ORDER_MAXIMUM
         and [int(root.get("slot") or 0) for root in roots]
         == list(range(2, BATCH_SIZE + 1)),
         "failed_v7_root_slots_mismatch",
@@ -4235,7 +4532,7 @@ def validate_failed_v7_artifacts(
         root_ids == list(FAILED_SUCCESSOR_V7_PLANNED_ROOT_CLIENT_ORDER_IDS)
         and child_ids == list(FAILED_SUCCESSOR_V7_PLANNED_CHILD_CLIENT_ORDER_IDS)
         and proof_ids == failed_v7_proof_approval_ids()
-        and len(set(root_ids) | set(child_ids)) == SUCCESSOR_ATTEMPT_COUNT
+        and len(set(root_ids) | set(child_ids)) == V8_ATTEMPT_COUNT
         and len(set(proof_ids)) == 36,
         "failed_v7_planned_authority_ids_mismatch",
     )
@@ -4265,6 +4562,710 @@ def load_failed_v7_binding() -> dict[str, Any]:
             validate_failed_v7_registration_runtime_invariant(
                 committed_runner_raw
             )
+        ),
+    )
+
+
+def validate_v8_artifacts(
+    *,
+    plan_raw: bytes,
+    marker_raw: bytes,
+    ledger_raw: bytes,
+    failure_raw: bytes,
+    cleanup_raw: bytes,
+    parent_loss_raw: bytes,
+    sentinel_raw: bytes,
+    runtime_auth_raw: bytes,
+    runtime_auth_used_raw: bytes,
+    approvals_raw: bytes,
+    audit_raw: bytes,
+    cap_guard_raw: bytes,
+    idempotency_raw: bytes,
+    live_service_raw: bytes,
+    reconciliation_raw: bytes,
+    runtime_log_raw: bytes,
+) -> dict[str, Any]:
+    """Bind v8's filled root and untransmitted child evidence exactly."""
+
+    for raw, expected, blocker in (
+        (
+            plan_raw,
+            FAILED_SUCCESSOR_V8_PLAN_BYTES_SHA256,
+            "failed_v8_plan_bytes_changed",
+        ),
+        (
+            marker_raw,
+            FAILED_SUCCESSOR_V8_MARKER_BYTES_SHA256,
+            "failed_v8_marker_bytes_changed",
+        ),
+        (
+            ledger_raw,
+            FAILED_SUCCESSOR_V8_LEDGER_BYTES_SHA256,
+            "failed_v8_ledger_bytes_changed",
+        ),
+        (
+            failure_raw,
+            FAILED_SUCCESSOR_V8_FAILURE_BYTES_SHA256,
+            "failed_v8_failure_bytes_changed",
+        ),
+        (
+            cleanup_raw,
+            FAILED_SUCCESSOR_V8_CLEANUP_BYTES_SHA256,
+            "failed_v8_cleanup_bytes_changed",
+        ),
+        (
+            parent_loss_raw,
+            FAILED_SUCCESSOR_V8_PARENT_LOSS_BYTES_SHA256,
+            "failed_v8_parent_loss_bytes_changed",
+        ),
+        (
+            sentinel_raw,
+            FAILED_SUCCESSOR_V8_SENTINEL_BYTES_SHA256,
+            "failed_v8_sentinel_bytes_changed",
+        ),
+        (
+            runtime_auth_raw,
+            FAILED_SUCCESSOR_V8_RUNTIME_AUTH_BYTES_SHA256,
+            "failed_v8_runtime_auth_bytes_changed",
+        ),
+        (
+            runtime_auth_used_raw,
+            FAILED_SUCCESSOR_V8_RUNTIME_AUTH_USED_BYTES_SHA256,
+            "failed_v8_runtime_auth_used_bytes_changed",
+        ),
+        (
+            approvals_raw,
+            FAILED_SUCCESSOR_V8_APPROVALS_BYTES_SHA256,
+            "failed_v8_approvals_bytes_changed",
+        ),
+        (
+            audit_raw,
+            FAILED_SUCCESSOR_V8_AUDIT_BYTES_SHA256,
+            "failed_v8_audit_bytes_changed",
+        ),
+        (
+            cap_guard_raw,
+            FAILED_SUCCESSOR_V8_CAP_GUARD_BYTES_SHA256,
+            "failed_v8_cap_guard_bytes_changed",
+        ),
+        (
+            idempotency_raw,
+            FAILED_SUCCESSOR_V8_IDEMPOTENCY_BYTES_SHA256,
+            "failed_v8_idempotency_bytes_changed",
+        ),
+        (
+            live_service_raw,
+            FAILED_SUCCESSOR_V8_LIVE_SERVICE_BYTES_SHA256,
+            "failed_v8_live_service_bytes_changed",
+        ),
+        (
+            reconciliation_raw,
+            FAILED_SUCCESSOR_V8_RECONCILIATION_BYTES_SHA256,
+            "failed_v8_reconciliation_bytes_changed",
+        ),
+        (
+            runtime_log_raw,
+            FAILED_SUCCESSOR_V8_RUNTIME_LOG_BYTES_SHA256,
+            "failed_v8_runtime_log_bytes_changed",
+        ),
+    ):
+        require(hashlib.sha256(raw).hexdigest() == expected, blocker)
+
+    def decode_jsonl(raw: bytes, *, blocker: str) -> list[dict[str, Any]]:
+        try:
+            lines = raw.decode("utf-8").splitlines()
+            values = [json.loads(line) for line in lines]
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ProofFailure(blocker) from exc
+        require(
+            bool(values) and all(isinstance(value, dict) for value in values),
+            blocker,
+        )
+        return [dict(value) for value in values]
+
+    plan = _decode_predecessor_json(plan_raw, blocker="failed_v8_plan_malformed")
+    marker = _decode_predecessor_json(
+        marker_raw,
+        blocker="failed_v8_marker_malformed",
+    )
+    failure = _decode_predecessor_json(
+        failure_raw,
+        blocker="failed_v8_failure_malformed",
+    )
+    cleanup = _decode_predecessor_json(
+        cleanup_raw,
+        blocker="failed_v8_cleanup_malformed",
+    )
+    parent_loss = _decode_predecessor_json(
+        parent_loss_raw,
+        blocker="failed_v8_parent_loss_malformed",
+    )
+    sentinel = _decode_predecessor_json(
+        sentinel_raw,
+        blocker="failed_v8_sentinel_malformed",
+    )
+    runtime_auth = _decode_predecessor_json(
+        runtime_auth_raw,
+        blocker="failed_v8_runtime_auth_malformed",
+    )
+    runtime_auth_used = _decode_predecessor_json(
+        runtime_auth_used_raw,
+        blocker="failed_v8_runtime_auth_used_malformed",
+    )
+    ledger_records = decode_jsonl(
+        ledger_raw,
+        blocker="failed_v8_ledger_malformed",
+    )
+    approval_records = decode_jsonl(
+        approvals_raw,
+        blocker="failed_v8_approvals_malformed",
+    )
+    audit_records = decode_jsonl(
+        audit_raw,
+        blocker="failed_v8_audit_malformed",
+    )
+    cap_guard_records = decode_jsonl(
+        cap_guard_raw,
+        blocker="failed_v8_cap_guard_malformed",
+    )
+    live_service_records = decode_jsonl(
+        live_service_raw,
+        blocker="failed_v8_live_service_malformed",
+    )
+    reconciliation_records = decode_jsonl(
+        reconciliation_raw,
+        blocker="failed_v8_reconciliation_malformed",
+    )
+
+    require(
+        plan.get("schema_version") == "12"
+        and plan.get("continuation_kind")
+        == "expired_v7_plan_without_registration_evidence_root_2_first_v8"
+        and plan.get("backend_commit")
+        == FAILED_SUCCESSOR_V8_PRODUCTION_PARENT_COMMIT
+        and plan.get("runner_sha256") == FAILED_SUCCESSOR_V8_RUNNER_SHA256
+        and plan.get("approval_id") == FAILED_SUCCESSOR_V8_APPROVAL_ID
+        and plan.get("batch_id") == FAILED_SUCCESSOR_V8_BATCH_ID
+        and plan.get("plan_sha256") == FAILED_SUCCESSOR_V8_PLAN_SHA256
+        and plan_hash(plan) == FAILED_SUCCESSOR_V8_PLAN_SHA256
+        and plan.get("batch_size") == BATCH_SIZE
+        and plan.get("remaining_attempt_count") == V8_ATTEMPT_COUNT
+        and plan.get("new_root_order_maximum") == V8_ROOT_ORDER_MAXIMUM
+        and plan.get("child_order_maximum") == V8_CHILD_ORDER_MAXIMUM
+        and plan.get("portfolio_id") == TEST_PORTFOLIO_ID
+        and plan.get("portfolio_label") == PROFILE_LABEL
+        and plan.get("product_id") == PRODUCT_ID
+        and plan.get("side") == "BUY"
+        and plan.get("completed_inherited_reference_notional_usdc")
+        == decimal_text(COMPLETED_INHERITED_REFERENCE_NOTIONAL)
+        and Decimal(
+            str(
+                plan.get("planned_total_root_child_reference_notional_usdc")
+                or "0"
+            )
+        )
+        < BATCH_TOTAL_REFERENCE_CAP_USDC
+        and object_record(plan.get("predecessor_binding"))
+        == offline_predecessor_binding_fixture()
+        and object_record(plan.get("failed_successor_binding"))
+        == offline_failed_successor_binding_fixture()
+        and object_record(plan.get("failed_v2_binding"))
+        == offline_failed_v2_binding_fixture()
+        and object_record(plan.get("failed_v3_binding"))
+        == offline_failed_v3_binding_fixture()
+        and object_record(plan.get("failed_v4_binding"))
+        == offline_failed_v4_binding_fixture()
+        and object_record(plan.get("failed_v5_binding"))
+        == offline_failed_v5_binding_fixture()
+        and object_record(plan.get("failed_v6_binding"))
+        == offline_failed_v6_binding_fixture()
+        and object_record(plan.get("failed_v7_binding"))
+        == offline_failed_v7_binding_fixture()
+        and object_record(plan.get("completed_slot_1_binding"))
+        == completed_slot_1_binding_fixture(),
+        "failed_v8_plan_identity_mismatch",
+    )
+    roots = [object_record(item) for item in list_value(plan.get("roots"))]
+    require(
+        len(roots) == V8_ROOT_ORDER_MAXIMUM
+        and [int(root.get("slot") or 0) for root in roots]
+        == list(range(2, BATCH_SIZE + 1)),
+        "failed_v8_root_slots_mismatch",
+    )
+    root_ids: list[str] = []
+    child_ids: list[str] = []
+    for slot, root in enumerate(roots, start=2):
+        root_id = deterministic_root_client_order_id(
+            FAILED_SUCCESSOR_V8_BATCH_ID,
+            slot,
+        )
+        child_id = deterministic_child_client_order_id(root_id)
+        approvals = object_record(root.get("proof_approval_ids"))
+        order = object_record(root.get("order"))
+        require(
+            root.get("root_placement_authorized") is True
+            and root.get("root_client_order_id") == root_id
+            and root.get("child_client_order_id") == child_id
+            and order.get("client_order_id") == root_id
+            and order.get("product_id") == PRODUCT_ID
+            and order.get("side") == "BUY"
+            and approvals
+            == {
+                purpose: deterministic_proof_approval_id(
+                    FAILED_SUCCESSOR_V8_BATCH_ID,
+                    slot=slot,
+                    purpose=purpose,
+                )
+                for purpose in (
+                    "root_place",
+                    "root_cancel",
+                    "child_reveal",
+                    "child_cancel",
+                )
+            },
+            f"failed_v8_root_namespace_mismatch:{slot}",
+        )
+        root_ids.append(root_id)
+        child_ids.append(child_id)
+    require(
+        root_ids == list(FAILED_SUCCESSOR_V8_PLANNED_ROOT_CLIENT_ORDER_IDS)
+        and child_ids
+        == list(FAILED_SUCCESSOR_V8_PLANNED_CHILD_CLIENT_ORDER_IDS),
+        "failed_v8_planned_authority_ids_mismatch",
+    )
+
+    parent_pid = int(marker.get("process_id") or 0)
+    require(
+        parent_pid > 0
+        and marker.get("schema_version") == "8"
+        and marker.get("authority")
+        == "controlled-admin-spot-root-child-successor-v8-batch"
+        and marker.get("backend_commit")
+        == FAILED_SUCCESSOR_V8_PRODUCTION_PARENT_COMMIT
+        and marker.get("runner_sha256") == FAILED_SUCCESSOR_V8_RUNNER_SHA256
+        and marker.get("approval_id") == FAILED_SUCCESSOR_V8_APPROVAL_ID
+        and marker.get("batch_id") == FAILED_SUCCESSOR_V8_BATCH_ID
+        and marker.get("plan_sha256") == FAILED_SUCCESSOR_V8_PLAN_SHA256
+        and marker.get("plan_file") == str(FAILED_SUCCESSOR_V8_PLAN_PATH)
+        and marker.get("marker_path") == str(FAILED_SUCCESSOR_V8_MARKER_PATH)
+        and marker.get("attempt_ledger_path")
+        == str(FAILED_SUCCESSOR_V8_LEDGER_PATH)
+        and marker.get("batch_size") == BATCH_SIZE
+        and marker.get("remaining_attempt_count") == V8_ATTEMPT_COUNT
+        and marker.get("root_order_maximum") == V8_ROOT_ORDER_MAXIMUM
+        and marker.get("child_order_maximum") == V8_CHILD_ORDER_MAXIMUM
+        and marker.get("exact_child_client_order_ids") == child_ids
+        and [
+            object_record(item)
+            for item in list_value(marker.get("exact_root_tuples"))
+        ]
+        == [approved_exact_root_tuple(plan, root) for root in roots]
+        and object_record(marker.get("failed_v7_binding"))
+        == offline_failed_v7_binding_fixture()
+        and object_record(marker.get("completed_slot_1_binding"))
+        == completed_slot_1_binding_fixture(),
+        "failed_v8_marker_identity_mismatch",
+    )
+
+    require(len(ledger_records) == 2, "failed_v8_ledger_record_count_mismatch")
+    root_record, child_record = ledger_records
+    first_root = roots[0]
+    root_tuple = object_record(root_record.get("exact_order_tuple"))
+    child_tuple = object_record(child_record.get("exact_order_tuple"))
+    for sequence, kind, record, client_order_id in (
+        (1, "root", root_record, V8_SLOT_2_ROOT_CLIENT_ORDER_ID),
+        (2, "child", child_record, V8_SLOT_2_CHILD_CLIENT_ORDER_ID),
+    ):
+        require(
+            record.get("schema_version") == "1"
+            and record.get("sequence") == sequence
+            and record.get("attempt_kind") == kind
+            and record.get("batch_slot") == 2
+            and record.get("client_order_id") == client_order_id
+            and record.get("root_client_order_id")
+            == V8_SLOT_2_ROOT_CLIENT_ORDER_ID
+            and record.get("backend_commit")
+            == FAILED_SUCCESSOR_V8_PRODUCTION_PARENT_COMMIT
+            and record.get("runner_sha256")
+            == FAILED_SUCCESSOR_V8_RUNNER_SHA256
+            and record.get("batch_id") == FAILED_SUCCESSOR_V8_BATCH_ID
+            and record.get("plan_sha256") == FAILED_SUCCESSOR_V8_PLAN_SHA256
+            and record.get("process_id") == parent_pid,
+            f"failed_v8_{kind}_ledger_identity_mismatch",
+        )
+    require(
+        root_tuple == approved_exact_root_tuple(plan, first_root)
+        and root_record.get("exact_order_tuple_sha256")
+        == V8_SLOT_2_ROOT_TUPLE_SHA256
+        == _canonical_json_sha256(root_tuple),
+        "failed_v8_root_tuple_mismatch",
+    )
+    require(
+        child_tuple.get("approval_snapshot_id")
+        == V8_SLOT_2_PRIOR_CHILD_REVEAL_APPROVAL_ID
+        and child_tuple.get("batch_id") == FAILED_SUCCESSOR_V8_BATCH_ID
+        and child_tuple.get("batch_slot") == 2
+        and child_tuple.get("client_order_id")
+        == V8_SLOT_2_CHILD_CLIENT_ORDER_ID
+        and child_tuple.get("root_client_order_id")
+        == V8_SLOT_2_ROOT_CLIENT_ORDER_ID
+        and child_tuple.get("product_id") == PRODUCT_ID
+        and child_tuple.get("side") == "SELL"
+        and child_tuple.get("order_type") == "LIMIT"
+        and child_tuple.get("time_in_force") == "GOOD_UNTIL_CANCELLED"
+        and child_tuple.get("post_only") is False
+        and child_tuple.get("base_size")
+        == decimal_text(V8_SLOT_2_ROOT_FILLED_SIZE)
+        and Decimal(str(child_tuple.get("base_size") or "0"))
+        * Decimal(str(child_tuple.get("limit_price") or "0"))
+        == V8_SLOT_2_CHILD_AUDIT_REFERENCE_NOTIONAL
+        and child_record.get("exact_order_tuple_sha256")
+        == V8_SLOT_2_CHILD_TUPLE_SHA256
+        == _canonical_json_sha256(child_tuple),
+        "failed_v8_child_tuple_mismatch",
+    )
+
+    reconciliation = object_record(failure.get("failure_reconciliation"))
+    root_readback = object_record(
+        reconciliation.get("current_root_authoritative_readback")
+    )
+    root_order = object_record(root_readback.get("matched_order"))
+    slot_results = [
+        object_record(item) for item in list_value(failure.get("slot_results"))
+    ]
+    require(
+        failure.get("status") == "failed"
+        and failure.get("failure_type") == "ProofFailure"
+        and failure.get("failure_reason") == "child_reveal_http_failed:400"
+        and failure.get("backend_commit")
+        == FAILED_SUCCESSOR_V8_PRODUCTION_PARENT_COMMIT
+        and failure.get("runner_sha256") == FAILED_SUCCESSOR_V8_RUNNER_SHA256
+        and failure.get("batch_id") == FAILED_SUCCESSOR_V8_BATCH_ID
+        and failure.get("plan_sha256") == FAILED_SUCCESSOR_V8_PLAN_SHA256
+        and failure.get("retry_authorized") is False
+        and failure.get("substitution_authorized") is False
+        and failure.get("generic_or_later_child_authorized") is False
+        and failure.get("single_child_failure_cancel_attempted") is True
+        and reconciliation.get("attempt_ledger_count") == 2
+        and reconciliation.get("attempt_ledger_readback_proven") is True
+        and reconciliation.get("current_root_attempt_count") == 1
+        and reconciliation.get("current_child_attempt_count") == 1
+        and reconciliation.get("current_root_sdk_call_occurred") is True
+        and reconciliation.get("current_child_sdk_call_occurred") is False
+        and reconciliation.get("authoritative_active_order_reads_stable")
+        is True
+        and reconciliation.get("authoritative_active_spot_orders") == []
+        and reconciliation.get("authoritative_active_spot_order_count") == 0
+        and reconciliation.get("live_service_disabled") is True
+        and reconciliation.get("quiescence_window_proven") is True
+        and reconciliation.get("safe_to_shutdown") is False
+        and reconciliation.get("next_slot_authorized") is False
+        and root_readback.get("authoritative") is True
+        and root_readback.get("authoritative_status") == "FILLED"
+        and root_readback.get("client_order_id")
+        == V8_SLOT_2_ROOT_CLIENT_ORDER_ID
+        and root_readback.get("exchange_order_id")
+        == V8_SLOT_2_ROOT_EXCHANGE_ORDER_ID
+        and root_readback.get("exact_identity_match") is True
+        and root_order.get("order_id") == V8_SLOT_2_ROOT_EXCHANGE_ORDER_ID
+        and root_order.get("client_order_id") == V8_SLOT_2_ROOT_CLIENT_ORDER_ID
+        and root_order.get("retail_portfolio_id") == TEST_PORTFOLIO_ID
+        and root_order.get("status") == "FILLED"
+        and Decimal(str(root_order.get("filled_size") or "0"))
+        == V8_SLOT_2_ROOT_FILLED_SIZE
+        and Decimal(str(root_order.get("filled_value") or "0"))
+        == V8_SLOT_2_ROOT_FILLED_VALUE
+        and Decimal(str(root_order.get("total_fees") or "0"))
+        == V8_SLOT_2_ROOT_TOTAL_FEES
+        and str(root_order.get("number_of_fills") or "") == "1"
+        and len(slot_results) == 1
+        and slot_results[0].get("slot") == 2
+        and slot_results[0].get("root_client_order_id")
+        == V8_SLOT_2_ROOT_CLIENT_ORDER_ID
+        and slot_results[0].get("child_client_order_id")
+        == V8_SLOT_2_CHILD_CLIENT_ORDER_ID
+        and object_record(slot_results[0].get("root_attempt_ledger_record"))
+        == root_record
+        and object_record(slot_results[0].get("child_attempt_ledger_record"))
+        == child_record,
+        "failed_v8_failure_evidence_mismatch",
+    )
+    root_acceptance = object_record(slot_results[0].get("root_acceptance"))
+    root_admission = object_record(root_acceptance.get("admission"))
+    require(
+        root_admission.get("admission_audit_id")
+        == V8_SLOT_2_ROOT_ADMISSION_AUDIT_ID
+        and root_admission.get("allowed") is True,
+        "failed_v8_root_admission_mismatch",
+    )
+
+    cleanup_sentinel = object_record(cleanup.get("sdk_boundary_sentinel"))
+    require(
+        cleanup.get("runtime_process_started") is True
+        and cleanup.get("runtime_preserved_for_reconciliation") is True
+        and cleanup.get("runtime_process_shutdown_proven") is False
+        and cleanup.get("exchange_safe_to_shutdown") is False
+        and cleanup.get("live_service_enable_attempted") is True
+        and cleanup.get("live_service_disable_attempted") is True
+        and cleanup.get("live_service_disable_proven_before_cleanup") is True
+        and cleanup.get("live_service_disable_proven_after_cleanup") is True
+        and cleanup_sentinel.get("phase") == "root_create_order_returned"
+        and cleanup_sentinel.get("root_create_order_call_count") == 1
+        and cleanup_sentinel.get("child_place_limit_order_call_count") == 0,
+        "failed_v8_unsafe_cleanup_snapshot_mismatch",
+    )
+    transmitted_states = object_record(
+        parent_loss.get("exact_transmitted_attempt_states")
+    )
+    root_state = object_record(
+        transmitted_states.get(V8_SLOT_2_ROOT_CLIENT_ORDER_ID)
+    )
+    require(
+        parent_loss.get("parent_pid") == parent_pid
+        and parent_loss.get("live_service_disable_proven") is True
+        and parent_loss.get("new_sdk_placements_denied") is True
+        and parent_loss.get("sdk_quiescence_proven") is True
+        and parent_loss.get("root_create_order_call_count") == 1
+        and parent_loss.get("child_place_limit_order_call_count") == 0
+        and parent_loss.get("root_sdk_inflight_after_wait") is False
+        and parent_loss.get("child_sdk_inflight_after_wait") is False
+        and parent_loss.get("authoritative_active_order_read_proven") is True
+        and parent_loss.get("authoritative_active_orders_before_cancel") == []
+        and parent_loss.get("authoritative_active_orders_after_reconciliation")
+        == []
+        and parent_loss.get("authoritative_active_zero_after_reconciliation")
+        is True
+        and parent_loss.get("transmitted_attempt_count") == 1
+        and parent_loss.get("terminal_transmitted_attempt_count") == 1
+        and parent_loss.get("all_transmitted_attempts_terminal") is True
+        and parent_loss.get("operator_reconciliation_required") is False
+        and parent_loss.get("automatic_cancel_retry_authorized") is False
+        and list(transmitted_states) == [V8_SLOT_2_ROOT_CLIENT_ORDER_ID]
+        and root_state.get("attempt_kind") == "root"
+        and root_state.get("client_order_id")
+        == V8_SLOT_2_ROOT_CLIENT_ORDER_ID
+        and root_state.get("exchange_order_id")
+        == V8_SLOT_2_ROOT_EXCHANGE_ORDER_ID
+        and root_state.get("status") == "FILLED"
+        and root_state.get("terminal_kind") == "root_filled"
+        and root_state.get("terminal_proven") is True
+        and root_state.get("exact_order_active") is False
+        and Decimal(str(root_state.get("filled_size") or "0"))
+        == V8_SLOT_2_ROOT_FILLED_SIZE,
+        "failed_v8_parent_loss_terminal_closeout_mismatch",
+    )
+    runtime_pid = int(sentinel.get("process_id") or 0)
+    require(
+        runtime_pid > 0
+        and sentinel.get("phase") == "runtime_exited"
+        and sentinel.get("installed") is True
+        and sentinel.get("wrapper_identity_proven") is True
+        and sentinel.get("root_create_order_call_count") == 1
+        and sentinel.get("child_place_limit_order_call_count") == 0
+        and sentinel.get("root_sdk_inflight") is False
+        and sentinel.get("child_sdk_inflight") is False
+        and sentinel.get("denied_call_count") == 0
+        and sentinel.get("critical_failure") is False
+        and sentinel.get("error") is None,
+        "failed_v8_final_sentinel_mismatch",
+    )
+
+    require(
+        runtime_auth.get("schema_version") == "2"
+        and runtime_auth.get("backend_commit")
+        == FAILED_SUCCESSOR_V8_PRODUCTION_PARENT_COMMIT
+        and runtime_auth.get("approval_id") == FAILED_SUCCESSOR_V8_APPROVAL_ID
+        and runtime_auth.get("batch_id") == FAILED_SUCCESSOR_V8_BATCH_ID
+        and runtime_auth.get("plan_sha256") == FAILED_SUCCESSOR_V8_PLAN_SHA256
+        and runtime_auth.get("runner_sha256")
+        == FAILED_SUCCESSOR_V8_RUNNER_SHA256
+        and runtime_auth.get("parent_pid") == parent_pid
+        and runtime_auth.get("state_dir") == str(FAILED_SUCCESSOR_V8_STATE_DIR)
+        and runtime_auth.get("global_batch_marker")
+        == str(FAILED_SUCCESSOR_V8_MARKER_PATH)
+        and runtime_auth.get("global_batch_marker_sha256")
+        == FAILED_SUCCESSOR_V8_MARKER_BYTES_SHA256
+        and object_record(runtime_auth.get("confirmed_plan")) == plan
+        and runtime_auth_used.get("approval_id")
+        == FAILED_SUCCESSOR_V8_APPROVAL_ID
+        and runtime_auth_used.get("batch_id") == FAILED_SUCCESSOR_V8_BATCH_ID
+        and runtime_auth_used.get("plan_sha256")
+        == FAILED_SUCCESSOR_V8_PLAN_SHA256
+        and runtime_auth_used.get("runner_sha256")
+        == FAILED_SUCCESSOR_V8_RUNNER_SHA256
+        and runtime_auth_used.get("parent_pid") == parent_pid
+        and runtime_auth_used.get("child_pid") == runtime_pid
+        and runtime_auth_used.get("authority_sha256")
+        == _canonical_json_sha256(runtime_auth),
+        "failed_v8_runtime_authority_mismatch",
+    )
+
+    proof_approval_ids = set(
+        object_record(first_root.get("proof_approval_ids")).values()
+    )
+    require(
+        len(approval_records) == 12
+        and {
+            str(record.get("approval_id"))
+            for record in approval_records
+            if record.get("approval_id")
+        }
+        == proof_approval_ids
+        and len(cap_guard_records) == 4
+        and all(
+            record.get("status") == "passed"
+            and record.get("allowed") is True
+            for record in cap_guard_records
+        )
+        and len(reconciliation_records) == 4
+        and all(
+            record.get("status") == "passed"
+            and record.get("allowed") is True
+            for record in reconciliation_records
+        ),
+        "failed_v8_route_proof_records_mismatch",
+    )
+    require(
+        len(live_service_records) == 5
+        and [record.get("status") for record in live_service_records]
+        == ["blocked", "blocked", "passed", "blocked", "blocked"]
+        and [record.get("service_enabled") for record in live_service_records]
+        == [False, False, True, False, False]
+        and [
+            record.get("live_coinbase_execution_approved")
+            for record in live_service_records
+        ]
+        == [False, False, True, False, False]
+        and all(
+            record.get("deployment_ref")
+            == FAILED_SUCCESSOR_V8_PRODUCTION_PARENT_COMMIT
+            for record in live_service_records
+        ),
+        "failed_v8_live_service_sequence_mismatch",
+    )
+    root_accept_audits = [
+        record
+        for record in audit_records
+        if record.get("status") == "accepted"
+        and record.get("endpoint") == "POST /api/v1/orders"
+        and record.get("client_order_id") == V8_SLOT_2_ROOT_CLIENT_ORDER_ID
+    ]
+    child_reject_audits = [
+        record
+        for record in audit_records
+        if record.get("status") == "rejected"
+        and record.get("failure_stage") == "controlled_child_submission_blocked"
+        and record.get("stealth_order_id") == V8_SLOT_2_CHILD_CLIENT_ORDER_ID
+    ]
+    require(
+        len(root_accept_audits) == 1
+        and root_accept_audits[0].get("coinbase_order_id")
+        == V8_SLOT_2_ROOT_EXCHANGE_ORDER_ID
+        and root_accept_audits[0].get("live_exchange_submitted") is True
+        and root_accept_audits[0].get("live_coinbase_orders_ran") is True
+        and len(child_reject_audits) == 1
+        and child_reject_audits[0].get("live_exchange_submitted") is False
+        and child_reject_audits[0].get("live_coinbase_orders_ran") is False,
+        "failed_v8_exchange_submission_audit_mismatch",
+    )
+
+    attempted_ids = {
+        str(record.get("client_order_id") or "") for record in ledger_records
+    }
+    require(
+        attempted_ids
+        == {
+            V8_SLOT_2_ROOT_CLIENT_ORDER_ID,
+            V8_SLOT_2_CHILD_CLIENT_ORDER_ID,
+        }
+        and not attempted_ids.intersection(
+            FAILED_SUCCESSOR_V8_PLANNED_ROOT_CLIENT_ORDER_IDS[1:]
+        )
+        and not attempted_ids.intersection(
+            FAILED_SUCCESSOR_V8_PLANNED_CHILD_CLIENT_ORDER_IDS[1:]
+        ),
+        "failed_v8_unused_namespace_attempted",
+    )
+    return offline_v8_binding_fixture()
+
+
+def load_v8_binding() -> dict[str, Any]:
+    """Read and validate immutable v8 root-fill/child-failure evidence."""
+
+    return validate_v8_artifacts(
+        plan_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V8_PLAN_PATH,
+            blocker_prefix="failed_v8_plan",
+        ),
+        marker_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V8_MARKER_PATH,
+            blocker_prefix="failed_v8_marker",
+        ),
+        ledger_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V8_LEDGER_PATH,
+            blocker_prefix="failed_v8_ledger",
+        ),
+        failure_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V8_FAILURE_PATH,
+            blocker_prefix="failed_v8_failure",
+            allow_group_world_read=True,
+        ),
+        cleanup_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V8_CLEANUP_PATH,
+            blocker_prefix="failed_v8_cleanup",
+            allow_group_world_read=True,
+        ),
+        parent_loss_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V8_PARENT_LOSS_PATH,
+            blocker_prefix="failed_v8_parent_loss",
+        ),
+        sentinel_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V8_SENTINEL_PATH,
+            blocker_prefix="failed_v8_sentinel",
+        ),
+        runtime_auth_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V8_RUNTIME_AUTH_PATH,
+            blocker_prefix="failed_v8_runtime_auth",
+        ),
+        runtime_auth_used_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V8_RUNTIME_AUTH_USED_PATH,
+            blocker_prefix="failed_v8_runtime_auth_used",
+        ),
+        approvals_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V8_APPROVALS_PATH,
+            blocker_prefix="failed_v8_approvals",
+            allow_group_world_read=True,
+        ),
+        audit_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V8_AUDIT_PATH,
+            blocker_prefix="failed_v8_audit",
+            allow_group_world_read=True,
+        ),
+        cap_guard_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V8_CAP_GUARD_PATH,
+            blocker_prefix="failed_v8_cap_guard",
+            allow_group_world_read=True,
+        ),
+        idempotency_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V8_IDEMPOTENCY_PATH,
+            blocker_prefix="failed_v8_idempotency",
+            maximum_size=2_000_000,
+            allow_group_world_read=True,
+        ),
+        live_service_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V8_LIVE_SERVICE_PATH,
+            blocker_prefix="failed_v8_live_service",
+            allow_group_world_read=True,
+        ),
+        reconciliation_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V8_RECONCILIATION_PATH,
+            blocker_prefix="failed_v8_reconciliation",
+            allow_group_world_read=True,
+        ),
+        runtime_log_raw=_read_owner_only_bytes(
+            FAILED_SUCCESSOR_V8_RUNTIME_LOG_PATH,
+            blocker_prefix="failed_v8_runtime_log",
+            allow_group_world_read=True,
         ),
     )
 
@@ -4657,6 +5658,86 @@ def prove_completed_slot_1_exchange_terminal(
     }
 
 
+def prove_v8_slot_2_recovery_preconditions(
+    rest_client: Any,
+    *,
+    recovery_slot_2: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Freshly prove the exact sealed root and account-wide child absence."""
+
+    from application.admin_api.command_service import (
+        exact_coinbase_order_readback,
+    )
+
+    local = prove_local_scope_with_historical_hidden_child(
+        planned_client_order_ids=set(),
+        carried_root_plan=completed_slot_1_binding_fixture(),
+        recovery_slot_2=recovery_slot_2,
+    )
+    recovery_local = object_record(local.get("recovery_slot_2_chain"))
+    require(
+        recovery_local.get("phase") == "v8_prepared_hidden",
+        "v8_recovery_local_preexchange_state_unproven",
+    )
+    root_readback = exact_coinbase_order_readback(
+        rest_client,
+        client_order_id=V8_SLOT_2_ROOT_CLIENT_ORDER_ID,
+        exchange_order_id=V8_SLOT_2_ROOT_EXCHANGE_ORDER_ID,
+        product_id=PRODUCT_ID,
+    )
+    root = object_record(root_readback.get("matched_order"))
+    require(
+        root_readback.get("authoritative") is True
+        and root_readback.get("pagination_complete") is True
+        and root_readback.get("exact_identity_match") is True
+        and root_readback.get("confirmed_absent") is False
+        and str(root.get("client_order_id") or "")
+        == V8_SLOT_2_ROOT_CLIENT_ORDER_ID
+        and str(root.get("order_id") or "")
+        == V8_SLOT_2_ROOT_EXCHANGE_ORDER_ID
+        and str(root.get("product_id") or "") == PRODUCT_ID
+        and str(root.get("retail_portfolio_id") or "")
+        == TEST_PORTFOLIO_ID
+        and str(root.get("side") or "").upper() == "BUY"
+        and str(root.get("order_type") or "").upper() == "LIMIT"
+        and str(root.get("time_in_force") or "").upper()
+        == "FILL_OR_KILL"
+        and str(root.get("status") or "").upper() == "FILLED"
+        and Decimal(str(root.get("filled_size") or "0"))
+        == V8_SLOT_2_ROOT_FILLED_SIZE
+        and Decimal(str(root.get("filled_value") or "0"))
+        == V8_SLOT_2_ROOT_FILLED_VALUE
+        and Decimal(str(root.get("total_fees") or root.get("fee") or "0"))
+        == V8_SLOT_2_ROOT_TOTAL_FEES,
+        "v8_recovery_root_exchange_fill_mismatch",
+    )
+    child_absence = exact_coinbase_order_readback(
+        rest_client,
+        client_order_id=V8_SLOT_2_CHILD_CLIENT_ORDER_ID,
+        product_type=None,
+    )
+    require(
+        child_absence.get("authoritative") is True
+        and child_absence.get("pagination_complete") is True
+        and child_absence.get("confirmed_absent") is True
+        and child_absence.get("exact_identity_match") is False
+        and child_absence.get("matched_order") is None
+        and child_absence.get("exchange_order_id") is None
+        and child_absence.get("authoritative_status") is None,
+        "v8_recovery_child_account_wide_absence_unproven",
+    )
+    return {
+        "slot": 2,
+        "local": local,
+        "root_exchange_readback": root_readback,
+        "child_account_wide_absence": child_absence,
+        "controlled_prior_preparation_sha256": (
+            V8_SLOT_2_PRIOR_PREPARATION_SHA256
+        ),
+        "fresh_read": True,
+    }
+
+
 def prove_failed_v5_root_2_absence(rest_client: Any) -> dict[str, Any]:
     """Freshly prove v5 root-2 remained absent locally and at Coinbase."""
 
@@ -4707,7 +5788,7 @@ def validate_failed_v6_v7_coinbase_client_ids_absent(
         FAILED_SUCCESSOR_V7_PLANNED_CHILD_CLIENT_ORDER_IDS
     )
     require(
-        len(planned_ids) == SUCCESSOR_ATTEMPT_COUNT * 2,
+        len(planned_ids) == V8_ATTEMPT_COUNT * 2,
         "failed_v6_v7_planned_id_count_mismatch",
     )
     matches = [
@@ -4727,8 +5808,8 @@ def validate_failed_v6_v7_coinbase_client_ids_absent(
         "planned_client_order_ids": sorted(planned_ids),
         "coinbase_read_call_count": 1,
         "coinbase_catalog_read_count": 1,
-        "failed_v6_planned_client_order_id_count": SUCCESSOR_ATTEMPT_COUNT,
-        "failed_v7_planned_client_order_id_count": SUCCESSOR_ATTEMPT_COUNT,
+        "failed_v6_planned_client_order_id_count": V8_ATTEMPT_COUNT,
+        "failed_v7_planned_client_order_id_count": V8_ATTEMPT_COUNT,
         "coinbase_pagination": dict(pagination),
         "coinbase_matching_orders": [],
     }
@@ -4823,6 +5904,7 @@ def prove_local_scope_with_historical_hidden_child(
     *,
     planned_client_order_ids: set[str],
     carried_root_plan: Mapping[str, Any] | None = None,
+    recovery_slot_2: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Allow only the exact prior FILLED root and wholly unsubmitted child.
 
@@ -4840,9 +5922,14 @@ def prove_local_scope_with_historical_hidden_child(
         if carried_root_plan is not None
         else set()
     )
+    recovery_ids = (
+        {V8_SLOT_2_ROOT_CLIENT_ORDER_ID, V8_SLOT_2_CHILD_CLIENT_ORDER_ID}
+        if recovery_slot_2 is not None
+        else set()
+    )
     require(
-        not (planned_client_order_ids - carried_ids)
-        & (immutable_historical_ids | carried_ids),
+        not (planned_client_order_ids - carried_ids - recovery_ids)
+        & (immutable_historical_ids | carried_ids | recovery_ids),
         "batch_ids_overlap_historical_chain",
     )
     connection = psycopg2.connect(
@@ -4893,6 +5980,9 @@ def prove_local_scope_with_historical_hidden_child(
             carried_root: dict[str, Any] | None = None
             carried_child: dict[str, Any] | None = None
             carried_stealth: dict[str, Any] | None = None
+            recovery_root: dict[str, Any] | None = None
+            recovery_child: dict[str, Any] | None = None
+            recovery_stealth: dict[str, Any] | None = None
             if carried_root_plan is not None:
                 cursor.execute(
                     """SELECT client_order_id, parent_order_id, product_id, side,
@@ -4927,6 +6017,38 @@ def prove_local_scope_with_historical_hidden_child(
                     (CARRIED_CHILD_CLIENT_ORDER_ID,),
                 )
                 carried_stealth = row_dict(cursor, cursor.fetchone())
+            if recovery_slot_2 is not None:
+                cursor.execute(
+                    """SELECT client_order_id, parent_order_id, product_id, side,
+                              size, status, ownership_provenance,
+                              retail_portfolio_id, correlation_id, audit_id,
+                              exchange_order_id
+                         FROM order_parent
+                        WHERE client_order_id = %s""",
+                    (V8_SLOT_2_ROOT_CLIENT_ORDER_ID,),
+                )
+                recovery_root = row_dict(cursor, cursor.fetchone())
+                cursor.execute(
+                    """SELECT client_order_id, parent_order_id, product_id, side,
+                              size, status, ownership_provenance,
+                              retail_portfolio_id, correlation_id, audit_id,
+                              exchange_order_id
+                         FROM order_parent
+                        WHERE client_order_id = %s""",
+                    (V8_SLOT_2_CHILD_CLIENT_ORDER_ID,),
+                )
+                recovery_child = row_dict(cursor, cursor.fetchone())
+                cursor.execute(
+                    """SELECT stealth_order_id, parent_order_id, product_id, side,
+                              total_size, remaining_size, revealed_size,
+                              executed_size, status, revealed_orders,
+                              last_placement_at, condition_first_met_at,
+                              condition_confirmed_at, anchor_repricing_state_json
+                         FROM stealth_orders
+                        WHERE stealth_order_id = %s""",
+                    (V8_SLOT_2_CHILD_CLIENT_ORDER_ID,),
+                )
+                recovery_stealth = row_dict(cursor, cursor.fetchone())
             cursor.execute(
                 """SELECT client_order_id
                      FROM order_parent
@@ -5199,9 +6321,176 @@ def prove_local_scope_with_historical_hidden_child(
             "root_placement_authorized": False,
             "completion_proof": carried_completion,
         }
+    recovery_scope: dict[str, Any] | None = None
+    recovery_nonterminal = False
+    if recovery_slot_2 is not None:
+        require(
+            recovery_root is not None
+            and recovery_child is not None
+            and recovery_stealth is not None,
+            "recovery_slot_2_chain_row_missing",
+        )
+        require(
+            recovery_slot_2.get("slot") == 2
+            and recovery_slot_2.get("root_placement_authorized") is False
+            and recovery_slot_2.get("child_recovery_authorized") is True
+            and recovery_slot_2.get("root_client_order_id")
+            == V8_SLOT_2_ROOT_CLIENT_ORDER_ID
+            and recovery_slot_2.get("child_client_order_id")
+            == V8_SLOT_2_CHILD_CLIENT_ORDER_ID
+            and recovery_slot_2.get("controlled_prior_preparation_sha256")
+            == V8_SLOT_2_PRIOR_PREPARATION_SHA256,
+            "recovery_slot_2_plan_scope_mismatch",
+        )
+        require(
+            recovery_root.get("client_order_id")
+            == V8_SLOT_2_ROOT_CLIENT_ORDER_ID
+            and not recovery_root.get("parent_order_id")
+            and recovery_root.get("product_id") == PRODUCT_ID
+            and str(recovery_root.get("side") or "").upper() == "BUY"
+            and str(recovery_root.get("status") or "").upper() == "FILLED"
+            and recovery_root.get("ownership_provenance")
+            == "ADMIN_MANUAL_ROOT"
+            and recovery_root.get("retail_portfolio_id") == TEST_PORTFOLIO_ID
+            and recovery_root.get("exchange_order_id")
+            == V8_SLOT_2_ROOT_EXCHANGE_ORDER_ID
+            and Decimal(str(recovery_root.get("size") or "0"))
+            == V8_SLOT_2_ROOT_FILLED_SIZE
+            and recovery_root.get("correlation_id")
+            == V8_SLOT_2_ROOT_CORRELATION_ID
+            and recovery_root.get("audit_id")
+            == V8_SLOT_2_ROOT_ADMISSION_AUDIT_ID,
+            "recovery_slot_2_root_local_state_mismatch",
+        )
+        recovery_child_status = str(
+            recovery_child.get("status") or ""
+        ).upper()
+        recovery_stealth_status = str(
+            recovery_stealth.get("status") or ""
+        ).upper()
+        recovery_nonterminal = recovery_child_status not in TERMINAL_STATUSES
+        require(
+            recovery_child.get("client_order_id")
+            == V8_SLOT_2_CHILD_CLIENT_ORDER_ID
+            and str(recovery_child.get("parent_order_id") or "")
+            == V8_SLOT_2_ROOT_CLIENT_ORDER_ID
+            and recovery_child.get("product_id") == PRODUCT_ID
+            and str(recovery_child.get("side") or "").upper() == "SELL"
+            and recovery_child.get("ownership_provenance")
+            == "ADMIN_FILL_FOLLOW_UP"
+            and recovery_child.get("retail_portfolio_id") == TEST_PORTFOLIO_ID
+            and recovery_child.get("correlation_id")
+            == V8_SLOT_2_ROOT_CORRELATION_ID
+            and recovery_child.get("audit_id")
+            == V8_SLOT_2_ROOT_ADMISSION_AUDIT_ID
+            and Decimal(str(recovery_child.get("size") or "0"))
+            == V8_SLOT_2_ROOT_FILLED_SIZE,
+            "recovery_slot_2_child_local_state_mismatch",
+        )
+        recovery_anchor = object_record(
+            recovery_stealth.get("anchor_repricing_state_json")
+        )
+        recovery_current_preparation = object_record(
+            recovery_anchor.get(
+                "controlled_admin_first_child_reveal_preparation"
+            )
+        )
+        recovery_history = list_value(
+            recovery_anchor.get(
+                "controlled_admin_first_child_reveal_preparation_history"
+            )
+        )
+        require(
+            recovery_stealth.get("stealth_order_id")
+            == V8_SLOT_2_CHILD_CLIENT_ORDER_ID
+            and str(recovery_stealth.get("parent_order_id") or "")
+            == V8_SLOT_2_ROOT_CLIENT_ORDER_ID
+            and recovery_stealth.get("product_id") == PRODUCT_ID
+            and str(recovery_stealth.get("side") or "").upper() == "SELL"
+            and Decimal(str(recovery_stealth.get("total_size") or "0"))
+            == V8_SLOT_2_ROOT_FILLED_SIZE
+            and Decimal(str(recovery_stealth.get("executed_size") or "0"))
+            == 0
+            and not recovery_anchor.get("active_placement_client_order_id")
+            and not recovery_anchor.get("active_exchange_order_id"),
+            "recovery_slot_2_stealth_local_state_mismatch",
+        )
+        if recovery_nonterminal:
+            prior_preparation_exact = bool(
+                _canonical_json_sha256(recovery_current_preparation)
+                == V8_SLOT_2_PRIOR_PREPARATION_SHA256
+                and not recovery_history
+            )
+            superseded_preparation_exact = bool(
+                recovery_slot_2.get("recovery_batch_id")
+                and recovery_current_preparation.get("batch_id")
+                == recovery_slot_2.get("recovery_batch_id")
+                and recovery_current_preparation.get(
+                    "supersedes_preparation_sha256"
+                )
+                == V8_SLOT_2_PRIOR_PREPARATION_SHA256
+                and len(recovery_history) == 1
+                and object_record(recovery_history[0]).get(
+                    "preparation_sha256"
+                )
+                == V8_SLOT_2_PRIOR_PREPARATION_SHA256
+            )
+            require(
+                recovery_child_status == "PENDING"
+                and recovery_stealth_status == "HIDDEN"
+                and not recovery_child.get("exchange_order_id")
+                and Decimal(str(recovery_stealth.get("remaining_size") or "0"))
+                == V8_SLOT_2_ROOT_FILLED_SIZE
+                and Decimal(str(recovery_stealth.get("revealed_size") or "0"))
+                == 0
+                and not list_value(recovery_stealth.get("revealed_orders"))
+                and recovery_stealth.get("last_placement_at") is None
+                and (prior_preparation_exact or superseded_preparation_exact),
+                "recovery_slot_2_not_exact_v8_preexchange_state",
+            )
+            recovery_phase = (
+                "v8_prepared_hidden"
+                if prior_preparation_exact
+                else "v9_superseded_preplacement_hidden"
+            )
+        else:
+            require(
+                recovery_child_status in {"CANCELLED", "CANCELED"}
+                and recovery_stealth_status in {"CANCELLED", "CANCELED"}
+                and bool(str(recovery_child.get("exchange_order_id") or ""))
+                and recovery_current_preparation.get(
+                    "supersedes_preparation_sha256"
+                )
+                == V8_SLOT_2_PRIOR_PREPARATION_SHA256
+                and len(recovery_history) == 1
+                and object_record(recovery_history[0]).get(
+                    "preparation_sha256"
+                )
+                == V8_SLOT_2_PRIOR_PREPARATION_SHA256,
+                "recovery_slot_2_not_exact_zero_fill_cancelled_state",
+            )
+            recovery_phase = "v9_recovered_zero_fill_cancelled"
+        recovery_scope = {
+            "slot": 2,
+            "root_client_order_id": V8_SLOT_2_ROOT_CLIENT_ORDER_ID,
+            "child_client_order_id": V8_SLOT_2_CHILD_CLIENT_ORDER_ID,
+            "root_exchange_order_id": V8_SLOT_2_ROOT_EXCHANGE_ORDER_ID,
+            "root_status": "FILLED",
+            "child_parent_status": recovery_child_status,
+            "child_stealth_status": recovery_stealth_status,
+            "child_executed_size": "0",
+            "phase": recovery_phase,
+            "prior_preparation_sha256": (
+                V8_SLOT_2_PRIOR_PREPARATION_SHA256
+            ),
+            "root_placement_authorized": False,
+            "sql_mutation_performed": False,
+        }
     expected_nonterminal = [HISTORICAL_HIDDEN_CHILD_CLIENT_ORDER_ID]
     if carried_nonterminal:
         expected_nonterminal.append(CARRIED_CHILD_CLIENT_ORDER_ID)
+    if recovery_nonterminal:
+        expected_nonterminal.append(V8_SLOT_2_CHILD_CLIENT_ORDER_ID)
     expected_nonterminal.sort()
     require(
         nonterminal_parents == expected_nonterminal,
@@ -5247,6 +6536,7 @@ def prove_local_scope_with_historical_hidden_child(
         "planned_ids_absent_from_fill_ledger": True,
         "planned_ids_absent_from_order_match_audit": True,
         "carried_chain": carried_scope,
+        "recovery_slot_2_chain": recovery_scope,
     }
 
 
@@ -5259,8 +6549,9 @@ def validate_runner_commit_topology(
     runner_path: str,
     committed_runner_sha256: str,
     working_runner_sha256: str,
+    additional_allowed_paths: Sequence[str] = (),
 ) -> dict[str, Any]:
-    """Require one runner-only commit directly atop the production tree."""
+    """Require one exact scoped commit directly atop the production tree."""
 
     require(
         len(production_commit) == 40
@@ -5283,8 +6574,11 @@ def validate_runner_commit_topology(
         list(head_parents) == [production_commit],
         "runner_commit_not_directly_above_production_commit",
     )
+    expected_paths = {runner_path, *additional_allowed_paths}
     require(
-        list(changed_paths) == [runner_path],
+        len(expected_paths) == 1 + len(additional_allowed_paths)
+        and set(changed_paths) == expected_paths
+        and len(changed_paths) == len(expected_paths),
         "runner_commit_contains_non_runner_paths",
     )
     require(
@@ -5297,8 +6591,10 @@ def validate_runner_commit_topology(
         "runner_commit": head_commit,
         "runner_commit_parent": production_commit,
         "runner_path": runner_path,
+        "additional_allowed_paths": list(additional_allowed_paths),
         "runner_sha256": working_runner_sha256,
-        "runner_only_commit_proven": True,
+        "runner_only_commit_proven": not additional_allowed_paths,
+        "scoped_commit_proven": True,
     }
 
 
@@ -5614,10 +6910,11 @@ def require_failed_v7_commit_binding() -> dict[str, Any]:
     """Bind final expired-v7 source and its runner-only topology."""
 
     require(
-        FAILED_SUCCESSOR_V7_RUNNER_COMMIT == EXPECTED_COMMIT
+        FAILED_SUCCESSOR_V7_RUNNER_COMMIT
+        == FAILED_SUCCESSOR_V8_PRODUCTION_PARENT_COMMIT
         and FAILED_SUCCESSOR_V7_PRODUCTION_PARENT_COMMIT
         == INITIAL_V7_RUNNER_COMMIT,
-        "failed_v7_not_v8_production_parent",
+        "failed_v7_not_failed_v8_production_parent",
     )
     runner_relative_path = Path(__file__).resolve().relative_to(ROOT).as_posix()
     parent_record = subprocess.check_output(
@@ -5656,6 +6953,65 @@ def require_failed_v7_commit_binding() -> dict[str, Any]:
     return topology
 
 
+def require_failed_v8_commit_binding() -> dict[str, Any]:
+    """Bind the exact runner-only source that produced sealed v8 evidence."""
+
+    require(
+        FAILED_SUCCESSOR_V8_PRODUCTION_PARENT_COMMIT
+        == FAILED_SUCCESSOR_V7_RUNNER_COMMIT,
+        "failed_v8_production_parent_mismatch",
+    )
+    runner_relative_path = Path(__file__).resolve().relative_to(ROOT).as_posix()
+    parent_record = subprocess.check_output(
+        [
+            "git",
+            "rev-list",
+            "--parents",
+            "-n",
+            "1",
+            FAILED_SUCCESSOR_V8_RUNNER_COMMIT,
+        ],
+        cwd=ROOT,
+        text=True,
+    ).strip().split()
+    changed_paths = subprocess.check_output(
+        [
+            "git",
+            "diff-tree",
+            "--no-commit-id",
+            "--name-only",
+            "-r",
+            FAILED_SUCCESSOR_V8_RUNNER_COMMIT,
+        ],
+        cwd=ROOT,
+        text=True,
+    ).splitlines()
+    committed_runner_bytes = subprocess.check_output(
+        [
+            "git",
+            "show",
+            f"{FAILED_SUCCESSOR_V8_RUNNER_COMMIT}:{runner_relative_path}",
+        ],
+        cwd=ROOT,
+    )
+    committed_runner_sha256 = hashlib.sha256(
+        committed_runner_bytes
+    ).hexdigest()
+    require(
+        committed_runner_sha256 == FAILED_SUCCESSOR_V8_RUNNER_SHA256,
+        "failed_v8_committed_runner_hash_mismatch",
+    )
+    return validate_runner_commit_topology(
+        production_commit=FAILED_SUCCESSOR_V8_PRODUCTION_PARENT_COMMIT,
+        head_commit=FAILED_SUCCESSOR_V8_RUNNER_COMMIT,
+        head_parents=parent_record[1:],
+        changed_paths=changed_paths,
+        runner_path=runner_relative_path,
+        committed_runner_sha256=committed_runner_sha256,
+        working_runner_sha256=committed_runner_sha256,
+    )
+
+
 def require_clean_commit() -> dict[str, Any]:
     failed_successor_topology = require_failed_successor_commit_binding()
     failed_v2_topology = require_failed_v2_commit_binding()
@@ -5665,6 +7021,7 @@ def require_clean_commit() -> dict[str, Any]:
     failed_v6_topology = require_failed_v6_commit_binding()
     initial_v7_topology = require_initial_v7_commit_binding()
     failed_v7_topology = require_failed_v7_commit_binding()
+    failed_v8_topology = require_failed_v8_commit_binding()
     head = subprocess.check_output(
         ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
     ).strip()
@@ -5706,6 +7063,7 @@ def require_clean_commit() -> dict[str, Any]:
             committed_runner_bytes
         ).hexdigest(),
         working_runner_sha256=runner_sha256(),
+        additional_allowed_paths=(V9_RUNNER_TEST_PATH,),
     )
     production_drift = subprocess.run(
         [
@@ -5716,6 +7074,7 @@ def require_clean_commit() -> dict[str, Any]:
             "--",
             ".",
             ":(exclude)tools/run_controlled_admin_spot_root_child_batch.py",
+            f":(exclude){V9_RUNNER_TEST_PATH}",
         ],
         cwd=ROOT,
         check=False,
@@ -5742,6 +7101,7 @@ def require_clean_commit() -> dict[str, Any]:
     topology["failed_v6_topology"] = failed_v6_topology
     topology["initial_v7_topology"] = initial_v7_topology
     topology["failed_v7_topology"] = failed_v7_topology
+    topology["failed_v8_topology"] = failed_v8_topology
     return topology
 
 
@@ -5826,7 +7186,7 @@ def deterministic_proof_approval_id(
 
 
 def prior_authority_approval_ids() -> set[str]:
-    """Return every sealed approval namespace through expired v7."""
+    """Return every sealed approval namespace through failed v8."""
 
     return {
         PREDECESSOR_APPROVAL_ID,
@@ -5837,11 +7197,12 @@ def prior_authority_approval_ids() -> set[str]:
         FAILED_SUCCESSOR_V5_APPROVAL_ID,
         FAILED_SUCCESSOR_V6_APPROVAL_ID,
         FAILED_SUCCESSOR_V7_APPROVAL_ID,
+        FAILED_SUCCESSOR_V8_APPROVAL_ID,
     }
 
 
 def prior_authority_batch_ids() -> set[str]:
-    """Return every sealed batch namespace through expired v7."""
+    """Return every sealed batch namespace through failed v8."""
 
     return {
         PREDECESSOR_BATCH_ID,
@@ -5852,11 +7213,12 @@ def prior_authority_batch_ids() -> set[str]:
         FAILED_SUCCESSOR_V5_BATCH_ID,
         FAILED_SUCCESSOR_V6_BATCH_ID,
         FAILED_SUCCESSOR_V7_BATCH_ID,
+        FAILED_SUCCESSOR_V8_BATCH_ID,
     }
 
 
 def prior_proof_approval_ids() -> set[str]:
-    """Burn the complete deterministic proof namespace through v7."""
+    """Burn the complete deterministic proof namespace through failed v8."""
 
     return {
         deterministic_proof_approval_id(
@@ -6234,8 +7596,9 @@ def build_successor_live_plan(
     failed_v5_binding: Mapping[str, Any],
     failed_v6_binding: Mapping[str, Any],
     failed_v7_binding: Mapping[str, Any],
+    v8_binding: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Build only the nine fresh root/child pairs remaining after slot 1."""
+    """Build the one child recovery plus eight fresh root/child pairs."""
 
     require(
         dict(predecessor_binding) == offline_predecessor_binding_fixture(),
@@ -6270,7 +7633,11 @@ def build_successor_live_plan(
         dict(failed_v7_binding) == offline_failed_v7_binding_fixture(),
         "successor_failed_v7_binding_mismatch",
     )
-    approval_id = f"controlled-root-child-successor-v8-{uuid4()}"
+    require(
+        dict(v8_binding) == offline_v8_binding_fixture(),
+        "successor_v8_binding_mismatch",
+    )
+    approval_id = f"controlled-root-child-successor-v9-{uuid4()}"
     exact_runner_hash = runner_sha256()
     batch_id = deterministic_batch_id(approval_id, exact_runner_hash)
     require(
@@ -6287,7 +7654,7 @@ def build_successor_live_plan(
     ).to_integral_value(rounding=ROUND_CEILING) * price_increment
     roots: list[dict[str, Any]] = []
     planned_new_root_total = Decimal("0")
-    for slot in range(2, BATCH_SIZE + 1):
+    for slot in range(3, BATCH_SIZE + 1):
         order_body, planned_notional = build_root_order(
             preflight,
             batch_id=batch_id,
@@ -6362,6 +7729,9 @@ def build_successor_live_plan(
     failed_v7_ids = set(
         failed_v7_binding["planned_root_client_order_ids"]
     ) | set(failed_v7_binding["planned_child_client_order_ids"])
+    failed_v8_ids = set(
+        v8_binding["planned_root_client_order_ids"]
+    ) | set(v8_binding["planned_child_client_order_ids"])
     historical_ids = {
         HISTORICAL_FILLED_ROOT_CLIENT_ORDER_ID,
         HISTORICAL_HIDDEN_CHILD_CLIENT_ORDER_ID,
@@ -6379,6 +7749,7 @@ def build_successor_live_plan(
             | failed_v5_ids
             | failed_v6_ids
             | failed_v7_ids
+            | failed_v8_ids
             | historical_ids
         ),
         "successor_fresh_ids_overlap_prior_authority_or_historical_chain",
@@ -6390,9 +7761,56 @@ def build_successor_live_plan(
     }
     require(
         not fresh_proof_approval_ids & prior_proof_approval_ids(),
-        "successor_v8_reuses_prior_proof_approval_namespace",
+        "successor_v9_reuses_prior_proof_approval_namespace",
     )
-    planned_child_total = Decimal("0")
+    recovery_proof_approval_ids = {
+        purpose: deterministic_proof_approval_id(
+            batch_id,
+            slot=2,
+            purpose=purpose,
+        )
+        for purpose in ("child_reveal", "child_cancel")
+    }
+    require(
+        not set(recovery_proof_approval_ids.values())
+        & (prior_proof_approval_ids() | fresh_proof_approval_ids),
+        "successor_v9_recovery_proof_approval_namespace_reused",
+    )
+    recovery_slot_2 = {
+        "slot": 2,
+        "recovery_batch_id": batch_id,
+        "root_placement_authorized": False,
+        "child_recovery_authorized": True,
+        "root_client_order_id": V8_SLOT_2_ROOT_CLIENT_ORDER_ID,
+        "child_client_order_id": V8_SLOT_2_CHILD_CLIENT_ORDER_ID,
+        "root_exchange_order_id": V8_SLOT_2_ROOT_EXCHANGE_ORDER_ID,
+        "root_planned_notional_usdc": decimal_text(
+            V8_SLOT_2_ROOT_PLANNED_NOTIONAL
+        ),
+        "root_filled_size": decimal_text(V8_SLOT_2_ROOT_FILLED_SIZE),
+        "root_filled_value": decimal_text(V8_SLOT_2_ROOT_FILLED_VALUE),
+        "root_total_fees": decimal_text(V8_SLOT_2_ROOT_TOTAL_FEES),
+        "root_correlation_id": V8_SLOT_2_ROOT_CORRELATION_ID,
+        "root_admission_audit_id": V8_SLOT_2_ROOT_ADMISSION_AUDIT_ID,
+        "controlled_prior_preparation_sha256": (
+            V8_SLOT_2_PRIOR_PREPARATION_SHA256
+        ),
+        "prior_preparation_authority_id": (
+            V8_SLOT_2_PRIOR_PREPARATION_AUTHORITY_ID
+        ),
+        "prior_child_reveal_approval_id": (
+            V8_SLOT_2_PRIOR_CHILD_REVEAL_APPROVAL_ID
+        ),
+        "v8_child_attempt_reference_notional_usdc": decimal_text(
+            V8_SLOT_2_CHILD_AUDIT_REFERENCE_NOTIONAL
+        ),
+        "proof_approval_ids": recovery_proof_approval_ids,
+    }
+    planned_child_total = V8_SLOT_2_ROOT_FILLED_SIZE * planned_child_price
+    require(
+        planned_child_total < CHILD_SUBMITTED_CAP,
+        "successor_recovery_child_reference_notional_not_strictly_below_cap",
+    )
     for root in roots:
         child_reference_notional = (
             Decimal(str(object_record(root["order"])["base_size"]))
@@ -6411,12 +7829,16 @@ def build_successor_live_plan(
         and wallet_available >= planned_new_root_total,
         "successor_new_root_wallet_insufficient",
     )
-    planned_all_root_total = CARRIED_ROOT_PLANNED_NOTIONAL + planned_new_root_total
+    planned_all_root_total = (
+        CARRIED_ROOT_PLANNED_NOTIONAL
+        + V8_SLOT_2_ROOT_PLANNED_NOTIONAL
+        + planned_new_root_total
+    )
     planned_all_child_total = (
         COMPLETED_CHILD_REFERENCE_NOTIONAL + planned_child_total
     )
     planned_batch_total = (
-        COMPLETED_INHERITED_REFERENCE_NOTIONAL
+        TOTAL_INHERITED_REFERENCE_NOTIONAL
         + planned_new_root_total
         + planned_child_total
     )
@@ -6429,7 +7851,7 @@ def build_successor_live_plan(
     plan: dict[str, Any] = {
         "schema_version": PLAN_SCHEMA_VERSION,
         "continuation_kind": (
-            "expired_v7_plan_without_registration_evidence_root_2_first_v8"
+            "sealed_v8_root_2_fill_recover_child_then_fresh_slots_3_to_10_v9"
         ),
         "approval_id": approval_id,
         "batch_id": batch_id,
@@ -6449,7 +7871,9 @@ def build_successor_live_plan(
         "failed_v5_binding": dict(failed_v5_binding),
         "failed_v6_binding": dict(failed_v6_binding),
         "failed_v7_binding": dict(failed_v7_binding),
+        "v8_binding": dict(v8_binding),
         "completed_slot_1_binding": completed_slot_1_binding_fixture(),
+        "recovery_slot_2": recovery_slot_2,
         "portfolio_id": str(preflight.get("portfolio_id") or ""),
         "portfolio_label": PROFILE_LABEL,
         "product_id": PRODUCT_ID,
@@ -6489,6 +7913,12 @@ def build_successor_live_plan(
         "completed_inherited_reference_notional_usdc": decimal_text(
             COMPLETED_INHERITED_REFERENCE_NOTIONAL
         ),
+        "v8_inherited_root_reference_notional_usdc": decimal_text(
+            V8_SLOT_2_ROOT_PLANNED_NOTIONAL
+        ),
+        "total_inherited_reference_notional_usdc": decimal_text(
+            TOTAL_INHERITED_REFERENCE_NOTIONAL
+        ),
         "planned_new_root_notional_usdc": decimal_text(
             planned_new_root_total
         ),
@@ -6514,12 +7944,14 @@ def approved_exact_successor_root_tuple(
     plan: Mapping[str, Any],
     root_plan: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Return a root tuple only for fresh successor slots 2 through 10."""
+    """Return a root tuple only for fresh v9 slots 3 through 10."""
 
     slot = int(root_plan.get("slot") or 0)
+    minimum_slot = 3 if plan.get("schema_version") == PLAN_SCHEMA_VERSION else 2
     require(
-        slot >= 2 and root_plan.get("root_placement_authorized") is True,
-        "completed_slot_1_has_no_v8_root_tuple",
+        slot >= minimum_slot
+        and root_plan.get("root_placement_authorized") is True,
+        "recovery_slot_2_has_no_v9_root_tuple",
     )
     return approved_exact_root_tuple(plan, root_plan)
 
@@ -6537,8 +7969,9 @@ def validate_successor_live_plan(
     failed_v5_binding: Mapping[str, Any],
     failed_v6_binding: Mapping[str, Any],
     failed_v7_binding: Mapping[str, Any],
+    v8_binding: Mapping[str, Any],
 ) -> tuple[list[dict[str, Any]], Decimal]:
-    """Validate 18 v8 placements and the slot-1-plus-v8 reference cap."""
+    """Validate the 17-attempt v9 child-recovery/fresh-root authority."""
 
     expected_fields = {
         "schema_version",
@@ -6561,7 +7994,9 @@ def validate_successor_live_plan(
         "failed_v5_binding",
         "failed_v6_binding",
         "failed_v7_binding",
+        "v8_binding",
         "completed_slot_1_binding",
+        "recovery_slot_2",
         "portfolio_id",
         "portfolio_label",
         "product_id",
@@ -6584,6 +8019,8 @@ def validate_successor_live_plan(
         "inherited_root_reference_notional_usdc",
         "inherited_child_reference_notional_usdc",
         "completed_inherited_reference_notional_usdc",
+        "v8_inherited_root_reference_notional_usdc",
+        "total_inherited_reference_notional_usdc",
         "planned_new_root_notional_usdc",
         "planned_total_root_notional_usdc",
         "planned_total_child_reference_notional_usdc",
@@ -6643,6 +8080,11 @@ def validate_successor_live_plan(
         "successor_plan_failed_v7_binding_mismatch",
     )
     require(
+        dict(v8_binding) == offline_v8_binding_fixture()
+        and object_record(plan.get("v8_binding")) == dict(v8_binding),
+        "successor_plan_v8_binding_mismatch",
+    )
+    require(
         object_record(plan.get("completed_slot_1_binding"))
         == completed_slot_1_binding_fixture(),
         "successor_plan_completed_slot_1_binding_mismatch",
@@ -6658,14 +8100,14 @@ def validate_successor_live_plan(
     require(
         plan.get("schema_version") == PLAN_SCHEMA_VERSION
         and plan.get("continuation_kind")
-        == "expired_v7_plan_without_registration_evidence_root_2_first_v8"
+        == "sealed_v8_root_2_fill_recover_child_then_fresh_slots_3_to_10_v9"
         and plan.get("backend_commit") == EXPECTED_COMMIT
         and plan.get("runner_sha256") == runner_sha256(),
         "successor_plan_authority_mismatch",
     )
     approval_id = str(plan.get("approval_id") or "")
     batch_id = str(plan.get("batch_id") or "")
-    approval_prefix = "controlled-root-child-successor-v8-"
+    approval_prefix = "controlled-root-child-successor-v9-"
     require(
         approval_id.startswith(approval_prefix),
         "successor_plan_approval_namespace_mismatch",
@@ -6755,7 +8197,7 @@ def validate_successor_live_plan(
     require(
         len(roots) == SUCCESSOR_ROOT_ORDER_MAXIMUM
         and [root.get("slot") for root in roots]
-        == list(range(2, BATCH_SIZE + 1)),
+        == list(range(3, BATCH_SIZE + 1)),
         "successor_plan_root_slots_mismatch",
     )
     root_fields = {
@@ -6778,7 +8220,7 @@ def validate_successor_live_plan(
     root_ids: list[str] = []
     child_ids: list[str] = []
     fresh_proof_approval_ids: set[str] = set()
-    for slot, root in enumerate(roots, start=2):
+    for slot, root in enumerate(roots, start=3):
         require(set(root) == root_fields, f"successor_root_fields_mismatch:{slot}")
         root_id = deterministic_root_client_order_id(batch_id, slot)
         child_id = deterministic_child_client_order_id(root_id)
@@ -6843,10 +8285,13 @@ def validate_successor_live_plan(
     failed_v7_ids = set(
         failed_v7_binding["planned_root_client_order_ids"]
     ) | set(failed_v7_binding["planned_child_client_order_ids"])
+    failed_v8_ids = set(
+        v8_binding["planned_root_client_order_ids"]
+    ) | set(v8_binding["planned_child_client_order_ids"])
     fresh_ids = set(root_ids) | set(child_ids)
     require(
         len(set(root_ids)) == SUCCESSOR_ROOT_ORDER_MAXIMUM
-        and len(set(child_ids)) == SUCCESSOR_CHILD_ORDER_MAXIMUM
+        and len(set(child_ids)) == SUCCESSOR_ROOT_ORDER_MAXIMUM
         and not set(root_ids) & set(child_ids)
         and not fresh_ids
         & (
@@ -6858,6 +8303,7 @@ def validate_successor_live_plan(
             | failed_v5_ids
             | failed_v6_ids
             | failed_v7_ids
+            | failed_v8_ids
         )
         and not fresh_ids
         & {
@@ -6866,6 +8312,86 @@ def validate_successor_live_plan(
         }
         and not fresh_proof_approval_ids & prior_proof_approval_ids(),
         "successor_plan_prior_authority_id_disjointness_failed",
+    )
+    recovery = object_record(plan.get("recovery_slot_2"))
+    recovery_fields = {
+        "slot",
+        "recovery_batch_id",
+        "root_placement_authorized",
+        "child_recovery_authorized",
+        "root_client_order_id",
+        "child_client_order_id",
+        "root_exchange_order_id",
+        "root_planned_notional_usdc",
+        "root_filled_size",
+        "root_filled_value",
+        "root_total_fees",
+        "root_correlation_id",
+        "root_admission_audit_id",
+        "controlled_prior_preparation_sha256",
+        "prior_preparation_authority_id",
+        "prior_child_reveal_approval_id",
+        "v8_child_attempt_reference_notional_usdc",
+        "proof_approval_ids",
+    }
+    require(
+        set(recovery) == recovery_fields
+        and recovery.get("slot") == 2
+        and recovery.get("recovery_batch_id") == batch_id
+        and recovery.get("root_placement_authorized") is False
+        and recovery.get("child_recovery_authorized") is True
+        and recovery.get("root_client_order_id")
+        == V8_SLOT_2_ROOT_CLIENT_ORDER_ID
+        and recovery.get("child_client_order_id")
+        == V8_SLOT_2_CHILD_CLIENT_ORDER_ID
+        and recovery.get("root_exchange_order_id")
+        == V8_SLOT_2_ROOT_EXCHANGE_ORDER_ID
+        and recovery.get("root_planned_notional_usdc")
+        == decimal_text(V8_SLOT_2_ROOT_PLANNED_NOTIONAL)
+        and recovery.get("root_filled_size")
+        == decimal_text(V8_SLOT_2_ROOT_FILLED_SIZE)
+        and recovery.get("root_filled_value")
+        == decimal_text(V8_SLOT_2_ROOT_FILLED_VALUE)
+        and recovery.get("root_total_fees")
+        == decimal_text(V8_SLOT_2_ROOT_TOTAL_FEES)
+        and recovery.get("root_correlation_id")
+        == V8_SLOT_2_ROOT_CORRELATION_ID
+        and recovery.get("root_admission_audit_id")
+        == V8_SLOT_2_ROOT_ADMISSION_AUDIT_ID
+        and recovery.get("controlled_prior_preparation_sha256")
+        == V8_SLOT_2_PRIOR_PREPARATION_SHA256
+        and recovery.get("prior_preparation_authority_id")
+        == V8_SLOT_2_PRIOR_PREPARATION_AUTHORITY_ID
+        and recovery.get("prior_child_reveal_approval_id")
+        == V8_SLOT_2_PRIOR_CHILD_REVEAL_APPROVAL_ID
+        and recovery.get("v8_child_attempt_reference_notional_usdc")
+        == decimal_text(V8_SLOT_2_CHILD_AUDIT_REFERENCE_NOTIONAL),
+        "successor_plan_recovery_slot_2_mismatch",
+    )
+    recovery_approvals = object_record(recovery.get("proof_approval_ids"))
+    require(
+        set(recovery_approvals) == {"child_reveal", "child_cancel"},
+        "successor_plan_recovery_proof_scope_mismatch",
+    )
+    for purpose, approval in recovery_approvals.items():
+        require(
+            approval
+            == deterministic_proof_approval_id(
+                batch_id,
+                slot=2,
+                purpose=purpose,
+            ),
+            f"successor_plan_recovery_proof_approval_mismatch:{purpose}",
+        )
+        fresh_proof_approval_ids.add(str(approval))
+    require(
+        not fresh_proof_approval_ids & prior_proof_approval_ids(),
+        "successor_plan_recovery_reuses_prior_proof_approval_namespace",
+    )
+    planned_child_total = V8_SLOT_2_ROOT_FILLED_SIZE * planned_child_price
+    require(
+        planned_child_total < CHILD_SUBMITTED_CAP,
+        "successor_plan_recovery_child_reference_cap_mismatch",
     )
     for root in roots:
         planned_child_notional = (
@@ -6877,10 +8403,14 @@ def validate_successor_live_plan(
             "successor_plan_child_reference_cap_mismatch",
         )
         planned_child_total += planned_child_notional
-    total_roots = CARRIED_ROOT_PLANNED_NOTIONAL + planned_new_root_total
+    total_roots = (
+        CARRIED_ROOT_PLANNED_NOTIONAL
+        + V8_SLOT_2_ROOT_PLANNED_NOTIONAL
+        + planned_new_root_total
+    )
     total_children = COMPLETED_CHILD_REFERENCE_NOTIONAL + planned_child_total
     total_batch = (
-        COMPLETED_INHERITED_REFERENCE_NOTIONAL
+        TOTAL_INHERITED_REFERENCE_NOTIONAL
         + planned_new_root_total
         + planned_child_total
     )
@@ -6891,6 +8421,10 @@ def validate_successor_live_plan(
         == decimal_text(COMPLETED_CHILD_REFERENCE_NOTIONAL)
         and plan.get("completed_inherited_reference_notional_usdc")
         == decimal_text(COMPLETED_INHERITED_REFERENCE_NOTIONAL)
+        and plan.get("v8_inherited_root_reference_notional_usdc")
+        == decimal_text(V8_SLOT_2_ROOT_PLANNED_NOTIONAL)
+        and plan.get("total_inherited_reference_notional_usdc")
+        == decimal_text(TOTAL_INHERITED_REFERENCE_NOTIONAL)
         and plan.get("planned_new_root_notional_usdc")
         == decimal_text(planned_new_root_total)
         and plan.get("planned_total_root_notional_usdc")
@@ -7301,8 +8835,8 @@ def build_global_batch_marker_payload(
     process_id: int,
 ) -> dict[str, Any]:
     require(
-        plan_file == SUCCESSOR_V8_PLAN_PATH,
-        "successor_v8_marker_plan_path_mismatch",
+        plan_file == SUCCESSOR_V9_PLAN_PATH,
+        "successor_v9_marker_plan_path_mismatch",
     )
     predecessor_binding = object_record(
         confirmed_plan.get("predecessor_binding")
@@ -7361,6 +8895,11 @@ def build_global_batch_marker_payload(
         failed_v7_binding == offline_failed_v7_binding_fixture(),
         "successor_marker_failed_v7_binding_mismatch",
     )
+    v8_binding = object_record(confirmed_plan.get("v8_binding"))
+    require(
+        v8_binding == offline_v8_binding_fixture(),
+        "successor_marker_v8_binding_mismatch",
+    )
     completed_slot_1 = object_record(
         confirmed_plan.get("completed_slot_1_binding")
     )
@@ -7376,12 +8915,25 @@ def build_global_batch_marker_payload(
         approved_exact_successor_root_tuple(confirmed_plan, root)
         for root in root_plans
     ]
+    recovery_slot_2 = object_record(confirmed_plan.get("recovery_slot_2"))
+    require(
+        recovery_slot_2.get("slot") == 2
+        and recovery_slot_2.get("root_placement_authorized") is False
+        and recovery_slot_2.get("child_recovery_authorized") is True
+        and recovery_slot_2.get("root_client_order_id")
+        == V8_SLOT_2_ROOT_CLIENT_ORDER_ID
+        and recovery_slot_2.get("child_client_order_id")
+        == V8_SLOT_2_CHILD_CLIENT_ORDER_ID
+        and recovery_slot_2.get("controlled_prior_preparation_sha256")
+        == V8_SLOT_2_PRIOR_PREPARATION_SHA256,
+        "successor_marker_recovery_slot_2_mismatch",
+    )
     marker_path, ledger_path = batch_registry_paths(
         str(confirmed_plan.get("batch_id") or "")
     )
     return {
-        "schema_version": "8",
-        "authority": "controlled-admin-spot-root-child-successor-v8-batch",
+        "schema_version": "9",
+        "authority": "controlled-admin-spot-root-child-successor-v9-batch",
         "approval_id": str(confirmed_plan.get("approval_id") or ""),
         "batch_id": str(confirmed_plan.get("batch_id") or ""),
         "batch_size": BATCH_SIZE,
@@ -7397,9 +8949,9 @@ def build_global_batch_marker_payload(
         "proof_set_root_exchange_target_after_success": BATCH_SIZE,
         "proof_set_child_exchange_target_after_success": BATCH_SIZE,
         "cross_generation_lifetime_sdk_counts_claimed": False,
-        "reference_cap_scope": "completed_slot_1_plus_v8",
+        "reference_cap_scope": "completed_slot_1_plus_v8_root_2_plus_v9",
         "inherited_reference_notional_usdc": decimal_text(
-            COMPLETED_INHERITED_REFERENCE_NOTIONAL
+            TOTAL_INHERITED_REFERENCE_NOTIONAL
         ),
         "predecessor_binding": predecessor_binding,
         "failed_successor_binding": failed_successor_binding,
@@ -7409,9 +8961,13 @@ def build_global_batch_marker_payload(
         "failed_v5_binding": failed_v5_binding,
         "failed_v6_binding": failed_v6_binding,
         "failed_v7_binding": failed_v7_binding,
+        "v8_binding": v8_binding,
         "completed_slot_1_binding": completed_slot_1,
         "exact_child_client_order_ids": [
+            V8_SLOT_2_CHILD_CLIENT_ORDER_ID,
+            *[
             str(root["child_client_order_id"]) for root in root_plans
+            ],
         ],
         "completed_slot_1_policy": {
             "batch_slot": 1,
@@ -7420,7 +8976,19 @@ def build_global_batch_marker_payload(
             "root_placement_authorized": False,
             "child_placement_authorized": False,
             "child_cancel_authorized": False,
-            "first_successor_attempt": "root_2",
+            "first_successor_attempt": "child_2_recovery",
+        },
+        "recovery_slot_2_policy": {
+            "batch_slot": 2,
+            "root_client_order_id": V8_SLOT_2_ROOT_CLIENT_ORDER_ID,
+            "child_client_order_id": V8_SLOT_2_CHILD_CLIENT_ORDER_ID,
+            "root_exchange_order_id": V8_SLOT_2_ROOT_EXCHANGE_ORDER_ID,
+            "root_placement_authorized": False,
+            "child_recovery_authorized": True,
+            "controlled_prior_preparation_sha256": (
+                V8_SLOT_2_PRIOR_PREPARATION_SHA256
+            ),
+            "old_v8_child_tuple_audit_only": True,
         },
         "exact_root_tuples": roots,
         "child_policy": {
@@ -7478,8 +9046,8 @@ def initialize_global_batch_ledger(
 
     require(plan_file.is_absolute(), "controlled_batch_plan_path_not_absolute")
     require(
-        plan_file == SUCCESSOR_V8_PLAN_PATH,
-        "successor_v8_plan_path_not_fixed",
+        plan_file == SUCCESSOR_V9_PLAN_PATH,
+        "successor_v9_plan_path_not_fixed",
     )
     require(
         expected_runner_sha256 == runner_sha256(),
@@ -7658,6 +9226,32 @@ def build_child_order_tuple(
     return child_tuple
 
 
+def successor_plan_rows_by_slot(
+    confirmed_plan: Mapping[str, Any],
+) -> dict[int, dict[str, Any]]:
+    """Return the proof-only recovery row plus fresh executable root rows."""
+
+    recovery = object_record(confirmed_plan.get("recovery_slot_2"))
+    roots = [
+        object_record(item)
+        for item in list_value(confirmed_plan.get("roots"))
+    ]
+    rows = [recovery, *roots]
+    rows_by_slot = {int(row.get("slot") or 0): row for row in rows}
+    require(
+        len(rows) == BATCH_SIZE - 1
+        and len(rows_by_slot) == BATCH_SIZE - 1
+        and set(rows_by_slot) == set(range(2, BATCH_SIZE + 1)),
+        "successor_plan_attempt_rows_mismatch",
+    )
+    require(
+        recovery.get("root_placement_authorized") is False
+        and recovery.get("child_recovery_authorized") is True,
+        "successor_plan_recovery_row_not_proof_only",
+    )
+    return rows_by_slot
+
+
 def _parse_and_validate_attempt_ledger(
     raw: bytes,
     *,
@@ -7675,14 +9269,9 @@ def _parse_and_validate_attempt_ledger(
         len(lines) <= SUCCESSOR_ATTEMPT_COUNT,
         "global_batch_attempt_count_exceeded",
     )
-    roots = [object_record(item) for item in list_value(confirmed_plan.get("roots"))]
     records: list[dict[str, Any]] = []
-    roots_by_slot = {int(root.get("slot") or 0): root for root in roots}
-    require(
-        set(roots_by_slot) == set(range(2, BATCH_SIZE + 1)),
-        "global_batch_executable_root_slots_mismatch",
-    )
-    cumulative_reference_notional = COMPLETED_INHERITED_REFERENCE_NOTIONAL
+    roots_by_slot = successor_plan_rows_by_slot(confirmed_plan)
+    cumulative_reference_notional = TOTAL_INHERITED_REFERENCE_NOTIONAL
     for sequence, line in enumerate(lines, start=1):
         require(bool(line.strip()), "global_batch_attempt_blank_line")
         try:
@@ -7838,9 +9427,8 @@ def build_batch_attempt_record(
     consumed_at: str,
     process_id: int,
 ) -> dict[str, Any]:
-    roots = [object_record(item) for item in list_value(confirmed_plan.get("roots"))]
     require(2 <= slot <= BATCH_SIZE, "global_batch_attempt_slot_invalid")
-    roots_by_slot = {int(root.get("slot") or 0): root for root in roots}
+    roots_by_slot = successor_plan_rows_by_slot(confirmed_plan)
     require(slot in roots_by_slot, "global_batch_attempt_slot_not_executable")
     root_plan = roots_by_slot[slot]
     tuple_record = dict(exact_order_tuple)
@@ -8155,11 +9743,11 @@ def _validate_authority_plan_structure(
     )
     batch_id = str(confirmed_plan.get("batch_id") or "")
     approval_id = str(confirmed_plan.get("approval_id") or "")
-    approval_prefix = "controlled-root-child-successor-v8-"
+    approval_prefix = "controlled-root-child-successor-v9-"
     require(
         confirmed_plan.get("schema_version") == PLAN_SCHEMA_VERSION
         and confirmed_plan.get("continuation_kind")
-        == "expired_v7_plan_without_registration_evidence_root_2_first_v8"
+        == "sealed_v8_root_2_fill_recover_child_then_fresh_slots_3_to_10_v9"
         and approval_id.startswith(approval_prefix),
         "runtime_child_authority_plan_generation_mismatch",
     )
@@ -8241,6 +9829,11 @@ def _validate_authority_plan_structure(
         failed_v7_binding == offline_failed_v7_binding_fixture(),
         "runtime_child_authority_failed_v7_binding_mismatch",
     )
+    v8_binding = object_record(confirmed_plan.get("v8_binding"))
+    require(
+        v8_binding == offline_v8_binding_fixture(),
+        "runtime_child_authority_v8_binding_mismatch",
+    )
     require(
         object_record(confirmed_plan.get("completed_slot_1_binding"))
         == completed_slot_1_binding_fixture(),
@@ -8296,8 +9889,39 @@ def _validate_authority_plan_structure(
         failed_v7_binding["planned_root_client_order_ids"]
     ) | set(
         failed_v7_binding["planned_child_client_order_ids"]
+    ) | set(
+        v8_binding["planned_root_client_order_ids"]
+    ) | set(
+        v8_binding["planned_child_client_order_ids"]
     )
-    for slot, root_plan in enumerate(roots, start=2):
+    recovery = object_record(confirmed_plan.get("recovery_slot_2"))
+    recovery_approvals = object_record(recovery.get("proof_approval_ids"))
+    require(
+        recovery.get("slot") == 2
+        and recovery.get("root_placement_authorized") is False
+        and recovery.get("child_recovery_authorized") is True
+        and recovery.get("root_client_order_id")
+        == V8_SLOT_2_ROOT_CLIENT_ORDER_ID
+        and recovery.get("child_client_order_id")
+        == V8_SLOT_2_CHILD_CLIENT_ORDER_ID
+        and recovery.get("root_exchange_order_id")
+        == V8_SLOT_2_ROOT_EXCHANGE_ORDER_ID
+        and recovery.get("controlled_prior_preparation_sha256")
+        == V8_SLOT_2_PRIOR_PREPARATION_SHA256
+        and recovery_approvals
+        == {
+            purpose: deterministic_proof_approval_id(
+                batch_id,
+                slot=2,
+                purpose=purpose,
+            )
+            for purpose in ("child_reveal", "child_cancel")
+        }
+        and not set(str(value) for value in recovery_approvals.values())
+        & prior_proof_approval_ids(),
+        "runtime_child_authority_recovery_slot_2_mismatch",
+    )
+    for slot, root_plan in enumerate(roots, start=3):
         require(
             root_plan.get("slot") == slot,
             "runtime_child_authority_root_slot_mismatch",
@@ -8672,6 +10296,10 @@ def consume_runtime_child_authority(
         == object_record(confirmed_plan.get("failed_v7_binding")),
         "runtime_child_failed_v7_artifacts_changed",
     )
+    require(
+        load_v8_binding() == object_record(confirmed_plan.get("v8_binding")),
+        "runtime_child_v8_artifacts_changed",
+    )
     marker_path = Path(str(auth_payload["global_batch_marker"]))
     marker_payload, marker_raw = _read_owner_only_json(
         marker_path,
@@ -8954,12 +10582,13 @@ def run_embedded_runtime_child(*, state_dir: Path, auth_file: Path) -> int:
                 "controlled_admin_first_child_reveal_preparation"
             )
         )
+        preparation_history = list_value(
+            anchor_state.get(
+                "controlled_admin_first_child_reveal_preparation_history"
+            )
+        )
         slot = int(exact_tuple.get("batch_slot") or 0)
-        roots = [
-            object_record(item)
-            for item in list_value(confirmed_plan.get("roots"))
-        ]
-        roots_by_slot = {int(root.get("slot") or 0): root for root in roots}
+        roots_by_slot = successor_plan_rows_by_slot(confirmed_plan)
         require(
             2 <= slot <= BATCH_SIZE and slot in roots_by_slot,
             "child_sdk_preparation_slot_invalid",
@@ -8983,6 +10612,31 @@ def run_embedded_runtime_child(*, state_dir: Path, auth_file: Path) -> int:
             and bool(preparation.get("authority_id")),
             "child_sdk_controlled_route_preparation_mismatch",
         )
+        if slot == 2:
+            require(
+                root_plan.get("root_placement_authorized") is False
+                and root_plan.get("child_recovery_authorized") is True
+                and root_plan.get("controlled_prior_preparation_sha256")
+                == V8_SLOT_2_PRIOR_PREPARATION_SHA256
+                and preparation.get("supersedes_preparation_sha256")
+                == V8_SLOT_2_PRIOR_PREPARATION_SHA256
+                and preparation.get("supersedes_batch_id")
+                == FAILED_SUCCESSOR_V8_BATCH_ID
+                and len(preparation_history) == 1
+                and object_record(preparation_history[0]).get(
+                    "preparation_sha256"
+                )
+                == V8_SLOT_2_PRIOR_PREPARATION_SHA256,
+                "child_sdk_recovery_supersession_mismatch",
+            )
+        else:
+            require(
+                slot >= 3
+                and "supersedes_preparation_sha256" not in preparation
+                and "supersedes_batch_id" not in preparation
+                and not preparation_history,
+                "child_sdk_fresh_preparation_has_supersession",
+            )
         require(
             str(state.get("status") or "").upper() == "HIDDEN"
             and not list_value(state.get("revealed_orders"))
@@ -10735,16 +12389,18 @@ def successor_sdk_call_occurred(
 
     require(2 <= slot <= BATCH_SIZE, "successor_sdk_slot_invalid")
     require(attempt_kind in {"root", "child"}, "successor_sdk_kind_invalid")
-    maximum = (
-        SUCCESSOR_ROOT_ORDER_MAXIMUM
-        if attempt_kind == "root"
-        else SUCCESSOR_CHILD_ORDER_MAXIMUM
-    )
+    matching_slots = [
+        scheduled_slot
+        for scheduled_slot, scheduled_kind in successor_attempt_schedule()
+        if scheduled_kind == attempt_kind
+    ]
+    maximum = len(matching_slots)
     require(
         0 <= sdk_call_count <= maximum,
         "successor_sdk_call_count_invalid",
     )
-    return sdk_call_count >= slot - 1
+    require(slot in matching_slots, "successor_sdk_slot_not_scheduled")
+    return sdk_call_count >= matching_slots.index(slot) + 1
 
 
 def consumed_root_absence_can_be_terminal(
@@ -10756,6 +12412,43 @@ def consumed_root_absence_can_be_terminal(
 
     require(child_attempt_count >= 0, "failure_child_attempt_count_invalid")
     return not root_sdk_call_occurred and child_attempt_count == 0
+
+
+def recovery_child_cleanup_decision(
+    *,
+    child_sdk_call_occurred: bool,
+    authoritative_readback: Mapping[str, Any],
+) -> str:
+    """Choose cleanup without turning a pre-placement stop into a cancel."""
+
+    readback = dict(authoritative_readback)
+    authoritative = bool(
+        readback.get("authoritative") is True
+        and readback.get("pagination_complete") is True
+    )
+    if not authoritative:
+        return "preserve_runtime_uncertain_readback"
+    exact = readback.get("exact_identity_match") is True
+    absent = bool(
+        readback.get("confirmed_absent") is True
+        and exact is False
+        and readback.get("matched_order") is None
+        and readback.get("exchange_order_id") is None
+    )
+    if absent:
+        return (
+            "preserve_runtime_sdk_call_absence_ambiguous"
+            if child_sdk_call_occurred
+            else "cancel_not_required_preplacement_absence"
+        )
+    if not exact:
+        return "preserve_runtime_identity_ambiguous"
+    status = str(readback.get("authoritative_status") or "").upper()
+    if status in TERMINAL_STATUSES:
+        return "cancel_not_required_already_terminal"
+    if status in SPOT_NONTERMINAL_STATUSES:
+        return "issue_same_idempotent_exact_child_cancel"
+    return "preserve_runtime_status_ambiguous"
 
 
 def reconcile_failure_state(
@@ -10843,36 +12536,39 @@ def reconcile_failure_state(
                 "failure_reconciliation_duplicate_child_attempt",
             )
             root_plan = next(
-                object_record(item)
-                for item in list_value(runtime.confirmed_plan.get("roots"))
-                if item.get("root_client_order_id")
+                row
+                for row in successor_plan_rows_by_slot(
+                    runtime.confirmed_plan
+                ).values()
+                if row.get("root_client_order_id")
                 == current_root_client_order_id
             )
             slot = _reconciliation_root_plan_slot(root_plan)
+            root_sdk_call_count = int(
+                object_record(initial_sentinel).get(
+                    "root_create_order_call_count"
+                )
+                or 0
+            )
             root_sdk_call_occurred = bool(
-                initial_sentinel is not None
+                slot >= 3
                 and successor_sdk_call_occurred(
                     slot=slot,
                     attempt_kind="root",
-                    sdk_call_count=int(
-                        initial_sentinel.get(
-                            "root_create_order_call_count"
-                        )
-                        or 0
-                    ),
+                    sdk_call_count=root_sdk_call_count,
                 )
             )
+            child_sdk_call_count = int(
+                object_record(initial_sentinel).get(
+                    "child_place_limit_order_call_count"
+                )
+                or 0
+            )
             child_sdk_call_occurred = bool(
-                initial_sentinel is not None
-                and successor_sdk_call_occurred(
+                successor_sdk_call_occurred(
                     slot=slot,
                     attempt_kind="child",
-                    sdk_call_count=int(
-                        initial_sentinel.get(
-                            "child_place_limit_order_call_count"
-                        )
-                        or 0
-                    ),
+                    sdk_call_count=child_sdk_call_count,
                 )
             )
             reconciliation["current_root_sdk_call_occurred"] = (
@@ -10882,7 +12578,131 @@ def reconcile_failure_state(
                 child_sdk_call_occurred
             )
 
-            if not root_attempts and slot > 1:
+            if slot == 2:
+                from application.admin_api.command_service import (
+                    exact_coinbase_order_readback,
+                )
+
+                require(
+                    not root_attempts
+                    and root_sdk_call_count == 0
+                    and len(child_attempts) <= 1
+                    and child_sdk_call_count in {0, 1}
+                    and (
+                        child_sdk_call_count == 0
+                        or bool(child_attempts)
+                    ),
+                    "recovery_slot_2_sdk_or_ledger_topology_mismatch",
+                )
+                root_readback = exact_coinbase_order_readback(
+                    rest_client,
+                    client_order_id=V8_SLOT_2_ROOT_CLIENT_ORDER_ID,
+                    exchange_order_id=V8_SLOT_2_ROOT_EXCHANGE_ORDER_ID,
+                    product_id=PRODUCT_ID,
+                )
+                matched_root = object_record(
+                    root_readback.get("matched_order")
+                )
+                require(
+                    root_readback.get("authoritative") is True
+                    and root_readback.get("pagination_complete") is True
+                    and root_readback.get("exact_identity_match") is True
+                    and root_readback.get("authoritative_status") == "FILLED"
+                    and matched_root.get("client_order_id")
+                    == V8_SLOT_2_ROOT_CLIENT_ORDER_ID
+                    and matched_root.get("order_id")
+                    == V8_SLOT_2_ROOT_EXCHANGE_ORDER_ID
+                    and Decimal(str(matched_root.get("filled_size") or "0"))
+                    == V8_SLOT_2_ROOT_FILLED_SIZE,
+                    "recovery_slot_2_root_fill_reconciliation_mismatch",
+                )
+                reconciliation[
+                    "current_root_authoritative_readback"
+                ] = root_readback
+                child_readback = exact_coinbase_order_readback(
+                    rest_client,
+                    client_order_id=V8_SLOT_2_CHILD_CLIENT_ORDER_ID,
+                    product_type=None,
+                )
+                reconciliation[
+                    "current_child_authoritative_readback"
+                ] = child_readback
+                cleanup_decision = recovery_child_cleanup_decision(
+                    child_sdk_call_occurred=child_sdk_call_occurred,
+                    authoritative_readback=child_readback,
+                )
+                reconciliation[
+                    "recovery_child_cleanup_decision"
+                ] = cleanup_decision
+                local_scope = prove_local_scope_with_historical_hidden_child(
+                    planned_client_order_ids=set(),
+                    carried_root_plan=completed_slot_1_binding_fixture(),
+                    recovery_slot_2=root_plan,
+                )
+                recovery_local = object_record(
+                    local_scope.get("recovery_slot_2_chain")
+                )
+                reconciliation["recovery_slot_2_local_scope"] = local_scope
+                if child_sdk_call_count == 0:
+                    require(
+                        cleanup_decision
+                        == "cancel_not_required_preplacement_absence"
+                        and recovery_local.get("phase")
+                        in {
+                            "v8_prepared_hidden",
+                            "v9_superseded_preplacement_hidden",
+                        },
+                        "recovery_slot_2_zero_sdk_state_ambiguous",
+                    )
+                    reconciliation[
+                        "current_pair_terminal_proof_kind"
+                    ] = "recovery_child_consumed_or_registered_pre_sdk_absence"
+                    reconciliation["recovery_child_cancel_required"] = False
+                    root_terminal_safe = True
+                else:
+                    require(
+                        cleanup_decision
+                        == "cancel_not_required_already_terminal"
+                        and recovery_local.get("phase")
+                        == "v9_recovered_zero_fill_cancelled",
+                        "recovery_slot_2_sdk_child_not_terminal",
+                    )
+                    child_tuple = object_record(
+                        child_attempts[0].get("exact_order_tuple")
+                    )
+                    matched_child = object_record(
+                        child_readback.get("matched_order")
+                    )
+                    child_exchange_id = str(
+                        matched_child.get("order_id") or ""
+                    )
+                    validated_child = _validate_exact_coinbase_gtc_child_order(
+                        matched_child,
+                        expected_exchange_order_id=child_exchange_id,
+                        expected_portfolio_id=runtime.portfolio_id,
+                        expected_child_tuple=child_tuple,
+                    )
+                    require(
+                        str(validated_child.get("status") or "").upper()
+                        in {"CANCELLED", "CANCELED"}
+                        and Decimal(
+                            str(validated_child.get("filled_size") or "0")
+                        )
+                        == 0,
+                        "recovery_slot_2_child_not_zero_fill_cancelled",
+                    )
+                    reconciliation["cancelled_child_chain_proof"] = (
+                        _validate_cancelled_child_chain(
+                            runtime,
+                            root_plan=root_plan,
+                            exchange_order_id=child_exchange_id,
+                        )
+                    )
+                    reconciliation[
+                        "current_pair_terminal_proof_kind"
+                    ] = "sealed_root_recovered_cancelled_child_with_local_chain"
+                    root_terminal_safe = True
+            elif not root_attempts and slot > 1:
                 require(
                     not root_sdk_call_occurred and not child_attempts,
                     "unconsumed_root_has_sdk_or_child_attempt",
@@ -12979,7 +14799,7 @@ def execute_controlled_batch(
     global_batch_marker: Path,
     attempt_ledger_path: Path,
 ) -> dict[str, Any]:
-    """Execute only fresh root/first-child pairs for slots 2 through 10."""
+    """Recover child 2 once, then execute fresh pairs for slots 3 through 10."""
 
     global _CLEANUP_ACTIVE, _PENDING_TERMINATION_SIGNAL
 
@@ -13005,7 +14825,7 @@ def execute_controlled_batch(
         "proof_set_root_exchange_target_authorized": BATCH_SIZE,
         "proof_set_child_exchange_target_authorized": BATCH_SIZE,
         "cross_generation_lifetime_sdk_counts_claimed": False,
-        "reference_cap_scope": "completed_slot_1_plus_v8",
+        "reference_cap_scope": "completed_slot_1_plus_v8_root_2_plus_v9",
         "generic_or_later_child_authorized": False,
         "retry_authorized": False,
         "substitution_authorized": False,
@@ -13020,7 +14840,7 @@ def execute_controlled_batch(
     root_cancel_body: dict[str, Any] = {}
     child_cancel_headers: dict[str, str] = {}
     child_cancel_body: dict[str, Any] = {}
-    cumulative_reference_notional = COMPLETED_INHERITED_REFERENCE_NOTIONAL
+    cumulative_reference_notional = TOTAL_INHERITED_REFERENCE_NOTIONAL
     try:
         runtime.start()
         runtime.wait_until_mutations_ready()
@@ -13050,9 +14870,18 @@ def execute_controlled_batch(
         require(
             runtime.live_service_may_be_enabled is False
             and runtime.live_service_disable_proven is True,
-            "v8_initial_live_service_disable_unproven",
+            "v9_initial_live_service_disable_unproven",
         )
         roots = [object_record(item) for item in list_value(confirmed_plan["roots"])]
+        recovery_slot_2 = object_record(
+            confirmed_plan.get("recovery_slot_2")
+        )
+        execution_rows = [recovery_slot_2, *roots]
+        require(
+            [int(row.get("slot") or 0) for row in execution_rows]
+            == list(range(2, BATCH_SIZE + 1)),
+            "v9_execution_rows_mismatch",
+        )
         completed_slot_1 = object_record(
             confirmed_plan.get("completed_slot_1_binding")
         )
@@ -13071,6 +14900,7 @@ def execute_controlled_batch(
         completed_local_scope = prove_local_scope_with_historical_hidden_child(
             planned_client_order_ids=all_planned_ids,
             carried_root_plan=completed_slot_1,
+            recovery_slot_2=recovery_slot_2,
         )
         completed_exchange_at_runtime_start = (
             prove_completed_slot_1_exchange_terminal(rest_client)
@@ -13087,6 +14917,12 @@ def execute_controlled_batch(
                 expected_portfolio_id=runtime.portfolio_id,
             )
         )
+        v8_recovery_at_runtime_start = (
+            prove_v8_slot_2_recovery_preconditions(
+                rest_client,
+                recovery_slot_2=recovery_slot_2,
+            )
+        )
         summary["completed_slot_1_proof"] = {
             "binding": completed_slot_1,
             "local": completed_local_scope,
@@ -13100,10 +14936,11 @@ def execute_controlled_batch(
             "stable_active_zero_at_runtime_start": (
                 stable_active_zero_at_runtime_start
             ),
+            "v8_recovery_at_runtime_start": v8_recovery_at_runtime_start,
         }
-        for root_plan in roots:
+        for root_plan in execution_rows:
             slot = int(root_plan.get("slot") or 0)
-            require(2 <= slot <= BATCH_SIZE, "v8_executable_slot_invalid")
+            require(2 <= slot <= BATCH_SIZE, "v9_executable_slot_invalid")
             current_root_id = str(root_plan["root_client_order_id"])
             root_place_http_attempted = False
             root_cancel_http_attempted = False
@@ -13124,6 +14961,7 @@ def execute_controlled_batch(
             local_scope = prove_local_scope_with_historical_hidden_child(
                 planned_client_order_ids=set(),
                 carried_root_plan=completed_slot_1,
+                recovery_slot_2=recovery_slot_2,
             )
             active_before_root = read_authoritative_spot_nonterminal_orders(
                 rest_client,
@@ -13139,6 +14977,7 @@ def execute_controlled_batch(
             failed_v5_binding = load_failed_v5_binding()
             failed_v6_binding = load_failed_v6_binding()
             failed_v7_binding = load_failed_v7_binding()
+            v8_binding = load_v8_binding()
             fresh_roots, _ = validate_successor_live_plan(
                 confirmed_plan,
                 expected_hash=confirmed_plan_hash,
@@ -13151,10 +14990,15 @@ def execute_controlled_batch(
                 failed_v5_binding=failed_v5_binding,
                 failed_v6_binding=failed_v6_binding,
                 failed_v7_binding=failed_v7_binding,
+                v8_binding=v8_binding,
             )
-            fresh_root_plan = fresh_roots[slot - 2]
+            fresh_root_plan = (
+                recovery_slot_2 if slot == 2 else fresh_roots[slot - 3]
+            )
             require(fresh_root_plan == root_plan, f"slot_{slot}_root_plan_drift")
-            order_body = object_record(root_plan["order"])
+            order_body = (
+                object_record(root_plan["order"]) if slot >= 3 else {}
+            )
             approvals = object_record(root_plan["proof_approval_ids"])
             wallet_available = Decimal(
                 str(fresh_preflight["wallets"]["USDC"])
@@ -13172,16 +15016,30 @@ def execute_controlled_batch(
                 failed_v5_binding=failed_v5_binding,
                 failed_v6_binding=failed_v6_binding,
                 failed_v7_binding=failed_v7_binding,
+                v8_binding=v8_binding,
             )
-            require(immediate_roots[slot - 2] == root_plan, f"slot_{slot}_root_tuple_drift_before_http")
-            root_calls_before = slot - 2
+            immediate_root_plan = (
+                recovery_slot_2 if slot == 2 else immediate_roots[slot - 3]
+            )
+            require(immediate_root_plan == root_plan, f"slot_{slot}_root_tuple_drift_before_http")
+            root_calls_before = max(0, slot - 3)
             child_calls_before = slot - 2
+            root_calls_after_root = root_calls_before + (
+                1 if slot >= 3 else 0
+            )
+            child_calls_after_child = child_calls_before + 1
             runtime.sdk_boundary_sentinel(
                 expected_root_create_order_calls={root_calls_before},
                 expected_child_place_limit_order_calls={child_calls_before},
             )
             wallets_before: dict[str, Decimal] | None = None
-            if slot >= 2:
+            expected_root_correlation_id = str(
+                root_plan.get("root_correlation_id") or ""
+            )
+            expected_root_audit_id = str(
+                root_plan.get("root_admission_audit_id") or ""
+            )
+            if slot >= 3:
                 require(
                     root_plan.get("root_placement_authorized") is True,
                     f"slot_{slot}_fresh_root_not_authorized",
@@ -13239,7 +15097,7 @@ def execute_controlled_batch(
                 )
                 place_proofs = write_proof_chain(
                     runtime,
-                    label=f"v8-slot-{slot}-root-place",
+                    label=f"v9-slot-{slot}-root-place",
                     context=place_context,
                     wallet_available=wallet_available,
                     max_notional=ROOT_SUBMITTED_CAP,
@@ -13249,7 +15107,7 @@ def execute_controlled_batch(
                 )
                 root_cancel_proofs = write_proof_chain(
                     runtime,
-                    label=f"v8-slot-{slot}-root-cancel",
+                    label=f"v9-slot-{slot}-root-cancel",
                     context=root_cancel_context,
                     wallet_available=wallet_available,
                     max_notional=Decimal("0"),
@@ -13259,59 +15117,12 @@ def execute_controlled_batch(
                 )
                 slot_result["root_place_proofs"] = place_proofs
                 slot_result["root_cancel_proofs"] = root_cancel_proofs
-                if slot == 2:
-                    require(
-                        runtime.live_service_may_be_enabled is False,
-                        "v8_root_2_initial_contexts_not_captured_disabled",
-                    )
-                    slot_result[
-                        "initial_root_contexts_and_proofs_captured_disabled"
-                    ] = True
-                    completed_exchange_before_first_enable = (
-                        prove_completed_slot_1_exchange_terminal(rest_client)
-                    )
-                    failed_v5_root_2_before_first_enable = (
-                        prove_failed_v5_root_2_absence(rest_client)
-                    )
-                    active_before_first_enable = (
-                        prove_stable_authoritative_active_zero(
-                            rest_client,
-                            expected_portfolio_id=runtime.portfolio_id,
-                        )
-                    )
-                    summary["completed_slot_1_proof"][
-                        "exchange_immediately_before_first_live_enable"
-                    ] = completed_exchange_before_first_enable
-                    summary["completed_slot_1_proof"][
-                        "failed_v5_root_2_absence_before_first_live_enable"
-                    ] = failed_v5_root_2_before_first_enable
-                    require(
-                        completed_exchange_before_first_enable["status"]
-                        == "CANCELLED"
-                        and failed_v5_root_2_before_first_enable["fresh_read"]
-                        is True
-                        and active_before_first_enable["stable_zero"] is True,
-                        "v8_pre_enable_terminal_absence_gate_failed",
-                    )
-                    runtime.sdk_boundary_sentinel(
-                        expected_root_create_order_calls={0},
-                        expected_child_place_limit_order_calls={0},
-                    )
-                    failed_v6_v7_ids_before_first_enable = (
-                        prove_failed_v6_v7_client_ids_absent(rest_client)
-                    )
-                    summary["completed_slot_1_proof"][
-                        "failed_v6_v7_client_ids_absence_before_first_live_enable"
-                    ] = failed_v6_v7_ids_before_first_enable
-                    require(
-                        failed_v6_v7_ids_before_first_enable["fresh_read"] is True,
-                        "v8_failed_v6_v7_ids_present_before_first_enable",
-                    )
-                    set_live_service(runtime, enabled=True)
-                    require(
-                        runtime.live_service_may_be_enabled is True,
-                        "v8_live_service_not_enabled_before_root_2",
-                    )
+                expected_root_correlation_id = str(
+                    place_headers["X-Correlation-Id"]
+                )
+                expected_root_audit_id = str(
+                    place_proofs["admission_audit_id"]
+                )
                 root_place_preview = preview_admission(
                     runtime,
                     place_context,
@@ -13322,11 +15133,6 @@ def execute_controlled_batch(
                 )
                 slot_result["root_place_preview"] = root_place_preview
                 slot_result["root_cancel_preview"] = root_cancel_preview
-                if slot == 2:
-                    runtime.sdk_boundary_sentinel(
-                        expected_root_create_order_calls={0},
-                        expected_child_place_limit_order_calls={0},
-                    )
                 runtime.sdk_boundary_sentinel(
                     expected_root_create_order_calls={root_calls_before},
                     expected_child_place_limit_order_calls={child_calls_before},
@@ -13380,9 +15186,10 @@ def execute_controlled_batch(
                     failed_v5_binding=failed_v5_binding,
                     failed_v6_binding=failed_v6_binding,
                     failed_v7_binding=failed_v7_binding,
+                    v8_binding=v8_binding,
                 )
                 require(
-                    post_root_ledger_roots[slot - 2] == root_plan,
+                    post_root_ledger_roots[slot - 3] == root_plan,
                     f"slot_{slot}_root_tuple_drift_after_ledger",
                 )
                 wallets_before = _wallet_balances(
@@ -13459,6 +15266,29 @@ def execute_controlled_batch(
                     portfolio_id=runtime.portfolio_id,
                     order_body=order_body,
                 )
+            else:
+                slot_2_recovery_preconditions = (
+                    prove_v8_slot_2_recovery_preconditions(
+                        rest_client,
+                        recovery_slot_2=recovery_slot_2,
+                    )
+                )
+                slot_result["v8_recovery_preconditions"] = (
+                    slot_2_recovery_preconditions
+                )
+                root_readback = object_record(
+                    slot_2_recovery_preconditions.get(
+                        "root_exchange_readback"
+                    )
+                )
+                exchange_order = object_record(
+                    root_readback.get("matched_order")
+                )
+                exchange_order_id = V8_SLOT_2_ROOT_EXCHANGE_ORDER_ID
+                order_body = {
+                    "base_size": decimal_text(V8_SLOT_2_ROOT_FILLED_SIZE),
+                    "limit_price": "0",
+                }
             authoritative_status = str(exchange_order.get("status") or "").upper()
             filled_size = Decimal(str(exchange_order.get("filled_size") or "0"))
             filled_value = Decimal(str(exchange_order.get("filled_value") or "0"))
@@ -13510,8 +15340,8 @@ def execute_controlled_batch(
             deadline = time.monotonic() + 45
             while time.monotonic() < deadline:
                 runtime.sdk_boundary_sentinel(
-                    expected_root_create_order_calls={slot - 1},
-                    expected_child_place_limit_order_calls={slot - 2},
+                    expected_root_create_order_calls={root_calls_after_root},
+                    expected_child_place_limit_order_calls={child_calls_before},
                 )
                 _, fill_readback, _ = runtime.request(
                     "GET",
@@ -13550,8 +15380,10 @@ def execute_controlled_batch(
                         root_client_order_id=current_root_id,
                         portfolio_id=runtime.portfolio_id,
                         expected_filled_size=filled_size,
-                        expected_placement_correlation_id=str(place_headers["X-Correlation-Id"]),
-                        expected_admission_audit_id=place_proofs["admission_audit_id"],
+                        expected_placement_correlation_id=(
+                            expected_root_correlation_id
+                        ),
+                        expected_admission_audit_id=expected_root_audit_id,
                         expected_exchange_order_id=exchange_order_id,
                     )
                 except ProofFailure as exc:
@@ -13597,26 +15429,34 @@ def execute_controlled_batch(
                 exchange_order=exchange_order,
                 reconciliation=fill_reconciliation,
             )
-            require(
-                wallets_before is not None,
-                f"slot_{slot}_wallet_baseline_missing_before_child",
-            )
-            _, root_wallet_propagation = _wait_for_root_wallet_propagation(
-                rest_client,
-                expected_portfolio_id=runtime.portfolio_id,
-                wallets_before=wallets_before,
-                filled_size=filled_size,
-                filled_value=filled_value,
-                total_fees=total_fees,
-                base_increment=Decimal(
-                    str(
-                        object_record(immediate_preflight["product"])[
-                            "base_increment"
-                        ]
-                    )
-                ),
-            )
-            slot_result["root_wallet_propagation"] = root_wallet_propagation
+            if slot >= 3:
+                require(
+                    wallets_before is not None,
+                    f"slot_{slot}_wallet_baseline_missing_before_child",
+                )
+                _, root_wallet_propagation = _wait_for_root_wallet_propagation(
+                    rest_client,
+                    expected_portfolio_id=runtime.portfolio_id,
+                    wallets_before=wallets_before,
+                    filled_size=filled_size,
+                    filled_value=filled_value,
+                    total_fees=total_fees,
+                    base_increment=Decimal(
+                        str(
+                            object_record(immediate_preflight["product"])[
+                                "base_increment"
+                            ]
+                        )
+                    ),
+                )
+                slot_result["root_wallet_propagation"] = (
+                    root_wallet_propagation
+                )
+            else:
+                slot_result["root_wallet_propagation"] = {
+                    "wallet_delta_kind": "sealed_v8_root_fill",
+                    "wallet_propagation_proven_by_v8_artifacts": True,
+                }
             _, replay, _ = runtime.request(
                 "GET",
                 f"/orders/{current_root_id}/fill-follow-up/replay",
@@ -13648,6 +15488,16 @@ def execute_controlled_batch(
                 "controlled_batch_id": confirmed_plan["batch_id"],
                 "controlled_batch_slot": slot,
             }
+            if slot == 2:
+                child_reveal_body |= {
+                    "controlled_prior_preparation_sha256": V8_SLOT_2_PRIOR_PREPARATION_SHA256
+                }
+            if slot >= 3:
+                require(
+                    "controlled_prior_preparation_sha256"
+                    not in child_reveal_body,
+                    f"slot_{slot}_fresh_child_carries_recovery_authority",
+                )
             child_reveal_headers = runtime.headers(
                 idempotency_key=f"{confirmed_plan['batch_id']}-child-{slot}-reveal",
                 operator_intent=CONTROLLED_CHILD_REVEAL_OPERATOR_INTENT,
@@ -13699,7 +15549,7 @@ def execute_controlled_batch(
             )
             child_reveal_proofs = write_proof_chain(
                 runtime,
-                label=f"v8-slot-{slot}-child-reveal",
+                label=f"v9-slot-{slot}-child-reveal",
                 context=child_reveal_context,
                 wallet_available=child_wallet_reference_available,
                 max_notional=CHILD_SUBMITTED_CAP,
@@ -13709,7 +15559,7 @@ def execute_controlled_batch(
             )
             child_cancel_proofs = write_proof_chain(
                 runtime,
-                label=f"v8-slot-{slot}-child-cancel",
+                label=f"v9-slot-{slot}-child-cancel",
                 context=child_cancel_context,
                 wallet_available=wallet_available,
                 max_notional=Decimal("0"),
@@ -13717,14 +15567,67 @@ def execute_controlled_batch(
                 cancel=True,
                 approval_id=str(approvals["child_cancel"]),
             )
+            if slot == 2:
+                require(
+                    runtime.live_service_may_be_enabled is False,
+                    "v9_recovery_contexts_not_captured_disabled",
+                )
+                require(
+                    load_v8_binding() == v8_binding,
+                    "v8_binding_changed_before_recovery_enable",
+                )
+                recovery_before_first_enable = (
+                    prove_v8_slot_2_recovery_preconditions(
+                        rest_client,
+                        recovery_slot_2=recovery_slot_2,
+                    )
+                )
+                active_before_first_enable = (
+                    prove_stable_authoritative_active_zero(
+                        rest_client,
+                        expected_portfolio_id=runtime.portfolio_id,
+                    )
+                )
+                completed_exchange_before_first_enable = (
+                    prove_completed_slot_1_exchange_terminal(rest_client)
+                )
+                failed_v6_v7_ids_before_first_enable = (
+                    prove_failed_v6_v7_client_ids_absent(rest_client)
+                )
+                require(
+                    recovery_before_first_enable["fresh_read"] is True
+                    and active_before_first_enable["stable_zero"] is True
+                    and completed_exchange_before_first_enable["status"]
+                    == "CANCELLED"
+                    and failed_v6_v7_ids_before_first_enable["fresh_read"]
+                    is True,
+                    "v9_pre_enable_recovery_gate_failed",
+                )
+                runtime.sdk_boundary_sentinel(
+                    expected_root_create_order_calls={0},
+                    expected_child_place_limit_order_calls={0},
+                )
+                set_live_service(runtime, enabled=True)
+                require(
+                    runtime.live_service_may_be_enabled is True,
+                    "v9_live_service_not_enabled_before_recovery_child_2",
+                )
+                summary["v8_recovery_before_first_live_enable"] = (
+                    recovery_before_first_enable
+                )
+            else:
+                require(
+                    runtime.live_service_may_be_enabled is True,
+                    f"slot_{slot}_live_service_not_enabled",
+                )
             preview_admission(runtime, child_reveal_context)
             preview_admission(runtime, child_cancel_context)
             slot_result["child_reveal_proofs"] = child_reveal_proofs
             slot_result["child_cancel_proofs"] = child_cancel_proofs
 
             runtime.sdk_boundary_sentinel(
-                expected_root_create_order_calls={slot - 1},
-                expected_child_place_limit_order_calls={slot - 2},
+                expected_root_create_order_calls={root_calls_after_root},
+                expected_child_place_limit_order_calls={child_calls_before},
             )
             child_reference_notional = (
                 Decimal(str(child_tuple["base_size"]))
@@ -13768,6 +15671,18 @@ def execute_controlled_batch(
                 blocker=f"slot_{slot}_plan_expired_after_child_ledger",
             )
 
+            if slot == 2:
+                require(
+                    load_v8_binding() == v8_binding,
+                    "v8_binding_changed_after_recovery_ledger",
+                )
+                slot_result["v8_recovery_after_ledger"] = (
+                    prove_v8_slot_2_recovery_preconditions(
+                        rest_client,
+                        recovery_slot_2=recovery_slot_2,
+                    )
+                )
+
             require(
                 not read_authoritative_spot_nonterminal_orders(
                     rest_client,
@@ -13797,8 +15712,8 @@ def execute_controlled_batch(
                 "child_tuple_hash_changed_after_ledger",
             )
             runtime.sdk_boundary_sentinel(
-                expected_root_create_order_calls={slot - 1},
-                expected_child_place_limit_order_calls={slot - 2},
+                expected_root_create_order_calls={root_calls_after_root},
+                expected_child_place_limit_order_calls={child_calls_before},
             )
             runtime.exchange_safe_to_shutdown = False
             child_reveal_http_attempted = True
@@ -13825,8 +15740,8 @@ def execute_controlled_batch(
             )
             slot_result["child_exchange_order_id"] = child_exchange_order_id
             runtime.sdk_boundary_sentinel(
-                expected_root_create_order_calls={slot - 1},
-                expected_child_place_limit_order_calls={slot - 1},
+                expected_root_create_order_calls={root_calls_after_root},
+                expected_child_place_limit_order_calls={child_calls_after_child},
             )
             raw_child = exact_exchange_order(rest_client, child_exchange_order_id)
             raw_child = _validate_exact_coinbase_gtc_child_order(
@@ -13901,9 +15816,10 @@ def execute_controlled_batch(
             prove_local_scope_with_historical_hidden_child(
                 planned_client_order_ids=set(),
                 carried_root_plan=completed_slot_1,
+                recovery_slot_2=recovery_slot_2,
             )
             wallet_evidence: dict[str, Any]
-            if slot >= 2:
+            if slot >= 3:
                 require(
                     wallets_before is not None,
                     f"slot_{slot}_wallet_baseline_missing",
@@ -13942,6 +15858,11 @@ def execute_controlled_batch(
                     "wallet_delta_kind": "new_root_fill",
                     "wallet_btc_delta": decimal_text(btc_delta),
                     "wallet_usdc_delta": decimal_text(usdc_delta),
+                }
+            else:
+                wallet_evidence = {
+                    "wallet_delta_kind": "sealed_v8_root_fill",
+                    "wallet_delta_recounted": False,
                 }
             slot_result.update(
                 {
@@ -13993,7 +15914,7 @@ def execute_controlled_batch(
             )
         ]
         for root_plan, slot_result in zip(
-            roots,
+            execution_rows,
             list_value(summary.get("slot_results")),
             strict=True,
         ):
@@ -14106,7 +16027,9 @@ def execute_controlled_batch(
                 "proof_set_reference_notional_usdc": decimal_text(
                     cumulative_reference_notional
                 ),
-                "reference_cap_scope": "completed_slot_1_plus_v8",
+                "reference_cap_scope": (
+                    "completed_slot_1_plus_v8_root_2_plus_v9"
+                ),
                 "attempt_schedule": successor_attempt_schedule(),
                 "sdk_boundary_sentinel": sentinel,
                 "aggregate_sdk_boundary_evidence": {
@@ -14119,10 +16042,10 @@ def execute_controlled_batch(
                     "failed_v6_fresh_order_identity_absence": True,
                     "failed_v7_sdk_call_counts_claimed": False,
                     "failed_v7_fresh_order_identity_absence": True,
-                    "v8_root_create_order_call_count": (
+                    "v9_root_create_order_call_count": (
                         sentinel["root_create_order_call_count"]
                     ),
-                    "v8_child_place_limit_order_call_count": (
+                    "v9_child_place_limit_order_call_count": (
                         sentinel["child_place_limit_order_call_count"]
                     ),
                     "completed_slot_1_root_exchange_target_count": 1,
@@ -14156,20 +16079,79 @@ def execute_controlled_batch(
         _CLEANUP_ACTIVE = True
         summary["failure_type"] = type(exc).__name__
         summary["failure_reason"] = str(exc)
-        # At most one pre-authorized cleanup cancel is allowed; never replay it.
-        if child_reveal_http_attempted and not child_cancel_http_attempted and child_cancel_headers:
-            child_cancel_http_attempted = True
+        # Cancel only an exact visible child. A typed pre-placement rejection
+        # with zero SDK calls and authoritative absence needs no cancel.
+        if (
+            child_reveal_http_attempted
+            and not child_cancel_http_attempted
+            and child_cancel_headers
+        ):
             try:
-                runtime.request(
-                    "POST",
-                    f"/stealth/orders/{summary['slot_results'][-1]['child_client_order_id']}/cancel",
-                    headers=child_cancel_headers,
-                    body=child_cancel_body,
-                    expected=None,
+                from application.admin_api.command_service import (
+                    exact_coinbase_order_readback,
                 )
-                summary["single_child_failure_cancel_attempted"] = True
+
+                failed_slot = int(
+                    object_record(summary["slot_results"][-1]).get("slot")
+                    or 0
+                )
+                failed_child_id = str(
+                    object_record(summary["slot_results"][-1]).get(
+                        "child_client_order_id"
+                    )
+                    or ""
+                )
+                failure_sentinel = runtime.sdk_boundary_sentinel()
+                child_sdk_call_occurred = successor_sdk_call_occurred(
+                    slot=failed_slot,
+                    attempt_kind="child",
+                    sdk_call_count=int(
+                        failure_sentinel.get(
+                            "child_place_limit_order_call_count"
+                        )
+                        or 0
+                    ),
+                )
+                child_readback = exact_coinbase_order_readback(
+                    rest_client,
+                    client_order_id=failed_child_id,
+                    product_type=None,
+                )
+                cleanup_decision = recovery_child_cleanup_decision(
+                    child_sdk_call_occurred=child_sdk_call_occurred,
+                    authoritative_readback=child_readback,
+                )
+                summary["child_failure_cleanup_decision"] = cleanup_decision
+                summary["child_failure_authoritative_readback"] = (
+                    child_readback
+                )
+                if (
+                    cleanup_decision
+                    == "issue_same_idempotent_exact_child_cancel"
+                ):
+                    child_cancel_http_attempted = True
+                    runtime.request(
+                        "POST",
+                        f"/stealth/orders/{failed_child_id}/cancel",
+                        headers=child_cancel_headers,
+                        body=child_cancel_body,
+                        expected=None,
+                    )
+                    summary["single_child_failure_cancel_attempted"] = True
+                else:
+                    summary["single_child_failure_cancel_attempted"] = False
+                    summary["single_child_failure_cancel_not_required"] = (
+                        cleanup_decision
+                        in {
+                            "cancel_not_required_preplacement_absence",
+                            "cancel_not_required_already_terminal",
+                        }
+                    )
             except (Exception, KeyboardInterrupt) as cancel_exc:
-                summary["single_child_failure_cancel_error"] = f"{type(cancel_exc).__name__}:{cancel_exc}"
+                summary["single_child_failure_cancel_attempted"] = False
+                summary["single_child_failure_cancel_error"] = (
+                    f"{type(cancel_exc).__name__}:{cancel_exc}"
+                )
         if root_place_http_attempted and not root_cancel_http_attempted and root_cancel_headers:
             try:
                 active = read_authoritative_spot_nonterminal_orders(
@@ -14323,30 +16305,37 @@ def run_offline_self_test() -> dict[str, Any]:
         == "wait_for_stable_active_scope_before_cancel",
         "self_test_parent_loss_retry_without_stable_active_scope",
     )
-    for slot in range(2, BATCH_SIZE + 1):
+    for root_ordinal, slot in enumerate(
+        range(3, BATCH_SIZE + 1),
+        start=1,
+    ):
         require(
             not successor_sdk_call_occurred(
                 slot=slot,
                 attempt_kind="root",
-                sdk_call_count=slot - 2,
+                sdk_call_count=root_ordinal - 1,
             )
             and successor_sdk_call_occurred(
                 slot=slot,
                 attempt_kind="root",
-                sdk_call_count=slot - 1,
+                sdk_call_count=root_ordinal,
             ),
             f"self_test_successor_root_sdk_ordinal_mismatch:{slot}",
         )
+    for child_ordinal, slot in enumerate(
+        range(2, BATCH_SIZE + 1),
+        start=1,
+    ):
         require(
             not successor_sdk_call_occurred(
                 slot=slot,
                 attempt_kind="child",
-                sdk_call_count=slot - 2,
+                sdk_call_count=child_ordinal - 1,
             )
             and successor_sdk_call_occurred(
                 slot=slot,
                 attempt_kind="child",
-                sdk_call_count=slot - 1,
+                sdk_call_count=child_ordinal,
             ),
             f"self_test_successor_child_sdk_ordinal_mismatch:{slot}",
         )
@@ -14455,6 +16444,11 @@ def run_offline_self_test() -> dict[str, Any]:
         load_failed_v7_binding() == failed_v7,
         "self_test_failed_v7_artifact_binding_mismatch",
     )
+    v8_binding = offline_v8_binding_fixture()
+    require(
+        load_v8_binding() == v8_binding,
+        "self_test_v8_artifact_binding_mismatch",
+    )
     require(
         callable(globals().get("require_initial_v7_commit_binding")),
         "offline_initial_v7_commit_binding_missing",
@@ -14475,11 +16469,21 @@ def run_offline_self_test() -> dict[str, Any]:
     require(
         failed_v7_topology["production_commit"]
         == INITIAL_V7_RUNNER_COMMIT
-        and failed_v7_topology["runner_commit"] == EXPECTED_COMMIT
+        and failed_v7_topology["runner_commit"]
+        == FAILED_SUCCESSOR_V7_RUNNER_COMMIT
         and failed_v7_topology["runner_only_commit_proven"] is True
         and failed_v7_topology["registration_runtime_invariant"]
         == offline_failed_v7_registration_runtime_invariant_fixture(),
         "offline_failed_v7_commit_topology_mismatch",
+    )
+    failed_v8_topology = require_failed_v8_commit_binding()
+    require(
+        failed_v8_topology["production_commit"]
+        == FAILED_SUCCESSOR_V8_PRODUCTION_PARENT_COMMIT
+        and failed_v8_topology["runner_commit"]
+        == FAILED_SUCCESSOR_V8_RUNNER_COMMIT
+        and failed_v8_topology["runner_only_commit_proven"] is True,
+        "offline_failed_v8_commit_topology_mismatch",
     )
     require(
         all(
@@ -14606,13 +16610,14 @@ def run_offline_self_test() -> dict[str, Any]:
             "self_test_failed_successor_unsafe_shutdown_accepted",
         )
     require(
-        SUCCESSOR_V8_PLAN_PATH != FAILED_SUCCESSOR_V1_PLAN_PATH
-        and SUCCESSOR_V8_PLAN_PATH != FAILED_SUCCESSOR_V2_PLAN_PATH
-        and SUCCESSOR_V8_PLAN_PATH != FAILED_SUCCESSOR_V3_PLAN_PATH
-        and SUCCESSOR_V8_PLAN_PATH != FAILED_SUCCESSOR_V4_PLAN_PATH
-        and SUCCESSOR_V8_PLAN_PATH != FAILED_SUCCESSOR_V5_PLAN_PATH
-        and SUCCESSOR_V8_PLAN_PATH != FAILED_SUCCESSOR_V6_PLAN_PATH
-        and SUCCESSOR_V8_PLAN_PATH != FAILED_SUCCESSOR_V7_PLAN_PATH
+        SUCCESSOR_V9_PLAN_PATH != FAILED_SUCCESSOR_V1_PLAN_PATH
+        and SUCCESSOR_V9_PLAN_PATH != FAILED_SUCCESSOR_V2_PLAN_PATH
+        and SUCCESSOR_V9_PLAN_PATH != FAILED_SUCCESSOR_V3_PLAN_PATH
+        and SUCCESSOR_V9_PLAN_PATH != FAILED_SUCCESSOR_V4_PLAN_PATH
+        and SUCCESSOR_V9_PLAN_PATH != FAILED_SUCCESSOR_V5_PLAN_PATH
+        and SUCCESSOR_V9_PLAN_PATH != FAILED_SUCCESSOR_V6_PLAN_PATH
+        and SUCCESSOR_V9_PLAN_PATH != FAILED_SUCCESSOR_V7_PLAN_PATH
+        and SUCCESSOR_V9_PLAN_PATH != FAILED_SUCCESSOR_V8_PLAN_PATH
         and GLOBAL_BATCH_MARKER_FILENAME
         != FAILED_SUCCESSOR_V1_MARKER_PATH.name
         and GLOBAL_BATCH_MARKER_FILENAME
@@ -14627,6 +16632,8 @@ def run_offline_self_test() -> dict[str, Any]:
         != FAILED_SUCCESSOR_V6_MARKER_PATH.name
         and GLOBAL_BATCH_MARKER_FILENAME
         != FAILED_SUCCESSOR_V7_MARKER_PATH.name
+        and GLOBAL_BATCH_MARKER_FILENAME
+        != FAILED_SUCCESSOR_V8_MARKER_PATH.name
         and GLOBAL_BATCH_LEDGER_FILENAME
         != FAILED_SUCCESSOR_V1_LEDGER_PATH.name
         and GLOBAL_BATCH_LEDGER_FILENAME
@@ -14640,21 +16647,23 @@ def run_offline_self_test() -> dict[str, Any]:
         and GLOBAL_BATCH_LEDGER_FILENAME
         != FAILED_SUCCESSOR_V6_LEDGER_PATH.name
         and GLOBAL_BATCH_LEDGER_FILENAME
-        != FAILED_SUCCESSOR_V7_LEDGER_PATH.name,
-        "self_test_v8_authority_paths_reuse_prior_authority",
+        != FAILED_SUCCESSOR_V7_LEDGER_PATH.name
+        and GLOBAL_BATCH_LEDGER_FILENAME
+        != FAILED_SUCCESSOR_V8_LEDGER_PATH.name,
+        "self_test_v9_authority_paths_reuse_prior_authority",
     )
     successor_schedule = successor_attempt_schedule()
     require(
         successor_schedule
-        == [
+        == [(2, "child"), *[
             item
-            for slot in range(2, BATCH_SIZE + 1)
+            for slot in range(3, BATCH_SIZE + 1)
             for item in ((slot, "root"), (slot, "child"))
-        ],
+        ]],
         "self_test_successor_attempt_schedule_mismatch",
     )
     require(
-        len(successor_schedule) == 18,
+        len(successor_schedule) == SUCCESSOR_ATTEMPT_COUNT == 17,
         "self_test_successor_attempt_count_mismatch",
     )
     completed_root_fixture = {
@@ -14723,6 +16732,7 @@ def run_offline_self_test() -> dict[str, Any]:
         failed_v5_binding=failed_v5,
         failed_v6_binding=failed_v6,
         failed_v7_binding=failed_v7,
+        v8_binding=v8_binding,
     )
     successor_roots, _ = validate_successor_live_plan(
         successor_plan,
@@ -14736,6 +16746,7 @@ def run_offline_self_test() -> dict[str, Any]:
         failed_v5_binding=failed_v5,
         failed_v6_binding=failed_v6,
         failed_v7_binding=failed_v7,
+        v8_binding=v8_binding,
     )
     require(
         all(
@@ -14828,6 +16839,7 @@ def run_offline_self_test() -> dict[str, Any]:
                 failed_v5_binding=failed_v5,
                 failed_v6_binding=failed_v6,
                 failed_v7_binding=failed_v7,
+                v8_binding=v8_binding,
             ),
             "self_test_future_successor_plan_accepted",
         )
@@ -14868,6 +16880,7 @@ def run_offline_self_test() -> dict[str, Any]:
                 failed_v5_binding=failed_v5,
                 failed_v6_binding=failed_v6,
                 failed_v7_binding=failed_v7,
+                v8_binding=v8_binding,
             ),
             "self_test_wrong_v8_plan_ttl_accepted",
         )
@@ -14902,11 +16915,11 @@ def run_offline_self_test() -> dict[str, Any]:
         and failed_v6_v7_absence_fixture[
             "failed_v6_planned_client_order_id_count"
         ]
-        == SUCCESSOR_ATTEMPT_COUNT
+        == V8_ATTEMPT_COUNT
         and failed_v6_v7_absence_fixture[
             "failed_v7_planned_client_order_id_count"
         ]
-        == SUCCESSOR_ATTEMPT_COUNT
+        == V8_ATTEMPT_COUNT
         and failed_v6_v7_absence_fixture["coinbase_matching_orders"] == []
         and failed_v6_v7_absence_fixture["coinbase_pagination"]
         == {
@@ -14916,7 +16929,7 @@ def run_offline_self_test() -> dict[str, Any]:
             "order_count": 0,
         }
         and len(failed_v6_v7_absence_fixture["planned_client_order_ids"])
-        == SUCCESSOR_ATTEMPT_COUNT * 2,
+        == V8_ATTEMPT_COUNT * 2,
         "self_test_failed_v6_v7_coinbase_absence_fixture_mismatch",
     )
     require(
@@ -15018,7 +17031,7 @@ def run_offline_self_test() -> dict[str, Any]:
             ),
             "self_test_completed_slot_1_root_tuple_available",
         )
-        == "completed_slot_1_has_no_v8_root_tuple",
+        == "recovery_slot_2_has_no_v9_root_tuple",
         "self_test_completed_slot_1_root_tuple_blocker_mismatch",
     )
 
@@ -15069,8 +17082,8 @@ def run_offline_self_test() -> dict[str, Any]:
         approved_exact_successor_root_tuple(plan, roots[0])[
             "batch_slot"
         ]
-        == 2,
-        "self_test_root_2_placement_tuple_missing",
+        == 3,
+        "self_test_root_3_placement_tuple_missing",
     )
 
     # Regression fixtures from the first live slot. Coinbase may decorate a
@@ -15533,17 +17546,17 @@ def run_offline_self_test() -> dict[str, Any]:
     )
 
     require(
-        len(roots) == SUCCESSOR_ROOT_ORDER_MAXIMUM == 9,
+        len(roots) == SUCCESSOR_ROOT_ORDER_MAXIMUM == 8,
         "self_test_root_count_mismatch",
     )
     require(
-        [root["slot"] for root in roots] == list(range(2, 11)),
+        [root["slot"] for root in roots] == list(range(3, 11)),
         "self_test_root_slots_mismatch",
     )
     root_ids = [str(root["root_client_order_id"]) for root in roots]
     child_ids = [str(root["child_client_order_id"]) for root in roots]
-    require(len(set(root_ids)) == 9, "self_test_root_ids_not_unique")
-    require(len(set(child_ids)) == 9, "self_test_child_ids_not_unique")
+    require(len(set(root_ids)) == 8, "self_test_root_ids_not_unique")
+    require(len(set(child_ids)) == 8, "self_test_child_ids_not_unique")
     require(not set(root_ids) & set(child_ids), "self_test_root_child_id_collision")
     historical_ids = {
         HISTORICAL_FILLED_ROOT_CLIENT_ORDER_ID,
@@ -15566,7 +17579,7 @@ def run_offline_self_test() -> dict[str, Any]:
         "self_test_planned_batch_reference_cap_failed",
     )
     require(
-        Decimal("9") < total_root_notional < Decimal("11"),
+        Decimal("8") < total_root_notional < Decimal("9"),
         "self_test_new_root_notional_unexpected",
     )
     predecessor_planned_ids = set(
@@ -15629,6 +17642,13 @@ def run_offline_self_test() -> dict[str, Any]:
         not (set(root_ids) | set(child_ids)) & failed_v7_planned_ids,
         "self_test_fresh_successor_failed_v7_id_collision",
     )
+    failed_v8_planned_ids = set(
+        v8_binding["planned_root_client_order_ids"]
+    ) | set(v8_binding["planned_child_client_order_ids"])
+    require(
+        not (set(root_ids) | set(child_ids)) & failed_v8_planned_ids,
+        "self_test_fresh_successor_failed_v8_id_collision",
+    )
     require(
         CARRIED_ROOT_CLIENT_ORDER_ID not in root_ids
         and CARRIED_CHILD_CLIENT_ORDER_ID not in child_ids,
@@ -15654,6 +17674,7 @@ def run_offline_self_test() -> dict[str, Any]:
             failed_v5_binding=failed_v5,
             failed_v6_binding=failed_v6,
             failed_v7_binding=failed_v7,
+            v8_binding=v8_binding,
         ),
         "self_test_tampered_plan_accepted",
     )
@@ -15662,7 +17683,7 @@ def run_offline_self_test() -> dict[str, Any]:
         ROOT / "genai_tools" / "pytest-tmp" / "controlled-batch-offline"
     )
     marker_payload = build_global_batch_marker_payload(
-        SUCCESSOR_V8_PLAN_PATH,
+        SUCCESSOR_V9_PLAN_PATH,
         confirmed_plan=plan,
         expected_hash=str(plan["plan_sha256"]),
         expected_runner_sha256=str(plan["runner_sha256"]),
@@ -15671,7 +17692,7 @@ def run_offline_self_test() -> dict[str, Any]:
     )
     require(
         marker_payload["authority"]
-        == "controlled-admin-spot-root-child-successor-v8-batch",
+        == "controlled-admin-spot-root-child-successor-v9-batch",
         "self_test_global_marker_authority_mismatch",
     )
     require(
@@ -15691,6 +17712,7 @@ def run_offline_self_test() -> dict[str, Any]:
         failed_v5_binding=failed_v5,
         failed_v6_binding=failed_v6,
         failed_v7_binding=failed_v7,
+        v8_binding=v8_binding,
     )
     require(
         second_plan["batch_id"] != plan["batch_id"],
@@ -15710,7 +17732,8 @@ def run_offline_self_test() -> dict[str, Any]:
         == SUCCESSOR_ATTEMPT_COUNT
         and len(marker_payload["exact_root_tuples"])
         == SUCCESSOR_ROOT_ORDER_MAXIMUM
-        and marker_payload["exact_child_client_order_ids"] == child_ids
+        and marker_payload["exact_child_client_order_ids"]
+        == [V8_SLOT_2_CHILD_CLIENT_ORDER_ID, *child_ids]
         and marker_payload["predecessor_binding"] == predecessor,
         "self_test_global_marker_limits_mismatch",
     )
@@ -15731,6 +17754,7 @@ def run_offline_self_test() -> dict[str, Any]:
         and marker_payload["failed_v5_binding"] == failed_v5
         and marker_payload["failed_v6_binding"] == failed_v6
         and marker_payload["failed_v7_binding"] == failed_v7
+        and marker_payload["v8_binding"] == v8_binding
         and marker_payload["completed_slot_1_binding"]
         == completed_slot_1_binding_fixture(),
         "self_test_global_marker_failed_v7_binding_mismatch",
@@ -15743,12 +17767,12 @@ def run_offline_self_test() -> dict[str, Any]:
         and marker_payload["cross_generation_lifetime_sdk_counts_claimed"]
         is False
         and marker_payload["reference_cap_scope"]
-        == "completed_slot_1_plus_v8",
+        == "completed_slot_1_plus_v8_root_2_plus_v9",
         "self_test_global_marker_lifetime_scope_overclaim",
     )
     require(
         marker_payload["inherited_reference_notional_usdc"]
-        == decimal_text(COMPLETED_INHERITED_REFERENCE_NOTIONAL),
+        == decimal_text(TOTAL_INHERITED_REFERENCE_NOTIONAL),
         "self_test_global_marker_inherited_cap_seed_mismatch",
     )
     require(
@@ -15824,10 +17848,11 @@ def run_offline_self_test() -> dict[str, Any]:
     child_tuple_by_slot: dict[int, dict[str, Any]] = {}
     root_sdk_call_count = 0
     child_sdk_call_count = 0
-    cumulative_reference_notional = COMPLETED_INHERITED_REFERENCE_NOTIONAL
+    cumulative_reference_notional = TOTAL_INHERITED_REFERENCE_NOTIONAL
+    plan_rows_by_slot = successor_plan_rows_by_slot(plan)
     for slot, attempt_kind in successor_schedule:
-        root_plan = roots[slot - 2]
-        order = object_record(root_plan["order"])
+        root_plan = plan_rows_by_slot[slot]
+        order = object_record(root_plan.get("order"))
         if attempt_kind == "root":
             exact_tuple = approved_exact_successor_root_tuple(
                 plan,
@@ -15837,7 +17862,11 @@ def run_offline_self_test() -> dict[str, Any]:
             exact_tuple = build_child_order_tuple(
                 plan,
                 root_plan,
-                filled_size=Decimal(str(order["base_size"])),
+                filled_size=(
+                    V8_SLOT_2_ROOT_FILLED_SIZE
+                    if slot == 2
+                    else Decimal(str(order["base_size"]))
+                ),
                 fresh_market={
                     "best_bid": preflight["best_bid"],
                     "observed_at": now.isoformat(),
@@ -15970,27 +17999,28 @@ def run_offline_self_test() -> dict[str, Any]:
         "self_test_full_ledger_replay_accepted",
     )
 
-    root_two_raw = raw_ledger.splitlines(keepends=True)[0]
-    root_two_records = _parse_and_validate_attempt_ledger(
-        root_two_raw,
+    child_two_raw = raw_ledger.splitlines(keepends=True)[0]
+    child_two_records = _parse_and_validate_attempt_ledger(
+        child_two_raw,
         confirmed_plan=plan,
         confirmed_plan_hash=str(plan["plan_sha256"]),
     )
     expect_proof_failure(
         lambda: require_next_batch_attempt(
-            root_two_records,
+            child_two_records,
             slot=2,
-            attempt_kind="root",
+            attempt_kind="child",
         ),
-        "self_test_consumed_root_two_replay_accepted",
+        "self_test_consumed_child_two_replay_accepted",
     )
-    expect_proof_failure(
-        lambda: require_next_batch_attempt(
-            root_two_records,
+    require(
+        require_next_batch_attempt(
+            child_two_records,
             slot=3,
             attempt_kind="root",
-        ),
-        "self_test_crash_prefix_skipped_child_two",
+        )
+        == 2,
+        "self_test_child_two_prefix_did_not_advance_to_root_three",
     )
 
     drifted_root = dict(
@@ -16003,8 +18033,8 @@ def run_offline_self_test() -> dict[str, Any]:
         lambda: build_batch_attempt_record(
             confirmed_plan=plan,
             confirmed_plan_hash=str(plan["plan_sha256"]),
-            sequence=1,
-            slot=2,
+            sequence=2,
+            slot=3,
             attempt_kind="root",
             exact_order_tuple=drifted_root,
             consumed_at=now.isoformat(),
@@ -16020,7 +18050,7 @@ def run_offline_self_test() -> dict[str, Any]:
         lambda: build_batch_attempt_record(
             confirmed_plan=plan,
             confirmed_plan_hash=str(plan["plan_sha256"]),
-            sequence=2,
+            sequence=1,
             slot=2,
             attempt_kind="child",
             exact_order_tuple=drifted_child,
@@ -16049,7 +18079,7 @@ def run_offline_self_test() -> dict[str, Any]:
     expect_proof_failure(
         lambda: _validate_authorized_child_tuple(
             plan,
-            roots[0],
+            plan_rows_by_slot[2],
             drifted_child_price,
         ),
         "self_test_child_price_drift_accepted",
@@ -16295,7 +18325,7 @@ def run_offline_self_test() -> dict[str, Any]:
     )
     require(
         all(
-            f'label=f"v8-slot-{{slot}}-{purpose}"' in execution_source
+            f'label=f"v9-slot-{{slot}}-{purpose}"' in execution_source
             for purpose in (
                 "root-place",
                 "root-cancel",
@@ -16303,119 +18333,18 @@ def run_offline_self_test() -> dict[str, Any]:
                 "child-cancel",
             )
         )
-        and 'label=f"v7-slot-{slot}-' not in execution_source,
-        "self_test_v8_proof_label_namespace_reuses_v7",
+        and 'label=f"v8-slot-{slot}-' not in execution_source,
+        "self_test_v9_proof_label_namespace_reuses_v8",
     )
     initial_disable_index = execution_source.index(
         "set_live_service(runtime, enabled=False)"
     )
-    runtime_start_terminal_index = execution_source.index(
-        "completed_exchange_at_runtime_start = ("
+    runtime_start_recovery_index = execution_source.index(
+        "v8_recovery_at_runtime_start = ("
     )
-    runtime_start_failed_v5_absence_index = execution_source.index(
-        "failed_v5_root_2_at_runtime_start = ("
-    )
-    runtime_start_failed_v6_v7_absence_index = execution_source.index(
-        "failed_v6_v7_ids_at_runtime_start = ("
-    )
-    runtime_start_active_zero_index = execution_source.index(
-        "stable_active_zero_at_runtime_start = ("
-    )
-    initial_root_place_context_index = execution_source.index(
-        "_, initial_place, _ = runtime.request("
-    )
-    initial_root_cancel_context_index = execution_source.index(
-        "_, initial_root_cancel, _ = runtime.request("
-    )
-    root_place_proof_index = execution_source.index(
-        "place_proofs = write_proof_chain("
-    )
-    root_cancel_proof_index = execution_source.index(
-        "root_cancel_proofs = write_proof_chain("
-    )
-    terminal_proof_before_enable_index = execution_source.index(
-        "completed_exchange_before_first_enable = ("
-    )
-    failed_v5_absence_before_enable_index = execution_source.index(
-        "failed_v5_root_2_before_first_enable = ("
-    )
-    active_zero_before_enable_index = execution_source.index(
-        "active_before_first_enable = ("
-    )
-    failed_v6_v7_absence_before_enable_index = execution_source.index(
-        "failed_v6_v7_ids_before_first_enable = ("
-    )
-    live_enable_index = execution_source.index(
-        "set_live_service(runtime, enabled=True)"
-    )
-    root_place_preview_index = execution_source.index(
-        "root_place_preview = preview_admission("
-    )
-    root_cancel_preview_index = execution_source.index(
-        "root_cancel_preview = preview_admission("
-    )
-    zero_sentinel_after_root_previews_index = execution_source.index(
-        "expected_root_create_order_calls={0}",
-        root_cancel_preview_index,
-    )
-    root_ledger_index = execution_source.index(
-        "root_attempt = consume_batch_attempt("
-    )
-    root_hash_recheck_index = execution_source.index(
-        "runner_or_plan_hash_changed_after_root_ledger"
-    )
-    root_market_wallet_recheck_index = execution_source.index(
-        "post_root_ledger_preflight = coinbase_preflight(rest_client)"
-    )
-    root_active_zero_recheck_index = execution_source.index(
-        "slot_{slot}_active_order_after_root_ledger"
-    )
-    root_http_index = execution_source.index(
-        "status_code, place_response, response_headers = runtime.request("
-    )
-    require(
-        execution_source.count("set_live_service(runtime, enabled=True)") == 1
-        and initial_disable_index
-        < runtime_start_terminal_index
-        < runtime_start_failed_v5_absence_index
-        < runtime_start_failed_v6_v7_absence_index
-        < runtime_start_active_zero_index
-        < initial_root_place_context_index
-        < initial_root_cancel_context_index
-        < root_place_proof_index
-        < root_cancel_proof_index
-        < terminal_proof_before_enable_index
-        < failed_v5_absence_before_enable_index
-        < active_zero_before_enable_index
-        < failed_v6_v7_absence_before_enable_index
-        < live_enable_index
-        < root_place_preview_index
-        < root_cancel_preview_index
-        < zero_sentinel_after_root_previews_index
-        < root_ledger_index
-        < root_hash_recheck_index
-        < root_market_wallet_recheck_index
-        < root_active_zero_recheck_index
-        < root_http_index,
-        "self_test_v8_root_preview_ledger_http_ordering_mismatch",
-    )
-    immediately_before_first_enable_source = execution_source[
-        failed_v6_v7_absence_before_enable_index:live_enable_index
-    ]
-    require(
-        all(
-            forbidden not in immediately_before_first_enable_source
-            for forbidden in (
-                "runtime.request(",
-                "preview_admission(",
-                "consume_batch_attempt(",
-                "write_proof_chain(",
-            )
-        ),
-        "self_test_v8_failed_v6_v7_absence_not_immediately_before_first_enable",
-    )
-    root_wallet_propagation_index = execution_source.index(
-        "_, root_wallet_propagation = _wait_for_root_wallet_propagation("
+    recovery_hash_index = execution_source.index(
+        '"controlled_prior_preparation_sha256": '
+        "V8_SLOT_2_PRIOR_PREPARATION_SHA256"
     )
     initial_child_reveal_context_index = execution_source.index(
         "_, initial_child_reveal, _ = runtime.request("
@@ -16429,6 +18358,18 @@ def run_offline_self_test() -> dict[str, Any]:
     child_cancel_proof_index = execution_source.index(
         "child_cancel_proofs = write_proof_chain("
     )
+    recovery_before_enable_index = execution_source.index(
+        "recovery_before_first_enable = ("
+    )
+    active_zero_before_enable_index = execution_source.index(
+        "active_before_first_enable = ("
+    )
+    failed_v6_v7_absence_before_enable_index = execution_source.index(
+        "failed_v6_v7_ids_before_first_enable = ("
+    )
+    live_enable_index = execution_source.index(
+        "set_live_service(runtime, enabled=True)"
+    )
     child_reveal_preview_index = execution_source.index(
         "preview_admission(runtime, child_reveal_context)"
     )
@@ -16440,6 +18381,9 @@ def run_offline_self_test() -> dict[str, Any]:
     )
     child_hash_recheck_index = execution_source.index(
         "runner_or_plan_hash_changed_after_child_ledger"
+    )
+    recovery_after_ledger_index = execution_source.index(
+        'slot_result["v8_recovery_after_ledger"] = ('
     )
     child_active_zero_recheck_index = execution_source.index(
         "active_order_present_before_child_http"
@@ -16454,34 +18398,43 @@ def run_offline_self_test() -> dict[str, Any]:
         "child_status_code, child_response, child_headers = runtime.request("
     )
     require(
-        root_wallet_propagation_index
+        execution_source.count("set_live_service(runtime, enabled=True)") == 1
+        and initial_disable_index
+        < runtime_start_recovery_index
+        < recovery_hash_index
         < initial_child_reveal_context_index
         < initial_child_cancel_context_index
         < child_reveal_proof_index
         < child_cancel_proof_index
+        < recovery_before_enable_index
+        < active_zero_before_enable_index
+        < failed_v6_v7_absence_before_enable_index
+        < live_enable_index
         < child_reveal_preview_index
         < child_cancel_preview_index
         < child_ledger_index
         < child_hash_recheck_index
+        < recovery_after_ledger_index
         < child_active_zero_recheck_index
         < child_market_recheck_index
         < child_wallet_recheck_index
         < child_http_index,
-        "self_test_v8_child_preview_ledger_http_ordering_mismatch",
+        "self_test_v9_recovery_preview_ledger_http_ordering_mismatch",
     )
     plan_source = source[
         source.index("def build_successor_live_plan(") :
         source.index("def write_controlled_live_plan(")
     ]
     require(
-        'approval_id = f"controlled-root-child-successor-v8-' in plan_source
-        and "for slot in range(2, BATCH_SIZE + 1)" in plan_source
+        'approval_id = f"controlled-root-child-successor-v9-' in plan_source
+        and "for slot in range(3, BATCH_SIZE + 1)" in plan_source
         and '"completed_slot_1_binding": completed_slot_1_binding_fixture()'
         in plan_source
+        and '"recovery_slot_2": recovery_slot_2' in plan_source
         and '"failed_v6_binding": dict(failed_v6_binding)' in plan_source
         and '"failed_v7_binding": dict(failed_v7_binding)' in plan_source
         and "slot=1" not in plan_source,
-        "self_test_v8_plan_contains_completed_slot_1_capability",
+        "self_test_v9_plan_capability_topology_mismatch",
     )
     ledger_source = source[
         source.index("def build_batch_attempt_record(") :
@@ -16689,7 +18642,7 @@ def run_offline_self_test() -> dict[str, Any]:
         all(
             not os.path.lexists(path)
             for path in (
-                SUCCESSOR_V8_PLAN_PATH,
+                SUCCESSOR_V9_PLAN_PATH,
                 GLOBAL_BATCH_REGISTRY_DIR / GLOBAL_BATCH_MARKER_FILENAME,
                 GLOBAL_BATCH_REGISTRY_DIR / GLOBAL_BATCH_LEDGER_FILENAME,
             )
@@ -16703,9 +18656,10 @@ def run_offline_self_test() -> dict[str, Any]:
         "runner_sha256": runner_sha256(),
         "batch_size": BATCH_SIZE,
         "completed_root_slots": [1],
-        "v8_root_slots": list(range(2, 11)),
+        "v9_fresh_root_slots": list(range(3, 11)),
+        "v8_recovered_root_slots": [2],
         "completed_child_slots": [1],
-        "v8_child_slots": list(range(2, 11)),
+        "v9_child_slots": list(range(2, 11)),
         "root_client_order_ids_unique": True,
         "child_client_order_ids_unique": True,
         "root_child_ids_disjoint": True,
@@ -16942,10 +18896,10 @@ def run_offline_self_test() -> dict[str, Any]:
         "proof_set_root_exchange_target_after_success": BATCH_SIZE,
         "proof_set_child_exchange_target_after_success": BATCH_SIZE,
         "cross_generation_lifetime_sdk_counts_claimed": False,
-        "reference_cap_scope": "completed_slot_1_plus_v8",
+        "reference_cap_scope": "completed_slot_1_plus_v8_root_2_plus_v9",
         "runtime_child_authority_validation_proven": True,
         "production_parent_commit_bound": EXPECTED_COMMIT,
-        "runner_only_direct_child_commit_topology_proven": True,
+        "runner_and_focused_test_direct_child_commit_topology_proven": True,
         "initial_v7_production_parent_commit_bound": (
             INITIAL_V7_PRODUCTION_PARENT_COMMIT
         ),
@@ -17044,13 +18998,13 @@ def main() -> int:
     require_clean_commit()
     if args.prepare_controlled_batch_plan is not None:
         require(
-            args.prepare_controlled_batch_plan == SUCCESSOR_V8_PLAN_PATH,
-            "successor_v8_plan_path_not_fixed",
+            args.prepare_controlled_batch_plan == SUCCESSOR_V9_PLAN_PATH,
+            "successor_v9_plan_path_not_fixed",
         )
     if args.execute_controlled_batch and args.plan_file is not None:
         require(
-            args.plan_file == SUCCESSOR_V8_PLAN_PATH,
-            "successor_v8_plan_path_not_fixed",
+            args.plan_file == SUCCESSOR_V9_PLAN_PATH,
+            "successor_v9_plan_path_not_fixed",
         )
     predecessor_binding = load_predecessor_binding()
     failed_successor_binding = load_failed_successor_binding()
@@ -17060,13 +19014,25 @@ def main() -> int:
     failed_v5_binding = load_failed_v5_binding()
     failed_v6_binding = load_failed_v6_binding()
     failed_v7_binding = load_failed_v7_binding()
+    v8_binding = load_v8_binding()
     failed_successor_shutdown = require_failed_successor_runtime_stopped()
     rest_client = hydrate_test_credentials()
     preflight = coinbase_preflight(rest_client)
     completed_slot_1 = completed_slot_1_binding_fixture()
+    recovery_scope = {
+        "slot": 2,
+        "root_placement_authorized": False,
+        "child_recovery_authorized": True,
+        "root_client_order_id": V8_SLOT_2_ROOT_CLIENT_ORDER_ID,
+        "child_client_order_id": V8_SLOT_2_CHILD_CLIENT_ORDER_ID,
+        "controlled_prior_preparation_sha256": (
+            V8_SLOT_2_PRIOR_PREPARATION_SHA256
+        ),
+    }
     historical_scope = prove_local_scope_with_historical_hidden_child(
         planned_client_order_ids=set(),
         carried_root_plan=completed_slot_1,
+        recovery_slot_2=recovery_scope,
     )
     completed_exchange_preflight = prove_completed_slot_1_exchange_terminal(
         rest_client
@@ -17102,7 +19068,7 @@ def main() -> int:
         "batch_strict_reference_cap_usdc": decimal_text(
             BATCH_TOTAL_REFERENCE_CAP_USDC
         ),
-        "reference_cap_scope": "completed_slot_1_plus_v8",
+        "reference_cap_scope": "completed_slot_1_plus_v8_root_2_plus_v9",
         "best_bid": decimal_text(Decimal(str(preflight["best_bid"]))),
         "best_ask": decimal_text(Decimal(str(preflight["best_ask"]))),
         "market_observed_at": object_record(preflight.get("market")).get(
@@ -17123,6 +19089,8 @@ def main() -> int:
         "failed_v5_binding": failed_v5_binding,
         "failed_v6_binding": failed_v6_binding,
         "failed_v7_binding": failed_v7_binding,
+        "v8_binding": v8_binding,
+        "recovery_slot_2_scope": recovery_scope,
         "completed_slot_1_binding": completed_slot_1,
         "completed_slot_1_exchange_preflight": completed_exchange_preflight,
         "failed_v6_v7_client_ids_preflight": (
@@ -17152,6 +19120,7 @@ def main() -> int:
             failed_v5_binding=failed_v5_binding,
             failed_v6_binding=failed_v6_binding,
             failed_v7_binding=failed_v7_binding,
+            v8_binding=v8_binding,
         )
         validate_successor_live_plan(
             plan,
@@ -17165,11 +19134,13 @@ def main() -> int:
             failed_v5_binding=failed_v5_binding,
             failed_v6_binding=failed_v6_binding,
             failed_v7_binding=failed_v7_binding,
+            v8_binding=v8_binding,
         )
         planned_ids = _planned_client_order_ids(plan)
         prove_local_scope_with_historical_hidden_child(
             planned_client_order_ids=planned_ids,
             carried_root_plan=completed_slot_1,
+            recovery_slot_2=object_record(plan["recovery_slot_2"]),
         )
         write_controlled_live_plan(args.prepare_controlled_batch_plan, plan)
         print(
@@ -17197,12 +19168,18 @@ def main() -> int:
                     "proof_set_root_exchange_target_after_success": BATCH_SIZE,
                     "proof_set_child_exchange_target_after_success": BATCH_SIZE,
                     "cross_generation_lifetime_sdk_counts_claimed": False,
-                    "reference_cap_scope": "completed_slot_1_plus_v8",
+                    "reference_cap_scope": (
+                        "completed_slot_1_plus_v8_root_2_plus_v9"
+                    ),
+                    "recovery_slot_2": plan["recovery_slot_2"],
                     "root_client_order_ids": [
                         root["root_client_order_id"] for root in plan["roots"]
                     ],
                     "child_client_order_ids": [
+                        V8_SLOT_2_CHILD_CLIENT_ORDER_ID,
+                        *[
                         root["child_client_order_id"] for root in plan["roots"]
+                        ],
                     ],
                     "root_slots": [
                         root["slot"] for root in plan["roots"]
@@ -17261,15 +19238,18 @@ def main() -> int:
         failed_v5_binding=failed_v5_binding,
         failed_v6_binding=failed_v6_binding,
         failed_v7_binding=failed_v7_binding,
+        v8_binding=v8_binding,
     )
     planned_ids = _planned_client_order_ids(confirmed_plan)
     require(
-        len(planned_ids) == SUCCESSOR_ATTEMPT_COUNT,
+        len(planned_ids) == SUCCESSOR_ROOT_ORDER_MAXIMUM * 2,
         "controlled_batch_plan_ids_not_exact",
     )
+    recovery_slot_2 = object_record(confirmed_plan.get("recovery_slot_2"))
     prove_local_scope_with_historical_hidden_child(
         planned_client_order_ids=planned_ids,
         carried_root_plan=completed_slot_1,
+        recovery_slot_2=recovery_slot_2,
     )
     previous_sigint = signal.getsignal(signal.SIGINT)
     previous_sigterm = signal.getsignal(signal.SIGTERM)
@@ -17311,12 +19291,17 @@ def main() -> int:
             )
             require(
                 load_failed_v7_binding() == failed_v7_binding,
-                "failed_v7_artifacts_changed_before_v8_registration",
+                "failed_v7_artifacts_changed_before_v9_registration",
+            )
+            require(
+                load_v8_binding() == v8_binding,
+                "v8_artifacts_changed_before_v9_registration",
             )
             require_failed_successor_runtime_stopped()
             prove_local_scope_with_historical_hidden_child(
                 planned_client_order_ids=planned_ids,
                 carried_root_plan=completed_slot_1,
+                recovery_slot_2=recovery_slot_2,
             )
             completed_exchange_before_registration = (
                 prove_completed_slot_1_exchange_terminal(rest_client)
@@ -17326,6 +19311,12 @@ def main() -> int:
             )
             failed_v6_v7_ids_before_registration = (
                 prove_failed_v6_v7_client_ids_absent(rest_client)
+            )
+            v8_recovery_before_registration = (
+                prove_v8_slot_2_recovery_preconditions(
+                    rest_client,
+                    recovery_slot_2=recovery_slot_2,
+                )
             )
             active_before_registration = (
                 prove_stable_authoritative_active_zero(
@@ -17338,17 +19329,18 @@ def main() -> int:
                 == "CANCELLED"
                 and failed_v5_root_2_before_registration["fresh_read"] is True
                 and failed_v6_v7_ids_before_registration["fresh_read"] is True
+                and v8_recovery_before_registration["fresh_read"] is True
                 and active_before_registration["stable_zero"] is True,
-                "v8_pre_registration_terminal_absence_gate_failed",
+                "v9_pre_registration_terminal_absence_gate_failed",
             )
             require(
                 plan_hash(confirmed_plan) == str(args.confirm_plan_sha256)
                 and confirmed_plan.get("runner_sha256") == runner_sha256(),
-                "v8_plan_or_runner_hash_changed_before_registration",
+                "v9_plan_or_runner_hash_changed_before_registration",
             )
             require_plan_unexpired(
                 confirmed_plan,
-                blocker="v8_plan_expired_before_registration",
+                blocker="v9_plan_expired_before_registration",
             )
             marker_path, ledger_path = initialize_global_batch_ledger(
                 args.plan_file,
