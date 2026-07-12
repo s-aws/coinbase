@@ -53,6 +53,7 @@ def _bindings() -> dict[str, dict[str, object]]:
         "failed_v7_binding": runner.offline_failed_v7_binding_fixture(),
         "v8_binding": runner.offline_v8_binding_fixture(),
         "v9_binding": runner.offline_v9_binding_fixture(),
+        "v10_binding": runner.offline_v10_binding_fixture(),
     }
 
 
@@ -351,15 +352,15 @@ def test_v10_uses_a_fresh_fixed_authority_namespace() -> None:
     assert runner.V10_RUNNER_AUTHORITY_PARENT_COMMIT == (
         EXPECTED_V10_AUTHORITY_PARENT
     )
-    assert runner.PLAN_SCHEMA_VERSION == "14"
-    assert runner.SUCCESSOR_V10_PLAN_PATH.name.endswith(
-        "successor-v10-20260712.plan.json"
+    assert runner.PLAN_SCHEMA_VERSION == "15"
+    assert runner.SUCCESSOR_V11_PLAN_PATH.name.endswith(
+        "successor-v11-20260712.plan.json"
     )
     assert runner.GLOBAL_BATCH_MARKER_FILENAME.endswith(
-        "successor-v10-20260712.authority.json"
+        "successor-v11-20260712.authority.json"
     )
     assert runner.GLOBAL_BATCH_LEDGER_FILENAME.endswith(
-        "successor-v10-20260712.attempts.jsonl"
+        "successor-v11-20260712.attempts.jsonl"
     )
 
 
@@ -374,15 +375,16 @@ def test_v10_plan_binds_v9_and_burns_every_v9_fresh_identity() -> None:
         **bindings,
     )
 
-    assert plan["schema_version"] == "14"
+    assert plan["schema_version"] == "15"
     assert plan["approval_id"].startswith(
-        "controlled-root-child-successor-v10-"
+        "controlled-root-child-successor-v11-"
     )
     assert plan["continuation_kind"] == (
-        "sealed_v9_zero_sdk_failure_recover_child_then_fresh_slots_3_to_10_v10"
+        "sealed_v10_root_3_fill_recover_child_then_fresh_slots_4_to_10_v11"
     )
     assert plan["v9_binding"] == bindings["v9_binding"]
-    assert [root["slot"] for root in roots] == list(range(3, 11))
+    assert plan["v10_binding"] == bindings["v10_binding"]
+    assert [root["slot"] for root in roots] == list(range(4, 11))
     fresh_ids = {
         value
         for root in roots
@@ -391,12 +393,12 @@ def test_v10_plan_binds_v9_and_burns_every_v9_fresh_identity() -> None:
             root["child_client_order_id"],
         )
     }
-    burned_v9 = set(bindings["v9_binding"]["burned_root_client_order_ids"])
-    burned_v9 |= set(bindings["v9_binding"]["burned_child_client_order_ids"])
-    assert not fresh_ids & burned_v9
-    assert plan["recovery_slot_2"]["root_placement_authorized"] is False
-    assert plan["recovery_slot_2"]["child_client_order_id"] == (
-        runner.V8_SLOT_2_CHILD_CLIENT_ORDER_ID
+    burned_v10 = set(bindings["v10_binding"]["burned_root_client_order_ids"])
+    burned_v10 |= set(bindings["v10_binding"]["burned_child_client_order_ids"])
+    assert not fresh_ids & burned_v10
+    assert plan["recovery_slot_3"]["root_placement_authorized"] is False
+    assert plan["recovery_slot_3"]["child_client_order_id"] == (
+        runner.V10_SLOT_3_CHILD_CLIENT_ORDER_ID
     )
 
 
@@ -405,7 +407,7 @@ def test_v10_marker_and_runtime_authority_bind_v9_lineage() -> None:
     bindings = _bindings()
     plan = runner.build_successor_live_plan(preflight, **bindings)
     marker = runner.build_global_batch_marker_payload(
-        runner.SUCCESSOR_V10_PLAN_PATH,
+        runner.SUCCESSOR_V11_PLAN_PATH,
         confirmed_plan=plan,
         expected_hash=str(plan["plan_sha256"]),
         expected_runner_sha256=str(plan["runner_sha256"]),
@@ -413,14 +415,13 @@ def test_v10_marker_and_runtime_authority_bind_v9_lineage() -> None:
         process_id=1,
     )
 
-    assert marker["schema_version"] == "10"
+    assert marker["schema_version"] == "11"
     assert marker["authority"] == (
-        "controlled-admin-spot-root-child-successor-v10-batch"
+        "controlled-admin-spot-root-child-successor-v11-batch"
     )
     assert marker["v9_binding"] == bindings["v9_binding"]
-    assert marker["reference_cap_scope"] == (
-        "completed_slot_1_plus_v8_root_2_plus_v10"
-    )
+    assert marker["v10_binding"] == bindings["v10_binding"]
+    assert marker["reference_cap_scope"] == runner.V11_REFERENCE_CAP_SCOPE
     runner._validate_authority_plan_structure(
         plan,
         expected_plan_hash=str(plan["plan_sha256"]),
@@ -431,7 +432,7 @@ def test_failed_v9_absence_gate_checks_all_fresh_ids_and_recovery_scope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     plan = runner.build_successor_live_plan(_preflight(), **_bindings())
-    recovery = plan["recovery_slot_2"]
+    recovery = plan["recovery_slot_3"]
     observed: dict[str, object] = {}
 
     def local_scope(**kwargs: object) -> dict[str, bool]:
@@ -462,16 +463,16 @@ def test_failed_v9_absence_gate_checks_all_fresh_ids_and_recovery_scope(
         ),
     )
 
-    evidence = runner.prove_failed_v9_fresh_client_ids_absent(
+    evidence = runner.prove_failed_v10_unattempted_client_ids_absent(
         object(),
-        recovery_slot_2=recovery,
+        recovery_slot_3=recovery,
     )
 
-    assert evidence["planned_client_order_id_count"] == 16
-    assert observed["recovery_slot_2"] == recovery
+    assert evidence["planned_client_order_id_count"] == 14
+    assert observed["recovery_slot_3"] == recovery
     assert observed["planned_client_order_ids"] == (
-        set(runner.FAILED_SUCCESSOR_V9_PLANNED_ROOT_CLIENT_ORDER_IDS)
-        | set(runner.FAILED_SUCCESSOR_V9_PLANNED_CHILD_CLIENT_ORDER_IDS)
+        set(runner.FAILED_SUCCESSOR_V10_PLANNED_ROOT_CLIENT_ORDER_IDS[1:])
+        | set(runner.FAILED_SUCCESSOR_V10_PLANNED_CHILD_CLIENT_ORDER_IDS[1:])
     )
 
 
@@ -486,6 +487,7 @@ def test_v10_commit_scope_is_only_runner_focused_tests_and_ownership() -> None:
             runner_path,
             runner.V9_RUNNER_TEST_PATH,
             runner.V10_RUNNER_TEST_PATH,
+            runner.V11_RUNNER_TEST_PATH,
             runner.OWNERSHIP_MANIFEST_PATH,
         ],
         runner_path=runner_path,
@@ -494,6 +496,7 @@ def test_v10_commit_scope_is_only_runner_focused_tests_and_ownership() -> None:
         additional_allowed_paths=(
             runner.V9_RUNNER_TEST_PATH,
             runner.V10_RUNNER_TEST_PATH,
+            runner.V11_RUNNER_TEST_PATH,
             runner.OWNERSHIP_MANIFEST_PATH,
         ),
     )
@@ -507,10 +510,16 @@ def test_slot_2_reconciliation_precedes_enable_ledger_and_child_http() -> None:
     reconciliation = source.index(
         "fill_reconciliation = _reconcile_fill_ledger_with_exact_rest_fills("
     )
-    first_enable = source.index("set_live_service(runtime, enabled=True)")
+    pre_enable_guard = source.index(
+        'slot_result["child_pre_enable_fresh_bid_guard"]'
+    )
     child_ledger = source.index("child_attempt = consume_batch_attempt(")
+    first_enable = source.index(
+        "set_live_service(runtime, enabled=True)",
+        child_ledger,
+    )
     child_http = source.index(
         "child_status_code, child_response, child_headers = runtime.request("
     )
 
-    assert reconciliation < first_enable < child_ledger < child_http
+    assert reconciliation < pre_enable_guard < child_ledger < first_enable < child_http

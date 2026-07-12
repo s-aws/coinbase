@@ -20,10 +20,10 @@ V8_PREPARATION_SHA256 = (
 )
 V8_ROOT_EXCHANGE_ORDER_ID = "2ed7d436-b16e-4a7e-b0af-cb8f8bb86e68"
 EXPECTED_V9_SCHEDULE = [
-    (2, "child"),
+    (3, "child"),
     *[
         item
-        for slot in range(3, 11)
+        for slot in range(4, 11)
         for item in ((slot, "root"), (slot, "child"))
     ],
 ]
@@ -63,6 +63,7 @@ def _bindings() -> dict:
         "failed_v7_binding": runner.offline_failed_v7_binding_fixture(),
         "v8_binding": runner.offline_v8_binding_fixture(),
         "v9_binding": runner.offline_v9_binding_fixture(),
+        "v10_binding": runner.offline_v10_binding_fixture(),
     }
 
 
@@ -103,27 +104,27 @@ def test_v9_fixed_authority_and_attempt_schedule() -> None:
         runner.V10_RUNNER_AUTHORITY_PARENT_COMMIT
         == EXPECTED_V10_AUTHORITY_PARENT
     )
-    assert runner.PLAN_SCHEMA_VERSION == "14"
-    assert runner.SUCCESSOR_V10_PLAN_PATH.name.endswith(
-        "successor-v10-20260712.plan.json"
+    assert runner.PLAN_SCHEMA_VERSION == "15"
+    assert runner.SUCCESSOR_V11_PLAN_PATH.name.endswith(
+        "successor-v11-20260712.plan.json"
     )
     assert runner.GLOBAL_BATCH_MARKER_FILENAME.endswith(
-        "successor-v10-20260712.authority.json"
+        "successor-v11-20260712.authority.json"
     )
     assert runner.GLOBAL_BATCH_LEDGER_FILENAME.endswith(
-        "successor-v10-20260712.attempts.jsonl"
+        "successor-v11-20260712.attempts.jsonl"
     )
-    assert runner.SUCCESSOR_ROOT_ORDER_MAXIMUM == 8
-    assert runner.SUCCESSOR_CHILD_ORDER_MAXIMUM == 9
-    assert runner.SUCCESSOR_ATTEMPT_COUNT == 17
+    assert runner.SUCCESSOR_ROOT_ORDER_MAXIMUM == 7
+    assert runner.SUCCESSOR_CHILD_ORDER_MAXIMUM == 8
+    assert runner.SUCCESSOR_ATTEMPT_COUNT == 15
     schedule = runner.successor_attempt_schedule()
     assert schedule == EXPECTED_V9_SCHEDULE
-    assert len(schedule) == runner.SUCCESSOR_ATTEMPT_COUNT == 17
+    assert len(schedule) == runner.SUCCESSOR_ATTEMPT_COUNT == 15
     assert [slot for slot, kind in schedule if kind == "root"] == list(
-        range(3, 11)
+        range(4, 11)
     )
     assert [slot for slot, kind in schedule if kind == "child"] == list(
-        range(2, 11)
+        range(3, 11)
     )
     assert len({attempt for attempt in schedule}) == len(schedule)
     assert runner.FAILED_SUCCESSOR_V8_APPROVAL_ID in (
@@ -168,21 +169,22 @@ def test_v8_consumed_artifacts_are_exactly_sealed() -> None:
 def test_v9_plan_carries_only_v8_root_two_and_fresh_slots_three_to_ten() -> None:
     plan, roots = _validated_v9_plan()
 
-    assert [root["slot"] for root in roots] == list(range(3, 11))
-    assert plan["remaining_attempt_count"] == 17
-    assert plan["new_root_order_maximum"] == 8
-    assert plan["child_order_maximum"] == 9
+    assert [root["slot"] for root in roots] == list(range(4, 11))
+    assert plan["remaining_attempt_count"] == 15
+    assert plan["new_root_order_maximum"] == 7
+    assert plan["child_order_maximum"] == 8
     assert len(roots) == runner.SUCCESSOR_ROOT_ORDER_MAXIMUM
-    carried = plan["recovery_slot_2"]
-    assert carried["slot"] == 2
-    assert carried["root_client_order_id"] == V8_ROOT_ID
-    assert carried["child_client_order_id"] == V8_CHILD_ID
-    assert carried["root_exchange_order_id"] == V8_ROOT_EXCHANGE_ORDER_ID
+    carried = plan["recovery_slot_3"]
+    assert carried["slot"] == 3
+    assert carried["root_client_order_id"] == runner.V10_SLOT_3_ROOT_CLIENT_ORDER_ID
+    assert carried["child_client_order_id"] == runner.V10_SLOT_3_CHILD_CLIENT_ORDER_ID
+    assert carried["root_exchange_order_id"] == runner.V10_SLOT_3_ROOT_EXCHANGE_ORDER_ID
     assert carried["root_placement_authorized"] is False
     assert carried["child_recovery_authorized"] is True
-    assert carried["controlled_prior_preparation_sha256"] == (
-        V8_PREPARATION_SHA256
+    assert carried["prior_child_attempt_tuple_sha256"] == (
+        runner.V10_SLOT_3_CHILD_TUPLE_SHA256
     )
+    assert carried["prior_child_sdk_call_occurred"] is False
     assert set(carried["proof_approval_ids"]) == {
         "child_reveal",
         "child_cancel",
@@ -193,7 +195,7 @@ def test_v9_plan_carries_only_v8_root_two_and_fresh_slots_three_to_ten() -> None
     with pytest.raises(runner.ProofFailure):
         runner.approved_exact_successor_root_tuple(plan, carried)
     assert all(root["root_placement_authorized"] is True for root in roots)
-    assert all("controlled_prior_preparation_sha256" not in root for root in roots)
+    assert all("prior_child_attempt_tuple_sha256" not in root for root in roots)
     assert all(
         "controlled_prior_preparation_sha256" not in root["order"]
         for root in roots
@@ -206,76 +208,53 @@ def test_v9_plan_carries_only_v8_root_two_and_fresh_slots_three_to_ten() -> None
             root["child_client_order_id"],
         )
     }
-    assert len(fresh_ids) == 2 * runner.SUCCESSOR_ROOT_ORDER_MAXIMUM == 16
-    v8 = plan["v8_binding"]
-    all_v8_client_order_ids = _client_order_ids(v8)
-    assert V8_ROOT_ID in all_v8_client_order_ids
-    assert V8_CHILD_ID in all_v8_client_order_ids
-    assert not fresh_ids & all_v8_client_order_ids
-    assert not fresh_ids & {V8_ROOT_ID, V8_CHILD_ID}
-    assert plan["v8_inherited_root_reference_notional_usdc"] == "1.1001110618"
-    assert plan["completed_inherited_reference_notional_usdc"] == "2.8571692621"
-    assert plan["total_inherited_reference_notional_usdc"] == "3.9572803239"
+    assert len(fresh_ids) == 2 * runner.SUCCESSOR_ROOT_ORDER_MAXIMUM == 14
+    v10 = plan["v10_binding"]
+    all_v10_client_order_ids = _client_order_ids(v10)
+    assert runner.V10_SLOT_3_ROOT_CLIENT_ORDER_ID in all_v10_client_order_ids
+    assert runner.V10_SLOT_3_CHILD_CLIENT_ORDER_ID in all_v10_client_order_ids
+    assert not fresh_ids & all_v10_client_order_ids
+    assert plan["completed_reference_notional_usdc"] == runner.decimal_text(
+        runner.V10_COMPLETED_REFERENCE_NOTIONAL
+    )
     assert Decimal(plan["planned_total_root_child_reference_notional_usdc"]) < 30
 
 
 def test_v9_execution_binds_recovery_hash_before_first_child_ledger_and_http() -> None:
     source = inspect.getsource(runner.execute_controlled_batch)
-
-    child_body_start = source.index("child_reveal_body = {")
-    child_body_end = source.index("\n            }", child_body_start)
-    assert (
-        "controlled_prior_preparation_sha256"
-        not in source[child_body_start:child_body_end]
-    )
-
-    recovery_gate = source.index("if slot == 2:", child_body_end)
-    recovery_hash = source.index(
-        '"controlled_prior_preparation_sha256": '
-        "V8_SLOT_2_PRIOR_PREPARATION_SHA256"
-    )
-    fresh_root_gate = source.index("if slot >= 3:", recovery_hash)
-    compact_fresh_gate = "".join(
-        source[fresh_root_gate:].split()
-    )
-    assert (
-        '"controlled_prior_preparation_sha256"notinchild_reveal_body'
-        in compact_fresh_gate
+    recovery_gate = source.index("if slot == 3:")
+    recovery_hash = source.index("load_v10_binding() == v10_binding", recovery_gate)
+    pre_enable_guard = source.index(
+        'slot_result["child_pre_enable_fresh_bid_guard"]'
     )
     child_ledger = source.index("child_attempt = consume_batch_attempt(")
+    enable = source.index("set_live_service(runtime, enabled=True)", child_ledger)
     child_http = source.index(
         "child_status_code, child_response, child_headers = runtime.request("
     )
 
-    assert (
-        child_body_end
-        < recovery_gate
-        < recovery_hash
-        < fresh_root_gate
-        < child_ledger
-        < child_http
-    )
+    assert recovery_gate < recovery_hash < pre_enable_guard < child_ledger < enable < child_http
 
 
 def test_v9_sdk_ordinals_start_with_recovery_child_not_root_two() -> None:
     assert runner.successor_sdk_call_occurred(
-        slot=2,
+        slot=3,
         attempt_kind="child",
         sdk_call_count=1,
     )
     assert not runner.successor_sdk_call_occurred(
-        slot=3,
+        slot=4,
         attempt_kind="root",
         sdk_call_count=0,
     )
     assert runner.successor_sdk_call_occurred(
-        slot=3,
+        slot=4,
         attempt_kind="root",
         sdk_call_count=1,
     )
     with pytest.raises(runner.ProofFailure):
         runner.successor_sdk_call_occurred(
-            slot=2,
+            slot=3,
             attempt_kind="root",
             sdk_call_count=0,
         )
@@ -358,7 +337,7 @@ def test_v9_commit_scope_allows_only_runner_and_focused_test() -> None:
         ("root_client_order_id", "00000000-0000-0000-0000-000000000001"),
         ("child_client_order_id", "00000000-0000-0000-0000-000000000002"),
         ("root_exchange_order_id", "00000000-0000-0000-0000-000000000003"),
-        ("controlled_prior_preparation_sha256", "0" * 64),
+        ("prior_child_attempt_tuple_sha256", "0" * 64),
         ("root_placement_authorized", True),
         ("recovery_batch_id", "00000000-0000-0000-0000-000000000004"),
     ],
@@ -371,7 +350,7 @@ def test_v9_plan_rejects_every_recovery_authority_tamper(
     bindings = _bindings()
     plan = runner.build_successor_live_plan(preflight, **bindings)
     tampered = json.loads(json.dumps(plan))
-    tampered["recovery_slot_2"][field] = value
+    tampered["recovery_slot_3"][field] = value
     tampered["plan_sha256"] = runner.plan_hash(tampered)
     with pytest.raises(runner.ProofFailure):
         runner.validate_successor_live_plan(
@@ -384,11 +363,11 @@ def test_v9_plan_rejects_every_recovery_authority_tamper(
 
 def test_v9_ledger_first_record_is_recovery_child_and_root_two_is_denied() -> None:
     plan, _ = _validated_v9_plan()
-    recovery = plan["recovery_slot_2"]
+    recovery = plan["recovery_slot_3"]
     child_tuple = runner.build_child_order_tuple(
         plan,
         recovery,
-        filled_size=runner.V8_SLOT_2_ROOT_FILLED_SIZE,
+        filled_size=runner.V10_SLOT_3_ROOT_FILLED_SIZE,
         fresh_market={
             "best_bid": Decimal("64143.89"),
             "observed_at": datetime.now(timezone.utc).isoformat(),
@@ -399,7 +378,7 @@ def test_v9_ledger_first_record_is_recovery_child_and_root_two_is_denied() -> No
         confirmed_plan=plan,
         confirmed_plan_hash=str(plan["plan_sha256"]),
         sequence=1,
-        slot=2,
+        slot=3,
         attempt_kind="child",
         exact_order_tuple=child_tuple,
         consumed_at=datetime.now(timezone.utc).isoformat(),
@@ -407,16 +386,16 @@ def test_v9_ledger_first_record_is_recovery_child_and_root_two_is_denied() -> No
     )
     assert (record["sequence"], record["batch_slot"], record["attempt_kind"]) == (
         1,
-        2,
+        3,
         "child",
     )
-    assert record["client_order_id"] == V8_CHILD_ID
+    assert record["client_order_id"] == runner.V10_SLOT_3_CHILD_CLIENT_ORDER_ID
     with pytest.raises(runner.ProofFailure):
         runner.build_batch_attempt_record(
             confirmed_plan=plan,
             confirmed_plan_hash=str(plan["plan_sha256"]),
             sequence=1,
-            slot=2,
+            slot=3,
             attempt_kind="root",
             exact_order_tuple=child_tuple,
             consumed_at=datetime.now(timezone.utc).isoformat(),
@@ -432,10 +411,10 @@ def test_v9_ledger_first_record_is_recovery_child_and_root_two_is_denied() -> No
         "expected_safe",
     ),
     [
-        (0, "absent", "v8_prepared_hidden", True),
-        (1, "absent", "v10_superseded_preplacement_hidden", False),
-        (1, "active", "v10_superseded_preplacement_hidden", False),
-        (1, "cancelled", "v10_recovered_zero_fill_cancelled", True),
+        (0, "absent", "v10_unsubmitted_hidden", True),
+        (1, "absent", "v10_unsubmitted_hidden", False),
+        (1, "active", "v10_unsubmitted_hidden", False),
+        (1, "cancelled", "v11_recovered_zero_fill_cancelled", True),
     ],
 )
 def test_recovery_failure_reconciliation_is_fail_closed_end_to_end(
@@ -446,11 +425,11 @@ def test_recovery_failure_reconciliation_is_fail_closed_end_to_end(
     expected_safe: bool,
 ) -> None:
     plan, _ = _validated_v9_plan()
-    recovery = plan["recovery_slot_2"]
+    recovery = plan["recovery_slot_3"]
     child_tuple = runner.build_child_order_tuple(
         plan,
         recovery,
-        filled_size=runner.V8_SLOT_2_ROOT_FILLED_SIZE,
+        filled_size=runner.V10_SLOT_3_ROOT_FILLED_SIZE,
         fresh_market={
             "best_bid": Decimal("64143.89"),
             "observed_at": datetime.now(timezone.utc).isoformat(),
@@ -460,8 +439,8 @@ def test_recovery_failure_reconciliation_is_fail_closed_end_to_end(
     ledger = [
         {
             "attempt_kind": "child",
-            "root_client_order_id": V8_ROOT_ID,
-            "client_order_id": V8_CHILD_ID,
+            "root_client_order_id": runner.V10_SLOT_3_ROOT_CLIENT_ORDER_ID,
+            "client_order_id": runner.V10_SLOT_3_CHILD_CLIENT_ORDER_ID,
             "exact_order_tuple": child_tuple,
         }
     ]
@@ -469,7 +448,7 @@ def test_recovery_failure_reconciliation_is_fail_closed_end_to_end(
     class FakeRuntime:
         confirmed_plan = plan
         confirmed_plan_hash = str(plan["plan_sha256"])
-        attempt_ledger_path = runner.Path("/offline/v9.attempts.jsonl")
+        attempt_ledger_path = runner.Path("/offline/v11.attempts.jsonl")
         portfolio_id = runner.TEST_PORTFOLIO_ID
         live_service_disable_proven = False
         exchange_safe_to_shutdown = False
@@ -496,10 +475,10 @@ def test_recovery_failure_reconciliation_is_fail_closed_end_to_end(
         fake_runtime.live_service_disable_proven = True
 
     root_order = {
-        "client_order_id": V8_ROOT_ID,
-        "order_id": V8_ROOT_EXCHANGE_ORDER_ID,
+        "client_order_id": runner.V10_SLOT_3_ROOT_CLIENT_ORDER_ID,
+        "order_id": runner.V10_SLOT_3_ROOT_EXCHANGE_ORDER_ID,
         "status": "FILLED",
-        "filled_size": str(runner.V8_SLOT_2_ROOT_FILLED_SIZE),
+        "filled_size": str(runner.V10_SLOT_3_ROOT_FILLED_SIZE),
     }
     root_readback = {
         "authoritative": True,
@@ -508,7 +487,7 @@ def test_recovery_failure_reconciliation_is_fail_closed_end_to_end(
         "confirmed_absent": False,
         "authoritative_status": "FILLED",
         "matched_order": root_order,
-        "exchange_order_id": V8_ROOT_EXCHANGE_ORDER_ID,
+        "exchange_order_id": runner.V10_SLOT_3_ROOT_EXCHANGE_ORDER_ID,
     }
     if child_exchange_state == "absent":
         child_readback = {
@@ -523,7 +502,7 @@ def test_recovery_failure_reconciliation_is_fail_closed_end_to_end(
     else:
         status = "OPEN" if child_exchange_state == "active" else "CANCELLED"
         child_order = {
-            "client_order_id": V8_CHILD_ID,
+            "client_order_id": runner.V10_SLOT_3_CHILD_CLIENT_ORDER_ID,
             "order_id": "exchange-child-v9",
             "status": status,
             "filled_size": "0",
@@ -539,7 +518,11 @@ def test_recovery_failure_reconciliation_is_fail_closed_end_to_end(
         }
 
     def exact_readback(_client: Any, *, client_order_id: str, **_kwargs: Any) -> dict:
-        return root_readback if client_order_id == V8_ROOT_ID else child_readback
+        return (
+            root_readback
+            if client_order_id == runner.V10_SLOT_3_ROOT_CLIENT_ORDER_ID
+            else child_readback
+        )
 
     monkeypatch.setattr(runner, "set_live_service", disable_service)
     monkeypatch.setattr(runner, "read_batch_attempt_ledger", lambda *_a, **_k: ledger)
@@ -553,7 +536,7 @@ def test_recovery_failure_reconciliation_is_fail_closed_end_to_end(
         runner,
         "prove_local_scope_with_historical_hidden_child",
         lambda **_kwargs: {
-            "recovery_slot_2_chain": {"phase": local_phase}
+            "recovery_slot_3_chain": {"phase": local_phase}
         },
     )
     monkeypatch.setattr(
@@ -574,7 +557,7 @@ def test_recovery_failure_reconciliation_is_fail_closed_end_to_end(
         runtime,
         rest_client=object(),
         summary=summary,
-        current_root_client_order_id=V8_ROOT_ID,
+        current_root_client_order_id=runner.V10_SLOT_3_ROOT_CLIENT_ORDER_ID,
     )
     assert evidence["safe_to_shutdown"] is expected_safe
     assert runtime.exchange_safe_to_shutdown is expected_safe
@@ -588,11 +571,11 @@ def test_inherited_absence_helpers_forward_exact_recovery_scope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     plan, _ = _validated_v9_plan()
-    recovery = plan["recovery_slot_2"]
+    recovery = plan["recovery_slot_3"]
     observed: list[Mapping[str, Any] | None] = []
 
     def local_scope(**kwargs: Any) -> dict[str, Any]:
-        observed.append(kwargs.get("recovery_slot_2"))
+        observed.append(kwargs.get("recovery_slot_3"))
         return {
             "planned_ids_absent_from_order_parent": True,
             "planned_ids_absent_from_stealth_orders": True,
@@ -621,7 +604,7 @@ def test_inherited_absence_helpers_forward_exact_recovery_scope(
     )
     runner.prove_failed_v5_root_2_absence(
         object(),
-        recovery_slot_2=recovery,
+        recovery_slot_3=recovery,
     )
     monkeypatch.setattr(
         runner,
@@ -638,6 +621,6 @@ def test_inherited_absence_helpers_forward_exact_recovery_scope(
     )
     runner.prove_failed_v6_v7_client_ids_absent(
         object(),
-        recovery_slot_2=recovery,
+        recovery_slot_3=recovery,
     )
     assert observed == [recovery, recovery]
