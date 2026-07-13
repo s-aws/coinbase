@@ -1233,7 +1233,11 @@ def v15r6_post_boundary_runtime_decision(
     path = Path(runtime.state_dir) / "idempotency.jsonl"
     if not os.path.lexists(path):
         return None
-    rows = v15r5._jsonl(path, "v15r6_monitor_idempotency")
+    rows = v15r5._jsonl(
+        path,
+        "v15r6_monitor_idempotency",
+        allow_public_read=True,
+    )
     expected_key = str(dict(plan.get("cancel_command") or {}).get("idempotency_key") or "")
     matches = [row for row in rows if row.get("idempotency_key") == expected_key]
     _require(len(matches) <= 1, "v15r6_monitor_duplicate_idempotency_record")

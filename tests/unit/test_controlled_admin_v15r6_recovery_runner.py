@@ -42,6 +42,16 @@ def _plan(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
     )
 
 
+def _isolated_successor_paths(tmp_path: Path) -> dict[str, Path]:
+    return {
+        "marker_path": tmp_path / "marker.json",
+        "placement_ledger_path": tmp_path / "placements.jsonl",
+        "cancel_ledger_path": tmp_path / "cancel.jsonl",
+        "backend_claim_log_path": tmp_path / "claims.jsonl",
+        "handoff_path": tmp_path / "handoff.json",
+    }
+
+
 def test_v15r6_plan_is_exact_direct_exchange_id_recovery(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -257,6 +267,7 @@ def test_v15r6_transition_signals_exact_predecessor_once_and_never_restarts(
         transition_path=tmp_path / "transition.json",
         signal_claim_path=signal_claim_path,
         now=NOW,
+        **_isolated_successor_paths(tmp_path),
     )
 
     assert calls == [(identity, signal.SIGTERM)]
@@ -309,6 +320,7 @@ def test_v15r6_transition_identity_drift_fails_before_signal(
             transition_path=tmp_path / "transition.json",
             signal_claim_path=tmp_path / "signal-claim.json",
             now=NOW,
+            **_isolated_successor_paths(tmp_path),
         )
     assert signalled is False
     assert not (tmp_path / "transition.json").exists()
@@ -359,6 +371,7 @@ def test_v15r6_dirty_backend_fails_final_gate_before_signal(
             transition_path=tmp_path / "transition.json",
             signal_claim_path=tmp_path / "signal-claim.json",
             now=NOW,
+            **_isolated_successor_paths(tmp_path),
         )
     assert signalled is False
 
@@ -427,6 +440,7 @@ def test_v15r6_rechecks_expiry_immediately_before_signal(
             signal_claim_path=tmp_path / "signal-claim.json",
             now=NOW,
             pre_signal_now=datetime.fromisoformat(str(plan["expires_at"])),
+            **_isolated_successor_paths(tmp_path),
         )
     assert signalled is False
 
@@ -465,6 +479,7 @@ def test_v15r6_signal_claim_permanently_consumes_ambiguous_attempt(
         "transition_path": transition_path,
         "signal_claim_path": signal_claim_path,
         "now": NOW,
+        **_isolated_successor_paths(tmp_path),
     }
     with pytest.raises(RuntimeError, match="signal outcome unknown"):
         recovery.transition_v15r5_runtime(plan, **kwargs)
@@ -640,7 +655,7 @@ def test_v15r6_monitor_stops_on_durable_post_boundary_rejection(
         + "\n",
         encoding="utf-8",
     )
-    idempotency.chmod(0o600)
+    idempotency.chmod(0o644)
     runtime = SimpleNamespace(state_dir=tmp_path)
 
     assert recovery.v15r6_post_boundary_runtime_decision(runtime, plan) == (
