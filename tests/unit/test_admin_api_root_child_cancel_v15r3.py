@@ -224,6 +224,53 @@ def _plan() -> dict[str, object]:
     return plan
 
 
+def _v15r4_plan() -> dict[str, object]:
+    plan = deepcopy(_plan())
+    approval_id = (
+        "controlled-child-cancel-v15r4-"
+        "22222222-2222-4222-8222-222222222222"
+    )
+    batch_id = str(
+        uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            "coinbase://selected-child-cancel-v15r4/"
+            f"{plan['backend_commit']}/{plan['runner_sha256']}/{approval_id}",
+        )
+    )
+    plan.update(
+        {
+            "schema_version": "22",
+            "authority_kind": authority.CONTROLLED_V15R4_AUTHORITY_KIND,
+            "approval_id": approval_id,
+            "batch_id": batch_id,
+            "failed_v15r3_execution_binding": deepcopy(
+                authority.CONTROLLED_V15R4_FAILED_EXECUTION_BINDING
+            ),
+        }
+    )
+    cancel = dict(plan["cancel_command"])
+    for field, purpose in (
+        ("idempotency_key", "child-cancel-idempotency"),
+        ("correlation_id", "child-cancel-correlation"),
+        ("claim_id", "child-cancel-claim"),
+        ("approval_snapshot_id", "child-cancel-approval"),
+        ("cap_guard_decision_id", "child-cancel-cap"),
+        ("reconciliation_plan_id", "child-cancel-reconciliation"),
+    ):
+        cancel[field] = str(
+            uuid.uuid5(
+                uuid.NAMESPACE_URL,
+                f"coinbase://selected-child-cancel-v15r4/{batch_id}/{purpose}",
+            )
+        )
+    cancel["semantic_retry_policy"] = (
+        "fresh_v15r4_idempotency_key_exactly_once"
+    )
+    plan["cancel_command"] = cancel
+    plan["plan_sha256"] = authority._canonical_plan_hash(plan)
+    return plan
+
+
 def _write_owner_only(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, sort_keys=True) + "\n", encoding="utf-8")
     path.chmod(0o600)
@@ -240,7 +287,7 @@ def _marker_handoff(
     cancel = dict(plan["cancel_command"])
     marker = {
         "schema_version": "1",
-        "authority": authority.CONTROLLED_V15R3_AUTHORITY_KIND,
+        "authority": plan["authority_kind"],
         "approval_id": plan["approval_id"],
         "batch_id": batch_id,
         "plan_file": str(plan_path),
@@ -266,7 +313,7 @@ def _marker_handoff(
     }
     handoff = {
         "schema_version": "1",
-        "authority": authority.CONTROLLED_V15R3_AUTHORITY_KIND,
+        "authority": plan["authority_kind"],
         "plan_sha256": plan["plan_sha256"],
         "batch_id": batch_id,
         "root_client_order_id": ROOT_ID,
@@ -304,6 +351,23 @@ def test_v15r3_exact_cancel_only_plan_validates_dispatches_and_scopes_root() -> 
     assert authority.controlled_child_cancel_root_scope(plan) == plan["root_evidence"]
 
 
+def test_v15r4_exact_plan_requires_self_describing_failed_execution_lineage() -> None:
+    plan = _v15r4_plan()
+
+    assert authority.is_controlled_v15r4_recovery_plan(plan) is True
+    authority.validate_controlled_v15r4_recovery_plan_scope(plan)
+    authority.validate_controlled_child_cancel_plan_scope(plan)
+    assert authority.controlled_child_cancel_root_scope(plan) == plan["root_evidence"]
+
+    plan["failed_v15r3_execution_binding"]["semantic_claim_count"] = 1
+    plan["plan_sha256"] = authority._canonical_plan_hash(plan)
+    with pytest.raises(
+        authority.AdminRootChildCancelAuthorityError,
+        match="controlled_v15r4_plan_schema_invalid",
+    ):
+        authority.validate_controlled_child_cancel_plan_scope(plan)
+
+
 @pytest.mark.parametrize(
     "mutator",
     [
@@ -338,11 +402,13 @@ def test_v15r3_rejects_scope_actor_zero_fill_source_or_fresh_id_drift(
         authority.validate_controlled_child_cancel_plan_scope(plan)
 
 
-def test_v15r3_loader_binds_zero_placement_marker_and_exact_actor_roles(
+@pytest.mark.parametrize("plan_factory", [_plan, _v15r4_plan])
+def test_cancel_only_loader_binds_zero_placement_marker_and_exact_actor_roles(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    plan_factory,
 ) -> None:
-    plan = _plan()
+    plan = plan_factory()
     plan_path = tmp_path / "plan.json"
     marker_path = tmp_path / "marker.json"
     handoff_path = tmp_path / "handoff.json"

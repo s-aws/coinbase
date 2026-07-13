@@ -7,6 +7,9 @@ import os
 
 import pytest
 
+from application.admin_api.root_child_cancel import (
+    CONTROLLED_V15R4_FAILED_EXECUTION_BINDING,
+)
 from tools import run_controlled_admin_spot_root_child_batch as base
 
 
@@ -77,6 +80,83 @@ def test_v15r3_shared_limits_deny_all_order_sdk_calls() -> None:
                 attempt_kind=attempt_kind,
                 prior_call_count=0,
                 confirmed_plan=plan,
+            )
+
+
+def test_v15r4_shared_runtime_preserves_the_zero_order_budget() -> None:
+    plan = _plan()
+    plan.update(
+        {
+            "schema_version": "22",
+            "authority_kind": "selected_chain_child_cancel_recovery_v15r4",
+            "failed_v15r3_execution_binding": dict(
+                CONTROLLED_V15R4_FAILED_EXECUTION_BINDING
+            ),
+        }
+    )
+    plan["plan_sha256"] = base.plan_hash(plan)
+
+    assert base.is_v15_cancel_only_recovery_plan(plan) is True
+    assert base.is_v15_recovery_plan(plan) is True
+    assert base.current_attempt_schedule(plan) == []
+    assert base.current_generation_limits(plan) == (0, 0, 0)
+
+    tampered_plan = dict(plan)
+    tampered_binding = dict(CONTROLLED_V15R4_FAILED_EXECUTION_BINDING)
+    tampered_binding["semantic_claim_count"] = 1
+    tampered_plan["failed_v15r3_execution_binding"] = tampered_binding
+    tampered_plan["plan_sha256"] = base.plan_hash(tampered_plan)
+
+    assert base.is_v15_cancel_only_recovery_plan(tampered_plan) is True
+    assert base.is_v15_recovery_plan(tampered_plan) is True
+    assert base.current_attempt_schedule(tampered_plan) == []
+    assert base.current_generation_limits(tampered_plan) == (0, 0, 0)
+    with pytest.raises(
+        base.ProofFailure,
+        match="runtime_child_v15r4_failed_execution_binding_mismatch",
+    ):
+        base._validate_authority_plan_structure(
+            tampered_plan,
+            expected_plan_hash=str(tampered_plan["plan_sha256"]),
+        )
+
+    placement_tampered_plan = dict(plan)
+    placement_tampered_plan["placement_attempt_count"] = 1
+    placement_tampered_plan["plan_sha256"] = base.plan_hash(
+        placement_tampered_plan
+    )
+    assert base.is_v15_cancel_only_recovery_plan(placement_tampered_plan) is True
+    assert base.current_attempt_schedule(placement_tampered_plan) == []
+    assert base.current_generation_limits(placement_tampered_plan) == (0, 0, 0)
+    with pytest.raises(
+        base.ProofFailure,
+        match="runtime_child_v15r3_scope_mismatch",
+    ):
+        base._validate_authority_plan_structure(
+            placement_tampered_plan,
+            expected_plan_hash=str(placement_tampered_plan["plan_sha256"]),
+        )
+
+    for field, value in (
+        ("v15r2_active_child_binding", None),
+        ("retry_authorized", True),
+        ("substitution_authorized", True),
+        ("later_child_authorized", True),
+    ):
+        scope_tampered_plan = dict(plan)
+        scope_tampered_plan[field] = value
+        scope_tampered_plan["plan_sha256"] = base.plan_hash(
+            scope_tampered_plan
+        )
+        assert base.current_attempt_schedule(scope_tampered_plan) == []
+        assert base.current_generation_limits(scope_tampered_plan) == (0, 0, 0)
+        with pytest.raises(
+            base.ProofFailure,
+            match="runtime_child_v15r3_scope_mismatch",
+        ):
+            base._validate_authority_plan_structure(
+                scope_tampered_plan,
+                expected_plan_hash=str(scope_tampered_plan["plan_sha256"]),
             )
 
 

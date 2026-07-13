@@ -2334,34 +2334,16 @@ def is_v15_child_placement_recovery_plan(plan: Mapping[str, Any]) -> bool:
 
 
 def is_v15_cancel_only_recovery_plan(plan: Mapping[str, Any]) -> bool:
-    """Identify the sealed zero-placement V15R3 cancel recovery."""
+    """Route both cancel-only schemas through their fail-closed zero budget."""
 
-    root = object_record(plan.get("root_evidence"))
-    child = object_record(plan.get("child"))
-    root_id = str(root.get("client_order_id") or "")
-    child_id = str(child.get("client_order_id") or "")
-    return bool(
-        plan.get("schema_version") == "21"
-        and plan.get("authority_kind")
-        == "selected_chain_child_cancel_recovery_v15r3"
-        and plan.get("placement_attempt_count") == 0
-        and plan.get("placement_attempt_schedule") == []
-        and plan.get("root_placement_maximum") == 0
-        and plan.get("child_placement_maximum") == 0
-        and plan.get("cancel_command_maximum") == 1
-        and plan.get("root_placement_authorized") is False
-        and root.get("placement_authorized") is False
-        and root_id
-        and child.get("parent_client_order_id") == root_id
-        and child_id == deterministic_child_client_order_id(root_id)
-        and bool(str(child.get("active_exchange_order_id") or ""))
-        and isinstance(plan.get("v15r2_active_child_binding"), Mapping)
-        and plan.get("actor_id") == ACTOR_ID
-        and plan.get("actor_roles") == [COMMAND_ROLE]
-        and plan.get("retry_authorized") is False
-        and plan.get("substitution_authorized") is False
-        and plan.get("later_child_authorized") is False
+    schema_authority = (
+        str(plan.get("schema_version") or ""),
+        str(plan.get("authority_kind") or ""),
     )
+    return schema_authority in {
+        ("21", "selected_chain_child_cancel_recovery_v15r3"),
+        ("22", "selected_chain_child_cancel_recovery_v15r4"),
+    }
 
 
 def is_v15_recovery_plan(plan: Mapping[str, Any]) -> bool:
@@ -15809,8 +15791,19 @@ def _validate_authority_plan_structure(
         "runtime_child_authority_plan_hash_mismatch",
     )
     if is_v15_cancel_only_recovery_plan(confirmed_plan):
+        if confirmed_plan.get("schema_version") == "22":
+            from application.admin_api.root_child_cancel import (
+                CONTROLLED_V15R4_FAILED_EXECUTION_BINDING,
+            )
+
+            require(
+                confirmed_plan.get("failed_v15r3_execution_binding")
+                == CONTROLLED_V15R4_FAILED_EXECUTION_BINDING,
+                "runtime_child_v15r4_failed_execution_binding_mismatch",
+            )
         root = object_record(confirmed_plan.get("root_evidence"))
         child = object_record(confirmed_plan.get("child"))
+        root_id = str(root.get("client_order_id") or "")
         plan_runner_sha256 = str(confirmed_plan.get("runner_sha256") or "")
         require(
             confirmed_plan.get("backend_commit")
@@ -15833,15 +15826,20 @@ def _validate_authority_plan_structure(
             and confirmed_plan.get("cancel_command_maximum") == 1
             and confirmed_plan.get("root_placement_authorized") is False
             and root.get("placement_authorized") is False
+            and bool(root_id)
             and child.get("parent_client_order_id")
-            == root.get("client_order_id")
+            == root_id
             and child.get("client_order_id")
-            == deterministic_child_client_order_id(
-                str(root.get("client_order_id") or "")
-            )
+            == deterministic_child_client_order_id(root_id)
             and bool(str(child.get("active_exchange_order_id") or ""))
+            and isinstance(
+                confirmed_plan.get("v15r2_active_child_binding"), Mapping
+            )
             and confirmed_plan.get("actor_id") == ACTOR_ID
             and confirmed_plan.get("actor_roles") == [COMMAND_ROLE]
+            and confirmed_plan.get("retry_authorized") is False
+            and confirmed_plan.get("substitution_authorized") is False
+            and confirmed_plan.get("later_child_authorized") is False
             and Decimal(
                 str(
                     confirmed_plan.get(
@@ -16669,7 +16667,7 @@ def consume_runtime_child_authority(
         )
         child = object_record(confirmed_plan.get("child"))
         expected_authority = (
-            "selected_chain_child_cancel_recovery_v15r3"
+            str(confirmed_plan.get("authority_kind") or "")
             if is_v15_cancel_only_recovery_plan(confirmed_plan)
             else (
                 "selected_chain_child_cancel_recovery_v15r2"
@@ -19445,9 +19443,12 @@ def write_proof_chain(
         and approval_now < parsed_approval_expiry <= approval_now + PLAN_TTL,
         f"proof_chain_approval_expiry_invalid:{label}",
     )
+    proof_api_context = {
+        key: value for key, value in context.items() if key != "actor_roles"
+    }
     approval_request_body = {
         key: value
-        for key, value in context.items()
+        for key, value in proof_api_context.items()
         if key not in {"service_method", "actor_id"}
     } | {"request_reason": f"Approval-bound controlled batch {label} proof."}
     _, approval_request, _ = runtime.request(
@@ -19484,7 +19485,7 @@ def write_proof_chain(
     approval = object_record(approval_decision.get("approval"))
     require(approval.get("approval_id") == approval_id, f"approval_snapshot_mismatch:{label}")
 
-    audit_body = dict(context) | {
+    audit_body = dict(proof_api_context) | {
         "approval_snapshot_id": approval_id,
         "approval_snapshot_approved_by_actor_id": approval.get("decision_actor_id"),
         "approval_snapshot_requested_by_actor_id": approval.get("requested_by_actor_id"),
@@ -19521,7 +19522,7 @@ def write_proof_chain(
         f"proof_chain_max_notional_scope_mismatch:{label}",
     )
     max_notional_text = decimal_text(max_notional)
-    cap_body = dict(context) | {
+    cap_body = dict(proof_api_context) | {
         "approval_snapshot_id": approval_id,
         "approval_cap_guard_decision_ref": cap_ref,
         "admission_audit_id": audit_id,
@@ -19580,7 +19581,7 @@ def write_proof_chain(
     require(cap.get("decision_id") == cap_ref, f"cap_decision_mismatch:{label}")
     require(cap.get("resolver_eligible") is True, f"cap_decision_not_eligible:{label}")
 
-    reconciliation_body = dict(context) | {
+    reconciliation_body = dict(proof_api_context) | {
         "approval_snapshot_id": approval_id,
         "approval_reconciliation_plan_ref": reconciliation_ref,
         "admission_audit_id": audit_id,

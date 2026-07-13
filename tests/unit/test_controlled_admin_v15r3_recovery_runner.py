@@ -14,7 +14,7 @@ from pathlib import Path
 import pytest
 
 from application.admin_api import root_child_cancel as cancel_authority
-from tools import run_controlled_admin_spot_child_cancel_recovery_v15r3 as recovery
+from tools import run_controlled_admin_spot_child_cancel_recovery_v15r4 as recovery
 
 
 def _write_json(path: Path, value: object) -> None:
@@ -348,6 +348,9 @@ def _plan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
     completed = {
         "r2_source_binding": binding,
         "local_active_child_binding": _active_binding(),
+        "failed_v15r3_execution_binding": (
+            recovery.expected_failed_v15r3_execution_binding()
+        ),
     }
     monkeypatch.setattr(
         recovery,
@@ -358,11 +361,13 @@ def _plan(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
         binding,
         local_active_child=_active_binding(),
         now=datetime(2026, 7, 13, 3, 0, tzinfo=timezone.utc),
-        approval_id="controlled-child-cancel-v15r3-11111111-1111-4111-8111-111111111111",
+        approval_id="controlled-child-cancel-v15r4-11111111-1111-4111-8111-111111111111",
     )
 
 
-def _recovered_transition(plan: dict[str, object]) -> dict[str, object]:
+def _recovered_transition(
+    plan: dict[str, object], *, successor: bool = True
+) -> dict[str, object]:
     source = dict(plan["v15r2_active_child_binding"])
     child = {
         "client_order_id": recovery.CHILD_CLIENT_ORDER_ID,
@@ -375,10 +380,22 @@ def _recovered_transition(plan: dict[str, object]) -> dict[str, object]:
         "reference_notional_usdc": "1.7049248762",
     }
     transition: dict[str, object] = {
-        "schema_version": "2",
-        "status": "v15r2_to_v15r3_no_overlap_proven",
-        "recovery_status": "v15r2_shutdown_bound_no_overlap_proven",
-        "transition_mode": "bind_completed_predecessor_shutdown_no_signals",
+        "schema_version": "3" if successor else "2",
+        "status": (
+            "v15r3_to_v15r4_no_overlap_proven"
+            if successor
+            else "v15r2_to_v15r3_no_overlap_proven"
+        ),
+        "recovery_status": (
+            "failed_v15r3_proof_runtime_bound_no_live_cancel"
+            if successor
+            else "v15r2_shutdown_bound_no_overlap_proven"
+        ),
+        "transition_mode": (
+            "bind_completed_predecessor_shutdowns_no_signals"
+            if successor
+            else "bind_completed_predecessor_shutdown_no_signals"
+        ),
         "controlled_plan_sha256": plan["plan_sha256"],
         "failed_plan_sha256": recovery.FAILED_V15R3_PLAN_SHA256,
         "failed_plan_bytes_sha256": recovery.FAILED_V15R3_PLAN_BYTES_SHA256,
@@ -409,6 +426,10 @@ def _recovered_transition(plan: dict[str, object]) -> dict[str, object]:
         "child_readback": child,
         "recorded_at": "2026-07-13T03:00:30+00:00",
     }
+    if successor:
+        transition["failed_v15r3_execution_binding"] = (
+            recovery.expected_failed_v15r3_execution_binding()
+        )
     transition["transition_sha256"] = recovery.transition_hash(transition)
     return transition
 
@@ -419,7 +440,7 @@ def test_v15r3_plan_is_cancel_only_exact_actor_fresh_and_120_minutes(
 ) -> None:
     plan = _plan(tmp_path, monkeypatch)
 
-    assert plan["schema_version"] == "21"
+    assert plan["schema_version"] == "22"
     assert plan["authority_kind"] == recovery.AUTHORITY_KIND
     assert plan["placement_attempt_count"] == 0
     assert plan["placement_attempt_schedule"] == []
@@ -462,6 +483,271 @@ def test_v15r3_plan_is_cancel_only_exact_actor_fresh_and_120_minutes(
     )
     assert set(recovery.cancel_command_ids(plan)).isdisjoint(recovery.R2_USED_IDS)
     assert plan["plan_sha256"] == recovery.plan_hash(plan)
+
+
+def test_v15r3_successor_paths_and_ids_do_not_reuse_consumed_189c_authority() -> None:
+    current_paths = {
+        recovery.PLAN_PATH,
+        recovery.MARKER_PATH,
+        recovery.PLACEMENT_LEDGER_PATH,
+        recovery.CANCEL_LEDGER_PATH,
+        recovery.BACKEND_CLAIM_LOG_PATH,
+        recovery.HANDOFF_PATH,
+        recovery.RUNTIME_PATH,
+    }
+    consumed_paths = set(recovery.FAILED_PROOF_ARTIFACT_PATHS.values())
+
+    assert recovery.FAILED_PROOF_PLAN_SHA256 == (
+        "189c338ebd49afb1013a0c2e54e6a228dc6e4e57707b5f0ef7487f63b5cf2302"
+    )
+    assert recovery.FAILED_PROOF_BATCH_ID == (
+        "12613395-b8d6-5fdd-9dc7-de3086de1a26"
+    )
+    assert current_paths.isdisjoint(consumed_paths)
+    assert recovery.FAILED_PROOF_BATCH_ID in recovery.R2_USED_IDS
+    assert recovery.FAILED_PROOF_CANCEL_IDS <= recovery.R2_USED_IDS
+    assert recovery.FAILED_PROOF_BATCH_ID in (
+        cancel_authority.CONTROLLED_V15R2_USED_CANCEL_IDS
+    )
+    assert recovery.FAILED_PROOF_CANCEL_IDS <= (
+        cancel_authority.CONTROLLED_V15R2_USED_CANCEL_IDS
+    )
+
+
+def test_v15r4_plan_is_self_describing_about_the_failed_v15r3_execution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = _plan(tmp_path, monkeypatch)
+
+    assert plan["schema_version"] == "22"
+    assert plan["authority_kind"] == (
+        "selected_chain_child_cancel_recovery_v15r4"
+    )
+    assert plan["approval_id"].startswith("controlled-child-cancel-v15r4-")
+    assert plan["failed_v15r3_execution_binding"] == (
+        recovery.expected_failed_v15r3_execution_binding()
+    )
+    assert plan["failed_v15r3_execution_binding"] == (
+        cancel_authority.CONTROLLED_V15R4_FAILED_EXECUTION_BINDING
+    )
+    assert plan["failed_v15r3_execution_binding"]["plan_sha256"] == (
+        recovery.FAILED_PROOF_PLAN_SHA256
+    )
+    assert plan["failed_v15r3_execution_binding"][
+        "cancel_route_call_count"
+    ] == 0
+    assert plan["failed_v15r3_execution_binding"][
+        "semantic_claim_count"
+    ] == 0
+    assert plan["failed_v15r3_execution_binding"][
+        "exchange_cancel_boundary_call_count"
+    ] == 0
+    assert plan["failed_v15r3_execution_binding"][
+        "successor_binder_signal_attempt_count"
+    ] == 0
+    assert plan["retry_authorized"] is False
+
+
+def test_v15r4_failed_v15r3_runtime_binding_proves_zero_command_boundary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    failed_plan = deepcopy(_plan(tmp_path, monkeypatch))
+    failed_plan.pop("failed_v15r3_execution_binding")
+    failed_plan.update(
+        {
+            "schema_version": "21",
+            "authority_kind": "selected_chain_child_cancel_recovery_v15r3",
+            "approval_id": recovery.FAILED_PROOF_APPROVAL_ID,
+            "batch_id": recovery.FAILED_PROOF_BATCH_ID,
+            "backend_commit": recovery.FAILED_PROOF_BACKEND_COMMIT,
+            "runner_sha256": recovery.FAILED_PROOF_RUNNER_SHA256,
+        }
+    )
+    failed_plan["cancel_command"].update(
+        recovery.expected_failed_v15r3_execution_binding()["cancel_command_ids"]
+    )
+    failed_plan["cancel_command"]["semantic_retry_policy"] = (
+        "fresh_v15r3_idempotency_key_exactly_once"
+    )
+    failed_plan["plan_sha256"] = recovery.FAILED_PROOF_PLAN_SHA256
+    marker = {
+        "authority": "selected_chain_child_cancel_recovery_v15r3",
+        "approval_id": recovery.FAILED_PROOF_APPROVAL_ID,
+        "batch_id": recovery.FAILED_PROOF_BATCH_ID,
+        "plan_file": str(recovery.FAILED_PROOF_ARTIFACT_PATHS["plan"]),
+        "plan_sha256": recovery.FAILED_PROOF_PLAN_SHA256,
+        "backend_commit": recovery.FAILED_PROOF_BACKEND_COMMIT,
+        "runner_sha256": recovery.FAILED_PROOF_RUNNER_SHA256,
+        "root_client_order_id": recovery.ROOT_CLIENT_ORDER_ID,
+        "child_client_order_id": recovery.CHILD_CLIENT_ORDER_ID,
+        "placement_attempt_maximum": 0,
+        "root_placement_maximum": 0,
+        "child_placement_maximum": 0,
+        "cancel_command_maximum": 1,
+        "placement_ledger_path": str(
+            recovery.FAILED_PROOF_ARTIFACT_PATHS["placement_ledger"]
+        ),
+        "cancel_ledger_path": str(
+            recovery.FAILED_PROOF_ARTIFACT_PATHS["cancel_ledger"]
+        ),
+        "backend_claim_log_path": str(
+            recovery.FAILED_PROOF_ARTIFACT_PATHS["backend_claim_log"]
+        ),
+        "handoff_path": str(
+            recovery.FAILED_PROOF_ABSENT_ARTIFACT_PATHS["handoff"]
+        ),
+        "process_id": recovery.FAILED_PROOF_PARENT_PROCESS_ID,
+    }
+    transition = _recovered_transition(failed_plan, successor=False)
+    transition["controlled_plan_sha256"] = recovery.FAILED_PROOF_PLAN_SHA256
+    transition["transition_sha256"] = recovery.FAILED_PROOF_TRANSITION_SHA256
+    runtime_authority = {
+        "plan_sha256": recovery.FAILED_PROOF_PLAN_SHA256,
+        "batch_id": recovery.FAILED_PROOF_BATCH_ID,
+        "parent_pid": recovery.FAILED_PROOF_PARENT_PROCESS_ID,
+        "state_dir": str(recovery.FAILED_PROOF_STATE_DIR),
+        "global_batch_marker": str(
+            recovery.FAILED_PROOF_ARTIFACT_PATHS["marker"]
+        ),
+    }
+    runtime_authority_used = {
+        "plan_sha256": recovery.FAILED_PROOF_PLAN_SHA256,
+        "batch_id": recovery.FAILED_PROOF_BATCH_ID,
+        "parent_pid": recovery.FAILED_PROOF_PARENT_PROCESS_ID,
+        "child_pid": recovery.FAILED_PROOF_RUNTIME_PROCESS_ID,
+        "global_batch_marker": str(
+            recovery.FAILED_PROOF_ARTIFACT_PATHS["marker"]
+        ),
+    }
+    sentinel = {
+        "installed": True,
+        "wrapper_identity_proven": True,
+        "phase": "runtime_exited",
+        "process_id": recovery.FAILED_PROOF_RUNTIME_PROCESS_ID,
+        "root_create_order_call_count": 0,
+        "root_create_order_maximum": 0,
+        "root_sdk_inflight": False,
+        "child_place_limit_order_call_count": 0,
+        "child_place_limit_order_maximum": 0,
+        "child_sdk_inflight": False,
+        "denied_call_count": 0,
+        "critical_failure": False,
+        "error": None,
+    }
+    live_service = {
+        "status": "blocked",
+        "requested_service_status": "live_disabled",
+        "service_enabled": False,
+        "live_coinbase_execution_approved": False,
+        "max_submitted_notional_usdc": "0",
+        "max_executed_notional_usdc": "0",
+        "deployment_ref": recovery.FAILED_PROOF_BACKEND_COMMIT,
+        "runtime_configuration_ref": str(recovery.FAILED_PROOF_STATE_DIR),
+    }
+    idempotency = {
+        "status": "accepted",
+        "endpoint": "POST /api/v1/admin/live-execution/service-decisions",
+        "response": {
+            "live_exchange_submitted": False,
+            "live_coinbase_orders_ran": False,
+        },
+    }
+    audit = {
+        "status": "accepted",
+        "endpoint": "POST /api/v1/admin/live-execution/service-decisions",
+        "live_exchange_submitted": False,
+        "live_coinbase_orders_ran": False,
+    }
+    monkeypatch.setattr(
+        recovery,
+        "FAILED_PROOF_RECORD_HASHES",
+        {
+            "live_service": _canonical_sha256(live_service),
+            "idempotency": _canonical_sha256(idempotency),
+            "audit": _canonical_sha256(audit),
+        },
+    )
+    json_values = {
+        recovery.FAILED_PROOF_ARTIFACT_PATHS["plan"]: failed_plan,
+        recovery.FAILED_PROOF_ARTIFACT_PATHS["marker"]: marker,
+        recovery.FAILED_PROOF_ARTIFACT_PATHS["runtime_transition"]: transition,
+        recovery.FAILED_PROOF_ARTIFACT_PATHS["runtime_authority"]: runtime_authority,
+        recovery.FAILED_PROOF_ARTIFACT_PATHS[
+            "runtime_authority_used"
+        ]: runtime_authority_used,
+        recovery.FAILED_PROOF_ARTIFACT_PATHS["sentinel"]: sentinel,
+    }
+    jsonl_values = {
+        recovery.FAILED_PROOF_ARTIFACT_PATHS["placement_ledger"]: [],
+        recovery.FAILED_PROOF_ARTIFACT_PATHS["cancel_ledger"]: [],
+        recovery.FAILED_PROOF_ARTIFACT_PATHS["backend_claim_log"]: [],
+        recovery.FAILED_PROOF_ARTIFACT_PATHS["live_service"]: [live_service],
+        recovery.FAILED_PROOF_ARTIFACT_PATHS["idempotency"]: [idempotency],
+        recovery.FAILED_PROOF_ARTIFACT_PATHS["audit"]: [audit],
+    }
+    monkeypatch.setattr(
+        recovery,
+        "_file_sha256",
+        lambda path, *_args, **_kwargs: next(
+            recovery.FAILED_PROOF_ARTIFACT_HASHES[key]
+            for key, expected_path in recovery.FAILED_PROOF_ARTIFACT_PATHS.items()
+            if path == expected_path
+        ),
+    )
+    monkeypatch.setattr(
+        recovery,
+        "_json",
+        lambda path, *_args, **_kwargs: deepcopy(json_values[path]),
+    )
+    monkeypatch.setattr(
+        recovery,
+        "_jsonl",
+        lambda path, *_args, **_kwargs: deepcopy(jsonl_values[path]),
+    )
+    monkeypatch.setattr(
+        recovery,
+        "_text",
+        lambda *_args, **_kwargs: (
+            'POST /api/v1/admin/live-execution/service-decisions HTTP/1.1" 200 OK\n'
+            'POST /api/v1/admin/approvals/requests HTTP/1.1" 422 '
+            "Unprocessable Content\n"
+            "Received SIGTERM; initiating graceful shutdown\n"
+            "Application shutdown complete.\n"
+        ),
+    )
+    original_plan_hash = recovery.plan_hash
+    monkeypatch.setattr(
+        recovery,
+        "plan_hash",
+        lambda value: (
+            recovery.FAILED_PROOF_PLAN_SHA256
+            if value.get("schema_version") == "21"
+            and value.get("batch_id") == recovery.FAILED_PROOF_BATCH_ID
+            else original_plan_hash(value)
+        ),
+    )
+    monkeypatch.setattr(
+        recovery,
+        "transition_hash",
+        lambda _value: recovery.FAILED_PROOF_TRANSITION_SHA256,
+    )
+    monkeypatch.setattr(recovery, "_process_id_absent", lambda _pid: True)
+    monkeypatch.setattr(recovery.os.path, "lexists", lambda _path: False)
+    monkeypatch.setattr(
+        recovery.base, "require_runtime_exclusivity", lambda **_kwargs: None
+    )
+
+    binding = recovery.load_failed_v15r3_execution_binding()
+
+    assert binding == recovery.expected_failed_v15r3_execution_binding()
+    sentinel["child_place_limit_order_call_count"] = 1
+    with pytest.raises(
+        recovery.ProofFailure,
+        match="v15r4_failed_execution_sentinel_scope_mismatch",
+    ):
+        recovery.load_failed_v15r3_execution_binding()
 
 
 def test_v15r3_source_binding_requires_successful_child_and_exact_failed_no_live_cancel(
@@ -560,6 +846,9 @@ def test_v15r3_prepare_creates_only_owner_only_plan_and_no_runtime_artifacts(
     completed = {
         "r2_source_binding": binding,
         "local_active_child_binding": _active_binding(),
+        "failed_v15r3_execution_binding": (
+            recovery.expected_failed_v15r3_execution_binding()
+        ),
     }
     monkeypatch.setattr(
         recovery,
@@ -654,13 +943,16 @@ def test_v15r3_completed_shutdown_binder_writes_strict_no_signal_receipt(
         "transition_disable_record_hashes": expected[
             "transition_disable_record_hashes"
         ],
+        "failed_v15r3_execution_binding": (
+            recovery.expected_failed_v15r3_execution_binding()
+        ),
         "both_predecessor_exact_identities_absent": True,
         "child_readback": expected["child_readback"],
     }
     monkeypatch.setattr(
         recovery,
-        "load_v15r3_completed_shutdown_binding",
-        lambda: completed,
+        "load_current_v15r3_source_binding",
+        lambda: (plan["v15r2_active_child_binding"], completed),
     )
     for name in (
         "signal_exact_process",
@@ -683,9 +975,9 @@ def test_v15r3_completed_shutdown_binder_writes_strict_no_signal_receipt(
         transition_path=transition_path,
     )
 
-    assert set(receipt) == recovery.V15R3_RECOVERED_TRANSITION_FIELDS
+    assert set(receipt) == recovery.V15R4_RECOVERED_TRANSITION_FIELDS
     assert receipt["transition_mode"] == (
-        "bind_completed_predecessor_shutdown_no_signals"
+        "bind_completed_predecessor_shutdowns_no_signals"
     )
     assert receipt["predecessor_signal_attempt_count"] == 0
     assert receipt["predecessor_signal_authorized"] is False
@@ -989,22 +1281,51 @@ def test_v15r3_proof_approval_is_capped_at_sealed_plan_expiry(
 
 
 def test_shared_proof_writer_sends_explicit_sealed_approval_expiry() -> None:
+    from application.admin_api.models import (
+        AdminAdmissionAuditCreateRequest,
+        AdminApprovalDecisionRequest,
+        AdminApprovalRequestCreateRequest,
+        AdminCapGuardDecisionCreateRequest,
+        AdminReconciliationPlanCreateRequest,
+    )
+
     approval_expiry = (
         datetime.now(timezone.utc) + recovery.PLAN_TTL - recovery.timedelta(seconds=5)
     ).isoformat()
     observed_decision: dict[str, object] = {}
+    observed_bodies: dict[str, dict[str, object]] = {}
+    observed_roles: dict[str, str] = {}
+    context = {
+        "route": "/route",
+        "method": "POST",
+        "module_id": "spot_operations",
+        "identity_key": "client_order_id",
+        "identity_value": recovery.ROOT_CLIENT_ORDER_ID,
+        "action_class": "live_exchange_cancel",
+        "required_permission": "order:cancel",
+        "service_method": "cancel",
+        "actor_id": recovery.ACTOR_ID,
+        "actor_roles": ["trader"],
+        "operator_intent": recovery.CANCEL_OPERATOR_INTENT,
+        "command_idempotency_key": "idem",
+        "payload_hash": "a" * 64,
+    }
 
     class Runtime:
         @staticmethod
-        def headers(**_kwargs):
-            return {}
+        def headers(**kwargs):
+            return kwargs
 
         @staticmethod
-        def request(method, path, *, body=None, **_kwargs):
+        def request(method, path, *, body=None, headers=None, **_kwargs):
             assert method == "POST"
+            observed_bodies[path] = dict(body)
+            observed_roles[path] = headers["role"]
             if path == "/admin/approvals/requests":
+                AdminApprovalRequestCreateRequest.model_validate(body)
                 return 200, {"approval": {"approval_request_id": "request-1"}}, {}
             if path == "/admin/approvals/requests/request-1/decisions":
+                AdminApprovalDecisionRequest.model_validate(body)
                 observed_decision.update(body)
                 return 200, {
                     "approval": {
@@ -1015,6 +1336,7 @@ def test_shared_proof_writer_sends_explicit_sealed_approval_expiry() -> None:
                     }
                 }, {}
             if path == "/admin/admission-audits":
+                AdminAdmissionAuditCreateRequest.model_validate(body)
                 return 200, {
                     "admission_audit": {
                         "admission_audit_id": "audit-1",
@@ -1022,6 +1344,7 @@ def test_shared_proof_writer_sends_explicit_sealed_approval_expiry() -> None:
                     }
                 }, {}
             if path == "/admin/cap-guard/decisions":
+                AdminCapGuardDecisionCreateRequest.model_validate(body)
                 return 200, {
                     "decision": {
                         "decision_id": "cap-1",
@@ -1029,6 +1352,7 @@ def test_shared_proof_writer_sends_explicit_sealed_approval_expiry() -> None:
                     }
                 }, {}
             if path == "/admin/reconciliation/plans":
+                AdminReconciliationPlanCreateRequest.model_validate(body)
                 return 200, {
                     "plan": {
                         "plan_id": "reconciliation-1",
@@ -1040,20 +1364,7 @@ def test_shared_proof_writer_sends_explicit_sealed_approval_expiry() -> None:
     recovery.base.write_proof_chain(
         Runtime(),
         label="v15r3-expiry",
-        context={
-            "route": "/route",
-            "method": "POST",
-            "module_id": "spot_operations",
-            "identity_key": "client_order_id",
-            "identity_value": recovery.ROOT_CLIENT_ORDER_ID,
-            "action_class": "live_exchange_cancel",
-            "required_permission": "order:cancel",
-            "service_method": "cancel",
-            "actor_id": recovery.ACTOR_ID,
-            "operator_intent": recovery.CANCEL_OPERATOR_INTENT,
-            "idempotency_key": "idem",
-            "payload_hash": "a" * 64,
-        },
+        context=context,
         wallet_available=Decimal("0"),
         max_notional=Decimal("0"),
         command_kind="child_cancel",
@@ -1065,6 +1376,29 @@ def test_shared_proof_writer_sends_explicit_sealed_approval_expiry() -> None:
     )
 
     assert observed_decision["expires_at"] == approval_expiry
+    proof_paths = {
+        "/admin/approvals/requests",
+        "/admin/admission-audits",
+        "/admin/cap-guard/decisions",
+        "/admin/reconciliation/plans",
+    }
+    assert all(
+        "actor_roles" not in observed_bodies[path] for path in proof_paths
+    )
+    assert "actor_id" not in observed_bodies["/admin/approvals/requests"]
+    assert "service_method" not in observed_bodies["/admin/approvals/requests"]
+    for path in proof_paths - {"/admin/approvals/requests"}:
+        assert observed_bodies[path]["actor_id"] == recovery.ACTOR_ID
+        assert observed_bodies[path]["service_method"] == "cancel"
+    assert context["actor_roles"] == ["trader"]
+    assert observed_roles["/admin/approvals/requests"] == "trader"
+    assert observed_roles["/admin/approvals/requests/request-1/decisions"] == (
+        "admin"
+    )
+    assert all(
+        observed_roles[path] == "admin"
+        for path in proof_paths - {"/admin/approvals/requests"}
+    )
 
 
 def test_v15r3_waiting_child_guard_rejects_fill_or_non_active_drift() -> None:

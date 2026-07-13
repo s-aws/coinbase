@@ -1,11 +1,11 @@
-"""Prepare or execute the sealed V15R3 cancel-only recovery authority.
+"""Prepare or execute the sealed V15R4 cancel-only recovery authority.
 
-V15R3 cannot place a root or child. Preparation binds the completed V15R2
-shutdown, validates the local active-child identity and authoritative Coinbase
-readback, then creates only an owner-only schema-21 plan. Preparation exposes
-no runtime, marker, ledger, handoff, process signal, or mutation request.
-Execution is a separate hash-confirmed mode, and the runner itself never
-submits the operator cancel.
+V15R4 cannot place a root or child. Preparation binds both the completed V15R2
+shutdown and the terminal failed V15R3 proof runtime, validates the local
+active-child identity and authoritative Coinbase readback, then creates only
+an owner-only schema-22 plan. Preparation exposes no runtime, marker, ledger,
+handoff, process signal, or mutation request. Execution is a separate
+hash-confirmed mode, and the runner itself never submits the operator cancel.
 """
 
 from __future__ import annotations
@@ -48,8 +48,8 @@ AGGREGATE_REFERENCE_NOTIONAL = Decimal("2.7125045345")
 CHILD_BASE_SIZE = Decimal("0.00001583")
 CHILD_LIMIT_PRICE = Decimal("107702.14")
 PLAN_TTL = timedelta(minutes=120)
-PLAN_SCHEMA_VERSION = "21"
-AUTHORITY_KIND = "selected_chain_child_cancel_recovery_v15r3"
+PLAN_SCHEMA_VERSION = "22"
+AUTHORITY_KIND = "selected_chain_child_cancel_recovery_v15r4"
 ACTOR_ID = "operator-controlled-spot-proof"
 ACTOR_ROLES = ["trader"]
 CANCEL_OPERATOR_INTENT = v15r2.CHILD_CANCEL_OPERATOR_INTENT
@@ -91,6 +91,27 @@ FAILED_V15R3_CANCEL_IDS = frozenset(
         "30e91103-79dc-5b1c-9843-e4be3ccc2963",
     }
 )
+FAILED_PROOF_PLAN_SHA256 = (
+    "189c338ebd49afb1013a0c2e54e6a228dc6e4e57707b5f0ef7487f63b5cf2302"
+)
+FAILED_PROOF_PLAN_BYTES_SHA256 = (
+    "dfcc3c12d8cc18c6808abc48cc8125cc24cf7494f79a5f8dff33246b25b5f6e7"
+)
+FAILED_PROOF_BATCH_ID = "12613395-b8d6-5fdd-9dc7-de3086de1a26"
+FAILED_PROOF_BACKEND_COMMIT = "aeea2205a18df36019572785b1c948775c53962d"
+FAILED_PROOF_RUNNER_SHA256 = (
+    "655964ffc3efd5701ecf39a3c2a695a394dc1421bda6a38e6f528a049de3d474"
+)
+FAILED_PROOF_CANCEL_IDS = frozenset(
+    {
+        "9df5c983-2f13-55bc-b8f1-47beed4c7ffd",
+        "c26a8f8a-4a13-5fff-ba31-19155d398eff",
+        "b6aa4aba-40e1-5c47-bc76-74e3de81751e",
+        "8c530163-9ca8-5fdf-8227-a69ed3580b3a",
+        "d675db7e-cbe4-5872-9391-0e222ad1c36d",
+        "05632c40-d7d0-5fe2-8679-d360580ac6be",
+    }
+)
 R2_CONCRETE_CANCEL_ENDPOINT = (
     f"POST /api/v1/orders/{ROOT_CLIENT_ORDER_ID}/fill-follow-up/child-cancel"
 )
@@ -104,7 +125,10 @@ R2_USED_IDS = frozenset(
         R2_CANCEL_ADMISSION_AUDIT_ID,
         R2_CANCEL_CAP_ID,
         R2_CANCEL_RECONCILIATION_ID,
+        FAILED_V15R3_BATCH_ID,
         *FAILED_V15R3_CANCEL_IDS,
+        FAILED_PROOF_BATCH_ID,
+        *FAILED_PROOF_CANCEL_IDS,
     }
 )
 
@@ -114,7 +138,7 @@ R2_STATE_DIR = ROOT / "artifacts/controlled-root-child-batch-20260713T022339Z-30
 REGISTRY_DIR = Path("/var/tmp/coinbase-admin-controlled-spot-root-child-batches")
 PLAN_PATH = Path(
     "/home/ec2-user/.local/state/"
-    "coinbase-controlled-spot-child-cancel-v15r3-20260713.plan.json"
+    "coinbase-controlled-spot-child-cancel-v15r4-20260713.plan.json"
 )
 FAILED_V15R3_PLAN_PATH = Path(
     "/home/ec2-user/.local/state/"
@@ -122,23 +146,123 @@ FAILED_V15R3_PLAN_PATH = Path(
     f"{FAILED_V15R3_PLAN_SHA256}.failed-post-shutdown-port-proof.json"
 )
 MARKER_PATH = REGISTRY_DIR / (
-    "test-profile-btc-usdc-selected-child-cancel-v15r3-20260713.authority.json"
+    "test-profile-btc-usdc-selected-child-cancel-v15r4-20260713.authority.json"
 )
 PLACEMENT_LEDGER_PATH = REGISTRY_DIR / (
-    "test-profile-btc-usdc-selected-child-cancel-v15r3-20260713.placements.jsonl"
+    "test-profile-btc-usdc-selected-child-cancel-v15r4-20260713.placements.jsonl"
 )
 CANCEL_LEDGER_PATH = REGISTRY_DIR / (
-    "test-profile-btc-usdc-selected-child-cancel-v15r3-20260713.cancel-command.jsonl"
+    "test-profile-btc-usdc-selected-child-cancel-v15r4-20260713.cancel-command.jsonl"
 )
 BACKEND_CLAIM_LOG_PATH = REGISTRY_DIR / (
-    "test-profile-btc-usdc-selected-child-cancel-v15r3-20260713.backend-claims.jsonl"
+    "test-profile-btc-usdc-selected-child-cancel-v15r4-20260713.backend-claims.jsonl"
 )
 HANDOFF_PATH = REGISTRY_DIR / (
-    "test-profile-btc-usdc-selected-child-cancel-v15r3-20260713.handoff.json"
+    "test-profile-btc-usdc-selected-child-cancel-v15r4-20260713.handoff.json"
 )
 RUNTIME_PATH = REGISTRY_DIR / (
-    "test-profile-btc-usdc-selected-child-cancel-v15r3-20260713.runtime.json"
+    "test-profile-btc-usdc-selected-child-cancel-v15r4-20260713.runtime.json"
 )
+
+FAILED_PROOF_STATE_DIR = (
+    ROOT / "artifacts/controlled-root-child-batch-20260713T060242Z-0559cb04"
+)
+FAILED_PROOF_REGISTRY_PREFIX = (
+    "test-profile-btc-usdc-selected-child-cancel-v15r3-20260713"
+)
+FAILED_PROOF_ARTIFACT_PATHS: dict[str, Path] = {
+    "plan": Path(
+        "/home/ec2-user/.local/state/"
+        "coinbase-controlled-spot-child-cancel-v15r3-20260713.plan.json"
+    ),
+    "marker": REGISTRY_DIR / f"{FAILED_PROOF_REGISTRY_PREFIX}.authority.json",
+    "placement_ledger": (
+        REGISTRY_DIR / f"{FAILED_PROOF_REGISTRY_PREFIX}.placements.jsonl"
+    ),
+    "cancel_ledger": (
+        REGISTRY_DIR / f"{FAILED_PROOF_REGISTRY_PREFIX}.cancel-command.jsonl"
+    ),
+    "backend_claim_log": (
+        REGISTRY_DIR / f"{FAILED_PROOF_REGISTRY_PREFIX}.backend-claims.jsonl"
+    ),
+    "runtime_transition": (
+        REGISTRY_DIR / f"{FAILED_PROOF_REGISTRY_PREFIX}.runtime.json"
+    ),
+    "runtime_authority": FAILED_PROOF_STATE_DIR / "runtime-child-authority.json",
+    "runtime_authority_used": (
+        FAILED_PROOF_STATE_DIR / "runtime-child-authority.used.json"
+    ),
+    "sentinel": FAILED_PROOF_STATE_DIR / "sdk-boundary-sentinel.json",
+    "runtime_log": FAILED_PROOF_STATE_DIR / "embedded-runtime.log",
+    "runtime_pid": FAILED_PROOF_STATE_DIR / "embedded-runtime.pid",
+    "live_service": FAILED_PROOF_STATE_DIR / "live_service.jsonl",
+    "idempotency": FAILED_PROOF_STATE_DIR / "idempotency.jsonl",
+    "audit": FAILED_PROOF_STATE_DIR / "audit.jsonl",
+}
+FAILED_PROOF_ARTIFACT_HASHES: dict[str, str] = {
+    "plan": FAILED_PROOF_PLAN_BYTES_SHA256,
+    "marker": "208cec96134f5037f868ecfc456849468a01c4b4fb2c72b20e11a13b66e7da2d",
+    "placement_ledger": hashlib.sha256(b"").hexdigest(),
+    "cancel_ledger": hashlib.sha256(b"").hexdigest(),
+    "backend_claim_log": hashlib.sha256(b"").hexdigest(),
+    "runtime_transition": (
+        "646464a2e25bd5d805923831b4deb6c281987978f8407be23bae50ce892d2d62"
+    ),
+    "runtime_authority": (
+        "0124c650bf6eac10f329d7009aafdcece91ca0b00b24ac000580602c5cce6035"
+    ),
+    "runtime_authority_used": (
+        "e9f27439e34e3899336811d76796f461cdc440234c05a2d61510c8d83782b4c9"
+    ),
+    "sentinel": (
+        "f97cebc12863187950cf79484e8072f9e2677a0761a9f266e71e88d004393ee7"
+    ),
+    "runtime_log": (
+        "ba92371461254c029da456fb828277612813e9821682831ebf189ab63fcf6987"
+    ),
+    "runtime_pid": (
+        "8617db95ac48c2cfbf3792b4c44a75b1da3c03c97b22962947ecc25ee49c4d6b"
+    ),
+    "live_service": (
+        "9cacf4ad3bfd2117d58f1751024541f3eae591148b4caf5fb0268199922407c1"
+    ),
+    "idempotency": (
+        "7a8ed1acff361593daccf0c98633d42bad940cc959d5b9aaa067e3f2a75fd79c"
+    ),
+    "audit": (
+        "7535a16a3dc09cf36817c1479bba00af5ce02a1085a3d62858a83c0500d9b74b"
+    ),
+}
+FAILED_PROOF_ABSENT_ARTIFACT_PATHS: dict[str, Path] = {
+    "handoff": REGISTRY_DIR / f"{FAILED_PROOF_REGISTRY_PREFIX}.handoff.json",
+    "approval_log": FAILED_PROOF_STATE_DIR / "approvals.jsonl",
+    "cap_guard_log": FAILED_PROOF_STATE_DIR / "cap_guard.jsonl",
+    "reconciliation_log": FAILED_PROOF_STATE_DIR / "reconciliation.jsonl",
+    "operator_progress": (
+        FAILED_PROOF_STATE_DIR / "v15r3-operator-ui-cancel-handoff.json"
+    ),
+    "parent_authority_loss": FAILED_PROOF_STATE_DIR / "parent-authority-loss.json",
+    "failure_summary": FAILED_PROOF_STATE_DIR / "controlled-batch-failure.json",
+    "cleanup_summary": FAILED_PROOF_STATE_DIR / "controlled-batch-cleanup.json",
+    "batch_summary": FAILED_PROOF_STATE_DIR / "controlled-batch-summary.json",
+}
+FAILED_PROOF_RECORD_HASHES: dict[str, str] = {
+    "live_service": (
+        "776acce37f5c8d24528f40c6fb0ab71f29cb4906ddb3ae64ed8da789922d4fdd"
+    ),
+    "idempotency": (
+        "ab9eb9d03afa50cdb8ca6f348bffdd7f423b98a6b33813895e2282423f3f204f"
+    ),
+    "audit": "f04d446ca55febe29099b67ad38af3f1f2d7bb5e21cb0105ce91a7de47d50d0d",
+}
+FAILED_PROOF_APPROVAL_ID = (
+    "controlled-child-cancel-v15r3-0f2f1920-e333-4048-9999-6d7ee6be665f"
+)
+FAILED_PROOF_TRANSITION_SHA256 = (
+    "ef1f4cfa34f7b879b429051aae676f4003412dc2523782f7098c714a3568bb39"
+)
+FAILED_PROOF_PARENT_PROCESS_ID = 671522
+FAILED_PROOF_RUNTIME_PROCESS_ID = 671573
 
 R2_ARTIFACT_PATHS: dict[str, str] = {
     "plan_path": (
@@ -241,6 +365,7 @@ V15R3_PLAN_FIELDS = frozenset(
         "exchange_order_id_fallback_authorized", "plan_sha256",
     }
 )
+V15R4_PLAN_FIELDS = V15R3_PLAN_FIELDS | {"failed_v15r3_execution_binding"}
 V15R3_RECOVERED_TRANSITION_FIELDS = frozenset(
     {
         "schema_version",
@@ -272,6 +397,9 @@ V15R3_RECOVERED_TRANSITION_FIELDS = frozenset(
         "transition_sha256",
     }
 )
+V15R4_RECOVERED_TRANSITION_FIELDS = V15R3_RECOVERED_TRANSITION_FIELDS | {
+    "failed_v15r3_execution_binding"
+}
 
 
 def _require(condition: bool, blocker: str) -> None:
@@ -319,6 +447,14 @@ def _json(path: Path, blocker: str, *, allow_public_read: bool = False) -> dict[
     return dict(value)
 
 
+def _text(path: Path, blocker: str, *, allow_public_read: bool = False) -> str:
+    _require_safe_regular_file(path, blocker, allow_public_read=allow_public_read)
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ProofFailure(f"{blocker}_malformed") from exc
+
+
 def _jsonl(
     path: Path, blocker: str, *, allow_public_read: bool = False
 ) -> list[dict[str, Any]]:
@@ -360,7 +496,7 @@ def _deterministic_id(batch_id: str, purpose: str) -> str:
     return str(
         uuid5(
             NAMESPACE_URL,
-            f"coinbase://selected-child-cancel-v15r3/{batch_id}/{purpose}",
+            f"coinbase://selected-child-cancel-v15r4/{batch_id}/{purpose}",
         )
     )
 
@@ -375,6 +511,66 @@ def cancel_command_ids(plan: Mapping[str, Any]) -> tuple[str, ...]:
             "cap_guard_decision_id", "reconciliation_plan_id",
         )
     )
+
+
+def expected_failed_v15r3_execution_binding() -> dict[str, Any]:
+    """Return the exact terminal failed-proof lineage sealed into V15R4."""
+
+    return {
+        "schema_version": "1",
+        "status": "failed_v15r3_proof_runtime_bound_no_live_cancel",
+        "plan_sha256": FAILED_PROOF_PLAN_SHA256,
+        "plan_bytes_sha256": FAILED_PROOF_PLAN_BYTES_SHA256,
+        "approval_id": FAILED_PROOF_APPROVAL_ID,
+        "batch_id": FAILED_PROOF_BATCH_ID,
+        "backend_commit": FAILED_PROOF_BACKEND_COMMIT,
+        "runner_sha256": FAILED_PROOF_RUNNER_SHA256,
+        "cancel_command_ids": {
+            "idempotency_key": "9df5c983-2f13-55bc-b8f1-47beed4c7ffd",
+            "correlation_id": "c26a8f8a-4a13-5fff-ba31-19155d398eff",
+            "claim_id": "b6aa4aba-40e1-5c47-bc76-74e3de81751e",
+            "approval_snapshot_id": "8c530163-9ca8-5fdf-8227-a69ed3580b3a",
+            "cap_guard_decision_id": "d675db7e-cbe4-5872-9391-0e222ad1c36d",
+            "reconciliation_plan_id": "05632c40-d7d0-5fe2-8679-d360580ac6be",
+        },
+        "artifact_paths": {
+            key: str(value) for key, value in FAILED_PROOF_ARTIFACT_PATHS.items()
+        },
+        "artifact_hashes": dict(FAILED_PROOF_ARTIFACT_HASHES),
+        "absent_artifact_paths": {
+            key: str(value)
+            for key, value in FAILED_PROOF_ABSENT_ARTIFACT_PATHS.items()
+        },
+        "transition_sha256": FAILED_PROOF_TRANSITION_SHA256,
+        "parent_process_id": FAILED_PROOF_PARENT_PROCESS_ID,
+        "runtime_process_id": FAILED_PROOF_RUNTIME_PROCESS_ID,
+        "root_sdk_call_count": 0,
+        "child_sdk_call_count": 0,
+        "cancel_route_call_count": 0,
+        "semantic_claim_count": 0,
+        "exchange_cancel_boundary_call_count": 0,
+        "failure_stage": "approval_proof_request",
+        "failure_http_status": 422,
+        "live_service_enabled": False,
+        "live_exchange_submitted": False,
+        "live_coinbase_orders_ran": False,
+        "successor_binder_signal_attempt_count": 0,
+        "successor_binder_restart_attempt_count": 0,
+        "both_processes_absent": True,
+        "admin_port_8787_free": True,
+        "child_readback": {
+            "client_order_id": CHILD_CLIENT_ORDER_ID,
+            "exchange_order_id": CHILD_EXCHANGE_ORDER_ID,
+            "status": "OPEN",
+            "filled_size": "0",
+            "filled_value": "0",
+            "total_fees": "0",
+            "number_of_fills": 0,
+            "reference_notional_usdc": base.decimal_text(
+                ACTIVE_CHILD_REFERENCE_NOTIONAL
+            ),
+        },
+    }
 
 
 def _read_process_identity(process_id: int) -> dict[str, Any]:
@@ -416,6 +612,10 @@ def same_kernel_process_identity(
         and bool(sealed_start)
         and sealed_start == observed_start
     )
+
+
+def _process_id_absent(process_id: int) -> bool:
+    return not Path(f"/proc/{process_id}").exists()
 
 
 def load_v15r2_failed_cancel_binding() -> dict[str, Any]:
@@ -972,11 +1172,276 @@ def load_v15r3_completed_shutdown_binding() -> dict[str, Any]:
     }
 
 
+def load_failed_v15r3_execution_binding() -> dict[str, Any]:
+    """Bind the consumed 189c runtime and prove no cancel boundary was reached."""
+
+    public_read_artifacts = {
+        "runtime_log", "runtime_pid", "live_service", "idempotency", "audit"
+    }
+    for name, path in FAILED_PROOF_ARTIFACT_PATHS.items():
+        _require(
+            _file_sha256(
+                path,
+                f"v15r4_failed_execution_{name}",
+                allow_public_read=name in public_read_artifacts,
+            )
+            == FAILED_PROOF_ARTIFACT_HASHES[name],
+            f"v15r4_failed_execution_{name}_hash_mismatch",
+        )
+    _require(
+        all(
+            not os.path.lexists(path)
+            for path in FAILED_PROOF_ABSENT_ARTIFACT_PATHS.values()
+        ),
+        "v15r4_failed_execution_absent_artifact_present",
+    )
+
+    failed_plan = _json(
+        FAILED_PROOF_ARTIFACT_PATHS["plan"],
+        "v15r4_failed_execution_plan",
+    )
+    failed_cancel = dict(failed_plan.get("cancel_command") or {})
+    _require(
+        set(failed_plan) == V15R3_PLAN_FIELDS
+        and failed_plan.get("schema_version") == "21"
+        and failed_plan.get("authority_kind")
+        == "selected_chain_child_cancel_recovery_v15r3"
+        and failed_plan.get("plan_sha256") == FAILED_PROOF_PLAN_SHA256
+        and plan_hash(failed_plan) == FAILED_PROOF_PLAN_SHA256
+        and failed_plan.get("approval_id") == FAILED_PROOF_APPROVAL_ID
+        and failed_plan.get("batch_id") == FAILED_PROOF_BATCH_ID
+        and failed_plan.get("backend_commit") == FAILED_PROOF_BACKEND_COMMIT
+        and failed_plan.get("runner_sha256") == FAILED_PROOF_RUNNER_SHA256
+        and set(cancel_command_ids(failed_plan)) == FAILED_PROOF_CANCEL_IDS
+        and failed_cancel.get("semantic_retry_policy")
+        == "fresh_v15r3_idempotency_key_exactly_once"
+        and failed_plan.get("placement_attempt_count") == 0
+        and failed_plan.get("placement_attempt_schedule") == []
+        and failed_plan.get("root_placement_maximum") == 0
+        and failed_plan.get("child_placement_maximum") == 0
+        and failed_plan.get("cancel_command_maximum") == 1
+        and failed_plan.get("root_placement_authorized") is False
+        and failed_plan.get("child_placement_authorized") is False
+        and failed_plan.get("retry_authorized") is False,
+        "v15r4_failed_execution_plan_scope_mismatch",
+    )
+
+    marker = _json(
+        FAILED_PROOF_ARTIFACT_PATHS["marker"],
+        "v15r4_failed_execution_marker",
+    )
+    _require(
+        marker.get("authority")
+        == "selected_chain_child_cancel_recovery_v15r3"
+        and marker.get("approval_id") == FAILED_PROOF_APPROVAL_ID
+        and marker.get("batch_id") == FAILED_PROOF_BATCH_ID
+        and marker.get("plan_file")
+        == str(FAILED_PROOF_ARTIFACT_PATHS["plan"])
+        and marker.get("plan_sha256") == FAILED_PROOF_PLAN_SHA256
+        and marker.get("backend_commit") == FAILED_PROOF_BACKEND_COMMIT
+        and marker.get("runner_sha256") == FAILED_PROOF_RUNNER_SHA256
+        and marker.get("root_client_order_id") == ROOT_CLIENT_ORDER_ID
+        and marker.get("child_client_order_id") == CHILD_CLIENT_ORDER_ID
+        and marker.get("placement_attempt_maximum") == 0
+        and marker.get("root_placement_maximum") == 0
+        and marker.get("child_placement_maximum") == 0
+        and marker.get("cancel_command_maximum") == 1
+        and marker.get("placement_ledger_path")
+        == str(FAILED_PROOF_ARTIFACT_PATHS["placement_ledger"])
+        and marker.get("cancel_ledger_path")
+        == str(FAILED_PROOF_ARTIFACT_PATHS["cancel_ledger"])
+        and marker.get("backend_claim_log_path")
+        == str(FAILED_PROOF_ARTIFACT_PATHS["backend_claim_log"])
+        and marker.get("handoff_path")
+        == str(FAILED_PROOF_ABSENT_ARTIFACT_PATHS["handoff"])
+        and marker.get("process_id") == FAILED_PROOF_PARENT_PROCESS_ID,
+        "v15r4_failed_execution_marker_scope_mismatch",
+    )
+
+    transition = _json(
+        FAILED_PROOF_ARTIFACT_PATHS["runtime_transition"],
+        "v15r4_failed_execution_transition",
+    )
+    child = dict(transition.get("child_readback") or {})
+    _require(
+        set(transition) == V15R3_RECOVERED_TRANSITION_FIELDS
+        and transition.get("schema_version") == "2"
+        and transition.get("status") == "v15r2_to_v15r3_no_overlap_proven"
+        and transition.get("recovery_status")
+        == "v15r2_shutdown_bound_no_overlap_proven"
+        and transition.get("transition_mode")
+        == "bind_completed_predecessor_shutdown_no_signals"
+        and transition.get("controlled_plan_sha256")
+        == FAILED_PROOF_PLAN_SHA256
+        and transition.get("predecessor_signal_attempt_count") == 0
+        and transition.get("predecessor_signal_authorized") is False
+        and transition.get("predecessor_restart_authorized") is False
+        and transition.get("both_predecessor_processes_absent") is True
+        and transition.get("both_predecessor_exact_identities_absent") is True
+        and transition.get("admin_port_8787_free") is True
+        and transition.get("competitor_pid") is None
+        and transition.get("exact_child_open_zero_fill") is True
+        and child
+        == expected_failed_v15r3_execution_binding()["child_readback"]
+        and transition.get("transition_sha256")
+        == FAILED_PROOF_TRANSITION_SHA256
+        and transition_hash(transition) == FAILED_PROOF_TRANSITION_SHA256,
+        "v15r4_failed_execution_transition_scope_mismatch",
+    )
+
+    runtime_authority = _json(
+        FAILED_PROOF_ARTIFACT_PATHS["runtime_authority"],
+        "v15r4_failed_execution_runtime_authority",
+    )
+    consumed_authority = _json(
+        FAILED_PROOF_ARTIFACT_PATHS["runtime_authority_used"],
+        "v15r4_failed_execution_consumed_authority",
+    )
+    _require(
+        runtime_authority.get("plan_sha256") == FAILED_PROOF_PLAN_SHA256
+        and runtime_authority.get("batch_id") == FAILED_PROOF_BATCH_ID
+        and runtime_authority.get("parent_pid")
+        == FAILED_PROOF_PARENT_PROCESS_ID
+        and runtime_authority.get("state_dir") == str(FAILED_PROOF_STATE_DIR)
+        and runtime_authority.get("global_batch_marker")
+        == str(FAILED_PROOF_ARTIFACT_PATHS["marker"])
+        and consumed_authority.get("plan_sha256")
+        == FAILED_PROOF_PLAN_SHA256
+        and consumed_authority.get("batch_id") == FAILED_PROOF_BATCH_ID
+        and consumed_authority.get("parent_pid")
+        == FAILED_PROOF_PARENT_PROCESS_ID
+        and consumed_authority.get("child_pid")
+        == FAILED_PROOF_RUNTIME_PROCESS_ID
+        and consumed_authority.get("global_batch_marker")
+        == str(FAILED_PROOF_ARTIFACT_PATHS["marker"]),
+        "v15r4_failed_execution_runtime_authority_scope_mismatch",
+    )
+
+    sentinel = _json(
+        FAILED_PROOF_ARTIFACT_PATHS["sentinel"],
+        "v15r4_failed_execution_sentinel",
+    )
+    _require(
+        sentinel.get("installed") is True
+        and sentinel.get("wrapper_identity_proven") is True
+        and sentinel.get("phase") == "runtime_exited"
+        and sentinel.get("process_id") == FAILED_PROOF_RUNTIME_PROCESS_ID
+        and sentinel.get("root_create_order_call_count") == 0
+        and sentinel.get("root_create_order_maximum") == 0
+        and sentinel.get("root_sdk_inflight") is False
+        and sentinel.get("child_place_limit_order_call_count") == 0
+        and sentinel.get("child_place_limit_order_maximum") == 0
+        and sentinel.get("child_sdk_inflight") is False
+        and sentinel.get("denied_call_count") == 0
+        and sentinel.get("critical_failure") is False
+        and sentinel.get("error") is None,
+        "v15r4_failed_execution_sentinel_scope_mismatch",
+    )
+    _require(
+        not _jsonl(
+            FAILED_PROOF_ARTIFACT_PATHS["placement_ledger"],
+            "v15r4_failed_execution_placement_ledger",
+        )
+        and not _jsonl(
+            FAILED_PROOF_ARTIFACT_PATHS["cancel_ledger"],
+            "v15r4_failed_execution_cancel_ledger",
+        )
+        and not _jsonl(
+            FAILED_PROOF_ARTIFACT_PATHS["backend_claim_log"],
+            "v15r4_failed_execution_backend_claim_log",
+        ),
+        "v15r4_failed_execution_command_or_claim_present",
+    )
+
+    live_rows = _jsonl(
+        FAILED_PROOF_ARTIFACT_PATHS["live_service"],
+        "v15r4_failed_execution_live_service",
+        allow_public_read=True,
+    )
+    idempotency_rows = _jsonl(
+        FAILED_PROOF_ARTIFACT_PATHS["idempotency"],
+        "v15r4_failed_execution_idempotency",
+        allow_public_read=True,
+    )
+    audit_rows = _jsonl(
+        FAILED_PROOF_ARTIFACT_PATHS["audit"],
+        "v15r4_failed_execution_audit",
+        allow_public_read=True,
+    )
+    live = _record_with_canonical_hash(
+        live_rows,
+        expected_hash=FAILED_PROOF_RECORD_HASHES["live_service"],
+        blocker="v15r4_failed_execution_live_service_record_missing",
+    )
+    idempotency = _record_with_canonical_hash(
+        idempotency_rows,
+        expected_hash=FAILED_PROOF_RECORD_HASHES["idempotency"],
+        blocker="v15r4_failed_execution_idempotency_record_missing",
+    )
+    audit = _record_with_canonical_hash(
+        audit_rows,
+        expected_hash=FAILED_PROOF_RECORD_HASHES["audit"],
+        blocker="v15r4_failed_execution_audit_record_missing",
+    )
+    _require(
+        len(live_rows) == len(idempotency_rows) == len(audit_rows) == 1
+        and live.get("status") == "blocked"
+        and live.get("requested_service_status") == "live_disabled"
+        and live.get("service_enabled") is False
+        and live.get("live_coinbase_execution_approved") is False
+        and live.get("max_submitted_notional_usdc") == "0"
+        and live.get("max_executed_notional_usdc") == "0"
+        and live.get("deployment_ref") == FAILED_PROOF_BACKEND_COMMIT
+        and live.get("runtime_configuration_ref") == str(FAILED_PROOF_STATE_DIR)
+        and idempotency.get("status") == "accepted"
+        and idempotency.get("endpoint")
+        == "POST /api/v1/admin/live-execution/service-decisions"
+        and dict(idempotency.get("response") or {}).get(
+            "live_exchange_submitted"
+        )
+        is False
+        and dict(idempotency.get("response") or {}).get(
+            "live_coinbase_orders_ran"
+        )
+        is False
+        and audit.get("status") == "accepted"
+        and audit.get("endpoint")
+        == "POST /api/v1/admin/live-execution/service-decisions"
+        and audit.get("live_exchange_submitted") is False
+        and audit.get("live_coinbase_orders_ran") is False,
+        "v15r4_failed_execution_disabled_service_scope_mismatch",
+    )
+    runtime_log = _text(
+        FAILED_PROOF_ARTIFACT_PATHS["runtime_log"],
+        "v15r4_failed_execution_runtime_log",
+        allow_public_read=True,
+    )
+    _require(
+        'POST /api/v1/admin/live-execution/service-decisions HTTP/1.1" 200 OK'
+        in runtime_log
+        and 'POST /api/v1/admin/approvals/requests HTTP/1.1" 422 '
+        "Unprocessable Content" in runtime_log
+        and "Received SIGTERM; initiating graceful shutdown" in runtime_log
+        and "Application shutdown complete." in runtime_log,
+        "v15r4_failed_execution_runtime_log_scope_mismatch",
+    )
+    _require(
+        _process_id_absent(FAILED_PROOF_PARENT_PROCESS_ID)
+        and _process_id_absent(FAILED_PROOF_RUNTIME_PROCESS_ID),
+        "v15r4_failed_execution_process_present",
+    )
+    base.require_runtime_exclusivity(require_port_free=True)
+    return expected_failed_v15r3_execution_binding()
+
+
 def load_current_v15r3_source_binding(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Load the one completed-shutdown source accepted by this successor."""
+    """Load the completed R2 shutdown and consumed V15R3 proof runtime."""
 
     completed = load_v15r3_completed_shutdown_binding()
+    completed["failed_v15r3_execution_binding"] = (
+        load_failed_v15r3_execution_binding()
+    )
     return dict(completed["r2_source_binding"]), completed
 
 
@@ -1105,25 +1570,34 @@ def build_v15r3_plan(
     r2_binding: Mapping[str, Any],
     *,
     local_active_child: Mapping[str, Any],
+    failed_v15r3_execution_binding: Mapping[str, Any] | None = None,
     now: datetime | None = None,
     approval_id: str | None = None,
 ) -> dict[str, Any]:
     created_at = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    approval = approval_id or f"controlled-child-cancel-v15r3-{uuid4()}"
+    approval = approval_id or f"controlled-child-cancel-v15r4-{uuid4()}"
     _require(
-        approval.startswith("controlled-child-cancel-v15r3-"),
+        approval.startswith("controlled-child-cancel-v15r4-"),
         "v15r3_approval_namespace_invalid",
     )
-    UUID(approval.removeprefix("controlled-child-cancel-v15r3-"))
+    UUID(approval.removeprefix("controlled-child-cancel-v15r4-"))
     exact_runner = runner_sha256()
     commit = backend_commit()
     batch_id = str(
         uuid5(
             NAMESPACE_URL,
-            f"coinbase://selected-child-cancel-v15r3/{commit}/{exact_runner}/{approval}",
+            f"coinbase://selected-child-cancel-v15r4/{commit}/{exact_runner}/{approval}",
         )
     )
     local_binding = validate_local_active_child_binding(local_active_child)
+    failed_execution_binding = dict(
+        failed_v15r3_execution_binding
+        or expected_failed_v15r3_execution_binding()
+    )
+    _require(
+        failed_execution_binding == expected_failed_v15r3_execution_binding(),
+        "v15r4_failed_execution_binding_mismatch",
+    )
     cancel = {
         "route": "/api/v1/orders/{root_client_order_id}/fill-follow-up/child-cancel",
         "method": "POST",
@@ -1144,7 +1618,7 @@ def build_v15r3_plan(
             batch_id, "child-cancel-reconciliation"
         ),
         "controlled_plan_sha256_source": "plan_sha256",
-        "semantic_retry_policy": "fresh_v15r3_idempotency_key_exactly_once",
+        "semantic_retry_policy": "fresh_v15r4_idempotency_key_exactly_once",
         "exchange_order_id_fallback_authorized": False,
     }
     plan: dict[str, Any] = {
@@ -1158,6 +1632,7 @@ def build_v15r3_plan(
         "frontend_commit": frontend_commit(),
         "runner_sha256": exact_runner,
         "v15r2_active_child_binding": dict(r2_binding),
+        "failed_v15r3_execution_binding": failed_execution_binding,
         "local_active_child_binding": local_binding,
         "profile_label": PROFILE_LABEL,
         "portfolio_id": TEST_PORTFOLIO_ID,
@@ -1233,7 +1708,8 @@ def build_v15r3_plan(
         "exchange_order_id_fallback_authorized": False,
     }
     _require(
-        set(cancel_command_ids(plan)).isdisjoint(R2_USED_IDS),
+        batch_id not in R2_USED_IDS
+        and set(cancel_command_ids(plan)).isdisjoint(R2_USED_IDS),
         "v15r3_fresh_id_scope_mismatch",
     )
     plan["plan_sha256"] = plan_hash(plan)
@@ -1243,7 +1719,7 @@ def build_v15r3_plan(
 def validate_v15r3_plan(
     plan: Mapping[str, Any], *, expected_hash: str, now: datetime | None = None
 ) -> None:
-    _require(set(plan) == V15R3_PLAN_FIELDS, "v15r3_plan_fields_mismatch")
+    _require(set(plan) == V15R4_PLAN_FIELDS, "v15r3_plan_fields_mismatch")
     computed = plan_hash(plan)
     _require(
         secrets.compare_digest(str(plan.get("plan_sha256") or ""), computed)
@@ -1340,6 +1816,7 @@ def validate_v15r3_plan(
     _require(
         all(cancel_command_ids(plan))
         and len(set(cancel_command_ids(plan))) == len(cancel_command_ids(plan))
+        and batch_id not in R2_USED_IDS
         and set(cancel_command_ids(plan)).isdisjoint(R2_USED_IDS),
         "v15r3_fresh_id_scope_mismatch",
     )
@@ -1368,7 +1845,7 @@ def validate_v15r3_plan(
         == _deterministic_id(batch_id, "child-cancel-reconciliation")
         and cancel.get("controlled_plan_sha256_source") == "plan_sha256"
         and cancel.get("semantic_retry_policy")
-        == "fresh_v15r3_idempotency_key_exactly_once"
+        == "fresh_v15r4_idempotency_key_exactly_once"
         and cancel.get("exchange_order_id_fallback_authorized") is False,
         "v15r3_cancel_scope_mismatch",
     )
@@ -1382,6 +1859,11 @@ def validate_v15r3_plan(
         and plan.get("exchange_order_id_fallback_authorized") is False,
         "v15r3_broadening_boundary_mismatch",
     )
+    _require(
+        plan.get("failed_v15r3_execution_binding")
+        == expected_failed_v15r3_execution_binding(),
+        "v15r4_failed_execution_binding_mismatch",
+    )
     expected_source, completed_shutdown = load_current_v15r3_source_binding()
     expected_local = dict(completed_shutdown["local_active_child_binding"])
     _require(
@@ -1389,7 +1871,9 @@ def validate_v15r3_plan(
         and validate_local_active_child_binding(
             dict(plan.get("local_active_child_binding") or {})
         )
-        == expected_local,
+        == expected_local
+        and plan.get("failed_v15r3_execution_binding")
+        == completed_shutdown.get("failed_v15r3_execution_binding"),
         "v15r3_recovery_binding_mismatch",
     )
     created = datetime.fromisoformat(str(plan.get("created_at") or ""))
@@ -1677,27 +2161,30 @@ def bind_completed_v15r2_shutdown(
     confirmed_plan_sha256: str,
     transition_path: Path,
 ) -> dict[str, Any]:
-    """Write a no-signal receipt for the already completed R2 shutdown."""
+    """Bind both completed predecessors without replaying a signal."""
 
     _require(
         str(plan.get("plan_sha256") or "") == confirmed_plan_sha256,
         "v15r3_recovered_transition_plan_hash_mismatch",
     )
-    completed = load_v15r3_completed_shutdown_binding()
+    expected_source, completed = load_current_v15r3_source_binding()
     _require(
-        plan.get("v15r2_active_child_binding")
-        == completed["r2_source_binding"]
+        plan.get("v15r2_active_child_binding") == expected_source
         and plan.get("local_active_child_binding")
-        == completed["local_active_child_binding"],
+        == completed["local_active_child_binding"]
+        and plan.get("failed_v15r3_execution_binding")
+        == completed["failed_v15r3_execution_binding"],
         "v15r3_recovered_transition_binding_mismatch",
     )
     child = dict(completed["child_readback"])
     proof: dict[str, Any] = {
-        "schema_version": "2",
-        "status": "v15r2_to_v15r3_no_overlap_proven",
-        "recovery_status": "v15r2_shutdown_bound_no_overlap_proven",
+        "schema_version": "3",
+        "status": "v15r3_to_v15r4_no_overlap_proven",
+        "recovery_status": (
+            "failed_v15r3_proof_runtime_bound_no_live_cancel"
+        ),
         "transition_mode": (
-            "bind_completed_predecessor_shutdown_no_signals"
+            "bind_completed_predecessor_shutdowns_no_signals"
         ),
         "controlled_plan_sha256": confirmed_plan_sha256,
         "failed_plan_sha256": completed["failed_plan_sha256"],
@@ -1728,6 +2215,9 @@ def bind_completed_v15r2_shutdown(
         "transition_disable_record_hashes": completed[
             "transition_disable_record_hashes"
         ],
+        "failed_v15r3_execution_binding": dict(
+            completed["failed_v15r3_execution_binding"]
+        ),
         "admin_port_8787_free": True,
         "competitor_pid": None,
         "exact_child_open_zero_fill": (
@@ -1842,7 +2332,7 @@ def _validate_frozen_plan_after_transition(
     now: datetime,
 ) -> None:
     _require(
-        set(plan) == V15R3_PLAN_FIELDS
+        set(plan) == V15R4_PLAN_FIELDS
         and plan_hash(plan) == expected_hash == plan.get("plan_sha256")
         and plan.get("backend_commit") == backend_commit()
         and plan.get("frontend_commit") == frontend_commit()
@@ -1876,13 +2366,13 @@ def _validate_frozen_plan_after_transition(
     except (ArithmeticError, TypeError, ValueError):
         child_is_exact_zero_fill = False
     _require(
-        set(proof) == V15R3_RECOVERED_TRANSITION_FIELDS
-        and proof.get("schema_version") == "2"
-        and proof.get("status") == "v15r2_to_v15r3_no_overlap_proven"
+        set(proof) == V15R4_RECOVERED_TRANSITION_FIELDS
+        and proof.get("schema_version") == "3"
+        and proof.get("status") == "v15r3_to_v15r4_no_overlap_proven"
         and proof.get("recovery_status")
-        == "v15r2_shutdown_bound_no_overlap_proven"
+        == "failed_v15r3_proof_runtime_bound_no_live_cancel"
         and proof.get("transition_mode")
-        == "bind_completed_predecessor_shutdown_no_signals"
+        == "bind_completed_predecessor_shutdowns_no_signals"
         and proof.get("controlled_plan_sha256") == expected_hash
         and proof.get("failed_plan_sha256") == FAILED_V15R3_PLAN_SHA256
         and proof.get("failed_plan_bytes_sha256")
@@ -1909,6 +2399,9 @@ def _validate_frozen_plan_after_transition(
         == COMPLETED_SHUTDOWN_ARTIFACT_HASHES
         and proof.get("transition_disable_record_hashes")
         == COMPLETED_SHUTDOWN_RECORD_HASHES
+        and proof.get("failed_v15r3_execution_binding")
+        == plan.get("failed_v15r3_execution_binding")
+        == expected_failed_v15r3_execution_binding()
         and proof.get("admin_port_8787_free") is True
         and proof.get("competitor_pid") is None
         and proof.get("exact_child_open_zero_fill") is True
@@ -2090,7 +2583,7 @@ def set_v15r3_cancel_only_service(
     else:
         runtime.live_service_disable_attempted = True
     body = {
-        "decision_id": f"v15r3-cancel-only-{label}-{uuid4()}",
+        "decision_id": f"v15r4-cancel-only-{label}-{uuid4()}",
         "status": "passed" if enabled else "blocked",
         "requested_service_status": "approval_required" if enabled else "live_disabled",
         "service_enabled": enabled,
@@ -2104,7 +2597,7 @@ def set_v15r3_cancel_only_service(
         "decision_reason": (
             "Enable one approval-bound cancel of the existing V15R2 first child."
             if enabled
-            else "Disable V15R3 cancel-only service at transition or closeout."
+            else "Disable V15R4 cancel-only service at transition or closeout."
         ),
         "live_coinbase_execution_approved": enabled,
         "max_submitted_notional_usdc": "0",
@@ -2114,8 +2607,8 @@ def set_v15r3_cancel_only_service(
         "POST",
         "/admin/live-execution/service-decisions",
         headers=runtime.headers(
-            idempotency_key=f"idem-v15r3-cancel-service-{label}-{uuid4()}",
-            operator_intent=f"record_v15r3_cancel_service_{label}",
+            idempotency_key=f"idem-v15r4-cancel-service-{label}-{uuid4()}",
+            operator_intent=f"record_v15r4_cancel_service_{label}",
             role=base.ADMIN_ROLE,
         ),
         body=body,
@@ -2259,7 +2752,7 @@ def write_v15r3_exact_proofs(
     cancel = dict(plan["cancel_command"])
     return base.write_proof_chain(
         runtime,
-        label="v15r3-child-cancel",
+        label="v15r4-child-cancel",
         context=context,
         wallet_available=Decimal("0"),
         max_notional=Decimal("0"),
@@ -2396,7 +2889,7 @@ def execute_v15r3_plan(
             "plan_expires_at": frozen_plan["expires_at"],
             "child_cancel_handoff": handoff,
         }
-        progress_path = runtime.state_dir / "v15r3-operator-ui-cancel-handoff.json"
+        progress_path = runtime.state_dir / "v15r4-operator-ui-cancel-handoff.json"
         base._replace_owner_only_json(progress_path, progress)
         print(json.dumps(progress, sort_keys=True), flush=True)
         monitor_rest_client = base.hydrate_test_credentials()
@@ -2563,7 +3056,12 @@ def prepare_v15r3_plan(
     source_binding, completed_shutdown = load_current_v15r3_source_binding()
     local_binding = dict(completed_shutdown["local_active_child_binding"])
     plan = build_v15r3_plan(
-        source_binding, local_active_child=local_binding, now=now
+        source_binding,
+        local_active_child=local_binding,
+        failed_v15r3_execution_binding=dict(
+            completed_shutdown["failed_v15r3_execution_binding"]
+        ),
+        now=now,
     )
     plan_path.parent.mkdir(parents=True, mode=0o700, exist_ok=True)
     base._write_owner_only_exclusive_json(
@@ -2587,6 +3085,7 @@ def prepare_v15r3_plan(
         "live_coinbase_orders_ran": False,
         "live_coinbase_read_ran": True,
         "completed_predecessor_shutdown_bound": True,
+        "failed_v15r3_execution_bound": True,
         "marker_written": False,
         "ledger_written": False,
         "handoff_written": False,
@@ -2597,12 +3096,12 @@ def prepare_v15r3_plan(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--prepare-v15r3-plan", action="store_true")
-    mode.add_argument("--execute-v15r3-plan", action="store_true")
+    mode.add_argument("--prepare-v15r4-plan", action="store_true")
+    mode.add_argument("--execute-v15r4-plan", action="store_true")
     parser.add_argument("--plan-file")
     parser.add_argument("--confirm-plan-sha256")
     args = parser.parse_args(argv)
-    if args.prepare_v15r3_plan:
+    if args.prepare_v15r4_plan:
         print(json.dumps(prepare_v15r3_plan(), sort_keys=True))
         return 0
     _require(bool(args.plan_file), "v15r3_execute_plan_file_required")

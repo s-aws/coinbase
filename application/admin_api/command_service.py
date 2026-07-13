@@ -111,8 +111,8 @@ from .root_child_cancel import (
     AdminRootChildCancelClaimRecord,
     FileAdminRootChildCancelClaimStore,
     controlled_child_cancel_root_scope,
+    is_controlled_v15_cancel_only_recovery_plan,
     is_controlled_v15r2_recovery_plan,
-    is_controlled_v15r3_recovery_plan,
     load_controlled_v15_plan_authority,
     root_child_cancel_semantic_key,
     validate_controlled_child_cancel_plan_scope,
@@ -435,15 +435,11 @@ def _root_child_cancel_plan_lineage(
     observed_preparation_batch_id: str,
     requested_command_plan_sha256: str | None,
 ) -> dict[str, Any]:
-    """Separate R3 cancel authority from the immutable R2 child origin."""
+    """Separate cancel-only command authority from its immutable R2 child."""
 
     plan_sha256 = str(plan.get("plan_sha256") or "")
     batch_id = str(plan.get("batch_id") or "")
-    if (
-        plan.get("schema_version") == "21"
-        and plan.get("authority_kind")
-        == "selected_chain_child_cancel_recovery_v15r3"
-    ):
+    if is_controlled_v15_cancel_only_recovery_plan(plan):
         binding = plan.get("v15r2_active_child_binding")
         binding = binding if isinstance(binding, Mapping) else {}
         runtime_plan_sha256 = str(binding.get("r2_plan_sha256") or "")
@@ -486,13 +482,9 @@ def _root_child_cancel_delegate_lineage(
     command_plan_sha256: str,
     command_batch_id: str,
 ) -> dict[str, Any]:
-    """Return only the local R2 child lineage used by canonical R3 cancel."""
+    """Return only the local R2 child lineage used by canonical cancel."""
 
-    if (
-        plan.get("schema_version") == "21"
-        and plan.get("authority_kind")
-        == "selected_chain_child_cancel_recovery_v15r3"
-    ):
+    if is_controlled_v15_cancel_only_recovery_plan(plan):
         binding = plan.get("v15r2_active_child_binding")
         binding = binding if isinstance(binding, Mapping) else {}
         controlled_plan_sha256 = str(binding.get("r2_plan_sha256") or "")
@@ -524,12 +516,12 @@ def _root_child_cancel_plan_expired_for_new_claim(
     expires_at: datetime,
     execution_started_within_plan: bool,
 ) -> bool:
-    """Fail schema 21 closed at TTL; older cleanup semantics stay unchanged."""
+    """Fail cancel-only authority closed at TTL; retain older cleanup rules."""
 
     if now < expires_at:
         return False
     return bool(
-        is_controlled_v15r3_recovery_plan(plan)
+        is_controlled_v15_cancel_only_recovery_plan(plan)
         or not execution_started_within_plan
     )
 
@@ -537,9 +529,9 @@ def _root_child_cancel_plan_expired_for_new_claim(
 def _root_child_cancel_post_expiry_cleanup_allowed(
     plan: Mapping[str, Any],
 ) -> bool:
-    """Schema 21 permits no fresh cancel admission after its sealed TTL."""
+    """Cancel-only schemas permit no fresh admission after their sealed TTL."""
 
-    return not is_controlled_v15r3_recovery_plan(plan)
+    return not is_controlled_v15_cancel_only_recovery_plan(plan)
 
 
 def _root_child_cancel_route_proof_chain_matches(
@@ -5450,11 +5442,7 @@ class AdminApiCommandService:
         root_authority = controlled_child_cancel_root_scope(plan)
         recovery_plan = bool(
             is_controlled_v15r2_recovery_plan(plan)
-            or (
-                plan.get("schema_version") == "21"
-                and plan.get("authority_kind")
-                == "selected_chain_child_cancel_recovery_v15r3"
-            )
+            or is_controlled_v15_cancel_only_recovery_plan(plan)
         )
         lineage = _root_child_cancel_plan_lineage(
             plan,
@@ -5500,7 +5488,7 @@ class AdminApiCommandService:
         ) or None
         child_reference_reserve_usdc = str(
             plan.get("active_child_reference_notional_usdc")
-            if plan.get("schema_version") == "21"
+            if is_controlled_v15_cancel_only_recovery_plan(plan)
             else plan.get(
                 "child_submitted_cap_usdc"
                 if recovery_plan
@@ -5522,7 +5510,7 @@ class AdminApiCommandService:
         child_notional_cap_usdc = str(
             plan.get(
                 "child_reference_cap_usdc"
-                if plan.get("schema_version") == "21"
+                if is_controlled_v15_cancel_only_recovery_plan(plan)
                 else "child_submitted_cap_usdc"
             )
             or ""

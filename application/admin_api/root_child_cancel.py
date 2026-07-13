@@ -11,7 +11,7 @@ import os
 from pathlib import Path
 import stat
 from threading import RLock
-from typing import Any, Literal, Mapping
+from typing import Any, Callable, Literal, Mapping
 import uuid
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -86,6 +86,9 @@ CONTROLLED_V15R2_AUTHORITY_KIND = (
 )
 CONTROLLED_V15R3_AUTHORITY_KIND = (
     "selected_chain_child_cancel_recovery_v15r3"
+)
+CONTROLLED_V15R4_AUTHORITY_KIND = (
+    "selected_chain_child_cancel_recovery_v15r4"
 )
 CONTROLLED_V15R2_PLAN_FIELDS = frozenset(
     {
@@ -324,6 +327,9 @@ CONTROLLED_V15R3_PLAN_FIELDS = frozenset(
         "plan_sha256",
     }
 )
+CONTROLLED_V15R4_PLAN_FIELDS = CONTROLLED_V15R3_PLAN_FIELDS | {
+    "failed_v15r3_execution_binding"
+}
 CONTROLLED_V15R2_PLAN_SHA256 = (
     "0b9ab483459a986ad05200a6740a0de6dca63b6c5da197572c952ce8aef524c2"
 )
@@ -482,18 +488,168 @@ CONTROLLED_V15R2_USED_CANCEL_IDS = frozenset(
         "aef54633-6cd4-4ad9-892b-7740aa27b45a",
         "6e678aff-e044-5962-9895-720b5ec528dc",
         "f24753f6-eac6-5207-9806-1b5502c0d474",
+        "ed13aab8-99aa-59c2-9104-b4f02cf66dc1",
         "fba7a3ed-420e-52b9-a4c4-e3a6bbc9d865",
         "3512e3bd-5cb1-5442-8a01-4ebdc71a77a9",
         "7bc45910-0144-59a4-a006-df23ee327ebc",
         "ef26324a-c9fe-52d9-9f24-54d23fa943b7",
         "8cc92c40-def3-5c34-80c0-b40345a5bdd2",
         "30e91103-79dc-5b1c-9843-e4be3ccc2963",
+        "12613395-b8d6-5fdd-9dc7-de3086de1a26",
+        "9df5c983-2f13-55bc-b8f1-47beed4c7ffd",
+        "c26a8f8a-4a13-5fff-ba31-19155d398eff",
+        "b6aa4aba-40e1-5c47-bc76-74e3de81751e",
+        "8c530163-9ca8-5fdf-8227-a69ed3580b3a",
+        "d675db7e-cbe4-5872-9391-0e222ad1c36d",
+        "05632c40-d7d0-5fe2-8679-d360580ac6be",
     }
 )
+_CONTROLLED_V15R3_FAILED_STATE_DIR = (
+    "/home/ec2-user/coinbase/artifacts/"
+    "controlled-root-child-batch-20260713T060242Z-0559cb04"
+)
+_CONTROLLED_V15R3_FAILED_REGISTRY_PREFIX = (
+    "/var/tmp/coinbase-admin-controlled-spot-root-child-batches/"
+    "test-profile-btc-usdc-selected-child-cancel-v15r3-20260713"
+)
+CONTROLLED_V15R4_FAILED_EXECUTION_BINDING = {
+    "schema_version": "1",
+    "status": "failed_v15r3_proof_runtime_bound_no_live_cancel",
+    "plan_sha256": (
+        "189c338ebd49afb1013a0c2e54e6a228dc6e4e57707b5f0ef7487f63b5cf2302"
+    ),
+    "plan_bytes_sha256": (
+        "dfcc3c12d8cc18c6808abc48cc8125cc24cf7494f79a5f8dff33246b25b5f6e7"
+    ),
+    "approval_id": (
+        "controlled-child-cancel-v15r3-0f2f1920-e333-4048-9999-6d7ee6be665f"
+    ),
+    "batch_id": "12613395-b8d6-5fdd-9dc7-de3086de1a26",
+    "backend_commit": "aeea2205a18df36019572785b1c948775c53962d",
+    "runner_sha256": (
+        "655964ffc3efd5701ecf39a3c2a695a394dc1421bda6a38e6f528a049de3d474"
+    ),
+    "cancel_command_ids": {
+        "idempotency_key": "9df5c983-2f13-55bc-b8f1-47beed4c7ffd",
+        "correlation_id": "c26a8f8a-4a13-5fff-ba31-19155d398eff",
+        "claim_id": "b6aa4aba-40e1-5c47-bc76-74e3de81751e",
+        "approval_snapshot_id": "8c530163-9ca8-5fdf-8227-a69ed3580b3a",
+        "cap_guard_decision_id": "d675db7e-cbe4-5872-9391-0e222ad1c36d",
+        "reconciliation_plan_id": "05632c40-d7d0-5fe2-8679-d360580ac6be",
+    },
+    "artifact_paths": {
+        "plan": (
+            "/home/ec2-user/.local/state/"
+            "coinbase-controlled-spot-child-cancel-v15r3-20260713.plan.json"
+        ),
+        "marker": f"{_CONTROLLED_V15R3_FAILED_REGISTRY_PREFIX}.authority.json",
+        "placement_ledger": (
+            f"{_CONTROLLED_V15R3_FAILED_REGISTRY_PREFIX}.placements.jsonl"
+        ),
+        "cancel_ledger": (
+            f"{_CONTROLLED_V15R3_FAILED_REGISTRY_PREFIX}.cancel-command.jsonl"
+        ),
+        "backend_claim_log": (
+            f"{_CONTROLLED_V15R3_FAILED_REGISTRY_PREFIX}.backend-claims.jsonl"
+        ),
+        "runtime_transition": (
+            f"{_CONTROLLED_V15R3_FAILED_REGISTRY_PREFIX}.runtime.json"
+        ),
+        "runtime_authority": (
+            f"{_CONTROLLED_V15R3_FAILED_STATE_DIR}/runtime-child-authority.json"
+        ),
+        "runtime_authority_used": (
+            f"{_CONTROLLED_V15R3_FAILED_STATE_DIR}/runtime-child-authority.used.json"
+        ),
+        "sentinel": (
+            f"{_CONTROLLED_V15R3_FAILED_STATE_DIR}/sdk-boundary-sentinel.json"
+        ),
+        "runtime_log": (
+            f"{_CONTROLLED_V15R3_FAILED_STATE_DIR}/embedded-runtime.log"
+        ),
+        "runtime_pid": (
+            f"{_CONTROLLED_V15R3_FAILED_STATE_DIR}/embedded-runtime.pid"
+        ),
+        "live_service": f"{_CONTROLLED_V15R3_FAILED_STATE_DIR}/live_service.jsonl",
+        "idempotency": f"{_CONTROLLED_V15R3_FAILED_STATE_DIR}/idempotency.jsonl",
+        "audit": f"{_CONTROLLED_V15R3_FAILED_STATE_DIR}/audit.jsonl",
+    },
+    "artifact_hashes": {
+        "plan": "dfcc3c12d8cc18c6808abc48cc8125cc24cf7494f79a5f8dff33246b25b5f6e7",
+        "marker": "208cec96134f5037f868ecfc456849468a01c4b4fb2c72b20e11a13b66e7da2d",
+        "placement_ledger": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "cancel_ledger": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "backend_claim_log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "runtime_transition": "646464a2e25bd5d805923831b4deb6c281987978f8407be23bae50ce892d2d62",
+        "runtime_authority": "0124c650bf6eac10f329d7009aafdcece91ca0b00b24ac000580602c5cce6035",
+        "runtime_authority_used": "e9f27439e34e3899336811d76796f461cdc440234c05a2d61510c8d83782b4c9",
+        "sentinel": "f97cebc12863187950cf79484e8072f9e2677a0761a9f266e71e88d004393ee7",
+        "runtime_log": "ba92371461254c029da456fb828277612813e9821682831ebf189ab63fcf6987",
+        "runtime_pid": "8617db95ac48c2cfbf3792b4c44a75b1da3c03c97b22962947ecc25ee49c4d6b",
+        "live_service": "9cacf4ad3bfd2117d58f1751024541f3eae591148b4caf5fb0268199922407c1",
+        "idempotency": "7a8ed1acff361593daccf0c98633d42bad940cc959d5b9aaa067e3f2a75fd79c",
+        "audit": "7535a16a3dc09cf36817c1479bba00af5ce02a1085a3d62858a83c0500d9b74b",
+    },
+    "absent_artifact_paths": {
+        "handoff": f"{_CONTROLLED_V15R3_FAILED_REGISTRY_PREFIX}.handoff.json",
+        "approval_log": f"{_CONTROLLED_V15R3_FAILED_STATE_DIR}/approvals.jsonl",
+        "cap_guard_log": f"{_CONTROLLED_V15R3_FAILED_STATE_DIR}/cap_guard.jsonl",
+        "reconciliation_log": (
+            f"{_CONTROLLED_V15R3_FAILED_STATE_DIR}/reconciliation.jsonl"
+        ),
+        "operator_progress": (
+            f"{_CONTROLLED_V15R3_FAILED_STATE_DIR}/"
+            "v15r3-operator-ui-cancel-handoff.json"
+        ),
+        "parent_authority_loss": (
+            f"{_CONTROLLED_V15R3_FAILED_STATE_DIR}/parent-authority-loss.json"
+        ),
+        "failure_summary": (
+            f"{_CONTROLLED_V15R3_FAILED_STATE_DIR}/controlled-batch-failure.json"
+        ),
+        "cleanup_summary": (
+            f"{_CONTROLLED_V15R3_FAILED_STATE_DIR}/controlled-batch-cleanup.json"
+        ),
+        "batch_summary": (
+            f"{_CONTROLLED_V15R3_FAILED_STATE_DIR}/controlled-batch-summary.json"
+        ),
+    },
+    "transition_sha256": (
+        "ef1f4cfa34f7b879b429051aae676f4003412dc2523782f7098c714a3568bb39"
+    ),
+    "parent_process_id": 671522,
+    "runtime_process_id": 671573,
+    "root_sdk_call_count": 0,
+    "child_sdk_call_count": 0,
+    "cancel_route_call_count": 0,
+    "semantic_claim_count": 0,
+    "exchange_cancel_boundary_call_count": 0,
+    "failure_stage": "approval_proof_request",
+    "failure_http_status": 422,
+    "live_service_enabled": False,
+    "live_exchange_submitted": False,
+    "live_coinbase_orders_ran": False,
+    "successor_binder_signal_attempt_count": 0,
+    "successor_binder_restart_attempt_count": 0,
+    "both_processes_absent": True,
+    "admin_port_8787_free": True,
+    "child_readback": {
+        "client_order_id": CONTROLLED_V15R2_CHILD_CLIENT_ORDER_ID,
+        "exchange_order_id": CONTROLLED_V15R2_CHILD_EXCHANGE_ORDER_ID,
+        "status": "OPEN",
+        "filled_size": "0",
+        "filled_value": "0",
+        "total_fees": "0",
+        "number_of_fills": 0,
+        "reference_notional_usdc": "1.7049248762",
+    },
+}
 CONTROLLED_V15R3_MARKER_FIELDS = CONTROLLED_V15R2_MARKER_FIELDS
 CONTROLLED_V15R3_HANDOFF_FIELDS = CONTROLLED_V15R2_HANDOFF_FIELDS | {
     "actor_roles"
 }
+CONTROLLED_V15R4_MARKER_FIELDS = CONTROLLED_V15R3_MARKER_FIELDS
+CONTROLLED_V15R4_HANDOFF_FIELDS = CONTROLLED_V15R3_HANDOFF_FIELDS
 
 
 class AdminRootChildCancelAuthorityError(RuntimeError):
@@ -740,6 +896,24 @@ def is_controlled_v15r3_recovery_plan(plan: Mapping[str, Any]) -> bool:
     )
 
 
+def is_controlled_v15r4_recovery_plan(plan: Mapping[str, Any]) -> bool:
+    """Identify only the self-describing failed-V15R3 cancel successor."""
+
+    return bool(
+        plan.get("schema_version") == "22"
+        and plan.get("authority_kind") == CONTROLLED_V15R4_AUTHORITY_KIND
+    )
+
+
+def is_controlled_v15_cancel_only_recovery_plan(
+    plan: Mapping[str, Any],
+) -> bool:
+    return bool(
+        is_controlled_v15r3_recovery_plan(plan)
+        or is_controlled_v15r4_recovery_plan(plan)
+    )
+
+
 def _lower_hex(value: Any, length: int) -> bool:
     text = str(value or "")
     return bool(
@@ -763,6 +937,16 @@ def _v15r3_proof_id(batch_id: str, purpose: str) -> str:
         uuid.uuid5(
             uuid.NAMESPACE_URL,
             "coinbase://selected-child-cancel-v15r3/"
+            f"{batch_id}/{purpose}",
+        )
+    )
+
+
+def _v15r4_proof_id(batch_id: str, purpose: str) -> str:
+    return str(
+        uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            "coinbase://selected-child-cancel-v15r4/"
             f"{batch_id}/{purpose}",
         )
     )
@@ -1111,16 +1295,24 @@ def validate_controlled_v15r2_recovery_plan_scope(
         ) from exc
 
 
-def validate_controlled_v15r3_recovery_plan_scope(
+def _validate_controlled_cancel_only_recovery_plan_scope(
     plan: Mapping[str, Any],
     *,
+    plan_fields: frozenset[str],
+    schema_version: str,
+    authority_kind: str,
+    approval_prefix: str,
+    batch_namespace: str,
+    proof_id: Callable[[str, str], str],
+    semantic_retry_policy: str,
+    error_code: str,
     now: datetime | None = None,
 ) -> None:
-    """Reject schema-21 authority outside the one existing active child."""
+    """Reject cancel-only authority outside the one existing active child."""
 
     del now
     try:
-        if set(plan) != CONTROLLED_V15R3_PLAN_FIELDS:
+        if set(plan) != plan_fields:
             raise ValueError("fields")
         root = dict(plan["root_evidence"])
         child = dict(plan["child"])
@@ -1266,7 +1458,6 @@ def validate_controlled_v15r3_recovery_plan_scope(
             raise ValueError("cancel_fields")
 
         approval_id = str(plan["approval_id"])
-        approval_prefix = "controlled-child-cancel-v15r3-"
         if not approval_id.startswith(approval_prefix):
             raise ValueError("approval")
         approval_uuid = uuid.UUID(approval_id.removeprefix(approval_prefix))
@@ -1277,8 +1468,8 @@ def validate_controlled_v15r3_recovery_plan_scope(
         expected_batch_id = str(
             uuid.uuid5(
                 uuid.NAMESPACE_URL,
-                "coinbase://selected-child-cancel-v15r3/"
-                f"{backend_commit}/{runner_sha256}/{approval_id}",
+                batch_namespace
+                + f"{backend_commit}/{runner_sha256}/{approval_id}",
             )
         )
         batch_id = str(plan["batch_id"])
@@ -1312,7 +1503,8 @@ def validate_controlled_v15r3_recovery_plan_scope(
             )
         }
         if not (
-            is_controlled_v15r3_recovery_plan(plan)
+            plan.get("schema_version") == schema_version
+            and plan.get("authority_kind") == authority_kind
             and batch_id == expected_batch_id
             and created_at.tzinfo is not None
             and expires_at.tzinfo is not None
@@ -1492,32 +1684,31 @@ def validate_controlled_v15r3_recovery_plan_scope(
                     "controlled_v15_test_profile_first_child_cancel"
                 ),
                 "actor_roles": ["trader"],
-                "idempotency_key": _v15r3_proof_id(
+                "idempotency_key": proof_id(
                     batch_id, "child-cancel-idempotency"
                 ),
-                "correlation_id": _v15r3_proof_id(
+                "correlation_id": proof_id(
                     batch_id, "child-cancel-correlation"
                 ),
-                "claim_id": _v15r3_proof_id(
+                "claim_id": proof_id(
                     batch_id, "child-cancel-claim"
                 ),
-                "approval_snapshot_id": _v15r3_proof_id(
+                "approval_snapshot_id": proof_id(
                     batch_id, "child-cancel-approval"
                 ),
                 "admission_audit_id_source": "route_bound_runtime_proof",
-                "cap_guard_decision_id": _v15r3_proof_id(
+                "cap_guard_decision_id": proof_id(
                     batch_id, "child-cancel-cap"
                 ),
-                "reconciliation_plan_id": _v15r3_proof_id(
+                "reconciliation_plan_id": proof_id(
                     batch_id, "child-cancel-reconciliation"
                 ),
                 "controlled_plan_sha256_source": "plan_sha256",
-                "semantic_retry_policy": (
-                    "fresh_v15r3_idempotency_key_exactly_once"
-                ),
+                "semantic_retry_policy": semantic_retry_policy,
                 "exchange_order_id_fallback_authorized": False,
             }
             and len(fresh_ids) == 6
+            and batch_id not in CONTROLLED_V15R2_USED_CANCEL_IDS
             and not fresh_ids.intersection(CONTROLLED_V15R2_USED_CANCEL_IDS)
             and plan.get("retry_authorized") is False
             and plan.get("substitution_authorized") is False
@@ -1528,8 +1719,54 @@ def validate_controlled_v15r3_recovery_plan_scope(
         ):
             raise ValueError("scope")
     except (KeyError, TypeError, ValueError, ArithmeticError) as exc:
+        raise AdminRootChildCancelAuthorityError(error_code) from exc
+
+
+def validate_controlled_v15r3_recovery_plan_scope(
+    plan: Mapping[str, Any],
+    *,
+    now: datetime | None = None,
+) -> None:
+    _validate_controlled_cancel_only_recovery_plan_scope(
+        plan,
+        plan_fields=CONTROLLED_V15R3_PLAN_FIELDS,
+        schema_version="21",
+        authority_kind=CONTROLLED_V15R3_AUTHORITY_KIND,
+        approval_prefix="controlled-child-cancel-v15r3-",
+        batch_namespace="coinbase://selected-child-cancel-v15r3/",
+        proof_id=_v15r3_proof_id,
+        semantic_retry_policy="fresh_v15r3_idempotency_key_exactly_once",
+        error_code="controlled_v15r3_plan_schema_invalid",
+        now=now,
+    )
+
+
+def validate_controlled_v15r4_recovery_plan_scope(
+    plan: Mapping[str, Any],
+    *,
+    now: datetime | None = None,
+) -> None:
+    try:
+        if (
+            plan.get("failed_v15r3_execution_binding")
+            != CONTROLLED_V15R4_FAILED_EXECUTION_BINDING
+        ):
+            raise ValueError("failed_v15r3_execution_binding")
+        _validate_controlled_cancel_only_recovery_plan_scope(
+            plan,
+            plan_fields=CONTROLLED_V15R4_PLAN_FIELDS,
+            schema_version="22",
+            authority_kind=CONTROLLED_V15R4_AUTHORITY_KIND,
+            approval_prefix="controlled-child-cancel-v15r4-",
+            batch_namespace="coinbase://selected-child-cancel-v15r4/",
+            proof_id=_v15r4_proof_id,
+            semantic_retry_policy="fresh_v15r4_idempotency_key_exactly_once",
+            error_code="controlled_v15r4_plan_schema_invalid",
+            now=now,
+        )
+    except (AdminRootChildCancelAuthorityError, TypeError, ValueError) as exc:
         raise AdminRootChildCancelAuthorityError(
-            "controlled_v15r3_plan_schema_invalid"
+            "controlled_v15r4_plan_schema_invalid"
         ) from exc
 
 
@@ -1540,6 +1777,9 @@ def validate_controlled_child_cancel_plan_scope(
 ) -> None:
     """Dispatch without broadening either sealed authority schema."""
 
+    if is_controlled_v15r4_recovery_plan(plan):
+        validate_controlled_v15r4_recovery_plan_scope(plan, now=now)
+        return
     if is_controlled_v15r3_recovery_plan(plan):
         validate_controlled_v15r3_recovery_plan_scope(plan, now=now)
         return
@@ -1559,6 +1799,7 @@ def controlled_child_cancel_root_scope(
         if (
             is_controlled_v15r2_recovery_plan(plan)
             or is_controlled_v15r3_recovery_plan(plan)
+            or is_controlled_v15r4_recovery_plan(plan)
         )
         else plan.get("root")
     )
@@ -1661,7 +1902,9 @@ def load_controlled_v15_plan_authority() -> dict[str, Any]:
     validate_controlled_child_cancel_plan_scope(plan)
     recovery_v15r2 = is_controlled_v15r2_recovery_plan(plan)
     recovery_v15r3 = is_controlled_v15r3_recovery_plan(plan)
-    recovery_plan = recovery_v15r2 or recovery_v15r3
+    recovery_v15r4 = is_controlled_v15r4_recovery_plan(plan)
+    cancel_only_recovery = recovery_v15r3 or recovery_v15r4
+    recovery_plan = recovery_v15r2 or cancel_only_recovery
     root_scope = controlled_child_cancel_root_scope(plan)
     try:
         created_at = datetime.fromisoformat(str(plan.get("created_at") or ""))
@@ -1685,22 +1928,34 @@ def load_controlled_v15_plan_authority() -> dict[str, Any]:
                 str(handoff.get("recorded_at") or "")
             )
             expected_marker_fields = (
-                CONTROLLED_V15R3_MARKER_FIELDS
-                if recovery_v15r3
+                (
+                    CONTROLLED_V15R4_MARKER_FIELDS
+                    if recovery_v15r4
+                    else CONTROLLED_V15R3_MARKER_FIELDS
+                )
+                if cancel_only_recovery
                 else CONTROLLED_V15R2_MARKER_FIELDS
             )
             expected_handoff_fields = (
-                CONTROLLED_V15R3_HANDOFF_FIELDS
-                if recovery_v15r3
+                (
+                    CONTROLLED_V15R4_HANDOFF_FIELDS
+                    if recovery_v15r4
+                    else CONTROLLED_V15R3_HANDOFF_FIELDS
+                )
+                if cancel_only_recovery
                 else CONTROLLED_V15R2_HANDOFF_FIELDS
             )
             expected_authority_kind = (
-                CONTROLLED_V15R3_AUTHORITY_KIND
-                if recovery_v15r3
+                (
+                    CONTROLLED_V15R4_AUTHORITY_KIND
+                    if recovery_v15r4
+                    else CONTROLLED_V15R3_AUTHORITY_KIND
+                )
+                if cancel_only_recovery
                 else CONTROLLED_V15R2_AUTHORITY_KIND
             )
-            expected_placement_maximum = 0 if recovery_v15r3 else 1
-            expected_child_maximum = 0 if recovery_v15r3 else 1
+            expected_placement_maximum = 0 if cancel_only_recovery else 1
+            expected_child_maximum = 0 if cancel_only_recovery else 1
             recovery_marker_binding = bool(
                 set(marker) == expected_marker_fields
                 and marker.get("schema_version") == "1"
@@ -1741,7 +1996,7 @@ def load_controlled_v15_plan_authority() -> dict[str, Any]:
                 and handoff.get("authority")
                 == expected_authority_kind
                 and (
-                    not recovery_v15r3
+                    not cancel_only_recovery
                     or handoff.get("actor_roles") == plan.get("actor_roles")
                 )
                 and recorded_at.tzinfo is not None
@@ -1800,7 +2055,7 @@ def load_controlled_v15_plan_authority() -> dict[str, Any]:
         == dict(plan.get("cancel_command") or {}).get("operator_intent")
         and str(handoff.get("actor_id") or "")
         and (
-            not recovery_v15r3
+            not cancel_only_recovery
             or handoff.get("actor_id") == plan.get("actor_id")
         )
         and len(str(handoff.get("payload_hash") or "")) == 64

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import pytest
+
 from application.admin_api import command_service
 
 
@@ -23,6 +25,16 @@ def _r3_plan() -> dict[str, object]:
             "r2_plan_sha256": R2_PLAN,
             "r2_batch_id": R2_BATCH,
         },
+    }
+
+
+def _r4_plan() -> dict[str, object]:
+    return {
+        **_r3_plan(),
+        "schema_version": "22",
+        "authority_kind": "selected_chain_child_cancel_recovery_v15r4",
+        "plan_sha256": "7" * 64,
+        "batch_id": "77777777-7777-5777-8777-777777777777",
     }
 
 
@@ -95,18 +107,46 @@ def test_v15r3_delegate_uses_r2_origin_without_changing_r3_semantic_identity() -
     )["valid"] is False
 
 
-def test_v15r3_expiry_blocks_new_claim_even_when_execution_registered() -> None:
+def test_v15r4_lineage_keeps_new_command_identity_and_original_r2_child() -> None:
+    plan = _r4_plan()
+    lineage = command_service._root_child_cancel_plan_lineage(
+        plan,
+        observed_preparation_plan_sha256=R2_PLAN,
+        observed_preparation_batch_id=R2_BATCH,
+        requested_command_plan_sha256=plan["plan_sha256"],
+    )
+    delegated = command_service._root_child_cancel_delegate_lineage(
+        plan,
+        command_plan_sha256=plan["plan_sha256"],
+        command_batch_id=plan["batch_id"],
+    )
+
+    assert lineage["valid"] is True
+    assert lineage["command_plan_sha256"] == plan["plan_sha256"]
+    assert lineage["runtime_child_plan_sha256"] == R2_PLAN
+    assert delegated == {
+        "valid": True,
+        "controlled_plan_sha256": R2_PLAN,
+        "controlled_batch_id": R2_BATCH,
+    }
+
+
+@pytest.mark.parametrize("plan_factory", [_r3_plan, _r4_plan])
+def test_cancel_only_expiry_blocks_new_claim_even_when_execution_registered(
+    plan_factory,
+) -> None:
     now = datetime(2026, 7, 13, 5, 0, tzinfo=timezone.utc)
     expires_at = datetime(2026, 7, 13, 4, 59, tzinfo=timezone.utc)
+    plan = plan_factory()
 
     assert command_service._root_child_cancel_plan_expired_for_new_claim(
-        _r3_plan(),
+        plan,
         now=now,
         expires_at=expires_at,
         execution_started_within_plan=True,
     ) is True
     assert command_service._root_child_cancel_post_expiry_cleanup_allowed(
-        _r3_plan()
+        plan
     ) is False
 
     legacy = {

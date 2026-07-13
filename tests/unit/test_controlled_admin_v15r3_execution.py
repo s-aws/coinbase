@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from tools import run_controlled_admin_spot_child_cancel_recovery_v15r3 as recovery
+from tools import run_controlled_admin_spot_child_cancel_recovery_v15r4 as recovery
 
 
 def test_v15r3_execution_transitions_before_authority_and_never_posts_cancel() -> None:
