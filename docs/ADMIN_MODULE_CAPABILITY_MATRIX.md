@@ -4,9 +4,9 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current goal id: `selected_order_execution_closeout_slice`. The completed
-vertical slice binds a selected Admin root to exact fill-ledger/audit,
-terminal-child, and read-only recovery closeout evidence. V14 proved automatic/
+Current goal id: `selected_chain_child_cancel_v15_slice`. The current bounded
+slice adds a sealed root-scoped deterministic-first-child cancel to the
+completed selected-root readback evidence. V14 proved automatic/
 live fill-event processing under the same explicit
 order-level limits and backend authorization, wallet/cap, audit,
 reconciliation, rollback, and readback gates as every live order, without a

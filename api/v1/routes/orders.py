@@ -22,6 +22,8 @@ from application.admin_api.command_service import (
     AdminApiCommandService,
     CONTROLLED_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
     CONTROLLED_FIRST_CHILD_REVEAL_OPERATOR_INTENT,
+    CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
+    CONTROLLED_V15_FIRST_CHILD_REVEAL_OPERATOR_INTENT,
 )
 from application.admin_api.spot_portfolio_binding import (
     DEFAULT_SPOT_PORTFOLIO_LABEL,
@@ -82,6 +84,9 @@ from application.admin_api.models import (
     AdminApiErrorResponse,
     AdminLiveAdmissionDecisionEvidence,
     AdminOrderDetailResponse,
+    AdminOrderFillFollowUpChildCancelCommand,
+    AdminOrderFillFollowUpChildCancelReadinessResponse,
+    AdminOrderFillFollowUpChildCancelRequest,
     AdminOrderFillFollowUpChainResponse,
     AdminOrderFillFollowUpLiveReadinessResponse,
     AdminOrderFillFollowUpReplayResponse,
@@ -860,6 +865,24 @@ def _should_retry_non_live_controlled_order_after_admission(
         and action_class == AdminApiActionClass.LIVE_EXCHANGE_CANCEL
         and permission == AdminApiPermission.ORDER_CANCEL
     )
+    root_first_child_cancel = (
+        endpoint
+        == (
+            "POST /api/v1/orders/"
+            f"{admission_decision.identity_value}/fill-follow-up/child-cancel"
+        )
+        and route_template
+        == (
+            "/api/v1/orders/{root_client_order_id}/fill-follow-up/"
+            "child-cancel"
+        )
+        and service_method
+        == "cancel_order_fill_follow_up_child_by_root_client_order_id"
+        and action_class == AdminApiActionClass.LIVE_EXCHANGE_CANCEL
+        and permission == AdminApiPermission.ORDER_CANCEL
+        and operator_intent
+        == CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT
+    )
     controlled_first_child_reveal = (
         endpoint
         == (
@@ -871,7 +894,11 @@ def _should_retry_non_live_controlled_order_after_admission(
         and service_method == "reveal_stealth_order_by_stealth_order_id"
         and action_class == AdminApiActionClass.LIVE_EXCHANGE_PLACE
         and permission == AdminApiPermission.ORDER_CREATE
-        and operator_intent == CONTROLLED_FIRST_CHILD_REVEAL_OPERATOR_INTENT
+        and operator_intent
+        in {
+            CONTROLLED_FIRST_CHILD_REVEAL_OPERATOR_INTENT,
+            CONTROLLED_V15_FIRST_CHILD_REVEAL_OPERATOR_INTENT,
+        }
     )
     controlled_first_child_cancel = (
         endpoint
@@ -884,7 +911,11 @@ def _should_retry_non_live_controlled_order_after_admission(
         and service_method == "cancel_stealth_order_by_stealth_order_id"
         and action_class == AdminApiActionClass.LIVE_EXCHANGE_CANCEL
         and permission == AdminApiPermission.ORDER_CANCEL
-        and operator_intent == CONTROLLED_FIRST_CHILD_CANCEL_OPERATOR_INTENT
+        and operator_intent
+        in {
+            CONTROLLED_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
+            CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
+        }
     )
     controlled_first_child = (
         (controlled_first_child_reveal or controlled_first_child_cancel)
@@ -892,7 +923,7 @@ def _should_retry_non_live_controlled_order_after_admission(
         and identity_key == "stealth_order_id"
     )
     root_order_action = (
-        (manual_place or root_cancel)
+        (manual_place or root_cancel or root_first_child_cancel)
         and module_id == "spot_operations"
         and identity_key == "client_order_id"
     )
@@ -903,6 +934,104 @@ def _should_retry_non_live_controlled_order_after_admission(
         controlled_first_child
         and response.stealth_order_id == admission_decision.identity_value
     )
+    transient_root_cancel_readiness = bool(
+        root_first_child_cancel
+        and response_identity_matches
+        and record.endpoint == endpoint
+        and record.payload_hash == payload_hash
+        and record.status == AdminApiCommandStatus.REJECTED
+        and response.status == AdminApiCommandStatus.REJECTED
+        and (
+            response.failure_stage == "root_child_cancel_readiness"
+            or (
+                isinstance(response.data, dict)
+                and isinstance(response.data.get("semantic_claim"), dict)
+                and response.data["semantic_claim"].get("outcome")
+                == "claimed"
+                and response.data["semantic_claim"].get(
+                    "reconciliation_required"
+                )
+                is False
+            )
+        )
+        and response.action_class == action_class
+        and response.required_permission == permission
+        and response.service_method == service_method
+        and response.live_exchange_submitted is False
+        and response.live_coinbase_orders_ran is False
+        and previous_admission is not None
+        and previous_admission.allowed is True
+        and previous_admission.route == route_template
+        and previous_admission.method == "POST"
+        and previous_admission.module_id == module_id
+        and previous_admission.identity_key == identity_key
+        and previous_admission.identity_value
+        == admission_decision.identity_value
+        and previous_admission.action_class == action_class
+        and previous_admission.required_permission == permission
+        and previous_admission.service_method == service_method
+        and previous_admission.operator_intent == operator_intent
+        and previous_admission.payload_hash == payload_hash
+        and previous_admission.live_exchange_submitted is False
+        and admission_decision.allowed is True
+        and admission_decision.route == route_template
+        and admission_decision.method == "POST"
+        and admission_decision.module_id == module_id
+        and admission_decision.identity_key == identity_key
+        and admission_decision.identity_value
+        == previous_admission.identity_value
+        and admission_decision.action_class == action_class
+        and admission_decision.required_permission == permission
+        and admission_decision.service_method == service_method
+        and admission_decision.operator_intent == operator_intent
+        and admission_decision.payload_hash == payload_hash
+        and admission_decision.live_exchange_submitted is False
+    )
+    if transient_root_cancel_readiness:
+        return True
+    semantic_claim = (
+        response.data.get("semantic_claim")
+        if isinstance(response.data, dict)
+        and isinstance(response.data.get("semantic_claim"), dict)
+        else {}
+    )
+    post_boundary_root_cancel_reconciliation = bool(
+        root_first_child_cancel
+        and response_identity_matches
+        and record.endpoint == endpoint
+        and record.payload_hash == payload_hash
+        and record.status == AdminApiCommandStatus.REJECTED
+        and response.status == AdminApiCommandStatus.REJECTED
+        and semantic_claim.get("outcome") == "unknown"
+        and semantic_claim.get("reconciliation_required") is True
+        and previous_admission is not None
+        and previous_admission.allowed is True
+        and previous_admission.route == route_template
+        and previous_admission.method == "POST"
+        and previous_admission.module_id == module_id
+        and previous_admission.identity_key == identity_key
+        and previous_admission.identity_value
+        == admission_decision.identity_value
+        and previous_admission.action_class == action_class
+        and previous_admission.required_permission == permission
+        and previous_admission.service_method == service_method
+        and previous_admission.operator_intent == operator_intent
+        and previous_admission.payload_hash == payload_hash
+        and admission_decision.allowed is True
+        and admission_decision.route == route_template
+        and admission_decision.method == "POST"
+        and admission_decision.module_id == module_id
+        and admission_decision.identity_key == identity_key
+        and admission_decision.identity_value
+        == previous_admission.identity_value
+        and admission_decision.action_class == action_class
+        and admission_decision.required_permission == permission
+        and admission_decision.service_method == service_method
+        and admission_decision.operator_intent == operator_intent
+        and admission_decision.payload_hash == payload_hash
+    )
+    if post_boundary_root_cancel_reconciliation:
+        return True
     return (
         (root_order_action or controlled_first_child)
         and response_identity_matches
@@ -1002,6 +1131,10 @@ def _execute_idempotent_command(
         [AdminLiveAdmissionDecisionEvidence],
         AdminApiCommandResponse,
     ] | None = None,
+    admission_override: Callable[
+        [AdminLiveAdmissionDecisionEvidence],
+        AdminLiveAdmissionDecisionEvidence,
+    ] | None = None,
     client_order_id: str | None = None,
     stealth_order_id: str | None = None,
 ) -> JSONResponse:
@@ -1025,6 +1158,8 @@ def _execute_idempotent_command(
         reconciliation_store=reconciliation_store,
         live_execution_service=live_execution_service,
     )
+    if admission_override is not None and not admission_decision.allowed:
+        admission_decision = admission_override(admission_decision)
     admission_decision.execution_scope = execution_scope
     check = idempotency_store.evaluate(
         idempotency_key=idempotency_key,
@@ -1313,6 +1448,126 @@ def get_order_fill_follow_up_chain(
     require_permission(actor, AdminApiPermission.AUDIT_READ)
     return _read_response(
         service.build_order_fill_follow_up_chain(client_order_id=client_order_id)
+    )
+
+
+@router.get(
+    "/orders/{root_client_order_id}/fill-follow-up/child-cancel/readiness",
+    response_model=AdminOrderFillFollowUpChildCancelReadinessResponse,
+    responses=READ_ROUTE_RESPONSES,
+    summary="Resolve V15 deterministic first-child cancel readiness from a root",
+)
+def get_order_fill_follow_up_child_cancel_readiness(
+    root_client_order_id: Annotated[str, Path(min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+    controlled_plan_sha256: Annotated[
+        str | None,
+        Query(pattern=r"^[0-9a-f]{64}$"),
+    ] = None,
+) -> JSONResponse:
+    """Resolve child and sealed plan authority without browser child identity."""
+
+    require_permission(actor, AdminApiPermission.AUDIT_READ)
+    payload = service.build_order_fill_follow_up_child_cancel_readiness(
+        root_client_order_id=root_client_order_id,
+        controlled_plan_sha256=controlled_plan_sha256,
+    )
+    return _read_response(payload)
+
+
+@router.post(
+    "/orders/{root_client_order_id}/fill-follow-up/child-cancel",
+    response_model=AdminApiCommandResponse,
+    status_code=status.HTTP_200_OK,
+    responses=COMMAND_ROUTE_RESPONSES,
+    summary="Cancel one backend-resolved V15 first child from its root",
+)
+def cancel_order_fill_follow_up_child_by_root_client_order_id(
+    request: Request,
+    body: AdminOrderFillFollowUpChildCancelRequest,
+    root_client_order_id: Annotated[str, Path(min_length=1)],
+    idempotency_key: Annotated[str, Header(alias="Idempotency-Key", min_length=1)],
+    correlation_id: Annotated[str, Header(alias="X-Correlation-Id", min_length=1)],
+    operator_intent: Annotated[str, Header(alias="X-Operator-Intent", min_length=1)],
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    service: Annotated[AdminApiCommandService, Depends(get_command_service)],
+    idempotency_store: Annotated[FileIdempotencyStore, Depends(get_idempotency_store)],
+    audit_store: Annotated[FileAdminApiAuditStore, Depends(get_audit_store)],
+    approval_store: Annotated[FileAdminApiApprovalStore, Depends(get_approval_store)],
+    cap_guard_store: Annotated[FileAdminApiCapGuardStore, Depends(get_cap_guard_store)],
+    reconciliation_store: Annotated[
+        FileAdminApiReconciliationStore,
+        Depends(get_reconciliation_store),
+    ],
+    live_execution_service: Annotated[
+        AdminApiLiveExecutionService,
+        Depends(get_live_execution_service),
+    ],
+) -> JSONResponse:
+    """Claim once by plan/root/resolved-child, then use canonical cancellation."""
+
+    endpoint = f"{request.method} {request.url.path}"
+    envelope = _build_envelope(
+        idempotency_key=idempotency_key,
+        correlation_id=correlation_id,
+        operator_intent=operator_intent,
+        actor=actor,
+    )
+    payload_hash = _idempotency_payload_hash(
+        endpoint=endpoint,
+        actor=actor,
+        operator_intent=operator_intent,
+        body=body.model_dump(mode="json"),
+        path_params={"root_client_order_id": root_client_order_id},
+    )
+    return _execute_idempotent_command(
+        idempotency_key=idempotency_key,
+        payload_hash=payload_hash,
+        actor=actor,
+        endpoint=endpoint,
+        request_id=correlation_id,
+        operator_intent=operator_intent,
+        permission=AdminApiPermission.ORDER_CANCEL,
+        action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+        service_method=(
+            "cancel_order_fill_follow_up_child_by_root_client_order_id"
+        ),
+        route_template=(
+            "/api/v1/orders/{root_client_order_id}/fill-follow-up/"
+            "child-cancel"
+        ),
+        module_id="spot_operations",
+        identity_key="client_order_id",
+        identity_value=root_client_order_id,
+        idempotency_store=idempotency_store,
+        audit_store=audit_store,
+        approval_store=approval_store,
+        cap_guard_store=cap_guard_store,
+        reconciliation_store=reconciliation_store,
+        live_execution_service=live_execution_service,
+        client_order_id=root_client_order_id,
+        admission_override=lambda blocked_admission: (
+            service.build_v15_active_child_cleanup_admission(
+                command=AdminOrderFillFollowUpChildCancelCommand(
+                    envelope=envelope,
+                    root_client_order_id=root_client_order_id,
+                    request=body,
+                    admission_decision=blocked_admission,
+                ),
+                admission=blocked_admission,
+            )
+        ),
+        command_runner_with_admission=lambda admission_decision: (
+            service.cancel_order_fill_follow_up_child_by_root_client_order_id(
+                AdminOrderFillFollowUpChildCancelCommand(
+                    envelope=envelope,
+                    root_client_order_id=root_client_order_id,
+                    request=body,
+                    admission_decision=admission_decision,
+                )
+            )
+        ),
     )
 
 

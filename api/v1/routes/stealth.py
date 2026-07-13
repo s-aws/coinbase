@@ -666,6 +666,8 @@ def reveal_stealth_order_by_stealth_order_id(
     reveal_payload = body.model_dump(mode="json")
     if reveal_payload.get("controlled_prior_preparation_sha256") is None:
         reveal_payload.pop("controlled_prior_preparation_sha256", None)
+    if reveal_payload.get("controlled_plan_sha256") is None:
+        reveal_payload.pop("controlled_plan_sha256", None)
     payload_hash = _idempotency_payload_hash(
         endpoint=endpoint,
         actor=actor,
@@ -898,11 +900,14 @@ def cancel_stealth_order_by_stealth_order_id(
         operator_intent=operator_intent,
         actor=actor,
     )
+    cancel_payload = body.model_dump(mode="json")
+    if cancel_payload.get("controlled_plan_sha256") is None:
+        cancel_payload.pop("controlled_plan_sha256", None)
     payload_hash = _idempotency_payload_hash(
         endpoint=endpoint,
         actor=actor,
         operator_intent=operator_intent,
-        body=body.model_dump(mode="json"),
+        body=cancel_payload,
         path_params={"stealth_order_id": stealth_order_id},
     )
     def run_cancel_with_admission(admission_decision):

@@ -10379,6 +10379,59 @@ class AdminApiReadService:
                 ),
             ),
             mutation_taxonomy_from_surface(
+                surface=(
+                    "POST /api/v1/orders/{root_client_order_id}/"
+                    "fill-follow-up/child-cancel"
+                ),
+                mutation_id="spot.root_first_child_cancel",
+                mutation_family=AdminApiMutationFamilyType.SPOT_ORDER_CANCEL,
+                workflow_id="spot.order_command_drafts",
+                related_workflow_ids=["spot.read_models"],
+                module="Spot Operations",
+                exposure_status=(
+                    AdminApiFunctionalityExposureStatus.ADMIN_EXPOSED
+                ),
+                support_status=AdminApiModuleSupportStatus.PLATFORM_READY,
+                summary=(
+                    "The V15 operator cancel is keyed only by the selected root; "
+                    "the backend resolves its deterministic first child, binds "
+                    "owner-only plan/marker/handoff authority, claims the semantic "
+                    "plan+root+child action once, and delegates canonical cancel."
+                ),
+                identity_keys=["client_order_id"],
+                owning_backend_service=(
+                    "application/admin_api/command_service.py"
+                ),
+                backend_contract_refs=[
+                    "api/v1/routes/orders.py::cancel_order_fill_follow_up_child_by_root_client_order_id",
+                    "application/admin_api/command_service.py::cancel_order_fill_follow_up_child_by_root_client_order_id",
+                    "application/admin_api/root_child_cancel.py",
+                ],
+                frontend_contract_refs=[
+                    "src/shared/api/contracts/backendRuntime.ts",
+                    "src/features/spot-ops/SelectedOrderExecutionCloseoutView.tsx",
+                ],
+                documentation_refs=[
+                    "docs/LIVE_ORDER_SURFACES.md",
+                    "docs/agents/INVARIANTS.md",
+                ],
+                blockers=[],
+                frontend_boundary=(
+                    "The browser supplies only selected root, sealed plan hash, "
+                    "acknowledgement, and backend-returned sealed headers; it "
+                    "never supplies child or exchange identity."
+                ),
+                route_local_boundary=(
+                    "The route performs auth, idempotency, admission, and root "
+                    "envelope binding, then delegates all resolution, semantic "
+                    "claim, canonical cancel, and reconciliation behavior."
+                ),
+                spot_rule_boundary=(
+                    "This exact Test-profile BTC-USDC V15 path grants no generic "
+                    "stealth or futures/perpetual cancel authority."
+                ),
+            ),
+            mutation_taxonomy_from_surface(
                 surface=FILL_FOLLOW_UP_TRIGGER_ENDPOINT,
                 mutation_id="spot.fill_follow_up_trigger",
                 mutation_family=AdminApiMutationFamilyType.SPOT_MANUAL_ORDER,

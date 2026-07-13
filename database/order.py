@@ -1378,6 +1378,7 @@ def prepare_controlled_admin_first_child_reveal_atomic(
     batch_slot: int,
     authority_id: str,
     expected_prior_preparation_sha256: Optional[str] = None,
+    controlled_plan_sha256: Optional[str] = None,
     now: Optional[datetime] = None,
 ) -> Dict[str, Any]:
     """Atomically prepare one owned first-generation Admin child for reveal.
@@ -1395,6 +1396,19 @@ def prepare_controlled_admin_first_child_reveal_atomic(
     _require_uuid_text(child_id, "stealth_order_id", client_order_id=child_id)
     _require_uuid_text(root_id, "expected_root_client_order_id", client_order_id=child_id)
     _require_uuid_text(portfolio_id, "expected_portfolio_id", client_order_id=child_id)
+
+    if controlled_plan_sha256 is not None and (
+        not isinstance(controlled_plan_sha256, str)
+        or len(controlled_plan_sha256) != 64
+        or any(
+            character not in "0123456789abcdef"
+            for character in controlled_plan_sha256
+        )
+    ):
+        raise _controlled_admin_child_persistence_error(
+            "controlled_plan_sha256 must be exactly 64 lowercase hexadecimal characters",
+            client_order_id=child_id,
+        )
 
     evidence_ids = {
         "approval_snapshot_id": approval_snapshot_id,
@@ -1878,6 +1892,10 @@ def prepare_controlled_admin_first_child_reveal_atomic(
             "root_audit_id": root_audit_id,
             "root_exchange_order_id": str(root_row.get("exchange_order_id")),
         }
+        if controlled_plan_sha256 is not None:
+            preparation_evidence["controlled_plan_sha256"] = (
+                controlled_plan_sha256
+            )
         if supersession_record is not None:
             preparation_evidence["supersedes_preparation_sha256"] = (
                 supersession_record["preparation_sha256"]
@@ -1926,6 +1944,7 @@ def prepare_controlled_admin_first_child_reveal_atomic(
             "market_bid": format(bid, "f"),
             "market_source": normalized_market_source,
             "market_observed_at": observed_at_utc,
+            "controlled_plan_sha256": controlled_plan_sha256,
             "reveal_condition_json": condition,
             "anchor_repricing_state_json": state,
         }

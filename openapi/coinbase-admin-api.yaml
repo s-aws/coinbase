@@ -7104,6 +7104,200 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/orders/{root_client_order_id}/fill-follow-up/child-cancel/readiness:
+    get:
+      tags:
+      - orders
+      summary: Resolve V15 deterministic first-child cancel readiness from a root
+      description: Resolve child and sealed plan authority without browser child identity.
+      operationId: get_order_fill_follow_up_child_cancel_readiness_api_v1_orders__root_client_order_id__fill_follow_up_child_cancel_readiness_get
+      parameters:
+      - name: root_client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Root Client Order Id
+      - name: controlled_plan_sha256
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Controlled Plan Sha256
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminOrderFillFollowUpChildCancelReadinessResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/orders/{root_client_order_id}/fill-follow-up/child-cancel:
+    post:
+      tags:
+      - orders
+      summary: Cancel one backend-resolved V15 first child from its root
+      description: Claim once by plan/root/resolved-child, then use canonical cancellation.
+      operationId: cancel_order_fill_follow_up_child_by_root_client_order_id_api_v1_orders__root_client_order_id__fill_follow_up_child_cancel_post
+      parameters:
+      - name: root_client_order_id
+        in: path
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Root Client Order Id
+      - name: Idempotency-Key
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: Idempotency-Key
+      - name: X-Correlation-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Correlation-Id
+      - name: X-Operator-Intent
+        in: header
+        required: true
+        schema:
+          type: string
+          minLength: 1
+          title: X-Operator-Intent
+      - name: Authorization
+        in: header
+        required: true
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authorization
+      - name: X-Admin-Actor
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Actor
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because actor identity is derived from verified
+          JWT claims.
+      - name: X-Admin-Roles
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Admin-Roles
+        description: Required only for COINBASE_ADMIN_API_AUTH_MODE=bootstrap_bearer.
+          Ignored in oidc_jwt mode because role evidence is derived from verified
+          JWT claims.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminOrderFillFollowUpChildCancelRequest'
+      responses:
+        '200':
+          description: Command accepted or replayed after all backend gates pass.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '400':
+          description: Command rejected before live exchange execution.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '401':
+          description: Missing or invalid Admin API authentication.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '403':
+          description: Actor lacks the required Admin API permission.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiErrorResponse'
+        '409':
+          description: Idempotency key conflict.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '501':
+          description: Live HTTP execution is not implemented for this command.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminApiCommandResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/v1/orders/{client_order_id}/fill-follow-up/trigger-preview:
     get:
       tags:
@@ -137381,6 +137575,265 @@ components:
       - detail
       title: AdminOrderFillFollowUpChainResponse
       description: Read-only parent/child chain evidence for fill-triggered follow-up.
+    AdminOrderFillFollowUpChildCancelReadinessResponse:
+      properties:
+        type:
+          type: string
+          title: Type
+          default: admin_order_fill_follow_up_child_cancel_readiness
+        root_client_order_id:
+          type: string
+          title: Root Client Order Id
+        found:
+          type: boolean
+          title: Found
+        ready:
+          type: boolean
+          title: Ready
+          default: false
+        readiness_status:
+          type: string
+          title: Readiness Status
+          default: blocked
+        child_client_order_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Child Client Order Id
+        product_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Product Id
+        profile_alias:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Profile Alias
+        portfolio_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Portfolio Id
+        controlled_batch_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Controlled Batch Id
+        controlled_batch_slot:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Controlled Batch Slot
+        controlled_plan_sha256:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Controlled Plan Sha256
+        plan_expires_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Plan Expires At
+        root_reference_notional_usdc:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Root Reference Notional Usdc
+        child_reference_notional_usdc:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Child Reference Notional Usdc
+        aggregate_reference_notional_usdc:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Aggregate Reference Notional Usdc
+        child_reference_reserve_usdc:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Child Reference Reserve Usdc
+        planned_aggregate_reference_notional_usdc:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Planned Aggregate Reference Notional Usdc
+        root_notional_cap_usdc:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Root Notional Cap Usdc
+        child_notional_cap_usdc:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Child Notional Cap Usdc
+        aggregate_notional_cap_usdc:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Aggregate Notional Cap Usdc
+        audit_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Audit Id
+        approval_snapshot_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Approval Snapshot Id
+        cap_guard_decision_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cap Guard Decision Id
+        reconciliation_plan_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reconciliation Plan Id
+        correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+        cancel_idempotency_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cancel Idempotency Key
+        cancel_correlation_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cancel Correlation Id
+        cancel_operator_intent:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cancel Operator Intent
+        backend_decision:
+          type: string
+          title: Backend Decision
+          default: blocked
+        authority_source:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authority Source
+        environment:
+          type: string
+          title: Environment
+          default: local
+        child_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Child Status
+        authoritative_exchange_status:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Authoritative Exchange Status
+        active_placement_proven:
+          type: boolean
+          title: Active Placement Proven
+          default: false
+        zero_fill_proven:
+          type: boolean
+          title: Zero Fill Proven
+          default: false
+        exchange_order_id_evidence_present:
+          type: boolean
+          title: Exchange Order Id Evidence Present
+          default: false
+        exchange_order_id_evidence_only:
+          type: boolean
+          title: Exchange Order Id Evidence Only
+          default: true
+        semantic_key:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Semantic Key
+        semantic_claim_outcome:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Semantic Claim Outcome
+        reconciliation_required:
+          type: boolean
+          title: Reconciliation Required
+          default: false
+        blockers:
+          items:
+            type: string
+          type: array
+          title: Blockers
+        read_only:
+          type: boolean
+          title: Read Only
+          default: true
+        live_coinbase_read_ran:
+          type: boolean
+          title: Live Coinbase Read Ran
+          default: false
+        live_coinbase_orders_ran:
+          type: boolean
+          title: Live Coinbase Orders Ran
+          default: false
+        coinbase_order_cancel_submitted:
+          type: boolean
+          title: Coinbase Order Cancel Submitted
+          default: false
+        local_state_mutated:
+          type: boolean
+          title: Local State Mutated
+          default: false
+        exchange_state_mutated:
+          type: boolean
+          title: Exchange State Mutated
+          default: false
+        browser_authority:
+          type: string
+          title: Browser Authority
+          default: display_and_submit_root_only
+        detail:
+          type: string
+          title: Detail
+      additionalProperties: false
+      type: object
+      required:
+      - root_client_order_id
+      - found
+      - detail
+      title: AdminOrderFillFollowUpChildCancelReadinessResponse
+      description: Backend-resolved V15 readiness for cancelling one active first
+        child.
+    AdminOrderFillFollowUpChildCancelRequest:
+      properties:
+        reason:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Reason
+        manual_live_acknowledgement:
+          type: boolean
+          title: Manual Live Acknowledgement
+          default: false
+        controlled_plan_sha256:
+          type: string
+          pattern: ^[0-9a-f]{64}$
+          title: Controlled Plan Sha256
+      additionalProperties: false
+      type: object
+      required:
+      - controlled_plan_sha256
+      title: AdminOrderFillFollowUpChildCancelRequest
+      description: Root-scoped V15 cancel request; child identity is backend-resolved.
     AdminOrderFillFollowUpDecisionAuditEvidence:
       properties:
         client_order_id:
@@ -146915,6 +147368,12 @@ components:
             minimum: 1.0
           - type: 'null'
           title: Controlled Batch Slot
+        controlled_plan_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Controlled Plan Sha256
       additionalProperties: false
       type: object
       title: StealthCancelRequest
@@ -170456,6 +170915,12 @@ components:
             minimum: 1.0
           - type: 'null'
           title: Controlled Batch Slot
+        controlled_plan_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Controlled Plan Sha256
         controlled_prior_preparation_sha256:
           anyOf:
           - type: string

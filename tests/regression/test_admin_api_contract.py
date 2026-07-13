@@ -2118,6 +2118,11 @@ def _stealth_command_payload_hash(
         and normalized_body.get("controlled_prior_preparation_sha256") is None
     ):
         normalized_body.pop("controlled_prior_preparation_sha256", None)
+    if (
+        model in {StealthRevealRequest, StealthCancelRequest}
+        and normalized_body.get("controlled_plan_sha256") is None
+    ):
+        normalized_body.pop("controlled_plan_sha256", None)
     return make_payload_hash({
         "endpoint": endpoint,
         "actor_id": "operator-001",
@@ -7733,6 +7738,13 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     assert "controlled_limit_price" in stealth_reveal_request_schema["properties"]
     assert "controlled_batch_id" in stealth_reveal_request_schema["properties"]
     assert "controlled_batch_slot" in stealth_reveal_request_schema["properties"]
+    assert "controlled_plan_sha256" in stealth_reveal_request_schema["properties"]
+    assert stealth_reveal_request_schema["properties"]["controlled_plan_sha256"][
+        "anyOf"
+    ][0]["pattern"] == "^[0-9a-f]{64}$"
+    assert "controlled_plan_sha256" not in (
+        stealth_reveal_request_schema.get("required") or []
+    )
     assert "controlled_prior_preparation_sha256" in (
         stealth_reveal_request_schema["properties"]
     )
@@ -7754,7 +7766,59 @@ def test_admin_api_openapi_schema_file_matches_generated_contract():
     ]
     assert "controlled_batch_id" in stealth_cancel_request_schema["properties"]
     assert "controlled_batch_slot" in stealth_cancel_request_schema["properties"]
+    assert "controlled_plan_sha256" in stealth_cancel_request_schema["properties"]
+    assert stealth_cancel_request_schema["properties"]["controlled_plan_sha256"][
+        "anyOf"
+    ][0]["pattern"] == "^[0-9a-f]{64}$"
+    assert "controlled_plan_sha256" not in (
+        stealth_cancel_request_schema.get("required") or []
+    )
     assert "order_id" not in stealth_cancel_request_schema["properties"]
+    root_child_cancel_readiness_path = (
+        "/api/v1/orders/{root_client_order_id}/fill-follow-up/"
+        "child-cancel/readiness"
+    )
+    root_child_cancel_path = (
+        "/api/v1/orders/{root_client_order_id}/fill-follow-up/child-cancel"
+    )
+    assert "get" in written["paths"][root_child_cancel_readiness_path]
+    assert "post" in written["paths"][root_child_cancel_path]
+    root_child_cancel_request_schema = written["components"]["schemas"][
+        "AdminOrderFillFollowUpChildCancelRequest"
+    ]
+    assert root_child_cancel_request_schema["required"] == [
+        "controlled_plan_sha256"
+    ]
+    assert root_child_cancel_request_schema["properties"][
+        "controlled_plan_sha256"
+    ]["pattern"] == "^[0-9a-f]{64}$"
+    assert "child_client_order_id" not in root_child_cancel_request_schema[
+        "properties"
+    ]
+    assert "exchange_order_id" not in root_child_cancel_request_schema[
+        "properties"
+    ]
+    readiness_schema = written["components"]["schemas"][
+        "AdminOrderFillFollowUpChildCancelReadinessResponse"
+    ]
+    for field_name in (
+        "root_client_order_id",
+        "child_client_order_id",
+        "controlled_plan_sha256",
+        "plan_expires_at",
+        "root_reference_notional_usdc",
+        "child_reference_notional_usdc",
+        "aggregate_reference_notional_usdc",
+        "root_notional_cap_usdc",
+        "child_notional_cap_usdc",
+        "aggregate_notional_cap_usdc",
+        "cancel_idempotency_key",
+        "cancel_correlation_id",
+        "audit_id",
+        "correlation_id",
+        "backend_decision",
+    ):
+        assert field_name in readiness_schema["properties"]
     stealth_list_schema = written["components"]["schemas"]["AdminStealthOrderListResponse"]
     assert "pagination" in stealth_list_schema["properties"]
     assert "command_routes_mode" in stealth_list_schema["properties"]
@@ -72479,35 +72543,35 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
     )
     assert live_payload["live_enabled_path_count"] == 0
     assert live_payload["live_eligible_path_count"] == 0
-    assert live_payload["preflight_check_count"] == 112
-    assert live_payload["blocking_preflight_check_count"] == 56
-    assert live_payload["passed_preflight_check_count"] == 56
-    assert live_payload["approval_snapshot_required_count"] == 14
+    assert live_payload["preflight_check_count"] == 120
+    assert live_payload["blocking_preflight_check_count"] == 60
+    assert live_payload["passed_preflight_check_count"] == 60
+    assert live_payload["approval_snapshot_required_count"] == 15
     assert live_payload["approval_snapshot_present_count"] == 0
-    assert live_payload["approval_snapshot_missing_count"] == 14
-    assert live_payload["approval_snapshot_required_field_count"] == 210
-    assert live_payload["approval_snapshot_missing_field_count"] == 210
-    assert live_payload["approval_store_required_count"] == 14
-    assert live_payload["approval_store_configured_count"] == 14
+    assert live_payload["approval_snapshot_missing_count"] == 15
+    assert live_payload["approval_snapshot_required_field_count"] == 225
+    assert live_payload["approval_snapshot_missing_field_count"] == 225
+    assert live_payload["approval_store_required_count"] == 15
+    assert live_payload["approval_store_configured_count"] == 15
     assert live_payload["approval_store_missing_count"] == 0
-    assert live_payload["approval_store_requirement_count"] == 168
+    assert live_payload["approval_store_requirement_count"] == 180
     assert live_payload["approval_store_missing_requirement_count"] == 0
-    assert live_payload["admission_audit_required_count"] == 14
+    assert live_payload["admission_audit_required_count"] == 15
     assert live_payload["admission_audit_configured_count"] == 0
-    assert live_payload["admission_audit_missing_count"] == 14
-    assert live_payload["admission_audit_fact_count"] == 140
-    assert live_payload["admission_audit_missing_fact_count"] == 126
-    assert live_payload["cap_guard_required_count"] == 14
+    assert live_payload["admission_audit_missing_count"] == 15
+    assert live_payload["admission_audit_fact_count"] == 150
+    assert live_payload["admission_audit_missing_fact_count"] == 135
+    assert live_payload["cap_guard_required_count"] == 15
     assert live_payload["cap_guard_configured_count"] == 0
-    assert live_payload["cap_guard_missing_count"] == 14
-    assert live_payload["cap_guard_requirement_count"] == 196
-    assert live_payload["cap_guard_missing_requirement_count"] == 196
-    assert live_payload["live_execution_adapter_required_count"] == 14
+    assert live_payload["cap_guard_missing_count"] == 15
+    assert live_payload["cap_guard_requirement_count"] == 210
+    assert live_payload["cap_guard_missing_requirement_count"] == 210
+    assert live_payload["live_execution_adapter_required_count"] == 15
     assert live_payload["live_execution_adapter_configured_count"] == 3
-    assert live_payload["live_execution_adapter_missing_count"] == 11
-    assert live_payload["readiness_precondition_count"] == 126
-    assert live_payload["blocking_readiness_precondition_count"] == 80
-    assert live_payload["passed_readiness_precondition_count"] == 46
+    assert live_payload["live_execution_adapter_missing_count"] == 12
+    assert live_payload["readiness_precondition_count"] == 135
+    assert live_payload["blocking_readiness_precondition_count"] == 86
+    assert live_payload["passed_readiness_precondition_count"] == 49
     assert live_payload["live_coinbase_orders_ran"] is False
     live_routes = {item["route"]: item for item in live_payload["paths"]}
     assert "/api/v1/orders" in live_routes
@@ -73984,9 +74048,9 @@ def test_admin_api_admin_read_routes_return_backend_contracts(monkeypatch):
         "GET /api/v1/spot/pnl/checkpoints/{checkpoint_id}"
         in spot_module["read_routes"]
     )
-    assert spot_module["action_posture"]["read_route_count"] == 20
-    assert spot_module["action_posture"]["command_route_count"] == 14
-    assert spot_module["action_posture"]["live_route_count"] == 4
+    assert spot_module["action_posture"]["read_route_count"] == 21
+    assert spot_module["action_posture"]["command_route_count"] == 15
+    assert spot_module["action_posture"]["live_route_count"] == 5
     assert spot_module["action_posture"]["command_gap_count"] == 2
     admin_module = registry_by_id["admin_system_health"]
     assert "GET /api/v1/admin/guard-risk-policy" not in admin_module["read_routes"]

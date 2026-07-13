@@ -432,6 +432,10 @@ class StealthCancelRequest(BaseModel):
     expected_root_client_order_id: str | None = Field(default=None, min_length=1)
     controlled_batch_id: str | None = Field(default=None, min_length=1)
     controlled_batch_slot: int | None = Field(default=None, ge=1, le=10)
+    controlled_plan_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
 
 
 class StealthRevealRequest(BaseModel):
@@ -445,6 +449,10 @@ class StealthRevealRequest(BaseModel):
     controlled_limit_price: DecimalString | None = None
     controlled_batch_id: str | None = Field(default=None, min_length=1)
     controlled_batch_slot: int | None = Field(default=None, ge=1, le=10)
+    controlled_plan_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
     controlled_prior_preparation_sha256: str | None = Field(
         default=None,
         pattern=r"^[0-9a-f]{64}$",
@@ -1258,6 +1266,16 @@ class AdminOrderFillFollowUpTriggerRequest(BaseModel):
     operator_notes: str | None = None
 
 
+class AdminOrderFillFollowUpChildCancelRequest(BaseModel):
+    """Root-scoped V15 cancel request; child identity is backend-resolved."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str | None = None
+    manual_live_acknowledgement: bool = False
+    controlled_plan_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+
 class AdminOrderFillFollowUpTriggerCommand(BaseModel):
     """Shared service command for a fail-closed fill-follow-up trigger."""
 
@@ -1271,6 +1289,17 @@ class AdminOrderFillFollowUpTriggerCommand(BaseModel):
     cap_guard_wallet_check_status: str | None = None
     cap_guard_wallet_available_notional_usdc: str | None = None
     cap_guard_wallet_check_source: str | None = None
+
+
+class AdminOrderFillFollowUpChildCancelCommand(BaseModel):
+    """Shared root-scoped command for one deterministic first-child cancel."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    envelope: AdminApiCommandEnvelope
+    root_client_order_id: str = Field(min_length=1)
+    request: AdminOrderFillFollowUpChildCancelRequest
+    admission_decision: AdminLiveAdmissionDecisionEvidence | None = None
 
 
 class CancelOrderCommand(BaseModel):
@@ -4964,6 +4993,63 @@ class AdminOrderFillFollowUpChainResponse(BaseModel):
     coinbase_order_cancel_submitted: bool = False
     local_state_mutated: bool = False
     exchange_state_mutated: bool = False
+    detail: str
+
+
+class AdminOrderFillFollowUpChildCancelReadinessResponse(BaseModel):
+    """Backend-resolved V15 readiness for cancelling one active first child."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: str = "admin_order_fill_follow_up_child_cancel_readiness"
+    root_client_order_id: str
+    found: bool
+    ready: bool = False
+    readiness_status: str = "blocked"
+    child_client_order_id: str | None = None
+    product_id: str | None = None
+    profile_alias: str | None = None
+    portfolio_id: str | None = None
+    controlled_batch_id: str | None = None
+    controlled_batch_slot: int | None = None
+    controlled_plan_sha256: str | None = None
+    plan_expires_at: str | None = None
+    root_reference_notional_usdc: str | None = None
+    child_reference_notional_usdc: str | None = None
+    aggregate_reference_notional_usdc: str | None = None
+    child_reference_reserve_usdc: str | None = None
+    planned_aggregate_reference_notional_usdc: str | None = None
+    root_notional_cap_usdc: str | None = None
+    child_notional_cap_usdc: str | None = None
+    aggregate_notional_cap_usdc: str | None = None
+    audit_id: str | None = None
+    approval_snapshot_id: str | None = None
+    cap_guard_decision_id: str | None = None
+    reconciliation_plan_id: str | None = None
+    correlation_id: str | None = None
+    cancel_idempotency_key: str | None = None
+    cancel_correlation_id: str | None = None
+    cancel_operator_intent: str | None = None
+    backend_decision: str = "blocked"
+    authority_source: str | None = None
+    environment: str = "local"
+    child_status: str | None = None
+    authoritative_exchange_status: str | None = None
+    active_placement_proven: bool = False
+    zero_fill_proven: bool = False
+    exchange_order_id_evidence_present: bool = False
+    exchange_order_id_evidence_only: bool = True
+    semantic_key: str | None = None
+    semantic_claim_outcome: str | None = None
+    reconciliation_required: bool = False
+    blockers: list[str] = Field(default_factory=list)
+    read_only: bool = True
+    live_coinbase_read_ran: bool = False
+    live_coinbase_orders_ran: bool = False
+    coinbase_order_cancel_submitted: bool = False
+    local_state_mutated: bool = False
+    exchange_state_mutated: bool = False
+    browser_authority: str = "display_and_submit_root_only"
     detail: str
 
 

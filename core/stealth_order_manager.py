@@ -249,6 +249,7 @@ class ControlledAdminChildRevealAuthority:
     reconciliation_plan_id: str
     batch_id: str
     batch_slot: int
+    controlled_plan_sha256: Optional[str] = None
 
 
 class StealthOrderManager:
@@ -3674,6 +3675,7 @@ class StealthOrderManager:
         batch_id: str,
         batch_slot: int,
         expected_prior_preparation_sha256: Optional[str] = None,
+        controlled_plan_sha256: Optional[str] = None,
     ) -> ControlledAdminChildRevealAuthority:
         """Durably prepare and authorize one far-price first Admin child.
 
@@ -3777,6 +3779,7 @@ class StealthOrderManager:
             expected_prior_preparation_sha256=(
                 expected_prior_preparation_sha256
             ),
+            controlled_plan_sha256=controlled_plan_sha256,
         )
 
         prepared_price = float(prepared["prepared_limit_price"])
@@ -3811,6 +3814,7 @@ class StealthOrderManager:
             reconciliation_plan_id=str(reconciliation_plan_id),
             batch_id=str(batch_id),
             batch_slot=batch_slot,
+            controlled_plan_sha256=prepared.get("controlled_plan_sha256"),
         )
         issued = getattr(
             self, "_controlled_admin_child_reveal_authorities", None
@@ -3868,6 +3872,19 @@ class StealthOrderManager:
         authority_market_observed_at = authority.market_observed_at.astimezone(
             timezone.utc
         )
+
+        controlled_plan_sha256 = authority.controlled_plan_sha256
+        if controlled_plan_sha256 is not None and (
+            not isinstance(controlled_plan_sha256, str)
+            or len(controlled_plan_sha256) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in controlled_plan_sha256
+            )
+        ):
+            return False, "controlled_admin_authority_plan_invalid"
+        if preparation.get("controlled_plan_sha256") != controlled_plan_sha256:
+            return False, "controlled_admin_authority_plan_mismatch"
 
         expected_fields = {
             "authority_id": authority.authority_id,

@@ -1,10 +1,10 @@
 # Coinbase Admin MVP Goal
 
-Goal ID: `selected_order_execution_closeout_slice`
+Goal ID: `selected_chain_child_cancel_v15_slice`
 
 Last reviewed: 2026-07-12 UTC.
 
-Status: `complete`
+Status: `in_progress`
 
 The canonical cross-repository goal is
 `/home/ec2-user/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This backend copy
@@ -12,14 +12,25 @@ records the behavior-owner interpretation and must stay aligned with it.
 
 ## Objective
 
-Close the restored operator workflow through the current backend-owned Admin
-API and operator UI:
+Implement and seal the shortest operator-visible mutation adjacent to the
+restored fill/follow-up closeout through the current backend-owned Admin API
+and operator UI:
 
-`Selected Admin root -> client_order_id-bound fill-ledger and audit readback -> child terminal-cancel proof -> read-only recovery posture -> operator-visible execution closeout`
+`Selected Admin root with one active deterministic first child -> sealed-plan-bound backend cancel readiness -> exactly-once child cancel -> authoritative local/exchange terminal readback -> refreshed operator-visible closeout`
 
 The Admin frontend is operator UI only. The backend owns validation,
 authorization, wallet and cap checks, fill handling, follow-up claims,
 Coinbase calls, reconciliation, rollback, and audit persistence.
+
+The current authorization is implementation, independent audit, and
+preparation of one owner-only V15 Test-profile BTC-USDC plan. It binds exactly
+two future exchange-submission attempts (one intentional-fill root and one
+deterministic first child) plus exactly one `client_order_id`-bound child-cancel
+command, with root notional below `9.99 USDC`, child notional at or below
+`2.00 USDC`, aggregate reference notional below a new slice-local `12.00 USDC`
+cap, and a 120-minute plan lifetime. No marker, ledger, runtime, approval
+record, root, child, cancel command, or live Coinbase order is authorized until
+the resulting plan hash receives a separate exact operator approval.
 
 ## Previous-Version Baseline
 
@@ -90,20 +101,21 @@ Every root was authoritatively FILLED, every child was authoritatively CANCELLED
 with zero child fill, every final chain was flat with active placement cleared,
 the final active-order count was zero, and shutdown was quiescent. The frontend
 then completed the read-only selected-root closeout against those backend-owned
-reads. No next work item is selected. A predicted fill, non-fill, or
-far-from-market outcome does not add or remove permission, and there is no
-separate no-fill, fill-testing, or live-fill approval category.
+reads. The operator has now selected the sealed V15 deterministic-first-child
+cancel successor. A predicted fill, non-fill, or far-from-market outcome does
+not add or remove permission, and there is no separate no-fill, fill-testing,
+or live-fill approval category.
 
-Durable closeout validation passed after the final selected-root fixes. Backend
-`python3.13 tools/run_parallel_regression.py --workers 4` passed `1458/1458`
-tests (`1005` parallel plus `453` serial), ownership, and diff checks with live
-Coinbase execution false and submitted/executed notional `0 USDC`; evidence is
-under
-`genai_tools/pytest-tmp/parallel-regression/4f87afaef742452b83c938640c168c14/`.
-The frontend baseline and canonical release gate passed `548/548` unit tests,
-`8/8` Playwright tests, focused deploy `142/142`, all
-deployment/backend/local-stack/dry smokes, and managed-process cleanup while
-reporting live execution `not_run` and notional `0 USDC`.
+V15 durable no-live validation passed after the final independent audit.
+Backend `python3.13 tools/run_parallel_regression.py --workers 4` passed
+`1461/1461` tests (`1005` parallel plus `456` serial), ownership, and diff
+checks with live Coinbase execution false and submitted/executed notional
+`0 USDC`; evidence is under
+`genai_tools/pytest-tmp/parallel-regression/b077499ed98d43f0a24316d18df7691d/`.
+The synchronized frontend baseline passed `563/563` unit tests and `8/8`
+Playwright tests with live execution `not_run` and notional `0 USDC`. The
+canonical release gate is rerun after the final backend/frontend commit
+association and before plan preparation.
 
 ## Closed Scope Rule
 
@@ -145,8 +157,21 @@ is expected to fill.
   for durable milestone, release/deployment or cross-repository association
   closeout, broad cross-cutting changes, or explicit operator request.
 
-The selected slice is complete. Do not select a parked lane merely because it
-has a blocker or is next in a roadmap. Any future automatic/live activation or
-mutating child action requires a new operator-selected scope and continues to
-use the canonical order-level limits and backend gates; activation itself is
-not a second permission source.
+The current authorized milestone ends after the committed implementation is
+independently audited and an immutable V15 plan is prepared without creating a
+marker, ledger, runtime, approval record, or order. Stop there and request exact
+approval of the resulting plan hash. The frontend action must remain absent or
+disabled until that hash is active in the same embedded backend runtime.
+
+The live path must resolve the exact deterministic child from the selected root
+in the backend, bind the plan hash through durable preparation and one
+crash-safe cancel-command claim, call the existing controlled child-cancel
+service exactly once by `client_order_id`, prohibit the exchange-id fallback
+for V15, and require terminal zero-fill exchange/local readback. The 120-minute
+expiry closes new V15 execution starts; once the sealed marker proves the root
+and child slice started inside that window, the exact active-child cleanup and
+read-only reconciliation authority remains available so expiry or parent loss
+cannot strand the child. It never authorizes another placement or a second
+cancel boundary.
+Do not select a parked lane merely because it has a blocker or is next in a
+roadmap.

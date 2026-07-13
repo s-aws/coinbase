@@ -13,9 +13,9 @@ plans.
 
 ## Current MVP Goal
 
-Current goal id `selected_order_execution_closeout_slice` records the completed
-read-only selected-root fill-ledger, audit, terminal-child, and recovery
-closeout. No next work item is selected. See
+Current goal id `selected_chain_child_cancel_v15_slice` records the bounded
+root-scoped deterministic-first-child cancel implementation and sealed-plan
+approval gate. No other work item is selected. See
 [Coinbase Admin MVP Goal](genai_data/AGENT_MVP_REBUILD_GOAL.md). Historical M57
 phase ranges and M58 fan-out/scheduler blockers do not select default work.
 

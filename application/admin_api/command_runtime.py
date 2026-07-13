@@ -745,6 +745,7 @@ class AdminApiControlledFirstChildRuntimeAdapter:
         reconciliation_plan_id: str,
         controlled_batch_id: str,
         controlled_batch_slot: int,
+        controlled_plan_sha256: str | None = None,
         expected_prior_preparation_sha256: str | None = None,
     ) -> dict[str, Any]:
         manager = self.stealth_manager
@@ -771,6 +772,11 @@ class AdminApiControlledFirstChildRuntimeAdapter:
             ) from exc
 
         try:
+            preparation_kwargs: dict[str, Any] = {}
+            if controlled_plan_sha256 is not None:
+                preparation_kwargs["controlled_plan_sha256"] = (
+                    controlled_plan_sha256
+                )
             authority = manager.prepare_controlled_admin_first_child_reveal(
                 stealth_order_id=stealth_order_id,
                 expected_root_client_order_id=expected_root_client_order_id,
@@ -789,6 +795,7 @@ class AdminApiControlledFirstChildRuntimeAdapter:
                 expected_prior_preparation_sha256=(
                     expected_prior_preparation_sha256
                 ),
+                **preparation_kwargs,
             )
         except Exception as exc:
             raise ControlledChildPrePlacementError(
@@ -853,6 +860,11 @@ class AdminApiControlledFirstChildRuntimeAdapter:
                 "reference_notional_usdc": self._decimal_text(
                     authority.reference_notional_usdc
                 ),
+                **(
+                    {"controlled_plan_sha256": controlled_plan_sha256}
+                    if controlled_plan_sha256 is not None
+                    else {}
+                ),
             }
         return {
             "placed_client_order_id": stealth_order_id,
@@ -867,6 +879,11 @@ class AdminApiControlledFirstChildRuntimeAdapter:
             "reference_notional_usdc": self._decimal_text(
                 authority.reference_notional_usdc
             ),
+            **(
+                {"controlled_plan_sha256": controlled_plan_sha256}
+                if controlled_plan_sha256 is not None
+                else {}
+            ),
         }
 
     def read_controlled_first_child(
@@ -877,6 +894,7 @@ class AdminApiControlledFirstChildRuntimeAdapter:
         expected_portfolio_id: str,
         controlled_batch_id: str,
         controlled_batch_slot: int,
+        controlled_plan_sha256: str | None = None,
     ) -> dict[str, Any]:
         from database.order import get_parent_order
 
@@ -944,6 +962,11 @@ class AdminApiControlledFirstChildRuntimeAdapter:
             and str(state.get("status") or "").upper() == "REVEALED"
             and preparation.get("batch_id") == controlled_batch_id
             and preparation.get("batch_slot") == controlled_batch_slot
+            and (
+                controlled_plan_sha256 is None
+                or preparation.get("controlled_plan_sha256")
+                == controlled_plan_sha256
+            )
             and active_client_order_id == stealth_order_id
             and active_exchange_order_id
             and str(child_row.get("exchange_order_id") or "")
@@ -967,6 +990,15 @@ class AdminApiControlledFirstChildRuntimeAdapter:
             "active_placement_client_order_id": active_client_order_id,
             "active_exchange_order_id": active_exchange_order_id,
             "executed_size": self._decimal_text(state.get("executed_size") or 0),
+            **(
+                {
+                    "controlled_plan_sha256": preparation.get(
+                        "controlled_plan_sha256"
+                    )
+                }
+                if controlled_plan_sha256 is not None
+                else {}
+            ),
         }
 
     def reconcile_controlled_first_child_terminal(

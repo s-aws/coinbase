@@ -135,8 +135,11 @@ class _RecordingControlledService:
         self.dependencies = AdminApiCommandDependencies()
         self.reveal_commands = []
         self.cancel_commands = []
+        self.root_cancel_commands = []
         self.reveal_manager_sdk_calls = 0
         self.cancel_manager_exchange_calls = 0
+        self.root_cancel_unready_once = False
+        self.root_cancel_unknown_once = False
 
     def reveal_stealth_order_by_stealth_order_id(self, command):
         self.reveal_commands.append(command)
@@ -180,6 +183,70 @@ class _RecordingControlledService:
             live_exchange_submitted=False,
             live_coinbase_orders_ran=False,
             failure_stage=None if command.allow_live_execution else "approval",
+        )
+
+    def cancel_order_fill_follow_up_child_by_root_client_order_id(self, command):
+        self.root_cancel_commands.append(command)
+        if self.root_cancel_unknown_once:
+            self.root_cancel_unknown_once = False
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.REJECTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method=(
+                    "cancel_order_fill_follow_up_child_by_root_client_order_id"
+                ),
+                message="Cancel boundary crossed; reconcile same key.",
+                client_order_id=command.root_client_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=True,
+                live_coinbase_orders_ran=True,
+                failure_stage="cancellation_unknown",
+                data={
+                    "semantic_claim": {
+                        "outcome": "unknown",
+                        "reconciliation_required": True,
+                    }
+                },
+            )
+        if self.root_cancel_unready_once:
+            self.root_cancel_unready_once = False
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.REJECTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method=(
+                    "cancel_order_fill_follow_up_child_by_root_client_order_id"
+                ),
+                message="Transient root-scoped readiness blocker.",
+                client_order_id=command.root_client_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=False,
+                live_coinbase_orders_ran=False,
+                failure_stage="root_child_cancel_readiness",
+            )
+        return AdminApiCommandResponse(
+            status=(
+                AdminApiCommandStatus.ACCEPTED
+                if command.admission_decision.allowed
+                else AdminApiCommandStatus.NOT_IMPLEMENTED
+            ),
+            action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+            required_permission=AdminApiPermission.ORDER_CANCEL,
+            service_method=(
+                "cancel_order_fill_follow_up_child_by_root_client_order_id"
+            ),
+            message="Root-scoped cancel reached the canonical fake service.",
+            client_order_id=command.root_client_order_id,
+            correlation_id=command.envelope.correlation_id,
+            idempotency_key=command.envelope.idempotency_key,
+            live_exchange_submitted=False,
+            live_coinbase_orders_ran=False,
+            failure_stage=(
+                None if command.admission_decision.allowed else "approval"
+            ),
         )
 
 
@@ -376,6 +443,164 @@ def test_controlled_first_child_cancel_route_binds_proofs_and_replays_once(
     assert replay.status_code == 200
     assert replay.headers["X-Idempotency-Replayed"] == "true"
     assert len(service.cancel_commands) == 1
+
+
+def test_root_scoped_child_cancel_route_binds_rbac_payload_and_idempotency(
+    monkeypatch,
+):
+    from api.v1.routes import orders as order_routes
+
+    client = contract._client(monkeypatch)
+    service = _RecordingControlledService()
+    client.app.dependency_overrides[order_routes.get_command_service] = (
+        lambda: service
+    )
+    monkeypatch.setattr(
+        order_routes,
+        "evaluate_command_live_admission",
+        _admit_controlled_stealth,
+    )
+    root_id, _child_id = _ids()
+    intent = "controlled_v15_test_profile_first_child_cancel"
+    headers = contract._headers(
+        idempotency_key="idem-v15-root-child-cancel-route",
+        operator_intent=intent,
+        roles=AdminApiRole.TRADER.value,
+    )
+    body = {
+        "reason": "cancel selected root deterministic first child",
+        "manual_live_acknowledgement": True,
+        "controlled_plan_sha256": "a" * 64,
+    }
+    route = f"/api/v1/orders/{root_id}/fill-follow-up/child-cancel"
+
+    denied = client.post(
+        route,
+        headers=contract._headers(
+            idempotency_key="idem-v15-root-child-cancel-viewer",
+            operator_intent=intent,
+            roles=AdminApiRole.VIEWER.value,
+        ),
+        json=body,
+    )
+    assert denied.status_code == 403
+    assert service.root_cancel_commands == []
+
+    accepted = client.post(route, headers=headers, json=body)
+    assert accepted.status_code == 200
+    assert accepted.json()["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert len(service.root_cancel_commands) == 1
+    command = service.root_cancel_commands[0]
+    assert command.root_client_order_id == root_id
+    assert command.admission_decision.identity_key == "client_order_id"
+    assert command.admission_decision.identity_value == root_id
+    assert command.admission_decision.route == (
+        "/api/v1/orders/{root_client_order_id}/fill-follow-up/child-cancel"
+    )
+    expected_hash = make_payload_hash(
+        {
+            "endpoint": f"POST {route}",
+            "actor_id": "operator-001",
+            "roles": ["trader"],
+            "operator_intent": intent,
+            "body": body,
+            "path_params": {"root_client_order_id": root_id},
+        }
+    )
+    assert command.admission_decision.payload_hash == expected_hash
+
+    replay = client.post(route, headers=headers, json=body)
+    assert replay.status_code == 200
+    assert replay.headers["X-Idempotency-Replayed"] == "true"
+    assert len(service.root_cancel_commands) == 1
+
+    conflict = client.post(
+        route,
+        headers=headers,
+        json={**body, "reason": "changed reason"},
+    )
+    assert conflict.status_code == 409
+    assert len(service.root_cancel_commands) == 1
+
+
+def test_root_scoped_child_cancel_same_key_retries_transient_unready(
+    monkeypatch,
+):
+    from api.v1.routes import orders as order_routes
+
+    client = contract._client(monkeypatch)
+    service = _RecordingControlledService()
+    service.root_cancel_unready_once = True
+    client.app.dependency_overrides[order_routes.get_command_service] = (
+        lambda: service
+    )
+    monkeypatch.setattr(
+        order_routes,
+        "evaluate_command_live_admission",
+        _admit_controlled_stealth,
+    )
+    root_id, _child_id = _ids()
+    headers = contract._headers(
+        idempotency_key="idem-v15-root-child-transient-unready",
+        operator_intent="controlled_v15_test_profile_first_child_cancel",
+        roles=AdminApiRole.TRADER.value,
+    )
+    body = {
+        "reason": "cancel selected root deterministic first child",
+        "manual_live_acknowledgement": True,
+        "controlled_plan_sha256": "a" * 64,
+    }
+    route = f"/api/v1/orders/{root_id}/fill-follow-up/child-cancel"
+
+    blocked = client.post(route, headers=headers, json=body)
+    accepted = client.post(route, headers=headers, json=body)
+
+    assert blocked.status_code == 400
+    assert blocked.json()["failure_stage"] == "root_child_cancel_readiness"
+    assert blocked.json()["live_exchange_submitted"] is False
+    assert accepted.status_code == 200
+    assert accepted.headers.get("X-Idempotency-Replayed") is None
+    assert accepted.json()["status"] == AdminApiCommandStatus.ACCEPTED.value
+    assert len(service.root_cancel_commands) == 2
+
+
+def test_root_scoped_child_cancel_same_key_reenters_unknown_reconciliation(
+    monkeypatch,
+):
+    from api.v1.routes import orders as order_routes
+
+    client = contract._client(monkeypatch)
+    service = _RecordingControlledService()
+    service.root_cancel_unknown_once = True
+    client.app.dependency_overrides[order_routes.get_command_service] = (
+        lambda: service
+    )
+    monkeypatch.setattr(
+        order_routes,
+        "evaluate_command_live_admission",
+        _admit_controlled_stealth,
+    )
+    root_id, _child_id = _ids()
+    headers = contract._headers(
+        idempotency_key="idem-v15-root-child-unknown-reconcile",
+        operator_intent="controlled_v15_test_profile_first_child_cancel",
+        roles=AdminApiRole.TRADER.value,
+    )
+    body = {
+        "reason": "cancel_active_deterministic_first_child",
+        "manual_live_acknowledgement": True,
+        "controlled_plan_sha256": "a" * 64,
+    }
+    route = f"/api/v1/orders/{root_id}/fill-follow-up/child-cancel"
+
+    unknown = client.post(route, headers=headers, json=body)
+    reconciled = client.post(route, headers=headers, json=body)
+
+    assert unknown.status_code == 400
+    assert unknown.json()["live_exchange_submitted"] is True
+    assert reconciled.status_code == 200
+    assert reconciled.headers.get("X-Idempotency-Replayed") is None
+    assert len(service.root_cancel_commands) == 2
 
 
 def test_controlled_first_child_reveal_same_key_retries_once_after_proofs_install(

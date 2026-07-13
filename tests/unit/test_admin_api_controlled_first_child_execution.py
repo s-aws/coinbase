@@ -12,6 +12,8 @@ import pytest
 from application.admin_api.command_service import (
     CONTROLLED_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
     CONTROLLED_FIRST_CHILD_REVEAL_OPERATOR_INTENT,
+    CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
+    CONTROLLED_V15_FIRST_CHILD_REVEAL_OPERATOR_INTENT,
     AdminApiCommandDependencies,
     AdminApiCommandService,
 )
@@ -43,6 +45,7 @@ CHILD_ID = str(
 )
 EXCHANGE_ID = "33333333-3333-4333-8333-333333333333"
 BATCH_ID = "test-profile-root-child-repeatability-20260711"
+PLAN_SHA256 = "a" * 64
 
 
 class _ClaimTrackingCoordinator:
@@ -105,6 +108,7 @@ def _reveal_command(
     operator_intent: str = CONTROLLED_FIRST_CHILD_REVEAL_OPERATOR_INTENT,
     max_notional: str = "2.00",
     prior_preparation_sha256: str | None = None,
+    controlled_plan_sha256: str | None = None,
 ) -> StealthRevealCommand:
     return StealthRevealCommand(
         envelope=_envelope(operator_intent),
@@ -116,6 +120,7 @@ def _reveal_command(
             controlled_limit_price="102400.00",
             controlled_batch_id=BATCH_ID,
             controlled_batch_slot=1,
+            controlled_plan_sha256=controlled_plan_sha256,
             controlled_prior_preparation_sha256=(
                 prior_preparation_sha256
             ),
@@ -133,6 +138,7 @@ def _cancel_command(
     *,
     allow_live_execution: bool = True,
     operator_intent: str = CONTROLLED_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
+    controlled_plan_sha256: str | None = None,
 ) -> StealthCancelCommand:
     return StealthCancelCommand(
         envelope=_envelope(operator_intent),
@@ -143,6 +149,7 @@ def _cancel_command(
             expected_root_client_order_id=ROOT_ID,
             controlled_batch_id=BATCH_ID,
             controlled_batch_slot=1,
+            controlled_plan_sha256=controlled_plan_sha256,
         ),
         allow_live_execution=allow_live_execution,
         admin_approval_snapshot_id="approval-cancel-1",
@@ -202,7 +209,12 @@ def _runtime_adapter_success_evidence():
     return authority, order
 
 
-def _submit_runtime_adapter(adapter, *, prior_preparation_sha256=None):
+def _submit_runtime_adapter(
+    adapter,
+    *,
+    prior_preparation_sha256=None,
+    controlled_plan_sha256=None,
+):
     return adapter.submit_controlled_first_child(
         stealth_order_id=CHILD_ID,
         expected_root_client_order_id=ROOT_ID,
@@ -215,6 +227,7 @@ def _submit_runtime_adapter(adapter, *, prior_preparation_sha256=None):
         reconciliation_plan_id="recon-child-1",
         controlled_batch_id=BATCH_ID,
         controlled_batch_slot=1,
+        controlled_plan_sha256=controlled_plan_sha256,
         expected_prior_preparation_sha256=prior_preparation_sha256,
     )
 
@@ -351,7 +364,18 @@ def test_controlled_child_reveal_blocks_prior_profile_uncertainty_under_claim(
     runtime.submit_controlled_first_child.assert_not_called()
 
 
-def test_controlled_child_reveal_submits_once_and_requires_exact_readback(monkeypatch):
+@pytest.mark.parametrize(
+    ("operator_intent", "controlled_plan_sha256"),
+    [
+        (CONTROLLED_FIRST_CHILD_REVEAL_OPERATOR_INTENT, None),
+        (CONTROLLED_V15_FIRST_CHILD_REVEAL_OPERATOR_INTENT, PLAN_SHA256),
+    ],
+)
+def test_controlled_child_reveal_submits_once_and_requires_exact_readback(
+    monkeypatch,
+    operator_intent,
+    controlled_plan_sha256,
+):
     monkeypatch.setattr(
         "application.admin_api.command_service.evaluate_spot_test_portfolio_binding",
         lambda **_kwargs: _portfolio_binding(),
@@ -399,10 +423,16 @@ def test_controlled_child_reveal_submits_once_and_requires_exact_readback(monkey
         "post_only": False,
         "placement_attempted": True,
         "placement_succeeded": True,
+        "controlled_plan_sha256": controlled_plan_sha256,
     }
     service = AdminApiCommandService(_deps(runtime))
 
-    response = service.reveal_stealth_order_by_stealth_order_id(_reveal_command())
+    response = service.reveal_stealth_order_by_stealth_order_id(
+        _reveal_command(
+            operator_intent=operator_intent,
+            controlled_plan_sha256=controlled_plan_sha256,
+        )
+    )
 
     assert response.status == AdminApiCommandStatus.ACCEPTED
     assert response.stealth_order_id == CHILD_ID
@@ -417,6 +447,73 @@ def test_controlled_child_reveal_submits_once_and_requires_exact_readback(monkey
     assert kwargs["controlled_batch_slot"] == 1
     assert kwargs["max_notional_usdc"] == "2.00"
     assert kwargs["expected_prior_preparation_sha256"] is None
+    assert kwargs["controlled_plan_sha256"] == controlled_plan_sha256
+    if controlled_plan_sha256 is None:
+        assert "controlled_plan_sha256" not in response.data
+    else:
+        assert response.data["controlled_plan_sha256"] == controlled_plan_sha256
+
+
+@pytest.mark.parametrize(
+    "operator_intent",
+    [
+        CONTROLLED_V15_FIRST_CHILD_REVEAL_OPERATOR_INTENT,
+        CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
+    ],
+)
+def test_v15_controlled_child_commands_require_plan_hash(operator_intent):
+    runtime = MagicMock()
+    service = AdminApiCommandService(_deps(runtime))
+
+    if operator_intent == CONTROLLED_V15_FIRST_CHILD_REVEAL_OPERATOR_INTENT:
+        response = service.reveal_stealth_order_by_stealth_order_id(
+            _reveal_command(operator_intent=operator_intent)
+        )
+        runtime.submit_controlled_first_child.assert_not_called()
+    else:
+        response = service.cancel_stealth_order_by_stealth_order_id(
+            _cancel_command(operator_intent=operator_intent)
+        )
+        runtime.read_controlled_first_child.assert_not_called()
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "controlled_child_context"
+
+
+def test_v15_controlled_child_reveal_rejects_runtime_plan_hash_mismatch(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "application.admin_api.command_service.evaluate_spot_test_portfolio_binding",
+        lambda **_kwargs: _portfolio_binding(),
+    )
+    runtime = MagicMock()
+    runtime.submit_controlled_first_child.return_value = {
+        "placed_client_order_id": CHILD_ID,
+        "exchange_order_id": EXCHANGE_ID,
+        "product_id": "BTC-USDC",
+        "side": "SELL",
+        "base_size": "0.00001718",
+        "submitted_limit_price": "102400.00",
+        "post_only": False,
+        "placement_attempted": True,
+        "placement_succeeded": True,
+        "controlled_plan_sha256": "b" * 64,
+    }
+    dependencies = _deps(runtime)
+    dependencies.spot_order_admission_coordinator = _ClaimTrackingCoordinator()
+    service = AdminApiCommandService(dependencies)
+
+    response = service.reveal_stealth_order_by_stealth_order_id(
+        _reveal_command(
+            operator_intent=CONTROLLED_V15_FIRST_CHILD_REVEAL_OPERATOR_INTENT,
+            controlled_plan_sha256=PLAN_SHA256,
+        )
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "controlled_child_submission_unknown"
+    assert response.live_exchange_submitted is True
 
 
 @pytest.mark.parametrize(
@@ -782,10 +879,19 @@ def test_controlled_child_cancel_stays_disabled_without_route_admission():
         ),
     ],
 )
+@pytest.mark.parametrize(
+    ("operator_intent", "controlled_plan_sha256"),
+    [
+        (CONTROLLED_FIRST_CHILD_CANCEL_OPERATOR_INTENT, None),
+        (CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT, PLAN_SHA256),
+    ],
+)
 def test_controlled_child_cancel_uses_canonical_identity_then_reconciles(
     monkeypatch,
     canonical_cancel_result,
     exchange_id_fallback_used,
+    operator_intent,
+    controlled_plan_sha256,
 ):
     monkeypatch.setattr(
         "application.admin_api.command_service.evaluate_spot_test_portfolio_binding",
@@ -807,6 +913,9 @@ def test_controlled_child_cancel_uses_canonical_identity_then_reconciles(
                     "status": "OPEN",
                     "retail_portfolio_id": TEST_PORTFOLIO_ID,
                     "filled_size": "0",
+                    "filled_value": "0",
+                    "total_fees": "0",
+                    "number_of_fills": 0,
                 },
             },
             {
@@ -823,6 +932,9 @@ def test_controlled_child_cancel_uses_canonical_identity_then_reconciles(
                     "status": "CANCELLED",
                     "retail_portfolio_id": TEST_PORTFOLIO_ID,
                     "filled_size": "0",
+                    "filled_value": "0",
+                    "total_fees": "0",
+                    "number_of_fills": 0,
                 },
             },
         ]
@@ -832,7 +944,13 @@ def test_controlled_child_cancel_uses_canonical_identity_then_reconciles(
         lambda *_args, **_kwargs: next(readbacks),
     )
     rest_client = MagicMock()
-    rest_client.cancel_order.return_value = canonical_cancel_result
+    cancel_events = []
+
+    def _canonical_cancel(*_args, **_kwargs):
+        cancel_events.append("coinbase_client_order_id_cancel")
+        return canonical_cancel_result
+
+    rest_client.cancel_order.side_effect = _canonical_cancel
     rest_client.cancel_order_by_exchange_order_id.return_value = {
         "outcome": "succeeded",
         "explicit_rejection": False,
@@ -850,6 +968,7 @@ def test_controlled_child_cancel_uses_canonical_identity_then_reconciles(
         "active_placement_client_order_id": CHILD_ID,
         "active_exchange_order_id": EXCHANGE_ID,
         "executed_size": "0",
+        "controlled_plan_sha256": controlled_plan_sha256,
     }
     runtime.reconcile_controlled_first_child_terminal.return_value = {
         "local_status": "CANCELLED",
@@ -857,15 +976,38 @@ def test_controlled_child_cancel_uses_canonical_identity_then_reconciles(
     }
     service = AdminApiCommandService(_deps(runtime, rest_client))
 
-    response = service.cancel_stealth_order_by_stealth_order_id(_cancel_command())
+    response = service.cancel_stealth_order_by_stealth_order_id(
+        _cancel_command(
+            operator_intent=operator_intent,
+            controlled_plan_sha256=controlled_plan_sha256,
+        ),
+        semantic_boundary_callback=lambda: cancel_events.append(
+            "durable_exchange_boundary"
+        ),
+    )
 
-    assert response.status == AdminApiCommandStatus.ACCEPTED
-    assert response.coinbase_order_id == EXCHANGE_ID
-    assert response.data["cancellation_readback"]["authoritative_status"] == "CANCELLED"
+    v15_fallback_blocked = bool(
+        controlled_plan_sha256 is not None and exchange_id_fallback_used
+    )
+    assert response.status == (
+        AdminApiCommandStatus.REJECTED
+        if v15_fallback_blocked
+        else AdminApiCommandStatus.ACCEPTED
+    )
     rest_client.cancel_order.assert_called_once_with(
         CHILD_ID,
         return_evidence=True,
     )
+    assert cancel_events[:2] == [
+        "durable_exchange_boundary",
+        "coinbase_client_order_id_cancel",
+    ]
+    if v15_fallback_blocked:
+        assert response.failure_stage == "cancellation_rejected"
+        rest_client.cancel_order_by_exchange_order_id.assert_not_called()
+        return
+    assert response.coinbase_order_id == EXCHANGE_ID
+    assert response.data["cancellation_readback"]["authoritative_status"] == "CANCELLED"
     if exchange_id_fallback_used:
         rest_client.cancel_order_by_exchange_order_id.assert_called_once_with(
             EXCHANGE_ID,
@@ -882,12 +1024,136 @@ def test_controlled_child_cancel_uses_canonical_identity_then_reconciles(
     assert response.data["cancellation_identity"][
         "exchange_id_fallback_used"
     ] is exchange_id_fallback_used
+    if controlled_plan_sha256 is None:
+        assert "controlled_plan_sha256" not in response.data
+    else:
+        assert response.data["controlled_plan_sha256"] == controlled_plan_sha256
+    assert runtime.read_controlled_first_child.call_args.kwargs[
+        "controlled_plan_sha256"
+    ] == controlled_plan_sha256
     runtime.reconcile_controlled_first_child_terminal.assert_called_once_with(
         stealth_order_id=CHILD_ID,
         authoritative_status=OrderStatus.CANCELLED.value,
         executed_size="0",
         exchange_order_id=EXCHANGE_ID,
     )
+
+
+@pytest.mark.parametrize(
+    ("exchange_status", "expected_status"),
+    [
+        ("OPEN", AdminApiCommandStatus.REJECTED),
+        ("CANCELLED", AdminApiCommandStatus.ACCEPTED),
+    ],
+)
+def test_v15_child_cancel_reconciliation_only_never_submits_second_cancel(
+    monkeypatch,
+    exchange_status,
+    expected_status,
+):
+    monkeypatch.setattr(
+        "application.admin_api.command_service.evaluate_spot_test_portfolio_binding",
+        lambda **_kwargs: _portfolio_binding(),
+    )
+    monkeypatch.setattr(
+        "application.admin_api.command_service.exact_coinbase_order_readback",
+        lambda *_args, **_kwargs: {
+            "authoritative": True,
+            "pagination_complete": True,
+            "exact_identity_match": True,
+            "authoritative_status": exchange_status,
+            "exchange_order_id": EXCHANGE_ID,
+            "matched_order": {
+                "client_order_id": CHILD_ID,
+                "order_id": EXCHANGE_ID,
+                "product_id": "BTC-USDC",
+                "product_type": "SPOT",
+                "side": "SELL",
+                "status": exchange_status,
+                "retail_portfolio_id": TEST_PORTFOLIO_ID,
+                "filled_size": "0",
+                "filled_value": "0",
+                "total_fees": "0",
+                "number_of_fills": 0,
+            },
+        },
+    )
+    runtime = MagicMock()
+    runtime.read_controlled_first_child.return_value = {
+        "stealth_order_id": CHILD_ID,
+        "root_client_order_id": ROOT_ID,
+        "product_id": "BTC-USDC",
+        "side": "SELL",
+        "retail_portfolio_id": TEST_PORTFOLIO_ID,
+        "status": "REVEALED",
+        "active_placement_client_order_id": CHILD_ID,
+        "active_exchange_order_id": EXCHANGE_ID,
+        "executed_size": "0",
+        "controlled_plan_sha256": PLAN_SHA256,
+    }
+    runtime.reconcile_controlled_first_child_terminal.return_value = {
+        "local_status": "CANCELLED",
+        "active_placement_cleared": True,
+    }
+    rest_client = MagicMock()
+    service = AdminApiCommandService(_deps(runtime, rest_client))
+
+    response = service.cancel_stealth_order_by_stealth_order_id(
+        _cancel_command(
+            operator_intent=CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
+            controlled_plan_sha256=PLAN_SHA256,
+        ),
+        reconciliation_only=True,
+    )
+
+    assert response.status == expected_status
+    rest_client.cancel_order.assert_not_called()
+    rest_client.cancel_order_by_exchange_order_id.assert_not_called()
+    if exchange_status == "CANCELLED":
+        assert response.data["terminal_zero_fill"]["proven"] is True
+        assert response.data["local_reconciliation"] == {
+            "local_status": "CANCELLED",
+            "active_placement_cleared": True,
+            "executed_size": "0",
+        }
+    else:
+        runtime.reconcile_controlled_first_child_terminal.assert_not_called()
+
+
+def test_v15_controlled_child_cancel_rejects_runtime_plan_hash_mismatch(
+    monkeypatch,
+):
+    monkeypatch.setattr(
+        "application.admin_api.command_service.evaluate_spot_test_portfolio_binding",
+        lambda **_kwargs: _portfolio_binding(),
+    )
+    rest_client = MagicMock()
+    runtime = MagicMock()
+    runtime.read_controlled_first_child.return_value = {
+        "stealth_order_id": CHILD_ID,
+        "root_client_order_id": ROOT_ID,
+        "product_id": "BTC-USDC",
+        "side": "SELL",
+        "retail_portfolio_id": TEST_PORTFOLIO_ID,
+        "status": "REVEALED",
+        "active_placement_client_order_id": CHILD_ID,
+        "active_exchange_order_id": EXCHANGE_ID,
+        "executed_size": "0",
+        "controlled_plan_sha256": "b" * 64,
+    }
+    service = AdminApiCommandService(_deps(runtime, rest_client))
+
+    response = service.cancel_stealth_order_by_stealth_order_id(
+        _cancel_command(
+            operator_intent=CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
+            controlled_plan_sha256=PLAN_SHA256,
+        )
+    )
+
+    assert response.status == AdminApiCommandStatus.REJECTED
+    assert response.failure_stage == "controlled_child_state"
+    rest_client.cancel_order.assert_not_called()
+    rest_client.cancel_order_by_exchange_order_id.assert_not_called()
 
 
 def test_controlled_child_cancel_does_not_cancel_when_child_already_filled(monkeypatch):
@@ -1343,6 +1609,41 @@ def test_runtime_adapter_prepares_then_submits_exact_child_from_cached_ticker(
     }
 
 
+def test_runtime_adapter_forwards_v15_plan_hash_into_preparation(monkeypatch):
+    now = datetime.now(timezone.utc)
+    authority, order = _runtime_adapter_success_evidence()
+    manager = MagicMock()
+    manager._market_cache = {
+        "BTC-USDC": {
+            "bid": 64000.0,
+            "ask": 64001.0,
+            "time": now,
+            "source": "ticker",
+        }
+    }
+    manager.prepare_controlled_admin_first_child_reveal.return_value = authority
+    manager.reveal_order_slice.return_value = CHILD_ID
+    manager._get_stealth_order.return_value = order
+    monkeypatch.setitem(
+        sys.modules,
+        "dashboard_server",
+        SimpleNamespace(
+            stealth_order_bridge=SimpleNamespace(stealth_manager=manager),
+        ),
+    )
+    adapter = AdminApiControlledFirstChildRuntimeAdapter(manager)
+
+    result = _submit_runtime_adapter(
+        adapter,
+        controlled_plan_sha256=PLAN_SHA256,
+    )
+
+    assert manager.prepare_controlled_admin_first_child_reveal.call_args.kwargs[
+        "controlled_plan_sha256"
+    ] == PLAN_SHA256
+    assert result["controlled_plan_sha256"] == PLAN_SHA256
+
+
 def test_runtime_adapter_reads_and_reconciles_exact_first_child(monkeypatch):
     child_row = {
         "client_order_id": CHILD_ID,
@@ -1381,6 +1682,7 @@ def test_runtime_adapter_reads_and_reconciles_exact_first_child(monkeypatch):
             "controlled_admin_first_child_reveal_preparation": {
                 "batch_id": BATCH_ID,
                 "batch_slot": 1,
+                "controlled_plan_sha256": PLAN_SHA256,
             },
         },
         "revealed_orders": [
@@ -1418,6 +1720,23 @@ def test_runtime_adapter_reads_and_reconciles_exact_first_child(monkeypatch):
         controlled_batch_id=BATCH_ID,
         controlled_batch_slot=1,
     )
+    v15_readback = adapter.read_controlled_first_child(
+        stealth_order_id=CHILD_ID,
+        expected_root_client_order_id=ROOT_ID,
+        expected_portfolio_id=TEST_PORTFOLIO_ID,
+        controlled_batch_id=BATCH_ID,
+        controlled_batch_slot=1,
+        controlled_plan_sha256=PLAN_SHA256,
+    )
+    with pytest.raises(RuntimeError, match="controlled_child_state_mismatch"):
+        adapter.read_controlled_first_child(
+            stealth_order_id=CHILD_ID,
+            expected_root_client_order_id=ROOT_ID,
+            expected_portfolio_id=TEST_PORTFOLIO_ID,
+            controlled_batch_id=BATCH_ID,
+            controlled_batch_slot=1,
+            controlled_plan_sha256="b" * 64,
+        )
     reconciled = adapter.reconcile_controlled_first_child_terminal(
         stealth_order_id=CHILD_ID,
         authoritative_status="CANCELLED",
@@ -1427,6 +1746,8 @@ def test_runtime_adapter_reads_and_reconciles_exact_first_child(monkeypatch):
 
     assert readback["active_exchange_order_id"] == EXCHANGE_ID
     assert readback["root_client_order_id"] == ROOT_ID
+    assert "controlled_plan_sha256" not in readback
+    assert v15_readback["controlled_plan_sha256"] == PLAN_SHA256
     assert reconciled == {
         "local_status": "CANCELLED",
         "active_placement_cleared": True,

@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from threading import RLock
 from typing import Any, Callable, Iterator, Mapping
+import os
 import time
 import uuid
 
@@ -28,6 +29,8 @@ from core.enums import (
     AdminApiActionClass,
     AdminApiCommandStatus,
     AdminApiGateStatus,
+    AdminApiLiveAdmissionBlocker,
+    AdminApiLiveExecutionStatus,
     AdminApiMutationFamilyType,
     AdminApiPermission,
     EventSourceChannel,
@@ -55,10 +58,15 @@ from core.runtime_controller import (
     get_runtime_controller,
 )
 
-from .approval import evaluate_live_execution_gate
+from .approval import FileAdminApiApprovalStore, evaluate_live_execution_gate
 from .audit import FileAdminApiAuditStore
+from .cap_guard import FileAdminApiCapGuardStore
+from .reconciliation import FileAdminApiReconciliationStore
 from .models import (
     AdminApiCommandResponse,
+    AdminLiveAdmissionDecisionEvidence,
+    AdminOrderFillFollowUpChildCancelCommand,
+    AdminOrderFillFollowUpChildCancelReadinessResponse,
     AdminOrderFillFollowUpTriggerCommand,
     CampaignExecutionCommand,
     CancelOrderCommand,
@@ -79,6 +87,7 @@ from .models import (
     StealthActivePlacementExchangeTruthProofCommand,
     StealthActivePlacementExchangeTruthSnapshotCommand,
     StealthCancelCommand,
+    StealthCancelRequest,
     StealthCancelReplaceProofCommand,
     StealthCoinbaseExchangeSubmissionPolicyProofCommand,
     StealthCreateLifecycleWriteGuardProofCommand,
@@ -97,6 +106,13 @@ from .models import (
     StealthRecoveryCommand,
     StealthReconciliationCommand,
     StealthRevealCommand,
+)
+from .root_child_cancel import (
+    AdminRootChildCancelClaimRecord,
+    FileAdminRootChildCancelClaimStore,
+    load_controlled_v15_plan_authority,
+    root_child_cancel_semantic_key,
+    validate_controlled_v15_plan_scope,
 )
 from .spot_portfolio_binding import (
     DEFAULT_SPOT_PORTFOLIO_LABEL,
@@ -359,9 +375,208 @@ CONTROLLED_FIRST_CHILD_REVEAL_OPERATOR_INTENT = (
 CONTROLLED_FIRST_CHILD_CANCEL_OPERATOR_INTENT = (
     "controlled_test_profile_first_child_cancel"
 )
+CONTROLLED_V15_FIRST_CHILD_REVEAL_OPERATOR_INTENT = (
+    "controlled_v15_test_profile_first_child_reveal"
+)
+CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT = (
+    "controlled_v15_test_profile_first_child_cancel"
+)
 CONTROLLED_FIRST_CHILD_MAX_NOTIONAL_USDC = Decimal("2.00")
 CONTROLLED_FIRST_CHILD_TERMINAL_POLL_SECONDS = 10.0
 CONTROLLED_FIRST_CHILD_TERMINAL_POLL_INTERVAL_SECONDS = 0.25
+
+
+def _root_child_cancel_field(value: Any, name: str, default: Any = None) -> Any:
+    if isinstance(value, Mapping):
+        return value.get(name, default)
+    return getattr(value, name, default)
+
+
+def _root_child_cancel_text(value: Any) -> str:
+    return str(getattr(value, "value", value) or "")
+
+
+def _root_child_cancel_decimal_is_zero(value: Any) -> bool:
+    if value is None or isinstance(value, bool):
+        return False
+    try:
+        number = Decimal(str(value))
+    except Exception:
+        return False
+    return number.is_finite() and number == 0
+
+
+def _root_child_cancel_integer_is_zero(value: Any) -> bool:
+    if value is None or isinstance(value, bool):
+        return False
+    try:
+        return int(str(value)) == 0 and Decimal(str(value)) == 0
+    except Exception:
+        return False
+
+
+def _root_child_cancel_first_present(
+    value: Mapping[str, Any],
+    *names: str,
+) -> Any:
+    for name in names:
+        if name in value:
+            return value[name]
+    return None
+
+
+def _root_child_cancel_route_proof_chain_matches(
+    dependencies: Any,
+    handoff: Mapping[str, Any],
+) -> bool:
+    """Resolve every handoff id against the exact durable route proofs."""
+
+    try:
+        route = str(handoff["route"])
+        method = str(handoff["method"])
+        module_id = str(handoff["module_id"])
+        identity_key = str(handoff["identity_key"])
+        identity_value = str(handoff["identity_value"])
+        actor_id = str(handoff["actor_id"])
+        operator_intent = str(handoff["operator_intent"])
+        idempotency_key = str(handoff["command_idempotency_key"])
+        payload_hash = str(handoff["payload_hash"])
+        approval_id = str(handoff["approval_snapshot_id"])
+        audit_id = str(handoff["admission_audit_id"])
+        cap_id = str(handoff["cap_guard_decision_id"])
+        reconciliation_id = str(handoff["reconciliation_plan_id"])
+        service_method = str(handoff["service_method"])
+        expected_common = {
+            "route": route,
+            "method": method,
+            "module_id": module_id,
+            "identity_key": identity_key,
+            "identity_value": identity_value,
+            "operator_intent": operator_intent,
+            "idempotency_key": idempotency_key,
+            "payload_hash": payload_hash,
+        }
+
+        approval_store = dependencies.approval_store_getter()
+        approval = approval_store.find_by_approval_id(approval_id)
+        audit = dependencies.audit_store_getter().find_by_audit_id(audit_id)
+        cap = dependencies.cap_guard_store_getter().find_by_decision_id(cap_id)
+        reconciliation = (
+            dependencies.reconciliation_store_getter().find_by_plan_id(
+                reconciliation_id
+            )
+        )
+        if any(
+            record is None
+            for record in (approval, audit, cap, reconciliation)
+        ):
+            return False
+
+        def common_matches(record: Any) -> bool:
+            return bool(
+                all(
+                    _root_child_cancel_text(
+                        _root_child_cancel_field(record, name)
+                    )
+                    == value
+                    for name, value in expected_common.items()
+                )
+                and _root_child_cancel_text(
+                    _root_child_cancel_field(record, "action_class")
+                )
+                == AdminApiActionClass.LIVE_EXCHANGE_CANCEL.value
+                and _root_child_cancel_text(
+                    _root_child_cancel_field(record, "required_permission")
+                )
+                == AdminApiPermission.ORDER_CANCEL.value
+            )
+
+        decision = _root_child_cancel_field(audit, "admission_decision")
+        return bool(
+            route
+            == (
+                "/api/v1/orders/{root_client_order_id}/fill-follow-up/"
+                "child-cancel"
+            )
+            and method == "POST"
+            and module_id == "spot_operations"
+            and identity_key == "client_order_id"
+            and actor_id
+            and idempotency_key == handoff.get("idempotency_key")
+            and service_method
+            == "cancel_order_fill_follow_up_child_by_root_client_order_id"
+            and common_matches(approval)
+            and _root_child_cancel_field(approval, "approval_id")
+            == approval_id
+            and _root_child_cancel_field(approval, "requested_by_actor_id")
+            == actor_id
+            and _root_child_cancel_field(approval, "cap_guard_decision_ref")
+            == cap_id
+            and _root_child_cancel_field(
+                approval,
+                "reconciliation_plan_ref",
+            )
+            == reconciliation_id
+            and not approval_store.approval_is_revoked(approval_id)
+            and common_matches(decision)
+            and _root_child_cancel_field(decision, "actor_id") == actor_id
+            and _root_child_cancel_field(
+                decision,
+                "approval_snapshot_id",
+            )
+            == approval_id
+            and _root_child_cancel_field(audit, "audit_id") == audit_id
+            and _root_child_cancel_field(
+                audit,
+                "live_exchange_submitted",
+                False,
+            )
+            is False
+            and common_matches(cap)
+            and _root_child_cancel_field(cap, "decision_id") == cap_id
+            and _root_child_cancel_field(cap, "actor_id") == actor_id
+            and _root_child_cancel_field(cap, "approval_snapshot_id")
+            == approval_id
+            and _root_child_cancel_field(cap, "admission_audit_id")
+            == audit_id
+            and _root_child_cancel_field(cap, "allowed") is True
+            and _root_child_cancel_text(
+                _root_child_cancel_field(cap, "status")
+            )
+            == AdminApiGateStatus.PASSED.value
+            and common_matches(reconciliation)
+            and _root_child_cancel_field(reconciliation, "plan_id")
+            == reconciliation_id
+            and _root_child_cancel_field(reconciliation, "actor_id")
+            == actor_id
+            and _root_child_cancel_field(
+                reconciliation,
+                "approval_snapshot_id",
+            )
+            == approval_id
+            and _root_child_cancel_field(
+                reconciliation,
+                "admission_audit_id",
+            )
+            == audit_id
+            and _root_child_cancel_field(
+                reconciliation,
+                "cap_guard_decision_id",
+            )
+            == cap_id
+            and _root_child_cancel_field(reconciliation, "allowed") is True
+            and _root_child_cancel_text(
+                _root_child_cancel_field(reconciliation, "status")
+            )
+            == AdminApiGateStatus.PASSED.value
+            and _root_child_cancel_field(
+                reconciliation,
+                "post_submit_reconciliation_required",
+            )
+            is True
+        )
+    except Exception:
+        return False
 
 
 def _controlled_child_false(value: Any) -> bool:
@@ -440,6 +655,23 @@ class AdminApiCommandDependencies:
     fill_follow_up_executor_getter: Callable[[], Any | None] = lambda: None
     stealth_order_runtime_getter: Callable[[], Any | None] = lambda: None
     read_service_getter: Callable[[], Any | None] | None = None
+    root_child_cancel_claim_store_getter: Callable[
+        [],
+        FileAdminRootChildCancelClaimStore,
+    ] = FileAdminRootChildCancelClaimStore
+    controlled_v15_plan_authority_getter: Callable[
+        [],
+        Mapping[str, Any],
+    ] = load_controlled_v15_plan_authority
+    approval_store_getter: Callable[
+        [], FileAdminApiApprovalStore
+    ] = FileAdminApiApprovalStore
+    cap_guard_store_getter: Callable[
+        [], FileAdminApiCapGuardStore
+    ] = FileAdminApiCapGuardStore
+    reconciliation_store_getter: Callable[
+        [], FileAdminApiReconciliationStore
+    ] = FileAdminApiReconciliationStore
     planned_budget_fetcher: Callable[[], dict[str, float]] = _empty_budget
     lot_authority_evaluator_getter: Callable[[], Any | None] = lambda: None
     uuid_factory: Callable[[], str] = field(default_factory=lambda: lambda: str(uuid.uuid4()))
@@ -4795,9 +5027,1333 @@ class AdminApiCommandService:
         finally:
             profile_claim.__exit__(None, None, None)
 
+    def build_order_fill_follow_up_child_cancel_readiness(
+        self,
+        *,
+        root_client_order_id: str,
+        controlled_plan_sha256: str | None = None,
+        _claimed_semantic_key: str | None = None,
+    ) -> AdminOrderFillFollowUpChildCancelReadinessResponse:
+        """Resolve one active V15 first child from its root and fail closed."""
+
+        blockers: list[str] = []
+        child_client_order_id: str | None = None
+        controlled_batch_id: str | None = None
+        controlled_batch_slot: int | None = None
+        child_status: str | None = None
+        exchange_status: str | None = None
+        active_placement_proven = False
+        zero_fill_proven = False
+        exchange_evidence_present = False
+        live_coinbase_read_ran = False
+        found = False
+        resolved_plan_sha256: str | None = None
+        plan_expires_at: str | None = None
+        root_reference_notional_usdc: str | None = None
+        child_reference_notional_usdc: str | None = None
+        aggregate_reference_notional_usdc: str | None = None
+        child_reference_reserve_usdc: str | None = None
+        planned_aggregate_reference_notional_usdc: str | None = None
+        root_notional_cap_usdc: str | None = None
+        child_notional_cap_usdc: str | None = None
+        aggregate_notional_cap_usdc: str | None = None
+        audit_id: str | None = None
+        approval_snapshot_id: str | None = None
+        cap_guard_decision_id: str | None = None
+        reconciliation_plan_id: str | None = None
+        correlation_id: str | None = None
+        cancel_idempotency_key: str | None = None
+        cancel_correlation_id: str | None = None
+        cancel_operator_intent: str | None = None
+        authority_source: str | None = None
+        route_proof_chain_resolved = False
+
+        read_service_getter = self.dependencies.read_service_getter
+        read_service = (
+            read_service_getter()
+            if callable(read_service_getter)
+            else None
+        )
+        if read_service is None:
+            blockers.append("root_child_read_service_unavailable")
+            chain = None
+        else:
+            try:
+                chain = read_service.build_order_fill_follow_up_chain(
+                    client_order_id=root_client_order_id
+                )
+            except Exception as exc:
+                chain = None
+                blockers.append(
+                    f"root_child_chain_read_failed:{type(exc).__name__}"
+                )
+
+        root_order = _root_child_cancel_field(chain, "root_order")
+        children = list(
+            _root_child_cancel_field(chain, "follow_up_children", []) or []
+        )
+        child_ids = list(
+            _root_child_cancel_field(
+                chain,
+                "follow_up_child_client_order_ids",
+                [],
+            )
+            or []
+        )
+        found = bool(_root_child_cancel_field(chain, "found", False))
+        blockers.extend(
+            f"chain:{blocker}"
+            for blocker in list(
+                _root_child_cancel_field(chain, "blockers", []) or []
+            )
+        )
+        if not found:
+            blockers.append("root_order_not_found")
+        if (
+            _root_child_cancel_field(chain, "root_parent_client_order_id")
+            != root_client_order_id
+            or _root_child_cancel_field(chain, "parent_client_order_id")
+            is not None
+            or _root_child_cancel_field(root_order, "client_order_id")
+            != root_client_order_id
+        ):
+            blockers.append("selected_order_is_not_exact_root")
+        if (
+            _root_child_cancel_text(
+                _root_child_cancel_field(root_order, "ownership_provenance")
+            )
+            != OrderOwnershipProvenance.ADMIN_MANUAL_ROOT.value
+            or _root_child_cancel_text(
+                _root_child_cancel_field(root_order, "status")
+            ).upper()
+            != OrderStatus.FILLED.value
+            or _root_child_cancel_text(
+                _root_child_cancel_field(root_order, "product_id")
+            )
+            != "BTC-USDC"
+            or _root_child_cancel_text(
+                _root_child_cancel_field(root_order, "side")
+            ).upper()
+            != OrderSide.BUY.value
+        ):
+            blockers.append("filled_admin_root_identity_unproven")
+        if (
+            len(children) != 1
+            or len(child_ids) != 1
+            or _root_child_cancel_field(chain, "follow_up_child_count") != 1
+            or _root_child_cancel_field(
+                chain,
+                "duplicate_child_client_order_ids",
+                [],
+            )
+            or _root_child_cancel_field(
+                chain,
+                "nested_child_client_order_ids",
+                [],
+            )
+            or _root_child_cancel_field(
+                chain,
+                "nested_parent_client_order_ids",
+                [],
+            )
+            or _root_child_cancel_field(
+                chain,
+                "flat_hierarchy_violation_count",
+                0,
+            )
+            != 0
+        ):
+            blockers.append("exactly_one_first_child_required")
+        elif (
+            _root_child_cancel_field(children[0], "client_order_id")
+            != child_ids[0]
+        ):
+            blockers.append("first_child_identity_conflict")
+        else:
+            child_client_order_id = str(child_ids[0])
+            expected_child_client_order_id = str(
+                uuid.uuid5(
+                    uuid.NAMESPACE_URL,
+                    (
+                        "coinbase://filled-follow-up/"
+                        f"{root_client_order_id}/{root_client_order_id}"
+                    ),
+                )
+            )
+            if child_client_order_id != expected_child_client_order_id:
+                blockers.append("deterministic_first_child_identity_mismatch")
+
+        portfolio_scope = _root_child_cancel_field(chain, "portfolio_scope")
+        expected_portfolio_id = str(
+            self.dependencies.spot_portfolio_id or ""
+        )
+        if not (
+            expected_portfolio_id
+            and _root_child_cancel_text(
+                _root_child_cancel_field(portfolio_scope, "profile_alias")
+            )
+            == "Test"
+            and _root_child_cancel_text(
+                _root_child_cancel_field(portfolio_scope, "status")
+            )
+            == "matched"
+            and _root_child_cancel_field(
+                portfolio_scope,
+                "scope_consistent",
+                False,
+            )
+            is True
+            and _root_child_cancel_text(
+                _root_child_cancel_field(
+                    portfolio_scope,
+                    "expected_portfolio_id",
+                )
+            )
+            == expected_portfolio_id
+            and _root_child_cancel_text(
+                _root_child_cancel_field(portfolio_scope, "root_portfolio_id")
+            )
+            == expected_portfolio_id
+        ):
+            blockers.append("test_portfolio_scope_mismatch")
+
+        detail = None
+        stealth_order = None
+        preparation: Mapping[str, Any] = {}
+        if child_client_order_id and read_service is not None:
+            try:
+                detail = read_service.build_stealth_order_detail(
+                    stealth_order_id=child_client_order_id
+                )
+                stealth_order = _root_child_cancel_field(detail, "order")
+            except Exception as exc:
+                blockers.append(
+                    f"first_child_detail_read_failed:{type(exc).__name__}"
+                )
+        if stealth_order is None:
+            blockers.append("first_child_stealth_state_missing")
+        else:
+            anchor_state = _root_child_cancel_field(
+                stealth_order,
+                "anchor_repricing_state",
+                {},
+            )
+            if isinstance(anchor_state, Mapping):
+                raw_preparation = anchor_state.get(
+                    "controlled_admin_first_child_reveal_preparation"
+                )
+                if isinstance(raw_preparation, Mapping):
+                    preparation = raw_preparation
+            controlled_batch_id = str(preparation.get("batch_id") or "") or None
+            raw_slot = preparation.get("batch_slot")
+            if isinstance(raw_slot, int) and not isinstance(raw_slot, bool):
+                controlled_batch_slot = raw_slot
+            child_status = _root_child_cancel_text(
+                _root_child_cancel_field(stealth_order, "status")
+            ).upper()
+            if not (
+                _root_child_cancel_field(detail, "found", False) is True
+                and _root_child_cancel_field(
+                    stealth_order,
+                    "stealth_order_id",
+                )
+                == child_client_order_id
+                and _root_child_cancel_field(
+                    stealth_order,
+                    "parent_stealth_order_id",
+                )
+                == root_client_order_id
+                and _root_child_cancel_text(
+                    _root_child_cancel_field(stealth_order, "product_id")
+                )
+                == "BTC-USDC"
+                and _root_child_cancel_text(
+                    _root_child_cancel_field(stealth_order, "side")
+                ).upper()
+                == OrderSide.SELL.value
+                and preparation.get("root_client_order_id")
+                == root_client_order_id
+                and preparation.get("stealth_order_id")
+                == child_client_order_id
+                and preparation.get("portfolio_id") == expected_portfolio_id
+                and controlled_batch_id
+                and controlled_batch_slot == 1
+            ):
+                blockers.append("controlled_first_child_preparation_mismatch")
+            observed_preparation_hash = str(
+                preparation.get("controlled_plan_sha256") or ""
+            )
+            if len(observed_preparation_hash) == 64:
+                resolved_plan_sha256 = observed_preparation_hash
+            else:
+                blockers.append("controlled_plan_sha256_missing")
+            if (
+                controlled_plan_sha256 is not None
+                and observed_preparation_hash != controlled_plan_sha256
+            ):
+                blockers.append("controlled_plan_sha256_mismatch")
+
+        authority: Mapping[str, Any] = {}
+        plan: Mapping[str, Any] = {}
+        marker: Mapping[str, Any] = {}
+        handoff: Mapping[str, Any] = {}
+        try:
+            raw_authority = (
+                self.dependencies.controlled_v15_plan_authority_getter()
+            )
+            if isinstance(raw_authority, Mapping):
+                authority = raw_authority
+                raw_plan = authority.get("plan")
+                raw_marker = authority.get("marker")
+                raw_handoff = authority.get("handoff")
+                plan = raw_plan if isinstance(raw_plan, Mapping) else {}
+                marker = raw_marker if isinstance(raw_marker, Mapping) else {}
+                handoff = (
+                    raw_handoff
+                    if isinstance(raw_handoff, Mapping)
+                    else {}
+                )
+                authority_source = str(authority.get("source") or "") or None
+                try:
+                    validate_controlled_v15_plan_scope(plan)
+                except Exception:
+                    blockers.append("controlled_v15_plan_schema_invalid")
+                route_proof_chain_resolved = (
+                    _root_child_cancel_route_proof_chain_matches(
+                        self.dependencies,
+                        handoff,
+                    )
+                )
+        except Exception as exc:
+            blockers.append(
+                f"controlled_v15_plan_authority_unavailable:"
+                f"{type(exc).__name__}"
+            )
+        root_authority = plan.get("root")
+        root_authority = (
+            root_authority if isinstance(root_authority, Mapping) else {}
+        )
+        child_authority = plan.get("child")
+        child_authority = (
+            child_authority if isinstance(child_authority, Mapping) else {}
+        )
+        cancel_authority = plan.get("cancel_command")
+        cancel_authority = (
+            cancel_authority if isinstance(cancel_authority, Mapping) else {}
+        )
+        authority_plan_sha256 = str(plan.get("plan_sha256") or "")
+        plan_expires_at = str(plan.get("expires_at") or "") or None
+        root_reference_notional_usdc = str(
+            plan.get("root_reference_notional_usdc") or ""
+        ) or None
+        child_reference_reserve_usdc = str(
+            plan.get("child_reference_reserve_usdc") or ""
+        ) or None
+        planned_aggregate_reference_notional_usdc = str(
+            plan.get("planned_reference_notional_usdc") or ""
+        ) or None
+        root_notional_cap_usdc = str(
+            plan.get("root_submitted_cap_usdc") or ""
+        ) or None
+        child_notional_cap_usdc = str(
+            plan.get("child_submitted_cap_usdc") or ""
+        ) or None
+        aggregate_notional_cap_usdc = str(
+            plan.get("slice_reference_cap_usdc") or ""
+        ) or None
+        audit_id = str(handoff.get("admission_audit_id") or "") or None
+        approval_snapshot_id = str(
+            handoff.get("approval_snapshot_id") or ""
+        ) or None
+        cap_guard_decision_id = str(
+            handoff.get("cap_guard_decision_id") or ""
+        ) or None
+        reconciliation_plan_id = str(
+            handoff.get("reconciliation_plan_id") or ""
+        ) or None
+        correlation_id = str(
+            cancel_authority.get("correlation_id") or ""
+        ) or None
+        cancel_idempotency_key = str(
+            cancel_authority.get("idempotency_key") or ""
+        ) or None
+        cancel_correlation_id = correlation_id
+        cancel_operator_intent = str(
+            cancel_authority.get("operator_intent") or ""
+        ) or None
+        execution_started_within_plan = False
+        try:
+            created_at = datetime.fromisoformat(
+                str(plan.get("created_at") or "")
+            )
+            expires_at = datetime.fromisoformat(
+                str(plan.get("expires_at") or "")
+            )
+            registered_at = datetime.fromisoformat(
+                str(marker.get("registered_at") or "")
+            )
+            execution_started_within_plan = bool(
+                created_at.tzinfo is not None
+                and expires_at.tzinfo is not None
+                and registered_at.tzinfo is not None
+                and created_at <= registered_at < expires_at
+            )
+        except (TypeError, ValueError):
+            execution_started_within_plan = False
+        plan_scope_values = (
+            plan_expires_at,
+            root_reference_notional_usdc,
+            child_reference_reserve_usdc,
+            planned_aggregate_reference_notional_usdc,
+            root_notional_cap_usdc,
+            child_notional_cap_usdc,
+            aggregate_notional_cap_usdc,
+            audit_id,
+            approval_snapshot_id,
+            cap_guard_decision_id,
+            reconciliation_plan_id,
+            correlation_id,
+            cancel_idempotency_key,
+            cancel_correlation_id,
+            cancel_operator_intent,
+            authority_source,
+        )
+        exact_plan_scope = bool(
+            resolved_plan_sha256
+            and authority_plan_sha256 == resolved_plan_sha256
+            and marker.get("plan_sha256") == resolved_plan_sha256
+            and plan.get("batch_id") == controlled_batch_id
+            and marker.get("batch_id") == controlled_batch_id
+            and plan.get("profile_label") == "Test"
+            and plan.get("portfolio_id") == expected_portfolio_id
+            and marker.get("portfolio_id") == expected_portfolio_id
+            and plan.get("product_id") == "BTC-USDC"
+            and marker.get("product_id") == "BTC-USDC"
+            and root_authority.get("client_order_id")
+            == root_client_order_id
+            and marker.get("root_client_order_id")
+            == root_client_order_id
+            and child_authority.get("client_order_id")
+            == child_client_order_id
+            and child_authority.get("parent_client_order_id")
+            == root_client_order_id
+            and marker.get("child_client_order_id")
+            == child_client_order_id
+            and execution_started_within_plan
+            and handoff.get("plan_sha256") == resolved_plan_sha256
+            and handoff.get("batch_id") == controlled_batch_id
+            and handoff.get("root_client_order_id")
+            == root_client_order_id
+            and handoff.get("child_client_order_id")
+            == child_client_order_id
+            and cancel_authority.get("root_client_order_id")
+            == root_client_order_id
+            and cancel_authority.get("child_client_order_id")
+            == child_client_order_id
+            and cancel_authority.get("route")
+            == (
+                "/api/v1/orders/{root_client_order_id}/fill-follow-up/"
+                "child-cancel"
+            )
+            and cancel_authority.get("method") == "POST"
+            and cancel_operator_intent
+            == CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT
+            and all(plan_scope_values)
+        )
+        if not exact_plan_scope:
+            blockers.append("controlled_v15_plan_scope_mismatch")
+        if not route_proof_chain_resolved:
+            blockers.append("controlled_v15_route_proof_chain_unresolved")
+        try:
+            root_reference = Decimal(str(root_reference_notional_usdc))
+            child_reserve = Decimal(str(child_reference_reserve_usdc))
+            planned_aggregate = Decimal(
+                str(planned_aggregate_reference_notional_usdc)
+            )
+            root_cap = Decimal(str(root_notional_cap_usdc))
+            child_cap = Decimal(str(child_notional_cap_usdc))
+            aggregate_cap = Decimal(str(aggregate_notional_cap_usdc))
+            exact_numeric_scope = bool(
+                all(
+                    value.is_finite() and value > 0
+                    for value in (
+                        root_reference,
+                        child_reserve,
+                        planned_aggregate,
+                        root_cap,
+                        child_cap,
+                        aggregate_cap,
+                    )
+                )
+                and root_reference < root_cap
+                and child_reserve <= child_cap
+                and root_reference + child_reserve
+                == planned_aggregate
+                and planned_aggregate < aggregate_cap
+            )
+        except Exception:
+            exact_numeric_scope = False
+        if not exact_numeric_scope:
+            blockers.append("controlled_v15_plan_numeric_scope_mismatch")
+        if plan_expires_at:
+            try:
+                expires_at = datetime.fromisoformat(plan_expires_at)
+                if (
+                    expires_at.tzinfo is None
+                    or expires_at.utcoffset() is None
+                    or (
+                        datetime.now(timezone.utc) >= expires_at
+                        and not execution_started_within_plan
+                    )
+                ):
+                    blockers.append("controlled_v15_plan_expired")
+            except ValueError:
+                blockers.append("controlled_v15_plan_expiry_invalid")
+
+        structural_blockers = bool(blockers)
+        runtime_child: Mapping[str, Any] = {}
+        if not structural_blockers and child_client_order_id:
+            runtime = self.dependencies.stealth_order_runtime_getter()
+            read_child = getattr(runtime, "read_controlled_first_child", None)
+            if not callable(read_child):
+                blockers.append("controlled_first_child_runtime_unavailable")
+            else:
+                try:
+                    raw_runtime_child = read_child(
+                        stealth_order_id=child_client_order_id,
+                        expected_root_client_order_id=root_client_order_id,
+                        expected_portfolio_id=expected_portfolio_id,
+                        controlled_batch_id=str(controlled_batch_id),
+                        controlled_batch_slot=int(controlled_batch_slot),
+                        controlled_plan_sha256=str(resolved_plan_sha256),
+                    )
+                    if isinstance(raw_runtime_child, Mapping):
+                        runtime_child = raw_runtime_child
+                except Exception as exc:
+                    blockers.append(
+                        f"controlled_first_child_runtime_read_failed:"
+                        f"{type(exc).__name__}"
+                    )
+            active_exchange_order_id = str(
+                runtime_child.get("active_exchange_order_id") or ""
+            )
+            active_placement_proven = bool(
+                runtime_child.get("stealth_order_id") == child_client_order_id
+                and runtime_child.get("root_client_order_id")
+                == root_client_order_id
+                and runtime_child.get("product_id") == "BTC-USDC"
+                and str(runtime_child.get("side") or "").upper()
+                == OrderSide.SELL.value
+                and runtime_child.get("retail_portfolio_id")
+                == expected_portfolio_id
+                and str(runtime_child.get("status") or "").upper()
+                == "REVEALED"
+                and runtime_child.get("active_placement_client_order_id")
+                == child_client_order_id
+                and active_exchange_order_id
+                and runtime_child.get("controlled_plan_sha256")
+                == resolved_plan_sha256
+                and _root_child_cancel_decimal_is_zero(
+                    runtime_child.get("executed_size")
+                )
+            )
+            if not active_placement_proven:
+                blockers.append("active_first_child_identity_unproven")
+
+            if active_placement_proven:
+                try:
+                    live_coinbase_read_ran = True
+                    exchange_readback = exact_coinbase_order_readback(
+                        self.dependencies.rest_client,
+                        client_order_id=child_client_order_id,
+                        exchange_order_id=active_exchange_order_id,
+                        product_id="BTC-USDC",
+                    )
+                except Exception as exc:
+                    exchange_readback = {}
+                    blockers.append(
+                        f"active_child_exchange_read_failed:{type(exc).__name__}"
+                    )
+                matched = exchange_readback.get("matched_order") or {}
+                exchange_status = str(
+                    exchange_readback.get("authoritative_status") or ""
+                ).upper()
+                exchange_evidence_present = bool(
+                    exchange_readback.get("authoritative") is True
+                    and exchange_readback.get("pagination_complete") is True
+                    and exchange_readback.get("exact_identity_match") is True
+                    and exchange_readback.get("exchange_order_id")
+                    == active_exchange_order_id
+                    and matched.get("client_order_id")
+                    == child_client_order_id
+                    and matched.get("order_id") == active_exchange_order_id
+                    and matched.get("product_id") == "BTC-USDC"
+                    and str(matched.get("product_type") or "").upper()
+                    == ProductType.SPOT.value
+                    and matched.get("retail_portfolio_id")
+                    == expected_portfolio_id
+                    and str(matched.get("side") or "").upper()
+                    == OrderSide.SELL.value
+                    and exchange_status
+                    in {
+                        OrderStatus.OPEN.value,
+                        OrderStatus.PENDING.value,
+                        OrderStatus.CANCELLED.value,
+                    }
+                )
+                zero_fill_proven = bool(
+                    exchange_evidence_present
+                    and _root_child_cancel_decimal_is_zero(
+                        _root_child_cancel_first_present(
+                            matched,
+                            "filled_size",
+                            "filled_quantity",
+                        )
+                    )
+                    and _root_child_cancel_decimal_is_zero(
+                        matched.get("filled_value")
+                    )
+                    and _root_child_cancel_decimal_is_zero(
+                        _root_child_cancel_first_present(
+                            matched,
+                            "total_fees",
+                            "fee",
+                        )
+                    )
+                    and _root_child_cancel_integer_is_zero(
+                        matched.get("number_of_fills")
+                    )
+                )
+                if not exchange_evidence_present:
+                    blockers.append("active_child_exchange_identity_unproven")
+                if not zero_fill_proven:
+                    blockers.append("active_child_zero_fill_unproven")
+                try:
+                    base_size = Decimal(
+                        str(
+                            matched.get("base_size")
+                            or (
+                                matched.get("order_configuration") or {}
+                            ).get("limit_limit_gtc", {}).get("base_size")
+                            or "0"
+                        )
+                    )
+                    limit_price = Decimal(
+                        str(
+                            matched.get("limit_price")
+                            or (
+                                matched.get("order_configuration") or {}
+                            ).get("limit_limit_gtc", {}).get("limit_price")
+                            or "0"
+                        )
+                    )
+                    actual_child_reference = base_size * limit_price
+                    actual_aggregate_reference = (
+                        Decimal(str(root_reference_notional_usdc))
+                        + actual_child_reference
+                    )
+                    actual_reference_scope = bool(
+                        base_size.is_finite()
+                        and base_size > 0
+                        and limit_price.is_finite()
+                        and limit_price > 0
+                        and actual_child_reference.is_finite()
+                        and actual_child_reference
+                        < Decimal(str(child_notional_cap_usdc))
+                        and actual_aggregate_reference.is_finite()
+                        and actual_aggregate_reference
+                        < Decimal(str(aggregate_notional_cap_usdc))
+                    )
+                except Exception:
+                    actual_reference_scope = False
+                if actual_reference_scope:
+                    child_reference_notional_usdc = format(
+                        actual_child_reference,
+                        "f",
+                    )
+                    aggregate_reference_notional_usdc = format(
+                        actual_aggregate_reference,
+                        "f",
+                    )
+                else:
+                    blockers.append("active_child_reference_scope_unproven")
+
+        semantic_key = (
+            root_child_cancel_semantic_key(
+                controlled_plan_sha256=str(resolved_plan_sha256),
+                root_client_order_id=root_client_order_id,
+                child_client_order_id=child_client_order_id,
+            )
+            if child_client_order_id
+            and preparation.get("controlled_plan_sha256")
+            == resolved_plan_sha256
+            else None
+        )
+        semantic_claim_outcome = None
+        reconciliation_required = False
+        if semantic_key:
+            try:
+                records = self.dependencies.root_child_cancel_claim_store_getter().read_recent(
+                    limit=500
+                )
+                latest = next(
+                    (
+                        record
+                        for record in records
+                        if record.semantic_key == semantic_key
+                    ),
+                    None,
+                )
+                if latest is not None:
+                    semantic_claim_outcome = latest.outcome
+                    reconciliation_required = latest.reconciliation_required or (
+                        latest.outcome in {"claimed", "unknown"}
+                    )
+                    if (
+                        latest.outcome in {"claimed", "unknown"}
+                        and semantic_key != _claimed_semantic_key
+                    ):
+                        blockers.append(
+                            "semantic_cancel_reconciliation_required"
+                        )
+            except Exception:
+                blockers.append("semantic_claim_read_failed")
+
+        ready = not blockers
+        return AdminOrderFillFollowUpChildCancelReadinessResponse(
+            root_client_order_id=root_client_order_id,
+            found=found,
+            ready=ready,
+            readiness_status="ready" if ready else "blocked",
+            child_client_order_id=child_client_order_id,
+            product_id="BTC-USDC" if found else None,
+            profile_alias=self.dependencies.spot_portfolio_label,
+            portfolio_id=expected_portfolio_id or None,
+            controlled_batch_id=controlled_batch_id,
+            controlled_batch_slot=controlled_batch_slot,
+            controlled_plan_sha256=resolved_plan_sha256,
+            plan_expires_at=plan_expires_at,
+            root_reference_notional_usdc=root_reference_notional_usdc,
+            child_reference_notional_usdc=child_reference_notional_usdc,
+            aggregate_reference_notional_usdc=(
+                aggregate_reference_notional_usdc
+            ),
+            child_reference_reserve_usdc=child_reference_reserve_usdc,
+            planned_aggregate_reference_notional_usdc=(
+                planned_aggregate_reference_notional_usdc
+            ),
+            root_notional_cap_usdc=root_notional_cap_usdc,
+            child_notional_cap_usdc=child_notional_cap_usdc,
+            aggregate_notional_cap_usdc=aggregate_notional_cap_usdc,
+            audit_id=audit_id,
+            approval_snapshot_id=approval_snapshot_id,
+            cap_guard_decision_id=cap_guard_decision_id,
+            reconciliation_plan_id=reconciliation_plan_id,
+            correlation_id=correlation_id,
+            cancel_idempotency_key=cancel_idempotency_key,
+            cancel_correlation_id=cancel_correlation_id,
+            cancel_operator_intent=cancel_operator_intent,
+            backend_decision="allowed" if ready else "blocked",
+            authority_source=authority_source,
+            environment=os.environ.get(
+                "COINBASE_ADMIN_API_ENVIRONMENT",
+                "local",
+            ),
+            child_status=child_status,
+            authoritative_exchange_status=exchange_status,
+            active_placement_proven=active_placement_proven,
+            zero_fill_proven=zero_fill_proven,
+            exchange_order_id_evidence_present=exchange_evidence_present,
+            semantic_key=semantic_key,
+            semantic_claim_outcome=semantic_claim_outcome,
+            reconciliation_required=reconciliation_required,
+            blockers=blockers,
+            live_coinbase_read_ran=live_coinbase_read_ran,
+            detail=(
+                "The backend resolved the selected FILLED Admin root to one "
+                "deterministic active zero-fill Test-profile first child and "
+                "bound its V15 preparation and semantic cancel identity."
+                if ready
+                else "Root-scoped first-child cancellation is blocked closed."
+            ),
+        )
+
+    def build_v15_active_child_cleanup_admission(
+        self,
+        *,
+        command: AdminOrderFillFollowUpChildCancelCommand,
+        admission: AdminLiveAdmissionDecisionEvidence,
+    ) -> AdminLiveAdmissionDecisionEvidence:
+        """Keep only the sealed active-child rollback usable after expiry."""
+
+        if admission.allowed:
+            return admission
+        blocker_values = {
+            _root_child_cancel_text(value) for value in admission.blockers
+        }
+        expiry_only_blockers = {
+            AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED.value,
+            AdminApiLiveAdmissionBlocker.APPROVAL_SNAPSHOT_MISSING.value,
+            AdminApiLiveAdmissionBlocker.ADMISSION_AUDIT_MISSING.value,
+            AdminApiLiveAdmissionBlocker.CAP_GUARD_MISSING.value,
+            AdminApiLiveAdmissionBlocker.RECONCILIATION_PLAN_MISSING.value,
+            AdminApiLiveAdmissionBlocker.BROWSER_AUTHORITY_REJECTED.value,
+        }
+        if not blocker_values or not blocker_values.issubset(
+            expiry_only_blockers
+        ):
+            return admission
+        try:
+            authority = self.dependencies.controlled_v15_plan_authority_getter()
+            plan = authority["plan"]
+            marker = authority["marker"]
+            handoff = authority["handoff"]
+            validate_controlled_v15_plan_scope(plan)
+            expires_at = datetime.fromisoformat(str(plan["expires_at"]))
+            registered_at = datetime.fromisoformat(
+                str(marker["registered_at"])
+            )
+            created_at = datetime.fromisoformat(str(plan["created_at"]))
+            approval_store = self.dependencies.approval_store_getter()
+            approval = approval_store.find_by_approval_id(
+                str(handoff["approval_snapshot_id"])
+            )
+            live_service_disabled = (
+                AdminApiLiveAdmissionBlocker.LIVE_EXECUTION_DISABLED.value
+                in blocker_values
+            )
+            readiness = (
+                self.build_order_fill_follow_up_child_cancel_readiness(
+                    root_client_order_id=command.root_client_order_id,
+                    controlled_plan_sha256=(
+                        command.request.controlled_plan_sha256
+                    ),
+                )
+            )
+            if (
+                not readiness.ready
+                and readiness.reconciliation_required
+                and readiness.semantic_key
+            ):
+                readiness = (
+                    self.build_order_fill_follow_up_child_cancel_readiness(
+                        root_client_order_id=command.root_client_order_id,
+                        controlled_plan_sha256=(
+                            command.request.controlled_plan_sha256
+                        ),
+                        _claimed_semantic_key=readiness.semantic_key,
+                    )
+                )
+            exact_cleanup = bool(
+                (
+                    live_service_disabled
+                    or datetime.now(timezone.utc) >= expires_at
+                )
+                and created_at <= registered_at < expires_at
+                and approval is not None
+                and (live_service_disabled or approval.is_expired())
+                and not approval_store.approval_is_revoked(
+                    str(handoff["approval_snapshot_id"])
+                )
+                and _root_child_cancel_route_proof_chain_matches(
+                    self.dependencies,
+                    handoff,
+                )
+                and readiness.ready
+                and readiness.child_client_order_id
+                == dict(plan["child"])["client_order_id"]
+                and command.envelope.actor.actor_id == handoff["actor_id"]
+                and command.envelope.idempotency_key
+                == handoff["command_idempotency_key"]
+                and command.envelope.correlation_id
+                == handoff["correlation_id"]
+                and command.envelope.operator_intent
+                == handoff["operator_intent"]
+                and command.request.controlled_plan_sha256
+                == handoff["plan_sha256"]
+                and admission.payload_hash == handoff["payload_hash"]
+                and admission.route == handoff["route"]
+                and admission.identity_value == handoff["identity_value"]
+            )
+        except Exception:
+            return admission
+        if not exact_cleanup:
+            return admission
+        return admission.model_copy(
+            update={
+                "status": AdminApiGateStatus.PASSED,
+                "allowed": True,
+                "approval_snapshot_present": True,
+                "approval_snapshot_id": handoff["approval_snapshot_id"],
+                "approval_snapshot_source": (
+                    "sealed_v15_active_child_cleanup"
+                ),
+                "admission_audit_present": True,
+                "admission_audit_id": handoff["admission_audit_id"],
+                "cap_guard_present": True,
+                "cap_guard_decision_id": handoff[
+                    "cap_guard_decision_id"
+                ],
+                "reconciliation_plan_present": True,
+                "reconciliation_plan_id": handoff[
+                    "reconciliation_plan_id"
+                ],
+                "live_execution_service_present": True,
+                "live_execution_service_source": (
+                    "sealed_v15_active_child_cleanup"
+                ),
+                "live_execution_service_status": (
+                    AdminApiLiveExecutionStatus.RECONCILIATION_REQUIRED
+                ),
+                "live_execution_service_missing_reason": None,
+                "blockers": [],
+                "browser_authority": "backend_admin_api",
+                "detail": (
+                    "The V15 start window expired, but the exact already-active "
+                    "zero-fill child retains its sealed rollback authority."
+                ),
+            }
+        )
+
+    def cancel_order_fill_follow_up_child_by_root_client_order_id(
+        self,
+        command: AdminOrderFillFollowUpChildCancelCommand,
+    ) -> AdminApiCommandResponse:
+        """Claim once by root and delegate to the canonical child cancel path."""
+
+        admission = command.admission_decision
+        if admission is None or not admission.allowed:
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.NOT_IMPLEMENTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method=(
+                    "cancel_order_fill_follow_up_child_by_root_client_order_id"
+                ),
+                message="Root-scoped first-child cancel admission is blocked.",
+                client_order_id=command.root_client_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=False,
+                live_coinbase_orders_ran=False,
+                failure_stage="approval",
+                **self._command_runtime_evidence(),
+            )
+
+        exact_admission = bool(
+            command.envelope.operator_intent
+            == CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT
+            and command.request.manual_live_acknowledgement is True
+            and admission.route
+            == (
+                "/api/v1/orders/{root_client_order_id}/fill-follow-up/"
+                "child-cancel"
+            )
+            and admission.method == "POST"
+            and admission.module_id == "spot_operations"
+            and admission.identity_key == "client_order_id"
+            and admission.identity_value == command.root_client_order_id
+            and admission.action_class
+            == AdminApiActionClass.LIVE_EXCHANGE_CANCEL
+            and _root_child_cancel_text(admission.required_permission)
+            == AdminApiPermission.ORDER_CANCEL.value
+            and admission.service_method
+            == "cancel_order_fill_follow_up_child_by_root_client_order_id"
+            and admission.actor_id == command.envelope.actor.actor_id
+            and admission.idempotency_key == command.envelope.idempotency_key
+            and admission.operator_intent
+            == command.envelope.operator_intent
+            and admission.approval_snapshot_id
+            and admission.admission_audit_id
+            and admission.cap_guard_decision_id
+            and admission.reconciliation_plan_id
+        )
+        if not exact_admission:
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.REJECTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method=(
+                    "cancel_order_fill_follow_up_child_by_root_client_order_id"
+                ),
+                message="Exact root-scoped V15 cancel admission is required.",
+                client_order_id=command.root_client_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=False,
+                live_coinbase_orders_ran=False,
+                failure_stage="root_child_cancel_context",
+                **self._command_runtime_evidence(),
+            )
+
+        readiness = self.build_order_fill_follow_up_child_cancel_readiness(
+            root_client_order_id=command.root_client_order_id,
+            controlled_plan_sha256=command.request.controlled_plan_sha256,
+        )
+        if not readiness.child_client_order_id or not readiness.semantic_key:
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.REJECTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method=(
+                    "cancel_order_fill_follow_up_child_by_root_client_order_id"
+                ),
+                message="Backend root-to-first-child identity resolution failed.",
+                client_order_id=command.root_client_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=False,
+                live_coinbase_orders_ran=False,
+                failure_stage="root_child_cancel_readiness",
+                data={"readiness": readiness.model_dump(mode="json")},
+                **self._command_runtime_evidence(),
+            )
+        if not (
+            readiness.controlled_plan_sha256
+            == command.request.controlled_plan_sha256
+            and readiness.cancel_idempotency_key
+            == command.envelope.idempotency_key
+            and readiness.cancel_correlation_id
+            == command.envelope.correlation_id
+            and readiness.cancel_operator_intent
+            == command.envelope.operator_intent
+            and readiness.approval_snapshot_id
+            == admission.approval_snapshot_id
+            and readiness.audit_id == admission.admission_audit_id
+            and readiness.cap_guard_decision_id
+            == admission.cap_guard_decision_id
+            and readiness.reconciliation_plan_id
+            == admission.reconciliation_plan_id
+        ):
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.REJECTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method=(
+                    "cancel_order_fill_follow_up_child_by_root_client_order_id"
+                ),
+                message="Request headers do not match the sealed V15 cancel command.",
+                client_order_id=command.root_client_order_id,
+                stealth_order_id=readiness.child_client_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=False,
+                live_coinbase_orders_ran=False,
+                failure_stage="root_child_cancel_sealed_command_mismatch",
+                data={"readiness": readiness.model_dump(mode="json")},
+                **self._command_runtime_evidence(),
+            )
+
+        claim_store = self.dependencies.root_child_cancel_claim_store_getter()
+        try:
+            if readiness.ready:
+                claim_decision, claim = claim_store.claim(
+                    controlled_plan_sha256=(
+                        command.request.controlled_plan_sha256
+                    ),
+                    root_client_order_id=command.root_client_order_id,
+                    child_client_order_id=readiness.child_client_order_id,
+                    idempotency_key=command.envelope.idempotency_key,
+                    payload_hash=admission.payload_hash,
+                    correlation_id=command.envelope.correlation_id,
+                    actor_id=command.envelope.actor.actor_id,
+                )
+            else:
+                claim_decision, claim = claim_store.inspect(
+                    controlled_plan_sha256=(
+                        command.request.controlled_plan_sha256
+                    ),
+                    root_client_order_id=command.root_client_order_id,
+                    child_client_order_id=readiness.child_client_order_id,
+                    idempotency_key=command.envelope.idempotency_key,
+                    payload_hash=admission.payload_hash,
+                    correlation_id=command.envelope.correlation_id,
+                    actor_id=command.envelope.actor.actor_id,
+                )
+        except Exception as exc:
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.REJECTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method=(
+                    "cancel_order_fill_follow_up_child_by_root_client_order_id"
+                ),
+                message=f"Durable semantic cancel claim failed: {exc}",
+                client_order_id=command.root_client_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=False,
+                live_coinbase_orders_ran=False,
+                failure_stage="semantic_cancel_claim",
+                **self._command_runtime_evidence(),
+            )
+
+        if claim_decision == "unclaimed" or claim is None:
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.REJECTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method=(
+                    "cancel_order_fill_follow_up_child_by_root_client_order_id"
+                ),
+                message="Root-scoped child cancel readiness failed before semantic claim.",
+                client_order_id=command.root_client_order_id,
+                stealth_order_id=readiness.child_client_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=False,
+                live_coinbase_orders_ran=False,
+                failure_stage="root_child_cancel_readiness",
+                data={"readiness": readiness.model_dump(mode="json")},
+                **self._command_runtime_evidence(),
+            )
+
+        claim_evidence = {
+            "semantic_key": claim.semantic_key,
+            "controlled_plan_sha256": claim.controlled_plan_sha256,
+            "root_client_order_id": claim.root_client_order_id,
+            "child_client_order_id": claim.child_client_order_id,
+            "outcome": claim.outcome,
+            "same_idempotency_replay": claim_decision == "same_key_replay",
+            "reconciliation_required": (
+                claim_decision == "reconcile_same_key_only"
+            ),
+        }
+        if claim_decision == "semantic_conflict":
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.REJECTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method=(
+                    "cancel_order_fill_follow_up_child_by_root_client_order_id"
+                ),
+                message="This V15 root/child semantic cancel was already claimed by a different command key.",
+                client_order_id=command.root_client_order_id,
+                stealth_order_id=readiness.child_client_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=False,
+                live_coinbase_orders_ran=False,
+                failure_stage="semantic_cancel_duplicate",
+                data={"semantic_claim": claim_evidence},
+                **self._command_runtime_evidence(),
+            )
+        if claim_decision == "same_key_replay":
+            stored_response = claim.response or {}
+            try:
+                response = AdminApiCommandResponse.model_validate(stored_response)
+            except ValueError:
+                return AdminApiCommandResponse(
+                    status=AdminApiCommandStatus.REJECTED,
+                    action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                    required_permission=AdminApiPermission.ORDER_CANCEL,
+                    service_method=(
+                        "cancel_order_fill_follow_up_child_by_root_client_order_id"
+                    ),
+                    message="Stored semantic cancel response is unavailable; reconciliation is required.",
+                    client_order_id=command.root_client_order_id,
+                    stealth_order_id=readiness.child_client_order_id,
+                    correlation_id=command.envelope.correlation_id,
+                    idempotency_key=command.envelope.idempotency_key,
+                    live_exchange_submitted=False,
+                    live_coinbase_orders_ran=False,
+                    failure_stage="semantic_cancel_reconciliation_required",
+                    data={"semantic_claim": claim_evidence},
+                    **self._command_runtime_evidence(),
+                )
+            return response.model_copy(
+                update={
+                    "data": {
+                        **dict(response.data or {}),
+                        "semantic_claim": claim_evidence,
+                    }
+                }
+            )
+
+        reconciliation_only = claim_decision == "reconcile_same_key_only"
+        revalidated = self.build_order_fill_follow_up_child_cancel_readiness(
+            root_client_order_id=command.root_client_order_id,
+            controlled_plan_sha256=command.request.controlled_plan_sha256,
+            _claimed_semantic_key=claim.semantic_key,
+        )
+        exact_revalidation = bool(
+            (reconciliation_only or revalidated.ready)
+            and revalidated.semantic_key == claim.semantic_key
+            and revalidated.child_client_order_id
+            == readiness.child_client_order_id
+            and revalidated.controlled_plan_sha256
+            == command.request.controlled_plan_sha256
+            and revalidated.controlled_batch_id
+            == readiness.controlled_batch_id
+            and revalidated.controlled_batch_slot
+            == readiness.controlled_batch_slot
+            and revalidated.cancel_idempotency_key
+            == command.envelope.idempotency_key
+            and revalidated.cancel_correlation_id
+            == command.envelope.correlation_id
+            and revalidated.cancel_operator_intent
+            == command.envelope.operator_intent
+            and revalidated.approval_snapshot_id
+            == admission.approval_snapshot_id
+            and revalidated.audit_id == admission.admission_audit_id
+            and revalidated.cap_guard_decision_id
+            == admission.cap_guard_decision_id
+            and revalidated.reconciliation_plan_id
+            == admission.reconciliation_plan_id
+        )
+        if not exact_revalidation:
+            blocked = AdminApiCommandResponse(
+                status=AdminApiCommandStatus.REJECTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method=(
+                    "cancel_order_fill_follow_up_child_by_root_client_order_id"
+                ),
+                message="Root-scoped child cancel changed after its semantic claim.",
+                client_order_id=command.root_client_order_id,
+                stealth_order_id=readiness.child_client_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=False,
+                live_coinbase_orders_ran=False,
+                failure_stage="root_child_cancel_readiness",
+                data={
+                    "readiness": revalidated.model_dump(mode="json"),
+                    "semantic_claim": claim_evidence,
+                },
+                **self._command_runtime_evidence(),
+            )
+            return blocked
+
+        delegated = StealthCancelCommand(
+            envelope=command.envelope,
+            stealth_order_id=readiness.child_client_order_id,
+            request=StealthCancelRequest(
+                reason=command.request.reason,
+                manual_live_acknowledgement=True,
+                expected_root_client_order_id=command.root_client_order_id,
+                controlled_batch_id=revalidated.controlled_batch_id,
+                controlled_batch_slot=revalidated.controlled_batch_slot,
+                controlled_plan_sha256=command.request.controlled_plan_sha256,
+            ),
+            allow_live_execution=True,
+            admission_decision=admission,
+            admin_approval_snapshot_id=admission.approval_snapshot_id,
+            admission_audit_id=admission.admission_audit_id,
+            admin_cap_guard_decision_id=admission.cap_guard_decision_id,
+            admin_reconciliation_plan_id=admission.reconciliation_plan_id,
+        )
+        boundary_marked = reconciliation_only
+
+        def mark_semantic_exchange_boundary() -> None:
+            nonlocal boundary_marked
+            claim_store.mark_exchange_boundary(claim)
+            boundary_marked = True
+
+        try:
+            canonical_response = self.cancel_stealth_order_by_stealth_order_id(
+                delegated,
+                semantic_boundary_callback=(
+                    None
+                    if reconciliation_only
+                    else mark_semantic_exchange_boundary
+                ),
+                reconciliation_only=reconciliation_only,
+            )
+        except Exception as exc:
+            canonical_response = AdminApiCommandResponse(
+                status=AdminApiCommandStatus.REJECTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method=(
+                    "cancel_order_fill_follow_up_child_by_root_client_order_id"
+                ),
+                message=f"Canonical child cancel outcome is unknown: {type(exc).__name__}: {exc}",
+                client_order_id=command.root_client_order_id,
+                stealth_order_id=readiness.child_client_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=True,
+                live_coinbase_orders_ran=True,
+                failure_stage="cancellation_unknown",
+                **self._command_runtime_evidence(),
+            )
+
+        response = canonical_response.model_copy(
+            update={
+                "client_order_id": command.root_client_order_id,
+                "service_method": (
+                    "cancel_order_fill_follow_up_child_by_root_client_order_id"
+                ),
+                "data": {
+                    **dict(canonical_response.data or {}),
+                    "root_client_order_id": command.root_client_order_id,
+                    "child_client_order_id": readiness.child_client_order_id,
+                    "controlled_plan_sha256": (
+                        command.request.controlled_plan_sha256
+                    ),
+                    "semantic_claim": claim_evidence,
+                },
+            }
+        )
+        if response.status != AdminApiCommandStatus.ACCEPTED:
+            return response.model_copy(
+                update={
+                    "data": {
+                        **dict(response.data or {}),
+                        "semantic_claim": {
+                            **claim_evidence,
+                            "outcome": (
+                                "unknown" if boundary_marked else "claimed"
+                            ),
+                            "reconciliation_required": boundary_marked,
+                        },
+                    }
+                }
+            )
+        try:
+            completed_claim = claim_store.complete(
+                claim,
+                outcome="accepted",
+                response=response.model_dump(mode="json"),
+            )
+        except Exception as exc:
+            return AdminApiCommandResponse(
+                status=AdminApiCommandStatus.REJECTED,
+                action_class=AdminApiActionClass.LIVE_EXCHANGE_CANCEL,
+                required_permission=AdminApiPermission.ORDER_CANCEL,
+                service_method=(
+                    "cancel_order_fill_follow_up_child_by_root_client_order_id"
+                ),
+                message=f"Cancel outcome persistence failed; reconciliation is required: {exc}",
+                client_order_id=command.root_client_order_id,
+                stealth_order_id=readiness.child_client_order_id,
+                correlation_id=command.envelope.correlation_id,
+                idempotency_key=command.envelope.idempotency_key,
+                live_exchange_submitted=response.live_exchange_submitted,
+                live_coinbase_orders_ran=response.live_coinbase_orders_ran,
+                failure_stage="semantic_cancel_reconciliation_required",
+                data={"semantic_claim": claim_evidence},
+                **self._command_runtime_evidence(),
+            )
+        return response.model_copy(
+            update={
+                "data": {
+                    **dict(response.data or {}),
+                    "semantic_claim": {
+                        **claim_evidence,
+                        "outcome": completed_claim.outcome,
+                    },
+                }
+            }
+        )
+
     def cancel_stealth_order_by_stealth_order_id(
         self,
         command: StealthCancelCommand,
+        *,
+        semantic_boundary_callback: Callable[[], None] | None = None,
+        reconciliation_only: bool = False,
     ) -> AdminApiCommandResponse:
         """Cancel and reconcile only an admitted controlled first child."""
 
@@ -4830,9 +6386,18 @@ class AdminApiCommandService:
             )
 
         request = command.request
-        exact_context = bool(
+        v14_context = bool(
             command.envelope.operator_intent
             == CONTROLLED_FIRST_CHILD_CANCEL_OPERATOR_INTENT
+            and request.controlled_plan_sha256 is None
+        )
+        v15_context = bool(
+            command.envelope.operator_intent
+            == CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT
+            and request.controlled_plan_sha256
+        )
+        exact_context = bool(
+            (v14_context or v15_context)
             and request.manual_live_acknowledgement is True
             and request.expected_root_client_order_id
             and request.controlled_batch_id
@@ -4900,6 +6465,9 @@ class AdminApiCommandService:
                 expected_portfolio_id=profile_id,
                 controlled_batch_id=request.controlled_batch_id,
                 controlled_batch_slot=request.controlled_batch_slot,
+                controlled_plan_sha256=(
+                    request.controlled_plan_sha256 if v15_context else None
+                ),
             )
         except Exception as exc:
             return self._stealth_cancel_rejected(
@@ -4921,6 +6489,11 @@ class AdminApiCommandService:
             == command.stealth_order_id
             and exchange_order_id
             and str(child.get("status") or "").upper() == "REVEALED"
+            and (
+                not v15_context
+                or str(child.get("controlled_plan_sha256") or "")
+                == request.controlled_plan_sha256
+            )
         )
         if not exact_child:
             return self._stealth_cancel_rejected(
@@ -4943,7 +6516,10 @@ class AdminApiCommandService:
             "cancel_order_by_exchange_order_id",
             None,
         )
-        if not callable(cancel_by_client_order_id) or not callable(cancel_exchange):
+        if not reconciliation_only and (
+            not callable(cancel_by_client_order_id)
+            or not callable(cancel_exchange)
+        ):
             return self._stealth_cancel_rejected(
                 command=command,
                 message=(
@@ -5038,6 +6614,23 @@ class AdminApiCommandService:
                 OrderStatus.PENDING.value,
                 "CANCEL_QUEUED",
             }:
+                if reconciliation_only:
+                    return self._stealth_cancel_rejected(
+                        command=command,
+                        message=(
+                            "The prior cancel crossed its durable exchange "
+                            "boundary, but Coinbase still reports an active "
+                            "child; read-only reconciliation cannot submit "
+                            "another cancel."
+                        ),
+                        failure_stage=(
+                            "semantic_cancel_reconciliation_required"
+                        ),
+                        data={
+                            "portfolio_scope": portfolio_scope,
+                            "cancellation_readback": initial_readback,
+                        },
+                    )
                 controller = deps.runtime_controller_factory()
                 canonical_cancel_attempted = False
                 exchange_id_fallback_used = False
@@ -5051,6 +6644,26 @@ class AdminApiCommandService:
                 }
                 try:
                     with controller.track_inflight(INFLIGHT_REST_CANCEL):
+                        if semantic_boundary_callback is not None:
+                            try:
+                                semantic_boundary_callback()
+                            except Exception as exc:
+                                return self._stealth_cancel_rejected(
+                                    command=command,
+                                    message=(
+                                        "Durable semantic exchange boundary "
+                                        f"could not be recorded: {exc}"
+                                    ),
+                                    failure_stage=(
+                                        "semantic_cancel_exchange_boundary"
+                                    ),
+                                    data={
+                                        "portfolio_scope": portfolio_scope,
+                                        "cancellation_readback": (
+                                            initial_readback
+                                        ),
+                                    },
+                                )
                         canonical_cancel_attempted = True
                         canonical_cancel_evidence = cancel_by_client_order_id(
                             command.stealth_order_id,
@@ -5083,33 +6696,41 @@ class AdminApiCommandService:
                             and canonical_cancel_evidence.get("identity_match")
                             is True
                         ):
-                            exchange_id_fallback_used = True
-                            fallback_cancel_evidence = cancel_exchange(
-                                exchange_order_id,
-                                return_evidence=True,
-                            )
-                            fallback_cancel_evidence = (
-                                dict(fallback_cancel_evidence)
-                                if isinstance(fallback_cancel_evidence, Mapping)
-                                else {}
-                            )
-                            fallback_outcome = str(
-                                fallback_cancel_evidence.get("outcome") or ""
-                            )
-                            if fallback_outcome == "succeeded":
-                                cancel_result = True
-                            elif (
-                                fallback_outcome == "explicitly_rejected"
-                                and fallback_cancel_evidence.get(
-                                    "explicit_rejection"
-                                )
-                                is True
-                            ):
+                            if v15_context:
                                 cancel_result = False
                             else:
-                                raise RuntimeError(
-                                    "exchange_id_cancel_outcome_unknown"
+                                exchange_id_fallback_used = True
+                                fallback_cancel_evidence = cancel_exchange(
+                                    exchange_order_id,
+                                    return_evidence=True,
                                 )
+                                fallback_cancel_evidence = (
+                                    dict(fallback_cancel_evidence)
+                                    if isinstance(
+                                        fallback_cancel_evidence,
+                                        Mapping,
+                                    )
+                                    else {}
+                                )
+                                fallback_outcome = str(
+                                    fallback_cancel_evidence.get("outcome")
+                                    or ""
+                                )
+                                if fallback_outcome == "succeeded":
+                                    cancel_result = True
+                                elif (
+                                    fallback_outcome
+                                    == "explicitly_rejected"
+                                    and fallback_cancel_evidence.get(
+                                        "explicit_rejection"
+                                    )
+                                    is True
+                                ):
+                                    cancel_result = False
+                                else:
+                                    raise RuntimeError(
+                                        "exchange_id_cancel_outcome_unknown"
+                                    )
                         else:
                             raise RuntimeError(
                                 "canonical_client_order_id_cancel_outcome_unknown"
@@ -5249,11 +6870,12 @@ class AdminApiCommandService:
                 terminal_readback.get("authoritative_status") or ""
             ).upper()
             terminal_row = terminal_readback.get("matched_order") or {}
-            executed_size = str(
-                terminal_row.get("filled_size")
-                or terminal_row.get("filled_quantity")
-                or "0"
+            executed_size_raw = _root_child_cancel_first_present(
+                terminal_row,
+                "filled_size",
+                "filled_quantity",
             )
+            executed_size = str(executed_size_raw or "")
             try:
                 executed_size_value = Decimal(executed_size)
             except Exception:
@@ -5271,6 +6893,33 @@ class AdminApiCommandService:
                     live_exchange_submitted=cancel_submitted,
                     live_coinbase_orders_ran=cancel_submitted,
                 )
+            terminal_zero_fill = {
+                "proven": bool(
+                    _root_child_cancel_decimal_is_zero(executed_size_raw)
+                    and _root_child_cancel_decimal_is_zero(
+                        terminal_row.get("filled_value")
+                    )
+                    and _root_child_cancel_decimal_is_zero(
+                        _root_child_cancel_first_present(
+                            terminal_row,
+                            "total_fees",
+                            "fee",
+                        )
+                    )
+                    and _root_child_cancel_integer_is_zero(
+                        terminal_row.get("number_of_fills")
+                    )
+                ),
+                "filled_size": executed_size_raw,
+                "filled_value": terminal_row.get("filled_value"),
+                "total_fees": _root_child_cancel_first_present(
+                    terminal_row,
+                    "total_fees",
+                    "fee",
+                ),
+                "number_of_fills": terminal_row.get("number_of_fills"),
+                "local_executed_size": executed_size_raw,
+            }
             if terminal_status == OrderStatus.FILLED.value:
                 return self._stealth_cancel_rejected(
                     command=command,
@@ -5298,6 +6947,27 @@ class AdminApiCommandService:
                     data={
                         "portfolio_scope": portfolio_scope,
                         "cancellation_readback": terminal_readback,
+                    },
+                    coinbase_order_id=exchange_order_id,
+                    live_exchange_submitted=cancel_submitted,
+                    live_coinbase_orders_ran=cancel_submitted,
+                )
+            if (
+                v15_context
+                and executed_size_value == 0
+                and terminal_zero_fill["proven"] is not True
+            ):
+                return self._stealth_cancel_rejected(
+                    command=command,
+                    message=(
+                        "V15 terminal cancellation lacks explicit Coinbase "
+                        "zero-fill fields."
+                    ),
+                    failure_stage="cancellation_readback",
+                    data={
+                        "portfolio_scope": portfolio_scope,
+                        "cancellation_readback": terminal_readback,
+                        "terminal_zero_fill": terminal_zero_fill,
                     },
                     coinbase_order_id=exchange_order_id,
                     live_exchange_submitted=cancel_submitted,
@@ -5335,6 +7005,7 @@ class AdminApiCommandService:
             reconciliation = (
                 dict(reconciliation) if isinstance(reconciliation, Mapping) else {}
             )
+            reconciliation["executed_size"] = executed_size
             if not (
                 str(reconciliation.get("local_status") or "").upper()
                 == OrderStatus.CANCELLED.value
@@ -5454,8 +7125,18 @@ class AdminApiCommandService:
                     "portfolio_scope": portfolio_scope,
                     "cancellation_readback": terminal_readback,
                     "local_reconciliation": reconciliation,
+                    "terminal_zero_fill": terminal_zero_fill,
                     "controlled_batch_id": request.controlled_batch_id,
                     "controlled_batch_slot": request.controlled_batch_slot,
+                    **(
+                        {
+                            "controlled_plan_sha256": (
+                                request.controlled_plan_sha256
+                            )
+                        }
+                        if v15_context
+                        else {}
+                    ),
                     "cancellation_identity": {
                         "operator_identity_key": "client_order_id",
                         "operator_identity_value": command.stealth_order_id,
@@ -5637,9 +7318,18 @@ class AdminApiCommandService:
             )
 
         request = command.request
-        exact_context = bool(
+        v14_context = bool(
             command.envelope.operator_intent
             == CONTROLLED_FIRST_CHILD_REVEAL_OPERATOR_INTENT
+            and request.controlled_plan_sha256 is None
+        )
+        v15_context = bool(
+            command.envelope.operator_intent
+            == CONTROLLED_V15_FIRST_CHILD_REVEAL_OPERATOR_INTENT
+            and request.controlled_plan_sha256
+        )
+        exact_context = bool(
+            (v14_context or v15_context)
             and request.manual_live_acknowledgement is True
             and request.expected_root_client_order_id
             and request.controlled_limit_price is not None
@@ -5847,6 +7537,11 @@ class AdminApiCommandService:
                     reconciliation_plan_id=command.admin_reconciliation_plan_id,
                     controlled_batch_id=request.controlled_batch_id,
                     controlled_batch_slot=request.controlled_batch_slot,
+                    controlled_plan_sha256=(
+                        request.controlled_plan_sha256
+                        if v15_context
+                        else None
+                    ),
                     expected_prior_preparation_sha256=(
                         request.controlled_prior_preparation_sha256
                     ),
@@ -5904,6 +7599,11 @@ class AdminApiCommandService:
                 and str(result.get("submitted_limit_price") or "")
                 == str(request.controlled_limit_price)
                 and result.get("post_only") is False
+                and (
+                    not v15_context
+                    or str(result.get("controlled_plan_sha256") or "")
+                    == request.controlled_plan_sha256
+                )
             )
             if not exact_runtime_result:
                 if placement_attempted:
@@ -6114,6 +7814,15 @@ class AdminApiCommandService:
                     "submission_readback": readback,
                     "controlled_batch_id": request.controlled_batch_id,
                     "controlled_batch_slot": request.controlled_batch_slot,
+                    **(
+                        {
+                            "controlled_plan_sha256": (
+                                request.controlled_plan_sha256
+                            )
+                        }
+                        if v15_context
+                        else {}
+                    ),
                     "generic_stealth_reveal_enabled": False,
                 },
                 **self._command_runtime_evidence(),

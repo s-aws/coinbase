@@ -130,11 +130,12 @@ create a separate approval class.
 
 ## Current Handoff State
 
-- Current goal id: `selected_order_execution_closeout_slice`.
-- Current slice: Selected Admin root -> client_order_id-bound fill-ledger and
-  audit readback -> child terminal-cancel proof -> read-only recovery posture ->
-  operator-visible execution closeout. The slice is complete; no next work item
-  is selected.
+- Current goal id: `selected_chain_child_cancel_v15_slice`.
+- Current slice: Selected Admin root with one active deterministic first child
+  -> sealed-plan-bound backend cancel readiness -> exactly-once child cancel ->
+  authoritative local/exchange terminal readback -> refreshed operator-visible
+  closeout. Work stops after no-live audit and plan preparation for exact hash
+  approval.
 - Current state: V14 completed the predecessor automatic/live proof for ten
   Test-profile roots and ten first-child submissions under the approved
   `30.00 USDC` reference cap. Every root was authoritatively FILLED, every child
@@ -154,16 +155,17 @@ create a separate approval class.
   reviewers completed; all causal findings were consumed and no review agent
   remains assigned to implementation work. The final milestone-closeout sweep
   found no active validation or review subagent.
-- Final validation: focused backend tests passed without a new mutating/live
-  action, then `python3.13 tools/run_parallel_regression.py --workers 4`
-  passed `1458/1458` tests (`1005` parallel plus `453` serial), ownership, and
-  diff checks. The runner reported live Coinbase execution false and
+- Final validation: focused backend tests and the final independent audit
+  passed without a new mutating/live action, then
+  `python3.13 tools/run_parallel_regression.py --workers 4` passed
+  `1461/1461` tests (`1005` parallel plus `456` serial), ownership, and diff
+  checks. The runner reported live Coinbase execution false and
   submitted/executed notional `0 USDC`; evidence is under
-  `genai_tools/pytest-tmp/parallel-regression/4f87afaef742452b83c938640c168c14/`.
-  The synchronized frontend baseline and release gate passed `548/548` unit,
-  `8/8` Playwright, focused deploy `142/142`, all
-  deployment/backend/local-stack/dry smokes, and managed-process cleanup with
-  live execution `not_run` and notional `0 USDC`.
+  `genai_tools/pytest-tmp/parallel-regression/b077499ed98d43f0a24316d18df7691d/`.
+  The synchronized frontend baseline passed `563/563` unit and `8/8`
+  Playwright tests with live execution `not_run` and notional `0 USDC`; the
+  canonical release gate is rerun after final cross-repository commit
+  association and before plan preparation.
 - Parked by default: M57 phase continuation, M58 fan-out/scheduler,
   runtime-control, retry/recovery, multi-product wallet-ledger work, and the
   single-product ladder/grid roadmap item.
