@@ -18610,9 +18610,13 @@ class AdminRuntime:
             or marker_payload.get("runner_sha256") == confirmed_runner_sha256,
             "runtime_global_batch_marker_runner_hash_mismatch",
         )
+        marker_ledger_path = marker_payload.get(
+            "placement_ledger_path"
+            if is_v15_plan(confirmed_plan)
+            else "attempt_ledger_path"
+        )
         require(
-            marker_payload.get("attempt_ledger_path")
-            == str(attempt_ledger_path),
+            marker_ledger_path == str(attempt_ledger_path),
             "runtime_global_batch_marker_ledger_mismatch",
         )
         if is_v15_plan(confirmed_plan):

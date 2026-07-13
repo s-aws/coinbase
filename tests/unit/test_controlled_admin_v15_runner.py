@@ -198,6 +198,48 @@ def test_execute_authorization_creates_exact_owner_only_budgets_and_claim_log(
     assert not handoff.exists()
 
 
+def test_execute_authority_marker_is_accepted_by_admin_runtime(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = _plan(monkeypatch)
+    plan_path = tmp_path / "v15.plan.json"
+    marker = tmp_path / "marker.json"
+    placements = tmp_path / "placements.jsonl"
+    local_cancel = tmp_path / "cancel.jsonl"
+    backend_claims = tmp_path / "backend-claims.jsonl"
+    handoff = tmp_path / "handoff.json"
+    _write_plan(plan_path, plan)
+    v15.authorize_v15_execution(
+        plan_path,
+        expected_hash=plan["plan_sha256"],
+        preflight=_preflight(),
+        active_zero={"stable_zero": True},
+        fresh_ids={"fresh_read": True},
+        now=datetime(2026, 7, 12, 22, 31, tzinfo=timezone.utc),
+        marker_path=marker,
+        placement_ledger_path=placements,
+        cancel_ledger_path=local_cancel,
+        backend_claim_log_path=backend_claims,
+        handoff_path=handoff,
+    )
+    monkeypatch.setattr(base, "ROOT", tmp_path)
+
+    runtime = base.AdminRuntime(
+        portfolio_id=v15.TEST_PORTFOLIO_ID,
+        confirmed_plan=plan,
+        confirmed_plan_hash=plan["plan_sha256"],
+        global_batch_marker=marker,
+        attempt_ledger_path=placements,
+        controlled_v15_plan_path=plan_path,
+        controlled_v15_handoff_path=handoff,
+        controlled_v15_claim_log_path=backend_claims,
+    )
+
+    assert runtime.attempt_ledger_path == placements
+    assert runtime.child_auth_file.exists()
+
+
 def test_v15_handoff_records_actual_route_proofs_only_after_authority(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
