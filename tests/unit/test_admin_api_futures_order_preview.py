@@ -36,6 +36,7 @@ from tools import run_admin_api_futures_no_live_preview as preview_tool
 
 
 NOW = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
+MISSING = object()
 TEST_PREDECESSOR_BINDING = {
     "artifact_name": "futures_exact_no_live_preview_slice_2.jsonl",
     "file_sha256": FUTURES_PREVIEW_PREDECESSOR_FILE_SHA256,
@@ -595,6 +596,126 @@ def test_missing_default_trade_permission_and_margin_ambiguity_block_pre_preview
 
 
 @pytest.mark.parametrize(
+    ("setting", "expected_value"),
+    [
+        ("INTRADAY_MARGIN_SETTING_STANDARD", "INTRADAY_MARGIN_SETTING_STANDARD"),
+        ("private\nvalue", None),
+    ],
+)
+def test_margin_setting_block_preserves_only_sanitized_pre_preview_evidence(
+    tmp_path: Path,
+    setting: str,
+    expected_value: str | None,
+):
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["intraday_margin_setting"] = {
+        "setting": setting,
+        "credential_material": "must-never-reach-artifact-or-api",
+    }
+    rest_client.read_calls.clear()
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    producer, store, _path = _producer(tmp_path, rest_client)
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="blocked"):
+        producer.run()
+
+    terminal = store.read_completed()
+    diagnostic = terminal["margin_setting_evidence"]
+    assert terminal["attempt_counters"]["preview_order"] == 0
+    assert rest_client.preview_calls == []
+    assert "margin_collateral_evidence" not in terminal
+    assert diagnostic == {
+        "source": "backend_rest_client.get_intraday_margin_setting",
+        "stage": "margin_collateral_validation",
+        "field_path": "intraday_margin_setting.setting",
+        "container_present": True,
+        "container_type": "mapping",
+        "field_present": True,
+        "value_type": "string",
+        "token_form": (
+            "safe_enum_token" if expected_value is not None else "malformed_string"
+        ),
+        "observed_token": expected_value,
+        "allowlist_match": False,
+        "classification": (
+            "unrecognized_string"
+            if expected_value is not None
+            else "malformed_string"
+        ),
+        "unexpected_field_count": 1,
+        "sanitized": True,
+        "raw_response_included": False,
+    }
+    assert terminal["margin_setting_evidence_sha256"] == canonical_sha256(
+        diagnostic
+    )
+    assert "must-never-reach-artifact-or-api" not in json.dumps(terminal)
+    AdminFuturesOrderPreviewResponse.model_validate(terminal)
+
+
+@pytest.mark.parametrize(
+    (
+        "container",
+        "container_type",
+        "value_type",
+        "classification",
+    ),
+    [
+        (MISSING, "missing", "missing", "missing_container"),
+        (None, "null", "missing", "non_mapping_container"),
+        ("not-a-container", "string", "missing", "non_mapping_container"),
+        ({}, "mapping", "missing", "missing_field"),
+        ({"setting": None}, "mapping", "null", "null_value"),
+        ({"setting": True}, "mapping", "boolean", "non_string_value"),
+        ({"setting": 1}, "mapping", "number", "non_string_value"),
+        ({"setting": {}}, "mapping", "mapping", "non_string_value"),
+        ({"setting": []}, "mapping", "sequence", "non_string_value"),
+    ],
+)
+def test_margin_setting_shape_failures_are_controlled_and_never_echo_raw_values(
+    tmp_path: Path,
+    container: object,
+    container_type: str,
+    value_type: str,
+    classification: str,
+):
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    if container is MISSING:
+        snapshot.pop("intraday_margin_setting")
+    else:
+        snapshot["intraday_margin_setting"] = container
+    rest_client.read_calls.clear()
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    producer, store, _path = _producer(tmp_path, rest_client)
+
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="blocked"):
+        producer.run()
+
+    terminal = store.read_completed()
+    diagnostic = terminal["margin_setting_evidence"]
+    assert terminal["blocker"] == (
+        "preflight_or_preview_blocked:ValueError:"
+        "futures_preview_margin_setting_ambiguous"
+    )
+    assert terminal["attempt_counters"]["preview_order"] == 0
+    assert rest_client.preview_calls == []
+    assert diagnostic["container_type"] == container_type
+    assert diagnostic["value_type"] == value_type
+    assert diagnostic["classification"] == classification
+    assert diagnostic["observed_token"] is None
+    assert diagnostic["allowlist_match"] is False
+    assert diagnostic["raw_response_included"] is False
+    assert "not-a-container" not in json.dumps(terminal)
+    AdminFuturesOrderPreviewResponse.model_validate(terminal)
+
+
+@pytest.mark.parametrize(
     "mutation",
     [
         lambda value: value.pop("source"),
@@ -1147,6 +1268,27 @@ def test_accepted_readback_rejects_authoritative_preview_cap_drift(
         AdminFuturesOrderPreviewResponse.model_validate(evidence)
 
 
+def test_attempted_readback_rejects_self_consistent_margin_diagnostic_drift(
+    tmp_path: Path,
+):
+    producer, _store, _path = _producer(tmp_path, FakePreviewRestClient())
+    evidence = producer.run()
+    evidence["margin_setting_evidence"].update(
+        observed_token="INTRADAY_MARGIN_SETTING_STANDARD",
+        allowlist_match=False,
+        classification="unrecognized_string",
+    )
+    evidence["margin_setting_evidence_sha256"] = canonical_sha256(
+        evidence["margin_setting_evidence"]
+    )
+    evidence["evidence_sha256"] = canonical_sha256(
+        {key: value for key, value in evidence.items() if key != "evidence_sha256"}
+    )
+
+    with pytest.raises(ValidationError):
+        AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
 @pytest.mark.parametrize("outcome", ["accepted", "unknown"])
 def test_readback_rejects_self_consistent_predecessor_binding_drift(
     tmp_path: Path,
@@ -1195,6 +1337,87 @@ def test_unknown_readback_requires_exact_attempted_payload_and_preflight_hashes(
 
     with pytest.raises(ValidationError):
         AdminFuturesOrderPreviewResponse.model_validate(evidence)
+
+
+def test_blocked_readback_rejects_margin_setting_hash_and_allowlist_claim_drift(
+    tmp_path: Path,
+):
+    rest_client = FakePreviewRestClient()
+    snapshot = rest_client.get_futures_margin_collateral_snapshot()
+    snapshot["intraday_margin_setting"] = {
+        "setting": "INTRADAY_MARGIN_SETTING_STANDARD",
+    }
+    rest_client.read_calls.clear()
+    rest_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: snapshot
+    )
+    producer, store, _path = _producer(tmp_path, rest_client)
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="blocked"):
+        producer.run()
+    evidence = store.read_completed()
+
+    nested_hash_drift = json.loads(json.dumps(evidence))
+    nested_hash_drift["margin_setting_evidence"]["unexpected_field_count"] = 1
+    nested_hash_drift["evidence_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in nested_hash_drift.items()
+            if key != "evidence_sha256"
+        }
+    )
+    with pytest.raises(ValidationError):
+        AdminFuturesOrderPreviewResponse.model_validate(nested_hash_drift)
+
+    authority_expansion = json.loads(json.dumps(evidence))
+    authority_expansion["margin_setting_evidence"].update(
+        allowlist_match=True,
+        classification="recognized_string",
+    )
+    authority_expansion["margin_setting_evidence_sha256"] = canonical_sha256(
+        authority_expansion["margin_setting_evidence"]
+    )
+    authority_expansion["evidence_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in authority_expansion.items()
+            if key != "evidence_sha256"
+        }
+    )
+    with pytest.raises(ValidationError):
+        AdminFuturesOrderPreviewResponse.model_validate(authority_expansion)
+
+    missing_client = FakePreviewRestClient()
+    missing_snapshot = missing_client.get_futures_margin_collateral_snapshot()
+    missing_snapshot.pop("intraday_margin_setting")
+    missing_client.read_calls.clear()
+    missing_client.get_futures_margin_collateral_snapshot = (  # type: ignore[method-assign]
+        lambda: missing_snapshot
+    )
+    missing_producer, missing_store, _path = _producer(
+        tmp_path / "missing-container",
+        missing_client,
+    )
+    with pytest.raises(FuturesOrderPreviewArtifactError, match="blocked"):
+        missing_producer.run()
+    token_form_drift = missing_store.read_completed()
+    assert token_form_drift["margin_setting_evidence"]["classification"] == (
+        "missing_container"
+    )
+    token_form_drift["margin_setting_evidence"]["token_form"] = (
+        "malformed_string"
+    )
+    token_form_drift["margin_setting_evidence_sha256"] = canonical_sha256(
+        token_form_drift["margin_setting_evidence"]
+    )
+    token_form_drift["evidence_sha256"] = canonical_sha256(
+        {
+            key: value
+            for key, value in token_form_drift.items()
+            if key != "evidence_sha256"
+        }
+    )
+    with pytest.raises(ValidationError):
+        AdminFuturesOrderPreviewResponse.model_validate(token_form_drift)
 
 
 def test_get_route_fails_closed_for_missing_artifact(

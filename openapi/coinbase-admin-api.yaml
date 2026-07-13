@@ -101419,6 +101419,16 @@ components:
             pattern: ^[0-9a-f]{64}$
           - type: 'null'
           title: Margin Collateral Evidence Sha256
+        margin_setting_evidence:
+          anyOf:
+          - $ref: '#/components/schemas/AdminFuturesPreviewMarginSettingEvidence'
+          - type: 'null'
+        margin_setting_evidence_sha256:
+          anyOf:
+          - type: string
+            pattern: ^[0-9a-f]{64}$
+          - type: 'null'
+          title: Margin Setting Evidence Sha256
         candidate:
           anyOf:
           - additionalProperties: true
@@ -101992,6 +102002,109 @@ components:
       - UNKNOWN
       title: AdminFuturesPositionSide
       description: Derived futures/perpetual position direction.
+    AdminFuturesPreviewMarginSettingEvidence:
+      properties:
+        source:
+          type: string
+          const: backend_rest_client.get_intraday_margin_setting
+          title: Source
+        stage:
+          type: string
+          const: margin_collateral_validation
+          title: Stage
+        field_path:
+          type: string
+          const: intraday_margin_setting.setting
+          title: Field Path
+        container_present:
+          type: boolean
+          title: Container Present
+        container_type:
+          type: string
+          enum:
+          - missing
+          - 'null'
+          - boolean
+          - string
+          - number
+          - mapping
+          - sequence
+          - other
+          title: Container Type
+        field_present:
+          type: boolean
+          title: Field Present
+        value_type:
+          type: string
+          enum:
+          - missing
+          - 'null'
+          - boolean
+          - string
+          - number
+          - mapping
+          - sequence
+          - other
+          title: Value Type
+        token_form:
+          type: string
+          enum:
+          - safe_enum_token
+          - malformed_string
+          - not_applicable
+          title: Token Form
+        observed_token:
+          anyOf:
+          - type: string
+            maxLength: 64
+            pattern: ^[A-Z][A-Z0-9_]{0,63}$
+          - type: 'null'
+          title: Observed Token
+        allowlist_match:
+          type: boolean
+          title: Allowlist Match
+        classification:
+          type: string
+          enum:
+          - recognized_string
+          - unrecognized_string
+          - malformed_string
+          - missing_container
+          - non_mapping_container
+          - missing_field
+          - null_value
+          - non_string_value
+          title: Classification
+        unexpected_field_count:
+          type: integer
+          minimum: 0.0
+          title: Unexpected Field Count
+        sanitized:
+          type: boolean
+          const: true
+          title: Sanitized
+        raw_response_included:
+          type: boolean
+          const: false
+          title: Raw Response Included
+      additionalProperties: false
+      type: object
+      required:
+      - source
+      - stage
+      - field_path
+      - container_present
+      - container_type
+      - field_present
+      - value_type
+      - token_form
+      - allowlist_match
+      - classification
+      - unexpected_field_count
+      - sanitized
+      - raw_response_included
+      title: AdminFuturesPreviewMarginSettingEvidence
+      description: Allowlisted, secret-minimized pre-Preview margin-setting evidence.
     AdminFuturesPreviewPredecessorBinding:
       properties:
         artifact_name:

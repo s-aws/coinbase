@@ -6540,6 +6540,155 @@ class AdminFuturesPreviewPredecessorBinding(BaseModel):
     preservation: Literal["immutable_no_modify_delete_or_reuse"]
 
 
+class AdminFuturesPreviewMarginSettingEvidence(BaseModel):
+    """Allowlisted, secret-minimized pre-Preview margin-setting evidence."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: Literal["backend_rest_client.get_intraday_margin_setting"]
+    stage: Literal["margin_collateral_validation"]
+    field_path: Literal["intraday_margin_setting.setting"]
+    container_present: bool
+    container_type: Literal[
+        "missing",
+        "null",
+        "boolean",
+        "string",
+        "number",
+        "mapping",
+        "sequence",
+        "other",
+    ]
+    field_present: bool
+    value_type: Literal[
+        "missing",
+        "null",
+        "boolean",
+        "string",
+        "number",
+        "mapping",
+        "sequence",
+        "other",
+    ]
+    token_form: Literal[
+        "safe_enum_token",
+        "malformed_string",
+        "not_applicable",
+    ]
+    observed_token: str | None = Field(
+        default=None,
+        max_length=64,
+        pattern=r"^[A-Z][A-Z0-9_]{0,63}$",
+    )
+    allowlist_match: bool
+    classification: Literal[
+        "recognized_string",
+        "unrecognized_string",
+        "malformed_string",
+        "missing_container",
+        "non_mapping_container",
+        "missing_field",
+        "null_value",
+        "non_string_value",
+    ]
+    unexpected_field_count: int = Field(ge=0)
+    sanitized: Literal[True]
+    raw_response_included: Literal[False]
+
+    @model_validator(mode="after")
+    def validate_margin_setting_diagnostic(self) -> Self:
+        """Reject contradictory or authority-expanding diagnostic claims."""
+
+        from application.admin_api.futures_order_preview import (
+            FUTURES_PREVIEW_RECOGNIZED_MARGIN_SETTINGS,
+        )
+
+        expected_allowlist_match = (
+            self.observed_token in FUTURES_PREVIEW_RECOGNIZED_MARGIN_SETTINGS
+        )
+        if self.allowlist_match is not expected_allowlist_match:
+            raise ValueError("futures_preview_margin_setting_allowlist_claim_invalid")
+        if self.classification == "recognized_string":
+            coherent = (
+                self.allowlist_match is True
+                and self.container_type == "mapping"
+                and self.field_present is True
+                and self.value_type == "string"
+                and self.token_form == "safe_enum_token"
+            )
+        elif self.classification == "unrecognized_string":
+            coherent = (
+                self.observed_token is not None
+                and self.allowlist_match is False
+                and self.container_type == "mapping"
+                and self.field_present is True
+                and self.value_type == "string"
+                and self.token_form == "safe_enum_token"
+            )
+        elif self.classification == "malformed_string":
+            coherent = (
+                self.observed_token is None
+                and self.container_type == "mapping"
+                and self.field_present is True
+                and self.value_type == "string"
+                and self.token_form == "malformed_string"
+            )
+        elif self.classification == "missing_container":
+            coherent = (
+                self.container_present is False
+                and self.container_type == "missing"
+                and self.field_present is False
+                and self.value_type == "missing"
+            )
+        elif self.classification == "non_mapping_container":
+            coherent = (
+                self.container_present is True
+                and self.container_type != "mapping"
+                and self.field_present is False
+                and self.value_type == "missing"
+            )
+        elif self.classification == "missing_field":
+            coherent = (
+                self.container_present is True
+                and self.container_type == "mapping"
+                and self.field_present is False
+                and self.value_type == "missing"
+            )
+        elif self.classification == "null_value":
+            coherent = (
+                self.container_type == "mapping"
+                and self.field_present is True
+                and self.value_type == "null"
+            )
+        else:
+            coherent = (
+                self.container_type == "mapping"
+                and self.field_present is True
+                and self.value_type
+                in {"boolean", "number", "mapping", "sequence", "other"}
+            )
+        expected_token_form = (
+            "safe_enum_token"
+            if self.classification
+            in {"recognized_string", "unrecognized_string"}
+            else (
+                "malformed_string"
+                if self.classification == "malformed_string"
+                else "not_applicable"
+            )
+        )
+        if (
+            not coherent
+            or self.token_form != expected_token_form
+            or (self.observed_token is not None)
+            != (self.token_form == "safe_enum_token")
+            or (self.field_present is False and self.value_type != "missing")
+            or (self.container_present is False and self.container_type != "missing")
+        ):
+            raise ValueError("futures_preview_margin_setting_diagnostic_invalid")
+        return self
+
+
 class AdminFuturesOrderPreviewResponse(BaseModel):
     """Immutable one-shot Futures Preview evidence read from disk only."""
 
@@ -6582,6 +6731,11 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
     position_evidence_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     margin_collateral_evidence: FlexibleDict | None = None
     margin_collateral_evidence_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    margin_setting_evidence: AdminFuturesPreviewMarginSettingEvidence | None = None
+    margin_setting_evidence_sha256: str | None = Field(
         default=None,
         pattern=r"^[0-9a-f]{64}$",
     )
@@ -6628,7 +6782,10 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
     def validate_preview_evidence(self) -> Self:
         """Reject authority expansion, cap conflation, or hash drift."""
 
-        from application.admin_api.futures_order_preview import canonical_sha256
+        from application.admin_api.futures_order_preview import (
+            _margin_setting_terminal_context,
+            canonical_sha256,
+        )
 
         def finite_decimal(value: Any, blocker: str) -> Decimal:
             try:
@@ -6665,6 +6822,18 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
             "runtime_created": False,
         }:
             raise ValueError("futures_preview_artifact_authority_invalid")
+        if (self.margin_setting_evidence is None) != (
+            self.margin_setting_evidence_sha256 is None
+        ):
+            raise ValueError("futures_preview_margin_setting_evidence_pair_invalid")
+        if (
+            self.margin_setting_evidence is not None
+            and canonical_sha256(
+                self.margin_setting_evidence.model_dump(mode="json")
+            )
+            != self.margin_setting_evidence_sha256
+        ):
+            raise ValueError("futures_preview_margin_setting_evidence_hash_invalid")
         expected_complete_reads = {
             "api_key_permissions": 1,
             "portfolio_catalog": 1,
@@ -6689,6 +6858,8 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                 self.position_evidence_sha256,
                 self.margin_collateral_evidence,
                 self.margin_collateral_evidence_sha256,
+                self.margin_setting_evidence,
+                self.margin_setting_evidence_sha256,
                 self.candidate,
                 self.candidate_sha256,
                 self.preview_request,
@@ -6700,6 +6871,25 @@ class AdminFuturesOrderPreviewResponse(BaseModel):
                 or self.live_coinbase_read_ran is not True
             ):
                 raise ValueError("futures_preview_attempt_context_incomplete")
+            expected_margin_setting_context = _margin_setting_terminal_context(
+                self.margin_collateral_evidence
+            )
+            if (
+                self.margin_setting_evidence is None
+                or self.margin_setting_evidence.model_dump(mode="json")
+                != expected_margin_setting_context["margin_setting_evidence"]
+                or self.margin_setting_evidence_sha256
+                != expected_margin_setting_context[
+                    "margin_setting_evidence_sha256"
+                ]
+                or self.margin_setting_evidence.allowlist_match is not True
+                or self.margin_setting_evidence.classification
+                != "recognized_string"
+                or self.margin_setting_evidence.unexpected_field_count != 0
+            ):
+                raise ValueError(
+                    "futures_preview_attempt_margin_setting_evidence_invalid"
+                )
             for nested, expected_hash in (
                 (self.permission_evidence, self.permission_evidence_sha256),
                 (

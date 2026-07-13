@@ -17,6 +17,7 @@ import hmac
 import json
 import os
 from pathlib import Path
+import re
 import stat
 from typing import Any
 from uuid import uuid4
@@ -62,6 +63,19 @@ _SCHEMA_VERSION = "1"
 _ARTIFACT_TYPE = "futures_exact_no_live_preview_slice_2r1"
 _MAX_ARTIFACT_BYTES = 2 * 1024 * 1024
 _NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
+FUTURES_PREVIEW_RECOGNIZED_MARGIN_SETTINGS = frozenset(
+    {
+        "INTRADAY_MARGIN_SETTING_ENABLED",
+        "INTRADAY_MARGIN_SETTING_DISABLED",
+    }
+)
+_SAFE_MARGIN_SETTING_TOKEN = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
+_SDK_MARGIN_SETTING_FIELDS = {
+    "setting",
+    "rate_limit_remaining",
+    "rate_limit_reset",
+    "rate_limit_limit",
+}
 
 
 class FuturesOrderPreviewArtifactError(RuntimeError):
@@ -652,6 +666,9 @@ class FuturesOrderPreviewProducer:
             margin_collateral = _plain(
                 self.rest_client.get_futures_margin_collateral_snapshot()
             )
+            terminal_context.update(
+                _margin_setting_terminal_context(margin_collateral)
+            )
             available_margin = validate_margin_collateral_evidence(
                 margin_collateral
             )
@@ -1027,11 +1044,13 @@ def validate_margin_collateral_evidence(value: Any) -> Decimal:
         if not amount.is_finite() or amount < 0:
             raise ValueError(f"futures_preview_margin_{field}_invalid")
 
-    setting = _mapping(evidence.get("intraday_margin_setting")).get("setting")
-    if setting not in {
-        "INTRADAY_MARGIN_SETTING_ENABLED",
-        "INTRADAY_MARGIN_SETTING_DISABLED",
-    }:
+    setting_evidence = _mapping(evidence.get("intraday_margin_setting"))
+    setting = setting_evidence.get("setting")
+    if (
+        not isinstance(setting, str)
+        or setting not in FUTURES_PREVIEW_RECOGNIZED_MARGIN_SETTINGS
+        or bool(set(setting_evidence) - _SDK_MARGIN_SETTING_FIELDS)
+    ):
         raise ValueError("futures_preview_margin_setting_ambiguous")
     windows = evidence.get("current_margin_windows")
     if not isinstance(windows, list) or len(windows) != 2:
@@ -1196,6 +1215,7 @@ def _accepted_evidence(
         "position_evidence_sha256": canonical_sha256(positions),
         "margin_collateral_evidence": _plain(margin_collateral),
         "margin_collateral_evidence_sha256": canonical_sha256(margin_collateral),
+        **_margin_setting_terminal_context(margin_collateral),
         "candidate": dict(candidate),
         "candidate_sha256": canonical_sha256(candidate),
         "preview_request": dict(preview_request),
@@ -1309,11 +1329,114 @@ def _terminal_attempt_context(
         "position_evidence_sha256": canonical_sha256(positions),
         "margin_collateral_evidence": _plain(margin_collateral),
         "margin_collateral_evidence_sha256": canonical_sha256(margin_collateral),
+        **_margin_setting_terminal_context(margin_collateral),
         "candidate": dict(candidate),
         "candidate_sha256": canonical_sha256(candidate),
         "preview_request": dict(preview_request),
         "preview_request_sha256": canonical_sha256(preview_request),
     }
+
+
+def _margin_setting_terminal_context(
+    margin_collateral: Any,
+) -> dict[str, Any]:
+    """Return a secret-minimized margin-setting diagnostic."""
+
+    snapshot = _plain(margin_collateral)
+    snapshot_mapping = dict(snapshot) if isinstance(snapshot, Mapping) else {}
+    container_present = "intraday_margin_setting" in snapshot_mapping
+    raw_setting_evidence = snapshot_mapping.get("intraday_margin_setting")
+    container_type = _diagnostic_value_type(
+        raw_setting_evidence,
+        present=container_present,
+    )
+    setting_evidence = (
+        dict(_plain(raw_setting_evidence))
+        if isinstance(raw_setting_evidence, Mapping)
+        else {}
+    )
+    setting_present = "setting" in setting_evidence
+    setting = setting_evidence.get("setting") if setting_present else None
+    value_type = _diagnostic_value_type(setting, present=setting_present)
+    safe_setting = (
+        setting
+        if isinstance(setting, str)
+        and setting == setting.strip()
+        and _SAFE_MARGIN_SETTING_TOKEN.fullmatch(setting)
+        else None
+    )
+    allowlist_match = (
+        isinstance(setting, str)
+        and setting in FUTURES_PREVIEW_RECOGNIZED_MARGIN_SETTINGS
+    )
+    if safe_setting is not None:
+        token_form = "safe_enum_token"
+        classification = (
+            "recognized_string"
+            if allowlist_match
+            else "unrecognized_string"
+        )
+    elif isinstance(setting, str):
+        token_form = "malformed_string"
+        classification = "malformed_string"
+    elif not container_present:
+        token_form = "not_applicable"
+        classification = "missing_container"
+    elif not isinstance(raw_setting_evidence, Mapping):
+        token_form = "not_applicable"
+        classification = "non_mapping_container"
+    elif not setting_present:
+        token_form = "not_applicable"
+        classification = "missing_field"
+    elif setting is None:
+        token_form = "not_applicable"
+        classification = "null_value"
+    else:
+        token_form = "not_applicable"
+        classification = "non_string_value"
+    diagnostic = {
+        "source": "backend_rest_client.get_intraday_margin_setting",
+        "stage": "margin_collateral_validation",
+        "field_path": "intraday_margin_setting.setting",
+        "container_present": container_present,
+        "container_type": container_type,
+        "field_present": setting_present,
+        "value_type": value_type,
+        "token_form": token_form,
+        "observed_token": safe_setting,
+        "allowlist_match": allowlist_match,
+        "classification": classification,
+        "unexpected_field_count": len(
+            set(setting_evidence) - _SDK_MARGIN_SETTING_FIELDS
+        ),
+        "sanitized": True,
+        "raw_response_included": False,
+    }
+    return {
+        "margin_setting_evidence": diagnostic,
+        "margin_setting_evidence_sha256": canonical_sha256(diagnostic),
+    }
+
+
+def _diagnostic_value_type(value: Any, *, present: bool) -> str:
+    if not present:
+        return "missing"
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, (int, float, Decimal)):
+        return "number"
+    if isinstance(value, Mapping):
+        return "mapping"
+    if isinstance(value, Sequence) and not isinstance(
+        value,
+        (str, bytes, bytearray),
+    ):
+        return "sequence"
+    return "other"
 
 
 def _preview_request(candidate: Mapping[str, str]) -> dict[str, Any]:

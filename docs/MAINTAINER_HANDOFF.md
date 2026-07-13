@@ -139,6 +139,15 @@ create a separate approval class.
   `0`, and its evidence SHA-256 is
   `a1b7820aa217b7119a6353a8f4fbffa5227ebfe5e4c8d8a1cde5449d370fc6f0`.
   R1 cannot be retried, and Slice 3 is inactive pending an operator decision.
+  Offline diagnosis is implemented and focused-test gated: the installed SDK
+  proves the response field shape but no enum allowlist, and future distinct
+  attempts will preserve only typed, bounded margin-setting diagnostics before
+  validation. Raw margin/account payloads are not emitted on that failure path.
+  No R2 artifact or Coinbase/Preview/mutation call has been made; R2 still
+  requires explicit authorization.
++- Phase-end subagent sweep: the independent safety review and blind contextless
+  non-Spot architecture review both completed with `PASS`; no required
+  validation agent remains running.
 - Ordered successors: exact no-live preview (2), one terminal order roundtrip
   (3), intentional fill/position readback (4), then exact closeout (5). The
   no-live sequence is prospectively authorized; every live step remains behind

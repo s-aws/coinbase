@@ -69,6 +69,23 @@ The R1 authorization is consumed and cannot be retried. Slice 2 is not
 accepted, Slice 3 must not activate, and a new attempt requires an explicit
 operator decision after offline diagnosis and a separately authorized plan.
 
+On 2026-07-13 the operator authorized offline-only diagnosis, implementation of
+sanitized pre-Preview margin-setting evidence, focused validation, independent
+audit, and preparation of proposed Slice 2R2 authorization wording. The
+installed `coinbase-advanced-py 1.8.4` source proves only that
+`get_intraday_margin_setting` may return an optional string field named
+`setting`; it defines no valid enum literals. The two values in the current
+gate therefore have no local SDK provenance, and no newly observed enum may be
+accepted without a separately justified primary source. The causal R1 evidence
+gap was that margin validation ran before terminal context existed. The offline
+fix now captures a typed, bounded, allowlisted diagnostic before validation,
+withholds malformed values and all raw margin/account payloads, validates its
+hash and authority claims at API readback, and displays only those sanitized
+fields in the Admin UI. This work created no R2 artifact and made zero Coinbase,
+Preview, exchange-mutation, marker, ledger, or runtime calls. R2 remains an
+explicit operator decision.
++Focused validation and independent safety plus blind contextless audits pass.
+
 `Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview Order -> immutable operator-visible no-live preview readback`
 
 ## Ordered Sequence — Slice 2 Active
