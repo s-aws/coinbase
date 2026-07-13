@@ -1609,6 +1609,81 @@ def _prove_v15_fresh_ids_absent(
     }
 
 
+def prove_v15_post_root_child_wholly_unsubmitted(
+    runtime: Any,
+    rest_client: Any,
+    plan: Mapping[str, Any],
+    *,
+    root_exchange_order_id: str,
+    filled_size: Decimal,
+    root_correlation_id: str,
+    root_audit_id: str,
+) -> dict[str, Any]:
+    """Re-read the automatic child without treating its local row as a collision."""
+
+    root_id = str(dict(plan["root"])["client_order_id"])
+    child_id = str(dict(plan["child"])["client_order_id"])
+    _, chain, _ = runtime.request(
+        "GET",
+        f"/orders/{root_id}/fill-follow-up/chain",
+        headers=runtime.headers(role="auditor"),
+        expected={200},
+    )
+    base._raise_on_critical_chain_state(chain)
+    child = base._validate_automatic_hidden_child_chain(
+        chain,
+        root_client_order_id=root_id,
+        portfolio_id=TEST_PORTFOLIO_ID,
+        expected_filled_size=filled_size,
+        expected_placement_correlation_id=root_correlation_id,
+        expected_admission_audit_id=root_audit_id,
+        expected_exchange_order_id=root_exchange_order_id,
+    )
+    _require(
+        child.get("client_order_id") == child_id,
+        "v15_post_root_child_identity_mismatch",
+    )
+    _, detail, _ = runtime.request(
+        "GET",
+        f"/stealth/orders/{child_id}",
+        headers=runtime.headers(role="auditor"),
+        expected={200},
+    )
+    base._validate_hidden_child_detail(
+        detail,
+        child_id=child_id,
+        root_client_order_id=root_id,
+        expected_filled_size=filled_size,
+    )
+    active_zero = base.prove_stable_authoritative_active_zero(
+        rest_client,
+        expected_portfolio_id=TEST_PORTFOLIO_ID,
+    )
+    catalog, pagination = base.read_failed_v6_v7_order_catalog(rest_client)
+    child_exchange_matches = [
+        dict(row)
+        for row in catalog
+        if str(row.get("client_order_id") or "") == child_id
+    ]
+    _require(
+        active_zero.get("stable_zero") is True
+        and pagination.get("authoritative") is True
+        and pagination.get("pagination_complete") is True
+        and not child_exchange_matches,
+        "v15_post_root_child_exchange_absence_unproven",
+    )
+    return {
+        "root_client_order_id": root_id,
+        "child_client_order_id": child_id,
+        "root_exchange_order_id": root_exchange_order_id,
+        "child_status": "HIDDEN",
+        "child_wholly_unsubmitted": True,
+        "child_exchange_matches": child_exchange_matches,
+        "exchange_pagination": dict(pagination),
+        "active_zero": dict(active_zero),
+    }
+
+
 def _validate_v15_cancel_readiness(
     readiness: Mapping[str, Any],
     *,
@@ -2269,18 +2344,14 @@ def execute_v15_plan(
             plan,
             blocker="v15_plan_expired_after_child_ledger",
         )
-        _require(
-            _prove_v15_fresh_ids_absent(
-                rest_client,
-                plan,
-                include_root=False,
-            ).get("fresh_read")
-            is True
-            and not base.read_authoritative_spot_nonterminal_orders(
-                rest_client,
-                expected_portfolio_id=TEST_PORTFOLIO_ID,
-            ),
-            "v15_child_immediate_identity_or_active_gate_failed",
+        post_root_child_proof = prove_v15_post_root_child_wholly_unsubmitted(
+            runtime,
+            rest_client,
+            plan,
+            root_exchange_order_id=root_exchange_order_id,
+            filled_size=filled_size,
+            root_correlation_id=str(root_headers["X-Correlation-Id"]),
+            root_audit_id=str(root_proofs["admission_audit_id"]),
         )
         immediate_child_market = base.fresh_exact_market(rest_client)
         base.validate_exact_child_price_against_fresh_bid(

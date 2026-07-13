@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
+from decimal import Decimal
 import inspect
 import json
 import os
@@ -253,6 +254,111 @@ def test_execute_authority_marker_is_accepted_by_admin_runtime(
 
     assert runtime.attempt_ledger_path == placements
     assert runtime.child_auth_file.exists()
+
+
+def test_post_root_child_proof_accepts_exact_local_hidden_child(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = _plan(monkeypatch)
+    root_id = str(dict(plan["root"])["client_order_id"])
+    child_id = str(dict(plan["child"])["client_order_id"])
+
+    class FakeRuntime:
+        def headers(self, **_kwargs):
+            return {"Authorization": "test"}
+
+        def request(self, _method, path, **_kwargs):
+            if path.endswith("/fill-follow-up/chain"):
+                return 200, {"kind": "chain"}, {}
+            if path == f"/stealth/orders/{child_id}":
+                return 200, {"kind": "detail"}, {}
+            raise AssertionError(path)
+
+    monkeypatch.setattr(base, "_raise_on_critical_chain_state", lambda _chain: None)
+    monkeypatch.setattr(
+        base,
+        "_validate_automatic_hidden_child_chain",
+        lambda *_args, **_kwargs: {"client_order_id": child_id},
+    )
+    monkeypatch.setattr(
+        base,
+        "_validate_hidden_child_detail",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        base,
+        "prove_stable_authoritative_active_zero",
+        lambda *_args, **_kwargs: {"stable_zero": True},
+    )
+    monkeypatch.setattr(
+        base,
+        "read_failed_v6_v7_order_catalog",
+        lambda _client: (
+            [{"client_order_id": "unrelated"}],
+            {"authoritative": True, "pagination_complete": True},
+        ),
+    )
+
+    evidence = v15.prove_v15_post_root_child_wholly_unsubmitted(
+        FakeRuntime(),
+        object(),
+        plan,
+        root_exchange_order_id="exchange-root",
+        filled_size=Decimal("0.00001583"),
+        root_correlation_id="correlation-root",
+        root_audit_id="audit-root",
+    )
+
+    assert evidence["root_client_order_id"] == root_id
+    assert evidence["child_client_order_id"] == child_id
+    assert evidence["child_wholly_unsubmitted"] is True
+    assert evidence["child_exchange_matches"] == []
+
+
+def test_post_root_child_proof_rejects_exchange_identity_collision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = _plan(monkeypatch)
+    child_id = str(dict(plan["child"])["client_order_id"])
+
+    class FakeRuntime:
+        def headers(self, **_kwargs):
+            return {"Authorization": "test"}
+
+        def request(self, _method, path, **_kwargs):
+            return 200, ({"kind": "detail"} if "/stealth/" in path else {"kind": "chain"}), {}
+
+    monkeypatch.setattr(base, "_raise_on_critical_chain_state", lambda _chain: None)
+    monkeypatch.setattr(
+        base,
+        "_validate_automatic_hidden_child_chain",
+        lambda *_args, **_kwargs: {"client_order_id": child_id},
+    )
+    monkeypatch.setattr(base, "_validate_hidden_child_detail", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        base,
+        "prove_stable_authoritative_active_zero",
+        lambda *_args, **_kwargs: {"stable_zero": True},
+    )
+    monkeypatch.setattr(
+        base,
+        "read_failed_v6_v7_order_catalog",
+        lambda _client: (
+            [{"client_order_id": child_id}],
+            {"authoritative": True, "pagination_complete": True},
+        ),
+    )
+
+    with pytest.raises(v15.ProofFailure, match="v15_post_root_child_exchange_absence_unproven"):
+        v15.prove_v15_post_root_child_wholly_unsubmitted(
+            FakeRuntime(),
+            object(),
+            plan,
+            root_exchange_order_id="exchange-root",
+            filled_size=Decimal("0.00001583"),
+            root_correlation_id="correlation-root",
+            root_audit_id="audit-root",
+        )
 
 
 def test_v15_handoff_records_actual_route_proofs_only_after_authority(
