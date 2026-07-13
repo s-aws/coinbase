@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import os
 import signal
+from types import SimpleNamespace
 
 import pytest
 
@@ -197,3 +198,46 @@ def test_signal_exact_process_source_has_no_pid_based_kill_fallback() -> None:
     assert "pidfd_open" in source
     assert "pidfd_send_signal" in source
     assert "os.kill(" not in source
+
+
+def test_r2_service_disable_uses_canonical_admin_actor_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class Session:
+        trust_env = True
+
+        @staticmethod
+        def post(url, *, headers, json, timeout):
+            captured.update(
+                {"url": url, "headers": headers, "body": json, "timeout": timeout}
+            )
+            return SimpleNamespace(
+                status_code=200,
+                json=lambda: {
+                    "decision": {
+                        "decision_id": "disable-v15r2",
+                        "resolver_eligible": False,
+                        "service_enabled": False,
+                        "requested_service_status": "live_disabled",
+                    }
+                },
+            )
+
+    monkeypatch.setattr(
+        recovery,
+        "_read_process_environment",
+        lambda _pid: {"COINBASE_ADMIN_API_BEARER_TOKEN": "secret-token"},
+    )
+    monkeypatch.setattr(recovery.requests, "Session", Session)
+
+    result = recovery.post_v15r2_live_service_disabled(
+        plan={"backend_commit": "a" * 40}, runtime_pid=1234
+    )
+
+    headers = captured["headers"]
+    assert headers["X-Admin-Actor"] == recovery.ACTOR_ID
+    assert "X-Admin-Actor-Id" not in headers
+    assert headers["X-Admin-Roles"] == "admin"
+    assert result["service_enabled"] is False

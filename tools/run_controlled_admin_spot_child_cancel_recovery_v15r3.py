@@ -1118,7 +1118,7 @@ def post_v15r2_live_service_disabled(
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
-        "X-Admin-Actor-Id": ACTOR_ID,
+        "X-Admin-Actor": ACTOR_ID,
         "X-Admin-Roles": "admin",
         "Idempotency-Key": f"v15r3-transition-disable-r2-{uuid4()}",
         "X-Operator-Intent": "disable_v15r2_before_v15r3_transition",
