@@ -20,6 +20,7 @@ Usage:
     >>> wallets = client.get_account_wallets()
 """
 
+from decimal import Decimal, InvalidOperation
 from typing import Dict, List, Optional, Any
 from coinbase.rest import RESTClient
 from core.models import Product, Wallet, Position, Order
@@ -310,6 +311,42 @@ class CoinbaseRestClient:
                 continue
         
         return products
+
+    def get_best_bid_ask(self, *, product_ids: List[str]) -> Dict[str, Any]:
+        """Return exact best-bid/ask evidence for the requested products."""
+
+        response = self._client.get_best_bid_ask(product_ids=product_ids)
+        data = coinbase_sdk_response_to_dict(response)
+        return data if isinstance(data, dict) else {}
+
+    def preview_order(
+        self,
+        *,
+        product_id: str,
+        side: str,
+        order_configuration: Dict[str, Any],
+        leverage: Optional[str] = None,
+        margin_type: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Call Coinbase Preview Order without creating an order.
+
+        Optional values are omitted rather than serialized as null.  CDP key
+        permissions bind the portfolio, so this canonical method deliberately
+        has no ``retail_portfolio_id`` argument.
+        """
+
+        kwargs: Dict[str, Any] = {
+            "product_id": product_id,
+            "side": side,
+            "order_configuration": order_configuration,
+        }
+        if leverage is not None:
+            kwargs["leverage"] = leverage
+        if margin_type is not None:
+            kwargs["margin_type"] = margin_type
+        response = self._client.preview_order(**kwargs)
+        data = coinbase_sdk_response_to_dict(response)
+        return data if isinstance(data, dict) else {}
     
     # ========================================================================
     # Order Methods
@@ -492,11 +529,40 @@ class CoinbaseRestClient:
         """
         response = self._client.list_futures_positions()
         futures_response = coinbase_sdk_response_to_dict(response)
-        futures_list = futures_response.get("positions", [])
+        if not isinstance(futures_response, dict):
+            raise ValueError("futures positions evidence is not an object")
+        if "positions" not in futures_response:
+            raise ValueError("futures positions evidence is missing")
+        futures_list = futures_response["positions"]
+        if not isinstance(futures_list, list):
+            raise ValueError("futures positions evidence is not a list")
         
         positions = {}
         for position_data in futures_list:
+            if not isinstance(position_data, dict):
+                raise ValueError("futures position row is invalid")
             product_id = position_data.get("product_id")
+            if (
+                not isinstance(product_id, str)
+                or not product_id.strip()
+                or product_id != product_id.strip()
+            ):
+                raise ValueError("futures position product_id is missing")
+            if product_id in positions:
+                raise ValueError(
+                    f"duplicate futures position product_id: {product_id}"
+                )
+            side = position_data.get("side")
+            if side not in {"LONG", "SHORT"}:
+                raise ValueError("futures position side is invalid")
+            if "number_of_contracts" not in position_data:
+                raise ValueError("futures position contract count is missing")
+            try:
+                contract_count = Decimal(str(position_data["number_of_contracts"]))
+            except (InvalidOperation, ValueError) as exc:
+                raise ValueError("futures position contract count is invalid") from exc
+            if not contract_count.is_finite() or contract_count < 0:
+                raise ValueError("futures position contract count is invalid")
             position = Position.from_position_dict(position_data)
             positions[product_id] = position
         
@@ -587,6 +653,12 @@ class CoinbaseRestClient:
             )
         futures_sweeps = futures_sweeps_response.get("sweeps")
         if not isinstance(futures_sweeps, list):
+            errors.append(
+                {
+                    "method": "list_futures_sweeps",
+                    "error": "futures_sweeps_missing_or_invalid",
+                }
+            )
             futures_sweeps = []
 
         return {

@@ -6,6 +6,7 @@ or mutate exchange state by themselves.
 
 from __future__ import annotations
 
+from decimal import Decimal, InvalidOperation
 from typing import Annotated, Any, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -6511,6 +6512,468 @@ class AdminFuturesAccountReadResponse(BaseModel):
     live_coinbase_execution: str = "not_run"
     notional_usdc: DecimalString = "0"
     live_coinbase_orders_ran: bool = False
+
+
+class AdminFuturesPreviewPredecessorBinding(BaseModel):
+    """Exact immutable binding to the consumed Slice 2 artifact."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    artifact_name: Literal["futures_exact_no_live_preview_slice_2.jsonl"]
+    file_sha256: Literal[
+        "9b15da86c172eca46d4b3dc0fc2b81e9b325df9a1e2f75fef79362f538e2d5ff"
+    ]
+    evidence_sha256: Literal[
+        "3b09cb9dfe02991dc886a1c6f041330d417ff11a0f1d45e3734bdc59bfb219b8"
+    ]
+    device: Literal["66305"]
+    inode: Literal["42312964"]
+    size_bytes: Literal[3043]
+    mode: Literal["0400"]
+    mtime_ns: Literal["1783968539951853688"]
+    status: Literal["blocked"]
+    outcome: Literal["blocked"]
+    preview_order_attempt_count: Literal[0]
+    exchange_submission_attempt_count: Literal[0]
+    submitted_notional_usdc: Literal["0"]
+    executed_notional_usdc: Literal["0"]
+    preservation: Literal["immutable_no_modify_delete_or_reuse"]
+
+
+class AdminFuturesOrderPreviewResponse(BaseModel):
+    """Immutable one-shot Futures Preview evidence read from disk only."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["1"]
+    type: Literal["admin_futures_order_preview"]
+    artifact_type: Literal["futures_exact_no_live_preview_slice_2r1"]
+    status: Literal["accepted", "blocked", "unknown"]
+    outcome: Literal["accepted", "blocked", "unknown"]
+    blocker: str | None = None
+    predecessor_binding: AdminFuturesPreviewPredecessorBinding
+    reserved_at: str
+    completed_at: str
+    claim_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    actor_id: Literal["operator-controlled-futures-proof"]
+    roles: list[Literal["trader"]]
+    correlation_id: str
+    idempotency_key: str
+    profile_label: Literal["Default"]
+    portfolio_type: Literal["DEFAULT"]
+    portfolio_id: str | None = None
+    portfolio_binding: AdminFuturesPortfolioBindingEvidence | None = None
+    permission_evidence: FlexibleDict | None = None
+    permission_evidence_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    portfolio_catalog_evidence: list[FlexibleDict] | None = None
+    portfolio_catalog_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    product_id: Literal["AVP-20DEC30-CDE"]
+    product_evidence: FlexibleDict | None = None
+    product_evidence_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    market_evidence: FlexibleDict | None = None
+    market_evidence_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    position_evidence: Any | None = None
+    position_evidence_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    margin_collateral_evidence: FlexibleDict | None = None
+    margin_collateral_evidence_sha256: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-f]{64}$",
+    )
+    candidate: FlexibleDict | None = None
+    candidate_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    preview_request: FlexibleDict | None = None
+    preview_request_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    preview_response: FlexibleDict | None = None
+    preview_response_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    seal_ready_plan: FlexibleDict | None = None
+    seal_ready_plan_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    attempt_counters: FlexibleDict
+    read_counters: FlexibleDict
+    submitted_notional_usdc: Literal["0"]
+    executed_notional_usdc: Literal["0"]
+    live_execution: Literal["not_run"]
+    live_coinbase_execution: Literal["not_run"]
+    live_coinbase_read_ran: bool
+    exchange_submission_attempt_count: Literal[0]
+    read_only: Literal[True]
+    browser_authority: Literal["display_only"]
+    bff_authority: Literal["forward_only_no_execution"]
+    artifacts: FlexibleDict
+    canonicalization: Literal["sorted_keys_compact_utf8_json"]
+    hash_algorithm: Literal["sha256"]
+    evidence_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_raw_evidence_hash(cls, value: Any) -> Any:
+        """Validate the producer's exact JSON shape before normalization."""
+
+        from application.admin_api.futures_order_preview import canonical_sha256
+
+        if not isinstance(value, dict):
+            raise ValueError("futures_preview_evidence_payload_invalid")
+        payload = dict(value)
+        expected_hash = str(payload.pop("evidence_sha256", ""))
+        if not expected_hash or canonical_sha256(payload) != expected_hash:
+            raise ValueError("futures_preview_evidence_hash_invalid")
+        return value
+
+    @model_validator(mode="after")
+    def validate_preview_evidence(self) -> Self:
+        """Reject authority expansion, cap conflation, or hash drift."""
+
+        from application.admin_api.futures_order_preview import canonical_sha256
+
+        def finite_decimal(value: Any, blocker: str) -> Decimal:
+            try:
+                parsed = Decimal(str(value))
+            except (InvalidOperation, ValueError) as exc:
+                raise ValueError(blocker) from exc
+            if not parsed.is_finite():
+                raise ValueError(blocker)
+            return parsed
+
+        if self.roles != ["trader"]:
+            raise ValueError("futures_preview_role_binding_invalid")
+        expected_zero_mutation_counters = {
+            "retry": 0,
+            "fallback": 0,
+            "create_order": 0,
+            "cancel_order": 0,
+            "close_position": 0,
+            "reduce_position": 0,
+        }
+        if any(
+            self.attempt_counters.get(key) != value
+            for key, value in expected_zero_mutation_counters.items()
+        ):
+            raise ValueError("futures_preview_attempt_counters_invalid")
+        preview_attempts = self.attempt_counters.get("preview_order")
+        if preview_attempts not in {0, 1}:
+            raise ValueError("futures_preview_attempt_counters_invalid")
+        if self.outcome == "unknown" and preview_attempts != 1:
+            raise ValueError("futures_preview_unknown_attempt_invalid")
+        if self.artifacts != {
+            "execution_marker_created": False,
+            "attempt_ledger_created": False,
+            "runtime_created": False,
+        }:
+            raise ValueError("futures_preview_artifact_authority_invalid")
+        expected_complete_reads = {
+            "api_key_permissions": 1,
+            "portfolio_catalog": 1,
+            "product": 1,
+            "best_bid_ask": 1,
+            "futures_positions": 1,
+            "futures_margin_collateral": 1,
+        }
+        if preview_attempts == 1:
+            required_attempt_context = (
+                self.portfolio_id,
+                self.portfolio_binding,
+                self.permission_evidence,
+                self.permission_evidence_sha256,
+                self.portfolio_catalog_evidence,
+                self.portfolio_catalog_sha256,
+                self.product_evidence,
+                self.product_evidence_sha256,
+                self.market_evidence,
+                self.market_evidence_sha256,
+                self.position_evidence,
+                self.position_evidence_sha256,
+                self.margin_collateral_evidence,
+                self.margin_collateral_evidence_sha256,
+                self.candidate,
+                self.candidate_sha256,
+                self.preview_request,
+                self.preview_request_sha256,
+            )
+            if (
+                any(value is None for value in required_attempt_context)
+                or self.read_counters != expected_complete_reads
+                or self.live_coinbase_read_ran is not True
+            ):
+                raise ValueError("futures_preview_attempt_context_incomplete")
+            for nested, expected_hash in (
+                (self.permission_evidence, self.permission_evidence_sha256),
+                (
+                    self.portfolio_catalog_evidence,
+                    self.portfolio_catalog_sha256,
+                ),
+                (self.product_evidence, self.product_evidence_sha256),
+                (self.market_evidence, self.market_evidence_sha256),
+                (self.position_evidence, self.position_evidence_sha256),
+                (
+                    self.margin_collateral_evidence,
+                    self.margin_collateral_evidence_sha256,
+                ),
+                (self.candidate, self.candidate_sha256),
+                (self.preview_request, self.preview_request_sha256),
+            ):
+                if canonical_sha256(nested) != expected_hash:
+                    raise ValueError("futures_preview_attempt_context_hash_invalid")
+            request = self.preview_request or {}
+            if (
+                request.get("product_id") != self.product_id
+                or request.get("side") != "BUY"
+                or request.get("order_configuration")
+                != {
+                    "limit_limit_gtc": {
+                        "base_size": "1",
+                        "limit_price": (self.candidate or {}).get("limit_price"),
+                        "post_only": True,
+                    }
+                }
+                or "retail_portfolio_id" in request
+            ):
+                raise ValueError("futures_preview_attempt_request_invalid")
+            if self.preview_response is not None:
+                if (
+                    self.preview_response_sha256 is None
+                    or canonical_sha256(self.preview_response)
+                    != self.preview_response_sha256
+                ):
+                    raise ValueError(
+                        "futures_preview_attempt_response_hash_invalid"
+                    )
+        if self.outcome != "accepted":
+            if not self.blocker or self.status != self.outcome:
+                raise ValueError("futures_preview_terminal_blocker_invalid")
+            return self
+        if self.status != "accepted" or self.blocker is not None:
+            raise ValueError("futures_preview_accepted_status_invalid")
+        if preview_attempts != 1:
+            raise ValueError("futures_preview_accepted_attempt_invalid")
+        if (
+            self.read_counters != expected_complete_reads
+            or self.live_coinbase_read_ran is not True
+        ):
+            raise ValueError("futures_preview_accepted_reads_incomplete")
+        required_accepted = (
+            self.portfolio_binding,
+            self.permission_evidence,
+            self.permission_evidence_sha256,
+            self.portfolio_catalog_evidence,
+            self.portfolio_catalog_sha256,
+            self.product_evidence,
+            self.product_evidence_sha256,
+            self.market_evidence,
+            self.market_evidence_sha256,
+            self.position_evidence,
+            self.position_evidence_sha256,
+            self.margin_collateral_evidence,
+            self.margin_collateral_evidence_sha256,
+            self.candidate,
+            self.candidate_sha256,
+            self.preview_request,
+            self.preview_request_sha256,
+            self.preview_response,
+            self.preview_response_sha256,
+            self.seal_ready_plan,
+            self.seal_ready_plan_sha256,
+        )
+        if any(value is None for value in required_accepted):
+            raise ValueError("futures_preview_accepted_evidence_incomplete")
+        binding = self.portfolio_binding
+        if (
+            binding is None
+            or binding.status != "matched"
+            or binding.ready is not True
+            or binding.read_authorized is not True
+            or binding.can_view is not True
+            or binding.can_trade is not True
+            or binding.credential_trade_permission_present is not True
+            or self.portfolio_id != binding.observed_portfolio_id
+        ):
+            raise ValueError("futures_preview_accepted_portfolio_binding_invalid")
+        permissions = self.permission_evidence or {}
+        if (
+            permissions.get("portfolio_uuid") != self.portfolio_id
+            or permissions.get("portfolio_type") != "DEFAULT"
+            or permissions.get("can_view") is not True
+            or permissions.get("can_trade") is not True
+        ):
+            raise ValueError("futures_preview_accepted_permission_evidence_invalid")
+        catalog_matches = [
+            row
+            for row in (self.portfolio_catalog_evidence or [])
+            if row.get("uuid") == self.portfolio_id
+        ]
+        if len(catalog_matches) != 1 or catalog_matches[0] != {
+            "uuid": self.portfolio_id,
+            "name": "Default",
+            "type": "DEFAULT",
+        }:
+            raise ValueError("futures_preview_accepted_portfolio_catalog_invalid")
+        request = self.preview_request or {}
+        if (
+            request.get("product_id") != self.product_id
+            or request.get("side") != "BUY"
+            or "retail_portfolio_id" in request
+        ):
+            raise ValueError("futures_preview_request_binding_invalid")
+        candidate = self.candidate or {}
+        opening = finite_decimal(
+            candidate.get("opening_reference_notional_usdc"),
+            "futures_preview_cap_evidence_invalid",
+        )
+        exposure = finite_decimal(
+            candidate.get("maximum_exposure_reference_notional_usdc"),
+            "futures_preview_cap_evidence_invalid",
+        )
+        buffered_close = finite_decimal(
+            candidate.get("buffered_close_reference_notional_usdc"),
+            "futures_preview_cap_evidence_invalid",
+        )
+        turnover = finite_decimal(
+            candidate.get("branch_turnover_reference_notional_usdc"),
+            "futures_preview_cap_evidence_invalid",
+        )
+        if not (
+            opening < Decimal("100")
+            and exposure < Decimal("150")
+            and buffered_close < Decimal("150")
+            and turnover < Decimal("300")
+        ):
+            raise ValueError("futures_preview_cap_evidence_invalid")
+        for value, expected_hash in (
+            (self.permission_evidence, self.permission_evidence_sha256),
+            (self.portfolio_catalog_evidence, self.portfolio_catalog_sha256),
+            (self.product_evidence, self.product_evidence_sha256),
+            (self.market_evidence, self.market_evidence_sha256),
+            (self.position_evidence, self.position_evidence_sha256),
+            (
+                self.margin_collateral_evidence,
+                self.margin_collateral_evidence_sha256,
+            ),
+            (self.candidate, self.candidate_sha256),
+            (self.preview_request, self.preview_request_sha256),
+            (self.preview_response, self.preview_response_sha256),
+            (self.seal_ready_plan, self.seal_ready_plan_sha256),
+        ):
+            if canonical_sha256(value) != expected_hash:
+                raise ValueError("futures_preview_nested_hash_invalid")
+        preview = self.preview_response or {}
+        candidate_binding = preview.get("candidate_binding")
+        if not isinstance(candidate_binding, dict):
+            raise ValueError("futures_preview_authoritative_cap_evidence_invalid")
+        authoritative_opening = finite_decimal(
+            candidate_binding.get(
+                "authoritative_opening_reference_notional_usdc"
+            ),
+            "futures_preview_authoritative_cap_evidence_invalid",
+        )
+        authoritative_exposure = finite_decimal(
+            candidate_binding.get("maximum_exposure_reference_notional_usdc"),
+            "futures_preview_authoritative_cap_evidence_invalid",
+        )
+        authoritative_buffered_close = finite_decimal(
+            candidate_binding.get("buffered_close_reference_notional_usdc"),
+            "futures_preview_authoritative_cap_evidence_invalid",
+        )
+        authoritative_turnover = finite_decimal(
+            candidate_binding.get("branch_turnover_reference_notional_usdc"),
+            "futures_preview_authoritative_cap_evidence_invalid",
+        )
+        if (
+            candidate_binding.get("status") != "matched"
+            or candidate_binding.get("contract_count") != "1"
+            or candidate_binding.get("comparison") != "strictly_less_than"
+            or candidate_binding.get("opening_cap_usdc") != "100"
+            or candidate_binding.get("exposure_cap_usdc") != "150"
+            or candidate_binding.get("turnover_cap_usdc") != "300"
+            or authoritative_opening >= Decimal("100")
+            or authoritative_exposure >= Decimal("150")
+            or authoritative_buffered_close >= Decimal("150")
+            or authoritative_turnover >= Decimal("300")
+        ):
+            raise ValueError("futures_preview_authoritative_cap_evidence_invalid")
+        plan = self.seal_ready_plan or {}
+        authoritative_preview = plan.get("authoritative_preview")
+        if not isinstance(authoritative_preview, dict):
+            raise ValueError("futures_preview_seal_authoritative_preview_missing")
+        liquidation_source = preview.get("liquidation_evidence_source")
+        if liquidation_source == "current_and_projected_liquidation_buffer":
+            liquidation_evidence = {
+                "current_liquidation_buffer": preview.get(
+                    "current_liquidation_buffer"
+                ),
+                "projected_liquidation_buffer": preview.get(
+                    "projected_liquidation_buffer"
+                ),
+            }
+        else:
+            liquidation_evidence = {
+                "margin_ratio_data": preview.get("margin_ratio_data"),
+                "predicted_liquidation_price": preview.get(
+                    "predicted_liquidation_price"
+                ),
+            }
+        if (
+            plan.get("slice_id") != "futures_exact_no_live_preview_slice_2r1"
+            or plan.get("actor_id") != self.actor_id
+            or plan.get("predecessor_binding")
+            != self.predecessor_binding.model_dump(mode="json")
+            or plan.get("roles") != self.roles
+            or plan.get("correlation_id") != self.correlation_id
+            or plan.get("idempotency_key") != self.idempotency_key
+            or plan.get("product_id") != self.product_id
+            or plan.get("contract_count") != "1"
+            or plan.get("profile_binding")
+            != {
+                "profile_label": "Default",
+                "portfolio_type": "DEFAULT",
+                "portfolio_id": self.portfolio_id,
+                "selection_authority": "cdp_api_key_permissioned_portfolio",
+                "request_portfolio_override_allowed": False,
+            }
+            or plan.get("candidate") != self.candidate
+            or plan.get("preview_request") != self.preview_request
+            or plan.get("preview_request_sha256") != self.preview_request_sha256
+            or authoritative_preview.get("preview_id") != preview.get("preview_id")
+            or authoritative_preview.get("preview_response") != preview
+            or authoritative_preview.get("preview_response_sha256")
+            != self.preview_response_sha256
+            or authoritative_preview.get("candidate_binding")
+            != preview.get("candidate_binding")
+            or authoritative_preview.get("commission_total")
+            != preview.get("commission_total")
+            or authoritative_preview.get("order_margin_total")
+            != preview.get("order_margin_total")
+            or authoritative_preview.get("liquidation_evidence_source")
+            != liquidation_source
+            or authoritative_preview.get("liquidation_evidence")
+            != liquidation_evidence
+            or authoritative_preview.get("margin_collateral_evidence_sha256")
+            != self.margin_collateral_evidence_sha256
+            or plan.get("caps")
+            != {
+                "opening_reference_notional_usdc": "100",
+                "concurrent_exposure_usdc": "150",
+                "buffered_close_reference_notional_usdc": "150",
+                "branch_turnover_reference_notional_usdc": "300",
+                "close_buffer_multiplier": "1.20",
+                "comparison": "strictly_less_than",
+            }
+            or plan.get("attempt_policy")
+            != {
+                "preview_order": 1,
+                "retry": 0,
+                "fallback": 0,
+                "create_order": 0,
+                "cancel_order": 0,
+                "close_position": 0,
+                "reduce_position": 0,
+            }
+        ):
+            raise ValueError("futures_preview_seal_authoritative_binding_invalid")
+        return self
 
 
 class FuturesRiskProofRecordItem(BaseModel):

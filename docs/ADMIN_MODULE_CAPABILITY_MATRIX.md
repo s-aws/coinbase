@@ -4,12 +4,14 @@ This matrix records what the enterprise Admin API and associated frontend can
 support per module. It prevents spot-specific assumptions from becoming the
 implicit platform model.
 
-Current goal id: `futures_default_profile_readback_slice_1`. The completed
-slice binds authoritative US CFM account, position, margin, and collateral
-reads to the API-key-permissioned exact Default/DEFAULT portfolio and exposes
-portfolio-scoped position identity without live execution. Slices 2-5 are
-ordered preview, terminal order roundtrip, intentional fill/position readback,
-and closeout successors; none is active. Fan-out, scheduler, runtime-control,
+Current goal id: `futures_exact_no_live_preview_slice_2`. Completed Slice 1
+binds authoritative US CFM account, position, margin, and collateral reads to
+the API-key-permissioned exact Default/DEFAULT portfolio. Active Slice 2 adds
+one exact AVAX no-live Preview and immutable operator readback under strict
+`$100/$150/$300` slice-local bounds. Slices 3-5 are ordered terminal roundtrip,
+intentional fill/position readback, and closeout successors whose no-live work
+is prospectively authorized; every live step retains its exact-hash gate.
+Fan-out, scheduler, runtime-control,
 retry/recovery, multi-product wallet-ledger work, and ladder/grid order sets
 are parked.
 

@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from typing import Annotated, Any, TypeVar
 
-from fastapi import APIRouter, Depends, Header, Path, Query, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Path, Query, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from application.admin_api.auth import get_authenticated_actor, require_permission
 from application.admin_api.approval import FileAdminApiApprovalStore
@@ -15,6 +15,11 @@ from application.admin_api.audit import FileAdminApiAuditStore
 from application.admin_api.cap_guard import FileAdminApiCapGuardStore
 from application.admin_api.command_service import AdminApiCommandService
 from application.admin_api.futures_risk_proof import FileFuturesRiskProofStore
+from application.admin_api.futures_order_preview import (
+    FuturesOrderPreviewArtifactError,
+    FuturesOrderPreviewArtifactStore,
+    configured_futures_order_preview_artifact_path,
+)
 from application.admin_api.idempotency import FileIdempotencyStore
 from application.admin_api.live_execution import (
     AdminApiLiveExecutionService,
@@ -34,6 +39,7 @@ from application.admin_api.models import (
     AdminApiErrorResponse,
     AdminFuturesAccountReadResponse,
     AdminFuturesCommandSuiteResponse,
+    AdminFuturesOrderPreviewResponse,
     AdminFuturesPositionDetailResponse,
     AdminFuturesPositionListResponse,
     FuturesCancelOrderCommand,
@@ -147,6 +153,14 @@ def get_authoritative_futures_read_service() -> AdminMvpService:
     """Return the existing backend-owned Coinbase Futures read service."""
 
     return get_admin_mvp_service()
+
+
+def get_futures_order_preview_store() -> FuturesOrderPreviewArtifactStore:
+    """Return the disk-only one-shot Preview evidence reader."""
+
+    return FuturesOrderPreviewArtifactStore(
+        configured_futures_order_preview_artifact_path()
+    )
 
 
 TReadModel = TypeVar("TReadModel", bound=BaseModel)
@@ -712,6 +726,39 @@ def record_futures_risk_proof(
             )
         ),
     )
+
+
+@router.get(
+    "/futures/order-preview",
+    response_model=AdminFuturesOrderPreviewResponse,
+    responses={
+        **READ_ONLY_ROUTE_RESPONSES,
+        503: {
+            "model": AdminApiErrorResponse,
+            "description": "Preview evidence is missing, incomplete, or invalid.",
+        },
+    },
+    summary="Read immutable Futures Preview evidence",
+)
+def get_futures_order_preview(
+    actor: Annotated[AdminApiActor, Depends(get_authenticated_actor)],
+    store: Annotated[
+        FuturesOrderPreviewArtifactStore,
+        Depends(get_futures_order_preview_store),
+    ],
+) -> JSONResponse:
+    """Read the terminal artifact without constructing a Coinbase client."""
+
+    require_permission(actor, AdminApiPermission.ANALYTICS_READ)
+    try:
+        payload = store.read_completed()
+        AdminFuturesOrderPreviewResponse.model_validate(payload)
+    except (FuturesOrderPreviewArtifactError, ValidationError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Futures Preview evidence is unavailable or invalid",
+        ) from exc
+    return JSONResponse(content=jsonable_encoder(payload))
 
 
 @router.get(

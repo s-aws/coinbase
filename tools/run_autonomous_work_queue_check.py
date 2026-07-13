@@ -17,13 +17,13 @@ BACKEND_QUEUE_DOC = PROJECT_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.md"
 BACKEND_E2E_PLAN = PROJECT_ROOT / "docs" / "plans" / "ADMIN_API_E2E_PLAN.md"
 FRONTEND_QUEUE_DOC = FRONTEND_ROOT / "docs" / "plans" / "AUTONOMOUS_WORK_QUEUE.md"
 SUMMARY_PREFIX = "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
-GOAL_ID = "futures_default_profile_readback_slice_1"
+GOAL_ID = "futures_exact_no_live_preview_slice_2"
 HISTORICAL_PHASE_RANGE = "7961-7980"
 HISTORICAL_PHASES = tuple(range(7961, 7981))
 PHASE_RANGE_STATUS = "historical_not_work_authority"
 CURRENT_SLICE = (
-    "Default-profile Futures account -> authoritative US CFM position list -> "
-    "exact portfolio-scoped position detail -> operator-visible no-live readback"
+    "Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview "
+    "Order -> immutable operator-visible no-live preview readback"
 )
 CLOSED_LOOPHOLE_RULE = (
     "A candidate blocker cannot make itself in scope by generating evidence "
@@ -41,7 +41,7 @@ MVP_SCOPE = {
         "current_priority": GOAL_ID,
         "approved_phase_range_status": PHASE_RANGE_STATUS,
         "phase_range_work_allowed": False,
-        "default_next_action": "request_operator_activation_of_futures_slice_2_preview",
+        "default_next_action": "implement_and_audit_futures_slice_2_preview",
         "ordered_successors": [
             "futures_exact_no_live_preview_slice_2",
             "futures_terminal_order_roundtrip_slice_3",
@@ -67,6 +67,15 @@ MVP_SCOPE = {
 STANDING_LIMITS = {
     "preferred_spot_notional_under_usdc": "10.00",
     "preferred_perpetual_notional_under_usdc": "30.00",
+    "active_futures_slice": {
+        "product_id": "AVP-20DEC30-CDE",
+        "contract_count": "1",
+        "opening_reference_notional_under_usdc": "100.00",
+        "exposure_and_buffered_close_under_usdc": "150.00",
+        "branch_turnover_under_usdc": "300.00",
+        "coinbase_preview_attempts_max": 1,
+        "exchange_mutation_attempts_max": 0,
+    },
     "max_fan_out_notional_usdc": "100.00",
     "default_max_orders_per_second": 5,
     "non_fill_snapshot_distance_percent": 10,

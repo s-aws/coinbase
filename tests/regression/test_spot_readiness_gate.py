@@ -72,7 +72,7 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert AUTONOMOUS_WORK_QUEUE_SUMMARY_PREFIX == (
         "AUTONOMOUS_WORK_QUEUE_CHECK_SUMMARY "
     )
-    assert AUTONOMOUS_GOAL_ID == "futures_default_profile_readback_slice_1"
+    assert AUTONOMOUS_GOAL_ID == "futures_exact_no_live_preview_slice_2"
     assert AUTONOMOUS_HISTORICAL_PHASES == tuple(range(7961, 7981))
     check_results = {check["name"]: check for check in summary["checks"]}
     failed_checks = {
@@ -81,14 +81,14 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
 
     assert failed_checks == {}
     assert summary["status"] == "passed"
-    assert summary["goal_id"] == "futures_default_profile_readback_slice_1"
+    assert summary["goal_id"] == "futures_exact_no_live_preview_slice_2"
     assert summary["historical_phase_range"] == "7961-7980"
     assert summary["historical_phase_count"] == 20
     assert summary["phase_range_status"] == "historical_not_work_authority"
     assert summary["live_coinbase_orders_ran"] is False
     assert summary["live_order_notional_usdc"] == "0"
     assert summary["mvp_scope"] == {
-        "work_mode": "futures_default_profile_readback_slice_1",
+        "work_mode": "futures_exact_no_live_preview_slice_2",
         "goal_authority": (
             "/home/ec2-user/coinbase-frontend/docs/CURRENT_MVP_GOAL.md"
         ),
@@ -98,10 +98,10 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
         "focused_blast_radius_tests_required": True,
         "full_suite_at_durable_milestone_only": True,
         "active_work_policy": {
-            "current_priority": "futures_default_profile_readback_slice_1",
+            "current_priority": "futures_exact_no_live_preview_slice_2",
             "approved_phase_range_status": "historical_not_work_authority",
             "phase_range_work_allowed": False,
-            "default_next_action": "request_operator_activation_of_futures_slice_2_preview",
+            "default_next_action": "implement_and_audit_futures_slice_2_preview",
             "ordered_successors": [
                 "futures_exact_no_live_preview_slice_2",
                 "futures_terminal_order_roundtrip_slice_3",
@@ -127,6 +127,15 @@ def test_autonomous_work_queue_check_preserves_historical_phases_without_reactiv
     assert summary["standing_limits"] == {
         "preferred_spot_notional_under_usdc": "10.00",
         "preferred_perpetual_notional_under_usdc": "30.00",
+        "active_futures_slice": {
+            "product_id": "AVP-20DEC30-CDE",
+            "contract_count": "1",
+            "opening_reference_notional_under_usdc": "100.00",
+            "exposure_and_buffered_close_under_usdc": "150.00",
+            "branch_turnover_under_usdc": "300.00",
+            "coinbase_preview_attempts_max": 1,
+            "exchange_mutation_attempts_max": 0,
+        },
         "max_fan_out_notional_usdc": "100.00",
         "default_max_orders_per_second": 5,
         "non_fill_snapshot_distance_percent": 10,

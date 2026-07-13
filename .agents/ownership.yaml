@@ -269,6 +269,7 @@ owners:
       - tools/run_admin_api_account_reality_live_read_smoke.py
       - tools/run_admin_api_futures_executor_boundary_smoke.py
       - tools/run_admin_api_futures_live_fill_readback.py
+      - tools/run_admin_api_futures_no_live_preview.py
       - tools/run_admin_api_manual_order_live_submit.py
       - tools/run_admin_api_spot_live_cancel.py
       - tools/run_admin_api_spot_live_order_readback.py

@@ -92,6 +92,7 @@ FUTURES_CDE_CONTRACT_SIZE_BY_SYMBOL = {
 }
 FUTURES_READ_ROUTES = (
     "/api/v1/futures/command-suite",
+    "/api/v1/futures/order-preview",
     "/api/v1/futures/account",
     "/api/v1/futures/positions",
     "/api/v1/futures/positions/{position_key}",

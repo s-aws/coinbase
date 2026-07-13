@@ -5,8 +5,8 @@ Ordered entry point for the Coinbase Advanced Trading Engine documentation.
 ## Project Entry
 
 - [Current MVP Goal](../genai_data/AGENT_MVP_REBUILD_GOAL.md) - goal id
-  `futures_default_profile_readback_slice_1`; completed readback scope, ordered
-  successors, and stop rules
+  `futures_exact_no_live_preview_slice_2`; active exact AVAX no-live Preview,
+  ordered successors, exact-hash live gates, and stop rules
 - [Root README](../README.md)
 - [Expanded AI Context](../genai_data/README.md)
 - [Architecture](../genai_data/ARCHITECTURE.md)

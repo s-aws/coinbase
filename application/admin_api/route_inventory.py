@@ -977,6 +977,21 @@ ADMIN_API_ROUTE_INVENTORY: tuple[AdminApiRouteInventoryItem, ...] = (
     ),
     AdminApiRouteInventoryItem(
         module_id="futures_perpetuals",
+        surface="GET /api/v1/futures/order-preview",
+        action_class=AdminApiActionClass.READ_ONLY,
+        permission=AdminApiPermission.ANALYTICS_READ,
+        idempotency="not required for immutable artifact readback",
+        approval="producer requires separate backend operator authority",
+        caps="fixed slice-local 100 opening / 150 exposure / 300 turnover",
+        audit="immutable claim/result artifact",
+        shared_method="read_futures_order_preview_artifact",
+        parity_test=(
+            "disk-only accepted/blocked/unknown Preview readback; GET makes "
+            "zero Coinbase calls and grants no create, cancel, close, or reduce authority"
+        ),
+    ),
+    AdminApiRouteInventoryItem(
+        module_id="futures_perpetuals",
         surface="GET /api/v1/futures/account",
         action_class=AdminApiActionClass.READ_ONLY,
         permission=AdminApiPermission.ANALYTICS_READ,

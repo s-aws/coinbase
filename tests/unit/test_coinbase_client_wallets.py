@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from external.coinbase_client import CoinbaseRestClient
 
 
@@ -251,6 +253,27 @@ def test_get_futures_margin_collateral_snapshot_uses_us_cfm_readers():
     assert sdk.margin_window_profiles == [
         "MARGIN_PROFILE_TYPE_RETAIL_REGULAR",
         "MARGIN_PROFILE_TYPE_RETAIL_INTRADAY_MARGIN_1",
+    ]
+
+
+@pytest.mark.parametrize("sweeps_payload", [{}, {"sweeps": {}}])
+def test_get_futures_margin_collateral_snapshot_flags_ambiguous_sweeps(
+    sweeps_payload: dict,
+):
+    class AmbiguousSweepsSdk(FakeFuturesSdkClient):
+        def list_futures_sweeps(self) -> FakeResponse:
+            return FakeResponse(sweeps_payload)
+
+    snapshot = CoinbaseRestClient(
+        AmbiguousSweepsSdk()
+    ).get_futures_margin_collateral_snapshot()
+
+    assert snapshot["futures_sweeps"] == []
+    assert snapshot["errors"] == [
+        {
+            "method": "list_futures_sweeps",
+            "error": "futures_sweeps_missing_or_invalid",
+        }
     ]
 
 

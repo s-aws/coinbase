@@ -130,13 +130,19 @@ create a separate approval class.
 
 ## Current Handoff State
 
-- Current goal id: `futures_default_profile_readback_slice_1`.
-- Current slice: Default-profile Futures account -> authoritative US CFM
-  position list -> exact portfolio-scoped position detail -> operator-visible
-  no-live readback. Slice 1 is complete; stop for explicit Slice 2 activation.
+- Current goal id: `futures_exact_no_live_preview_slice_2`.
+- Current slice: Default-profile Futures readback -> exact AVAX US CFM Coinbase
+  Preview Order -> immutable operator-visible no-live preview readback. Slice 2
+  remains active but blocked. The one-shot R1 artifact terminated before
+  Preview on `futures_preview_margin_setting_ambiguous`; Preview and every
+  exchange/retry/fallback counter are zero, submitted/executed notional is
+  `0`, and its evidence SHA-256 is
+  `a1b7820aa217b7119a6353a8f4fbffa5227ebfe5e4c8d8a1cde5449d370fc6f0`.
+  R1 cannot be retried, and Slice 3 is inactive pending an operator decision.
 - Ordered successors: exact no-live preview (2), one terminal order roundtrip
   (3), intentional fill/position readback (4), then exact closeout (5). The
-  plan is not execution authority.
+  no-live sequence is prospectively authorized; every live step remains behind
+  a separate exact-hash gate.
 - Previous state: V14 completed the predecessor automatic/live proof for ten
   Test-profile roots and ten first-child submissions under the approved
   `30.00 USDC` reference cap. Every root was authoritatively FILLED, every child

@@ -4,12 +4,14 @@ This project has several operator and test surfaces. They do not have equal
 live authority, and a backend-only live runner is not proof that the matching
 HTTP or browser workflow is live-capable.
 
-Current goal id is `futures_default_profile_readback_slice_1`. Slice 1 uses
-only authoritative GET account/position reads. Its ordered Slices 2-5 are
-planning records and do not activate a preview marker, attempt ledger,
-runtime, placement, cancel, fill, close, or reduce call. Default release and
-deployment checks are no-live and must report live Coinbase execution as not
-run with notional `0`.
+Current goal id is `futures_exact_no_live_preview_slice_2`. Slice 1 uses only
+authoritative GET account/position reads. Active Slice 2 permits at most one
+backend-owned AVAX Coinbase Preview call under strict `$100/$150/$300`
+slice-local bounds; the repeatable Admin API/UI path reads immutable evidence
+and cannot call Coinbase. This grants no marker, attempt ledger, runtime,
+placement, cancel, fill, close, or reduce call. Default release and deployment
+checks are no-live and must report live Coinbase execution as not run with
+notional `0`.
 
 ## Admin HTTP Surfaces
 

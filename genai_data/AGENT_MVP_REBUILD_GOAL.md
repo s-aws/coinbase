@@ -1,16 +1,16 @@
 # Coinbase Admin MVP Goal
 
-Goal ID: `futures_default_profile_readback_slice_1`
+Goal ID: `futures_exact_no_live_preview_slice_2`
 
 Last reviewed: 2026-07-13 UTC.
 
-Status: `complete`
+Status: `active`
 
 The canonical cross-repository authority is
 `/home/ec2-user/coinbase-frontend/docs/CURRENT_MVP_GOAL.md`. This backend copy
 records the behavior-owner interpretation and must remain aligned with it.
 
-## Completed Slice
+## Completed Predecessor And Active Slice
 
 `Default-profile Futures account -> authoritative US CFM position list -> exact portfolio-scoped position detail -> operator-visible no-live readback`
 
@@ -34,18 +34,60 @@ Slice 1 made no order, cancel, close, reduce, marker, ledger, runtime, or local
 approval mutation. Live Coinbase execution is `not_run` and notional is
 `0 USDC`.
 
-## Ordered Successors — Not Execution Authority
+Slice 2 is active by explicit operator authorization. It is fixed to the
+permission-selected `Default`/`DEFAULT` portfolio, configured AVAX perpetual
+`AVP-20DEC30-CDE`, and exactly one contract. The strict slice-local limits are
+opening/reference notional `<100.00 USDC`, maximum concurrent exposure and a
+fresh exact-position close reference multiplied by `1.20` `<150.00 USDC`, and
+opening-plus-conservative-close branch turnover `<300.00 USDC`. A preliminary
+read-only eligibility check observed conservative values of `64.80 USDC`,
+`77.76 USDC`, and `142.56 USDC`, respectively, using the greater of the
+product price and fresh best ask, and made zero Preview, Create, Cancel, Close,
+or Reduce calls.
 
-Continue implementation and independent audit only in this order, stopping for
-explicit operator activation after every no-live acceptance boundary:
+The first one-shot Slice 2 claim terminated fail-closed on 2026-07-13 before
+Preview because the initial classifier assumed `status=online` and
+`contract_expiry_type=PERPETUAL`. Coinbase instead returned the exact
+`AVP-20DEC30-CDE` product as `AVAX PERP` with an empty status, all tradability
+flags false, and the documented US CFM perp-style 2030 contract shape whose
+expiry type is `EXPIRING`. Terminal evidence
+`3b09cb9dfe02991dc886a1c6f041330d417ff11a0f1d45e3734bdc59bfb219b8`
+records Preview `0`, exchange submissions `0`, and submitted/executed
+notional `0`. The immutable claim remains consumed. The offline classifier is
+now corrected and independently test-gated. The operator explicitly authorized
+one fresh Slice 2R1 attempt in a new immutable artifact while preserving and
+never modifying, deleting, or reusing the consumed Slice 2 artifact. R1 ran
+exactly once on 2026-07-13 and stopped terminally before Preview because the
+authoritative CFM intraday-margin setting did not match the explicitly accepted
+setting values. Immutable R1 evidence
+`a1b7820aa217b7119a6353a8f4fbffa5227ebfe5e4c8d8a1cde5449d370fc6f0`
+records `futures_preview_margin_setting_ambiguous`, Preview `0`, every retry,
+fallback, Create, Cancel, Close, and Reduce counter `0`, exchange submissions
+`0`, and submitted/executed notional `0`. Its file SHA-256 is
+`55c09c6d4819f2d03dd679ae4c952e203cf540d1a141e13035459821f1b680d7`.
+The R1 authorization is consumed and cannot be retried. Slice 2 is not
+accepted, Slice 3 must not activate, and a new attempt requires an explicit
+operator decision after offline diagnosis and a separately authorized plan.
 
-1. `futures_exact_no_live_preview_slice_2`: one backend-derived Default-profile
-   US CFM Coinbase Preview Order call for one configured product and one contract/order
-   candidate below the preferred `30.00 USDC` reference limit. Bind product
+`Default-profile Futures readback -> exact AVAX US CFM Coinbase Preview Order -> immutable operator-visible no-live preview readback`
+
+## Ordered Sequence — Slice 2 Active
+
+Continue implementation and independent audit only in this order. Prospective
+operator authority permits crossing documented no-live acceptance boundaries,
+but never an exact-hash live execution gate:
+
+1. `futures_exact_no_live_preview_slice_2`: at most one backend-derived
+   Default-profile US CFM Coinbase Preview Order call for AVAX perpetual
+   `AVP-20DEC30-CDE` and exactly one contract/order candidate under the strict
+   `<100.00 USDC` opening, `<150.00 USDC` exposure/buffered-close, and
+   `<300.00 USDC` branch-turnover limits. Bind product
    metadata, exact decimals, market freshness, fees, margin/collateral,
    liquidation, caps, idempotency, and correlation. Zero create/cancel/close
-   submissions, marker, ledger, or runtime. Stop for operator activation before
-   implementation and again before Slice 3 preparation.
+   submissions, marker, ledger, or runtime. The one-shot backend tool may call
+   Preview; the repeatable Admin API/UI path reads immutable evidence and calls
+   Coinbase zero times. Failure after the one Preview attempt is fail-closed
+   with no retry.
 2. `futures_terminal_order_roundtrip_slice_3`: separately implement, audit,
    seal, and exactly approve one resting order, authoritative OPEN readback,
    at most one exchange-ID cancel resolved from its `client_order_id`, and
@@ -57,10 +99,10 @@ explicit operator activation after every no-live acceptance boundary:
    reconciliation plus only the already-sealed close if a nonzero delta becomes
    authoritative. Exact approval activates each separately claimed conditional
    cancel or risk-off close. Exit restores the pre-order position baseline.
-   Opening reference is `<25.00 USDC`, maximum concurrent exposure is
-   `<30.00 USDC`, the fresh exact-position close reference times `1.20` is
-   `<30.00 USDC`, and opening-plus-conservative-close branch turnover is
-   `<55.00 USDC`; an ineligible branch prevents placement.
+   Opening reference is `<100.00 USDC`, maximum concurrent exposure is
+   `<150.00 USDC`, the fresh exact-position close reference times `1.20` is
+   `<150.00 USDC`, and opening-plus-conservative-close branch turnover is
+   `<300.00 USDC`; an ineligible branch prevents placement.
 3. `futures_intentional_fill_position_readback_slice_4`: implement and audit,
    with zero live execution, one marketable contract plus authoritative
    fill/fee/position-delta readback. The later live proof requires a Coinbase
@@ -79,12 +121,20 @@ explicit operator activation after every no-live acceptance boundary:
    audit, and reconciliation.
 
 The combined 4/5 plan uses exact numeric semantics: opening reference notional
-`<25.00 USDC`, maximum concurrent exposure `<30.00 USDC`, conservative unpriced
-close reference (`fresh exact-position reference * 1.20`) `<30.00 USDC`, and
-aggregate opening-plus-conservative-close turnover `<55.00 USDC`. The plan hash
+`<100.00 USDC`, maximum concurrent exposure `<150.00 USDC`, conservative
+unpriced close reference (`fresh exact-position reference * 1.20`)
+`<150.00 USDC`, and aggregate opening-plus-conservative-close turnover
+`<300.00 USDC`. The plan hash
 explicitly acknowledges the unpriced Coinbase Close Position policy. A proven
 price-protected replacement requires a revised seal. One opening and one
 conditional close are the maxima, with zero retries.
+
+The operator prospectively authorized Slices 3, 4, and 5 no-live implementation
+and independent audit in order once each predecessor is accepted. If Slice 3
+reaches its exact-hash live checkpoint while the operator is unavailable, that
+checkpoint remains an explicit blocker while only Slices 4 and 5 no-live work
+may continue. No prospective statement authorizes a marker, ledger, runtime,
+Create, Cancel, Close, Reduce, or any other exchange mutation.
 
 ## Shared Successor Safety
 
@@ -105,7 +155,9 @@ unpriced close binds the exact position snapshot/hash, fresh mark/reference,
 and `1.20` buffer rather than inventing a preview ID. The seal also binds
 approval, admission, cap-guard, reconciliation, live-service, adapter,
 margin/collateral/liquidation and fee/funding evidence IDs/hashes and cannot
-inherit a `100.00 USDC` runner default.
+inherit a generic runner cap. It must seal the exact slice-local `<100.00`
+opening, `<150.00` exposure/buffered-close, and `<300.00 USDC` turnover
+bounds.
 
 Before each SDK call, a durable atomic one-use semantic claim binds plan hash,
 action index/kind, portfolio, product, and operator identity or position
@@ -122,13 +174,15 @@ evidence or an exchange-required submission parameter.
 
 ## Legacy Translation
 
-Slice 1 inspected backend `origin/prod` references
+Slices 1 and 2 inspected backend `origin/prod` references
 `configuration.py::get_futures_positions`,
+`external/coinbase_client.py` Futures position reads,
 `core/order_engine.py::refresh_positions_if_needed`, and
 `core/order_engine.py::process_user_snapshot`. They confirm historical
-position reads but lack safe profile binding. The current implementation keeps
-the behavior backend-owned and does not restore the dashboard WebSocket as
-frontend authority.
+position reads but lack safe profile binding, Preview Order, `preview_id`, and
+authoritative margin-preview behavior. The current implementation keeps the
+behavior backend-owned and does not restore the dashboard WebSocket as frontend
+authority.
 
 ## Predecessor Completion
 
@@ -149,16 +203,19 @@ reconciliation, rollback, or traceability failure on it.
 
 A candidate blocker cannot make itself in scope by generating evidence about the candidate blocker.
 
-Because Slice 1 is complete and no successor is active, stop and request
-operator activation of Slice 2. Fan-out, multi-product automation, schedulers,
-unattended loops, generic runtime/retry/recovery tightening, wallet-ledger
-expansion, ladders/grids, unrelated domain work, and broad cleanup remain
-parked.
+Slice 2 is active. Prospectively authorized no-live successor work may continue
+only in order after documented predecessor acceptance; exact-hash live gates
+remain hard stops. Fan-out, multi-product automation, schedulers, unattended
+loops, generic runtime/retry/recovery tightening, wallet-ledger expansion,
+ladders/grids, unrelated domain work, and broad cleanup remain parked.
 
 Standing order-level limits constrain later approved plans but do not activate
-them. Fill status is an outcome, not a permission class. The same Default
-profile, margin, cap, authorization, audit, reconciliation, rollback, and
-readback gates apply whether an order rests, partially fills, or fills.
+them. The operator explicitly authorized the AVAX sequence-local exception of
+`<100.00 USDC` opening, `<150.00 USDC` exposure/buffered close, and
+`<300.00 USDC` branch turnover. Fill status is an outcome, not a permission
+class. The same Default profile, margin, cap, authorization, audit,
+reconciliation, rollback, and readback gates apply whether an order rests,
+partially fills, or fills.
 
 Use focused tests for ordinary changes. Run full backend/frontend suites only
 at durable milestone, release/deployment, cross-repository closeout, after

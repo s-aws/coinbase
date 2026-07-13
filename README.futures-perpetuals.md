@@ -1,8 +1,9 @@
 # Futures/Perpetuals Admin Reads
 
 The M57 phase statements in this document are a historical implementation
-snapshot. Current goal id is `futures_default_profile_readback_slice_1`; Slice
-1 is complete and Slices 2-5 are ordered successors that remain inactive.
+snapshot. Current goal id is `futures_exact_no_live_preview_slice_2`; Slice 1
+is complete, Slice 2 is active, and Slices 3-5 are prospectively authorized for
+ordered no-live work while every live step remains exact-hash gated.
 
 This feature exposes read-only futures and perpetual account, risk, and
 position evidence through the enterprise Admin API. It is a separate module,

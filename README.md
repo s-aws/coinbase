@@ -13,10 +13,11 @@ plans.
 
 ## Current MVP Goal
 
-Current goal id `futures_default_profile_readback_slice_1` records the
-completed Default-profile US CFM account/position readback slice and the
-strictly ordered, non-authorizing Slice 2-5 continuation plan. No successor is
-active. See
+Current goal id `futures_exact_no_live_preview_slice_2` records the active
+Default-profile AVAX US CFM no-live Preview slice under strict
+`$100/$150/$300` slice-local limits. Slices 3-5 may proceed through ordered
+no-live implementation gates, but every live action remains behind a separate
+exact-hash approval. See
 [Coinbase Admin MVP Goal](genai_data/AGENT_MVP_REBUILD_GOAL.md). Historical M57
 phase ranges and M58 fan-out/scheduler blockers do not select default work.
 

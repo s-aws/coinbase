@@ -916,6 +916,22 @@
     },
     {
       "module_id": "futures_perpetuals",
+      "surface": "GET /api/v1/futures/order-preview",
+      "method": "GET",
+      "path": "/api/v1/futures/order-preview",
+      "action_class": "read_only",
+      "permission": "analytics:read",
+      "idempotency": "not required for immutable artifact readback",
+      "approval": "producer requires separate backend operator authority",
+      "caps": "fixed slice-local 100 opening / 150 exposure / 300 turnover",
+      "audit": "immutable claim/result artifact",
+      "shared_method": "read_futures_order_preview_artifact",
+      "parity_test": "disk-only accepted/blocked/unknown Preview readback; GET makes zero Coinbase calls and grants no create, cancel, close, or reduce authority",
+      "compatibility_mode": null,
+      "command_contract": false
+    },
+    {
+      "module_id": "futures_perpetuals",
       "surface": "GET /api/v1/futures/account",
       "method": "GET",
       "path": "/api/v1/futures/account",
