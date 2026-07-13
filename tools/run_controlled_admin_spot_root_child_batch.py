@@ -2304,13 +2304,50 @@ def is_v15_plan(plan: Mapping[str, Any]) -> bool:
     )
 
 
+def is_v15_recovery_plan(plan: Mapping[str, Any]) -> bool:
+    """Identify the sealed child-only V15R2 recovery without importing it."""
+
+    root = object_record(plan.get("root_evidence"))
+    child = object_record(plan.get("child"))
+    root_id = str(root.get("client_order_id") or "")
+    child_id = str(child.get("client_order_id") or "")
+    return bool(
+        plan.get("schema_version") == "20"
+        and plan.get("authority_kind")
+        == "selected_chain_child_cancel_recovery_v15r2"
+        and plan.get("placement_attempt_count") == 1
+        and plan.get("placement_attempt_schedule") == ["child"]
+        and plan.get("root_placement_maximum") == 0
+        and plan.get("child_placement_maximum") == 1
+        and plan.get("cancel_command_maximum") == 1
+        and plan.get("root_placement_authorized") is False
+        and root.get("placement_authorized") is False
+        and root_id
+        and child.get("parent_client_order_id") == root_id
+        and child_id == deterministic_child_client_order_id(root_id)
+        and isinstance(plan.get("v15r1_recovery_binding"), Mapping)
+        and isinstance(plan.get("local_hidden_child_binding"), Mapping)
+        and plan.get("retry_authorized") is False
+        and plan.get("substitution_authorized") is False
+        and plan.get("later_child_authorized") is False
+    )
+
+
+def is_v15_runtime_plan(plan: Mapping[str, Any]) -> bool:
+    return is_v15_plan(plan) or is_v15_recovery_plan(plan)
+
+
 def current_attempt_schedule(plan: Mapping[str, Any]) -> list[tuple[int, str]]:
+    if is_v15_recovery_plan(plan):
+        return [(1, "child")]
     if is_v15_plan(plan):
         return [(1, "root"), (1, "child")]
     return v14_attempt_schedule() if is_v14_plan(plan) else successor_attempt_schedule()
 
 
 def current_generation_limits(plan: Mapping[str, Any]) -> tuple[int, int, int]:
+    if is_v15_recovery_plan(plan):
+        return 0, 1, 1
     if is_v15_plan(plan):
         return 1, 1, 2
     if is_v14_plan(plan):
@@ -2331,6 +2368,8 @@ def current_reference_seed(plan: Mapping[str, Any]) -> Decimal:
 
 
 def current_backend_commit(plan: Mapping[str, Any]) -> str:
+    if is_v15_recovery_plan(plan):
+        return str(plan.get("backend_commit") or "")
     if is_v15_plan(plan):
         return str(plan.get("backend_runner_commit") or "")
     return V14_EXPECTED_COMMIT if is_v14_plan(plan) else EXPECTED_COMMIT
@@ -15193,6 +15232,12 @@ def read_batch_attempt_ledger(
     finally:
         os.close(descriptor)
     require(len(raw) <= 100_000, "global_batch_attempt_ledger_too_large")
+    if is_v15_recovery_plan(confirmed_plan):
+        return _parse_and_validate_v15_recovery_attempt_ledger(
+            raw,
+            confirmed_plan=confirmed_plan,
+            confirmed_plan_hash=confirmed_plan_hash,
+        )
     if is_v15_plan(confirmed_plan):
         return _parse_and_validate_v15_attempt_ledger(
             raw,
@@ -15271,6 +15316,107 @@ def _parse_and_validate_v15_attempt_ledger(
         require(
             aggregate < Decimal(str(confirmed_plan.get("slice_reference_cap_usdc") or "0")),
             "v15_runtime_aggregate_reference_cap_exceeded",
+        )
+    return rows
+
+
+def _parse_and_validate_v15_recovery_attempt_ledger(
+    raw: bytes,
+    *,
+    confirmed_plan: Mapping[str, Any],
+    confirmed_plan_hash: str,
+) -> list[dict[str, Any]]:
+    """Validate the sole child row; recovery has no root-call capability."""
+
+    require(
+        is_v15_recovery_plan(confirmed_plan)
+        and confirmed_plan.get("plan_sha256") == confirmed_plan_hash,
+        "v15r2_runtime_attempt_plan_mismatch",
+    )
+    if raw and not raw.endswith(b"\n"):
+        raise ProofFailure("v15r2_runtime_attempt_ledger_truncated")
+    rows: list[dict[str, Any]] = []
+    for line in raw.decode("utf-8").splitlines():
+        require(bool(line.strip()), "v15r2_runtime_attempt_ledger_blank_row")
+        value = json.loads(line)
+        require(isinstance(value, dict), "v15r2_runtime_attempt_ledger_row_invalid")
+        rows.append(dict(value))
+    require(len(rows) <= 1, "v15r2_runtime_attempt_count_exceeded")
+    root = object_record(confirmed_plan.get("root_evidence"))
+    child = object_record(confirmed_plan.get("child"))
+    child_policy = object_record(child.get("order_policy"))
+    root_id = str(root.get("client_order_id") or "")
+    child_id = str(child.get("client_order_id") or "")
+    for record in rows:
+        exact_tuple = object_record(record.get("exact_order_tuple"))
+        require(
+            record.get("schema_version") == "1"
+            and record.get("sequence") == 1
+            and record.get("attempt_kind") == "child"
+            and record.get("batch_id") == confirmed_plan.get("batch_id")
+            and record.get("root_client_order_id") == root_id
+            and record.get("client_order_id") == child_id
+            and record.get("plan_sha256") == confirmed_plan_hash
+            and record.get("exact_order_tuple_sha256")
+            == _canonical_json_sha256(exact_tuple),
+            "v15r2_runtime_attempt_record_mismatch",
+        )
+        require(
+            set(exact_tuple)
+            == {
+                "batch_id",
+                "batch_slot",
+                "approval_snapshot_id",
+                "root_client_order_id",
+                "client_order_id",
+                "product_id",
+                "side",
+                "order_type",
+                "time_in_force",
+                "base_size",
+                "limit_price",
+                "post_only",
+                "reference_bid",
+                "market_observed_at",
+                "minimum_bid_ratio",
+                "target_bid_ratio",
+                "price_increment",
+                "strict_max_notional_usdc",
+            }
+            and exact_tuple.get("approval_snapshot_id")
+            == child.get("approval_snapshot_id")
+            and exact_tuple.get("batch_id") == confirmed_plan.get("batch_id")
+            and exact_tuple.get("batch_slot") == 1
+            and exact_tuple.get("root_client_order_id") == root_id
+            and exact_tuple.get("client_order_id") == child_id
+            and exact_tuple.get("product_id") == PRODUCT_ID
+            and str(exact_tuple.get("side") or "").upper() == "SELL"
+            and exact_tuple.get("order_type") == "LIMIT"
+            and exact_tuple.get("time_in_force") == "GOOD_UNTIL_CANCELLED"
+            and exact_tuple.get("post_only") is False,
+            "v15r2_runtime_child_tuple_mismatch",
+        )
+        base_size = Decimal(str(exact_tuple.get("base_size") or "0"))
+        limit_price = Decimal(str(exact_tuple.get("limit_price") or "0"))
+        price_increment = Decimal(str(exact_tuple.get("price_increment") or "0"))
+        child_notional = base_size * limit_price
+        require(
+            base_size == Decimal(str(child_policy.get("base_size") or "0"))
+            and price_increment.is_finite()
+            and price_increment > 0
+            and limit_price % price_increment == 0
+            and bool(str(exact_tuple.get("market_observed_at") or ""))
+            and Decimal(str(exact_tuple.get("strict_max_notional_usdc") or "0"))
+            == Decimal(str(confirmed_plan.get("child_submitted_cap_usdc") or "0"))
+            and child_notional.is_finite()
+            and 0 < child_notional
+            <= Decimal(str(confirmed_plan.get("child_submitted_cap_usdc") or "0"))
+            and Decimal(
+                str(confirmed_plan.get("root_actual_reference_notional_usdc") or "0")
+            )
+            + child_notional
+            < Decimal(str(confirmed_plan.get("slice_reference_cap_usdc") or "0")),
+            "v15r2_runtime_child_notional_invalid",
         )
     return rows
 
@@ -15592,7 +15738,7 @@ def build_runtime_child_authority_payload(
         "attempt_ledger_path": str(attempt_ledger_path),
         "approval_id": str(confirmed_plan.get("approval_id") or ""),
         "batch_id": str(confirmed_plan.get("batch_id") or ""),
-        "batch_size": 1 if is_v15_plan(confirmed_plan) else BATCH_SIZE,
+        "batch_size": 1 if is_v15_runtime_plan(confirmed_plan) else BATCH_SIZE,
         "plan_sha256": confirmed_plan_hash,
         "runner_sha256": confirmed_runner_sha256,
         "backend_commit": current_backend_commit(confirmed_plan),
@@ -15614,7 +15760,39 @@ def _validate_authority_plan_structure(
         == confirmed_plan.get("plan_sha256"),
         "runtime_child_authority_plan_hash_mismatch",
     )
-    if is_v15_plan(confirmed_plan):
+    if is_v15_recovery_plan(confirmed_plan):
+        root = object_record(confirmed_plan.get("root_evidence"))
+        child = object_record(confirmed_plan.get("child"))
+        plan_runner_sha256 = str(confirmed_plan.get("runner_sha256") or "")
+        require(
+            confirmed_plan.get("backend_commit")
+            == current_backend_commit(confirmed_plan)
+            and len(plan_runner_sha256) == 64
+            and all(character in "0123456789abcdef" for character in plan_runner_sha256),
+            "runtime_child_v15r2_code_binding_mismatch",
+        )
+        require(
+            confirmed_plan.get("profile_label") == PROFILE_LABEL
+            and confirmed_plan.get("portfolio_id") == TEST_PORTFOLIO_ID
+            and confirmed_plan.get("product_id") == PRODUCT_ID
+            and confirmed_plan.get("placement_attempt_count") == 1
+            and confirmed_plan.get("root_placement_maximum") == 0
+            and confirmed_plan.get("child_placement_maximum") == 1
+            and confirmed_plan.get("placement_attempt_schedule") == ["child"]
+            and root.get("placement_authorized") is False
+            and child.get("parent_client_order_id") == root.get("client_order_id")
+            and child.get("client_order_id")
+            == deterministic_child_client_order_id(
+                str(root.get("client_order_id") or "")
+            )
+            and Decimal(
+                str(confirmed_plan.get("planned_reference_notional_usdc") or "0")
+            )
+            < Decimal(str(confirmed_plan.get("slice_reference_cap_usdc") or "0")),
+            "runtime_child_v15r2_scope_mismatch",
+        )
+        return
+    if is_v15_runtime_plan(confirmed_plan):
         root = object_record(confirmed_plan.get("root"))
         child = object_record(confirmed_plan.get("child"))
         root_order = object_record(root.get("order"))
@@ -16144,7 +16322,7 @@ def validate_runtime_child_authority_payload(
         "runtime_child_authority_file_mismatch",
     )
     confirmed_plan = object_record(payload.get("confirmed_plan"))
-    if is_v15_plan(confirmed_plan):
+    if is_v15_runtime_plan(confirmed_plan):
         require(
             Path(str(payload.get("global_batch_marker") or "")).is_absolute()
             and Path(str(payload.get("attempt_ledger_path") or "")).is_absolute(),
@@ -16188,7 +16366,7 @@ def validate_runtime_child_authority_payload(
     )
     require(
         payload.get("batch_size")
-        == (1 if is_v15_plan(confirmed_plan) else BATCH_SIZE),
+        == (1 if is_v15_runtime_plan(confirmed_plan) else BATCH_SIZE),
         "runtime_child_authority_batch_size_mismatch",
     )
     require(
@@ -16381,23 +16559,34 @@ def consume_runtime_child_authority(
         actual_parent_pid=parent_pid,
         actual_parent_start_identity=parent_start_identity,
     )
-    if is_v15_plan(confirmed_plan):
+    if is_v15_runtime_plan(confirmed_plan):
         marker_path = Path(str(auth_payload["global_batch_marker"]))
         marker_payload, marker_raw = _read_owner_only_json(
             marker_path,
             blocker_prefix="runtime_child_global_batch_marker",
             maximum_size=150_000,
         )
-        root = object_record(confirmed_plan.get("root"))
+        root = object_record(
+            confirmed_plan.get(
+                "root_evidence" if is_v15_recovery_plan(confirmed_plan) else "root"
+            )
+        )
         child = object_record(confirmed_plan.get("child"))
+        expected_authority = (
+            "selected_chain_child_cancel_recovery_v15r2"
+            if is_v15_recovery_plan(confirmed_plan)
+            else "selected_chain_child_cancel_v15"
+        )
+        root_maximum, child_maximum, attempt_maximum = current_generation_limits(
+            confirmed_plan
+        )
         require(
             hashlib.sha256(marker_raw).hexdigest()
             == auth_payload["global_batch_marker_sha256"],
             "runtime_child_global_batch_marker_hash_mismatch",
         )
         require(
-            marker_payload.get("authority")
-            == "selected_chain_child_cancel_v15"
+            marker_payload.get("authority") == expected_authority
             and marker_payload.get("approval_id")
             == confirmed_plan.get("approval_id")
             and marker_payload.get("batch_id") == confirmed_plan.get("batch_id")
@@ -16407,9 +16596,11 @@ def consume_runtime_child_authority(
             == root.get("client_order_id")
             and marker_payload.get("child_client_order_id")
             == child.get("client_order_id")
-            and marker_payload.get("placement_attempt_maximum") == 2
-            and marker_payload.get("root_placement_maximum") == 1
-            and marker_payload.get("child_placement_maximum") == 1,
+            and marker_payload.get("placement_attempt_maximum") == attempt_maximum
+            and marker_payload.get("root_placement_maximum") == root_maximum
+            and marker_payload.get("child_placement_maximum") == child_maximum
+            and marker_payload.get("cancel_command_maximum")
+            == confirmed_plan.get("cancel_command_maximum"),
             "runtime_child_v15_marker_binding_mismatch",
         )
         ledger_path = Path(str(auth_payload["attempt_ledger_path"]))
@@ -17067,6 +17258,51 @@ def validate_controlled_child_preparation_scope(
 
     child_id = str(exact_tuple.get("client_order_id") or "")
     slot = int(exact_tuple.get("batch_slot") or 0)
+    if is_v15_recovery_plan(confirmed_plan):
+        root = object_record(confirmed_plan.get("root_evidence"))
+        child = object_record(confirmed_plan.get("child"))
+        anchor_state = object_record(state.get("anchor_repricing_state_json"))
+        preparation = object_record(
+            anchor_state.get("controlled_admin_first_child_reveal_preparation")
+        )
+        require(
+            slot == 1
+            and state.get("stealth_order_id") == child_id
+            and exact_tuple.get("batch_id") == confirmed_plan.get("batch_id")
+            and exact_tuple.get("root_client_order_id") == root.get("client_order_id")
+            and child_id == child.get("client_order_id")
+            and preparation.get("batch_id") == confirmed_plan.get("batch_id")
+            and preparation.get("batch_slot") == 1
+            and preparation.get("root_client_order_id") == root.get("client_order_id")
+            and preparation.get("stealth_order_id") == child_id
+            and preparation.get("portfolio_id") == confirmed_plan.get("portfolio_id")
+            and preparation.get("approval_snapshot_id")
+            == child.get("approval_snapshot_id")
+            == exact_tuple.get("approval_snapshot_id")
+            and preparation.get("controlled_plan_sha256")
+            == confirmed_plan.get("plan_sha256")
+            and bool(preparation.get("admission_audit_id"))
+            and bool(preparation.get("cap_guard_decision_id"))
+            and bool(preparation.get("reconciliation_plan_id"))
+            and bool(preparation.get("authority_id"))
+            and str(state.get("status") or "").upper() == "HIDDEN"
+            and not list_value(state.get("revealed_orders"))
+            and Decimal(str(state.get("revealed_size") or "0")) == 0
+            and Decimal(str(state.get("executed_size") or "0")) == 0
+            and not anchor_state.get("active_placement_client_order_id")
+            and not anchor_state.get("active_exchange_order_id"),
+            "child_sdk_v15r2_controlled_preparation_mismatch",
+        )
+        return {
+            "slot": 1,
+            "root_client_order_id": str(root.get("client_order_id") or ""),
+            "child_client_order_id": child_id,
+            "preparation_mode": "selected_chain_child_cancel_recovery_v15r2",
+            "controlled_plan_sha256": confirmed_plan.get("plan_sha256"),
+            "supersession_present": False,
+            "preparation_history_count": 0,
+            "preexchange_state_proven": True,
+        }
     if is_v15_plan(confirmed_plan):
         root = object_record(confirmed_plan.get("root"))
         child = object_record(confirmed_plan.get("child"))
@@ -17262,7 +17498,7 @@ def run_embedded_runtime_child(*, state_dir: Path, auth_file: Path) -> int:
         == PROFILE_LABEL,
         "runtime_child_profile_label_environment_mismatch",
     )
-    if is_v15_plan(confirmed_plan):
+    if is_v15_runtime_plan(confirmed_plan):
         runtime_head = subprocess.check_output(
             ["git", "rev-parse", "HEAD"], cwd=ROOT, text=True
         ).strip()
@@ -17272,7 +17508,7 @@ def run_embedded_runtime_child(*, state_dir: Path, auth_file: Path) -> int:
             text=True,
         ).strip()
         require(
-            runtime_head == confirmed_plan.get("backend_runner_commit")
+            runtime_head == current_backend_commit(confirmed_plan)
             and not runtime_dirty,
             "runtime_child_v15_commit_binding_mismatch",
         )
@@ -17633,7 +17869,7 @@ def run_embedded_runtime_child(*, state_dir: Path, auth_file: Path) -> int:
 
         parent_authority_lost.set()
         report_path = state_dir / "parent-authority-loss.json"
-        if is_v15_plan(confirmed_plan):
+        if is_v15_runtime_plan(confirmed_plan):
             alert_emitted = False
             while True:
                 with sentinel_lock:
@@ -18558,7 +18794,7 @@ class AdminRuntime:
             / f"controlled-root-child-batch-{stamp}-{uuid4().hex[:8]}"
         )
         self.state_dir.mkdir(parents=True, mode=0o700)
-        if is_v15_plan(confirmed_plan):
+        if is_v15_runtime_plan(confirmed_plan):
             require(
                 all(
                     path is not None and path.is_absolute()
@@ -18594,7 +18830,7 @@ class AdminRuntime:
         )
         confirmed_runner_sha256 = (
             runner_sha256()
-            if is_v15_plan(confirmed_plan)
+            if is_v15_runtime_plan(confirmed_plan)
             else str(confirmed_plan.get("runner_sha256") or "")
         )
         require(
@@ -18606,20 +18842,20 @@ class AdminRuntime:
             "runtime_global_batch_marker_plan_hash_mismatch",
         )
         require(
-            is_v15_plan(confirmed_plan)
+            is_v15_runtime_plan(confirmed_plan)
             or marker_payload.get("runner_sha256") == confirmed_runner_sha256,
             "runtime_global_batch_marker_runner_hash_mismatch",
         )
         marker_ledger_path = marker_payload.get(
             "placement_ledger_path"
-            if is_v15_plan(confirmed_plan)
+            if is_v15_runtime_plan(confirmed_plan)
             else "attempt_ledger_path"
         )
         require(
             marker_ledger_path == str(attempt_ledger_path),
             "runtime_global_batch_marker_ledger_mismatch",
         )
-        if is_v15_plan(confirmed_plan):
+        if is_v15_runtime_plan(confirmed_plan):
             require(
                 marker_payload.get("plan_file")
                 == str(controlled_v15_plan_path)
@@ -18848,7 +19084,7 @@ class AdminRuntime:
                 RUNTIME_CHILD_NONCE_ENV: self.child_nonce,
             }
         )
-        if is_v15_plan(self.confirmed_plan):
+        if is_v15_runtime_plan(self.confirmed_plan):
             env.update(
                 {
                     "COINBASE_ADMIN_API_CONTROLLED_V15_PLAN_PATH": str(

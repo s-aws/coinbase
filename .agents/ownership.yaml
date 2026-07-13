@@ -276,6 +276,7 @@ owners:
       - tools/run_admin_api_usdc_pair_snapshot_live_submit.py
       - tools/run_controlled_admin_spot_root_child_batch.py
       - tools/run_controlled_admin_spot_child_cancel_slice.py
+      - tools/run_controlled_admin_spot_child_cancel_recovery.py
     test_owns:
       - tests/regression/test_admin_api_*.py
       - tests/unit/test_admin_api_*.py
@@ -286,6 +287,9 @@ owners:
       - tests/unit/test_controlled_admin_v13_runner.py
       - tests/unit/test_controlled_admin_v14_runner.py
       - tests/unit/test_controlled_admin_v15_plan.py
+      - tests/unit/test_controlled_admin_v15_runner.py
+      - tests/unit/test_controlled_admin_v15_recovery_base.py
+      - tests/unit/test_controlled_admin_v15_recovery_runner.py
       - tests/regression/test_admin_mvp_account_reality_live_read_smoke.py
       - tests/regression/test_admin_mvp_futures_executor_boundary_smoke.py
       - tests/regression/test_coinbase_live_credentials.py

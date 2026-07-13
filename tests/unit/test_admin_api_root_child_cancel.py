@@ -23,8 +23,11 @@ from application.admin_api.models import (
     AdminOrderFillFollowUpChildCancelRequest,
 )
 from application.admin_api.root_child_cancel import (
+    AdminRootChildCancelAuthorityError,
     AdminRootChildCancelClaimStoreError,
     FileAdminRootChildCancelClaimStore,
+    load_controlled_v15_plan_authority,
+    validate_controlled_v15r2_recovery_plan_scope,
 )
 from core.enums import (
     AdminApiActionClass,
@@ -46,6 +49,12 @@ EXCHANGE_ID = "33333333-3333-4333-8333-333333333333"
 PORTFOLIO_ID = "62f28f44-8e72-4fe0-ace7-d71a01f54883"
 BATCH_ID = "44444444-4444-5444-8444-444444444444"
 PLAN_SHA256 = "a" * 64
+R2_ROOT_ID = "e4ad814e-c0d1-521a-a8c5-458243935ad2"
+R2_CHILD_ID = "e403d359-ecf3-59dc-b5b0-dfdd3c3efdaf"
+R2_ROOT_EXCHANGE_ID = "9eb2038c-5059-434c-a117-62ea0b804837"
+R1_PLAN_SHA256 = (
+    "24fc4e211d87c7c3a95d87002f9894ff3119f1e08a48aa4d1ab68c00c7f138ed"
+)
 ROUTE = (
     "/api/v1/orders/{root_client_order_id}/fill-follow-up/"
     "child-cancel"
@@ -318,6 +327,294 @@ def _plan_authority():
     }
 
 
+def _recovery_plan_authority() -> dict[str, object]:
+    approval_id = (
+        "controlled-child-cancel-v15r2-"
+        "11111111-1111-4111-8111-111111111111"
+    )
+    backend_commit = "5" * 40
+    runner_sha256 = "6" * 64
+    batch_id = str(
+        uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            "coinbase://selected-child-cancel-v15r2/"
+            f"{backend_commit}/{runner_sha256}/{approval_id}",
+        )
+    )
+
+    def proof_id(purpose: str) -> str:
+        return str(
+            uuid.uuid5(
+                uuid.NAMESPACE_URL,
+                "coinbase://selected-child-cancel-v15r2/"
+                f"{batch_id}/{purpose}",
+            )
+        )
+
+    registry = "/var/tmp/coinbase-admin-controlled-spot-root-child-batches"
+    state_dir = (
+        "/home/ec2-user/coinbase/artifacts/"
+        "controlled-root-child-batch-20260713T012938Z-24703c84"
+    )
+    source_paths = {
+        "plan_path": (
+            "/home/ec2-user/.local/state/"
+            "coinbase-controlled-spot-child-cancel-v15r1-20260713.plan.json"
+        ),
+        "marker_path": (
+            f"{registry}/test-profile-btc-usdc-selected-child-cancel-"
+            "v15r1-20260713.authority.json"
+        ),
+        "ledger_path": (
+            f"{registry}/test-profile-btc-usdc-selected-child-cancel-"
+            "v15r1-20260713.placements.jsonl"
+        ),
+        "cancel_ledger_path": (
+            f"{registry}/test-profile-btc-usdc-selected-child-cancel-"
+            "v15r1-20260713.cancel-command.jsonl"
+        ),
+        "backend_claim_log_path": (
+            f"{registry}/test-profile-btc-usdc-selected-child-cancel-"
+            "v15r1-20260713.backend-claims.jsonl"
+        ),
+        "handoff_path": (
+            f"{registry}/test-profile-btc-usdc-selected-child-cancel-"
+            "v15r1-20260713.handoff.json"
+        ),
+        "audit_path": f"{state_dir}/audit.jsonl",
+        "sentinel_path": f"{state_dir}/sdk-boundary-sentinel.json",
+        "parent_authority_loss_path": (
+            f"{state_dir}/parent-authority-loss.json"
+        ),
+    }
+    source_hashes = {
+        "plan_bytes_sha256": (
+            "f9f79ba28444de532352200afa0703e01838e7b674cd849e287735d17dac7c08"
+        ),
+        "marker_bytes_sha256": (
+            "ed9ab94189b2eb0e2b665a0c0784b01b2b948cee12d8fb8af8d8a03a6a238511"
+        ),
+        "ledger_bytes_sha256": (
+            "474f931ce453a57c1b2a0a741d2a0207d7929684e9e9bf33f25562828888770c"
+        ),
+        "cancel_ledger_bytes_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "backend_claim_log_bytes_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "audit_bytes_sha256": (
+            "cbc8ff26e0fa23c12d51f2094543e20807181e6d5c5192ca89044c113496a1e5"
+        ),
+        "sentinel_bytes_sha256": (
+            "6a7888eeb50b8fb2d656c9f0068f7e7fc6e1753b114cf7e80094c78a2ca80e0f"
+        ),
+        "parent_authority_loss_bytes_sha256": "b6af47512d0261259740dc6077356580b82049f7d4dcd1d5301f8df627e1fc15",
+    }
+    recovery_binding = {
+        "r1_plan_sha256": R1_PLAN_SHA256,
+        "r1_batch_id": "fb2ca86c-7ff3-5493-a1bd-d3a73fc1e322",
+        "r1_root_client_order_id": R2_ROOT_ID,
+        "r1_child_client_order_id": R2_CHILD_ID,
+        "r1_root_exchange_order_id": R2_ROOT_EXCHANGE_ID,
+        "r1_attempt_count": 2,
+        "r1_root_sdk_call_count": 1,
+        "r1_child_sdk_call_count": 0,
+        "root_filled_size": "0.00001583",
+        "root_filled_value": "1.0075796583",
+        "root_fill_count": 1,
+        "fill_pagination_complete": True,
+        "fill_pagination_proof_source": (
+            "sealed_admin_fill_readback_proof_contract"
+        ),
+        "active_spot_order_count": 0,
+        "handoff_absent": True,
+        "cancel_ledgers_empty": True,
+        "source_paths": source_paths,
+        "source_hashes": source_hashes,
+        "direct_fill_proof_key": (
+            "spot_fill_readback:e4ad814e-c0d1-521a-a8c5-458243935ad2:"
+            "audit-18ecf7f4-a489-5f3f-968f-4ce8167cdc90"
+        ),
+        "direct_fill_proof_canonical_sha256": (
+            "f8428444e8b2a6193ef49bd76d1e4d1fa8178f31ee492ef48368d3920f48bfad"
+        ),
+    }
+    plan: dict[str, object] = {
+        "schema_version": "20",
+        "authority_kind": "selected_chain_child_cancel_recovery_v15r2",
+        "approval_id": approval_id,
+        "batch_id": batch_id,
+        "created_at": "2099-07-13T02:00:00+00:00",
+        "expires_at": "2099-07-13T04:00:00+00:00",
+        "backend_commit": backend_commit,
+        "frontend_commit": "8" * 40,
+        "runner_sha256": runner_sha256,
+        "v15r1_recovery_binding": recovery_binding,
+        "local_hidden_child_binding": {
+            "root_client_order_id": R2_ROOT_ID,
+            "root_status": "FILLED",
+            "root_exchange_order_id": R2_ROOT_EXCHANGE_ID,
+            "root_correlation_id": "sealed-root-correlation",
+            "root_audit_id": "sealed-root-audit",
+            "child_client_order_id": R2_CHILD_ID,
+            "child_parent_status": "PENDING",
+            "child_size": "0.00001583",
+            "child_exchange_order_id": None,
+            "child_correlation_id": "sealed-root-correlation",
+            "child_audit_id": "sealed-root-audit",
+            "child_stealth_status": "HIDDEN",
+            "revealed_size": "0",
+            "executed_size": "0",
+            "revealed_orders": [],
+            "active_placement_client_order_id": None,
+            "active_exchange_order_id": None,
+            "preexisting_controlled_preparation_present": False,
+            "direct_child_client_order_ids": [],
+            "nested_child_client_order_ids": [],
+        },
+        "profile_label": "Test",
+        "portfolio_id": PORTFOLIO_ID,
+        "product_id": "BTC-USDC",
+        "placement_attempt_count": 1,
+        "placement_attempt_schedule": ["child"],
+        "root_placement_maximum": 0,
+        "child_placement_maximum": 1,
+        "cancel_command_maximum": 1,
+        "root_placement_authorized": False,
+        "root_reference_cap_usdc": "9.99",
+        "root_actual_reference_notional_usdc": "1.0075796583",
+        "child_submitted_cap_usdc": "2",
+        "slice_reference_cap_usdc": "12",
+        "planned_reference_notional_usdc": "3.0075796583",
+        "conservative_reference_notional_usdc": "11.99",
+        "root_evidence": {
+            "client_order_id": R2_ROOT_ID,
+            "exchange_order_id": R2_ROOT_EXCHANGE_ID,
+            "status": "FILLED",
+            "filled_size": "0.00001583",
+            "filled_value": "1.0075796583",
+            "placement_authorized": False,
+        },
+        "child": {
+            "client_order_id": R2_CHILD_ID,
+            "parent_client_order_id": R2_ROOT_ID,
+            "approval_snapshot_id": proof_id("child-reveal-approval"),
+            "cap_guard_decision_id": proof_id("child-reveal-cap"),
+            "reconciliation_plan_id": proof_id(
+                "child-reveal-reconciliation"
+            ),
+            "order_policy": {
+                "product_id": "BTC-USDC",
+                "side": "SELL",
+                "order_type": "LIMIT",
+                "time_in_force": "GOOD_UNTIL_CANCELLED",
+                "post_only": False,
+                "base_size": "0.00001583",
+                "minimum_fresh_bid_ratio": "1.6",
+                "target_fresh_bid_ratio": "1.7",
+                "strict_max_notional_usdc": "2",
+            },
+        },
+        "child_reveal_operator_intent": (
+            "controlled_v15_test_profile_first_child_reveal"
+        ),
+        "child_cancel_operator_intent": (
+            CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT
+        ),
+        "cancel_command": {
+            "route": ROUTE,
+            "method": "POST",
+            "root_client_order_id": R2_ROOT_ID,
+            "child_client_order_id": R2_CHILD_ID,
+            "identity_key": "client_order_id",
+            "identity_value": R2_ROOT_ID,
+            "operator_intent": CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
+            "idempotency_key": proof_id("child-cancel-idempotency"),
+            "correlation_id": proof_id("child-cancel-correlation"),
+            "claim_id": proof_id("child-cancel-claim"),
+            "approval_snapshot_id": proof_id("child-cancel-approval"),
+            "admission_audit_id_source": "route_bound_runtime_proof",
+            "cap_guard_decision_id": proof_id("child-cancel-cap"),
+            "reconciliation_plan_id": proof_id(
+                "child-cancel-reconciliation"
+            ),
+            "controlled_plan_sha256_source": "plan_sha256",
+            "semantic_retry_policy": "same_idempotency_key_only",
+        },
+        "retry_authorized": False,
+        "substitution_authorized": False,
+        "later_child_authorized": False,
+        "browser_derives_child_identity": False,
+        "exchange_order_id_evidence_only": True,
+    }
+    encoded = json.dumps(
+        plan, sort_keys=True, separators=(",", ":"), ensure_ascii=True
+    ).encode("utf-8")
+    import hashlib
+
+    plan_hash = hashlib.sha256(encoded).hexdigest()
+    plan["plan_sha256"] = plan_hash
+    cancel = dict(plan["cancel_command"])
+    marker = {
+        "schema_version": "1",
+        "authority": "selected_chain_child_cancel_recovery_v15r2",
+        "approval_id": approval_id,
+        "batch_id": batch_id,
+        "plan_file": "/sealed/v15r2/plan.json",
+        "plan_sha256": plan_hash,
+        "backend_commit": backend_commit,
+        "frontend_commit": plan["frontend_commit"],
+        "runner_sha256": runner_sha256,
+        "profile_label": "Test",
+        "portfolio_id": PORTFOLIO_ID,
+        "product_id": "BTC-USDC",
+        "root_client_order_id": R2_ROOT_ID,
+        "child_client_order_id": R2_CHILD_ID,
+        "placement_attempt_maximum": 1,
+        "root_placement_maximum": 0,
+        "child_placement_maximum": 1,
+        "cancel_command_maximum": 1,
+        "placement_ledger_path": "/sealed/v15r2/placements.jsonl",
+        "cancel_ledger_path": "/sealed/v15r2/cancel.jsonl",
+        "backend_claim_log_path": "/sealed/v15r2/backend-claims.jsonl",
+        "handoff_path": "/sealed/v15r2/handoff.json",
+        "registered_at": "2099-07-13T02:01:00+00:00",
+        "process_id": 123,
+    }
+    handoff = {
+        "schema_version": "1",
+        "authority": "selected_chain_child_cancel_recovery_v15r2",
+        "plan_sha256": plan_hash,
+        "batch_id": batch_id,
+        "root_client_order_id": R2_ROOT_ID,
+        "child_client_order_id": R2_CHILD_ID,
+        "approval_snapshot_id": cancel["approval_snapshot_id"],
+        "admission_audit_id": "audit-v15",
+        "cap_guard_decision_id": cancel["cap_guard_decision_id"],
+        "reconciliation_plan_id": cancel["reconciliation_plan_id"],
+        "route": ROUTE,
+        "method": "POST",
+        "module_id": "spot_operations",
+        "identity_key": "client_order_id",
+        "identity_value": R2_ROOT_ID,
+        "action_class": "live_exchange_cancel",
+        "required_permission": "order:cancel",
+        "service_method": (
+            "cancel_order_fill_follow_up_child_by_root_client_order_id"
+        ),
+        "actor_id": "operator@example.com",
+        "operator_intent": CONTROLLED_V15_FIRST_CHILD_CANCEL_OPERATOR_INTENT,
+        "command_idempotency_key": cancel["idempotency_key"],
+        "payload_hash": "b" * 64,
+        "idempotency_key": cancel["idempotency_key"],
+        "correlation_id": cancel["correlation_id"],
+        "recorded_at": "2099-07-13T02:02:00+00:00",
+    }
+    return {
+        "plan": plan,
+        "marker": marker,
+        "handoff": handoff,
+        "source": "test_v15r2_authority",
+    }
+
+
 @pytest.mark.parametrize(
     ("field", "container"),
     [
@@ -376,6 +673,8 @@ def test_root_child_cancel_readiness_requires_explicit_zero_fill_fields(
     ("field", "value"),
     [
         ("placement_attempt_count", 3),
+        ("root_placement_maximum", 0),
+        ("placement_attempt_schedule", ["child"]),
         ("cancel_command_maximum", 2),
         ("slice_reference_cap_usdc", "30.00"),
         ("conservative_reference_notional_usdc", "12.00"),
@@ -518,6 +817,207 @@ def _admission(*, idempotency_key: str, allowed: bool = True):
         live_execution_service_present=allowed,
         detail="test admission",
     )
+
+
+def test_v15r2_recovery_plan_scope_is_strict_and_child_only():
+    authority = _recovery_plan_authority()
+    plan = authority["plan"]
+
+    validate_controlled_v15r2_recovery_plan_scope(plan)
+
+    broadened = deepcopy(plan)
+    broadened["root_placement_maximum"] = 1
+    with pytest.raises(
+        AdminRootChildCancelAuthorityError,
+        match="controlled_v15r2_plan_schema_invalid",
+    ):
+        validate_controlled_v15r2_recovery_plan_scope(broadened)
+
+    root_order_added = deepcopy(plan)
+    root_order_added["root_evidence"]["order"] = {"side": "BUY"}
+    with pytest.raises(
+        AdminRootChildCancelAuthorityError,
+        match="controlled_v15r2_plan_schema_invalid",
+    ):
+        validate_controlled_v15r2_recovery_plan_scope(root_order_added)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "extra_top_level",
+        "root_in_schedule",
+        "burned_child_sdk_call",
+        "active_local_exchange",
+        "root_fill_drift",
+        "root_cap_drift",
+    ],
+)
+def test_v15r2_recovery_plan_scope_rejects_binding_or_cap_drift(mutation):
+    plan = deepcopy(_recovery_plan_authority()["plan"])
+    if mutation == "extra_top_level":
+        plan["extra_authority"] = True
+    elif mutation == "root_in_schedule":
+        plan["placement_attempt_schedule"] = ["root", "child"]
+    elif mutation == "burned_child_sdk_call":
+        plan["v15r1_recovery_binding"]["r1_child_sdk_call_count"] = 1
+    elif mutation == "active_local_exchange":
+        plan["local_hidden_child_binding"]["active_exchange_order_id"] = (
+            R2_ROOT_EXCHANGE_ID
+        )
+    elif mutation == "root_fill_drift":
+        plan["root_evidence"]["filled_value"] = "1.01"
+    else:
+        plan["root_reference_cap_usdc"] = "10.00"
+
+    with pytest.raises(
+        AdminRootChildCancelAuthorityError,
+        match="controlled_v15r2_plan_schema_invalid",
+    ):
+        validate_controlled_v15r2_recovery_plan_scope(plan)
+
+
+def test_v15r2_authority_loader_requires_exact_marker_budgets_and_handoff(
+    tmp_path,
+    monkeypatch,
+):
+    authority = _recovery_plan_authority()
+    plan_path = tmp_path / "v15r2-plan.json"
+    marker_path = tmp_path / "v15r2-marker.json"
+    handoff_path = tmp_path / "v15r2-handoff.json"
+    marker = deepcopy(authority["marker"])
+    marker["plan_file"] = str(plan_path)
+    marker["handoff_path"] = str(handoff_path)
+
+    def write(path, value):
+        path.write_text(json.dumps(value), encoding="utf-8")
+        path.chmod(0o600)
+
+    write(plan_path, authority["plan"])
+    write(marker_path, marker)
+    write(handoff_path, authority["handoff"])
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_CONTROLLED_V15_PLAN_PATH", str(plan_path)
+    )
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_CONTROLLED_V15_PLAN_SHA256",
+        str(authority["plan"]["plan_sha256"]),
+    )
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_CONTROLLED_V15_MARKER_PATH", str(marker_path)
+    )
+    monkeypatch.setenv(
+        "COINBASE_ADMIN_API_CONTROLLED_V15_HANDOFF_PATH", str(handoff_path)
+    )
+
+    loaded = load_controlled_v15_plan_authority()
+    assert loaded["plan"] == authority["plan"]
+    assert loaded["marker"]["root_placement_maximum"] == 0
+
+    marker["root_placement_maximum"] = 1
+    write(marker_path, marker)
+    with pytest.raises(
+        AdminRootChildCancelAuthorityError,
+        match="controlled_v15_plan_marker_binding_mismatch",
+    ):
+        load_controlled_v15_plan_authority()
+
+
+def test_v15r2_readiness_uses_root_evidence_and_recovery_cap_names(
+    tmp_path,
+    monkeypatch,
+):
+    authority = _recovery_plan_authority()
+    plan = authority["plan"]
+    marker = authority["marker"]
+    plan_hash = str(plan["plan_sha256"])
+    batch_id = str(plan["batch_id"])
+    service, read_service, runtime, _rest, _claims = _service(
+        tmp_path, monkeypatch
+    )
+    service.dependencies.controlled_v15_plan_authority_getter = (
+        lambda: authority
+    )
+    monkeypatch.setattr(
+        "application.admin_api.command_service."
+        "_root_child_cancel_route_proof_chain_matches",
+        lambda *_args, **_kwargs: True,
+    )
+    child = SimpleNamespace(
+        client_order_id=R2_CHILD_ID,
+        parent_order_id=R2_ROOT_ID,
+        product_id="BTC-USDC",
+        side="SELL",
+        status="OPEN",
+        ownership_provenance="ADMIN_FILL_FOLLOW_UP",
+        retail_portfolio_id=PORTFOLIO_ID,
+    )
+    read_service.chain.root_parent_client_order_id = R2_ROOT_ID
+    read_service.chain.root_order.client_order_id = R2_ROOT_ID
+    read_service.chain.follow_up_children = [child]
+    read_service.chain.follow_up_child_client_order_ids = [R2_CHILD_ID]
+    read_service.chain.portfolio_scope.child_portfolio_ids = {
+        R2_CHILD_ID: PORTFOLIO_ID
+    }
+    read_service.detail.order.stealth_order_id = R2_CHILD_ID
+    read_service.detail.order.parent_stealth_order_id = R2_ROOT_ID
+    read_service.detail.order.active_placement_client_order_id = R2_CHILD_ID
+    preparation = read_service.detail.order.anchor_repricing_state[
+        "controlled_admin_first_child_reveal_preparation"
+    ]
+    preparation.update(
+        {
+            "batch_id": batch_id,
+            "controlled_plan_sha256": plan_hash,
+            "root_client_order_id": R2_ROOT_ID,
+            "stealth_order_id": R2_CHILD_ID,
+        }
+    )
+    read_service.build_order_fill_follow_up_chain = (
+        lambda **_kwargs: read_service.chain
+    )
+    read_service.build_stealth_order_detail = (
+        lambda **_kwargs: read_service.detail
+    )
+    runtime.read_controlled_first_child.return_value = {
+        **runtime.read_controlled_first_child.return_value,
+        "stealth_order_id": R2_CHILD_ID,
+        "root_client_order_id": R2_ROOT_ID,
+        "active_placement_client_order_id": R2_CHILD_ID,
+        "controlled_plan_sha256": plan_hash,
+    }
+    monkeypatch.setattr(
+        "application.admin_api.command_service.exact_coinbase_order_readback",
+        lambda *_args, **_kwargs: {
+            **_exchange_readback(),
+            "exchange_order_id": EXCHANGE_ID,
+            "matched_order": {
+                **_exchange_readback()["matched_order"],
+                "client_order_id": R2_CHILD_ID,
+                "base_size": "0.00001583",
+            },
+        },
+    )
+
+    readiness = service.build_order_fill_follow_up_child_cancel_readiness(
+        root_client_order_id=R2_ROOT_ID,
+        controlled_plan_sha256=plan_hash,
+    )
+
+    assert readiness.ready is True
+    assert readiness.root_client_order_id == R2_ROOT_ID
+    assert readiness.child_client_order_id == R2_CHILD_ID
+    assert readiness.root_reference_notional_usdc == "1.0075796583"
+    assert readiness.child_reference_notional_usdc == "1.6585564317"
+    assert readiness.aggregate_reference_notional_usdc == "2.6661360900"
+    assert readiness.child_reference_reserve_usdc == "2"
+    assert readiness.planned_aggregate_reference_notional_usdc == (
+        "3.0075796583"
+    )
+    assert readiness.root_notional_cap_usdc == "9.99"
+    assert readiness.child_notional_cap_usdc == "2"
+    assert readiness.aggregate_notional_cap_usdc == "12"
+    assert marker["root_placement_maximum"] == 0
 
 
 def _command(*, idempotency_key: str = "idem-v15-cancel", allowed: bool = True):

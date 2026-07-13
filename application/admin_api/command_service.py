@@ -110,9 +110,11 @@ from .models import (
 from .root_child_cancel import (
     AdminRootChildCancelClaimRecord,
     FileAdminRootChildCancelClaimStore,
+    controlled_child_cancel_root_scope,
+    is_controlled_v15r2_recovery_plan,
     load_controlled_v15_plan_authority,
     root_child_cancel_semantic_key,
-    validate_controlled_v15_plan_scope,
+    validate_controlled_child_cancel_plan_scope,
 )
 from .spot_portfolio_binding import (
     DEFAULT_SPOT_PORTFOLIO_LABEL,
@@ -5315,7 +5317,7 @@ class AdminApiCommandService:
                 )
                 authority_source = str(authority.get("source") or "") or None
                 try:
-                    validate_controlled_v15_plan_scope(plan)
+                    validate_controlled_child_cancel_plan_scope(plan)
                 except Exception:
                     blockers.append("controlled_v15_plan_schema_invalid")
                 route_proof_chain_resolved = (
@@ -5329,10 +5331,8 @@ class AdminApiCommandService:
                 f"controlled_v15_plan_authority_unavailable:"
                 f"{type(exc).__name__}"
             )
-        root_authority = plan.get("root")
-        root_authority = (
-            root_authority if isinstance(root_authority, Mapping) else {}
-        )
+        root_authority = controlled_child_cancel_root_scope(plan)
+        recovery_plan = is_controlled_v15r2_recovery_plan(plan)
         child_authority = plan.get("child")
         child_authority = (
             child_authority if isinstance(child_authority, Mapping) else {}
@@ -5344,16 +5344,31 @@ class AdminApiCommandService:
         authority_plan_sha256 = str(plan.get("plan_sha256") or "")
         plan_expires_at = str(plan.get("expires_at") or "") or None
         root_reference_notional_usdc = str(
-            plan.get("root_reference_notional_usdc") or ""
+            plan.get(
+                "root_actual_reference_notional_usdc"
+                if recovery_plan
+                else "root_reference_notional_usdc"
+            )
+            or ""
         ) or None
         child_reference_reserve_usdc = str(
-            plan.get("child_reference_reserve_usdc") or ""
+            plan.get(
+                "child_submitted_cap_usdc"
+                if recovery_plan
+                else "child_reference_reserve_usdc"
+            )
+            or ""
         ) or None
         planned_aggregate_reference_notional_usdc = str(
             plan.get("planned_reference_notional_usdc") or ""
         ) or None
         root_notional_cap_usdc = str(
-            plan.get("root_submitted_cap_usdc") or ""
+            plan.get(
+                "root_reference_cap_usdc"
+                if recovery_plan
+                else "root_submitted_cap_usdc"
+            )
+            or ""
         ) or None
         child_notional_cap_usdc = str(
             plan.get("child_submitted_cap_usdc") or ""
@@ -5808,7 +5823,7 @@ class AdminApiCommandService:
             plan = authority["plan"]
             marker = authority["marker"]
             handoff = authority["handoff"]
-            validate_controlled_v15_plan_scope(plan)
+            validate_controlled_child_cancel_plan_scope(plan)
             expires_at = datetime.fromisoformat(str(plan["expires_at"]))
             registered_at = datetime.fromisoformat(
                 str(marker["registered_at"])
